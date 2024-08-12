@@ -181,42 +181,50 @@ impl Display for LearnerSummary {
             }
         }
 
-        let mut write_metrics_summary = |metrics: &[MetricSummary],
-                                         split: &str|
-         -> std::fmt::Result {
-            for metric in metrics.iter() {
-                if metric.entries.is_empty() {
-                    continue; // skip metrics with no recorded values
+        fn fmt_val(val: f64) -> String {
+            if val < 1e-2 {
+                // Use scientific notation for small values which would otherwise be truncated
+                format!("{:<9.3e}", val)
+            } else {
+                format!("{:<9.3}", val)
+            }
+        }
+
+        let mut write_metrics_summary =
+            |metrics: &[MetricSummary], split: &str| -> std::fmt::Result {
+                for metric in metrics.iter() {
+                    if metric.entries.is_empty() {
+                        continue; // skip metrics with no recorded values
+                    }
+
+                    // Compute the min & max for each metric
+                    let metric_min = metric
+                        .entries
+                        .iter()
+                        .min_by(|a, b| cmp_f64(&a.value, &b.value))
+                        .unwrap();
+                    let metric_max = metric
+                        .entries
+                        .iter()
+                        .max_by(|a, b| cmp_f64(&a.value, &b.value))
+                        .unwrap();
+
+                    writeln!(
+                        f,
+                        "| {:<width_split$} | {:<width_metric$} | {}| {:<9?}| {}| {:<9?}|",
+                        split,
+                        metric.name,
+                        fmt_val(metric_min.value),
+                        metric_min.step,
+                        fmt_val(metric_max.value),
+                        metric_max.step,
+                        width_split = max_split_len,
+                        width_metric = max_metric_len,
+                    )?;
                 }
 
-                // Compute the min & max for each metric
-                let metric_min = metric
-                    .entries
-                    .iter()
-                    .min_by(|a, b| cmp_f64(&a.value, &b.value))
-                    .unwrap();
-                let metric_max = metric
-                    .entries
-                    .iter()
-                    .max_by(|a, b| cmp_f64(&a.value, &b.value))
-                    .unwrap();
-
-                writeln!(
-                    f,
-                    "| {:<width_split$} | {:<width_metric$} | {:<9.3?}| {:<9?}| {:<9.3?}| {:<9.3?}|",
-                    split,
-                    metric.name,
-                    metric_min.value,
-                    metric_min.step,
-                    metric_max.value,
-                    metric_max.step,
-                    width_split = max_split_len,
-                    width_metric = max_metric_len,
-                )?;
-            }
-
-            Ok(())
-        };
+                Ok(())
+            };
 
         write_metrics_summary(&self.metrics.train, split_train)?;
         write_metrics_summary(&self.metrics.valid, split_valid)?;

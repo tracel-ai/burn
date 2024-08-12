@@ -168,6 +168,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Embedding`     | `nn.Embedding`                                |
 | `Gelu`          | `nn.Gelu`                                     |
 | `GroupNorm`     | `nn.GroupNorm`                                |
+| `HardSigmoid`   | `nn.Hardsigmoid`                              |
 | `InstanceNorm`  | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`     | `nn.LayerNorm`                                |
 | `LeakyRelu`     | `nn.LeakyReLU`                                |

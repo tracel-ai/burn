@@ -39,6 +39,7 @@ mod tests {
     burn_tensor::testgen_relu!();
     burn_tensor::testgen_softmax!();
     burn_tensor::testgen_sigmoid!();
+    burn_tensor::testgen_hard_sigmoid!();
     burn_tensor::testgen_silu!();
 
     // test module
@@ -87,6 +88,7 @@ mod tests {
     burn_tensor::testgen_flip!();
     burn_tensor::testgen_argwhere_nonzero!();
     burn_tensor::testgen_sign!();
+    burn_tensor::testgen_nan!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //

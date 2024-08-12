@@ -158,7 +158,7 @@ Hardware specific features 🔥
 It is no secret that deep learning is mosly relying on matrix multiplication as its core operation,
 since this is how fully-connected neural networks are modeled.
 
-More and more, hardware manufacturers optimize their chips specifically for matrix mutiliplication
+More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
 workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
 chips. As of this moment, we support Tensor Cores with our LibTorch and Candle backends, but not
 other accelerators yet. We hope [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets
@@ -545,7 +545,6 @@ Additional examples:
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
   [`Learner`](./building-blocks/learner.md) progress.
-- [Simple CubeCL Kernel](./examples/gelu) : Implements a simple GELU kernel with `CubeCL`.
 - [Image Classification Web](./examples/image-classification-web) : Image classification web browser
   demo using Burn, WGPU and WebAssembly.
 - [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
@@ -651,7 +650,7 @@ soon as you have saved the record again it will be saved according to the new st
 won't need the backward compatible feature flag anymore.
 
 Please note that binary formats are not backward compatible. Thus, you will need to load your record
-in a previous version and save it any of the other self-describing record format (e.g., using the
+in a previous version and save it in any of the other self-describing record format (e.g., using the
 `NamedMpkFileRecorder`) before using the new version with the `record-backward-compat` feature flag.
 
 </details>

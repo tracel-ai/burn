@@ -1,6 +1,6 @@
 use cubecl::{
-    cpa, frontend::TensorHandleRef, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
-    Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+    cpa, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings, Execution, InputInfo,
+    KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -266,17 +266,9 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Custom(grid));
 
     output

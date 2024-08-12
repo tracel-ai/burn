@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::stub::Mutex;
+use burn_common::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -1021,13 +1021,13 @@ where
             acc.push(' ');
         }
     }
-
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
         depth: usize,
         multi_index: &mut [usize],
         range: (usize, usize),
+        precision: Option<usize>,
     ) {
         let (start, end) = range;
         for i in start..end {
@@ -1043,7 +1043,10 @@ where
 
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
-                acc.push_str(&format!("{elem:?}"));
+                match (precision, K::name()) {
+                    (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    _ => acc.push_str(&format!("{:?}", elem)),
+                }
             } else {
                 acc.push_str("<Tensor data not available>");
             }
@@ -1102,7 +1105,13 @@ where
             // if we are at the innermost dimension, just push its elements into the accumulator
             if summarize && self.dims()[depth] > 2 * edge_items {
                 // print the starting `edge_items` elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, edge_items));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, edge_items),
+                    print_options.precision,
+                );
                 acc.push_str(", ...");
                 // print the last `edge_items` elements
                 self.fmt_inner_tensor(
@@ -1110,10 +1119,17 @@ where
                     depth,
                     multi_index,
                     (self.dims()[depth] - edge_items, self.dims()[depth]),
+                    print_options.precision,
                 );
             } else {
                 // print all the elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, self.dims()[depth]));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, self.dims()[depth]),
+                    print_options.precision,
+                );
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
@@ -1158,29 +1174,42 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 /// Options for Tensor pretty printing
 pub struct PrintOptions {
     /// number of elements to start summarizing tensor
     pub threshold: usize,
+
     /// number of starting elements and ending elements to display
     pub edge_items: usize,
+
+    /// Precision for floating point numbers
+    pub precision: Option<usize>,
 }
 
-static PRINT_OPTS: Mutex<PrintOptions> = Mutex::new(PrintOptions::const_default());
+static PRINT_OPTS: RwLock<PrintOptions> = RwLock::new(PrintOptions::const_default());
 
 impl PrintOptions {
-    // We cannot use the default trait as it's not const.
-    const fn const_default() -> Self {
+    /// Print options with default values
+    pub const fn const_default() -> Self {
         Self {
             threshold: 1000,
             edge_items: 3,
+            precision: None,
         }
+    }
+}
+
+impl Default for PrintOptions {
+    fn default() -> Self {
+        Self::const_default()
     }
 }
 
 /// Set print options
 pub fn set_print_options(options: PrintOptions) {
-    *PRINT_OPTS.lock().unwrap() = options
+    let mut print_opts = PRINT_OPTS.write().unwrap();
+    *print_opts = options;
 }
 
 /// Pretty print tensors
@@ -1195,7 +1224,15 @@ where
         writeln!(f, "Tensor {{")?;
 
         {
-            let po = PRINT_OPTS.lock().unwrap();
+            // Do not lock the mutex for the whole function
+            let mut po = { PRINT_OPTS.read().unwrap().clone() };
+
+            // Override the precision if it is set from the formatter
+            // This will be possible when the tensor is printed using the `{:.*}` syntax
+            if let Some(precision) = f.precision() {
+                po.precision = Some(precision);
+            }
+
             let mut acc = String::new();
             let mut multi_index = vec![0; D];
             let summarize = self.shape().num_elements() > po.threshold;

@@ -2,7 +2,6 @@ use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use burn_tensor::ElementConversion;
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
@@ -136,11 +135,8 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const 
 
     let kernel = SliceAssignEagerKernel::<R, E>::new(D1);
 
-    Execution::start(kernel, value.client)
-        .inputs(&[
-            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
-        ])
+    Execution::start(kernel, value.client.clone())
+        .inputs(&[tensor.as_handle_ref(), value.as_handle_ref()])
         .with_scalars(&scalars)
         .execute(CubeCountSettings::Input { pos: 0 });
 

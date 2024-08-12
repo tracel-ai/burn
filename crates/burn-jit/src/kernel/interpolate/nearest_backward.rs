@@ -1,6 +1,5 @@
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -225,17 +224,9 @@ pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R, E, 4> {
     let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
 
-    Execution::start(kernel, out_grad.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &out_grad.handle,
-            &out_grad.strides,
-            &out_grad.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, out_grad.client.clone())
+        .inputs(&[out_grad.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

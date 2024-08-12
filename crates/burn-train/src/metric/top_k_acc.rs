@@ -74,14 +74,14 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
         };
 
         let accuracy = targets
-                    .reshape([batch_size, 1])
-                    .repeat_dim(1, self.k)
-                    .equal(outputs)
-                    .int()
-                    .sum()
-                    .into_scalar()
-                    .elem::<f64>()
-                    / (batch_size as f64 - num_pad);
+            .reshape([batch_size, 1])
+            .repeat_dim(1, self.k)
+            .equal(outputs)
+            .int()
+            .sum()
+            .into_scalar()
+            .elem::<f64>()
+            / (batch_size as f64 - num_pad);
 
         self.state.update(
             100.0 * accuracy,
