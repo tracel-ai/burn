@@ -54,7 +54,6 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
 
         let targets = input.targets.clone().to_device(&B::Device::default());
 
-
         let outputs = input
             .outputs
             .clone()

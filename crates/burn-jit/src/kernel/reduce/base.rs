@@ -89,33 +89,6 @@ macro_rules! reduce_operation {
     };
 }
 
-// macro_rules! reduce_operation_int_output {
-//     ($name:ident, $ops:ident) => {
-//         pub(crate) struct $ops;
-//         impl<EI: JitElement, EO: IntElement> ReduceDimAlgorithm<EI, EO> for $ops {}
-//
-//         /// Executes the reduce operation with the given strategy.
-//         pub fn $name<R: JitRuntime, EI: JitElement, EO: IntElement, const D: usize>(
-//             tensor: JitTensor<R, EI, D>,
-//             dim: usize,
-//             strategy: ReduceStrategy,
-//         ) -> JitTensor<R, EO, D> {
-//             match strategy {
-//                 ReduceStrategy::Naive => {
-//                     let output = init_reduce_output(&tensor, dim);
-//                     reduce_dim_naive::<$ops, R, EI, EO, D>(tensor, output, dim)
-//                 }
-//                 ReduceStrategy::SharedMemory => {
-//                     let output = init_reduce_output(&tensor, dim);
-//                     reduce_dim_shared::<$ops, R, EI, EO, D>(tensor, output, dim)
-//                 }
-//                 #[cfg(feature = "autotune")]
-//                 ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim),
-//             }
-//         }
-//     };
-// }
-
 // Autotunable reduce operation variants
 reduce_operation!(sum_dim, SumDim);
 reduce_operation!(mean_dim, MeanDim);
