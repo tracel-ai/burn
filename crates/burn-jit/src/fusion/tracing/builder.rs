@@ -117,6 +117,7 @@ impl TraceBuilder {
                 self.scalars.num_int += 1;
                 var
             }
+
             Elem::UInt => {
                 let var = self
                     .scope
@@ -129,6 +130,20 @@ impl TraceBuilder {
                     .scope
                     .read_scalar(self.scalars.num_bool as u16, elem_type);
                 self.scalars.num_bool += 1;
+                var
+            }
+            Elem::AtomicInt(_) => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_atomic_int as u16, elem_type);
+                self.scalars.num_atomic_int += 1;
+                var
+            }
+            Elem::AtomicUInt => {
+                let var = self
+                    .scope
+                    .read_scalar(self.scalars.num_atomic_uint as u16, elem_type);
+                self.scalars.num_atomic_uint += 1;
                 var
             }
         }
@@ -398,6 +413,67 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Operator::Remainder(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::Bitcast(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicLoad(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicStore(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicSwap(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicCompareAndSwap(op) => {
+                        mark(&op.input, &mut local_tensor_ids_input);
+                        mark(&op.cmp, &mut local_tensor_ids_input);
+                        mark(&op.val, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    Operator::AtomicAdd(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicSub(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicMax(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicMin(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicAnd(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicOr(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicXor(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,

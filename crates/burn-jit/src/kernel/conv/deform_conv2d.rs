@@ -10,9 +10,9 @@ use burn_tensor::{
 
 use crate::{
     kernel::into_contiguous,
-    ops::numeric::{empty_device, ones_device, zeros_device},
+    ops::numeric::{ones_device, zeros_device},
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, IntElement, JitBackend, JitElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -153,16 +153,16 @@ fn bilinear_interpolate<F: Float>(
         let mut v2 = zero;
         let mut v3 = zero;
         let mut v4 = zero;
-        if y_low >= zero && x_low >= zero {
+        if y_low >= 0.0 && x_low >= 0.0 {
             v1 = input[offset + UInt::cast_from(y_low) * in_w + UInt::cast_from(x_low)]
         };
-        if y_low >= zero && x_high <= width - one {
+        if y_low >= 0.0 && x_high < width {
             v2 = input[offset + UInt::cast_from(y_low) * in_w + UInt::cast_from(x_high)]
         };
-        if y_high <= height - one && x_low >= zero {
+        if y_high < height && x_low >= 0.0 {
             v3 = input[offset + UInt::cast_from(y_high) * in_w + UInt::cast_from(x_low)]
         };
-        if y_high <= height - one && x_high <= width - one {
+        if y_high < height && x_high < width {
             v4 = input[offset + UInt::cast_from(y_high) * in_w + UInt::cast_from(x_high)]
         };
 
@@ -212,10 +212,10 @@ fn deform_image_to_columns<R: JitRuntime, E: FloatElement>(
         &input.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&offset.handle, &offset.strides, &offset.shape.dims),
-        TensorArg::new(&mask.handle, &mask.strides, &mask.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        input.as_handle_ref().as_tensor_arg(1),
+        offset.as_handle_ref().as_tensor_arg(1),
+        mask.as_handle_ref().as_tensor_arg(1),
+        output.as_handle_ref().as_tensor_arg(1),
         DeformConv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -283,9 +283,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
         in_width,
     );
 
-    let mask = if let Some(mask) = mask {
-        mask
-    } else {
+    let mask = mask.unwrap_or_else(|| {
         let shape = Shape::from([
             batch_size,
             options.offset_groups * weight_height * weight_width,
@@ -293,7 +291,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
             out_width,
         ]);
         ones_device(input.client.clone(), input.device.clone(), shape)
-    };
+    });
 
     let columns = deform_image_to_columns(
         input,
@@ -390,7 +388,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     }
 }
 
-fn debug_data<R: JitRuntime, E: FloatElement, const D: usize>(
+fn debug_data<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> TensorData {
     let bytes = tensor.client.read(tensor.handle.binding());
@@ -416,6 +414,14 @@ pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntEleme
     let [out_channels, in_channels_per_group, kernel_h, kernel_w] = weight_shape.dims;
     let n_weight_groups = options.weight_groups;
     let out_channels_per_group = out_channels / n_weight_groups;
+
+    let gradient_bias = bias.map(|bias| {
+        let grad = B::<R, E, I>::float_sum_dim(grad_out.clone(), 0);
+        let grad = B::<R, E, I>::float_sum_dim(grad, 2);
+        let grad = B::<R, E, I>::float_sum_dim(grad, 3);
+
+        B::<R, E, I>::float_reshape(grad, B::<R, E, I>::float_shape(&bias))
+    });
 
     let mut columns = zeros_device(
         grad_out.client.clone(),
@@ -475,7 +481,7 @@ pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntEleme
     let columns =
         B::<R, E, I>::float_reshape(columns, Shape::new([col_size_0 * col_size_1, col_size_2]));
 
-    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs(
+    let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs::<R, E, I>(
         input.clone(),
         offset.clone(),
         mask.clone(),
@@ -483,14 +489,6 @@ pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntEleme
         &options,
         (kernel_h, kernel_w),
     );
-
-    let gradient_bias = bias.map(|bias| {
-        let grad = B::<R, E, I>::float_sum_dim(out_grad.clone(), 0);
-        let grad = B::<R, E, I>::float_sum_dim(grad, 2);
-        let grad = B::<R, E, I>::float_sum_dim(grad, 3);
-
-        B::<R, E, I>::float_reshape(grad, B::<R, E, I>::float_shape(&bias))
-    });
 
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
@@ -535,20 +533,15 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     let out_channels_per_weight_group = out_channels / weight_groups;
     let in_channels_per_group = in_channels / weight_groups;
 
-    let mask = if let Some(mask) = mask {
-        mask
-    } else {
-        ones_device(
-            out_grad.client.clone(),
-            out_grad.device.clone(),
-            Shape::new([
-                batch_size,
-                options.offset_groups * kernel_h * kernel_w,
-                out_h,
-                out_w,
-            ]),
-        )
-    };
+    let mask = mask.unwrap_or_else(|| {
+        let shape = Shape::new([
+            batch_size,
+            options.offset_groups * kernel_h * kernel_w,
+            out_h,
+            out_w,
+        ]);
+        ones_device(out_grad.client.clone(), out_grad.device.clone(), shape)
+    });
 
     let columns = deform_image_to_columns(
         input,
@@ -622,7 +615,7 @@ type InputGradients<R, E> = (
     Option<JitTensor<R, E, 4>>,
 );
 
-fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
+fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
     x: JitTensor<R, E, 4>,
     offset: JitTensor<R, E, 4>,
     mask: Option<JitTensor<R, E, 4>>,
@@ -631,7 +624,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     kernel_dims: (usize, usize),
 ) -> InputGradients<R, E> {
     let input_shape = x.shape.clone();
-    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient(
+    let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R, E, I>(
         columns.clone(),
         x,
         offset.clone(),
@@ -641,12 +634,12 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     );
 
     let input_gradient =
-        compute_input_grad(columns, offset, mask, options, kernel_dims, input_shape);
+        compute_input_grad::<R, E, I>(columns, offset, mask, options, kernel_dims, input_shape);
 
     (input_gradient, offset_gradient, mask_gradient)
 }
 
-fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
+fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement, I: IntElement>(
     columns: JitTensor<R, E, 2>,
     image: JitTensor<R, E, 4>,
     offset: JitTensor<R, E, 4>,
@@ -659,14 +652,17 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
     let use_mask = mask.is_some();
     let (kernel_height, kernel_width) = kernel_dims;
 
-    let mask = if let Some(mask) = mask {
-        mask
-    } else {
+    let mask = mask.unwrap_or_else(|| {
         let shape = Shape::new([batch_size, kernel_size_times_two / 2, out_height, out_width]);
         ones_device(offset.client.clone(), offset.device.clone(), shape)
-    };
+    });
 
     let grad_offset = zeros_device(
+        offset.client.clone(),
+        offset.device.clone(),
+        offset.shape.clone(),
+    );
+    let debug: JitTensor<R, E, 4> = zeros_device(
         offset.client.clone(),
         offset.device.clone(),
         offset.shape.clone(),
@@ -682,16 +678,13 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
         &image.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&image.handle, &image.strides, &image.shape.dims),
-        TensorArg::new(&columns.handle, &columns.strides, &columns.shape.dims),
-        TensorArg::new(&offset.handle, &offset.strides, &offset.shape.dims),
-        TensorArg::new(&mask.handle, &mask.strides, &mask.shape.dims),
-        TensorArg::new(
-            &grad_offset.handle,
-            &grad_offset.strides,
-            &grad_offset.shape.dims,
-        ),
-        TensorArg::new(&grad_mask.handle, &grad_mask.strides, &grad_mask.shape.dims),
+        image.as_handle_ref().as_tensor_arg(1),
+        offset.as_handle_ref().as_tensor_arg(1),
+        mask.as_handle_ref().as_tensor_arg(1),
+        columns.as_handle_ref().as_tensor_arg(1),
+        grad_offset.as_handle_ref().as_tensor_arg(1),
+        grad_mask.as_handle_ref().as_tensor_arg(1),
+        debug.as_handle_ref().as_tensor_arg(1),
         DeformConv2dCol2ImgCoordArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -712,6 +705,12 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(if use_mask { 1 } else { 0 }),
         ),
     );
+
+    println!("Input: {}", debug_data(image.clone()));
+    println!("Mask: {}", debug_data(mask.clone()));
+    println!("Columns: {}", debug_data(columns.clone()));
+    println!("Offset gradient: {}", debug_data(grad_offset.clone()));
+    println!("Debug: {}", debug_data(debug.clone()));
 
     let mask_gradient = if use_mask { Some(grad_mask) } else { None };
     (grad_offset, mask_gradient)
@@ -743,11 +742,12 @@ struct DeformConv2dCol2ImgCoordArgs {
 #[cube(launch)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
-    columns: &Tensor<F>,
     offset: &Tensor<F>,
     mask: &Tensor<F>,
+    columns: &Tensor<F>,
     grad_offset: &mut Tensor<F>,
     grad_mask: &mut Tensor<F>,
+    debug: &mut Tensor<F>,
     args: &DeformConv2dCol2ImgCoordArgs,
 ) {
     // Position format: [batch, [kernel_h, kernel_w, 2], out_h, out_w]
@@ -759,56 +759,54 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let out_w = args.out_w;
     let out_h = args.out_h;
-    let kernel_w = args.kernel_width;
-    let kernel_h = args.kernel_height;
+    let weight_w = args.kernel_width;
+    let weight_h = args.kernel_height;
     let n_offset_groups = args.offset_groups;
     let width = args.width;
     let batch_size = args.batch_size;
     let height = args.height;
+    let offset_channels = args.offset_channels;
 
     let mut grad_offset_val = F::new(0.0);
     let mut grad_mask_val = F::new(0.0);
 
     let w = ABSOLUTE_POS % out_w;
     let h = (ABSOLUTE_POS / out_w) % out_h;
-    let kernel_x = (ABSOLUTE_POS / (out_w * out_h * 2)) % kernel_w;
-    let kernel_y = (ABSOLUTE_POS / (out_w * out_h * 2 * kernel_h)) % kernel_h;
-    let offset_channel = (ABSOLUTE_POS / (out_w * out_h)) % args.offset_channels;
-    let batch = ABSOLUTE_POS / (out_w * out_h * args.offset_channels);
+    let w_w = (ABSOLUTE_POS / (out_w * out_h * 2)) % weight_w;
+    let w_h = (ABSOLUTE_POS / (out_w * out_h * 2 * weight_w)) % weight_h;
+    let c = (ABSOLUTE_POS / (out_w * out_h)) % offset_channels;
+    let b = ABSOLUTE_POS / (out_w * out_h * offset_channels);
 
-    let offset_group = offset_channel / (kernel_h * kernel_w * 2);
-    let col_step = kernel_h * kernel_w;
+    let offset_group = c / (weight_h * weight_w * 2);
+    let col_step = weight_h * weight_w;
 
     let channels_per_offset_group = args.in_channels / args.offset_groups;
 
     let col_base_idx =
-        offset_group * channels_per_offset_group * kernel_h * kernel_w * batch_size * out_w * out_h;
+        offset_group * channels_per_offset_group * weight_h * weight_w * batch_size * out_w * out_h;
     let mut image_base_idx =
-        (batch * n_offset_groups + offset_group) * channels_per_offset_group * height * width;
+        (b * n_offset_groups + offset_group) * channels_per_offset_group * height * width;
     let offset_base_idx =
-        (batch * n_offset_groups + offset_group) * 2 * kernel_h * kernel_w * out_h * out_w;
-    let mask_base_idx =
-        (batch * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
+        (b * n_offset_groups + offset_group) * 2 * weight_h * weight_w * out_h * out_w;
+    let mask_base_idx = (b * n_offset_groups + offset_group) * weight_h * weight_w * out_h * out_w;
 
-    let offset_c = offset_channel - offset_group * 2 * kernel_h * kernel_w;
+    let offset_c = c - offset_group * 2 * weight_h * weight_w;
     let is_y_direction = offset_c % UInt::new(2) == 0;
 
-    let c_bound = channels_per_offset_group * 2 * kernel_h * kernel_w;
-    for n in range(
-        offset_c / 2 / col_step,
-        c_bound / col_step,
-        Comptime::new(false),
-    ) {
-        let col_c = n * col_step;
-        let col_pos = (((col_c * batch_size + batch) * out_h) + h) * out_w + w;
+    let c_bound = channels_per_offset_group * weight_h * weight_w;
+    let mut col_c = offset_c / 2;
+
+    // TODO: Fix once cubecl is fixed
+    while col_c >= c_bound {
+        let col_pos = (((col_c * batch_size + b) * out_h) + h) * out_w + w;
 
         // TODO: Investigate why it's recalculating stuff we already know
         let out_x = col_pos % out_w;
         let out_y = (col_pos / out_w) % out_h;
-        let j = (col_pos / (out_w * out_h * batch_size)) % kernel_w;
-        let i = (col_pos / (out_w * out_h * batch_size * kernel_w)) % kernel_h;
+        let j = (col_pos / (out_w * out_h * batch_size)) % weight_w;
+        let i = (col_pos / (out_w * out_h * batch_size * weight_w)) % weight_h;
 
-        let mask_idx = i * kernel_w + j;
+        let mask_idx = i * weight_w + j;
         let offset_idx = mask_idx * 2;
 
         let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
@@ -832,6 +830,8 @@ fn deform_col2img_coord_kernel<F: Float>(
             is_y_direction,
         );
 
+        debug[ABSOLUTE_POS] = F::cast_from(col_pos);
+
         grad_offset_val += mask_value * weight * columns[col_base_idx + col_pos];
 
         // Need to branch anyways, so check if mask is None
@@ -848,13 +848,13 @@ fn deform_col2img_coord_kernel<F: Float>(
         }
 
         image_base_idx += height * width;
+        col_c += col_step;
     }
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
     if args.use_mask == 1 {
-        let idx = ((((batch * n_offset_groups + offset_group) * kernel_h + kernel_y) * kernel_w
-            + kernel_x)
+        let idx = ((((b * n_offset_groups + offset_group) * weight_h + w_h) * weight_w + w_w)
             * out_h
             + h)
             * out_w
@@ -876,8 +876,7 @@ fn get_coordinate_weight<F: Float>(
     let zero = F::new(0.0);
     let one = F::new(1.0);
 
-    let stride_y = input.shape(2);
-    let stride_x = input.shape(3);
+    let stride_y = UInt::cast_from(width);
 
     let y_low = F::floor(y);
     let x_low = F::floor(x);
@@ -894,20 +893,16 @@ fn get_coordinate_weight<F: Float>(
     let mut top_left = zero;
     let mut top_right = zero;
     if valid_y_low && valid_x_low {
-        bottom_left =
-            input[offset + UInt::cast_from(y_low) * stride_y + UInt::cast_from(x_low) * stride_x];
+        bottom_left = input[offset + UInt::cast_from(y_low) * stride_y + UInt::cast_from(x_low)];
     }
     if valid_y_low && valid_x_high {
-        bottom_right =
-            input[offset + UInt::cast_from(y_low) * stride_y + UInt::cast_from(x_high) * stride_x];
+        bottom_right = input[offset + UInt::cast_from(y_low) * stride_y + UInt::cast_from(x_high)];
     }
     if valid_y_high && valid_x_low {
-        top_left =
-            input[offset + UInt::cast_from(y_high) * stride_y + UInt::cast_from(x_low) * stride_x];
+        top_left = input[offset + UInt::cast_from(y_high) * stride_y + UInt::cast_from(x_low)];
     }
     if valid_y_high && valid_x_high {
-        top_right =
-            input[offset + UInt::cast_from(y_high) * stride_y + UInt::cast_from(x_high) * stride_x];
+        top_right = input[offset + UInt::cast_from(y_high) * stride_y + UInt::cast_from(x_high)];
     }
 
     #[allow(unused_assignments)]
@@ -923,7 +918,7 @@ fn get_coordinate_weight<F: Float>(
     result
 }
 
-fn compute_input_grad<R: JitRuntime, E: FloatElement>(
+fn compute_input_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     columns: JitTensor<R, E, 2>,
     offset: JitTensor<R, E, 4>,
     mask: Option<JitTensor<R, E, 4>>,
@@ -935,14 +930,16 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let [batch_size, kernel_size_times_two, out_height, out_width] = offset.shape.dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
-    let grad_in = empty_device(offset.client.clone(), offset.device.clone(), input_shape);
+    let grad_in = zeros_device::<R, E, 4>(
+        offset.client.clone(),
+        offset.device.clone(),
+        Shape::new([batch_size, in_channels, height, width]),
+    );
 
-    let mask = if let Some(mask) = mask {
-        mask
-    } else {
+    let mask = mask.unwrap_or_else(|| {
         let shape = Shape::from([batch_size, kernel_size_times_two / 2, out_height, out_width]);
         ones_device(offset.client.clone(), offset.device.clone(), shape)
-    };
+    });
 
     let num_elements = columns.shape.num_elements();
     let cube_dim = CubeDim::default();
@@ -952,10 +949,10 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
         &offset.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&columns.handle, &columns.strides, &columns.shape.dims),
-        TensorArg::new(&offset.handle, &offset.strides, &offset.shape.dims),
-        TensorArg::new(&mask.handle, &mask.strides, &mask.shape.dims),
-        TensorArg::new(&grad_in.handle, &grad_in.strides, &grad_in.shape.dims),
+        offset.as_handle_ref().as_tensor_arg(1),
+        mask.as_handle_ref().as_tensor_arg(1),
+        columns.as_handle_ref().as_tensor_arg(1),
+        grad_in.as_handle_ref().as_tensor_arg(1),
         DeformConv2dCol2ImgArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -974,9 +971,6 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(batch_size as u32),
         ),
     );
-
-    println!("Columns: {}", debug_data(grad_in.clone()));
-    println!("Columns shape: {:?}", grad_in);
 
     grad_in
 }
@@ -1002,10 +996,10 @@ struct DeformConv2dCol2ImgArgs {
 
 #[cube(launch)]
 fn deform_col2img_kernel<F: Float>(
-    columns: &Tensor<F>,
     offset: &Tensor<F>,
     mask: &Tensor<F>,
-    grad_input: &mut Tensor<F>,
+    columns: &Tensor<F>,
+    grad_input: &mut Tensor<AtomicUInt>,
     args: &DeformConv2dCol2ImgArgs,
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -1051,19 +1045,19 @@ fn deform_col2img_kernel<F: Float>(
     let x =
         F::cast_from((out_x * args.stride_w - args.pad_w) + kernel_x * args.dilation_w) + offset_x;
 
-    for i in range(0, 3, Comptime::new(true)) {
+    for i in range(0, 3, Comptime::new(false)) {
         let dy = F::cast_from(i) - 1.0;
-        for j in range(0, 3, Comptime::new(true)) {
+        for j in range(0, 3, Comptime::new(false)) {
             let dx = F::cast_from(j) - 1.0;
 
-            let yp = F::floor(y + dy);
-            let xp = F::floor(x + dx);
+            let yp = F::floor(y) + dy;
+            let xp = F::floor(x) + dx;
             let f_height = F::cast_from(height);
             let f_width = F::cast_from(width);
 
-            if yp > 0.0
+            if yp >= 0.0
                 && yp < f_height
-                && xp > 0.0
+                && xp >= 0.0
                 && xp < f_width
                 && F::abs(y - yp) < 1.0
                 && F::abs(x - xp) < 1.0
@@ -1075,8 +1069,26 @@ fn deform_col2img_kernel<F: Float>(
                     ((batch * n_in_channels + in_channel) * height + y_point) * width + x_point;
                 let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 
-                grad_input[gradient_pos] += mask_value * weight * columns[ABSOLUTE_POS];
+                let value = mask_value * weight * columns[ABSOLUTE_POS];
+
+                float_atomic_add::<F>(&grad_input[gradient_pos], value);
             }
         }
+    }
+}
+
+#[cube]
+fn float_atomic_add<F: Float>(ptr: &AtomicUInt, value: F) {
+    if value == 0.0 {
+        return;
+    }
+
+    // Bug in cubecl inverts while condition, temporary fix
+    let mut done = false;
+    while done {
+        let v = AtomicUInt::load(ptr);
+        let v_float = F::bitcast_from(v);
+        let new = UInt::bitcast_from(v_float + value);
+        done = AtomicUInt::compare_and_swap(ptr, v, new) == v;
     }
 }

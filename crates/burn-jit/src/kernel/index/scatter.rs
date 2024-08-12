@@ -6,8 +6,8 @@ use crate::{
 };
 use cubecl::InputInfo;
 use cubecl::{
-    calculate_cube_count_elemwise, cpa, frontend::TensorHandleRef, CubeCountSettings, CubeDim,
-    KernelExpansion, KernelIntegrator, KernelSettings,
+    calculate_cube_count_elemwise, cpa, CubeCountSettings, CubeDim, KernelExpansion,
+    KernelIntegrator, KernelSettings,
 };
 use cubecl::{
     ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
@@ -226,11 +226,11 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    Execution::start(kernel, indices.client)
+    Execution::start(kernel, indices.client.clone())
         .inputs(&[
-            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandleRef::new(&indices.handle, &indices.strides, &indices.shape.dims),
-            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
+            tensor.as_handle_ref(),
+            indices.as_handle_ref(),
+            value.as_handle_ref(),
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

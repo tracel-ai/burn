@@ -210,11 +210,11 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
 
     Execution::start(kernel, indices.client)
         .inputs(&[
-            TensorHandleRef::<R>::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            TensorHandleRef::new(&value.handle, &value.strides, &value.shape.dims),
+            tensor.as_handle_ref(),
+            value.as_handle_ref(),
             // We use the custom strides here instead of the shape, since we don't use it in the
             // kernel, but we need to put the right number of dimensions (rank).
-            TensorHandleRef::new(&indices.handle, &strides, &strides),
+            unsafe { TensorHandleRef::from_raw_parts(&indices.handle, &strides, &strides) },
         ])
         .execute(CubeCountSettings::Custom(cube_count));
 

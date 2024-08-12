@@ -157,18 +157,8 @@ pub(crate) fn launch_binop<
             &client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(
-                vectorization_factor,
-                &lhs.handle,
-                &lhs.strides,
-                &lhs.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &rhs.handle,
-                &rhs.strides,
-                &rhs.shape.dims,
-            ),
+            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             None,
             false,
@@ -181,18 +171,8 @@ pub(crate) fn launch_binop<
             &client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(
-                vectorization_factor,
-                &lhs.handle,
-                &lhs.strides,
-                &lhs.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &rhs.handle,
-                &rhs.strides,
-                &rhs.shape.dims,
-            ),
+            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
             TensorArg::alias(1),
             None,
             rhs.strides != lhs.strides || rhs.shape != lhs.shape,
@@ -202,7 +182,8 @@ pub(crate) fn launch_binop<
         rhs
     } else {
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new_contiguous(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let output =
+            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
@@ -210,24 +191,9 @@ pub(crate) fn launch_binop<
             &client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(
-                vectorization_factor,
-                &lhs.handle,
-                &lhs.strides,
-                &lhs.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &rhs.handle,
-                &rhs.strides,
-                &rhs.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &output.handle,
-                &output.strides,
-                &output.shape.dims,
-            ),
+            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            output.as_handle_ref().as_tensor_arg(vectorization_factor),
             None,
             to_contiguous_lhs,
             to_contiguous_rhs,
@@ -261,12 +227,7 @@ pub(crate) fn launch_scalar_binop<
             &client,
             cube_count,
             cube_dim,
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
+            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
             TensorArg::alias(0),
         );
@@ -278,7 +239,7 @@ pub(crate) fn launch_scalar_binop<
             tensor.client.clone(),
             buffer,
             tensor.shape.clone(),
-            tensor.device,
+            tensor.device.clone(),
             tensor.strides,
         );
 
@@ -286,19 +247,9 @@ pub(crate) fn launch_scalar_binop<
             &client,
             cube_count,
             CubeDim::default(),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
+            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &output.handle,
-                &output.strides,
-                &output.shape.dims,
-            ),
+            output.as_handle_ref().as_tensor_arg(vectorization_factor),
         );
 
         output

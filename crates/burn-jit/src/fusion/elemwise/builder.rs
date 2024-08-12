@@ -293,7 +293,9 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 let input = match elem {
                     Elem::Float(kind) => ConstantScalarValue::Float(1.0, kind),
                     Elem::Int(kind) => ConstantScalarValue::Int(1, kind),
+                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(1, kind),
                     Elem::UInt => ConstantScalarValue::UInt(1),
+                    Elem::AtomicUInt => ConstantScalarValue::UInt(1),
                     Elem::Bool => ConstantScalarValue::Bool(true),
                 };
                 let input = Variable::ConstantScalar(input);
@@ -313,7 +315,9 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 let input = match elem {
                     Elem::Float(kind) => ConstantScalarValue::Float(0.0, kind),
                     Elem::Int(kind) => ConstantScalarValue::Int(0, kind),
+                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(0, kind),
                     Elem::UInt => ConstantScalarValue::UInt(0),
+                    Elem::AtomicUInt => ConstantScalarValue::UInt(0),
                     Elem::Bool => ConstantScalarValue::Bool(false),
                 };
                 let input = Variable::ConstantScalar(input);

@@ -23,7 +23,7 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
     let output = JitTensor::new_contiguous(
         tensor.client.clone(),
-        tensor.device,
+        tensor.device.clone(),
         tensor.shape.clone(),
         buffer,
     );
@@ -35,8 +35,8 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement, const D: usize>(
         &tensor.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        tensor.as_handle_ref().as_tensor_arg(1),
+        output.as_handle_ref().as_tensor_arg(1),
     );
 
     output

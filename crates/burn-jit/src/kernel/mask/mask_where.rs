@@ -130,10 +130,10 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: u
         &input.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&mask.handle, &mask.strides, &mask.shape.dims),
-        TensorArg::new(&value.handle, &value.strides, &value.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        input.as_handle_ref().as_tensor_arg(1),
+        mask.as_handle_ref().as_tensor_arg(1),
+        value.as_handle_ref().as_tensor_arg(1),
+        output.as_handle_ref().as_tensor_arg(1),
         UInt::new(D as u32),
     );
 
@@ -153,9 +153,9 @@ fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
         &input.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&mask.handle, &mask.strides, &mask.shape.dims),
-        TensorArg::new(&value.handle, &value.strides, &value.shape.dims),
+        input.as_handle_ref().as_tensor_arg(1),
+        mask.as_handle_ref().as_tensor_arg(1),
+        value.as_handle_ref().as_tensor_arg(1),
         ScalarArg::new(reverse as u32),
         UInt::new(D as u32),
     );
