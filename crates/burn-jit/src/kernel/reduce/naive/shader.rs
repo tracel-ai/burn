@@ -50,14 +50,16 @@ pub fn reduce_dim_naive<
     let cube_count =
         calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);
 
-    naive_reduce_dim_compute_shader::launch::<RD, EI::Primitive, EO::Primitive, R>(
-        &input.client,
-        cube_count,
-        cube_dim,
-        input.as_tensor_arg(1),
-        output.as_tensor_arg(1),
-        ScalarArg::new(dim as u32),
-    );
+    unsafe {
+        naive_reduce_dim_compute_shader::launch_unchecked::<RD, EI::Primitive, EO::Primitive, R>(
+            &input.client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg(1),
+            output.as_tensor_arg(1),
+            ScalarArg::new(dim as u32),
+        );
+    }
 
     output
 }
