@@ -1,9 +1,13 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
+use cubecl::frontend::{Numeric, Tensor, UInt, ABSOLUTE_POS};
 use cubecl::ir::{
     Elem, IndexOffsetGlobalWithLayout, IntKind, Item, KernelDefinition, Scope, Variable, Visibility,
 };
+use cubecl::linalg::tensor::index_offset_with_layout;
+use cubecl::prelude::*;
+use cubecl::CubeDim;
 use cubecl::{
     cpa, CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator,
     KernelSettings, OutputInfo,
@@ -22,6 +26,44 @@ struct GatherComputeShader {
     indices: Variable,
     out: Variable,
     dim: usize,
+}
+
+#[cube(launch_unchecked)]
+fn gather_kernel<T: Numeric, I: Int>(
+    input: &Tensor<T>,
+    input_layout: &Tensor<I>,
+    indices: &Tensor<I>,
+    output: &mut Tensor<T>,
+    dim: &UInt,
+) {
+    let index = indices[ABSOLUTE_POS];
+
+    let stride = input.stride(*dim);
+    let mut offset = UInt::cast_from(index);
+    offset *= stride;
+
+    if *dim > 0 {
+        let offset_before = index_offset_with_layout(
+            input,
+            input_layout,
+            ABSOLUTE_POS,
+            UInt::new(0),
+            *dim,
+            Comptime::new(false),
+        );
+        offset += offset_before;
+    }
+
+    let offset_after = index_offset_with_layout(
+        input,
+        input_layout,
+        ABSOLUTE_POS,
+        *dim + 1,
+        input.rank(),
+        Comptime::new(false),
+    );
+    offset += offset_after;
+    output[ABSOLUTE_POS] = input[offset];
 }
 
 impl GatherComputeShader {
