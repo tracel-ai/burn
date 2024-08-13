@@ -16,13 +16,13 @@ use crate::{
 };
 
 #[derive(CubeLaunch)]
-struct DeformConv2dArgs {
+struct DeformConv2dArgs<F: Float> {
     conv_stride_h: UInt,
     conv_stride_w: UInt,
     dilation_h: UInt,
     dilation_w: UInt,
-    padding_h: UInt,
-    padding_w: UInt,
+    padding_h: F,
+    padding_w: F,
     offset_groups: UInt,
 
     kernel_height: UInt,
@@ -37,7 +37,7 @@ fn deform_image_to_column_kernel<F: Float>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &mut Tensor<F>,
-    args: &DeformConv2dArgs,
+    args: &DeformConv2dArgs<F>,
     kernel_size_0_unroll: Comptime<Option<UInt>>,
     kernel_size_1_unroll: Comptime<Option<UInt>>,
 ) {
@@ -93,12 +93,12 @@ fn deform_image_to_column_kernel<F: Float>(
                 + (offset_index + 1) * offset.stride(1)
                 + out_y * offset.stride(2)
                 + out_x * offset.stride(3)];
-            let y = F::cast_from(
-                (out_y * args.conv_stride_h - args.padding_h) + kernel_y * args.dilation_h,
-            ) + offset_y;
-            let x = F::cast_from(
-                (out_x * args.conv_stride_w - args.padding_w) + kernel_x * args.dilation_w,
-            ) + offset_x;
+            let y = F::cast_from(out_y * args.conv_stride_h + kernel_y * args.dilation_h)
+                - args.padding_h
+                + offset_y;
+            let x = F::cast_from(out_x * args.conv_stride_w + kernel_x * args.dilation_w)
+                - args.padding_w
+                + offset_x;
 
             let interpolated = bilinear_interpolate(
                 input,
@@ -181,10 +181,6 @@ fn deform_image_to_columns<R: JitRuntime, E: FloatElement>(
     let (out_height, out_width) = out_dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
-    println!("kernel_size: ({}, {})", kernel_height, kernel_width);
-    println!("input shape: {:?}", input.shape.dims);
-    println!("out dims: {:?}", out_dims);
-
     let shape_out = Shape::new([
         in_channels * kernel_height * kernel_width,
         batch_size * out_height * out_width,
@@ -213,8 +209,8 @@ fn deform_image_to_columns<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.stride[1] as u32),
             ScalarArg::new(options.dilation[0] as u32),
             ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
+            ScalarArg::new(E::from_elem(options.padding[0] as f32)),
+            ScalarArg::new(E::from_elem(options.padding[1] as f32)),
             ScalarArg::new(options.offset_groups as u32),
             ScalarArg::new(kernel_height as u32),
             ScalarArg::new(kernel_width as u32),
@@ -533,7 +529,7 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     );
     let [col_size_0, col_size_1] = JitBackend::<R, E, I>::float_shape(&columns).dims;
 
-    let mut grad_weight = JitBackend::<R, E, I>::float_zeros(
+    let mut grad_weight = JitBackend::<R, E, I>::float_empty(
         Shape::new([
             weight_groups,
             out_channels_per_weight_group,
@@ -670,8 +666,8 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement, I: IntElemen
             ScalarArg::new(options.stride[1] as u32),
             ScalarArg::new(options.dilation[0] as u32),
             ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
+            ScalarArg::new(E::from_elem(options.padding[0] as f32)),
+            ScalarArg::new(E::from_elem(options.padding[1] as f32)),
             ScalarArg::new(options.offset_groups as u32),
             ScalarArg::new(kernel_height as u32),
             ScalarArg::new(kernel_width as u32),
@@ -686,24 +682,18 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement, I: IntElemen
         ),
     );
 
-    /*     println!("Input: {}", debug_data(image.clone()));
-    println!("Mask: {}", debug_data(mask.clone()));
-    println!("Columns: {}", debug_data(columns.clone()));
-    println!("Offset gradient: {}", debug_data(grad_offset.clone()));
-    println!("Debug: {}", debug_data(debug.clone())); */
-
     let mask_gradient = if use_mask { Some(grad_mask) } else { None };
     (grad_offset, mask_gradient)
 }
 
 #[derive(CubeLaunch)]
-struct DeformConv2dCol2ImgCoordArgs {
+struct DeformConv2dCol2ImgCoordArgs<F: Float> {
     stride_h: UInt,
     stride_w: UInt,
     dilation_h: UInt,
     dilation_w: UInt,
-    pad_h: UInt,
-    pad_w: UInt,
+    pad_h: F,
+    pad_w: F,
     offset_groups: UInt,
     kernel_height: UInt,
     kernel_width: UInt,
@@ -728,7 +718,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     grad_offset: &mut Tensor<F>,
     grad_mask: &mut Tensor<F>,
     debug: &mut Tensor<F>,
-    args: &DeformConv2dCol2ImgCoordArgs,
+    args: &DeformConv2dCol2ImgCoordArgs<F>,
 ) {
     // Position format: [batch, [kernel_h, kernel_w, 2], out_h, out_w]
     // Alternatively : [batch, offset_channels, out_h, out_w]
@@ -797,8 +787,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 
         let mask_value = mask[mask_base_idx + (mask_idx * out_h + out_y) * out_w + out_x];
 
-        let y = F::cast_from((out_y * args.stride_h - args.pad_h) + i * args.dilation_h) + offset_y;
-        let x = F::cast_from((out_x * args.stride_w - args.pad_w) + j * args.dilation_w) + offset_x;
+        let y = F::cast_from(out_y * args.stride_h + i * args.dilation_h) - args.pad_h + offset_y;
+        let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w + offset_x;
 
         let weight = get_coordinate_weight(
             image,
@@ -938,8 +928,8 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
             ScalarArg::new(options.stride[1] as u32),
             ScalarArg::new(options.dilation[0] as u32),
             ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
+            ScalarArg::new(E::from_elem(options.padding[0] as f32)),
+            ScalarArg::new(E::from_elem(options.padding[1] as f32)),
             ScalarArg::new(options.offset_groups as u32),
             ScalarArg::new(out_width as u32),
             ScalarArg::new(out_height as u32),
@@ -956,13 +946,13 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 #[derive(CubeLaunch)]
-struct DeformConv2dCol2ImgArgs {
+struct DeformConv2dCol2ImgArgs<F: Float> {
     stride_h: UInt,
     stride_w: UInt,
     dilation_h: UInt,
     dilation_w: UInt,
-    pad_h: UInt,
-    pad_w: UInt,
+    pad_h: F,
+    pad_w: F,
     offset_groups: UInt,
     out_w: UInt,
     out_h: UInt,
@@ -980,7 +970,7 @@ fn deform_col2img_kernel<F: Float>(
     mask: &Tensor<F>,
     columns: &Tensor<F>,
     grad_input: &mut Tensor<AtomicUInt>,
-    args: &DeformConv2dCol2ImgArgs,
+    args: &DeformConv2dCol2ImgArgs<F>,
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
 
@@ -1021,9 +1011,9 @@ fn deform_col2img_kernel<F: Float>(
     let mask_value = mask[mask_base_idx + (mask_idx * out_h + out_y) * out_w + out_x];
 
     let y =
-        F::cast_from((out_y * args.stride_h - args.pad_h) + kernel_y * args.dilation_h) + offset_y;
+        F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
     let x =
-        F::cast_from((out_x * args.stride_w - args.pad_w) + kernel_x * args.dilation_w) + offset_x;
+        F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for i in range(0, 3, Comptime::new(false)) {
         let dy = F::cast_from(i) - 1.0;
