@@ -44,7 +44,12 @@ pub mod backend;
 
 extern crate alloc;
 
-#[cfg(all(test, not(feature = "test-tch"), not(feature = "test-wgpu"),))]
+#[cfg(all(
+    test,
+    not(feature = "test-tch"),
+    not(feature = "test-wgpu"),
+    not(feature = "test-cuda")
+))]
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
@@ -52,6 +57,9 @@ pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu"))]
 pub type TestBackend = burn_wgpu::Wgpu;
+
+#[cfg(all(test, feature = "test-cuda"))]
+pub type TestBackend = burn_cuda::Cuda;
 
 #[cfg(feature = "std")]
 #[cfg(test)]
