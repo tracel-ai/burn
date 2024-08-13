@@ -1931,21 +1931,20 @@ mod tests {
                 .to_data()
                 .assert_approx_eq(&x_grad_actual.to_data(), 3);
             println!("Testing offset");
-            //Comparison values are large, so precision is lower
             expected_grads
                 .offset
                 .to_data()
                 .assert_approx_eq(&offset_grad_actual.to_data(), 3);
-            println!("Testing weight");
+            println!("Testing mask");
             expected_grads
                 .mask
                 .to_data()
                 .assert_approx_eq(&mask_grad_actual.to_data(), 3);
+            println!("Testing weight");
             expected_grads
                 .weight
                 .to_data()
                 .assert_approx_eq(&weight_grad_actual.to_data(), 3);
-            println!("Testing mask");
         }
     }
 }

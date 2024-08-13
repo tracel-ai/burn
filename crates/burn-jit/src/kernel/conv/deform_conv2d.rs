@@ -351,14 +351,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     if let Some(bias) = bias {
         let bias = JitBackend::<R, E, I>::float_reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        println!("bias: {}", debug_data(bias.clone()));
-        let output = into_contiguous(JitBackend::<R, E, I>::float_add(output, bias));
-        println!("output: {}", debug_data(output.clone()));
-        println!(
-            "output shape: {:?}",
-            JitBackend::<R, E, I>::float_shape(&output)
-        );
-        output
+        JitBackend::<R, E, I>::float_add(output, bias)
     } else {
         output
     }
@@ -729,8 +722,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let out_w = args.out_w;
     let out_h = args.out_h;
-    let weight_w = args.kernel_width;
-    let weight_h = args.kernel_height;
+    let kernel_w = args.kernel_width;
+    let kernel_h = args.kernel_height;
     let n_offset_groups = args.offset_groups;
     let width = args.width;
     let batch_size = args.batch_size;
@@ -742,28 +735,28 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let w = ABSOLUTE_POS % out_w;
     let h = (ABSOLUTE_POS / out_w) % out_h;
-    let w_w = (ABSOLUTE_POS / (out_w * out_h * 2)) % weight_w;
-    let w_h = (ABSOLUTE_POS / (out_w * out_h * 2 * weight_w)) % weight_h;
+    let w_w = (ABSOLUTE_POS / (out_w * out_h * 2)) % kernel_w;
+    let w_h = (ABSOLUTE_POS / (out_w * out_h * 2 * kernel_w)) % kernel_h;
     let c = (ABSOLUTE_POS / (out_w * out_h)) % offset_channels;
     let b = ABSOLUTE_POS / (out_w * out_h * offset_channels);
 
-    let offset_group = c / (weight_h * weight_w * 2);
-    let col_step = weight_h * weight_w;
+    let offset_group = c / (kernel_h * kernel_w * 2);
+    let col_step = kernel_h * kernel_w;
 
     let channels_per_offset_group = args.in_channels / args.offset_groups;
 
     let col_base_idx =
-        offset_group * channels_per_offset_group * weight_h * weight_w * batch_size * out_w * out_h;
+        offset_group * channels_per_offset_group * kernel_h * kernel_w * batch_size * out_w * out_h;
     let mut image_base_idx =
         (b * n_offset_groups + offset_group) * channels_per_offset_group * height * width;
     let offset_base_idx =
-        (b * n_offset_groups + offset_group) * 2 * weight_h * weight_w * out_h * out_w;
-    let mask_base_idx = (b * n_offset_groups + offset_group) * weight_h * weight_w * out_h * out_w;
+        (b * n_offset_groups + offset_group) * 2 * kernel_h * kernel_w * out_h * out_w;
+    let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
 
-    let offset_c = c - offset_group * 2 * weight_h * weight_w;
+    let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
     let is_y_direction = offset_c % UInt::new(2) == 0;
 
-    let c_bound = channels_per_offset_group * weight_h * weight_w;
+    let c_bound = channels_per_offset_group * kernel_h * kernel_w;
     let mut col_c = offset_c / 2;
 
     // TODO: Fix once cubecl is fixed
@@ -773,10 +766,10 @@ fn deform_col2img_coord_kernel<F: Float>(
         // TODO: Investigate why it's recalculating stuff we already know
         let out_x = col_pos % out_w;
         let out_y = (col_pos / out_w) % out_h;
-        let j = (col_pos / (out_w * out_h * batch_size)) % weight_w;
-        let i = (col_pos / (out_w * out_h * batch_size * weight_w)) % weight_h;
+        let j = (col_pos / (out_w * out_h * batch_size)) % kernel_w;
+        let i = (col_pos / (out_w * out_h * batch_size * kernel_w)) % kernel_h;
 
-        let mask_idx = i * weight_w + j;
+        let mask_idx = i * kernel_w + j;
         let offset_idx = mask_idx * 2;
 
         let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
@@ -823,8 +816,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
-    if args.use_mask == 1 {
-        let idx = ((((b * n_offset_groups + offset_group) * weight_h + w_h) * weight_w + w_w)
+    if args.use_mask == 1 && is_y_direction {
+        let idx = ((((b * n_offset_groups + offset_group) * kernel_h + w_h) * kernel_w + w_w)
             * out_h
             + h)
             * out_w
