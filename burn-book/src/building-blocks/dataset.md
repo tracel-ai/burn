@@ -4,8 +4,8 @@ At its core, a dataset is a collection of data typically related to a specific a
 processing task. The data modality can vary depending on the task, but most datasets primarily
 consist of images, texts, audio or videos.
 
-This data source represents an integral part of machine learning to sucessfully train a model. Thus,
-it is essential to provide a conveniant and performant API to handle your data. Since this process
+This data source represents an integral part of machine learning to successfully train a model. Thus,
+it is essential to provide a convenient and performant API to handle your data. Since this process
 varies wildly from one problem to another, it is defined as a trait that should be implemented on
 your type. The dataset trait is quite similar to the dataset abstract class in PyTorch:
 
