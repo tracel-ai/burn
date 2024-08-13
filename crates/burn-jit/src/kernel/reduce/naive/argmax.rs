@@ -10,7 +10,7 @@ impl<EI: Numeric> ReduceDimNaive<EI> for Argmax {
     type Accumulator = (F32, UInt);
 
     fn initialize_naive() -> (F32, UInt) {
-        // (F32::new(f32::NEG_INFINITY), UInt::new(0))
+        // TODO: switch to using f32::NEG_INFINITY when it's supported: https://github.com/tracel-ai/cubecl/issues/68
         let a = F32::new(0.0);
         let b = F32::new(100000000.0);
         (a - b, UInt::new(0))

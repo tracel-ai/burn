@@ -70,8 +70,10 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(self.kernel, self.cube_count, self.bindings)
+        unsafe {
+            self.client
+                .execute_unchecked(self.kernel, self.cube_count, self.bindings)
+        }
     }
 }
 

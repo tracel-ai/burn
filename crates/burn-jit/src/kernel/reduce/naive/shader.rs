@@ -4,7 +4,7 @@ use cubecl::prelude::*;
 
 use super::base::ReduceDimNaive;
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
