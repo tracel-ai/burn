@@ -31,7 +31,7 @@ pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI, EO>, EI: Nu
         RD::inner_loop_naive(
             &mut accumulator,
             input[index],
-            dim,
+            i,
         );
     }
 

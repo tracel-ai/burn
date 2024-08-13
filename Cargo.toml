@@ -146,8 +146,8 @@ systemstat = "0.2.3"
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d9f3fbc6457da457852fd162b8644f97e1968984" }
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d9f3fbc6457da457852fd162b8644f97e1968984" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl" }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+#cubecl = { path = "../cubecl/crates/cubecl" }
+#cubecl-common = { path = "../cubecl/crates/cubecl-common" }
 
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.

@@ -11,7 +11,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmin {
 
     fn initialize_naive() -> (F32, UInt) {
         // (F32::new(f32::INFINITY), UInt::new(0))
-        (F32::new(1000000.0), UInt::new(0))
+        (F32::new(100000000.0), UInt::new(0))
     }
 
     fn inner_loop_naive(
