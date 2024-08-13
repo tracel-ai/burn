@@ -65,10 +65,8 @@ fn deform_image_to_column_kernel<F: Float>(
     let channels_per_offset_group = in_channels / args.offset_groups;
     let group_index = in_channel / channels_per_offset_group;
 
-    let mut col_base_idx = out_channel * (batch_size * out_h * out_w)
-        + out_batch * (out_h * out_w)
-        + out_y * out_w
-        + out_x;
+    let mut col_base_idx =
+        out_channel * columns.stride(0) + out_batch * (out_h * out_w) + out_y * out_w + out_x;
 
     let input_base_idx = out_batch * input.stride(0) + in_channel * input.stride(1);
 
@@ -184,6 +182,8 @@ fn deform_image_to_columns<R: JitRuntime, E: FloatElement>(
     let (kernel_height, kernel_width) = kernel_dims;
 
     println!("kernel_size: ({}, {})", kernel_height, kernel_width);
+    println!("input shape: {:?}", input.shape.dims);
+    println!("out dims: {:?}", out_dims);
 
     let shape_out = Shape::new([
         in_channels * kernel_height * kernel_width,
@@ -237,6 +237,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     options: DeformConvOptions<2>,
 ) -> JitTensor<R, E, 4> {
     let device = JitBackend::<R, E, I>::float_device(&input);
+    let client = input.client.clone();
 
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
@@ -244,17 +245,8 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     let mask = mask.map(|it| into_contiguous(it));
     let bias = bias.map(|it| into_contiguous(it));
 
-    let [batch_size, in_channels, in_height, in_width] = input.shape.dims;
+    let [batch_size, _, in_height, in_width] = input.shape.dims;
     let [out_channels, in_channels_per_group, kernel_h, kernel_w] = weight.shape.dims;
-
-    debug_assert!(
-        out_channels % options.weight_groups == 0,
-        "Out channels must be divisible by weight groups"
-    );
-    debug_assert!(
-        in_channels % options.weight_groups == 0,
-        "In channels must be divisible by weight groups"
-    );
 
     let out_height = calculate_conv_output_size(
         kernel_h,
@@ -294,13 +286,14 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let out_channels_per_weight_group = out_channels / options.weight_groups;
 
-    let mut output = JitBackend::<R, E, I>::float_zeros(
+    let mut output = empty_device(
+        client.clone(),
+        device.clone(),
         Shape::new([
             options.weight_groups,
             out_channels_per_weight_group,
             batch_size * out_height * out_width,
         ]),
-        &device,
     );
 
     let weight = JitBackend::<R, E, I>::float_reshape(
@@ -362,7 +355,14 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     if let Some(bias) = bias {
         let bias = JitBackend::<R, E, I>::float_reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        JitBackend::<R, E, I>::float_add(output, bias)
+        println!("bias: {}", debug_data(bias.clone()));
+        let output = into_contiguous(JitBackend::<R, E, I>::float_add(output, bias));
+        println!("output: {}", debug_data(output.clone()));
+        println!(
+            "output shape: {:?}",
+            JitBackend::<R, E, I>::float_shape(&output)
+        );
+        output
     } else {
         output
     }

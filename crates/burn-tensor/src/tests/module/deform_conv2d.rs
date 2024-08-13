@@ -73,7 +73,6 @@ mod tests {
         ]))
     }
 
-    // Probably some mixed up variable in kernel, need to figure out where
     #[test]
     fn test_deform_conv2d_weight_groups() {
         let test = DeformConv2dTestCase {
@@ -131,6 +130,213 @@ mod tests {
             [[5.9590, 4.5295], [4.4802, 3.5582]],
             [[7.5855, 5.7835], [5.7333, 4.5664]],
             [[9.2120, 7.0375], [6.9864, 5.5746]],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_different_kernel_size() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 4,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[1.0669], [0.6329]],
+            [[2.9741], [2.0383]],
+            [[4.8812], [3.4437]],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_different_padding_size() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 2,
+            padding_2: 3,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [
+                [
+                    0.1998, 0.3762, 0.5285, 0.6053, 0.3844, 0.1987, 0.0481, 0.0000,
+                ],
+                [
+                    0.2879, 0.5517, 0.7776, 0.8905, 0.5805, 0.3043, 0.0796, 0.0000,
+                ],
+                [
+                    0.3729, 0.7214, 1.0137, 1.1520, 0.7564, 0.3931, 0.1016, 0.0000,
+                ],
+                [
+                    0.1321, 0.3249, 0.4954, 0.5846, 0.4531, 0.2501, 0.0757, 0.0000,
+                ],
+                [
+                    0.0593, 0.1607, 0.2448, 0.2971, 0.2395, 0.1327, 0.0471, 0.0000,
+                ],
+                [
+                    0.0143, 0.0513, 0.0783, 0.0942, 0.0813, 0.0420, 0.0145, 0.0000,
+                ],
+            ],
+            [
+                [
+                    0.7667, 1.1648, 1.5219, 1.7111, 1.2305, 0.8076, 0.4504, 0.3333,
+                ],
+                [
+                    0.9812, 1.6010, 2.1525, 2.4409, 1.7455, 1.0918, 0.5367, 0.3333,
+                ],
+                [
+                    1.1964, 2.0448, 2.7853, 3.1522, 2.2426, 1.3513, 0.6049, 0.3333,
+                ],
+                [
+                    0.6695, 1.1781, 1.6441, 1.9022, 1.5732, 1.0339, 0.5536, 0.3333,
+                ],
+                [
+                    0.4950, 0.7861, 1.0398, 1.2047, 1.0523, 0.7439, 0.4834, 0.3333,
+                ],
+                [
+                    0.3788, 0.4982, 0.5929, 0.6542, 0.6155, 0.4882, 0.3909, 0.3333,
+                ],
+            ],
+            [
+                [
+                    1.3335, 1.9534, 2.5154, 2.8170, 2.0766, 1.4165, 0.8527, 0.6667,
+                ],
+                [
+                    1.6744, 2.6503, 3.5275, 3.9914, 2.9106, 1.8794, 0.9939, 0.6667,
+                ],
+                [
+                    2.0198, 3.3683, 4.5570, 5.1525, 3.7288, 2.3095, 1.1082, 0.6667,
+                ],
+                [
+                    1.2068, 2.0314, 2.7928, 3.2198, 2.6932, 1.8178, 1.0315, 0.6667,
+                ],
+                [
+                    0.9308, 1.4116, 1.8348, 2.1124, 1.8652, 1.3551, 0.9196, 0.6667,
+                ],
+                [
+                    0.7432, 0.9451, 1.1074, 1.2143, 1.1497, 0.9345, 0.7673, 0.6667,
+                ],
+            ],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_different_stride() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 2,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[1.0647], [0.5783]],
+            [[2.9289], [1.8829]],
+            [[4.7931], [3.1875]],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_different_dilation() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 2,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 5,
+            width: 5,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [[0.6162], [0.7611], [0.4666]],
+            [[1.8578], [2.2684], [1.6208]],
+            [[3.0994], [3.7757], [2.7749]],
+        ]]))
+    }
+
+    #[test]
+    fn test_deform_conv2d_different_width() {
+        let test = DeformConv2dTestCase {
+            batch_size: 1,
+            channels_in: 2,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            weight_groups: 1,
+            offset_groups: 1,
+            height: 6,
+            width: 4,
+        };
+
+        test.assert_output(Tensor::<TestBackend, 4>::from([[
+            [
+                [0.8909, 0.6016],
+                [1.0697, 0.7186],
+                [1.2618, 0.8433],
+                [0.6424, 0.5032],
+            ],
+            [
+                [2.4670, 1.8168],
+                [2.9529, 2.1497],
+                [3.4805, 2.5090],
+                [2.0925, 1.7411],
+            ],
+            [
+                [4.0432, 3.0321],
+                [4.8362, 3.5809],
+                [5.6992, 4.1746],
+                [3.5425, 2.9790],
+            ],
         ]]))
     }
 
