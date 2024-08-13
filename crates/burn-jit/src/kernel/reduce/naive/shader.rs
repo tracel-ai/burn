@@ -1,11 +1,11 @@
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
 use super::base::ReduceDimNaive;
 
 #[cube(launch)]
-pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI, EO>, EI: Numeric, EO: Numeric>(
+pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
     dim: UInt,
@@ -28,20 +28,15 @@ pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI, EO>, EI: Nu
 
     for i in range(0, input.shape(dim), Comptime::new(false)) {
         let index = i * input.stride(dim) + offset_input;
-        RD::inner_loop_naive(
-            &mut accumulator,
-            input[index],
-            i,
-        );
+        RD::inner_loop_naive(&mut accumulator, input[index], i);
     }
 
-    RD::assign_naive(output, accumulator, input.shape(dim));
+    RD::assign_naive::<EO>(output, accumulator, input.shape(dim));
 }
-
 
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<
-    RD: ReduceDimNaive<EI::Primitive, EO::Primitive>,
+    RD: ReduceDimNaive<EI::Primitive>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
@@ -52,7 +47,8 @@ pub fn reduce_dim_naive<
     dim: usize,
 ) -> JitTensor<R, EO, D> {
     let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);
+    let cube_count =
+        calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);
 
     naive_reduce_dim_compute_shader::launch::<RD, EI::Primitive, EO::Primitive, R>(
         &input.client,

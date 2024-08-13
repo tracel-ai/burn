@@ -1,12 +1,12 @@
+use crate::kernel::reduce::Argmin;
 use cubecl::cube;
-use cubecl::prelude::{ABSOLUTE_POS, Cast, Numeric, Tensor, UInt, F32, Float};
-use crate::{kernel::reduce::Argmin};
+use cubecl::prelude::{Cast, Float, Numeric, Tensor, UInt, ABSOLUTE_POS, F32};
 
 use super::base::ReduceDimNaive;
 
+#[allow(clippy::extra_unused_type_parameters)]
 #[cube]
-impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmin {
-
+impl<EI: Numeric> ReduceDimNaive<EI> for Argmin {
     type Accumulator = (F32, UInt);
 
     fn initialize_naive() -> (F32, UInt) {
@@ -14,11 +14,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmin {
         (F32::new(100000000.0), UInt::new(0))
     }
 
-    fn inner_loop_naive(
-        accumulator: &mut (F32, UInt),
-        current_value: EI,
-        i: UInt,
-    ) {
+    fn inner_loop_naive(accumulator: &mut (F32, UInt), current_value: EI, i: UInt) {
         let (min, index) = accumulator;
         let val = F32::cast_from(current_value);
         if val < *min {
@@ -27,7 +23,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmin {
         }
     }
 
-    fn assign_naive(
+    fn assign_naive<EO: Numeric>(
         output: &mut Tensor<EO>,
         accumulator: (F32, UInt),
         _shape_reduce_dim: UInt,

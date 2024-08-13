@@ -1,27 +1,22 @@
-use cubecl::cube;
-use cubecl::frontend::{ABSOLUTE_POS, Tensor, UInt, F32, Float};
-use cubecl::prelude::{Cast, Numeric};
-use crate::kernel::reduce::Argmax;
 use super::base::ReduceDimNaive;
+use crate::kernel::reduce::Argmax;
+use cubecl::cube;
+use cubecl::frontend::{Float, Tensor, UInt, ABSOLUTE_POS, F32};
+use cubecl::prelude::{Cast, Numeric};
 
-
+#[allow(clippy::extra_unused_type_parameters)]
 #[cube]
-impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
-
+impl<EI: Numeric> ReduceDimNaive<EI> for Argmax {
     type Accumulator = (F32, UInt);
 
     fn initialize_naive() -> (F32, UInt) {
         // (F32::new(f32::NEG_INFINITY), UInt::new(0))
         let a = F32::new(0.0);
         let b = F32::new(100000000.0);
-        (a-b, UInt::new(0))
+        (a - b, UInt::new(0))
     }
 
-    fn inner_loop_naive(
-        accumulator: &mut (F32, UInt),
-        current_value: EI,
-        i: UInt,
-    ) {
+    fn inner_loop_naive(accumulator: &mut (F32, UInt), current_value: EI, i: UInt) {
         let (max, index) = accumulator;
         let val = F32::cast_from(current_value);
         if val > *max {
@@ -30,7 +25,7 @@ impl<EI: Numeric, EO: Numeric> ReduceDimNaive<EI, EO> for Argmax {
         }
     }
 
-    fn assign_naive(
+    fn assign_naive<EO: Numeric>(
         output: &mut Tensor<EO>,
         accumulator: (F32, UInt),
         _shape_reduce_dim: UInt,
