@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{DType, Dense, Element, TensorPrimitive, TensorRepr};
+use crate::{DType, Dense, Element, SparseRepr, TensorPrimitive, TensorRepr};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -1279,7 +1279,10 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
+pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B, R>
+where
+    Bool: TensorKind<B, R>,
+{
     /// The type of the tensor elements.
     type Elem: Element;
 
@@ -1606,7 +1609,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     fn equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    ) -> Tensor<B, D, Bool, R>;
 
     /// Applies element-wise non-equality comparison between the given tensors.
     ///
@@ -1630,7 +1633,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     fn not_equal<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    ) -> Tensor<B, D, Bool, R>;
 
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
@@ -1653,7 +1656,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::any](Tensor::any) function
     /// which is more high-level and designed for public use.
-    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool, R>;
 
     /// Tests if any element in the tensor evaluates to True along a given dimension dim.
     ///
@@ -1673,7 +1676,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::any_dim](Tensor::any_dim) function,
     /// which is more high-level and designed for public use.
-    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool, R>;
 
     /// Tests if all elements in the `tensor` evaluate to True.
     ///
@@ -1691,7 +1694,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all](Tensor::all) function,
     /// which is more high-level and designed for public use.
-    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool, R>;
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
     ///
@@ -1710,7 +1713,7 @@ pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all_dim](Tensor::all_dim) function,
     /// which is more high-level and designed for public use.
-    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool, R>;
 
     /// Broadcasts the given tensor to the specified shape.
     ///
