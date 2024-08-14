@@ -545,7 +545,6 @@ Additional examples:
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
   [`Learner`](./building-blocks/learner.md) progress.
-- [Simple CubeCL Kernel](./examples/gelu) : Implements a simple GELU kernel with `CubeCL`.
 - [Image Classification Web](./examples/image-classification-web) : Image classification web browser
   demo using Burn, WGPU and WebAssembly.
 - [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
