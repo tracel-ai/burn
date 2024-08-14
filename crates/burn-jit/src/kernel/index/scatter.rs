@@ -53,21 +53,19 @@ fn scatter_kernel<T: Numeric>(
 
     let mut index_input = UInt::new(0);
     let mut idx = UInt::new(0);
-    let mut result_input = input[id];
-    let mut result_value = value[id];
     let mut result_indices = UInt::new(0);
 
     for i in range(0, shape_value, Comptime::new(false)) {
         idx = stride_input * i;
         idx += offset_value;
 
-        result_value = value[idx];
+        let result_value = value[idx];
         result_indices = UInt::cast_from(indices[idx]);
 
         index_input = stride_input * result_indices;
         index_input += offset_input;
 
-        result_input = input[index_input];
+        let mut result_input = input[index_input];
         result_input += result_value;
         input[index_input] = result_input;
     }
