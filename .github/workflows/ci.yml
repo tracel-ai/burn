@@ -91,7 +91,6 @@ jobs:
           tar xz -C $HOME/.cargo/bin
       # --------------------------------------------------------------------------------
       - name: Audit
-        shell: bash
         run: cargo xtask check audit
       # --------------------------------------------------------------------------------
       - name: Format
@@ -103,11 +102,9 @@ jobs:
         run: cargo xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
-        shell: bash
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        shell: bash
         run: cargo xtask check typos
 
   documentation:
@@ -129,11 +126,9 @@ jobs:
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
       - name: Documentation Build
-        shell: bash
         run: cargo xtask doc build
       # --------------------------------------------------------------------------------
       - name: Documentation Tests
-        shell: bash
         run: cargo xtask doc tests
 
   linux-std-tests:
@@ -171,15 +166,12 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Build
-        shell: bash
         run: cargo xtask --enable-coverage build
       # --------------------------------------------------------------------------------
       - name: Tests
-        shell: bash
         run: cargo xtask --enable-coverage test all
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
-        shell: bash
         # /* is to exclude std library code coverage from analysis
         run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
       # --------------------------------------------------------------------------------
@@ -217,11 +209,9 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        shell: bash
         run: cargo xtask --execution-environment no-std build
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        shell: bash
         run: cargo xtask --execution-environment no-std test all
 
   windows-std-tests:
@@ -255,11 +245,9 @@ jobs:
           warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
       - name: Build
-        shell: bash
         run: cargo xtask build
       # --------------------------------------------------------------------------------
       - name: Tests
-        shell: bash
         run: cargo xtask test all
 
   macos-std-tests:
@@ -282,9 +270,7 @@ jobs:
           cache-key: ${{ matrix.cache-version }}-macos
       # --------------------------------------------------------------------------------
       - name: Build
-        shell: bash
         run: cargo xtask build
       # --------------------------------------------------------------------------------
       - name: Tests
-        shell: bash
         run: cargo xtask test all
