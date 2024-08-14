@@ -18,7 +18,7 @@ const NO_STD_CRATES: &[&str] = &[
     "burn-no-std-tests",
 ];
 
-#[macros::commands(
+#[macros::base_commands(
     Bump,
     Build,
     Check,
@@ -52,21 +52,12 @@ fn main() -> anyhow::Result<()> {
         Command::Build(cmd_args) => {
             commands::build::handle_command(cmd_args, args.execution_environment)
         }
-        Command::Bump(cmd_args) => base_commands::bump::handle_command(cmd_args),
-        Command::Check(cmd_args) => base_commands::check::handle_command(cmd_args),
-        Command::Coverage(cmd_args) => base_commands::coverage::handle_command(cmd_args),
-        Command::Compile(cmd_args) => base_commands::compile::handle_command(cmd_args),
-        Command::Dependencies(cmd_args) => base_commands::dependencies::handle_command(cmd_args),
         Command::Doc(cmd_args) => commands::doc::handle_command(cmd_args),
-        Command::Fix(cmd_args) => base_commands::fix::handle_command(cmd_args, None),
-        Command::Publish(cmd_args) => base_commands::publish::handle_command(cmd_args),
         Command::Test(cmd_args) => {
             commands::test::handle_command(cmd_args, args.execution_environment)
         }
         Command::Validate => commands::validate::handle_command(),
-        Command::Vulnerabilities(cmd_args) => {
-            base_commands::vulnerabilities::handle_command(cmd_args)
-        }
+        _ => dispatch_base_commands(args),
     }?;
 
     let duration = start.elapsed();
