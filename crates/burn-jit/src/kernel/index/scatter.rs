@@ -88,7 +88,6 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
         false => tensor.copy(),
     };
 
-    //    let kernel = ScatterEagerKernel::<R, E>::new(dim);
     let mut strides = [0; D];
     let mut current = 1;
     let mut num_elems = 1;
@@ -123,14 +122,6 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
             ScalarArg::new(dim as u32),
         )
     }
-
-    //Execution::start(kernel, indices.client.clone())
-    //    .inputs(&[
-    //        tensor.as_handle_ref(),
-    //        indices.as_handle_ref(),
-    //        value.as_handle_ref(),
-    //    ])
-    //    .execute(CubeCountSettings::Custom(cube_count));
 
     tensor
 }
