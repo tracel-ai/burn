@@ -8,8 +8,8 @@ use super::{
 };
 
 #[allow(dead_code)]
-pub(crate) trait ReduceDimAlgorithm<E: JitElement>:
-    ReduceDimNaive<E> + ReduceDimShared<E>
+pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
+    ReduceDimNaive<EI::Primitive> + ReduceDimShared<EI>
 {
 }
 
@@ -65,7 +65,7 @@ impl Default for ReduceStrategy {
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
         pub(crate) struct $ops;
-        impl<E: JitElement> ReduceDimAlgorithm<E> for $ops {}
+        impl<EI: JitElement> ReduceDimAlgorithm<EI> for $ops {}
 
         /// Executes the reduce operation with the given strategy.
         pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
