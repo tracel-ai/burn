@@ -25,6 +25,7 @@ enum Command {
     /// Run the specified dependencies check locally
     Dependencies {
         /// The dependency check to run
+        #[clap(value_enum, default_value_t = dependencies::DependencyCheck::default())]
         dependency_check: dependencies::DependencyCheck,
     },
     /// Publish a crate to crates.io
@@ -42,6 +43,7 @@ enum Command {
     Vulnerabilities {
         /// The vulnerability check to run.
         /// For the reference visit the page `<https://doc.rust-lang.org/beta/unstable-book/compiler-flags/sanitizer.html>`
+        #[clap(value_enum, default_value_t = vulnerabilities::VulnerabilityCheck::default())]
         vulnerability_check: vulnerabilities::VulnerabilityCheck,
     },
 }
