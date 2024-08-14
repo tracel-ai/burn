@@ -1,9 +1,4 @@
-use xtask_common::{
-    anyhow,
-    commands::build::{self, BuildCmdArgs},
-    utils::helpers,
-    ExecutionEnvironment,
-};
+use tracel_xtask::prelude::*;
 
 use crate::{ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
 
@@ -32,7 +27,7 @@ pub(crate) fn handle_command(
                 args.exclude.extend(vec!["burn-wgpu".to_string()]);
             };
             // Build workspace
-            build::handle_command(args.clone())?;
+            base_commands::build::handle_command(args.clone())?;
             // Specific additional commands to test specific features
             // burn-dataset
             helpers::custom_crates_build(vec!["burn-dataset"], vec!["--all-features"])?;

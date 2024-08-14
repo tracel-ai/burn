@@ -1,9 +1,4 @@
-use xtask_common::{
-    anyhow,
-    commands::test::{self, TestCmdArgs},
-    utils::helpers,
-    ExecutionEnvironment,
-};
+use tracel_xtask::prelude::*;
 
 use crate::NO_STD_CRATES;
 
@@ -31,7 +26,7 @@ pub(crate) fn handle_command(
             };
 
             // test workspace
-            test::handle_command(args.clone())?;
+            base_commands::test::handle_command(args.clone())?;
 
             // Specific additional commands to test specific features
 

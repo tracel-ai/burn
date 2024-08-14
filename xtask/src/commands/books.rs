@@ -1,15 +1,6 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
-use xtask_common::{
-    anyhow,
-    clap::{self, Args, Subcommand},
-    derive_more::Display,
-    endgroup, group,
-    utils::{
-        cargo::ensure_cargo_crate_is_installed, mdbook::run_mdbook_with_path, process::random_port,
-        Params,
-    },
-};
+use tracel_xtask::prelude::*;
 
 #[derive(clap::Args)]
 pub struct BooksArgs {
@@ -17,7 +8,7 @@ pub struct BooksArgs {
     book: BookKind,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 pub(crate) enum BookKind {
     ///  Burn Book, a.k.a. the guide, made for the Burn users.
     Burn(BookKindArgs),
@@ -25,21 +16,21 @@ pub(crate) enum BookKind {
     Contributor(BookKindArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 pub(crate) struct BookKindArgs {
     #[command(subcommand)]
-    command: BookCommand,
+    command: BookSubCommand,
 }
 
-#[derive(Subcommand, Display)]
-pub(crate) enum BookCommand {
+#[derive(clap::Subcommand, strum::Display)]
+pub(crate) enum BookSubCommand {
     /// Build the book
     Build,
     /// Open the book on the specified port or random port and rebuild it automatically upon changes
     Open(OpenArgs),
 }
 
-#[derive(Args, Display)]
+#[derive(clap::Args)]
 pub(crate) struct OpenArgs {
     /// Specify the port to open the book on (defaults to a random port if not specified)
     #[clap(long, default_value_t = random_port())]
@@ -85,34 +76,34 @@ impl Book {
         book.execute(command)
     }
 
-    fn execute(&self, command: &BookCommand) -> anyhow::Result<()> {
+    fn execute(&self, command: &BookSubCommand) -> anyhow::Result<()> {
         ensure_cargo_crate_is_installed("mdbook", None, None, false)?;
         group!("{}: {}", self.name, command);
         match command {
-            BookCommand::Build => self.build(),
-            BookCommand::Open(args) => self.open(args),
+            BookSubCommand::Build => self.build(),
+            BookSubCommand::Open(args) => self.open(args),
         }?;
         endgroup!();
         Ok(())
     }
 
     fn build(&self) -> anyhow::Result<()> {
-        run_mdbook_with_path(
-            "build",
-            Params::from([]),
-            HashMap::new(),
+        run_process(
+            "mdbook",
+            &vec!["build"],
+            None,
             Some(self.path),
             "mdbook should build the book successfully",
         )
     }
 
     fn open(&self, args: &OpenArgs) -> anyhow::Result<()> {
-        run_mdbook_with_path(
-            "serve",
-            Params::from(["--open", "--port", &args.port.to_string()]),
-            HashMap::new(),
+        run_process(
+            "mdbook",
+            &vec!["serve", "--open", "--port", &args.port.to_string()],
+            None,
             Some(self.path),
-            "mdbook should build the book successfully",
+            "mdbook should open the book successfully",
         )
     }
 }

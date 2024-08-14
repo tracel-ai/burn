@@ -1,14 +1,4 @@
-use xtask_common::{
-    anyhow,
-    commands::{
-        build::BuildCmdArgs,
-        check::{self, CheckCmdArgs, CheckCommand},
-        doc::{DocCmdArgs, DocCommand},
-        test::{TestCmdArgs, TestCommand},
-        Target,
-    },
-    ExecutionEnvironment,
-};
+use tracel_xtask::prelude::*;
 
 pub fn handle_command() -> anyhow::Result<()> {
     let target = Target::Workspace;
@@ -21,14 +11,14 @@ pub fn handle_command() -> anyhow::Result<()> {
 
     // checks
     [
-        CheckCommand::Audit,
-        CheckCommand::Format,
-        CheckCommand::Lint,
-        CheckCommand::Typos,
+        CheckSubCommand::Audit,
+        CheckSubCommand::Format,
+        CheckSubCommand::Lint,
+        CheckSubCommand::Typos,
     ]
     .iter()
     .try_for_each(|c| {
-        check::handle_command(CheckCmdArgs {
+        base_commands::check::handle_command(CheckCmdArgs {
             target: target.clone(),
             exclude: exclude.clone(),
             only: only.clone(),
@@ -52,13 +42,14 @@ pub fn handle_command() -> anyhow::Result<()> {
             target: target.clone(),
             exclude: exclude.clone(),
             only: only.clone(),
-            command: TestCommand::All,
+            threads: None,
+            command: TestSubCommand::All,
         },
         ExecutionEnvironment::Std,
     )?;
 
     // documentation
-    [DocCommand::Build, DocCommand::Tests]
+    [DocSubCommand::Build, DocSubCommand::Tests]
         .iter()
         .try_for_each(|c| {
             super::doc::handle_command(DocCmdArgs {
@@ -91,7 +82,8 @@ pub fn handle_command() -> anyhow::Result<()> {
                 target: target.clone(),
                 exclude: exclude.clone(),
                 only: only.clone(),
-                command: TestCommand::All,
+                threads: None,
+                command: TestSubCommand::All,
             },
             ExecutionEnvironment::NoStd,
         )?;

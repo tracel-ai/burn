@@ -8,10 +8,8 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 log = { workspace = true }
-# xtask-common = { git = "https://github.com/tracel-ai/xtask", tag = "v1.0.0" }
-# xtask-macros = { git = "https://github.com/tracel-ai/xtask", tag = "v1.0.0" }
-xtask-common = { git = "https://github.com/tracel-ai/xtask" }
-xtask-macros = { git = "https://github.com/tracel-ai/xtask" }
+strum = { workspace = true }
+tracel-xtask = { git = "https://github.com/tracel-ai/xtask" }
 
 [dev-dependencies]
 rstest = { workspace = true }
