@@ -47,47 +47,71 @@ pub trait TensorKind<B: Backend, R: TensorRepr<B> = Dense>: Clone + core::fmt::D
     }
 }
 
-impl<B: Backend> TensorKind<B> for Float {
-    type Primitive<const D: usize> = TensorPrimitive<B, D>;
-    fn name() -> &'static str {
-        "Float"
-    }
-}
+// impl<B: Backend> TensorKind<B> for Float {
+//     type Primitive<const D: usize> = TensorPrimitive<B, D>;
+//     fn name() -> &'static str {
+//         "Float"
+//     }
+// }
 
-impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Float {
-    type Primitive<const D: usize> = R::FloatTensorPrimitive<D>;
+// impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Float {
+//     type Primitive<const D: usize> = R::FloatTensorPrimitive<D>;
 
-    fn name() -> &'static str {
-        <Self as TensorKind<B, Dense>>::name()
-    }
-}
+//     fn name() -> &'static str {
+//         <Self as TensorKind<B, Dense>>::name()
+//     }
+// }
 
-impl<B: Backend> TensorKind<B> for Int {
-    type Primitive<const D: usize> = B::IntTensorPrimitive<D>;
-    fn name() -> &'static str {
-        "Int"
-    }
-}
+// impl<B: Backend> TensorKind<B> for Int {
+//     type Primitive<const D: usize> = B::IntTensorPrimitive<D>;
+//     fn name() -> &'static str {
+//         "Int"
+//     }
+// }
 
-impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Int {
-    type Primitive<const D: usize> = R::IntTensorPrimitive<D>;
+// impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Int {
+//     type Primitive<const D: usize> = R::IntTensorPrimitive<D>;
 
-    fn name() -> &'static str {
-        <Self as TensorKind<B, Dense>>::name()
-    }
-}
+//     fn name() -> &'static str {
+//         <Self as TensorKind<B, Dense>>::name()
+//     }
+// }
 
-impl<B: Backend> TensorKind<B> for Bool {
-    type Primitive<const D: usize> = B::BoolTensorPrimitive<D>;
+// impl<B: Backend> TensorKind<B> for Bool {
+//     type Primitive<const D: usize> = B::BoolTensorPrimitive<D>;
+//     fn name() -> &'static str {
+//         "Bool"
+//     }
+// }
+
+// impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Bool {
+//     type Primitive<const D: usize> = R::BoolTensorPrimitive<D>;
+
+//     fn name() -> &'static str {
+//         <Self as TensorKind<B, Dense>>::name()
+//     }
+// }
+
+impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Bool {
+    type Primitive<const D: usize> = R::Primitive<Bool, D>;
+
     fn name() -> &'static str {
         "Bool"
     }
 }
 
-impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Bool {
-    type Primitive<const D: usize> = R::BoolTensorPrimitive<D>;
+impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Float {
+    type Primitive<const D: usize> = R::Primitive<Float, D>;
 
     fn name() -> &'static str {
-        <Self as TensorKind<B, Dense>>::name()
+        "Float"
+    }
+}
+
+impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Int {
+    type Primitive<const D: usize> = R::Primitive<Int, D>;
+
+    fn name() -> &'static str {
+        "Int"
     }
 }

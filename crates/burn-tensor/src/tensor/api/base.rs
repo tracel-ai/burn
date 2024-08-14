@@ -18,7 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{DType, Dense, Element, SparseRepr, TensorPrimitive, TensorRepr};
+use crate::{ChangeRepr, DType, Dense, Element, SparseRepr, TensorPrimitive, TensorRepr};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -42,10 +42,27 @@ where
     }
 }
 
-impl<B, const D: usize, K> Tensor<B, D, K>
+impl<B, const D: usize, K, R> Tensor<B, D, K, R>
 where
     B: Backend,
-    K: BasicOps<B>,
+    R: TensorRepr<B>,
+    K: TensorKind<B, R>,
+{
+    fn change_repr<R2: TensorRepr<B>>(self) -> Tensor<B, D, K, R2>
+    where
+        K: TensorKind<B, R2>,
+        R: ChangeRepr<B, R2>,
+    {
+        R::change_repr(self)
+    }
+}
+
+impl<B, const D: usize, K, R> Tensor<B, D, K, R>
+where
+    B: Backend,
+    K: BasicOps<B, R>,
+    R: TensorRepr<B>,
+    Bool: TensorKind<B, R>,
 {
     /// Converts the tensor into a primitive tensor.
     pub fn into_primitive(self) -> K::Primitive<D> {
@@ -107,7 +124,7 @@ where
     ///    println!("{:?}", reshaped_tensor.shape());
     /// }
     /// ```
-    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K, R> {
         // Convert reshape args to shape
         let shape = shape.into_shape(&self);
         Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
@@ -122,7 +139,7 @@ where
     /// # Returns
     ///
     /// The transposed tensor.
-    pub fn transpose(self) -> Tensor<B, D, K> {
+    pub fn transpose(self) -> Tensor<B, D, K, R> {
         Tensor::new(K::transpose(self.primitive))
     }
 
@@ -137,7 +154,7 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K> {
+    pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K, R> {
         Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
     }
 
@@ -153,7 +170,7 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
+    pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K, R> {
         // Convert the axes to usize and handle negative values without using vector
         let mut transformed_axes: [usize; D] = [0; D];
         for (i, &x) in axes.iter().enumerate() {
@@ -193,7 +210,7 @@ where
     /// The tensor with the dimensions moved.
     // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
     // for it
-    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K> {
+    pub fn movedim<S1: MovedimArgs, S2: MovedimArgs>(self, src: S1, dst: S2) -> Tensor<B, D, K, R> {
         let source_dims = src.into_dim_vec::<D>();
         let destination_dims = dst.into_dim_vec::<D>();
 
@@ -234,7 +251,7 @@ where
     /// # Returns
     ///
     /// The tensor with the axes flipped.
-    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<B, D, K> {
+    pub fn flip<const N: usize>(self, axes: [isize; N]) -> Tensor<B, D, K, R> {
         // Convert the axes to usize and handle negative values without using vector
         let mut transformed_axes: [usize; N] = [0; N];
         for (i, &x) in axes.iter().enumerate() {
@@ -288,7 +305,7 @@ where
     /// }
     ///
     /// ```
-    pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
+    pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
 
         let current_dims = self.shape().dims;
@@ -339,7 +356,7 @@ where
     ///     println!("{:?}", squeezed_tensor.shape());
     /// }
     /// ```
-    pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn squeeze<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
 
         let current_dims = self.shape().dims;
@@ -388,7 +405,7 @@ where
     ///     println!("{:?}", squeezed_tensor.shape());
     /// }
     /// ```
-    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
+    pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K, R> {
         let current_dims = self.shape().dims;
         let mut dim_indices: Vec<usize>;
 
@@ -458,7 +475,7 @@ where
     ///     // Shape { dims: [1, 1, 3, 3] }
     /// }
     /// ```
-    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K> {
+    pub fn unsqueeze<const D2: usize>(self) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::unsqueeze::<D, D2>());
 
         let mut dims = [1; D2];
@@ -487,7 +504,7 @@ where
     ///     // Shape { dims: [3, 1, 3] }
     /// }
     /// ```
-    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
+    pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::unsqueeze_dim::<{ D }>(dim));
 
         let mut dims = [1; D2];
@@ -524,7 +541,7 @@ where
     ///     // Shape { dims: [1, 3, 4, 5, 1, 1] }
     /// }
     /// ```
-    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[isize]) -> Tensor<B, D2, K> {
+    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[isize]) -> Tensor<B, D2, K, R> {
         let mut new_dims = [1; D2];
         let old_dims = self.shape().dims;
         //for checking if the dimension is in the acceptable range
@@ -636,7 +653,7 @@ where
     /// This function uses the `RangesArg` trait for flexible range specification. The trait
     /// handles the conversion of various range formats and applies clamping and negative
     /// index handling internally.
-    pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
+    pub fn slice<const D2: usize, RA: RangesArg<D2>>(self, ranges: RA) -> Self {
         let ranges = ranges.into_ranges(self.shape());
 
         check!(TensorCheck::slice(&self.shape(), &ranges));
@@ -745,7 +762,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
+    pub fn equal(self, other: Self) -> Tensor<B, D, Bool, R> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
     }
@@ -755,7 +772,7 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
+    pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool, R> {
         check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
         K::not_equal(self.primitive, other.primitive)
     }
@@ -780,7 +797,10 @@ where
     ///
     /// If all tensors don't have the same shape.
     /// Given dimension is not with range of 0..D2
-    pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
+    pub fn stack<const D2: usize>(
+        tensors: Vec<Tensor<B, D, K, R>>,
+        dim: usize,
+    ) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<B, D2, K>::cat(tensors, dim)
@@ -795,7 +815,7 @@ where
     /// # Returns
     ///
     /// A tensor iterator.
-    pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K> {
+    pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K, R> {
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
         DimIter::new(self, dim)
     }
@@ -846,7 +866,7 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
-    pub fn any(self) -> Tensor<B, 1, Bool> {
+    pub fn any(self) -> Tensor<B, 1, Bool, R> {
         K::any(self.primitive)
     }
 
@@ -862,7 +882,7 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
-    pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool, R> {
         K::any_dim(self.primitive, dim)
     }
 
@@ -876,7 +896,7 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    pub fn all(self) -> Tensor<B, 1, Bool> {
+    pub fn all(self) -> Tensor<B, 1, Bool, R> {
         K::all(self.primitive)
     }
 
@@ -892,7 +912,7 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
+    pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool, R> {
         K::all_dim(self.primitive, dim)
     }
 
@@ -936,25 +956,27 @@ where
     /// # Returns
     ///
     /// A new tensor with the given shape.
-    pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<B, D2, K, R> {
         let shape = shape.into_shape(&self.shape());
         check!(TensorCheck::expand("expand", &self.shape(), &shape,));
 
-        Tensor::<B, D2, K>::new(K::expand(self.primitive, shape))
+        Tensor::<B, D2, K, R>::new(K::expand(self.primitive, shape))
     }
 }
 
 /// Iterator given by (Tensor::iter_dim).
-pub struct DimIter<B, const D: usize, K>
+pub struct DimIter<B, const D: usize, K, R = Dense>
 where
     B: Backend,
-    K: BasicOps<B>,
+    K: BasicOps<B, R>,
+    R: TensorRepr<B>,
+    Bool: TensorKind<B, R>,
 {
     start: usize,
     end: usize,
     dim: usize,
     ranges: [Range<usize>; D],
-    tensor: Tensor<B, D, K>,
+    tensor: Tensor<B, D, K, R>,
 }
 
 impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
@@ -1279,10 +1301,7 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// # Warnings
 ///
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
-pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B, R>
-where
-    Bool: TensorKind<B, R>,
-{
+pub trait BasicOps<B: Backend, R: TensorRepr<B> = Dense>: TensorKind<B, R> {
     /// The type of the tensor elements.
     type Elem: Element;
 
@@ -2264,27 +2283,35 @@ impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
 /// Trait used for reshape arguments.
 pub trait ReshapeArgs<const D2: usize> {
     /// Converts to a shape.
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>>(
         self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2>;
+        tensor: &Tensor<B, D, K, R>,
+    ) -> Shape<D2>
+    where
+        Bool: TensorKind<B, R>;
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>>(
         self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
+        tensor: &Tensor<B, D, K, R>,
+    ) -> Shape<D2>
+    where
+        Bool: TensorKind<B, R>,
+    {
         check!(TensorCheck::reshape_args_usize(&tensor.shape(), &self));
 
         self
     }
 }
 impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>>(
         self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
+        tensor: &Tensor<B, D, K, R>,
+    ) -> Shape<D2>
+    where
+        Bool: TensorKind<B, R>,
+    {
         let shape = Shape::from(self);
 
         check!(TensorCheck::reshape_args_usize(&tensor.shape(), &shape));
@@ -2294,10 +2321,13 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
-    fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
+    fn into_shape<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>>(
         self,
-        tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
+        tensor: &Tensor<B, D, K, R>,
+    ) -> Shape<D2>
+    where
+        Bool: TensorKind<B, R>,
+    {
         // Validate the reshape arguments
         check!(TensorCheck::reshape_args_i32(&self));
 

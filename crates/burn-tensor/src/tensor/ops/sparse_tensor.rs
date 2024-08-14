@@ -2,7 +2,10 @@ use super::{BoolTensor, FloatElem, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{backend::Backend, Device, Float, Shape, SparseRepr, TensorData, TensorKind};
 use core::{future::Future, ops::Range};
 
-pub trait SparseTensorOps<R: SparseRepr<B>, B: Backend>: SparseFloatOps<R, B> {}
+pub trait SparseTensorOps<R: SparseRepr<B>, B: Backend>:
+    SparseFloatOps<R, B> + SparseBoolOps<R, B> + SparseIntOps<R, B>
+{
+}
 
 pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
     fn float_to_sparse<const D: usize>(
@@ -533,6 +536,197 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
     fn float_neg<const D: usize>(tensor: R::FloatTensorPrimitive<D>) -> R::FloatTensorPrimitive<D>;
 }
 
-pub trait SparseIntOps<R: SparseRepr<B>, B: Backend> {}
+pub trait SparseBoolOps<R: SparseRepr<B>, B: Backend> {
+    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>)
+        -> R::BoolTensorPrimitive<D>;
 
-// pub trait SparseBoolOps<R: SparseRepr<B>, B: Backend> {}
+    fn bool_shape<const D: usize>(tensor: &R::BoolTensorPrimitive<D>) -> Shape<D>;
+
+    fn bool_reshape<const D1: usize, const D2: usize>(
+        tensor: R::BoolTensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> R::BoolTensorPrimitive<D2>;
+
+    fn bool_transpose<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_swap_dims<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_permute<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        axes: &[usize],
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_flip<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        axes: &[usize],
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_slice<const D1: usize, const D2: usize>(
+        tensor: R::BoolTensorPrimitive<D1>,
+        indices: [Range<usize>; D2],
+    ) -> R::BoolTensorPrimitive<D1>;
+
+    fn bool_slice_assign<const D1: usize, const D2: usize>(
+        tensor: R::BoolTensorPrimitive<D1>,
+        ranges: [Range<usize>; D2],
+        value: R::BoolTensorPrimitive<D1>,
+    ) -> R::BoolTensorPrimitive<D1>;
+
+    fn bool_device<const D: usize>(tensor: &R::BoolTensorPrimitive<D>) -> Device<B>;
+
+    fn bool_to_device<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        device: &Device<B>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_into_data<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+    ) -> impl Future<Output = TensorData> + Send;
+
+    fn bool_from_data<const D: usize>(
+        data: TensorData,
+        device: &Device<B>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_repeat_dim<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_cat<const D: usize>(
+        tensors: Vec<R::BoolTensorPrimitive<D>>,
+        dim: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_equal<const D: usize>(
+        lhs: R::BoolTensorPrimitive<D>,
+        rhs: R::BoolTensorPrimitive<D>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_not_equal<const D: usize>(
+        lhs: R::BoolTensorPrimitive<D>,
+        rhs: R::BoolTensorPrimitive<D>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_any<const D: usize>(tensor: R::BoolTensorPrimitive<D>) -> R::BoolTensorPrimitive<1>;
+
+    fn bool_any_dim<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        dim: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_all<const D: usize>(tensor: R::BoolTensorPrimitive<D>) -> R::BoolTensorPrimitive<1>;
+
+    fn bool_all_dim<const D: usize>(
+        tensor: R::BoolTensorPrimitive<D>,
+        dim: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn bool_expand<const D1: usize, const D2: usize>(
+        tensor: R::BoolTensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> R::BoolTensorPrimitive<D2>;
+}
+
+pub trait SparseIntOps<R: SparseRepr<B>, B: Backend> {
+    fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> R::IntTensorPrimitive<D>;
+
+    fn int_shape<const D: usize>(tensor: &R::IntTensorPrimitive<D>) -> Shape<D>;
+
+    fn int_reshape<const D1: usize, const D2: usize>(
+        tensor: R::IntTensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> R::IntTensorPrimitive<D2>;
+
+    fn int_transpose<const D: usize>(tensor: R::IntTensorPrimitive<D>) -> R::IntTensorPrimitive<D>;
+
+    fn int_swap_dims<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        dim1: usize,
+        dim2: usize,
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_permute<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        axes: &[usize],
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_flip<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        axes: &[usize],
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_slice<const D1: usize, const D2: usize>(
+        tensor: R::IntTensorPrimitive<D1>,
+        indices: [Range<usize>; D2],
+    ) -> R::IntTensorPrimitive<D1>;
+
+    fn int_slice_assign<const D1: usize, const D2: usize>(
+        tensor: R::IntTensorPrimitive<D1>,
+        ranges: [Range<usize>; D2],
+        value: R::IntTensorPrimitive<D1>,
+    ) -> R::IntTensorPrimitive<D1>;
+
+    fn int_device<const D: usize>(tensor: &R::IntTensorPrimitive<D>) -> Device<B>;
+
+    fn int_to_device<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        device: &Device<B>,
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_into_data<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+    ) -> impl Future<Output = TensorData> + Send;
+
+    fn int_from_data<const D: usize>(
+        data: TensorData,
+        device: &Device<B>,
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_repeat_dim<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        dim: usize,
+        times: usize,
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_cat<const D: usize>(
+        tensors: Vec<R::IntTensorPrimitive<D>>,
+        dim: usize,
+    ) -> R::IntTensorPrimitive<D>;
+
+    fn int_equal<const D: usize>(
+        lhs: R::IntTensorPrimitive<D>,
+        rhs: R::IntTensorPrimitive<D>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn int_not_equal<const D: usize>(
+        lhs: R::IntTensorPrimitive<D>,
+        rhs: R::IntTensorPrimitive<D>,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn int_any<const D: usize>(tensor: R::IntTensorPrimitive<D>) -> R::BoolTensorPrimitive<1>;
+
+    fn int_any_dim<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn int_all<const D: usize>(tensor: R::IntTensorPrimitive<D>) -> R::BoolTensorPrimitive<1>;
+
+    fn int_all_dim<const D: usize>(
+        tensor: R::IntTensorPrimitive<D>,
+        dim: usize,
+    ) -> R::BoolTensorPrimitive<D>;
+
+    fn int_expand<const D1: usize, const D2: usize>(
+        tensor: R::IntTensorPrimitive<D1>,
+        shape: Shape<D2>,
+    ) -> R::IntTensorPrimitive<D2>;
+}
