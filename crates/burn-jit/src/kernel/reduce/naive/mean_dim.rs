@@ -1,32 +1,22 @@
-use crate::{kernel::reduce::MeanDim, JitElement};
-use cubecl::{
-    cpa,
-    ir::{Item, Scope, Variable},
-};
+use crate::kernel::reduce::MeanDim;
+use cubecl::cube;
+use cubecl::prelude::{Cast, Numeric, Tensor, UInt, ABSOLUTE_POS};
 
 use super::base::ReduceDimNaive;
 
-impl<E: JitElement> ReduceDimNaive<E> for MeanDim {
-    type Accumulator = Variable;
+#[cube]
+impl<EI: Numeric> ReduceDimNaive<EI> for MeanDim {
+    type Accumulator = EI;
 
-    fn initialize_naive(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
-        scope.zero(output_item)
+    fn initialize_naive() -> EI {
+        EI::from_int(0)
     }
 
-    fn inner_loop_naive(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
-        cpa!(scope, accumulator += value);
+    fn inner_loop_naive(accumulator: &mut EI, current_value: EI, _i: UInt) {
+        *accumulator += current_value;
     }
 
-    fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        accumulator: Variable,
-        shape_reduce_dim: Variable,
-    ) {
-        let id = Variable::AbsolutePos;
-        let denominator = scope.create_local(accumulator.item());
-        cpa!(scope, denominator = cast(shape_reduce_dim));
-        cpa!(scope, accumulator = accumulator / denominator);
-        cpa!(scope, output[id] = accumulator);
+    fn assign_naive<EO: Numeric>(output: &mut Tensor<EO>, accumulator: EI, shape_reduce_dim: UInt) {
+        output[ABSOLUTE_POS] = EO::cast_from(accumulator) / EO::cast_from(shape_reduce_dim);
     }
 }
