@@ -38,6 +38,9 @@ pub trait TensorKind<B: Backend, R: TensorRepr<B> = Dense>: Clone + core::fmt::D
     /// The primitive type of the tensor.
     type Primitive<const D: usize>: Clone + core::fmt::Debug + Send;
 
+    /// The primitive type of the tensor when dense.
+    type DensePrimitive<const D: usize>: Clone + core::fmt::Debug + Send;
+
     /// The name of the tensor kind.
     fn name() -> &'static str;
 
@@ -56,7 +59,6 @@ pub trait TensorKind<B: Backend, R: TensorRepr<B> = Dense>: Clone + core::fmt::D
 
 // impl<B: Backend, R: SparseRepr<B>> TensorKind<B, Sparse<R, B>> for Float {
 //     type Primitive<const D: usize> = R::FloatTensorPrimitive<D>;
-
 //     fn name() -> &'static str {
 //         <Self as TensorKind<B, Dense>>::name()
 //     }
@@ -93,6 +95,7 @@ pub trait TensorKind<B: Backend, R: TensorRepr<B> = Dense>: Clone + core::fmt::D
 // }
 
 impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Bool {
+    type DensePrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
     type Primitive<const D: usize> = R::Primitive<Bool, D>;
 
     fn name() -> &'static str {
@@ -101,6 +104,7 @@ impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Bool {
 }
 
 impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Float {
+    type DensePrimitive<const D: usize> = TensorPrimitive<B, D>;
     type Primitive<const D: usize> = R::Primitive<Float, D>;
 
     fn name() -> &'static str {
@@ -109,6 +113,7 @@ impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Float {
 }
 
 impl<B: Backend, R: TensorRepr<B>> TensorKind<B, R> for Int {
+    type DensePrimitive<const D: usize> = B::IntTensorPrimitive<D>;
     type Primitive<const D: usize> = R::Primitive<Int, D>;
 
     fn name() -> &'static str {

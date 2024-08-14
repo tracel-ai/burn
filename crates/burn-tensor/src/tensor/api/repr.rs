@@ -2,7 +2,7 @@ use crate::{backend::Backend, ops::SparseTensorOps, Bool, Float, Int, Tensor, Te
 use core::marker::PhantomData;
 
 pub trait TensorRepr<B: Backend>: Clone + core::fmt::Debug {
-    type Primitive<K: TensorKind<B>, const D: usize>;
+    type Primitive<K: TensorKind<B>, const D: usize>: Clone + core::fmt::Debug + Send;
 
     fn name() -> &'static str;
 }
@@ -20,7 +20,7 @@ pub trait SparseRepr<B: Backend>: Clone + core::fmt::Debug + SparseTensorOps<Sel
     // type IntTensorPrimitive<const D: usize>: Clone + core::fmt::Debug + Send =
     //     Self::Primitive<Int, D>;
     // type BoolTensorPrimitive<const D: usize>: Clone + core::fmt::Debug + Send =
-        Self::Primitive<Bool, D>;
+    // Self::Primitive<Bool, D>;
     fn name() -> &'static str;
 }
 
@@ -31,7 +31,7 @@ pub struct Dense;
 pub struct Sparse<R: SparseRepr<B>, B: Backend>(PhantomData<(R, B)>);
 
 impl<B: Backend> TensorRepr<B> for Dense {
-    type Primitive<K: TensorKind<B>, const D: usize> = K::Primitive<D>;
+    type Primitive<K: TensorKind<B>, const D: usize> = K::DensePrimitive<D>;
 
     fn name() -> &'static str {
         "Dense"

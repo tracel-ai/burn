@@ -803,7 +803,7 @@ where
     ) -> Tensor<B, D2, K, R> {
         check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
-        Tensor::<B, D2, K>::cat(tensors, dim)
+        Tensor::<B, D2, K, R>::cat(tensors, dim)
     }
 
     /// Iterate over slices of tensors alongside a given dimension.
@@ -817,7 +817,7 @@ where
     /// A tensor iterator.
     pub fn iter_dim(self, dim: usize) -> DimIter<B, D, K, R> {
         check!(TensorCheck::dim_ops::<D>("iter_dim", dim));
-        DimIter::new(self, dim)
+        DimIter::<B, D, K, R>::new(self, dim)
     }
 
     /// Returns a new tensor with the given dimension narrowed to the given range.
@@ -833,7 +833,7 @@ where
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
-        Self::new(narrow::<B, D, K>(self.primitive, dim, start, length))
+        Self::new(narrow::<B, D, K, R>(self.primitive, dim, start, length))
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
@@ -850,7 +850,7 @@ where
     /// A vector of tensors.
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-        chunk::<B, D, K>(self.primitive, chunks, dim)
+        chunk::<B, D, K, R>(self.primitive, chunks, dim)
             .into_iter()
             .map(|v| Self::new(v))
             .collect()
@@ -979,8 +979,10 @@ where
     tensor: Tensor<B, D, K, R>,
 }
 
-impl<B: Backend, const D: usize, K: BasicOps<B>> Iterator for DimIter<B, D, K> {
-    type Item = Tensor<B, D, K>;
+impl<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>> Iterator
+    for DimIter<B, D, K, R>
+{
+    type Item = Tensor<B, D, K, R>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start >= self.end {
@@ -1013,8 +1015,8 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter
     }
 }
 
-impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
-    fn new(tensor: Tensor<B, D, K>, dim: usize) -> Self {
+impl<B: Backend, const D: usize, K: BasicOps<B, R>, R: TensorRepr<B>> DimIter<B, D, K, R> {
+    fn new(tensor: Tensor<B, D, K, R>, dim: usize) -> Self {
         let dims = tensor.dims();
         let ranges = dims
             .iter()

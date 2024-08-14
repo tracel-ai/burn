@@ -3,7 +3,7 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
-use crate::{cartesian_grid, Tensor};
+use crate::{cartesian_grid, Dense, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
 use core::future::Future;
@@ -1011,7 +1011,7 @@ pub trait IntTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> IntTensor<B, D> {
-        narrow::<B, D, Int>(tensor, dim, start, length)
+        narrow::<B, D, Int, Dense>(tensor, dim, start, length)
     }
 
     /// Generates a cartesian grid for the given tensor shape on the specified device.
@@ -1060,7 +1060,7 @@ pub trait IntTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<IntTensor<B, D>> {
-        chunk::<B, D, Int>(tensor, chunks, dim)
+        chunk::<B, D, Int, Dense>(tensor, chunks, dim)
     }
 
     /// Creates a new int tensor with random values.

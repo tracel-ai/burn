@@ -12,7 +12,7 @@ impl<B: Backend, R: SparseRepr<B>> BasicOps<B, Sparse<R, B>> for Float {
     fn empty<const D: usize>(
         shape: Shape<D>,
         device: &<B as Backend>::Device,
-    ) -> R::FloatTensorPrimitive<D> {
+    ) -> R::Primitive<Float, D> {
         R::float_empty(shape, device)
     }
 

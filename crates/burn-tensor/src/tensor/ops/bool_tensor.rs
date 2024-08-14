@@ -3,8 +3,8 @@ use super::{
     FloatTensor, IntTensor,
 };
 use crate::{
-    argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,
-    TensorData,
+    argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, Dense, ElementConversion,
+    Tensor, TensorData,
 };
 use alloc::vec::Vec;
 use core::{future::Future, ops::Range};
@@ -306,7 +306,7 @@ pub trait BoolTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> BoolTensor<B, D> {
-        narrow::<B, D, Bool>(tensor, dim, start, length)
+        narrow::<B, D, Bool, Dense>(tensor, dim, start, length)
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -325,7 +325,7 @@ pub trait BoolTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<BoolTensor<B, D>> {
-        chunk::<B, D, Bool>(tensor, chunks, dim)
+        chunk::<B, D, Bool, Dense>(tensor, chunks, dim)
     }
 
     /// Tests if any element in the boolean `tensor` evaluates to True.

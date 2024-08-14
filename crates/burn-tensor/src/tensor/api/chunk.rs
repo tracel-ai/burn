@@ -1,5 +1,5 @@
 use super::narrow::narrow;
-use crate::{backend::Backend, BasicOps, Bool, TensorKind, TensorRepr};
+use crate::{backend::Backend, BasicOps, Bool, Dense, TensorKind, TensorRepr};
 use alloc::vec::Vec;
 
 /// Split the tensor along the given dimension into chunks.
@@ -24,14 +24,11 @@ pub fn chunk<B: Backend, const D: usize, K: TensorKind<B, R> + BasicOps<B, R>, R
     tensor: K::Primitive<D>,
     chunks: usize,
     dim: usize,
-) -> Vec<K::Primitive<D>>
-where
-    Bool: TensorKind<B, R>,
-{
+) -> Vec<K::Primitive<D>> {
     let size = K::shape(&tensor).dims[dim];
     if size < chunks {
         return (0..size)
-            .map(|i| narrow::<B, D, K>(tensor.clone(), dim, i, 1))
+            .map(|i| narrow::<B, D, K, R>(tensor.clone(), dim, i, 1))
             .collect();
     }
 
@@ -40,7 +37,7 @@ where
     if size % chunks == 0 {
         let chunk_size = size / chunks;
         for _ in 0..chunks {
-            tensors.push(narrow::<B, D, K>(
+            tensors.push(narrow::<B, D, K, R>(
                 tensor.clone(),
                 dim,
                 sum_chunk_size,
@@ -51,7 +48,7 @@ where
     } else {
         let chunk_size = (size / chunks) + 1; // assumes not divisible
         for _ in 0..chunks - 1 {
-            tensors.push(narrow::<B, D, K>(
+            tensors.push(narrow::<B, D, K, R>(
                 tensor.clone(),
                 dim,
                 sum_chunk_size,
@@ -60,7 +57,7 @@ where
             sum_chunk_size += chunk_size;
         }
         let remainder = size % chunk_size;
-        tensors.push(narrow::<B, D, K>(
+        tensors.push(narrow::<B, D, K, R>(
             tensor.clone(),
             dim,
             sum_chunk_size,

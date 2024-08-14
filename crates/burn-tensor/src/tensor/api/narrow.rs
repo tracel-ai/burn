@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, TensorKind};
+use crate::{backend::Backend, BasicOps, Dense, TensorKind, TensorRepr};
 use alloc::vec::Vec;
 
 /// Returns a new tensor with the given dimension narrowed to the given range.
@@ -17,7 +17,12 @@ use alloc::vec::Vec;
 /// # Returns
 ///
 /// A new tensor with the given dimension narrowed to the given range.
-pub fn narrow<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
+pub fn narrow<
+    B: Backend,
+    const D: usize,
+    K: TensorKind<B, R> + BasicOps<B, R>,
+    R: TensorRepr<B>,
+>(
     tensor: K::Primitive<D>,
     dim: usize,
     start: usize,

@@ -5,7 +5,7 @@ use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
-use crate::{Tensor, TensorPrimitive};
+use crate::{Dense, Tensor, TensorPrimitive};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -1251,7 +1251,7 @@ pub trait FloatTensorOps<B: Backend> {
         start: usize,
         length: usize,
     ) -> FloatTensor<B, D> {
-        narrow::<B, D, Float>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
+        narrow::<B, D, Float, Dense>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -1270,7 +1270,7 @@ pub trait FloatTensorOps<B: Backend> {
         chunks: usize,
         dim: usize,
     ) -> Vec<FloatTensor<B, D>> {
-        chunk::<B, D, Float>(TensorPrimitive::Float(tensor), chunks, dim)
+        chunk::<B, D, Float, Dense>(TensorPrimitive::Float(tensor), chunks, dim)
             .into_iter()
             .map(|t| t.tensor())
             .collect()
