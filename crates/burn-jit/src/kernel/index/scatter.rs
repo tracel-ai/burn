@@ -77,7 +77,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let value = kernel::into_contiguous(value);
 
     let tensor = match tensor.can_mut() {
-        true => tensor,
+        true => tensor.copy(),
         false => tensor.copy(),
     };
 
