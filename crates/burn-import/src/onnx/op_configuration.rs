@@ -470,7 +470,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // if dim is negative, it is counted from the end
     if dim < 0 {
-        dim += input_dim as i64;
+        dim += input_dim;
     }
 
     dim as usize
