@@ -56,9 +56,7 @@ fn main() -> anyhow::Result<()> {
         Command::Check(cmd_args) => base_commands::check::handle_command(cmd_args),
         Command::Coverage(cmd_args) => base_commands::coverage::handle_command(cmd_args),
         Command::Compile(cmd_args) => base_commands::compile::handle_command(cmd_args),
-        Command::Dependencies(cmd_args) => {
-            base_commands::dependencies::handle_command(cmd_args)
-        }
+        Command::Dependencies(cmd_args) => base_commands::dependencies::handle_command(cmd_args),
         Command::Doc(cmd_args) => commands::doc::handle_command(cmd_args),
         Command::Fix(cmd_args) => base_commands::fix::handle_command(cmd_args, None),
         Command::Publish(cmd_args) => base_commands::publish::handle_command(cmd_args),
