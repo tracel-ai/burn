@@ -50,8 +50,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     shapes[D - 1] = num_elems;
     strides[D - 1] = 1;
 
-    let cube_dim = CubeDim::new(1, 1, 1);
-    //CubeDim::default();
+    let cube_dim = CubeDim::default();
 
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
