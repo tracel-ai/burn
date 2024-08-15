@@ -1,50 +1,36 @@
-use crate::{kernel::reduce::Argmax, JitElement};
-use cubecl::{
-    cpa,
-    ir::{Elem, Item, Scope, Variable},
-};
-
 use super::base::ReduceDimNaive;
+use crate::kernel::reduce::Argmax;
+use cubecl::cube;
+use cubecl::frontend::{Float, Tensor, UInt, ABSOLUTE_POS, F32};
+use cubecl::prelude::{Cast, Numeric};
 
-impl<E: JitElement> ReduceDimNaive<E> for Argmax {
-    type Accumulator = (Variable, Variable);
+#[allow(clippy::extra_unused_type_parameters)]
+#[cube]
+impl<EI: Numeric> ReduceDimNaive<EI> for Argmax {
+    type Accumulator = (F32, UInt);
 
-    fn initialize_naive(
-        scope: &mut Scope,
-        input_item: Item,
-        _output_item: Item,
-    ) -> Self::Accumulator {
-        let index = scope.create_local(Elem::UInt);
-        let max = scope.create_local(input_item);
-        let max_initial = input_item
-            .elem()
-            .constant_from_f64(E::minimum_value().to_f64());
-        cpa!(scope, max = max_initial);
-
-        (max, index)
+    fn initialize_naive() -> (F32, UInt) {
+        // TODO: switch to using f32::NEG_INFINITY when it's supported: https://github.com/tracel-ai/cubecl/issues/68
+        let a = F32::new(0.0);
+        let b = F32::new(100000000.0);
+        (a - b, UInt::new(0))
     }
 
-    fn inner_loop_naive(
-        scope: &mut Scope,
-        (max, index): Self::Accumulator,
-        value: Variable,
-        i: Variable,
-    ) {
-        let condition = scope.create_local(Elem::Bool);
-        cpa!(scope, condition = value > max);
-        cpa!(scope, if(condition).then(|scope| {
-            cpa!(scope, max = value);
-            cpa!(scope, index = i);
-        }));
+    fn inner_loop_naive(accumulator: &mut (F32, UInt), current_value: EI, i: UInt) {
+        let (max, index) = accumulator;
+        let val = F32::cast_from(current_value);
+        if val > *max {
+            *max = val;
+            *index = i;
+        }
     }
 
-    fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        (_max, index): Self::Accumulator,
-        _shape_reduce_dim: Variable,
+    fn assign_naive<EO: Numeric>(
+        output: &mut Tensor<EO>,
+        accumulator: (F32, UInt),
+        _shape_reduce_dim: UInt,
     ) {
-        let id = Variable::AbsolutePos;
-        cpa!(scope, output[id] = index);
+        let (_, index) = accumulator;
+        output[ABSOLUTE_POS] = EO::cast_from(index);
     }
 }
