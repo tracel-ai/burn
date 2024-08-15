@@ -66,8 +66,8 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
         #[allow(clippy::single_range_in_vec_init)]
         let prediction = predictions.clone().slice([i..i + 1]); // Get prediction for current sample
         let logits = prediction.to_data(); // Convert prediction tensor to data
-        let class_index = prediction.argmax(1).into_data().as_slice::<i32>().unwrap()[0]; // Get class index with the highest value
-        let class = D::class_name(class_index as usize); // Get class name
+        let class_index = prediction.argmax(1).squeeze::<1>(1).into_scalar(); // Get class index with the highest value
+        let class = D::class_name(class_index.elem::<i32>() as usize); // Get class name
 
         // Print sample text, predicted logits and predicted class
         println!(
