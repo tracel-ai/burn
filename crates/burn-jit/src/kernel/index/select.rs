@@ -10,8 +10,12 @@ fn select_kernel<T: Numeric>(
     indices: &Tensor<I32>,
     output: &mut Tensor<T>,
     dim: &UInt,
+    num_elems: &UInt,
 ) {
     let id = ABSOLUTE_POS;
+    if id >= *num_elems {
+        return;
+    }
     let mut offset_input = UInt::new(0);
     let rank = output.rank();
     for i in range(UInt::new(0), rank, Comptime::new(false)) {
@@ -63,6 +67,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             TensorArg::from_raw_parts(&indices.handle, &strides, &shapes, 1),
             output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
+            ScalarArg::new(num_elems as u32),
         )
     };
     output
