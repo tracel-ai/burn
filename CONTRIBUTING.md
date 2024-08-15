@@ -43,12 +43,20 @@ your changes easier. You can create a new branch by using the command
 Once you have set up your local repository and created a new branch, you can start making changes.
 Be sure to follow the coding standards and guidelines used in the rest of the project.
 
-### Step 6: Run the Pre-Pull Request Script
+### Step 6: Validate code before opening a Pull Request
 
 Before you open a pull request, please run [`./run-checks.sh all`](/run-checks.sh). This
 will ensure that your changes are in line with our project's standards and guidelines. You can run
 this script by opening a terminal, navigating to your local project directory, and typing
 `./run-checks`.
+
+Note that under the hood `run-checks` runs the `cargo xtask validate` command which is powered by
+the [tracel-xtask crate](https://github.com/tracel-ai/xtask). It is recommended to get familiar with
+it as it provides a wide variety of commands to help you work with the code base.
+
+If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
+
+Format and lint errors can often be fixed automatially using the command `cargo xtask fix all`.
 
 ### Step 7: Submit a Pull Request
 
