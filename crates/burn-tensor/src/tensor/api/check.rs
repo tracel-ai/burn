@@ -80,12 +80,20 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn from_data<const D: usize>(dims: &[usize]) -> Self {
+    pub(crate) fn creation_ops<const D: usize>(ops: &str, dims: &[usize]) -> Self {
         let mut check = Self::Ok;
+
+        if D == 0 {
+            check = check.register(
+                ops,
+                TensorError::new("Tried to create a 0-dim tensor, which is invalid.")
+                    .details(format!("Tensor rank: '{D}', given dimensions: '{dims:?}'.")),
+            );
+        }
 
         if dims.len() != D {
             check = check.register(
-                "From Data",
+                ops,
                 TensorError::new("Given dimensions differ from the tensor rank.")
                     .details(format!("Tensor rank: '{D}', given dimensions: '{dims:?}'.")),
             );

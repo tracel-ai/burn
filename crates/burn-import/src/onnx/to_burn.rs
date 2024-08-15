@@ -616,7 +616,7 @@ impl ParsedOnnxGraph {
     }
 
     fn gather_conversion(node: Node) -> GatherNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
         let index = Type::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
@@ -1242,7 +1242,7 @@ impl From<&OnnxArgument> for TensorType {
                 dim,
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *dim),
-            _ => panic!("Can't transform scalar to tensor."),
+            _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }
 }
