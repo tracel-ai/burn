@@ -92,3 +92,16 @@ cargo run --example ag-news-infer --release --features wgpu   # Run inference on
 cargo run --example db-pedia-train --release --features wgpu  # Train on the db pedia dataset
 cargo run --example db-pedia-infer --release --features wgpu  # Run inference db pedia dataset
 ```
+
+## CUDA backend
+
+```bash
+git clone https://github.com/tracel-ai/burn.git
+cd burn
+
+# Use the --release flag to really speed up training.
+
+# AG News
+cargo run --example ag-news-train --release --features cuda-jit   # Train on the ag news dataset
+cargo run --example ag-news-infer --release --features cuda-jit   # Run inference on the ag news dataset
+```
