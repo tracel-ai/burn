@@ -25,6 +25,6 @@ runs:
       uses: Swatinem/rust-cache@v2
       with:
         key: ${{ inputs.cache-key }}
-        prefix-key: v10-rust
+        prefix-key: v11-rust
         cache-on-failure: false
         cache-all-crates: true
