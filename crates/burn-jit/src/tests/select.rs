@@ -16,9 +16,6 @@ mod tests {
         let actual = tensor.select(1, indices);
         let expected = tensor_ref.select(1, indices_ref);
 
-        println!("{:?}", actual);
-        println!("{:?}", expected);
-
         expected
             .into_data()
             .assert_approx_eq(&actual.into_data(), 3);
