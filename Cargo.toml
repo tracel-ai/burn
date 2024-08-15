@@ -160,6 +160,9 @@ portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 cubecl = { version="0.2.0", default-features = false }
 cubecl-common = { version="0.2.0", default-features = false }
 
+### For xtask crate ###
+tracel-xtask = { git = "https://github.com/tracel-ai/xtask", rev = "e2fa57ffac4e13e691fb6a8aea900d7eb2692973" }
+
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.
 opt-level = 2

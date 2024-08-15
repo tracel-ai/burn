@@ -9,7 +9,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 log = { workspace = true }
 strum = { workspace = true }
-tracel-xtask = { git = "https://github.com/tracel-ai/xtask" }
+tracel-xtask = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
