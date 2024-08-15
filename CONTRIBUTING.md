@@ -95,50 +95,6 @@ You may also want to enable debugging by creating a `.vscode/settings.json` file
 
 4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
 
-## Continuous Integration
-
-### Run checks
-
-On Unix systems, run `run-checks.sh` using this command
-
-```
-./run-checks.sh environment
-```
-
-On Windows systems, run `run-checks.ps1` using this command:
-
-```
-run-checks.ps1 environment
-```
-
-The `environment` argument can assume **ONLY** the following values:
-
-- `std` to perform checks using `libstd`
-- `no-std` to perform checks on an embedded environment using `libcore`
-- `typos` to check for typos in the codebase
-- `examples` to check the examples compile
-
-If no `environment` value has been passed, run all checks except examples.
-If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
-
-## Continuous Deployment
-
-### Publish crates
-
-Compile `scripts/publish.rs` using this command:
-
-```
-rustc scripts/publish.rs --crate-type bin --out-dir scripts
-```
-
-Run `scripts/publish` using this command
-
-```
-./scripts/publish crate_name
-```
-
-where `crate_name` is the name of the crate to publish
-
 ## Code Guidelines
 
 We believe in clean and efficient code. While we don't enforce strict coding guidelines, we trust
