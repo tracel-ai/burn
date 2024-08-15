@@ -58,7 +58,9 @@ where
 
     /// Create an empty tensor of the given shape.
     pub fn empty<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::empty(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
+        Self::new(K::empty(shape, device))
     }
 
     /// Returns the dimensions of the current tensor.
@@ -717,7 +719,10 @@ where
         T: Into<TensorData>,
     {
         let data = data.into();
-        check!(TensorCheck::from_data::<D>(data.shape.as_slice()));
+        check!(TensorCheck::creation_ops::<D>(
+            "From Data",
+            data.shape.as_slice()
+        ));
         Self::new(K::from_data(data, device))
     }
 

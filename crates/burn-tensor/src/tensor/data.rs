@@ -63,8 +63,18 @@ impl TensorData {
         // Ensure `E` satisfies the `Pod` trait requirements
         assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
 
+        // Ensure shape is valid
+        let shape = shape.into();
+        let shape_numel = Self::numel(&shape);
+        let numel = value.len();
+        assert_eq!(
+            shape_numel, numel,
+            "Shape {:?} is invalid for input of size {:?}",
+            shape, numel,
+        );
+
         let factor = core::mem::size_of::<E>() / core::mem::size_of::<u8>();
-        let len = value.len() * factor;
+        let len = numel * factor;
         let capacity = value.capacity() * factor;
         let ptr = value.as_mut_ptr();
 
@@ -74,7 +84,7 @@ impl TensorData {
 
         Self {
             bytes,
-            shape: shape.into(),
+            shape,
             dtype,
         }
     }
