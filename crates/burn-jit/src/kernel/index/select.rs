@@ -2,7 +2,9 @@ use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, CubeDim};
+use cubecl::{
+    calculate_cube_count_elemwise, frontend::TensorHandleRef, CubeCountSettings, CubeDim, Execution,
+};
 
 #[cube(launch_unchecked)]
 fn select_kernel<T: Numeric>(
@@ -32,6 +34,46 @@ fn select_kernel<T: Numeric>(
     let value = input[offset_input];
     output[id] = value;
 }
+//pub fn expand(self, scope: &mut Scope) {
+//    let input = self.input;
+//    let indices = self.indices;
+//    let output = self.output;
+//    let id = Variable::AbsolutePos;
+//    let offset_input = scope.zero(Elem::UInt);
+//
+//    cpa!(
+//        scope,
+//        range(0u32, Variable::Rank).for_each(|i, scope| {
+//            let stride_input = scope.create_local(Elem::UInt);
+//            let stride_output = scope.create_local(Elem::UInt);
+//            let shape_output = scope.create_local(Elem::UInt);
+//
+//            cpa!(scope, stride_input = stride(input, i));
+//            cpa!(scope, stride_output = stride(output, i));
+//            cpa!(scope, shape_output = shape(output, i));
+//
+//            let offset_local = scope.create_local(Elem::UInt);
+//            cpa!(scope, offset_local = id / stride_output);
+//            cpa!(scope, offset_local = offset_local % shape_output);
+//
+//            let dim_index = scope.create_local(Elem::Bool);
+//            cpa!(scope, dim_index = i == self.dim);
+//
+//            cpa!(scope, if(dim_index).then(|scope| {
+//                cpa!(scope, offset_local = indices[offset_local]);
+//                cpa!(scope, offset_local = offset_local * stride_input);
+//            }).else(|scope| {
+//                cpa!(scope, offset_local = offset_local * stride_input);
+//            }));
+//
+//            cpa!(scope, offset_input += offset_local);
+//        })
+//    );
+//
+//    let value = scope.create_local(input.item());
+//    cpa!(scope, value = input[offset_input]);
+//    cpa!(scope, output[id] = value);
+//}
 
 pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
@@ -39,14 +81,12 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     indices: JitTensor<R, I, 1>,
 ) -> JitTensor<R, E, D> {
     let mut shape_output = tensor.shape.clone();
+    shape_output.dims[dim] = indices.shape.dims[0];
     let num_elems = indices.shape.dims[0];
-    shape_output.dims[dim] = num_elems;
-
     let mut total_elem = 1;
     for dim_size in shape_output.dims.iter() {
         total_elem *= dim_size
     }
-
     let mut shapes = [1; D];
     let mut strides = [num_elems; D];
     shapes[D - 1] = num_elems;
