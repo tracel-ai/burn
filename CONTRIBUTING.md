@@ -56,7 +56,7 @@ it as it provides a wide variety of commands to help you work with the code base
 
 If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
 
-Format and lint errors can often be fixed automatially using the command `cargo xtask fix all`.
+Format and lint errors can often be fixed automatically using the command `cargo xtask fix all`.
 
 ### Step 7: Submit a Pull Request
 
