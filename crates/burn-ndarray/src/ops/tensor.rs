@@ -1,7 +1,7 @@
 // Language
 use alloc::vec::Vec;
 use core::ops::Range;
-use ndarray::IntoDimension;
+use ndarray::{IntoDimension, Zip};
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
@@ -225,10 +225,11 @@ impl<E: FloatNdArrayElement, Q: QuantElement> FloatTensorOps<Self> for NdArray<E
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-
-        Self::float_equal_elem(tensor, zero)
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn float_equal_elem<const D: usize>(
