@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
         Command::Test(cmd_args) => {
             commands::test::handle_command(cmd_args, args.execution_environment)
         }
-        Command::Validate => commands::validate::handle_command(),
+        Command::Validate => commands::validate::handle_command(&args.execution_environment),
         _ => dispatch_base_commands(args),
     }?;
 

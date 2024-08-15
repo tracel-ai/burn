@@ -1,3 +1,4 @@
+use strum::IntoEnumIterator;
 use tracel_xtask::prelude::*;
 
 use crate::{ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
@@ -33,5 +34,17 @@ pub(crate) fn handle_command(
             helpers::custom_crates_build(vec!["burn-dataset"], vec!["--all-features"])?;
             Ok(())
         }
+        ExecutionEnvironment::All => ExecutionEnvironment::iter()
+            .filter(|env| *env != ExecutionEnvironment::All)
+            .try_for_each(|env| {
+                handle_command(
+                    BuildCmdArgs {
+                        target: args.target.clone(),
+                        exclude: args.exclude.clone(),
+                        only: args.only.clone(),
+                    },
+                    env,
+                )
+            }),
     }
 }

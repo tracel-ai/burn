@@ -12,14 +12,11 @@ set -e
 #
 # where `environment` can assume **ONLY** the following values:
 #
-# - `std` to perform checks using `libstd`
-# - `no-std` to perform checks on an embedded environment using `libcore`
-# - `typos` to check for typos in the codebase
-# - `examples` to check the examples compile
+# - `std` to perform validation using `libstd`
+# - `no-std` to perform validation on an embedded environment using `libcore`
+# - `all` to perform both std and no-std validation
 #
-# If no `environment` value has been passed, run all checks except examples.
+# If no `environment` value has been passed.
+exec_env=${1:-all}
 
-# Run binary passing the first input parameter, who is mandatory.
-# If the input parameter is missing or wrong, it will be the `run-checks`
-# binary which will be responsible of arising an error.
-cargo xtask run-checks $1
+cargo xtask --execution-environment "$exec_env" validate

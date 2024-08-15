@@ -1,3 +1,4 @@
+use strum::IntoEnumIterator;
 use tracel_xtask::prelude::*;
 
 use crate::NO_STD_CRATES;
@@ -59,5 +60,19 @@ pub(crate) fn handle_command(
             }
             Ok(())
         }
+        ExecutionEnvironment::All => ExecutionEnvironment::iter()
+            .filter(|env| *env != ExecutionEnvironment::All)
+            .try_for_each(|env| {
+                handle_command(
+                    TestCmdArgs {
+                        command: args.command.clone(),
+                        target: args.target.clone(),
+                        exclude: args.exclude.clone(),
+                        only: args.only.clone(),
+                        threads: args.threads,
+                    },
+                    env,
+                )
+            }),
     }
 }
