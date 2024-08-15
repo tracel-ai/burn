@@ -65,7 +65,6 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             ScalarArg::new(dim as u32),
         )
     }
-
     output
 }
 
