@@ -139,6 +139,7 @@ jobs:
         include:
           - rust: stable
             cache-version: stable
+            coverage: --enable-coverage
           - rust: 1.79.0
             cache-version: 1-79-0
     steps:
@@ -159,23 +160,23 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Install grcov
+        if: matrix.rust == 'stable'
         shell: bash
         run: |
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
-      - name: Build
-        run: cargo xtask --enable-coverage build
-      # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask --enable-coverage test all
+        run: cargo xtask ${{ matrix.coverage }} test all
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
+        if: matrix.rust == 'stable'
         # /* is to exclude std library code coverage from analysis
         run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
+        if: matrix.rust == 'stable'
         uses: codecov/codecov-action@v4
         with:
           files: lcov.info
@@ -244,9 +245,6 @@ jobs:
           mesa-version: ${{ env.MESA_VERSION }}
           warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
-      - name: Build
-        run: cargo xtask build
-      # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test all
 
@@ -268,9 +266,6 @@ jobs:
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-macos
-      # --------------------------------------------------------------------------------
-      - name: Build
-        run: cargo xtask build
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test all
