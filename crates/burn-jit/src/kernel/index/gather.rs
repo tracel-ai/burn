@@ -67,4 +67,3 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     }
     output
 }
-
