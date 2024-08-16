@@ -31,20 +31,12 @@ fn select_kernel<T: Numeric, I: Numeric>(
     }
     output[id] = input[offset_input];
 }
-fn print_type_name<T>() -> &'static str {
-    std::any::type_name::<T>()
-}
 
-#[allow(unreachable_code)]
-#[allow(unused_variables)]
 pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,
 ) -> JitTensor<R, E, D> {
-    if print_type_name::<I>() != "i32" {
-        panic!("{}", print_type_name::<I>());
-    }
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
     let total_elem = shape_output.num_elements();
