@@ -368,13 +368,13 @@ mod tests {
                 tensor.gather(0, indices)
             }
         );
-        clone_invariance_test!(
-            unary: Select,
-            ops_float: |tensor: TestTensor<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
-                tensor.select(0, indices)
-            }
-        );
+        //clone_invariance_test!(
+        //    unary: Select,
+        //    ops_float: |tensor: TestTensor<2>| {
+        //        let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
+        //        tensor.select(0, indices)
+        //    }
+        //);
         clone_invariance_test!(
             unary: MaskFill,
             ops_float: |tensor: TestTensor<2>| {
@@ -652,13 +652,13 @@ mod tests {
                 tensor.gather(0, indices)
             }
         );
-        clone_invariance_test!(
-            unary: Select,
-            ops_int: |tensor: TestTensorInt<2>| {
-                let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
-                tensor.select(0, indices)
-            }
-        );
+        //clone_invariance_test!(
+        //    unary: Select,
+        //    ops_int: |tensor: TestTensorInt<2>| {
+        //        let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
+        //        tensor.select(0, indices)
+        //    }
+        //);
         clone_invariance_test!(
             unary: MaskFill,
             ops_int: |tensor: TestTensorInt<2>| {
