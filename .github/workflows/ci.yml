@@ -75,11 +75,8 @@ jobs:
           - rust: stable
             cache-version: stable
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
@@ -116,11 +113,8 @@ jobs:
           - rust: stable
             cache-version: stable
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
@@ -143,17 +137,14 @@ jobs:
           - rust: 1.79.0
             cache-version: 1-79-0
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
-        uses: ./.github/actions/setup-linux
+        uses: tracel-ai/github-actions/actions/setup-linux@v1
         with:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
@@ -193,17 +184,14 @@ jobs:
           - rust: 1.79.0
             cache-version: 1-79-0
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
-        uses: ./.github/actions/setup-linux
+        uses: tracel-ai/github-actions/actions/setup-linux@v1
         with:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
@@ -227,18 +215,15 @@ jobs:
           - rust: stable
             cache-version: stable
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
-        uses: ./.github/actions/setup-windows
+        uses: tracel-ai/github-actions/actions/setup-windows@v1
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
           dxc-filename: ${{ env.DXC_FILENAME }}
@@ -258,11 +243,8 @@ jobs:
           - rust: stable
             cache-version: stable
     steps:
-      - name: Checkout actions
-        uses: actions/checkout@v4
-      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: ./.github/actions/setup-rust
+        uses: tracel-ai/github-actions/actions/setup-rust@v1
         with:
           rust-toolchain: ${{ matrix.rust }}
           cache-key: ${{ matrix.cache-version }}-macos
