@@ -51,7 +51,7 @@ mod tests {
                             $ops(lhs).into_data().convert::<f32>()
                         } else {
                             let out = $ops(lhs.clone()).into_data().convert::<f32>();
-                            //                lhs.into_data().assert_approx_eq(args, 4);
+                            lhs.into_data().assert_approx_eq(args, 4);
                             out
                         }
                     }

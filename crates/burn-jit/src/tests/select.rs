@@ -20,4 +20,32 @@ mod tests {
             .into_data()
             .assert_approx_eq(&actual.into_data(), 3);
     }
+
+    #[test]
+    fn select_test() {
+        let test_data = TestTensor::random([32, 32], Distribution::Default, &Default::default())
+            .into_data()
+            .convert::<f32>();
+        let test_tensor = TestTensor::<2>::from_data(test_data.clone(), &Default::default());
+        let indices = TestTensorInt::from_ints([1, 2, 0, 5], &Default::default());
+        let out = {
+            let lhs = TestTensor::<2>::from_data(test_data.clone(), &Default::default());
+
+            let inner_out = lhs
+                .clone()
+                .select(0, indices.clone())
+                .into_data()
+                .convert::<f32>();
+            lhs.clone()
+                .into_data()
+                .convert::<f32>()
+                .assert_approx_eq(&test_data, 5);
+            inner_out
+        };
+        let out_inplace = test_tensor
+            .select(0, indices.clone())
+            .into_data()
+            .convert::<f32>();
+        out.assert_approx_eq(&out_inplace, 5);
+    }
 }
