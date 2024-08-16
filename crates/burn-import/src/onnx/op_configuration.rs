@@ -454,9 +454,10 @@ pub fn gather_config(curr: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    let input_dim = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor.dim as i64,
+        ArgType::Shape(_shape) => 1, //Shape is always 1-D
+        other => panic!("Only tensor or shape input is valid, got {:?}", other),
     };
 
     // extract the attributes
@@ -469,7 +470,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // if dim is negative, it is counted from the end
     if dim < 0 {
-        dim += tensor.dim as i64;
+        dim += input_dim;
     }
 
     dim as usize
