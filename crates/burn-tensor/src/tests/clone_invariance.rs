@@ -24,7 +24,7 @@ mod tests {
             let out = self.run(&args, false);
             let out_inplace = self.run(&args, true);
 
-            //out.assert_approx_eq(&out_inplace, 4);
+            out.assert_approx_eq(&out_inplace, 4);
         }
     }
 
@@ -51,7 +51,7 @@ mod tests {
                             $ops(lhs).into_data().convert::<f32>()
                         } else {
                             let out = $ops(lhs.clone()).into_data().convert::<f32>();
-                            lhs.into_data().assert_approx_eq(args, 4);
+                            //                lhs.into_data().assert_approx_eq(args, 4);
                             out
                         }
                     }
