@@ -23,6 +23,7 @@ pub enum MatmulStrategy {
 }
 
 impl Default for MatmulStrategy {
+    #[allow(unreachable_code)]
     fn default() -> Self {
         // if wasm, force simple kernel for now (regardless of autotune)
         // issue: https://github.com/tracel-ai/burn/issues/2178
