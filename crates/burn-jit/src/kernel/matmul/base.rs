@@ -24,6 +24,14 @@ pub enum MatmulStrategy {
 
 impl Default for MatmulStrategy {
     fn default() -> Self {
+        // if wasm, force simple kernel for now (regardless of autotune)
+        // issue: https://github.com/tracel-ai/burn/issues/2178
+        #[cfg(target_arch = "wasm32")]
+        return MatmulStrategy::Simple {
+            grid_x: 16,
+            grid_y: 16,
+        };
+
         // if autotune is enabled, default to autotune
         #[cfg(feature = "autotune")]
         return MatmulStrategy::Autotune;
