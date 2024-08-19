@@ -2,56 +2,56 @@
 
 # used to generate model: onnx-tests/tests/gather/gather.onnx
 
-import torch
-import torch.nn as nn
+import onnx
 
 
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
+def build_model():
+    return onnx.helper.make_model(
+        ir_version=8,
+        opset_imports=[onnx.helper.make_operatorsetid("", 16)],
+        graph=onnx.helper.make_graph(name="main_graph", nodes=[
+            onnx.helper.make_node(
+                "Gather",
+                inputs=["input1", "input2"],
+                outputs=["output1"],
+                name="/Gather",
+                axis=1
+            ),
+        ],
+        inputs=[
+            onnx.helper.make_value_info(
+                name="input1",
+                type_proto=onnx.helper.make_tensor_type_proto(
+                    elem_type=onnx.TensorProto.FLOAT, shape=[2, 3]
+                ),
+            ),
+            onnx.helper.make_value_info(
+                name="input2",
+                type_proto=onnx.helper.make_tensor_type_proto(
+                    elem_type=onnx.TensorProto.INT64, shape=[2, 2]
+                ),
+            ),
 
-    def forward(self, x, index):
-        gathered = self.gather(1, x, index)
-        return gathered
-
-    @staticmethod
-    def gather(axis, tensor, index):
-        out = []
-        if isinstance(index, int):
-            index = torch.tensor([index], dtype=torch.int64)
-        index_flat = index.flatten(0, max(index.ndim - 2, -1))
-        for idxs in index_flat:
-            subtensor = tensor.index_select(axis, idxs)
-            out.append(subtensor)
-        return torch.stack(out, axis)
+        ],
+        outputs=[
+            onnx.helper.make_value_info(
+                name="output1",
+                type_proto=onnx.helper.make_tensor_type_proto(
+                    elem_type=onnx.TensorProto.FLOAT, shape=[2, 2, 2]
+                ),
+            )
+        ]),
+    )
 
 
 def main():
-    # Set random seed for reproducibility
-    torch.manual_seed(0)
+    onnx_model = build_model()
+    file_name = "gather.onnx"
 
-    # Export to onnx
-    model = Model()
-    model.eval()
-    device = torch.device("cpu")
-    onnx_name = "gather.onnx"
+    # Ensure valid ONNX:
+    onnx.checker.check_model(onnx_model)
 
-    dummy_input = torch.randn(2, 3, device=device)
-    dummy_index = torch.tensor([[0, 2]], device=device, dtype=torch.int64)
-
-    torch.onnx.export(model, (dummy_input, dummy_index), onnx_name,
-                      verbose=False, opset_version=16)
-
-    print("Finished exporting model to {}".format(onnx_name))
-
-    # Output some test data for use in the test
-    test_input = torch.tensor([[1.0, 2.0, 3.0],
-                               [4.0, 5.0, 6.0]])
-    test_index = torch.tensor([[0, 2]], dtype=torch.int64)
-
-    print("Test input data: {}, {}".format(test_input, test_index))
-    output = model.forward(test_input, test_index)
-    print("Test output data: {}".format(output))
+    onnx.save(onnx_model, file_name)
 
 
 if __name__ == '__main__':

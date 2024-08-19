@@ -458,14 +458,13 @@ mod tests {
 
         let input = Tensor::<Backend, 2>::from_data([[1.0, 1.2], [2.3, 3.4], [4.5, 5.7]], &device);
         let index = Tensor::<Backend, 2, Int>::from_data([[0, 1], [1, 2]], &device);
-        let expected =Tensor::<Backend, 3>::from_data(
+        let expected =TensorData::from(
             [
              [[1.0, 1.2],
               [2.3, 3.4]],
              [[2.3, 3.4],
               [4.5, 5.7]]
             ],
-            &device
         );
         let output = model.forward(input, index);
 

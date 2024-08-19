@@ -27,6 +27,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         node_position: usize,
     ) -> proc_macro2::TokenStream {
         let dim = self.dim.to_tokens();
+        let input_rank = match &self.input {
+            Type::Tensor(in_tensor) => in_tensor.dim,
+            Type::Shape(_) => 1,
+            _ => panic!("Gather needs Tensor or Shape input, got {:?}!", self.input),
+        };
+        let index_rank = match &self.index {
+            Type::Tensor(idx_tensor) => idx_tensor.dim,
+            Type::Scalar(_) => 1,  // Scalar will be turned into a 1-D Tensor
+            _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
+        };
+        let out_rank = index_rank + input_rank - 1;
         let input = match &self.input {
             Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
             Type::Shape(in_shape) => {
@@ -34,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                 // To copy just the values from the shape value without moving it
                 // (which could lead to ownership problems if the same Shape is used multiple times)
                 // borrow the array as a slice and use that to create the Tensor:
-                quote! { Tensor::from_data(&#in_shape_name as &[_], &*self.device) }
+                quote! { Tensor::<B, 1, Int>::from_data(&#in_shape_name as &[_], &*self.device) }
             }
             _ => panic!("Gather needs Scalar or Shape input, got {:?}!", self.input),
         };
@@ -47,14 +58,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                 // then squeeze the dimension to reduce the rank
                 let index = &idx_scalar.name;
                 quote! {
-                    let indices = Tensor::from_data([#index], &*self.device);
-                    let #output = #input.gather_onnx(#dim, indices).squeeze(#dim);
+                    let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
+                    let #output = #input.gather_onnx::<#index_rank, #out_rank>(#dim, indices)
+                        .squeeze(#dim);
                 }
             }
             Type::Tensor(idx_tensor) => {
                 let index = scope.tensor_use_owned(idx_tensor, node_position);
                 quote! {
-                    let #output = #input.gather_onnx(#dim, #index);
+                    let #output = #input.gather_onnx::<#index_rank, #out_rank>(#dim, #index);
                 }
             }
             _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
@@ -129,7 +141,7 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.gather_onnx(0, tensor2);
+                    let tensor3 = tensor1.gather_onnx::<1usize, 2usize>(0, tensor2);
 
                     tensor3
                 }
@@ -183,7 +195,8 @@ mod tests {
                     shape1: [usize; 3],
                     tensor1: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let tensor2 = Tensor::from_data(&shape1 as &[_], &*self.device).gather_onnx(0, tensor1);
+                    let tensor2 = Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device)
+                        .gather_onnx::<1usize, 1usize>(0, tensor1);
 
                     tensor2
                 }
@@ -236,8 +249,9 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     scalar1: i64
                 ) -> Tensor<B, 2> {
-                    let indices = Tensor::from_data([scalar1], &*self.device);
-                    let tensor2 = tensor1.gather_onnx(0, indices).squeeze(0);
+                    let indices = Tensor::<B, 1, _>::from_data([scalar1], &*self.device);
+                    let tensor2 = tensor1.gather_onnx::<1usize, 2usize>(0, indices)
+                        .squeeze(0);
 
                     tensor2
                 }
@@ -268,7 +282,10 @@ mod tests {
             ),
             (
                 1,
-                Tensor::<NdArray, 2>::from_data([[1.0, 1.2, 1.9], [2.3, 3.4, 3.9], [4.5, 5.7, 5.9]], &device),
+                Tensor::<NdArray, 2>::from_data(
+                    [[1.0, 1.2, 1.9], [2.3, 3.4, 3.9], [4.5, 5.7, 5.9]],
+                    &device
+                ),
                 Tensor::<NdArray, 2, Int>::from_data([[0, 2]], &device),
                 Tensor::<NdArray, 3>::from_data(
                     [
@@ -284,5 +301,66 @@ mod tests {
             let out = input.gather_onnx(axis, index);
             assert!(out.all_close(expected, None, None));
         }
+    }
+
+    #[test]
+    fn gather_shape() {
+        let device = NdArrayDevice::default();
+
+        let input = [1usize, 2, 3];
+        let index = Tensor::<NdArray, 1, Int>::from_data([0, 2], &device);
+        let expected = Tensor::<NdArray, 2, Int>::from_data([[1, 3]], &device);
+
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(GatherNode::new(
+            Type::Shape(ShapeType::new("shape1", 3)),
+            Type::Tensor(TensorType::new_int("tensor1", 1)),
+            TensorType::new_float("tensor2", 2),
+            0,
+        ));
+
+        graph.register_input_output(
+            vec!["shape1".to_string(), "tensor1".to_string()],
+            vec!["tensor2".to_string()],
+        );
+
+        use burn::tensor::Int;
+        use burn::{
+            module::Module,
+            tensor::{backend::Backend, Tensor},
+        };
+
+        #[derive(Module, Debug)]
+        pub struct Model<B: Backend> {
+            phantom: core::marker::PhantomData<B>,
+            device: burn::module::Ignored<B::Device>,
+        }
+
+        impl<B: Backend> Model <B> {
+            #[allow(unused_variables)]
+            pub fn new(device: &B::Device) -> Self {
+                Self {
+                    phantom: core::marker::PhantomData,
+                    device: burn::module::Ignored(device.clone()),
+                }
+            }
+
+            #[allow(clippy::let_and_return, clippy::approx_constant)]
+            pub fn forward(
+                &self,
+                shape1: [usize; 3],
+                tensor1: Tensor<B, 1, Int>
+            ) -> Tensor<B, 2, Int> {
+                let tensor2 = Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device)
+                    .gather_onnx(0, tensor1);
+
+                tensor2
+            }
+        }
+
+        let model = Model::new(&device);
+        let out = model.forward(input, index);
+        assert!(out.all_close(expected, None, None));
     }
 }

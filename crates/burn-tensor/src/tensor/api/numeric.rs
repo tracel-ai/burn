@@ -2399,9 +2399,15 @@ impl<B: Backend> Numeric<B> for Int {
         tensor: Self::Primitive<D>,
         index: Tensor<B, X, Int>
     ) -> Self::Primitive<O> {
-        let n_dims_index = index.dims().len();
         let mut out = Vec::new();
-        let index_flat = index.flatten::<2>(0, n_dims_index - 2);
+
+        let n_dims = index.dims().len();
+        let index_flat = match n_dims {
+            nd if nd == 1 => index.reshape([1, -1]),
+            nd if nd >= 2 => index.flatten::<2>(0, nd - 2),
+            _ => panic!("Number of dimensions must be greater than 0"),
+        };
+
         for idxs in index_flat.iter_dim(0) {
             let idxs = idxs.squeeze::<1>(0);
             let slice = B::int_select(
@@ -2775,9 +2781,15 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive<D>,
         index: Tensor<B, X, Int>
     ) -> Self::Primitive<O> {
-        let n_dims_index = index.dims().len();
         let mut out = Vec::new();
-        let index_flat = index.flatten::<2>(0, n_dims_index - 2);
+
+        let n_dims = index.dims().len();
+        let index_flat = match n_dims {
+            nd if nd == 1 => index.reshape([1, -1]),
+            nd if nd >= 2 => index.flatten::<2>(0, nd - 2),
+            _ => panic!("Number of dimensions must be greater than 0"),
+        };
+
         for idxs in index_flat.iter_dim(0) {
             let idxs = idxs.squeeze::<1>(0);
             let slice = B::float_select(
