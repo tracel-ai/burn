@@ -85,3 +85,6 @@ pub mod prelude {
         },
     };
 }
+
+#[cfg(feature = "jit")]
+pub use burn_jit::cubecl;

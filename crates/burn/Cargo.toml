@@ -48,6 +48,7 @@ autotune = ["burn-core/autotune"]
 template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
+jit = ["burn-core/jit"]
 wgpu = ["burn-core/wgpu"]
 cuda-jit = ["burn-core/cuda-jit"]
 tch = ["burn-core/tch"]
