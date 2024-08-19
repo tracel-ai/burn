@@ -4,12 +4,14 @@ mod api;
 mod data;
 mod distribution;
 mod element;
+mod report;
 mod shape;
 
 pub use api::*;
 pub use data::*;
 pub use distribution::*;
 pub use element::*;
+pub use report::*;
 pub use shape::*;
 
 /// The activation module.
