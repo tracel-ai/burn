@@ -15,12 +15,7 @@ pub trait ChangeRepr<B: Backend, R: TensorRepr<B>>: TensorRepr<B> {
 
 pub trait SparseRepr<B: Backend>: Clone + core::fmt::Debug + SparseTensorOps<Self, B> {
     type Primitive<K: TensorKind<B>, const D: usize>: Clone + core::fmt::Debug + Send;
-    // type FloatTensorPrimitive<const D: usize>: Clone + core::fmt::Debug + Send =
-    //     Self::Primitive<Float, D>;
-    // type IntTensorPrimitive<const D: usize>: Clone + core::fmt::Debug + Send =
-    //     Self::Primitive<Int, D>;
-    // type BoolTensorPrimitive<const D: usize>: Clone + core::fmt::Debug + Send =
-    // Self::Primitive<Bool, D>;
+
     fn name() -> &'static str;
 }
 

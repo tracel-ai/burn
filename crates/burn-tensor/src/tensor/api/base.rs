@@ -763,7 +763,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool, R> {
-        check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
+        // check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
         K::equal(self.primitive, other.primitive)
     }
 
@@ -773,7 +773,7 @@ where
     ///
     /// If the two tensors don't have the same shape.
     pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool, R> {
-        check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
+        // check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
         K::not_equal(self.primitive, other.primitive)
     }
 
@@ -783,7 +783,7 @@ where
     ///
     /// If all tensors don't have the same shape.
     pub fn cat(tensors: Vec<Self>, dim: usize) -> Self {
-        check!(TensorCheck::cat(&tensors, dim));
+        // check!(TensorCheck::cat(&tensors, dim));
 
         Self::new(K::cat(
             tensors.into_iter().map(|vector| vector.primitive).collect(),
@@ -801,7 +801,7 @@ where
         tensors: Vec<Tensor<B, D, K, R>>,
         dim: usize,
     ) -> Tensor<B, D2, K, R> {
-        check!(TensorCheck::stack(&tensors, dim));
+        // check!(TensorCheck::stack(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<B, D2, K, R>::cat(tensors, dim)
     }
@@ -832,7 +832,7 @@ where
     /// A new tensor with the given dimension narrowed to the given range.
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
-        check!(TensorCheck::narrow(&self, dim, start, length));
+        // check!(TensorCheck::narrow(&self, dim, start, length));
         Self::new(narrow::<B, D, K, R>(self.primitive, dim, start, length))
     }
 

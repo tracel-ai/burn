@@ -15,7 +15,8 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
 
     fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> R::Primitive<Float, D>;
 
-    fn float_to_dense<const D: usize>(sparse: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
+    fn float_to_dense<const D: usize>(sparse: R::Primitive<Float, D>)
+        -> B::FloatTensorPrimitive<D>;
 
     fn float_spmm<const D: usize>(
         lhs: R::Primitive<Float, D>,
@@ -34,7 +35,7 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
     fn float_remove_zeros<const D: usize>(tensor: R::Primitive<Float, D>)
         -> R::Primitive<Float, D>;
 
-    fn float_nonzero<const D: usize>(tensor: R::Primitive<Float, D>) -> usize;
+    fn float_number_nonzero<const D: usize>(tensor: R::Primitive<Float, D>) -> usize;
 
     fn float_density<const D: usize>(sparse: R::Primitive<Float, D>) -> f32;
 
@@ -202,36 +203,6 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
         rhs: R::Primitive<Float, D>,
     ) -> R::Primitive<Float, D>;
 
-    /// Adds a sparse and dense tensor together.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// The result of adding the two tensors together.
-    fn float_add_dense<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
-
-    /// Adds a scalar to a tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The result of adding the scalar to the tensor.
-    fn float_add_scalar<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Float, D>;
-
     /// Subtracts two tensors.
     ///
     /// # Arguments
@@ -245,36 +216,6 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
     fn float_sub<const D: usize>(
         lhs: R::Primitive<Float, D>,
         rhs: R::Primitive<Float, D>,
-    ) -> R::Primitive<Float, D>;
-
-    /// Subtracts a dense from a sparse tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor (sparse).
-    /// * `rhs` - The right hand side tensor (dense).
-    ///
-    /// # Returns
-    ///
-    /// The result of subtracting the two tensors.
-    fn float_sub_dense<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
-
-    /// Subtracts a scalar from a tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The result of subtracting the scalar from the tensor.
-    fn float_sub_scalar<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
     ) -> R::Primitive<Float, D>;
 
     /// Multiplies two sparse tensors together.
@@ -291,21 +232,6 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
         lhs: R::Primitive<Float, D>,
         rhs: R::Primitive<Float, D>,
     ) -> R::Primitive<Float, D>;
-
-    /// Multiplies  a sparse and dense tensor together.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// The result of multiplying the two tensors together.
-    fn float_mul_dense<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
 
     /// Multiplies a scalar to a tensor.
     ///
@@ -337,21 +263,6 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
         rhs: R::Primitive<Float, D>,
     ) -> R::Primitive<Float, D>;
 
-    /// Divides a sparse and dense tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
-    ///
-    /// # Returns
-    ///
-    /// The result of dividing the two tensors.
-    fn float_div_dense<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
-
     /// Divides a tensor by a scalar.
     ///
     /// # Arguments
@@ -380,46 +291,6 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
         tensor: R::Primitive<Float, D>,
         dim: usize,
     ) -> R::Primitive<Float, D>;
-
-    fn float_greater<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: R::Primitive<Float, D>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_greater_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_greater_equal<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: R::Primitive<Float, D>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_greater_equal_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_lower<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: R::Primitive<Float, D>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_lower_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_lower_equal<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: R::Primitive<Float, D>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_lower_equal_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
 
     fn float_abs<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
     fn float_sign<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
@@ -486,36 +357,24 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
         values: R::Primitive<Float, D>,
     ) -> R::Primitive<Float, D>;
 
-    fn float_sum<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
+    fn float_sum<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, 1>;
 
     fn float_sum_dim<const D: usize>(
         tensor: R::Primitive<Float, D>,
         dim: usize,
     ) -> R::Primitive<Float, D>;
 
-    fn float_prod<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
-
     fn float_prod_dim<const D: usize>(
         tensor: R::Primitive<Float, D>,
         dim: usize,
     ) -> R::Primitive<Float, D>;
 
-    fn float_mean<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, D>;
+    fn float_mean<const D: usize>(tensor: R::Primitive<Float, D>) -> R::Primitive<Float, 1>;
 
     fn float_mean_dim<const D: usize>(
         tensor: R::Primitive<Float, D>,
         dim: usize,
     ) -> R::Primitive<Float, D>;
-
-    fn float_equal_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
-
-    fn float_not_equal_elem<const D: usize>(
-        lhs: R::Primitive<Float, D>,
-        rhs: FloatElem<B>,
-    ) -> R::Primitive<Bool, D>;
 
     fn float_remainder_scalar<const D: usize>(
         lhs: R::Primitive<Float, D>,
