@@ -456,10 +456,18 @@ mod tests {
 
         let device = Default::default();
 
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3.], [4., 5., 6.]], &device);
-        let index = Tensor::<Backend, 1, Int>::from_ints([0, 2], &device);
+        let input = Tensor::<Backend, 2>::from_data([[1.0, 1.2], [2.3, 3.4], [4.5, 5.7]], &device);
+        let index = Tensor::<Backend, 2, Int>::from_data([[0, 1], [1, 2]], &device);
+        let expected =Tensor::<Backend, 3>::from_data(
+            [
+             [[1.0, 1.2],
+              [2.3, 3.4]],
+             [[2.3, 3.4],
+              [4.5, 5.7]]
+            ],
+            &device
+        );
         let output = model.forward(input, index);
-        let expected = TensorData::from([[1f32, 3.], [4., 6.]]);
 
         assert_eq!(output.to_data(), expected);
     }
