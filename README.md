@@ -155,7 +155,7 @@ Hardware specific features 🔥
 </summary>
 <br />
 
-It is no secret that deep learning is mosly relying on matrix multiplication as its core operation,
+It is no secret that deep learning is mostly relying on matrix multiplication as its core operation,
 since this is how fully-connected neural networks are modeled.
 
 More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
