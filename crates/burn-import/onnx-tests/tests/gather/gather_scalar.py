@@ -11,8 +11,19 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
     def forward(self, x, index):
-        gathered = torch.select(x, 0, index)
+        gathered = self.gather(1, x, index)
         return gathered
+
+    @staticmethod
+    def gather(axis, tensor, index):
+        out = []
+        if isinstance(index, int):
+            index = torch.tensor([index], dtype=torch.int64)
+        index_flat = index.flatten(0, max(index.ndim - 2, -1))
+        for idxs in index_flat:
+            subtensor = tensor.index_select(axis, idxs)
+            out.append(subtensor)
+        return torch.stack(out, axis)
 
 
 def main():
