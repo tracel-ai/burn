@@ -34,35 +34,35 @@ use super::{backend::Backend, Tensor};
 /// ```text
 /// Tensor Closeness Check Results:
 /// ===============================
-/// Epsilon: 1.00e-1
+/// Epsilon: 1e-1
 ///   Close elements: 10/10 (100.00%)
 ///   [PASS] All elements are within tolerance
 ///
-/// Epsilon: 1.00e-2
+/// Epsilon: 1e-2
 ///   Close elements: 10/10 (100.00%)
 ///   [PASS] All elements are within tolerance
 ///
-/// Epsilon: 1.00e-3
+/// Epsilon: 1e-3
 ///   Close elements: 9/10 (90.00%)
 ///   [WARN] Most elements are within tolerance
 ///
-/// Epsilon: 1.00e-4
+/// Epsilon: 1e-4
 ///   Close elements: 6/10 (60.00%)
 ///   [FAIL] Significant differences detected
 ///
-/// Epsilon: 1.00e-5
+/// Epsilon: 1e-5
 ///   Close elements: 5/10 (50.00%)
 ///   [FAIL] Significant differences detected
 ///
-/// Epsilon: 1.00e-6
+/// Epsilon: 1e-6
 ///   Close elements: 5/10 (50.00%)
 ///   [FAIL] Significant differences detected
 ///
-/// Epsilon: 1.00e-7
+/// Epsilon: 1e-7
 ///   Close elements: 5/10 (50.00%)
 ///   [FAIL] Significant differences detected
 ///
-/// Epsilon: 1.00e-8
+/// Epsilon: 1e-8
 ///   Close elements: 5/10 (50.00%)
 ///   [FAIL] Significant differences detected
 ///
@@ -74,7 +74,7 @@ pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expect
     println!("===============================");
 
     for epsilon in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8].iter() {
-        println!("\x1b[1mEpsilon: \x1b[36m{:.2e}\x1b[0m", epsilon);
+        println!("\x1b[1mEpsilon: \x1b[36m{:.e}\x1b[0m", epsilon);
 
         let close = output
             .clone()
