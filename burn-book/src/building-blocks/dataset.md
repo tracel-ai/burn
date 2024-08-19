@@ -99,7 +99,7 @@ dataset to use should be based on the dataset's size as well as its intended pur
 
 ## Sources
 
-For now, there is only one dataset source available with Burn, but more to come!
+For now, there are only a couple of dataset sources available with Burn, but more to come!
 
 ### Hugging Face
 
@@ -125,6 +125,55 @@ fn main() {
 
 We see that items must derive `serde::Serialize`, `serde::Deserialize`, `Clone`, and `Debug`, but
 those are the only requirements.
+
+### Images
+
+`ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
+available for multi-class and multi-label classification tasks.
+
+```rust, ignore
+// Create an image classification dataset from the root folder,
+// where images for each class are stored in their respective folder.
+//
+// For example:
+// root/dog/dog1.png
+// root/dog/dog2.png
+// ...
+// root/cat/cat1.png
+let dataset = ImageFolderDataset::new_classification("path/to/dataset/root").unwrap();
+```
+
+```rust, ignore
+// Create a multi-label image classification dataset from a list of items,
+// where each item is a tuple `(image path, labels)`, and a list of classes
+// in the dataset.
+//
+// For example:
+let items = vec![
+    ("root/dog/dog1.png", vec!["animal".to_string(), "dog".to_string()]),
+    ("root/cat/cat1.png", vec!["animal".to_string(), "cat".to_string()]),
+];
+let dataset = ImageFolderDataset::new_multilabel_classification_with_items(
+    items,
+    &["animal", "cat", "dog"],
+)
+.unwrap();
+```
+
+### Comma-Separated Values (CSV)
+
+Loading records from a simple CSV file in-memory is simple with the `InMemDataset`:
+
+```rust, ignore
+// Build dataset from csv with tab ('\t') delimiter.
+// The reader can be configured for your particular file.
+let mut rdr = csv::ReaderBuilder::new();
+let rdr = rdr.delimiter(b'\t');
+
+let dataset = InMemDataset::from_csv("path/to/csv", rdr).unwrap();
+```
+
+Note that this requires the `csv` crate.
 
 **What about streaming datasets?**
 
