@@ -407,3 +407,50 @@ Options:
 - `threshold`: Maximum number of elements to display before summarizing (default: 1000)
 - `edge_items`: Number of items to show at the beginning and end of each dimension when summarizing
   (default: 3)
+
+  ### Checking Tensor Closeness
+
+  Burn provides a utility function `check_closeness` to compare two tensors and assess their
+  similarity. This function is particularly useful for debugging and validating tensor operations,
+  especially when working with floating-point arithmetic where small numerical differences can
+  accumulate. It's also valuable when comparing model outputs during the process of importing models
+  from other frameworks, helping to ensure that the imported model produces results consistent with
+  the original.
+
+  Here's an example of how to use `check_closeness`:
+
+  ```rust
+  use burn::tensor::{check_closeness, Tensor};
+  type B = burn::backend::NdArray;
+
+  let device = Default::default();
+  let tensor1 = Tensor::<B, 1>::from_floats(
+      [1.0, 2.0, 3.0, 4.0, 5.0, 6.001, 7.002, 8.003, 9.004, 10.1],
+      &device,
+  );
+  let tensor2 = Tensor::<B, 1>::from_floats(
+      [1.0, 2.0, 3.0, 4.000, 5.0, 6.0, 7.001, 8.002, 9.003, 10.004],
+      &device,
+  );
+
+  check_closeness(&tensor1, &tensor2);
+  ```
+
+  The `check_closeness` function compares the two input tensors element-wise, checking their
+  absolute differences against a range of epsilon values. It then prints a detailed report showing
+  the percentage of elements that are within each tolerance level.
+
+  The output provides a breakdown for different epsilon values, allowing you to assess the closeness
+  of the tensors at various precision levels. This is particularly helpful when dealing with
+  operations that may introduce small numerical discrepancies.
+
+  The function uses color-coded output to highlight the results:
+
+  - Green [PASS]: All elements are within the specified tolerance.
+  - Yellow [WARN]: Most elements (90% or more) are within tolerance.
+  - Red [FAIL]: Significant differences are detected.
+
+  This utility can be invaluable when implementing or debugging tensor operations, especially those
+  involving complex mathematical computations or when porting algorithms from other frameworks. It's
+  also an essential tool when verifying the accuracy of imported models, ensuring that the Burn
+  implementation produces results that closely match those of the original model.
