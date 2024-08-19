@@ -1,7 +1,7 @@
 use burn_tensor::cast::ToElement;
-use burn_tensor::ops::FloatElem;
+use burn_tensor::ops::{FloatElem, SparseBoolOps};
 use burn_tensor::{backend::Backend, ops::SparseFloatOps, SparseRepr, Tensor};
-use burn_tensor::{Bool, ElementConversion, Float, Shape, TensorData, TensorPrimitive};
+use burn_tensor::{Bool, ElementConversion, Float, Shape, Sparse, TensorData, TensorPrimitive};
 use burn_tensor::{Device, Int};
 
 use super::coo::{flatten_coordinates, unflatten_coordinates, SparseCOOTensor, COO};
@@ -60,7 +60,12 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         shape: burn_tensor::Shape<D>,
         device: &burn_tensor::Device<B>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        SparseCOOTensor {
+            coordinates: None,
+            values: None,
+            shape,
+            device: device.clone(),
+        }
     }
 
     fn float_to_dense<const D: usize>(
@@ -334,16 +339,15 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
             return tensor;
         }
 
-        let _coordinates = tensor
+        let coordinates = tensor
             .coordinates
             .expect("Mismatch between coordinates and values");
-        let _values = tensor
+        let values = tensor
             .values
             .expect("Mismatch between coordinates and values");
-        let _device = tensor.device;
-        let _shape = tensor.shape;
+        let device = tensor.device;
+        let shape = tensor.shape;
 
-        // let zeros = tensor.values.map(|values| values.equal_elem(0).nonzero());
         todo!()
     }
 
@@ -413,15 +417,47 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
 
     fn float_reshape<const D1: usize, const D2: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
-        shape: burn_tensor::Shape<D2>,
+        out_shape: burn_tensor::Shape<D2>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D2> {
-        todo!()
+        if tensor.coordinates.is_none() && tensor.values.is_none() {
+            return SparseCOOTensor {
+                coordinates: None,
+                values: None,
+                shape: out_shape,
+                device: tensor.device,
+            };
+        }
+
+        let coordinates = tensor
+            .coordinates
+            .expect("Mismatch between coordinates and values");
+        let values = tensor
+            .values
+            .expect("Mismatch between coordinates and values");
+        let shape = tensor.shape;
+        let device = tensor.device;
+
+        // Flatten the coordinates
+        let flat_coordinates = flatten_coordinates::<B, D1, 0>(coordinates, shape, &device);
+
+        // Unflatten the coordinates to the new shape
+        let new_coordinates = unflatten_coordinates(flat_coordinates, out_shape.clone());
+
+        SparseCOOTensor {
+            coordinates: Some(new_coordinates),
+            values: Some(values),
+            shape: out_shape,
+            device,
+        }
     }
 
     fn float_transpose<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        let d = tensor.shape.dims.len();
+        let mut axes: Vec<usize> = (0..d).collect();
+        axes.swap(d - 1, d - 2);
+        Self::float_permute(tensor, &axes)
     }
 
     fn float_swap_dims<const D: usize>(
@@ -429,29 +465,117 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         dim1: usize,
         dim2: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        let d = tensor.shape.dims.len();
+        let mut axes: Vec<usize> = (0..d).collect();
+        axes.swap(dim1, dim2);
+        Self::float_permute(tensor, &axes)
     }
 
     fn float_permute<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         axes: &[usize],
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            mut shape,
+            device,
+        } = tensor;
+
+        for (i, &j) in (0..D).zip(axes).filter(|(i, j)| i < j) {
+            shape.dims.swap(i, j);
+        }
+
+        let axes = Tensor::from(axes);
+        let coordinates = coordinates.map(|coordinates| coordinates.select(0, axes));
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        }
     }
 
     fn float_flip<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         axes: &[usize],
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        } = tensor;
+
+        let (Some(coordinates), Some(values)) = (coordinates, values) else {
+            // All zeros, exit early
+            return SparseCOOTensor {
+                coordinates: None,
+                values: None,
+                shape,
+                device,
+            };
+        };
+
+        let nnz = coordinates.shape().dims[1];
+
+        let mut mask = [0; D];
+        for &axis in axes {
+            mask[axis] = 1;
+        }
+        let mask: Tensor<B, 2, Bool> = Tensor::<_, 1, _>::from_ints(mask, &device)
+            .unsqueeze_dim(1)
+            .repeat_dim(1, nnz)
+            .bool();
+
+        let flipped: Tensor<B, 2, Int> = Tensor::<_, 1, _>::from_ints(shape.dims, &device)
+            .unsqueeze_dim(1)
+            .repeat_dim(1, nnz)
+            .sub(coordinates.clone())
+            .sub_scalar(1);
+
+        let coordinates = coordinates.mask_where(mask, flipped);
+
+        let coordinates = Some(coordinates);
+        let values = Some(values);
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        }
     }
 
     fn float_slice_assign<const D1: usize, const D2: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
         ranges: [std::ops::Range<usize>; D2],
-        value: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
+        mut value: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1> {
-        todo!()
+        let value_nnz = value
+            .coordinates
+            .as_ref()
+            .map(|coords| coords.shape().dims[1])
+            .unwrap_or(0);
+
+        let mut ranges = Vec::from(ranges);
+        ranges.extend(tensor.shape.dims[ranges.len()..D1].iter().map(|&l| 0..l));
+        let ranges: [core::ops::Range<usize>; D1] = ranges.try_into().expect("D2 must be <= D1");
+
+        let shape = tensor.shape.clone();
+        let sliced = Self::float_reshape(
+            Self::float_slice(tensor.clone(), ranges.clone()),
+            shape.clone(),
+        );
+        let tensor = Self::float_sub(tensor, sliced);
+        let offset = Tensor::<B, 1, Int>::from_ints(ranges.map(|r| r.start), &tensor.device);
+        let offset = offset.unsqueeze_dim::<2>(1).repeat_dim(1, value_nnz);
+
+        value.shape = shape;
+        value.coordinates = value.coordinates.map(|coords| coords + offset);
+
+        Self::float_add(tensor, value)
     }
 
     fn float_repeat_dim<const D: usize>(
@@ -459,7 +583,53 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         dim: usize,
         times: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        } = tensor;
+
+        let mut out_shape = shape.clone();
+        out_shape.dims[dim] *= times;
+
+        let (Some(coordinates), Some(values)) = (coordinates, values) else {
+            // All zeros, exit early
+            return SparseCOOTensor {
+                coordinates: None,
+                values: None,
+                shape,
+                device,
+            };
+        };
+
+        let device = coordinates.device();
+        let nnz = coordinates.shape().dims[1];
+
+        let values = values.repeat_dim(0, times);
+
+        let coordinates_mask: Tensor<B, 2, Int> = Tensor::zeros(coordinates.shape(), &device);
+        let ones: Tensor<B, 2, Int> = Tensor::ones(Shape::new([1, nnz]), &device);
+        let coordinates_mask = coordinates_mask.slice_assign([dim..dim + 1, 0..nnz], ones);
+        let coordinates = Tensor::cat(
+            (0..times)
+                .map(|n| {
+                    coordinates.clone()
+                        + coordinates_mask.clone() * (n as i32) * (shape.dims[dim] as i32)
+                })
+                .collect::<Vec<_>>(),
+            1,
+        );
+
+        let coordinates = Some(coordinates);
+        let values = Some(values);
+
+        SparseCOOTensor {
+            coordinates,
+            values,
+            shape: out_shape,
+            device,
+        }
     }
 
     fn float_cat<const D: usize>(
@@ -486,27 +656,46 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     fn float_any<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, 1> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values: _,
+            shape: _,
+            device: _,
+        } = tensor;
+        let any = coordinates.is_some();
+        let bool = Tensor::<B, 1, Bool>::from([any]).into_primitive();
+        <Self as SparseBoolOps<R, B>>::bool_to_sparse(bool)
     }
 
     fn float_any_dim<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         dim: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
-        todo!()
+        panic!("any_dim is unsupported for COO until scatter supports any-based reduction");
     }
 
     fn float_all<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, 1> {
-        todo!()
+        let SparseCOOTensor {
+            coordinates,
+            values: _,
+            shape,
+            device: _,
+        } = tensor;
+        let all = match coordinates {
+            Some(coordinates) => shape.num_elements() == coordinates.shape().dims[1],
+            None => false,
+        };
+        let bool = Tensor::<B, 1, Bool>::from([all]).into_primitive();
+        <Self as SparseBoolOps<R, B>>::bool_to_sparse(bool)
     }
 
     fn float_all_dim<const D: usize>(
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         dim: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
-        todo!()
+        panic!("all_dim is unsupported for COO until scatter supports all-based reduction");
     }
 
     fn float_expand<const D1: usize, const D2: usize>(
@@ -800,7 +989,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         dim: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        panic!("float_prod_dim is not supported for COO until scatter supports product reduction")
     }
 
     fn float_mean<const D: usize>(
@@ -817,7 +1006,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
         dim: usize,
     ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
-        todo!()
+        panic!("float_mean_dim is not supported for COO until scatter supports mean reduction");
     }
 
     fn float_remainder_scalar<const D: usize>(

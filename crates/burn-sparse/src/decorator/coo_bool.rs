@@ -8,6 +8,12 @@ use super::coo::COO;
 type R = COO;
 
 impl<B: Backend> SparseBoolOps<R, B> for R {
+    fn bool_to_sparse<const D: usize>(
+        dense: <B as Backend>::BoolTensorPrimitive<D>,
+    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
+        todo!()
+    }
+
     fn bool_empty<const D: usize>(
         shape: burn_tensor::Shape<D>,
         device: &burn_tensor::Device<B>,

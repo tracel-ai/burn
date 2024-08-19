@@ -385,6 +385,8 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
 }
 
 pub trait SparseBoolOps<R: SparseRepr<B>, B: Backend> {
+    fn bool_to_sparse<const D: usize>(dense: B::BoolTensorPrimitive<D>) -> R::Primitive<Bool, D>;
+
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> R::Primitive<Bool, D>;
 
     fn bool_shape<const D: usize>(tensor: &R::Primitive<Bool, D>) -> Shape<D>;
