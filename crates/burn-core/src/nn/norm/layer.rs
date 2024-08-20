@@ -67,7 +67,7 @@ impl<B: Backend> LayerNorm<B> {
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let (var, mean) = input.clone().var_mean_bias(D - 1);
 
-        let input_normalized = input.sub(mean).div(var.sqrt().add_scalar(self.epsilon));
+        let input_normalized = input.sub(mean).div(var.add_scalar(self.epsilon).sqrt());
 
         input_normalized
             .mul(self.gamma.val().unsqueeze())
@@ -118,6 +118,27 @@ mod tests {
 
         let expected = TensorData::from([[
             -0.4990, -1.9680, 1.6178, -0.7486, -0.6470, 0.8576, 0.0461, 1.1111, -0.2614, 0.4915,
+        ]]);
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn layer_norm_forward_large_epsilon() {
+        let device = Default::default();
+        let module = LayerNormConfig::new(10)
+            .with_epsilon(1e-1)
+            .init::<TestBackend>(&device);
+        let input = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[
+                -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
+            ]]),
+            &device,
+        );
+
+        let output = module.forward(input);
+
+        let expected = TensorData::from([[
+            -0.4863, -1.9180, 1.5766, -0.7295, -0.6305, 0.8358, 0.0449, 1.0828, -0.2548, 0.4790,
         ]]);
         output.to_data().assert_approx_eq(&expected, 3);
     }
