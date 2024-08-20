@@ -34,10 +34,11 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         };
         let index_rank = match &self.index {
             Type::Tensor(idx_tensor) => idx_tensor.dim,
-            Type::Scalar(_) => 1,  // Scalar will be turned into a 1-D Tensor
+            Type::Scalar(_) => 0,  // Scalar will be turned into a 1-D Tensor
             _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
         };
-        let out_rank = index_rank + input_rank - 1;
+        let output_rank = index_rank + input_rank - 1;
+        
         let input = match &self.input {
             Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
             Type::Shape(in_shape) => {
@@ -50,6 +51,53 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             _ => panic!("Gather needs Scalar or Shape input, got {:?}!", self.input),
         };
         let output = &self.output.name;
+        let output_kind = match &self.output.kind {
+            crate::burn::TensorKind::Int => quote! { Int },
+            crate::burn::TensorKind::Float => quote! { Float },
+            crate::burn::TensorKind::Bool => quote! { Bool },
+        };
+        let kind_import = match &self.output.kind {
+            crate::burn::TensorKind::Int => quote! { use burn::tensor::{Int, Shape}; },
+            crate::burn::TensorKind::Float => quote! { use burn::tensor::{Float, Shape}; },
+            crate::burn::TensorKind::Bool => quote! { use burn::tensor::{Bool, Shape}; },
+        };
+        let out_final = match &self.index {
+            Type::Scalar(_) => quote! {
+                let #output = Tensor::cat(out, #dim).squeeze::<#output_rank>(#dim);
+            },
+            _ => quote! {
+                let #output = Tensor::cat(out, #dim);
+            }
+        };
+
+        let gather = quote! {
+            extern crate alloc;
+            use alloc::vec::Vec;
+            #kind_import
+            let mut out = Vec::new();
+
+            let n_dims = indices.dims().len();
+            let index_flat = match n_dims {
+                nd if nd == 1 => indices.reshape([1, -1]),
+                nd if nd >= 2 => indices.flatten::<2>(0, nd - 2),
+                _ => panic!("Number of dimensions must be greater than 0"),
+            };
+
+            for idxs in index_flat.iter_dim(0) {
+                let idxs = idxs.squeeze::<1>(0);
+                let slice = Tensor::select(
+                    #input.clone(),
+                    #dim,
+                    idxs,
+                );
+                let slice_shape = Tensor::shape(&slice);
+                let mut shape: Vec<usize> = slice_shape.clone().into();
+                shape.insert(#dim, 1);
+                let reshaped: Tensor::<B, #output_rank, #output_kind> = slice.reshape(Shape::from(shape));
+                out.push(reshaped);
+            }
+            #out_final
+        };
 
         match &self.index {
             Type::Scalar(idx_scalar) => {
@@ -59,14 +107,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                 let index = &idx_scalar.name;
                 quote! {
                     let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                    let #output = #input.gather_onnx::<#index_rank, #out_rank>(#dim, indices)
-                        .squeeze(#dim);
+                    #gather
                 }
             }
             Type::Tensor(idx_tensor) => {
                 let index = scope.tensor_use_owned(idx_tensor, node_position);
                 quote! {
-                    let #output = #input.gather_onnx::<#index_rank, #out_rank>(#dim, #index);
+                    let indices = #index;
+                    #gather
                 }
             }
             _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
@@ -141,8 +189,33 @@ mod tests {
                     tensor1: Tensor<B, 2>,
                     tensor2: Tensor<B, 1, Int>
                 ) -> Tensor<B, 2> {
-                    let tensor3 = tensor1.gather_onnx::<1usize, 2usize>(0, tensor2);
+                    let indices = tensor2;
+                    extern crate alloc;
+                    use alloc::vec::Vec;
+                    use burn::tensor::{Float, Shape};
+                    let mut out = Vec::new();
 
+                    let n_dims = indices.dims().len();
+                    let index_flat = match n_dims {
+                        nd if nd == 1 => indices.reshape([1, -1]),
+                        nd if nd >= 2 => indices.flatten::<2>(0, nd - 2),
+                        _ => panic!("Number of dimensions must be greater than 0"),
+                    };
+
+                    for idxs in index_flat.iter_dim(0) {
+                        let idxs = idxs.squeeze::<1>(0);
+                        let slice = Tensor::select(
+                            tensor1.clone(),
+                            0,
+                            idxs,
+                        );
+                        let slice_shape = Tensor::shape(&slice);
+                        let mut shape: Vec<usize> = slice_shape.clone().into();
+                        shape.insert(0, 1);
+                        let reshaped: Tensor::<B, 2usize, Float> = slice.reshape(Shape::from(shape));
+                        out.push(reshaped);
+                    }
+                    let tensor3 = Tensor::cat(out, 0);
                     tensor3
                 }
             }
@@ -158,7 +231,7 @@ mod tests {
         graph.register(GatherNode::new(
             Type::Shape(ShapeType::new("shape1", 3)),
             Type::Tensor(TensorType::new_int("tensor1", 1)),
-            TensorType::new_float("tensor2", 2),
+            TensorType::new_int("tensor2", 1),
             0,
         ));
 
@@ -194,9 +267,33 @@ mod tests {
                     &self,
                     shape1: [usize; 3],
                     tensor1: Tensor<B, 1, Int>
-                ) -> Tensor<B, 2> {
-                    let tensor2 = Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device)
-                        .gather_onnx::<1usize, 1usize>(0, tensor1);
+                ) -> Tensor<B, 1, Int> {
+                    let indices = tensor1;
+                    extern crate alloc;
+                    use alloc::vec::Vec;
+                    use burn::tensor::{Int, Shape};
+                    let mut out = Vec::new();
+                    let n_dims = indices.dims().len();
+                    let index_flat = match n_dims {
+                        nd if nd == 1 => indices.reshape([1, -1]),
+                        nd if nd >= 2 => indices.flatten::<2>(0, nd - 2),
+                        _ => panic!("Number of dimensions must be greater than 0"),
+                    };
+
+                    for idxs in index_flat.iter_dim(0) {
+                        let idxs = idxs.squeeze::<1>(0);
+                        let slice = Tensor::select(
+                            Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device).clone(),
+                            0,
+                            idxs,
+                        );
+                        let slice_shape = Tensor::shape(&slice);
+                        let mut shape: Vec<usize> = slice_shape.clone().into();
+                        shape.insert(0, 1);
+                        let reshaped: Tensor::<B, 1usize, Int> = slice.reshape(Shape::from(shape));
+                        out.push(reshaped);
+                    }
+                    let tensor2 = Tensor::cat(out, 0);
 
                     tensor2
                 }
@@ -213,7 +310,7 @@ mod tests {
         graph.register(GatherNode::new(
             Type::Tensor(TensorType::new_float("tensor1", 2)),
             Type::Scalar(ScalarType::new("scalar1", ScalarKind::Int64)),
-            TensorType::new_float("tensor2", 2),
+            TensorType::new_float("tensor2", 1),
             0,
         ));
 
@@ -248,10 +345,34 @@ mod tests {
                     &self,
                     tensor1: Tensor<B, 2>,
                     scalar1: i64
-                ) -> Tensor<B, 2> {
+                ) -> Tensor<B, 1> {
                     let indices = Tensor::<B, 1, _>::from_data([scalar1], &*self.device);
-                    let tensor2 = tensor1.gather_onnx::<1usize, 2usize>(0, indices)
-                        .squeeze(0);
+                    extern crate alloc;
+                    use alloc::vec::Vec;
+                    use burn::tensor::{Float, Shape};
+                    let mut out = Vec::new();
+
+                    let n_dims = indices.dims().len();
+                    let index_flat = match n_dims {
+                        nd if nd == 1 => indices.reshape([1, -1]),
+                        nd if nd >= 2 => indices.flatten::<2>(0, nd - 2),
+                        _ => panic!("Number of dimensions must be greater than 0"),
+                    };
+
+                    for idxs in index_flat.iter_dim(0) {
+                        let idxs = idxs.squeeze::<1>(0);
+                        let slice = Tensor::select(
+                            tensor1.clone(),
+                            0,
+                            idxs,
+                        );
+                        let slice_shape = Tensor::shape(&slice);
+                        let mut shape: Vec<usize> = slice_shape.clone().into();
+                        shape.insert(0, 1);
+                        let reshaped: Tensor::<B, 1usize, Float> = slice.reshape(Shape::from(shape));
+                        out.push(reshaped);
+                    }
+                    let tensor2 = Tensor::cat(out, 0).squeeze::<1usize>(0);
 
                     tensor2
                 }
