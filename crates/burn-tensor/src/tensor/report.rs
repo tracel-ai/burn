@@ -13,8 +13,8 @@ use super::{backend::Backend, Tensor};
 /// # Example
 ///
 /// ```no_run
-/// use burn::tensor::{check_closeness, Tensor};
-/// type B = burn::backend::NdArray;
+/// use burn_tensor::{check_closeness, Tensor};
+/// type B = burn_tensor::backend::NdArray;
 ///
 /// let device = Default::default();
 /// let tensor1 = Tensor::<B, 1>::from_floats(
