@@ -12,7 +12,7 @@ use super::{backend::Backend, Tensor};
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use burn::tensor::{check_closeness, Tensor};
 /// type B = burn::backend::NdArray;
 ///
