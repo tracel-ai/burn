@@ -2,6 +2,10 @@
 
 # used to generate model: onnx-tests/tests/gather/gather_scalar.onnx
 
+# There is no current support for `Split`, and the `for` loop over the indices
+# results in a `Split` node in the ONNX model.
+# Therefore, this model is built and exported using ONNX directly.
+
 import onnx
 
 
