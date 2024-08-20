@@ -34,7 +34,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
         };
         let index_rank = match &self.index {
             Type::Tensor(idx_tensor) => idx_tensor.dim,
-            Type::Scalar(_) => 0,  // Scalar will be turned into a 1-D Tensor
+            Type::Scalar(_) => 0, 
             _ => panic!("Gather needs Scalar or Tensor index, got {:?}!", self.index),
         };
         let output_rank = index_rank + input_rank - 1;
@@ -132,11 +132,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 #[cfg(test)]
 mod tests {
 
-    use burn::{
-        backend::ndarray::{NdArray, NdArrayDevice},
-        record::FullPrecisionSettings,
-        tensor::{Int, Tensor},
-    };
+    use burn::record::FullPrecisionSettings;
 
     use super::*;
     use crate::burn::{
@@ -380,108 +376,5 @@ mod tests {
         };
 
         assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn gather_tensor() {
-        let device = NdArrayDevice::default();
-
-        let test_cases = vec![
-            (
-                0,
-                Tensor::<NdArray, 2>::from_data([[1.0, 1.2], [2.3, 3.4], [4.5, 5.7]], &device),
-                Tensor::<NdArray, 2, Int>::from_data([[0, 1], [1, 2]], &device),
-                Tensor::<NdArray, 3>::from_data(
-                    [
-                     [[1.0, 1.2],
-                      [2.3, 3.4]],
-                     [[2.3, 3.4],
-                      [4.5, 5.7]]
-                    ],
-                    &device
-                )
-            ),
-            (
-                1,
-                Tensor::<NdArray, 2>::from_data(
-                    [[1.0, 1.2, 1.9], [2.3, 3.4, 3.9], [4.5, 5.7, 5.9]],
-                    &device
-                ),
-                Tensor::<NdArray, 2, Int>::from_data([[0, 2]], &device),
-                Tensor::<NdArray, 3>::from_data(
-                    [
-                     [[1.0, 1.9]],
-                     [[2.3, 3.9]],
-                     [[4.5, 5.9]]
-                    ],
-                    &device
-                )
-            )
-        ];
-        for (axis, input, index, expected) in test_cases {
-            let out = input.gather_onnx(axis, index);
-            assert!(out.all_close(expected, None, None));
-        }
-    }
-
-    #[test]
-    fn gather_shape() {
-        let device = NdArrayDevice::default();
-
-        let input = [1usize, 2, 3];
-        let index = Tensor::<NdArray, 1, Int>::from_data([0, 2], &device);
-        let expected = Tensor::<NdArray, 2, Int>::from_data([[1, 3]], &device);
-
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-
-        graph.register(GatherNode::new(
-            Type::Shape(ShapeType::new("shape1", 3)),
-            Type::Tensor(TensorType::new_int("tensor1", 1)),
-            TensorType::new_float("tensor2", 2),
-            0,
-        ));
-
-        graph.register_input_output(
-            vec!["shape1".to_string(), "tensor1".to_string()],
-            vec!["tensor2".to_string()],
-        );
-
-        use burn::tensor::Int;
-        use burn::{
-            module::Module,
-            tensor::{backend::Backend, Tensor},
-        };
-
-        #[derive(Module, Debug)]
-        pub struct Model<B: Backend> {
-            phantom: core::marker::PhantomData<B>,
-            device: burn::module::Ignored<B::Device>,
-        }
-
-        impl<B: Backend> Model <B> {
-            #[allow(unused_variables)]
-            pub fn new(device: &B::Device) -> Self {
-                Self {
-                    phantom: core::marker::PhantomData,
-                    device: burn::module::Ignored(device.clone()),
-                }
-            }
-
-            #[allow(clippy::let_and_return, clippy::approx_constant)]
-            pub fn forward(
-                &self,
-                shape1: [usize; 3],
-                tensor1: Tensor<B, 1, Int>
-            ) -> Tensor<B, 2, Int> {
-                let tensor2 = Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device)
-                    .gather_onnx(0, tensor1);
-
-                tensor2
-            }
-        }
-
-        let model = Model::new(&device);
-        let out = model.forward(input, index);
-        assert!(out.all_close(expected, None, None));
     }
 }

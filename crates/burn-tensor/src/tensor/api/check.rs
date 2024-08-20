@@ -805,12 +805,6 @@ impl TensorCheck {
         Self::check_gather_scatter_indices(Self::Ok, "Gather", dim, shape, shape_indices)
     }
 
-    pub(crate) fn gather_onnx<const D: usize>(
-        dim: usize,
-    ) -> Self {
-        Self::check_gather_onnx_indices::<D>(Self::Ok, "GatherOnnx", dim)
-    }
-
     pub(crate) fn scatter<const D: usize>(
         dim: usize,
         shape: &Shape<D>,
@@ -894,23 +888,6 @@ impl TensorCheck {
                     )),
                 );
             }
-        }
-
-        check
-    }
-
-    fn check_gather_onnx_indices<const D: usize>(
-        mut check: Self,
-        ops: &str,
-        dim: usize,
-    ) -> Self {
-        if dim > D {
-            check = check.register(
-                ops,
-                TensorError::new(format!(
-                    "Can't index a tensor with ({D}) dimensions on axis ({dim})"
-                )),
-            );
         }
 
         check

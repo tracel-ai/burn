@@ -269,49 +269,6 @@ where
         Self::new(K::gather(dim, self.primitive, indices))
     }
 
-    /// Performs the ONNX "Gather" operation on a given input tensor using indices specified in a separate index tensor.
-    ///
-    /// The Gather operation collects elements or slices from the input tensor along a specified axis based on the indices provided in the `index` tensor.
-    ///
-    /// # Generics
-    /// - `X`: The dimensionality of the index tensor.
-    /// - `O`: The output dimensionality: X + D - 1 (see [the onnx spec](https://github.com/onnx/onnx/blob/main/docs/Operators.md#gather))
-    ///
-    /// # Parameters
-    /// - `dim`: The dimension (axis) along which to index.
-    /// - `input`: The input tensor from which to gather values.
-    /// - `index`: The tensor containing indices to gather. This tensor must be of integer type.
-    ///
-    /// # Returns
-    /// Returns a new tensor of dimensionality `O`. The output tensor consists of slices of the input tensor
-    /// selected along the specified `axis`, as dictated by the indices in the `index` tensor.
-    ///
-    /// # Example
-    /// ```rust
-    /// // Suppose input is a tensor of shape [2, 3], index is a tensor of shape [1, 2],
-    /// // and the gather operation is to be performed along axis 1:
-    /// let input_tensor = tensor([[1, 2, 3], [4, 5, 6]]);
-    /// let index_tensor = tensor([[0, 2]]);
-    /// let result = gather(1, input_tensor, index_tensor);
-    /// // result will have the shape [2, 1, 2], containing elements gathered as [[[1, 3]], [[4, 6]]]
-    /// ```
-    ///
-    /// # Constraints
-    /// - The `axis` parameter must be within the range of the input tensor's dimensions.
-    /// - The values in the `index` tensor must be non-negative and less than the dimension size of the `input` tensor along `axis`.
-    ///
-    /// # Panics
-    /// - if `dim` is out of bounds for the dimensions of the input tensor
-    /// - if indices in `index` tensor are out of bounds for the specified `axis` on the input tensor.
-    pub fn gather_onnx<const X: usize, const O: usize>(
-        self,
-        dim: usize,
-        indices: Tensor<B, X, Int>
-    ) -> Tensor<B, O, K> {
-        check!(TensorCheck::gather_onnx::<D>(dim));
-        Tensor::new(K::gather_onnx::<D, X, O>(dim, self.primitive, indices))
-    }
-
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
     /// from the value tensor to the original tensor using sum reduction.
     ///
@@ -1657,46 +1614,6 @@ where
         indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D>;
 
-    /// Performs the ONNX "Gather" operation on a given input tensor using indices specified in a separate index tensor.
-    ///
-    /// The Gather operation collects elements or slices from the input tensor along a specified axis based on the indices provided in the `index` tensor.
-    ///
-    /// # Generics
-    /// - `X`: The dimensionality of the index tensor.
-    /// - `O`: The output dimensionality: X + D - 1 (see [the onnx spec](https://github.com/onnx/onnx/blob/main/docs/Operators.md#gather))
-    ///
-    /// # Parameters
-    /// - `dim`: The dimension (axis) along which to index.
-    /// - `input`: The input tensor from which to gather values.
-    /// - `index`: The tensor containing indices to gather. This tensor must be of integer type.
-    ///
-    /// # Returns
-    /// Returns a new tensor of dimensionality `O`. The output tensor consists of slices of the input tensor
-    /// selected along the specified `axis`, as dictated by the indices in the `index` tensor.
-    ///
-    /// # Example
-    /// ```rust
-    /// // Suppose input is a tensor of shape [2, 3], index is a tensor of shape [1, 2],
-    /// // and the gather operation is to be performed along axis 1:
-    /// let input_tensor = tensor([[1, 2, 3], [4, 5, 6]]);
-    /// let index_tensor = tensor([[0, 2]]);
-    /// let result = gather(1, input_tensor, index_tensor);
-    /// // result will have the shape [2, 1, 2], containing elements gathered as [[[1, 3]], [[4, 6]]]
-    /// ```
-    ///
-    /// # Constraints
-    /// - The `axis` parameter must be within the range of the input tensor's dimensions.
-    /// - The values in the `index` tensor must be non-negative and less than the dimension size of the `input` tensor along `axis`.
-    ///
-    /// # Panics
-    /// - if `dim` is out of bounds for the dimensions of the input tensor
-    /// - if indices in `index` tensor are out of bounds for the specified `axis` on the input tensor.
-    fn gather_onnx<const D: usize, const X: usize, const O: usize>(
-        axis: usize,
-        input: Self::Primitive<D>,
-        index: Tensor<B, X, Int>
-    ) -> Self::Primitive<O>;
-
     /// Scatters elements into a tensor along an axis.
     ///
     /// # Arguments
@@ -2394,35 +2311,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_gather(dim, tensor, indices.primitive)
     }
 
-    fn gather_onnx<const D: usize, const X: usize, const O: usize>(
-        axis: usize,
-        tensor: Self::Primitive<D>,
-        index: Tensor<B, X, Int>
-    ) -> Self::Primitive<O> {
-        let mut out = Vec::new();
-
-        let n_dims = index.dims().len();
-        let index_flat = match n_dims {
-            nd if nd == 1 => index.reshape([1, -1]),
-            nd if nd >= 2 => index.flatten::<2>(0, nd - 2),
-            _ => panic!("Number of dimensions must be greater than 0"),
-        };
-
-        for idxs in index_flat.iter_dim(0) {
-            let idxs = idxs.squeeze::<1>(0);
-            let slice = B::int_select(
-                tensor.clone(),
-                axis,
-                idxs.primitive,
-            );
-            let slice_shape = B::int_shape(&slice);
-            let mut shape: Vec<usize> = slice_shape.clone().into();
-            shape.insert(axis, 1);
-            out.push(B::int_reshape(slice, shape.into()));
-        }
-        B::int_cat(out, axis)
-    }
-
     fn scatter<const D: usize>(
         dim: usize,
         tensor: Self::Primitive<D>,
@@ -2774,35 +2662,6 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
         TensorPrimitive::Float(B::float_gather(dim, tensor.tensor(), indices.primitive))
-    }
-
-    fn gather_onnx<const D: usize, const X: usize, const O: usize>(
-        axis: usize,
-        tensor: Self::Primitive<D>,
-        index: Tensor<B, X, Int>
-    ) -> Self::Primitive<O> {
-        let mut out = Vec::new();
-
-        let n_dims = index.dims().len();
-        let index_flat = match n_dims {
-            nd if nd == 1 => index.reshape([1, -1]),
-            nd if nd >= 2 => index.flatten::<2>(0, nd - 2),
-            _ => panic!("Number of dimensions must be greater than 0"),
-        };
-
-        for idxs in index_flat.iter_dim(0) {
-            let idxs = idxs.squeeze::<1>(0);
-            let slice = B::float_select(
-                tensor.clone().tensor(),
-                axis,
-                idxs.primitive,
-            );
-            let slice_shape = B::float_shape(&slice);
-            let mut shape: Vec<usize> = slice_shape.clone().into();
-            shape.insert(axis, 1);
-            out.push(B::float_reshape(slice, shape.into()));
-        }
-        TensorPrimitive::Float(B::float_cat(out, axis))
     }
 
     fn scatter<const D: usize>(
