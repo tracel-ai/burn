@@ -73,7 +73,7 @@ use colored::*;
 /// ```
 
 pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expected: &Tensor<B, D>) {
-    println!("\x1b[1mTensor Closeness Check Results:\x1b[0m");
+    println!("{}", "Tensor Closeness Check Results:".bold());
     println!("===============================");
 
     for epsilon in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8].iter() {
