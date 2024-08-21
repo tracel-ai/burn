@@ -1,5 +1,7 @@
 use super::{backend::Backend, Tensor};
 
+use colored::*;
+
 /// Checks the closeness of two tensors and prints the results.
 ///
 /// Compares tensors by checking the absolute difference between each element.
@@ -75,7 +77,7 @@ pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expect
     println!("===============================");
 
     for epsilon in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8].iter() {
-        println!("\x1b[1mEpsilon: \x1b[36m{:.e}\x1b[0m", epsilon);
+        println!("{}", "Tensor Closeness Check Results:".bold());
 
         let close = output
             .clone()
@@ -97,15 +99,15 @@ pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expect
         );
 
         if percentage == 100.0 {
-            println!("  \x1b[32m[PASS]\x1b[0m All elements are within tolerance");
+            println!("  {} All elements are within tolerance", "[PASS]".green());
         } else if percentage >= 90.0 {
-            println!("  \x1b[33m[WARN]\x1b[0m Most elements are within tolerance");
+            println!("  {} Most elements are within tolerance", "[WARN]".yellow());
         } else {
-            println!("  \x1b[31m[FAIL]\x1b[0m Significant differences detected");
+            println!("  {} Significant differences detected", "[FAIL]".red());
         }
 
         println!();
     }
 
-    println!("\x1b[1mCloseness check complete.\x1b[0m");
+    println!("{}", "Closeness check complete.".bold());
 }
