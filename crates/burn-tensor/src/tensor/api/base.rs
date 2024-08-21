@@ -31,10 +31,11 @@ where
     pub(crate) primitive: K::Primitive<D>,
 }
 
-impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
+impl<B, const D: usize, K, R, T> From<T> for Tensor<B, D, K, R>
 where
     B: Backend,
-    K: BasicOps<B>,
+    R: TensorRepr<B>,
+    K: BasicOps<B, R>,
     T: Into<TensorData>,
 {
     fn from(value: T) -> Self {

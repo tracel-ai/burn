@@ -1,6 +1,6 @@
 use super::{BoolTensor, FloatElem, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{
-    backend::Backend, Bool, Device, Float, Int, Shape, SparseRepr, TensorData, TensorKind,
+    backend::Backend, Bool, Device, Float, Int, Shape, Sparse, SparseRepr, TensorData, TensorKind,
 };
 use core::{future::Future, ops::Range};
 
@@ -20,7 +20,7 @@ pub trait SparseFloatOps<R: SparseRepr<B>, B: Backend> {
 
     fn float_spmm<const D: usize>(
         lhs: R::Primitive<Float, D>,
-        rhs: B::FloatTensorPrimitive<D>,
+        rhs: <Float as TensorKind<B, Sparse<R, B>>>::DensePrimitive<D>,
     ) -> B::FloatTensorPrimitive<D>;
 
     fn float_sddmm<const D: usize>(

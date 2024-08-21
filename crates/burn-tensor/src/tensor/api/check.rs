@@ -1,4 +1,5 @@
 use crate::{backend::Backend, BasicOps, Shape, Tensor};
+use crate::{Dense, Float, Sparse, SparseRepr, TensorRepr};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -516,6 +517,41 @@ impl TensorCheck {
     pub(crate) fn matmul<B: Backend, const D: usize>(
         lhs: &Tensor<B, D>,
         rhs: &Tensor<B, D>,
+    ) -> Self {
+        let mut check = Self::Ok;
+
+        check = check.binary_ops_device("Matmul", &lhs.device(), &rhs.device());
+
+        if D < 2 {
+            return check;
+        }
+
+        let shape_lhs = lhs.shape();
+        let shape_rhs = rhs.shape();
+
+        let dim_lhs = shape_lhs.dims[D - 1];
+        let dim_rhs = shape_rhs.dims[D - 2];
+
+        if dim_lhs != dim_rhs {
+            check = check.register(
+                "Matmul",
+                TensorError::new(format!(
+                    "The inner dimension of matmul should be the same, but got {dim_lhs} and \
+                     {dim_rhs}."
+                ))
+                .details(format!(
+                    "Lhs shape {:?}, rhs shape {:?}.",
+                    shape_lhs.dims, shape_rhs.dims
+                )),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn spmm<B: Backend, R: SparseRepr<B>, const D: usize>(
+        lhs: &Tensor<B, D, Float, Sparse<R, B>>,
+        rhs: &Tensor<B, D, Float, Dense>,
     ) -> Self {
         let mut check = Self::Ok;
 
