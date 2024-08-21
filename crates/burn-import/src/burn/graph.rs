@@ -555,15 +555,19 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         // Get the input and output types of the graph using passed in names
         input_names.iter().for_each(|input| {
-            self.graph_input_types
-                .push(inputs.get(input).unwrap().clone());
+            self.graph_input_types.push(
+                inputs
+                    .get(input)
+                    .unwrap_or_else(|| panic!("Input type not found for {input}"))
+                    .clone(),
+            );
         });
 
         output_names.iter().for_each(|output| {
             self.graph_output_types.push(
                 outputs
                     .get(output)
-                    .unwrap_or_else(|| panic!("Output type is not found for {output}"))
+                    .unwrap_or_else(|| panic!("Output type not found for {output}"))
                     .clone(),
             );
         });
