@@ -84,12 +84,9 @@ pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expect
             .is_close(expected.clone(), Some(*epsilon), Some(*epsilon));
         let data = close.clone().into_data();
         let num_elements = data.num_elements();
-        let count = data
-            .to_vec::<bool>()
-            .unwrap()
-            .iter()
-            .filter(|&&x| x)
-            .count();
+
+        // Count the number of elements that are close (true)
+        let count = data.iter::<bool>().filter(|x| *x).count();
 
         let percentage = (count as f64 / num_elements as f64) * 100.0;
 
