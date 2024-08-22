@@ -706,6 +706,7 @@ dependencies = [
  "burn-common",
  "burn-tensor-testgen",
  "bytemuck",
+ "colored",
  "cubecl",
  "derive-new",
  "half",
