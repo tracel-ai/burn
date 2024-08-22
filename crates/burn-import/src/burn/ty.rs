@@ -119,6 +119,17 @@ impl ShapeType {
 }
 
 impl TensorType {
+    // This is used, because Tensors might have number literal name, which cannot be
+    // used as a variable name.
+    pub fn format_name(name: &str) -> String {
+        let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
+        if name_is_number {
+            format!("_{}", name)
+        } else {
+            name.to_string()
+        }
+    }
+
     pub fn new<S: AsRef<str>>(
         name: S,
         dim: usize,
@@ -131,8 +142,9 @@ impl TensorType {
                 kind, shape
             );
         }
+        let formatted_name = Self::format_name(name.as_ref());
         Self {
-            name: Ident::new(name.as_ref(), Span::call_site()),
+            name: Ident::new(&formatted_name, Span::call_site()),
             dim,
             kind,
             shape,
