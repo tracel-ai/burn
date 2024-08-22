@@ -1,12 +1,11 @@
-use crate::check;
-use crate::{
-    backend::Backend, check::TensorCheck, Dense, Float, Sparse, SparseRepr, Tensor, TensorKind,
-};
+use crate::{backend::Backend, check::TensorCheck, Dense, Float, Sparse, Tensor, TensorKind};
+use crate::{check, Bool, SparseStorage, TensorPrimitive, TensorRepr, TensorReprT};
 
-impl<const D: usize, B, R> Tensor<B, D, Float, Sparse<R, B>>
+impl<const D: usize, B, SR> Tensor<B, D, Float, Sparse<B, SR>>
 where
     B: Backend,
-    R: SparseRepr<B>,
+    SR: SparseStorage<B>,
+    TensorRepr: TensorReprT<B, Float, Sparse<B, SR>> + TensorReprT<B, Bool, Sparse<B, SR>>,
 {
     /// Executes an operation on the tensor and modifies its value.
     ///
@@ -33,8 +32,11 @@ where
     /// # Panics
     ///
     /// If the two tensors dont' have a compatible shape.
-    pub fn spmm(self, rhs: Tensor<B, D, Float, Dense>) -> Self {
-        check!(TensorCheck::spmm(&self, &rhs));
-        Self::new(R::float_spmm(self.primitive, rhs.primitive))
+    pub fn spmm(self, rhs: Tensor<B, D, Float, Dense>) -> Tensor<B, D, Float, Dense> {
+        // check!(TensorCheck::spmm(&self, &rhs));
+        Tensor::<B, D, Float, Dense>::new(TensorPrimitive::Float(SR::float_spmm(
+            self.primitive,
+            rhs.primitive,
+        )))
     }
 }

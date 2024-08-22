@@ -16,6 +16,7 @@ mod sort;
 mod sparse;
 mod sparse_float;
 mod sparse_numeric;
+mod storage;
 
 pub use argwhere::argwhere_data;
 pub use autodiff::*;
@@ -29,3 +30,4 @@ pub use repr::*;
 pub use sort::{argsort, sort, sort_with_indices};
 pub use sparse::*;
 pub use sparse_numeric::*;
+pub use storage::*;

@@ -1,42 +1,20 @@
-use crate::{backend::Backend, ops::SparseTensorOps, Bool, Float, Int, Tensor, TensorKind};
-use core::marker::PhantomData;
+use crate::{backend::Backend, Dense, Float, Sparse, SparseStorage, TensorKind, TensorStorage};
 
-pub trait TensorRepr<B: Backend>: Clone + core::fmt::Debug {
-    type Primitive<K: TensorKind<B>, const D: usize>: Clone + core::fmt::Debug + Send;
+pub type ReprPrimitive<B, K, S, const D: usize> =
+    <TensorRepr as TensorReprT<B, K, S>>::Primitive<D>;
 
-    fn name() -> &'static str;
+pub trait TensorReprT<B: Backend, K: TensorKind<B>, S: TensorStorage<B>> {
+    type Primitive<const D: usize>: Clone + core::fmt::Debug + Send;
 }
 
-pub trait ChangeRepr<B: Backend, R: TensorRepr<B>>: TensorRepr<B> {
-    fn change_repr<const D: usize, K: TensorKind<B, Self>, K2: TensorKind<B, R>>(
-        lhs: Tensor<B, D, K, Self>,
-    ) -> Tensor<B, D, K2, R>;
+pub struct TensorRepr;
+
+impl<B: Backend, K: TensorKind<B>> TensorReprT<B, K, Dense> for TensorRepr {
+    type Primitive<const D: usize> = K::Primitive<D>;
 }
 
-pub trait SparseRepr<B: Backend>: Clone + core::fmt::Debug + SparseTensorOps<Self, B> {
-    type Primitive<K: TensorKind<B>, const D: usize>: Clone + core::fmt::Debug + Send;
-
-    fn name() -> &'static str;
-}
-
-#[derive(Clone, Debug)]
-pub struct Dense;
-
-#[derive(Clone, Debug)]
-pub struct Sparse<R: SparseRepr<B>, B: Backend>(PhantomData<(R, B)>);
-
-impl<B: Backend> TensorRepr<B> for Dense {
-    type Primitive<K: TensorKind<B>, const D: usize> = K::DensePrimitive<D>;
-
-    fn name() -> &'static str {
-        "Dense"
-    }
-}
-
-impl<R: SparseRepr<B>, B: Backend> TensorRepr<B> for Sparse<R, B> {
-    type Primitive<K: TensorKind<B>, const D: usize> = R::Primitive<K, D>;
-
-    fn name() -> &'static str {
-        R::name()
-    }
+impl<B: Backend, K: TensorKind<B>, SR: SparseStorage<B>> TensorReprT<B, K, Sparse<B, SR>>
+    for TensorRepr
+{
+    type Primitive<const D: usize> = SR::SparsePrimitive<K, D>;
 }

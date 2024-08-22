@@ -1,16 +1,17 @@
+use super::coo::{flatten_coordinates, unflatten_coordinates, SparseCOOTensor, COO};
 use burn_tensor::cast::ToElement;
 use burn_tensor::ops::{FloatElem, SparseBoolOps};
-use burn_tensor::{backend::Backend, ops::SparseFloatOps, SparseRepr, Tensor};
-use burn_tensor::{Bool, ElementConversion, Float, Shape, Sparse, TensorData, TensorPrimitive};
+use burn_tensor::{backend::Backend, ops::SparseFloatOps, Tensor};
+use burn_tensor::{
+    Bool, ElementConversion, Float, Shape, Sparse, SparseStorage, TensorData, TensorKind,
+    TensorPrimitive,
+};
 use burn_tensor::{Device, Int};
 
-use super::coo::{flatten_coordinates, unflatten_coordinates, SparseCOOTensor, COO};
-type R = COO;
-
-impl<B: Backend> SparseFloatOps<R, B> for R {
+impl<B: Backend> SparseFloatOps<COO, B> for COO {
     fn float_to_sparse<const D: usize>(
         dense: <B as burn_tensor::backend::Backend>::FloatTensorPrimitive<D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let dense: Tensor<B, D> = Tensor::from_primitive(TensorPrimitive::Float(dense));
 
         let shape = dense.shape();
@@ -59,7 +60,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     fn float_empty<const D: usize>(
         shape: burn_tensor::Shape<D>,
         device: &burn_tensor::Device<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         SparseCOOTensor {
             coordinates: None,
             values: None,
@@ -69,7 +70,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_to_dense<const D: usize>(
-        sparse: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        sparse: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> B::FloatTensorPrimitive<D> {
         let SparseCOOTensor {
             coordinates,
@@ -93,8 +94,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_spmm<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <B as burn_tensor::backend::Backend>::FloatTensorPrimitive<D>,
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <Float as TensorKind<B>>::Primitive<D>,
     ) -> <B as burn_tensor::backend::Backend>::FloatTensorPrimitive<D> {
         let SparseCOOTensor {
             coordinates,
@@ -103,7 +104,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
             device,
         } = lhs;
 
-        let rhs: Tensor<B, D, Float> = Tensor::from_primitive(TensorPrimitive::Float(rhs));
+        let rhs: Tensor<B, D, Float> = Tensor::from_primitive(rhs);
         let rhs_shape = rhs.shape();
         let mut out_shape = shape.clone();
         out_shape.dims[D - 1] = rhs_shape.dims[D - 1];
@@ -170,6 +171,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
             Tensor::zeros([out_shape.dims[0], rhs.shape().dims[1]], &device);
         let gathered = rhs.gather(0, gather_index);
 
+        println!("{}", gathered);
+        println!("{}", values);
         let multiplied = gathered.mul(values);
 
         let scattered = output.scatter(0, scatter_index, multiplied);
@@ -180,8 +183,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     fn float_sddmm<const D: usize>(
         lhs: <B as burn_tensor::backend::Backend>::FloatTensorPrimitive<D>,
         rhs: <B as burn_tensor::backend::Backend>::FloatTensorPrimitive<D>,
-        sparse: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        sparse: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         if sparse.coordinates.is_none() || sparse.values.is_none() {
             return sparse;
         }
@@ -242,8 +245,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_coalesce_sum<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         if tensor.coordinates.as_ref().map(|c| c.shape().dims[1] <= 1) == Some(true) {
             return tensor;
         }
@@ -333,8 +336,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_remove_zeros<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         if tensor.coordinates.is_none() && tensor.values.is_none() {
             return tensor;
         }
@@ -352,7 +355,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_number_nonzero<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> usize {
         match tensor.coordinates {
             Some(coordinates) => coordinates.shape().dims[1],
@@ -361,7 +364,7 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_density<const D: usize>(
-        sparse: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        sparse: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> f32 {
         match sparse.coordinates {
             Some(coordinates) => {
@@ -372,22 +375,22 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_slice<const D1: usize, const D2: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
         indices: [std::ops::Range<usize>; D2],
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1> {
         todo!()
     }
 
     fn float_device<const D: usize>(
-        tensor: &<R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: &<COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> burn_tensor::Device<B> {
         tensor.device.clone()
     }
 
     fn float_to_device<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         device: &burn_tensor::Device<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         SparseCOOTensor {
             coordinates: tensor.coordinates.map(|t| t.to_device(device)),
             values: tensor.values.map(|t| t.to_device(device)),
@@ -397,13 +400,13 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_shape<const D: usize>(
-        tensor: &<R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: &<COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> burn_tensor::Shape<D> {
         tensor.shape.clone()
     }
 
     fn float_into_data<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> impl std::future::Future<Output = burn_tensor::TensorData> + Send {
         async { todo!() }
     }
@@ -411,14 +414,14 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     fn float_from_data<const D: usize>(
         data: burn_tensor::TensorData,
         device: &burn_tensor::Device<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         todo!()
     }
 
     fn float_reshape<const D1: usize, const D2: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
         out_shape: burn_tensor::Shape<D2>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D2> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D2> {
         if tensor.coordinates.is_none() && tensor.values.is_none() {
             return SparseCOOTensor {
                 coordinates: None,
@@ -452,8 +455,8 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_transpose<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let d = tensor.shape.dims.len();
         let mut axes: Vec<usize> = (0..d).collect();
         axes.swap(d - 1, d - 2);
@@ -461,10 +464,10 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_swap_dims<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim1: usize,
         dim2: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let d = tensor.shape.dims.len();
         let mut axes: Vec<usize> = (0..d).collect();
         axes.swap(dim1, dim2);
@@ -472,9 +475,9 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_permute<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         axes: &[usize],
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let SparseCOOTensor {
             coordinates,
             values,
@@ -498,9 +501,9 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_flip<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         axes: &[usize],
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let SparseCOOTensor {
             coordinates,
             values,
@@ -549,10 +552,10 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_slice_assign<const D1: usize, const D2: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
         ranges: [std::ops::Range<usize>; D2],
-        mut value: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1> {
+        mut value: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1> {
         let value_nnz = value
             .coordinates
             .as_ref()
@@ -579,10 +582,10 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_repeat_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
         times: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let SparseCOOTensor {
             coordinates,
             values,
@@ -633,29 +636,29 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_cat<const D: usize>(
-        tensors: Vec<<R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>>,
+        tensors: Vec<<COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         todo!()
     }
 
     fn float_equal<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
         todo!()
     }
 
     fn float_not_equal<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
         todo!()
     }
 
     fn float_any<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, 1> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, 1> {
         let SparseCOOTensor {
             coordinates,
             values: _,
@@ -664,19 +667,19 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
         } = tensor;
         let any = coordinates.is_some();
         let bool = Tensor::<B, 1, Bool>::from([any]).into_primitive();
-        <Self as SparseBoolOps<R, B>>::bool_to_sparse(bool)
+        <Self as SparseBoolOps<COO, B>>::bool_to_sparse(bool)
     }
 
     fn float_any_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
         panic!("any_dim is unsupported for COO until scatter supports any-based reduction");
     }
 
     fn float_all<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, 1> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, 1> {
         let SparseCOOTensor {
             coordinates,
             values: _,
@@ -688,27 +691,27 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
             None => false,
         };
         let bool = Tensor::<B, 1, Bool>::from([all]).into_primitive();
-        <Self as SparseBoolOps<R, B>>::bool_to_sparse(bool)
+        <Self as SparseBoolOps<COO, B>>::bool_to_sparse(bool)
     }
 
     fn float_all_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Bool, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
         panic!("all_dim is unsupported for COO until scatter supports all-based reduction");
     }
 
     fn float_expand<const D1: usize, const D2: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D1>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
         shape: burn_tensor::Shape<D2>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D2> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D2> {
         todo!()
     }
 
     fn float_add<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         let SparseCOOTensor {
             coordinates: lhs_coordinates,
             values: lhs_values,
@@ -753,9 +756,9 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_sub<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         Self::float_add(
             lhs,
             Self::float_mul_scalar(rhs, FloatElem::<B>::from_elem(-1.0)),
@@ -763,110 +766,110 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_mul<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_mul is unsupported until scatter supports multiplication based reduction");
     }
 
     fn float_mul_scalar<const D: usize>(
-        mut lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         rhs: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         lhs.values = lhs.values.map(|values| values.mul_scalar(rhs));
         lhs
     }
 
     fn float_div<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_div is unsupported until scatter supports multiplication based reduction");
     }
 
     fn float_div_scalar<const D: usize>(
-        mut lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         rhs: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         lhs.values = lhs.values.map(|values| values.div_scalar(rhs));
         lhs
     }
 
     fn float_max<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("max is unsupported for COO until scatter supports max reduction");
     }
 
     fn float_max_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("max_dim is unsupported for COO until scatter supports max reduction");
     }
 
     fn float_min<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("min is unsupported for COO until scatter supports min reduction");
     }
 
     fn float_min_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("min_dim is unsupported for COO until scatter supports min reduction");
     }
 
     fn float_abs<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.abs());
         tensor
     }
 
     fn float_sign<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.sign());
         tensor
     }
 
     fn float_powf<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_powf is unsupported for COO until scatter supports other reduction methods");
     }
 
     fn float_powi<const D: usize>(
-        lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-        rhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_powi is unsupported for COO until scatter supports other reduction methods");
     }
 
     fn float_powf_scalar<const D: usize>(
-        mut lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         rhs: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         lhs.values = lhs.values.map(|values| values.powf_scalar(rhs));
         lhs
     }
 
     fn float_powi_scalar<const D: usize>(
-        mut lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         rhs: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         lhs.values = lhs.values.map(|values| values.powi_scalar(rhs));
         lhs
     }
 
     fn float_clamp<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         min: burn_tensor::ops::FloatElem<B>,
         max: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.clamp(min, max));
         if min.to_f64() == 0f64 || max.to_f64() == 0f64 {
             // Clamp can zero elements if a boundary is zero
@@ -877,9 +880,9 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_clamp_min<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         min: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.clamp_min(min));
         if min.to_f64() == 0f64 {
             // min can zero elements if boundary is 0
@@ -890,9 +893,9 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_clamp_max<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         max: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.clamp_max(max));
         if max.to_f64() == 0f64 {
             // max can zero elements if boundary is 0
@@ -903,10 +906,10 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_select<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
         indices: burn_tensor::ops::IntTensor<B, 1>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         if tensor.coordinates.is_none() && tensor.values.is_none() {
             return tensor;
         }
@@ -944,34 +947,34 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_select_assign<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
         indices: burn_tensor::ops::IntTensor<B, 1>,
-        values: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        values: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         todo!()
     }
 
     fn float_gather<const D: usize>(
         dim: usize,
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         indices: burn_tensor::ops::IntTensor<B, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         todo!()
     }
 
     fn float_scatter<const D: usize>(
         dim: usize,
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         indices: burn_tensor::ops::IntTensor<B, D>,
-        values: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        values: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         todo!()
     }
 
     fn float_sum<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, 1> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, 1> {
         tensor
             .values
             .map(|values| Self::float_to_sparse(values.sum().into_primitive().tensor()))
@@ -979,22 +982,22 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_sum_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_sum_dim unsupported for COO");
     }
 
     fn float_prod_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_prod_dim is not supported for COO until scatter supports product reduction")
     }
 
     fn float_mean<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, 1> {
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, 1> {
         let num_elems = tensor.shape.num_elements();
         Self::float_div_scalar(
             Self::float_sum(tensor),
@@ -1003,23 +1006,23 @@ impl<B: Backend> SparseFloatOps<R, B> for R {
     }
 
     fn float_mean_dim<const D: usize>(
-        tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         dim: usize,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         panic!("float_mean_dim is not supported for COO until scatter supports mean reduction");
     }
 
     fn float_remainder_scalar<const D: usize>(
-        mut lhs: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
+        mut lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
         rhs: burn_tensor::ops::FloatElem<B>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         lhs.values = lhs.values.map(|values| values.remainder_scalar(rhs));
         lhs
     }
 
     fn float_neg<const D: usize>(
-        mut tensor: <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D>,
-    ) -> <R as SparseRepr<B>>::Primitive<burn_tensor::Float, D> {
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.neg());
         tensor
     }
