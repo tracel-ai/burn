@@ -365,9 +365,7 @@ mod tests {
 
         // if wavelen < high_freq_wavelen
         let cond = wavelen.lower_elem(high_freq_wavelen);
-        let new_freqs = new_freqs.mask_where(cond, freqs);
-
-        new_freqs
+        new_freqs.mask_where(cond, freqs)
     }
 
     #[test]
