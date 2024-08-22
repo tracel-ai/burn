@@ -16,6 +16,8 @@ members = [
 
 exclude = [
     "examples/notebook",
+    "examples/onnx-inference-rp2040", # will cause dependency building issues otherwise
+    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -72,7 +74,11 @@ serde_bytes = { version = "0.11.15", default-features = false, features = [
 ] } # alloc for no_std
 serde_rusqlite = "0.35.0"
 serial_test = "3.1.1"
-spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
+spin = { version = "0.9.8", features = [
+    "mutex",
+    "spin_mutex",
+    "portable-atomic",
+] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.74", features = ["full", "extra-traits"] }
@@ -118,7 +124,7 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-ndarray = { version = "0.15.6", default-features = false }
+ndarray = { version = "0.16.0", default-features = false }
 matrixmultiply = { version = "0.3.9", default-features = false }
 openblas-src = "0.10.9"
 blas-src = { version = "0.10.0", default-features = false }
@@ -142,9 +148,11 @@ nvml-wrapper = "0.10.0"
 sysinfo = "0.30.13"
 systemstat = "0.2.3"
 
+portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
+
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bee7886b5c3016c425d244136f77442655097f3e" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "bee7886b5c3016c425d244136f77442655097f3e" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "034f667da6e92a81b7da9f303e8507db944cc2a4" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "034f667da6e92a81b7da9f303e8507db944cc2a4" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl" }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common" }

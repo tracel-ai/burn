@@ -122,9 +122,6 @@ derive-new = { workspace = true }
 log = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std_rng"] } # Default enables std
 
-# Using in place of use std::sync::Mutex when std is disabled
-spin = { workspace = true, features = ["mutex", "spin_mutex"] }
-
 # The same implementation of HashMap in std but with no_std support (only alloc crate is needed)
 hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 
@@ -139,6 +136,10 @@ serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 thiserror = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 num-traits = { workspace = true }
+spin = { workspace = true } # Using in place of use std::sync::Mutex when std is disabled
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

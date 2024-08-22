@@ -12,6 +12,7 @@ Shell commands to build and test the package:
 ```sh
 
 # install the new targets if not installed previously
+rustup target add thumbv6m-none-eabi
 rustup target add thumbv7m-none-eabi
 rustup target add wasm32-unknown-unknown
 
@@ -19,6 +20,7 @@ rustup target add wasm32-unknown-unknown
 cargo build # regular build
 cargo build --target thumbv7m-none-eabi
 cargo build --target wasm32-unknown-unknown
+RUSTFLAGS="--cfg portable_atomic_unsafe_assume_single_core" cargo build --target thumbv6m-none-eabi
 
 # test
 cargo test
