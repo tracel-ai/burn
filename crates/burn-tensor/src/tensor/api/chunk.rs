@@ -1,7 +1,6 @@
 use super::narrow::narrow;
 use crate::{
-    backend::Backend, BasicOps, Bool, Dense, ReprPrimitive, TensorKind, TensorRepr, TensorReprT,
-    TensorStorage,
+    backend::Backend, BasicOps, Bool, Dense, ReprPrimitive, TensorKind, TensorRepr, TensorStorage,
 };
 use alloc::vec::Vec;
 
@@ -29,7 +28,8 @@ pub fn chunk<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B, SR>, SR:
     dim: usize,
 ) -> Vec<ReprPrimitive<B, K, SR, D>>
 where
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     let size = K::shape(&tensor).dims[dim];
     if size < chunks {

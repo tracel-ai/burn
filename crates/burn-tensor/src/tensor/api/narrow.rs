@@ -1,6 +1,5 @@
 use crate::{
-    backend::Backend, BasicOps, Bool, Dense, ReprPrimitive, TensorKind, TensorRepr, TensorReprT,
-    TensorStorage,
+    backend::Backend, BasicOps, Bool, Dense, ReprPrimitive, TensorKind, TensorRepr, TensorStorage,
 };
 use alloc::vec::Vec;
 
@@ -32,7 +31,8 @@ pub fn narrow<
     length: usize,
 ) -> ReprPrimitive<B, K, SR, D>
 where
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     let shape = K::shape(&tensor);
 

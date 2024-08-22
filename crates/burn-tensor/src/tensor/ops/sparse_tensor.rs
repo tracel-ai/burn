@@ -1,7 +1,8 @@
 use super::{BoolTensor, FloatElem, FloatTensor, IntTensor, QuantizedTensor};
+use crate::TensorRepr;
 use crate::{
     backend::Backend, Bool, Device, Float, Int, ReprPrimitive, Shape, Sparse, SparseStorage,
-    TensorData, TensorKind, TensorRepr, TensorReprT,
+    TensorData, TensorKind,
 };
 use core::{future::Future, ops::Range};
 
@@ -12,8 +13,8 @@ pub trait SparseTensorOps<SR: SparseStorage<B>, B: Backend>:
 
 pub trait SparseFloatOps<SR: SparseStorage<B>, B: Backend>
 where
-    TensorRepr: TensorReprT<B, Float, Sparse<B, SR>>,
-    TensorRepr: TensorReprT<B, Bool, Sparse<B, SR>>,
+    (B, Float, Sparse<B, SR>): TensorRepr,
+    (B, Bool, Sparse<B, SR>): TensorRepr,
 {
     fn float_to_sparse<const D: usize>(
         dense: B::FloatTensorPrimitive<D>,

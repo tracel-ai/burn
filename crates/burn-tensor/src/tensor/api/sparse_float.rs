@@ -1,11 +1,11 @@
 use crate::{backend::Backend, check::TensorCheck, Dense, Float, Sparse, Tensor, TensorKind};
-use crate::{check, Bool, SparseStorage, TensorPrimitive, TensorRepr, TensorReprT};
+use crate::{check, Bool, SparseStorage, TensorPrimitive, TensorRepr};
 
 impl<const D: usize, B, SR> Tensor<B, D, Float, Sparse<B, SR>>
 where
     B: Backend,
     SR: SparseStorage<B>,
-    TensorRepr: TensorReprT<B, Float, Sparse<B, SR>> + TensorReprT<B, Bool, Sparse<B, SR>>,
+    (B, Float, Sparse<B, SR>): TensorRepr,
 {
     /// Executes an operation on the tensor and modifies its value.
     ///

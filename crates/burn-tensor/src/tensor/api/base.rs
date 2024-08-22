@@ -18,9 +18,7 @@ use crate::check::TensorCheck;
 use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
-use crate::{
-    DType, Dense, Element, ReprPrimitive, TensorPrimitive, TensorRepr, TensorReprT, TensorStorage,
-};
+use crate::{DType, Dense, Element, ReprPrimitive, TensorPrimitive, TensorRepr, TensorStorage};
 
 /// A tensor with a given backend, shape and data type.
 #[derive(new, Clone, Debug)]
@@ -29,9 +27,9 @@ where
     B: Backend,
     K: TensorKind<B>,
     SR: TensorStorage<B>,
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
 {
-    pub(crate) primitive: <TensorRepr as TensorReprT<B, K, SR>>::Primitive<D>,
+    pub(crate) primitive: <(B, K, SR) as TensorRepr>::Primitive<D>,
 }
 
 impl<B, const D: usize, K, SR, T> From<T> for Tensor<B, D, K, SR>
@@ -40,7 +38,8 @@ where
     K: BasicOps<B, SR>,
     SR: TensorStorage<B>,
     T: Into<TensorData>,
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     fn from(value: T) -> Self {
         Tensor::from_data(value.into(), &Default::default())
@@ -53,7 +52,7 @@ where
 //     R: TensorRepr<B>,
 //     K: TensorKind<B, R>,
 // {
-//     fn change_repr<R2: TensorRepr<B>>(self) -> Tensor<B, D, K, R2>
+//     fn change_repr<R2: TensorRepr
 //     where
 //         K: TensorKind<B, R2>,
 //         R: ChangeRepr<B, R2>,
@@ -67,7 +66,8 @@ where
     B: Backend,
     K: BasicOps<B, SR>,
     SR: TensorStorage<B>,
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     /// Converts the tensor into a primitive tensor.
     pub fn into_primitive(self) -> ReprPrimitive<B, K, SR, D> {
@@ -987,7 +987,8 @@ where
     K: BasicOps<B, SR>,
     SR: TensorStorage<B>,
     Bool: TensorKind<B>,
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     start: usize,
     end: usize,
@@ -999,7 +1000,8 @@ where
 impl<B: Backend, const D: usize, K: BasicOps<B, SR>, SR: TensorStorage<B>> Iterator
     for DimIter<B, D, K, SR>
 where
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     type Item = Tensor<B, D, K, SR>;
 
@@ -1036,7 +1038,8 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter
 
 impl<B: Backend, const D: usize, K: BasicOps<B, SR>, SR: TensorStorage<B>> DimIter<B, D, K, SR>
 where
-    TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+    (B, K, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     fn new(tensor: Tensor<B, D, K, SR>, dim: usize) -> Self {
         let dims = tensor.dims();
@@ -1327,8 +1330,8 @@ impl<B: Backend, const D: usize> core::ops::BitXor<T> for Tensor<B, D> {
 /// This is an internal trait, use the public API provided by [tensor struct](Tensor).
 pub trait BasicOps<B: Backend, SR: TensorStorage<B> = Dense>: TensorKind<B>
 where
-    TensorRepr: TensorReprT<B, Self, SR>,
-    TensorRepr: TensorReprT<B, Bool, SR>,
+    (B, Self, SR): TensorRepr,
+    (B, Bool, SR): TensorRepr,
 {
     /// The type of the tensor elements.
     type Elem: Element;
@@ -2336,7 +2339,8 @@ pub trait ReshapeArgs<const D2: usize> {
         tensor: &Tensor<B, D, K, SR>,
     ) -> Shape<D2>
     where
-        TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>;
+        (B, K, SR): TensorRepr,
+        (B, Bool, SR): TensorRepr;
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
@@ -2345,8 +2349,8 @@ impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
         tensor: &Tensor<B, D, K, SR>,
     ) -> Shape<D2>
     where
-        Bool: TensorKind<B>,
-        TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+        (B, K, SR): TensorRepr,
+        (B, Bool, SR): TensorRepr,
     {
         check!(TensorCheck::reshape_args_usize(&tensor.shape(), &self));
 
@@ -2360,7 +2364,8 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     ) -> Shape<D2>
     where
         Bool: TensorKind<B>,
-        TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
+        (B, K, SR): TensorRepr,
+        (B, Bool, SR): TensorRepr,
     {
         let shape = Shape::from(self);
 
@@ -2376,8 +2381,8 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
         tensor: &Tensor<B, D, K, SR>,
     ) -> Shape<D2>
     where
-        TensorRepr: TensorReprT<B, K, SR> + TensorReprT<B, Bool, SR>,
-        Bool: TensorKind<B>,
+        (B, K, SR): TensorRepr,
+        (B, Bool, SR): TensorRepr,
     {
         // Validate the reshape arguments
         check!(TensorCheck::reshape_args_i32(&self));
