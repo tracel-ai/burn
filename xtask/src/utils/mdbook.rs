@@ -8,7 +8,7 @@ use crate::utils::process::handle_child_process;
 
 use super::Params;
 
-/// Run an mdbook command with the passed directory as the current directory
+/// Run a mdbook command with the passed directory as the current directory
 pub(crate) fn run_mdbook_with_path<P: AsRef<Path>>(
     command: &str,
     params: Params,

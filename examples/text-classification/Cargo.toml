@@ -31,9 +31,9 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.19.1", default-features = false, features = [
-    "onig",
-    "http",
+tokenizers = { version = "0.20.0", default-features = false, features = [
+  "onig",
+  "http",
 ] }
 
 # Utils
