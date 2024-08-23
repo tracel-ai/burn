@@ -114,6 +114,11 @@ _Think of `expect()` messages as guidelines for future you and other developers.
 This approach ensures that `expect()` messages are informative and aligned with the intended
 function outcomes, making debugging and maintenance more straightforward for everyone.
 
+### Writing integration tests
+
+[Integration tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html) should be in a directory called `tests`
+besides the `src` directory of a crate. Per convention, they must be implemented in files whose name start with the `test_` prefix.
+
 ## Others
 
 To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
