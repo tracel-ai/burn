@@ -768,20 +768,9 @@ pub fn tile_config(node: &Node) -> TileConfig {
 
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
-    fn get_input_values(node: &Node, index: usize) -> Vec<i64> {
-        // If the input is not provided, return an empty vector
-        if node.inputs.get(index).is_none() {
-            return Vec::new();
-        }
-
-        match &node.inputs[index].value {
-            Some(Data::Int64s(shape)) => shape.clone(),
-            _ => panic!("Tensor data type must be int64"),
-        }
-    }
     fn get_pads(node: &Node) -> Vec<usize> {
-        if node.inputs.is_empty() {
-            panic!("Pad: must be provide data as input")
+        if node.inputs.len() < 2 {
+            panic!("Pad: must provide at least two inputs")
         }
         if node.inputs.len() >= 4 {
             panic!("Pad: axes input is not supported")
@@ -792,40 +781,19 @@ pub fn pad_config(node: &Node) -> PadConfig {
             _ => panic!("Pad: Only tensor input is valid"),
         };
 
-        //TODO : handle more possible attributes
-        let mut pads: Vec<usize> = get_input_values(node, 1)
-            .into_iter()
-            .map(|x| x as usize)
-            .collect();
-
-        for (key, value) in node.attrs.iter() {
-            match key.as_str() {
-                "pads" => {
-                    pads = value
-                        .clone()
-                        .into_i64s()
-                        .iter()
-                        .map(|&x| {
-                            if x < 0 {
-                                panic!("Pad: Negative pad is not supported");
-                            }
-                            x as usize
-                        })
-                        .collect()
-                }
-                "mode" => {
-                    let mode = value.clone().into_string();
-                    if mode != "constant" {
-                        panic!("only constant mode is supported, given mode is {}", mode);
+        let pads: Vec<usize> = match &node.inputs[1].value {
+            Some(Data::Int64s(shape)) => shape
+                .iter()
+                .map(|&x| {
+                    if x < 0 {
+                        // TODO: support negative pads
+                        panic!("Pad: Negative pad is not supported");
                     }
-                }
-                _ => {}
-            }
-        }
-
-        if pads.is_empty() {
-            panic!("Pad: pads should be given as attribute or as input");
-        }
+                    x as usize
+                })
+                .collect(),
+            _ => panic!("Pad: pads data type must be int64"),
+        };
 
         if pads.len() != input_dim * 2 {
             panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
