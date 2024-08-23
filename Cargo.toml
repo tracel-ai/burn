@@ -81,7 +81,7 @@ spin = { version = "0.9.8", features = [
 ] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.74", features = ["full", "extra-traits"] }
+syn = { version = "2.0.75", features = ["full", "extra-traits"] }
 tempfile = "3.12.0"
 thiserror = "1.0.61"
 tokio = { version = "1.39.2", features = ["rt", "macros"] }
