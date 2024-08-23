@@ -10,8 +10,9 @@ use super::{
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
-    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
-    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, scatter::ScatterNode,
+    slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode,
+    unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -110,6 +111,7 @@ pub enum Node<PS: PrecisionSettings> {
     Range(RangeNode),
     Reshape(ReshapeNode),
     Resize(ResizeNode),
+    Scatter(ScatterNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
     Sum(SumNode),

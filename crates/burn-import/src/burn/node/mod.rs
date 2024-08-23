@@ -33,6 +33,7 @@ pub(crate) mod random_uniform;
 pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod resize;
+pub(crate) mod scatter;
 pub(crate) mod slice;
 pub(crate) mod squeeze;
 pub(crate) mod sum;
