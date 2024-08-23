@@ -876,10 +876,10 @@ pub fn pad_config(node: &Node) -> PadConfig {
                 .unwrap_or(0.0);
 
         if node.attrs.contains_key("value") {
-            constant_value = node.attrs.get("value").and_then(|value| match value {
-                AttributeValue::Float32(value) => Some(*value),
+            constant_value = node.attrs.get("value").map(|value| match value {
+                AttributeValue::Float32(value) => *value,
                 _ => panic!("Pad: only float32 values are currently supported for constant value as attribute, submit an issue on github"),
-            }).unwrap_or(0.0);
+            }).expect("constant_value should have had a value now");
         }
         constant_value
     }
