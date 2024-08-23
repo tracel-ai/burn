@@ -1,0 +1,37 @@
+[package]
+authors = ["Bjorn Beishline (@bjorntheprogrammer)"]
+edition = "2021"
+name = "raspberry-pi-pico"
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+
+[dependencies]
+embassy-embedded-hal = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy.git", rev = "d3ff0b184861fecf7d11e14bb90a39711e10176d", features = ["defmt"] }
+embassy-executor = { version = "0.6.0", git = "https://github.com/embassy-rs/embassy.git", rev = "d3ff0b184861fecf7d11e14bb90a39711e10176d", features = ["task-arena-size-98304", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
+embassy-time = { version = "0.3.2", git = "https://github.com/embassy-rs/embassy.git", rev = "d3ff0b184861fecf7d11e14bb90a39711e10176d", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-rp = { version = "0.2.0", git = "https://github.com/embassy-rs/embassy.git", rev = "d3ff0b184861fecf7d11e14bb90a39711e10176d", features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl"] }
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+fixed = "1.23.1"
+fixed-macro = "1.2"
+
+#cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
+cortex-m = { version = "0.7.6", features = ["inline-asm"] }
+cortex-m-rt = "0.7.0"
+critical-section = "1.1"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+portable-atomic = { version = "1.5", features = ["critical-section"] }
+embedded-alloc = "0.5.1"
+
+burn = { path = "../../crates/burn", default-features = false, features = ["ndarray"] }
+
+[build-dependencies]
+burn-import = { path = "../../crates/burn-import" }
+
+[profile.release]
+debug = 2
+
+[profile.dev]
+lto = true
+opt-level = "z"
