@@ -1,6 +1,6 @@
 use tracel_xtask::prelude::*;
 
-pub fn handle_command(exec_env: &ExecutionEnvironment) -> anyhow::Result<()> {
+pub fn handle_command(args: &ValidateCmdArgs, exec_env: &ExecutionEnvironment) -> anyhow::Result<()> {
     let target = Target::Workspace;
     let exclude = vec![];
     let only = vec![];
@@ -25,6 +25,7 @@ pub fn handle_command(exec_env: &ExecutionEnvironment) -> anyhow::Result<()> {
                 exclude: exclude.clone(),
                 only: only.clone(),
                 command: Some(c.clone()),
+                ignore_audit: args.ignore_audit,
             })
         })?;
 
@@ -45,6 +46,7 @@ pub fn handle_command(exec_env: &ExecutionEnvironment) -> anyhow::Result<()> {
                 exclude: exclude.clone(),
                 only: only.clone(),
                 threads: None,
+                jobs: None,
                 command: Some(TestSubCommand::All),
             },
             ExecutionEnvironment::Std,
@@ -88,6 +90,7 @@ pub fn handle_command(exec_env: &ExecutionEnvironment) -> anyhow::Result<()> {
                     exclude: exclude.clone(),
                     only: only.clone(),
                     threads: None,
+                    jobs: None,
                     command: Some(TestSubCommand::All),
                 },
                 ExecutionEnvironment::NoStd,

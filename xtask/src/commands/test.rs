@@ -70,6 +70,7 @@ pub(crate) fn handle_command(
                         exclude: args.exclude.clone(),
                         only: args.only.clone(),
                         threads: args.threads,
+                        jobs: args.jobs,
                     },
                     env,
                 )
