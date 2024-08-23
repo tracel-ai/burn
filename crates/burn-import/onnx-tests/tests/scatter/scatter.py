@@ -3,6 +3,7 @@
 import onnx
 import onnx.helper
 import onnx.checker
+import numpy as np
 
 
 def build_model():
@@ -31,6 +32,23 @@ def build_model():
         shape=[3, 5]  # Same shape as data
     )
 
+    # Add values for indices and updates tensors
+    indices_values = onnx.helper.make_tensor(
+        name="indices",
+        data_type=onnx.TensorProto.INT64,
+        dims=[3, 2],
+        vals=np.array([[0, 1], [1, 0], [2, 1]]).astype(
+            np.int64).flatten().tolist()
+    )
+
+    updates_values = onnx.helper.make_tensor(
+        name="updates",
+        data_type=onnx.TensorProto.FLOAT,
+        dims=[3, 2],
+        vals=np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+                      ).astype(np.float32).flatten().tolist()
+    )
+
     # Create the Scatter node
     scatter_node = onnx.helper.make_node(
         "Scatter",
@@ -43,8 +61,10 @@ def build_model():
     graph = onnx.helper.make_graph(
         nodes=[scatter_node],
         name="scatter_graph",
-        inputs=[data, indices, updates],
-        outputs=[output]
+        inputs=[data],
+        outputs=[output],
+        # Add initializers for indices and updates
+        initializer=[indices_values, updates_values]
     )
 
     # Build the model
