@@ -17,6 +17,7 @@ autotune = ["burn-jit/autotune"]
 template = ["burn-jit/template", "cubecl/template"]
 doc = ["burn-jit/doc"]
 std = ["burn-jit/std", "cubecl/std"]
+simple-memory-management = ["cubecl/simple-memory-management"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
