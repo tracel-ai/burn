@@ -1,7 +1,7 @@
 # No Standard Library
 
 In this section, you will learn how to run an onnx inference model on an embedded system, with no standard library support on a Raspberry Pi Pico. This should be universally applicable to other platforms. All the code can be found under the
-[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference-rp2040).
+[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/raspberry-pi-pico).
 
 ## Step-by-Step Guide
 

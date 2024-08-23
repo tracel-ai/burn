@@ -6,6 +6,7 @@ The continuous integration (CI) should build with additional targets:
 
  * `wasm32-unknown-unknown` - WebAssembly
  * `thumbv7m-none-eabi` - ARM Cortex-M3
+ * `thumbv6m-none-eabi` - ARM Cortex-M0+
 
 Shell commands to build and test the package:
 
