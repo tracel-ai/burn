@@ -768,20 +768,20 @@ pub fn tile_config(node: &Node) -> TileConfig {
 
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
-    fn get_input_values(node: &Node, index: usize) -> Vec<i64> {
+    fn get_pads_input(node: &Node) -> Vec<i64> {
         // If the input is not provided, return an empty vector
-        if node.inputs.get(index).is_none() {
+        if node.inputs.get(1).is_none() {
             return Vec::new();
         }
 
-        match &node.inputs[index].value {
+        match &node.inputs[1].value {
             Some(Data::Int64s(shape)) => shape.clone(),
             _ => panic!("Tensor data type must be int64"),
         }
     }
     fn get_pads(node: &Node) -> Vec<usize> {
         if node.inputs.is_empty() {
-            panic!("Pad: must be provide data as input")
+            panic!("Pad: must provide data as input")
         }
         if node.inputs.len() >= 4 {
             panic!("Pad: axes input is not supported")
@@ -793,7 +793,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         };
 
         //TODO : handle more possible attributes
-        let mut pads: Vec<usize> = get_input_values(node, 1)
+        let mut pads: Vec<usize> = get_pads_input(node)
             .into_iter()
             .map(|x| x as usize)
             .collect();
@@ -819,6 +819,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
                         panic!("only constant mode is supported, given mode is {}", mode);
                     }
                 }
+
                 _ => {}
             }
         }
@@ -855,7 +856,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        node.inputs
+        let mut constant_value = node.inputs
                 .get(2)
                 .and_then(|input| match &input.value {
                     Some(Data::Float16s(constant_value)) => {
@@ -872,7 +873,15 @@ pub fn pad_config(node: &Node) -> PadConfig {
                     Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
                      _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
                 })
-                .unwrap_or(0.0)
+                .unwrap_or(0.0);
+
+        if node.attrs.contains_key("value") {
+            constant_value = node.attrs.get("value").and_then(|value| match value {
+                AttributeValue::Float32(value) => Some(*value),
+                _ => panic!("Pad: only float32 values are currently supported for constant value as attribute, submit an issue on github"),
+            }).unwrap_or(0.0);
+        }
+        constant_value
     }
 
     let pads = get_pads(node);
