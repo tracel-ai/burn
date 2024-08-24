@@ -256,6 +256,7 @@ impl TensorType {
     pub fn val(&self) -> TokenStream {
         if let Some(val) = &self.val {
             let val = val.as_tokens();
+            println!("shape {:?}", self.shape);
             if let Some(shape) = &self.shape {
                 // let's just handle the case where the shape is a single value
                 if shape.len() == 1 {
@@ -273,13 +274,23 @@ impl TensorType {
                 let mut chunks = val.chunks_exact(*take_n);
 
                 let mut result = Vec::new();
+
                 //for each dimension, we need to iterate over all the following dimensions
-                for i in (0..shape.len() - 1).rev() {
+                // the last is ignored because it's the number of elements per row
+                for i in (0..shape.len() - 2).rev() {
+                    //we need this to iterate at least once
                     for j in (i..shape.len() - 1).rev() {
                         let dim = shape[j];
                         let mut tmp = Vec::new();
-                        for _ in 0..dim {
-                            tmp.push(self.render_row(chunks.next().unwrap()));
+                        for _ in 0..dim - 1 {
+                            let row = chunks.next();
+                            if row.is_none() {
+                                panic!(
+                                    "Error parsing tensor value: something is wrong with the chunk size.\nTensor shape: {:?} number of values: {:?}\ncurrent outer row {:?} current inner row {:?}",
+                                    shape, val.len(), i, j
+                                );
+                            }
+                            tmp.push(self.render_row(row.unwrap()));
                         }
                         //treat the lower dimensions as a value in a row
                         result.push(self.render_row(&tmp));
@@ -297,6 +308,7 @@ impl TensorType {
         }
     }
     fn render_row(&self, row: &[TokenStream]) -> TokenStream {
+        println!("row {:?}", row);
         quote! {
             [#(#row),*]
         }

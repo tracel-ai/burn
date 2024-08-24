@@ -1228,32 +1228,30 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
 impl From<&OnnxArgument> for TensorType {
     fn from(arg: &OnnxArgument) -> Self {
         if arg.name.contains("initializer") {
-            println!("{:#?}", arg);
+            println!("Initializer: {:?}", arg);
         }
-        let mut res = match &arg.ty {
-            ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
-                dim,
-                ..
-            }) => TensorType::new_float(arg.name.clone(), *dim),
-            ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Int32 | ElementType::Int64,
-                dim,
-                ..
-            }) => TensorType::new_int(arg.name.clone(), *dim),
-            ArgType::Tensor(OnnxTensorType {
-                elem_type: ElementType::Bool,
-                dim,
-                ..
-            }) => TensorType::new_bool(arg.name.clone(), *dim),
-
+        let OnnxTensorType {
+            elem_type,
+            dim,
+            shape,
+        } = match &arg.ty {
+            ArgType::Tensor(tensor) => tensor,
+            _ => panic!("Can't transform {:?} to tensor.", arg.ty),
+        };
+        let mut res = match elem_type {
+            ElementType::Float16 | ElementType::Float32 | ElementType::Float64 => {
+                TensorType::new_float(arg.name.clone(), *dim)
+            }
+            ElementType::Int32 | ElementType::Int64 => TensorType::new_int(arg.name.clone(), *dim),
+            ElementType::Bool => TensorType::new_bool(arg.name.clone(), *dim),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         };
         if arg.value.is_some() {
+            res.shape = shape.clone();
             res.val = Some(CodeGenTensorData::from(arg.value.clone().unwrap()));
         };
-        res
 
+        res
     }
 }
 impl From<&OnnxArgument> for Type {
@@ -1267,11 +1265,7 @@ impl From<&OnnxArgument> for Type {
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
-                    let kind: TensorKind = tensor.elem_type.clone().into();
-                    let dim = tensor.dim;
-                    let name = arg.name.clone();
-                    let shape = tensor.shape.clone();
-                    Type::Tensor(TensorType::new(name, dim, kind, shape))
+                    Type::Tensor(TensorType::from(arg))
                 }
             }
 
