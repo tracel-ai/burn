@@ -1,4 +1,6 @@
-use crate::{backend::Backend, Dense, Float, Sparse, SparseStorage, TensorKind, TensorStorage};
+use crate::{
+    backend::Backend, Dense, Float, Sparse, SparseStorage, Tensor, TensorKind, TensorStorage,
+};
 
 pub type ReprPrimitive<B, K, S, const D: usize> = <(B, K, S) as TensorRepr>::Primitive<D>;
 

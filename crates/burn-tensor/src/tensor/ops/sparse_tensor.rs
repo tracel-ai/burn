@@ -18,15 +18,15 @@ where
 {
     fn float_to_sparse<const D: usize>(
         dense: B::FloatTensorPrimitive<D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_empty<const D: usize>(
         shape: Shape<D>,
         device: &Device<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_to_dense<const D: usize>(
-        sparse: SR::SparsePrimitive<Float, D>,
+        sparse: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> B::FloatTensorPrimitive<D>;
 
     fn float_spmm<const D: usize>(
@@ -37,20 +37,22 @@ where
     fn float_sddmm<const D: usize>(
         lhs: B::FloatTensorPrimitive<D>,
         rhs: B::FloatTensorPrimitive<D>,
-        sparse: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        sparse: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_coalesce_sum<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_remove_zeros<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
-    fn float_number_nonzero<const D: usize>(tensor: SR::SparsePrimitive<Float, D>) -> usize;
+    fn float_number_nonzero<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> usize;
 
-    fn float_density<const D: usize>(sparse: SR::SparsePrimitive<Float, D>) -> f32;
+    fn float_density<const D: usize>(sparse: ReprPrimitive<B, Float, Sparse<B, SR>, D>) -> f32;
 
     /// Gets the element at the given indices.
     ///
@@ -76,7 +78,9 @@ where
     /// # Returns
     ///
     /// The device of the tensor.
-    fn float_device<const D: usize>(tensor: &SR::SparsePrimitive<Float, D>) -> Device<B>;
+    fn float_device<const D: usize>(
+        tensor: &ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> Device<B>;
 
     /// Moves the tensor to the given device.
     ///
@@ -89,9 +93,9 @@ where
     ///
     /// The tensor on the given device.
     fn float_to_device<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         device: &Device<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Gets the shape of the tensor.
     ///
@@ -102,7 +106,7 @@ where
     /// # Returns
     ///
     /// The shape of the tensor.
-    fn float_shape<const D: usize>(tensor: &SR::SparsePrimitive<Float, D>) -> Shape<D>;
+    fn float_shape<const D: usize>(tensor: &ReprPrimitive<B, Float, Sparse<B, SR>, D>) -> Shape<D>;
 
     /// Converts the tensor to a data structure.
     ///
@@ -114,7 +118,7 @@ where
     ///
     /// The data structure with the tensor's data.
     fn float_into_data<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
@@ -130,7 +134,7 @@ where
     fn float_from_data<const D: usize>(
         data: TensorData,
         device: &Device<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_reshape<const D1: usize, const D2: usize>(
         tensor: SR::SparsePrimitive<Float, D1>,
@@ -138,24 +142,24 @@ where
     ) -> SR::SparsePrimitive<Float, D2>;
 
     fn float_transpose<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_swap_dims<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim1: usize,
         dim2: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_permute<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         axes: &[usize],
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_flip<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         axes: &[usize],
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_slice_assign<const D1: usize, const D2: usize>(
         tensor: SR::SparsePrimitive<Float, D1>,
@@ -164,41 +168,41 @@ where
     ) -> SR::SparsePrimitive<Float, D1>;
 
     fn float_repeat_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
         times: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_cat<const D: usize>(
-        tensors: Vec<SR::SparsePrimitive<Float, D>>,
+        tensors: Vec<ReprPrimitive<B, Float, Sparse<B, SR>, D>>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Bool, D>;
 
     fn float_not_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Bool, D>;
 
     fn float_any<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Bool, 1>;
 
     fn float_any_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
     ) -> SR::SparsePrimitive<Bool, D>;
 
     fn float_all<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Bool, 1>;
 
     fn float_all_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
     ) -> SR::SparsePrimitive<Bool, D>;
 
@@ -218,9 +222,9 @@ where
     ///
     /// The result of adding the two tensors together.
     fn float_add<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Subtracts two tensors.
     ///
@@ -233,9 +237,9 @@ where
     ///
     /// The result of subtracting the two tensors.
     fn float_sub<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Multiplies two sparse tensors together.
     ///
@@ -248,9 +252,9 @@ where
     ///
     /// The result of multiplying the two tensors together.
     fn float_mul<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Multiplies a scalar to a tensor.
     ///
@@ -263,9 +267,9 @@ where
     ///
     /// The result of multiplying the scalar with the tensor.
     fn float_mul_scalar<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         rhs: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Divides two sparse tensors.
     ///
@@ -278,9 +282,9 @@ where
     ///
     /// The result of dividing the two tensors.
     fn float_div<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     /// Divides a tensor by a scalar.
     ///
@@ -293,128 +297,128 @@ where
     ///
     /// The result of dividing the tensor by the scalar.
     fn float_div_scalar<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         rhs: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_max<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_max_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_min<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_min_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_abs<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
     fn float_sign<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_powf<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_powi<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
-        rhs: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_powf_scalar<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         rhs: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_powi_scalar<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         rhs: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_clamp<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         min: FloatElem<B>,
         max: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_clamp_min<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         min: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_clamp_max<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         max: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_select<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
         indices: IntTensor<B, 1>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_select_assign<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
         indices: IntTensor<B, 1>,
-        values: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        values: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_gather<const D: usize>(
         dim: usize,
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         indices: IntTensor<B, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_scatter<const D: usize>(
         dim: usize,
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         indices: IntTensor<B, D>,
-        values: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        values: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_sum<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Float, 1>;
 
     fn float_sum_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_prod_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_mean<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Float, 1>;
 
     fn float_mean_dim<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         dim: usize,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_remainder_scalar<const D: usize>(
-        lhs: SR::SparsePrimitive<Float, D>,
+        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
         rhs: FloatElem<B>,
-    ) -> SR::SparsePrimitive<Float, D>;
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
     fn float_neg<const D: usize>(
-        tensor: SR::SparsePrimitive<Float, D>,
-    ) -> SR::SparsePrimitive<Float, D>;
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 }
 
 pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {

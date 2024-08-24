@@ -1,11 +1,41 @@
 use crate::{
-    backend::Backend, check::TensorCheck, BasicOps, Bool, DType, Device, Element, Float, Int,
-    ReprPrimitive, Shape, Sparse, SparseStorage, Tensor, TensorData, TensorKind, TensorPrimitive,
-    TensorStorage,
+    backend::Backend, check::TensorCheck, BasicOps, Bool, DType, Dense, Device, Element, Float,
+    Int, ReprPrimitive, Shape, Sparse, SparseStorage, Tensor, TensorData, TensorKind,
+    TensorPrimitive, TensorRepr, TensorStorage,
 };
 use core::{future::Future, ops::Range};
 
 use crate::check;
+
+pub trait BasicSparseOps<B: Backend, K: TensorKind<B>, SR: SparseStorage<B>>
+where
+    (B, K, Sparse<B, SR>): TensorRepr,
+{
+    fn into_dense<const D: usize>(
+        tensor: ReprPrimitive<B, K, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, K, Dense, D>;
+
+    fn into_sparse<const D: usize>(
+        tensor: ReprPrimitive<B, K, Dense, D>,
+    ) -> ReprPrimitive<B, K, Sparse<B, SR>, D>;
+}
+
+impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Float, SR> for SR
+where
+    (B, Float, Sparse<B, SR>): TensorRepr,
+{
+    fn into_dense<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Float, Dense, D> {
+        TensorPrimitive::Float(SR::float_to_dense(tensor))
+    }
+
+    fn into_sparse<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Dense, D>,
+    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D> {
+        SR::float_to_sparse(tensor.tensor())
+    }
+}
 
 impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Float {
     type Elem = B::FloatElem;
