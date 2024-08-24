@@ -1,10 +1,10 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use burn_cube::{
-    calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor, unexpanded,
-    SUBCUBE_DIM_APPROX,
+use cubecl::{
+    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    tensor_vectorization_factor, unexpanded,
 };
 
-use super::{index_offset_with_layout, index_offset_with_layout_expand, Kernel};
+use super::Kernel;
 
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;
@@ -13,7 +13,7 @@ pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     fn execute(_input: C, _options: &Self::Options) -> C {
         unexpanded!();
     }
-    fn execute_expand(
+    fn __expand_execute(
         context: &mut CubeContext,
         input: C::ExpandType,
         options: <Self::Options as CubeType>::ExpandType,
@@ -71,23 +71,18 @@ where
 
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
-    let cube_count = calculate_cube_count_elemwise(
-        num_elems / vectorization_factor as usize,
-        SUBCUBE_DIM_APPROX,
-    );
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
-        unary_kernel_launch::<E::Primitive, O, R>(
-            client,
+        unary_kernel::launch::<E::Primitive, O, R>(
+            &client,
             cube_count,
-            CubeDim::default(),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
+            cube_dim,
+            tensor.as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             options(&()),
             None,
@@ -99,27 +94,17 @@ where
         let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
         let output = JitTensor::new_contiguous(
             tensor.client.clone(),
-            tensor.device,
+            tensor.device.clone(),
             tensor.shape.clone(),
             buffer,
         );
 
-        unary_kernel_launch::<E::Primitive, O, R>(
-            client,
+        unary_kernel::launch::<E::Primitive, O, R>(
+            &client,
             cube_count,
             CubeDim::default(),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &tensor.handle,
-                &tensor.strides,
-                &tensor.shape.dims,
-            ),
-            TensorArg::vectorized(
-                vectorization_factor,
-                &output.handle,
-                &output.strides,
-                &output.shape.dims,
-            ),
+            tensor.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             options(&()),
             Some(UInt::new(D as u32)),
             !is_contiguous,
@@ -136,7 +121,7 @@ macro_rules! unary_op {
             type Options = ();
 
             #[allow(clippy::redundant_closure_call)]
-            fn execute_expand(
+            fn __expand_execute(
                 context: &mut CubeContext,
                 input: C::ExpandType,
                 _options: <Self::Options as CubeType>::ExpandType,
@@ -152,7 +137,7 @@ macro_rules! unary_op {
             type Options = C;
 
             #[allow(clippy::redundant_closure_call)]
-            fn execute_expand(
+            fn __expand_execute(
                 context: &mut CubeContext,
                 input: C::ExpandType,
                 scalar: C::ExpandType,

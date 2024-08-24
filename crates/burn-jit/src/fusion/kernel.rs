@@ -1,16 +1,16 @@
-use burn_cube::calculate_num_elems_dyn_rank;
-use burn_cube::prelude::*;
+use cubecl::calculate_num_elems_dyn_rank;
+use cubecl::prelude::*;
 
 use crate::fusion::strides_dyn_rank;
 use crate::fusion::JitFusionHandle;
 use crate::kernel::Kernel;
 use crate::JitRuntime;
-use burn_compute::client::ComputeClient;
-use burn_compute::server::Binding;
-use burn_compute::tune::AutotuneOperation;
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use burn_tensor::repr::TensorStatus;
+use cubecl::client::ComputeClient;
+use cubecl::server::Binding;
+use cubecl::tune::AutotuneOperation;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -70,8 +70,10 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(self.kernel, self.cube_count, self.bindings)
+        unsafe {
+            self.client
+                .execute_unchecked(self.kernel, self.cube_count, self.bindings)
+        }
     }
 }
 
@@ -255,8 +257,8 @@ impl<R: JitRuntime> Kernel for FusionKernel<R> {
         KernelIntegrator::new(self.info.as_ref().clone()).integrate(self.settings.clone())
     }
 
-    fn id(&self) -> String {
-        format!("{}", self.settings) + self.id.as_str()
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.settings.clone(), self.id.clone()))
     }
 }
 

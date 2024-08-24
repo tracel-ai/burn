@@ -40,15 +40,17 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
-            resize::{ResizeNode, ResizeOptions},
+            resize::ResizeNode,
             slice::SliceNode,
             squeeze::SqueezeNode,
             sum::SumNode,
+            tile::TileNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -63,10 +65,11 @@ use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
     concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
     conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
-    layer_norm_config, leaky_relu_config, linear_config, log_softmax_config, max_pool1d_config,
-    max_pool2d_config, reduce_max_config, reduce_mean_config, reduce_min_config,
-    reduce_prod_config, reduce_sum_config, reshape_config, resize_config, shape_config,
-    slice_config, softmax_config, squeeze_config, transpose_config, unsqueeze_config,
+    hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
+    max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
+    reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
+    shape_config, slice_config, softmax_config, squeeze_config, tile_config, transpose_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -78,6 +81,7 @@ use onnx_ir::{
 };
 
 pub use crate::burn::graph::RecordType;
+use crate::burn::node::mean::MeanNode;
 
 /// Generate code and states from `.onnx` files and save them to the `out_dir`.
 #[derive(Debug, Default)]
@@ -158,7 +162,7 @@ impl ModelGen {
     /// # Arguments
     ///
     /// * `embed_states` - If true, states are embedded in the generated code. Otherwise, states are
-    /// saved as a separate file.
+    ///    saved as a separate file.
     pub fn embed_states(&mut self, embed_states: bool) -> &mut Self {
         self.embed_states = embed_states;
         self
@@ -268,6 +272,7 @@ impl ParsedOnnxGraph {
                 NodeType::Max => graph.register(Self::max_conversion(node)),
                 NodeType::MaxPool1d => graph.register(Self::max_pool1d_conversion(node)),
                 NodeType::MaxPool2d => graph.register(Self::max_pool2d_conversion(node)),
+                NodeType::Mean => graph.register(Self::mean_conversion(node)),
                 NodeType::PRelu => graph.register(Self::prelu_conversion::<PS>(node)),
                 NodeType::AveragePool1d => graph.register(Self::avg_pool_1d_conversion(node)),
                 NodeType::AveragePool2d => graph.register(Self::avg_pool_2d_conversion(node)),
@@ -290,6 +295,7 @@ impl ParsedOnnxGraph {
                 NodeType::Flatten => graph.register(Self::flatten_conversion(node)),
                 NodeType::Gather => graph.register(Self::gather_conversion(node)),
                 NodeType::GatherElements => graph.register(Self::gather_elements_conversion(node)),
+                NodeType::HardSigmoid => graph.register(Self::hard_sigmoid_conversion(node)),
                 NodeType::Log => graph.register(Self::log_conversion(node)),
                 NodeType::LeakyRelu => graph.register(Self::leaky_relu_conversion(node)),
                 NodeType::LogSoftmax => graph.register(Self::log_softmax_conversion(node)),
@@ -325,12 +331,14 @@ impl ParsedOnnxGraph {
                 NodeType::ConvTranspose3d => {
                     graph.register(Self::conv_transpose3d_conversion::<PS>(node))
                 }
+                NodeType::Pad => graph.register(Self::pad_conversion(node)),
                 NodeType::Pow => graph.register(Self::pow_conversion(node)),
                 NodeType::Unsqueeze => graph.register(Self::unsqueeze_conversion(node)),
                 NodeType::Where => graph.register(Self::where_conversion(node)),
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::Tile => graph.register(Self::tile_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
@@ -571,6 +579,14 @@ impl ParsedOnnxGraph {
         UnaryNode::leaky_relu(input, output, alpha)
     }
 
+    fn hard_sigmoid_conversion(node: Node) -> UnaryNode {
+        let input = Type::from(node.inputs.first().unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
+        let (alpha, beta) = hard_sigmoid_config(&node);
+
+        UnaryNode::hard_sigmoid(input, output, alpha, beta)
+    }
+
     fn relu_conversion(node: Node) -> UnaryNode {
         let input = Type::from(node.inputs.first().unwrap());
         let output = Type::from(node.outputs.first().unwrap());
@@ -601,8 +617,8 @@ impl ParsedOnnxGraph {
     }
 
     fn gather_conversion(node: Node) -> GatherNode {
-        let input = TensorType::from(node.inputs.first().unwrap());
-        let index = TensorType::from(node.inputs.get(1).unwrap());
+        let input = Type::from(node.inputs.first().unwrap());
+        let index = Type::from(node.inputs.get(1).unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
         let dim = gather_config(&node);
 
@@ -645,13 +661,12 @@ impl ParsedOnnxGraph {
         let name = &node.name;
 
         let input = TensorType::from(&node.inputs[0]);
-        let output_size = TensorType::from(&node.inputs[3]);
 
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let mode = resize_config(&node);
+        let (mode, scales, sizes) = resize_config(&node);
 
-        ResizeNode::new(name, input, output, output_size, ResizeOptions { mode })
+        ResizeNode::new(name, input, output, mode, scales, sizes)
     }
 
     fn min_conversion(node: Node) -> BinaryNode {
@@ -972,12 +987,29 @@ impl ParsedOnnxGraph {
         MaxPool2dNode::new(name, input, output, config)
     }
 
+    fn mean_conversion(node: Node) -> MeanNode {
+        let inputs = node.inputs.iter().map(TensorType::from).collect();
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        MeanNode::new(inputs, output)
+    }
+
     fn prelu_conversion<PS: PrecisionSettings>(node: Node) -> PReluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let mut weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
         let config = PReluConfig::new();
         let name = &node.name;
+
+        if weight.shape.len() > 1 {
+            if weight.shape[1..].iter().product::<usize>() == 1 {
+                // Burn accepts rank 1 alpha weight
+                weight.shape = weight.shape[..1].to_vec();
+            } else {
+                panic!("Invalid PRelu weight with shape {:?}", weight.shape);
+            }
+        }
+
         PReluNode::new(name, input, output, weight, config)
     }
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode {
@@ -1099,6 +1131,14 @@ impl ParsedOnnxGraph {
         BinaryNode::lower_equal(lhs, rhs, output)
     }
 
+    fn pad_conversion(node: Node) -> PadNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = pad_config(&node);
+
+        PadNode::new(input, output, config)
+    }
+
     fn pow_conversion(node: Node) -> BinaryNode {
         let lhs = Type::from(node.inputs.first().unwrap());
         let rhs = Type::from(node.inputs.get(1).unwrap());
@@ -1130,6 +1170,14 @@ impl ParsedOnnxGraph {
         let axes = squeeze_config(&node);
 
         SqueezeNode::new(input, output, axes)
+    }
+
+    fn tile_conversion(node: Node) -> TileNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = tile_config(&node);
+
+        TileNode::new(input, output, config)
     }
 }
 
@@ -1198,12 +1246,14 @@ impl From<&OnnxArgument> for TensorType {
                 dim,
                 ..
             }) => TensorType::new_bool(arg.name.clone(), *dim),
-            _ => panic!("Can't transform scalar to tensor."),
+
+            _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         };
         if arg.value.is_some() {
             res.val = Some(CodeGenTensorData::from(arg.value.clone().unwrap()));
         };
         res
+
     }
 }
 impl From<&OnnxArgument> for Type {

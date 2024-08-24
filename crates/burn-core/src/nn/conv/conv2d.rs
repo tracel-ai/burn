@@ -221,6 +221,14 @@ mod tests {
     }
 
     #[test]
+    #[should_panic = "Both channels must be divisible by the number of groups."]
+    fn channels_with_groups_is_invalid() {
+        let device = Default::default();
+        let config = Conv2dConfig::new([1, 4], [1, 1]).with_groups(4);
+        let _ = config.init::<TestBackend>(&device);
+    }
+
+    #[test]
     fn display() {
         let config = Conv2dConfig::new([5, 1], [5, 5]);
         let conv = config.init::<TestBackend>(&Default::default());

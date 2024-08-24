@@ -81,7 +81,7 @@ represent the corresponding Burn Op.
 | [HammingWindow][71]              |       ❌       |      ❌      |
 | [HannWindow][72]                 |       ❌       |      ❌      |
 | [Hardmax][73]                    |       ❌       |      ❌      |
-| [HardSigmoid][74]                |       ❌       |      ❌      |
+| [HardSigmoid][74]                |       ✅       |      ✅      |
 | [HardSwish][75]                  |       ❌       |      ❌      |
 | [Identity][76]                   |       ✅       |      ✅      |
 | [If][77]                         |       ❌       |      ✅      |
@@ -108,7 +108,7 @@ represent the corresponding Burn Op.
 | [MaxPool2d][98]                  |       ✅       |      ✅      |
 | [MaxRoiPool][99]                 |       ❌       |      ❌      |
 | [MaxUnpool][100]                 |       ❌       |      ❌      |
-| [Mean][101]                      |       ❌       |      ✅      |
+| [Mean][101]                      |       ✅       |      ✅      |
 | [MeanVarianceNormalization][102] |       ❌       |      ❌      |
 | [MelWeightMatrix][103]           |       ❌       |      ❌      |
 | [Min][104]                       |       ✅       |      ✅      |
@@ -191,7 +191,7 @@ represent the corresponding Burn Op.
 | [Tanh][182]                      |       ✅       |      ✅      |
 | [TfIdfVectorizer][183]           |       ❌       |      ❌      |
 | [ThresholdedRelu][184]           |       ❌       |      ❌      |
-| [Tile][185]                      |       ❌       |      ✅      |
+| [Tile][185]                      |       ✅       |      ✅      |
 | [TopK][186]                      |       ❌       |      ✅      |
 | [Transpose][187]                 |       ✅       |      ✅      |
 | [Trilu][188]                     |       ❌       |      ✅      |

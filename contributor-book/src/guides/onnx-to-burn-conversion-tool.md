@@ -242,7 +242,7 @@ graph. It does this by:
 1. **Matching the Node Type**: The function uses a `match` statement on the `node_type` of each node
    to apply the correct dimension inference logic depending on the operation.
 2. **Applying Operation Specific Logic**: For each operation, a specific inference function is
-   called that encapsulate the rules for how output dimensions should be derived from the inputs.
+   called that encapsulates the rules for how output dimensions should be derived from the inputs.
 
 For the Squeeze operation, the dimension inference is handled by the `squeeze_update_output()`
 function, which is specifically tailored to handle the nuances of the squeeze operation, which is

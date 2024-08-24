@@ -11,7 +11,7 @@ use ndarray::{
 };
 
 use crate::{
-    element::FloatNdArrayElement,
+    element::{FloatNdArrayElement, QuantElement},
     ops::padding::{apply_padding_4d, apply_padding_5d},
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
@@ -98,7 +98,7 @@ fn conv3d_mad_inner<E: FloatNdArrayElement>(
     }
 }
 
-pub(crate) fn conv2d<E: FloatNdArrayElement>(
+pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E, 4>,
     weight: NdArrayTensor<E, 4>,
     bias: Option<NdArrayTensor<E, 1>>,
@@ -125,7 +125,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = apply_padding_4d(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_4d::<E, Q>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
@@ -209,7 +209,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement>(
     });
 
     let output = output
-        .into_shape([batch_size, out_channels, out_height, out_width])
+        .to_shape([batch_size, out_channels, out_height, out_width])
         .unwrap()
         .into_dyn()
         .into_shared();
@@ -309,7 +309,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     NdArrayTensor::new(output.into_dyn().into_shared())
 }
 
-pub(crate) fn conv3d<E: FloatNdArrayElement>(
+pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E, 5>,
     weight: NdArrayTensor<E, 5>,
     bias: Option<NdArrayTensor<E, 1>>,
@@ -344,7 +344,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
         in_width,
     );
 
-    let x = apply_padding_5d(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_5d::<E, Q>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix5>().unwrap();
@@ -437,7 +437,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement>(
     });
 
     let output = output
-        .into_shape([batch_size, out_channels, out_depth, out_height, out_width])
+        .to_shape([batch_size, out_channels, out_depth, out_height, out_width])
         .unwrap()
         .into_dyn()
         .into_shared();

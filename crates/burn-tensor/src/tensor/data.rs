@@ -7,8 +7,9 @@ use alloc::vec::Vec;
 use half::{bf16, f16};
 
 use crate::{
-    tensor::Shape, DType, Distribution, Element, ElementConversion, Quantization,
-    QuantizationStrategy,
+    quantization::{Quantization, QuantizationStrategy},
+    tensor::Shape,
+    DType, Distribution, Element, ElementConversion,
 };
 
 use num_traits::pow::Pow;
@@ -32,6 +33,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
+    #[serde(with = "serde_bytes")]
     pub bytes: Vec<u8>,
 
     /// The shape of the tensor.
@@ -47,19 +49,54 @@ impl TensorData {
         Self::init(value, shape, E::dtype())
     }
 
+    /// Creates a new quantized tensor data structure.
+    pub fn quantized<E: Element, S: Into<Vec<usize>>>(
+        value: Vec<E>,
+        shape: S,
+        strategy: QuantizationStrategy,
+    ) -> Self {
+        Self::init(value, shape, DType::QFloat(strategy))
+    }
+
     /// Initializes a new tensor data structure from the provided values.
-    fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
+    fn init<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S, dtype: DType) -> Self {
+        // Ensure `E` satisfies the `Pod` trait requirements
+        assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
+
+        // Ensure shape is valid
+        let shape = shape.into();
+        let shape_numel = Self::numel(&shape);
+        let numel = value.len();
+        assert_eq!(
+            shape_numel, numel,
+            "Shape {:?} is invalid for input of size {:?}",
+            shape, numel,
+        );
+
+        let factor = core::mem::size_of::<E>() / core::mem::size_of::<u8>();
+        let len = numel * factor;
+        let capacity = value.capacity() * factor;
+        let ptr = value.as_mut_ptr();
+
+        core::mem::forget(value);
+
+        let bytes = unsafe { Vec::from_raw_parts(ptr as *mut u8, len, capacity) };
+
         Self {
-            bytes: bytemuck::checked::cast_slice(&value).to_vec(),
-            shape: shape.into(),
+            bytes,
+            shape,
             dtype,
         }
+    }
+
+    fn try_as_slice<E: Element>(&self) -> Result<&[E], DataError> {
+        bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
     }
 
     /// Returns the immutable slice view of the tensor data.
     pub fn as_slice<E: Element>(&self) -> Result<&[E], DataError> {
         if E::dtype() == self.dtype {
-            bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+            self.try_as_slice()
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -257,15 +294,15 @@ impl TensorData {
             "Only f32 data type can be quantized"
         );
         match &quantization {
-            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::init(
+            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::quantized(
                 strategy.quantize(self.as_slice().unwrap()),
                 self.shape,
-                DType::QFloat(quantization),
+                quantization,
             ),
-            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::init(
+            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::quantized(
                 strategy.quantize(self.as_slice().unwrap()),
                 self.shape,
-                DType::QFloat(quantization),
+                quantization,
             ),
         }
     }
@@ -588,10 +625,10 @@ impl core::fmt::Display for TensorData {
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(q) => match &q {
                 QuantizationStrategy::PerTensorAffineInt8(_) => {
-                    format!("{:?} {q:?}", self.as_slice::<i8>().unwrap())
+                    format!("{:?} {q:?}", self.try_as_slice::<i8>().unwrap())
                 }
                 QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                    format!("{:?} {q:?}", self.as_slice::<i8>().unwrap())
+                    format!("{:?} {q:?}", self.try_as_slice::<i8>().unwrap())
                 }
             },
         };
@@ -1034,5 +1071,17 @@ mod tests {
         let data2 = TensorData::from([[3.0, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly() {
+        let mut vector: Vec<f32> = Vec::with_capacity(5);
+        vector.push(2.0);
+        vector.push(3.0);
+        let data1 = TensorData::new(vector, vec![2]);
+
+        let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
+        assert_eq!(data1.bytes.len(), 2 * factor);
+        assert_eq!(data1.bytes.capacity(), 5 * factor);
     }
 }

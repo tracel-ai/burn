@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_tensor::{quantization::QuantizationStrategy, Shape};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};
@@ -33,7 +33,7 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::from_existing(tensor.tensor.reshape(shape_tch.dims), tensor.storage)
     }
 
-    pub fn repeat<const D: usize>(
+    pub fn repeat_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         times: usize,
@@ -302,7 +302,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.mean(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.mean(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -316,7 +317,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.sum(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.sum(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -330,7 +332,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.prod(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.prod(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -493,8 +496,9 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor: TchTensor<E, D>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {
-        let tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
-        TchTensor::new(tensor)
+        let storage = tensor.storage.clone();
+        let broadcasted_tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
+        TchTensor::from_existing(broadcasted_tensor, storage)
     }
 
     pub fn sort<const D: usize>(
@@ -511,5 +515,31 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         descending: bool,
     ) -> TchTensor<i64, D> {
         TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
+    }
+
+    pub fn quantize<const D: usize, I: tch::kind::Element>(
+        tensor: TchTensor<E, D>,
+        strategy: &QuantizationStrategy,
+    ) -> TchTensor<I, D> {
+        let mut tensor = tensor;
+        // Quantize only works on Float Tensor
+        if tensor.tensor.kind() == tch::Kind::Half {
+            tensor.tensor = tensor.tensor.to_kind(tch::Kind::Float);
+        }
+
+        match strategy {
+            QuantizationStrategy::PerTensorAffineInt8(ref q) => {
+                TchTensor::new(tensor.tensor.quantize_per_tensor(
+                    q.scale.into(),
+                    q.offset.into(),
+                    tch::Kind::QInt8,
+                ))
+            }
+            QuantizationStrategy::PerTensorSymmetricInt8(ref q) => TchTensor::new(
+                tensor
+                    .tensor
+                    .quantize_per_tensor(q.scale.into(), 0, tch::Kind::QInt8),
+            ),
+        }
     }
 }

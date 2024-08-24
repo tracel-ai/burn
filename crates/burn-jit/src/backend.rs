@@ -1,8 +1,9 @@
 use crate::{
-    tensor::JitTensor, FloatElement, IntElement, JitAutotuneKey, JitRuntime, PrecisionBridge,
+    tensor::{JitTensor, QJitTensor},
+    FloatElement, IntElement, JitRuntime, PrecisionBridge,
 };
-use burn_compute::server::ComputeServer;
-use burn_tensor::backend::{Backend, SyncType};
+use burn_tensor::backend::{Backend, DeviceOps, SyncType};
+use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
@@ -19,7 +20,7 @@ pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement> {
 impl<R, F, I> Backend for JitBackend<R, F, I>
 where
     R: JitRuntime,
-    R::Server: ComputeServer<AutotuneKey = JitAutotuneKey>,
+    R::Server: ComputeServer,
     R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
     I: IntElement,
@@ -33,8 +34,7 @@ where
     type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
     type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
-    // TODO: implement `JitElement` / `CubeElement` for quantized type
-    type QuantizedTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
+    type QuantizedTensorPrimitive<const D: usize> = QJitTensor<R, D>;
 
     fn name() -> String {
         format!("jit<{}>", R::name())
@@ -51,8 +51,12 @@ where
     }
 
     fn sync(device: &Self::Device, sync_type: SyncType) {
+        let sync = match sync_type {
+            SyncType::Flush => cubecl::client::SyncType::Flush,
+            SyncType::Wait => cubecl::client::SyncType::Wait,
+        };
         let client = R::client(device);
-        client.sync(sync_type);
+        client.sync(sync);
     }
 }
 
@@ -72,4 +76,12 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Default for JitBackend<R, F,
     fn default() -> Self {
         Self::new()
     }
+}
+
+impl<R: cubecl::Runtime> JitRuntime for R
+where
+    R::Device: DeviceOps,
+{
+    type JitDevice = R::Device;
+    type JitServer = R::Server;
 }

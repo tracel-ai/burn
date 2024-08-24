@@ -1,5 +1,5 @@
 use super::cat::cat_with_slice_assign;
-use super::repeat::repeat_with_slice_assign;
+use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
@@ -251,7 +251,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated the given number of times.
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
         times: usize,

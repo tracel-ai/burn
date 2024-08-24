@@ -2418,7 +2418,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_argsort(tensor.primitive, dim, descending)
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         times: usize,
@@ -2437,7 +2437,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         impl<B: Backend, const D: usize> RetroForward for RetroRepeat<B, D> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
                 let tensor = states.get_state::<B::FloatTensorPrimitive<D>>(&self.tensor_id);
-                let out = B::float_repeat(tensor, self.dim, self.times);
+                let out = B::float_repeat_dim(tensor, self.dim, self.times);
                 states.save(out_node, out)
             }
         }
@@ -2467,9 +2467,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .stateful()
         {
             OpsKind::Tracked(prep) => {
-                prep.finish(dim, B::float_repeat(tensor.primitive, dim, times))
+                prep.finish(dim, B::float_repeat_dim(tensor.primitive, dim, times))
             }
-            OpsKind::UnTracked(prep) => prep.finish(B::float_repeat(tensor.primitive, dim, times)),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_repeat_dim(tensor.primitive, dim, times))
+            }
         }
     }
 

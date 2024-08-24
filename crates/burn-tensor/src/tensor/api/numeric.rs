@@ -101,12 +101,16 @@ where
 
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::zeros(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
+        Self::new(K::zeros(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::ones(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
+        Self::new(K::ones(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -115,7 +119,9 @@ where
         fill_value: E,
         device: &B::Device,
     ) -> Self {
-        Self::new(K::full(shape.into(), fill_value, device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
+        Self::new(K::full(shape, fill_value, device))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -736,7 +742,7 @@ where
         )
     }
 
-    /// Pad the tensor with the given value on the last two dimensions.
+    /// Pad the tensor of rank two or higher with the given value on the last two dimensions.
     ///
     /// # Arguments
     ///
@@ -777,6 +783,32 @@ where
 
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    pub fn is_nan(&self) -> Tensor<B, D, Bool> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        K::not_equal(self.primitive.clone(), self.primitive.clone())
+    }
+
+    /// Checks if the tensor contains any NaN values.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element indicating whether the tensor contains any NaN values.
+    pub fn contains_nan(&self) -> Tensor<B, 1, Bool> {
+        // Summing the tensor will result in NaN if the tensor contains any NaN values
+        // This is faster than checking each element individually
+        // because it rolls up the NaN values into a single value
+        let sum = K::sum(self.primitive.clone());
+
+        // Check if the sum is NaN by comparing it to itself
+        K::not_equal(sum.clone(), sum)
     }
 }
 

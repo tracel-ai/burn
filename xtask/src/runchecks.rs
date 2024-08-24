@@ -22,10 +22,11 @@ use crate::{endgroup, group};
 // Targets constants
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
+const ARM_NO_ATOMIC_PTR_TARGET: &str = "thumbv6m-none-eabi";
 
 #[derive(clap::ValueEnum, Default, Copy, Clone, PartialEq, Eq)]
 pub(crate) enum CheckType {
-    /// Run all checks.
+    /// Run all checks except examples
     #[default]
     All,
     /// Run `std` environment checks
@@ -51,7 +52,7 @@ impl CheckType {
         // Depending on the input argument, the respective environment checks
         // are run.
         //
-        // If no environment has been passed, run all checks.
+        // If no `environment` value has been passed, run all checks except examples.
         match self {
             Self::Std => std_checks(),
             Self::NoStd => no_std_checks(),
@@ -62,7 +63,6 @@ impl CheckType {
                 check_typos();
                 std_checks();
                 no_std_checks();
-                check_examples();
             }
         }
 
@@ -82,12 +82,12 @@ impl CheckType {
 }
 
 /// Run cargo build command
-fn cargo_build(params: Params) {
+fn cargo_build(params: Params, envs: Option<HashMap<&str, String>>) {
     // Run cargo build
     run_cargo(
         "build",
         params + "--color=always",
-        HashMap::new(),
+        envs.unwrap_or_default(),
         "Failed to run cargo build",
     );
 }
@@ -156,7 +156,10 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
     group!("Checks: {} (no-std)", crate_name);
 
     // Run cargo build --no-default-features
-    cargo_build(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
+    cargo_build(
+        Params::from(["-p", crate_name, "--no-default-features"]) + extra_args,
+        None,
+    );
 
     // Run cargo test --no-default-features
     cargo_test(Params::from(["-p", crate_name, "--no-default-features"]) + extra_args);
@@ -170,6 +173,7 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             "--target",
             WASM32_TARGET,
         ]) + extra_args,
+        None,
     );
 
     // Run cargo build --no-default-features --target thumbv7m-none-eabi
@@ -181,6 +185,22 @@ fn build_and_test_no_std<const N: usize>(crate_name: &str, extra_args: [&str; N]
             "--target",
             ARM_TARGET,
         ]) + extra_args,
+        None,
+    );
+
+    // Run cargo build --no-default-features --target thumbv6m-none-eabi
+    cargo_build(
+        Params::from([
+            "-p",
+            crate_name,
+            "--no-default-features",
+            "--target",
+            ARM_NO_ATOMIC_PTR_TARGET,
+        ]) + extra_args,
+        Some(HashMap::from([(
+            "RUSTFLAGS",
+            "--cfg portable_atomic_unsafe_assume_single_core".to_string(),
+        )])),
     );
 
     endgroup!();
@@ -229,13 +249,12 @@ fn no_std_checks() {
     // Install ARM target
     rustup_add_target(ARM_TARGET);
 
+    // Install ARM no atomic ptr target
+    rustup_add_target(ARM_NO_ATOMIC_PTR_TARGET);
+
     // Run checks for the following crates
     build_and_test_no_std("burn", []);
     build_and_test_no_std("burn-core", []);
-    build_and_test_no_std(
-        "burn-compute",
-        ["--features", "channel-mutex,storage-bytes"],
-    );
     build_and_test_no_std("burn-common", []);
     build_and_test_no_std("burn-tensor", []);
     build_and_test_no_std("burn-ndarray", []);
@@ -270,7 +289,7 @@ fn burn_dataset_features_std() {
     group!("Checks: burn-dataset (all-features)");
 
     // Run cargo build --all-features
-    cargo_build(["-p", "burn-dataset", "--all-features"].into());
+    cargo_build(["-p", "burn-dataset", "--all-features"].into(), None);
 
     // Run cargo test --all-features
     cargo_test(["-p", "burn-dataset", "--all-features"].into());
@@ -339,7 +358,7 @@ fn std_checks() {
         }
 
         group!("Checks: {}", member.name);
-        cargo_build(Params::from(["-p", &member.name]));
+        cargo_build(Params::from(["-p", &member.name]), None);
         cargo_test(Params::from(["-p", &member.name]));
         endgroup!();
     }
@@ -378,6 +397,7 @@ fn check_typos() {
 
     // Run typos command as child process
     let typos = Command::new("typos")
+        .args(["--exclude", "**/*.onnx"])
         .stdout(Stdio::inherit()) // Send stdout directly to terminal
         .stderr(Stdio::inherit()) // Send stderr directly to terminal
         .spawn()

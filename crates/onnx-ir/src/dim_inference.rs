@@ -34,6 +34,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
         NodeType::GatherElements => same_as_input(node),
+        NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
@@ -48,6 +49,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::Pad => same_as_input(node),
         NodeType::Greater => greater_update_outputs(node),
         NodeType::GreaterOrEqual => greater_or_equal_update_outputs(node),
         NodeType::Less => less_update_outputs(node),
@@ -61,7 +63,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::ReduceSum => reduce_sum_update_outputs(node),
         NodeType::Relu => same_as_input(node),
         NodeType::Reshape => reshape_update_outputs(node),
-        NodeType::Resize => resize_update_outputs(node),
+        NodeType::Resize => same_as_input(node),
         NodeType::Shape => shape_update_outputs(node),
         NodeType::Sigmoid => same_as_input(node),
         NodeType::Sign => same_as_input(node),
@@ -317,33 +319,6 @@ fn reshape_update_outputs(node: &mut Node) {
     }
 }
 
-fn resize_update_outputs(node: &mut Node) {
-    let input = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Resize: invalid input type"),
-    };
-
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Resize: invalid output type"),
-    };
-
-    let output_size = match &node.inputs[3].ty {
-        ArgType::Tensor(output_size) => output_size.clone(),
-        _ => panic!("Resize: invalid output_size type"),
-    };
-
-    if output_size.dim != 1 {
-        panic!("Resize: output_size must be 1D");
-    }
-
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: input.dim,
-        shape: None, // shape is calculated at runtime
-        ..output
-    });
-}
-
 fn greater_update_outputs(node: &mut Node) {
     match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => {
@@ -459,11 +434,6 @@ fn squeeze_update_output(node: &mut Node) {
 
     if axes.is_none() {
         panic!("Squeeze must specify an axis");
-    } else if axes.as_ref().unwrap().len() > 1 {
-        panic!(
-            "Squeeze must specify only 1 axis, found {:?}",
-            axes.as_ref().unwrap().len()
-        );
     }
 
     let input_dim = match &node.inputs[0].ty {
@@ -471,13 +441,15 @@ fn squeeze_update_output(node: &mut Node) {
         _ => panic!("Squeeze: invalid input type"),
     };
 
+    let new_dim = input_dim - axes.unwrap().len();
+
     let output_elem = match &node.outputs[0].ty {
         ArgType::Tensor(tensor) => tensor.elem_type.clone(),
         _ => panic!("Squeeze: invalid output type"),
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: input_dim - 1,
+        dim: new_dim,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_elem,
     });
@@ -838,26 +810,38 @@ fn gather_update_outputs(node: &mut Node) {
         panic!("Gather requires two inputs: data and indices");
     }
 
-    let input_tensor = match &node.inputs[0].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    let indices_dim = match &node.inputs[1].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Scalar(_) => 0,
+        _ => panic!("Only tensor indices is valid, got {:?}", node.inputs[1].ty),
     };
 
-    let indices_tensor = match &node.inputs[1].ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor indices is valid"),
-    };
-
-    if indices_tensor.dim != 1 {
+    if indices_dim > 1 {
         panic!("Gather: indices tensor rank above 1 not supported")
     }
 
-    // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
-    let output_rank = indices_tensor.dim + input_tensor.dim - 1;
+    match &node.inputs[0].ty {
+        ArgType::Tensor(input_tensor) => {
+            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
+            let output_rank = indices_dim + input_tensor.dim - 1;
 
-    node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: output_rank,
-        shape: None,
-        elem_type: input_tensor.elem_type.clone(),
-    });
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: input_tensor.elem_type.clone(),
+                dim: output_rank,
+                shape: None,
+            });
+        }
+        ArgType::Shape(_dim) => {
+            let shape_dim = 1;
+            // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
+            let output_rank = indices_dim + shape_dim - 1;
+
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type: ElementType::Int64,
+                dim: output_rank,
+                shape: None,
+            })
+        }
+        ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
+    }
 }

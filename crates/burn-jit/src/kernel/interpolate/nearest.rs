@@ -1,6 +1,5 @@
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -127,8 +126,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestEagerKernel<R, E
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         InterpolateNearestShader {
             input,
@@ -156,8 +155,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestEagerKernel<R, E
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>())
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 
@@ -167,17 +166,9 @@ pub(crate) fn interpolate_nearest_launch<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R, E, 4> {
     let kernel = InterpolateNearestEagerKernel::<R, E>::new();
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

@@ -1,25 +1,25 @@
-use burn_cube::prelude::*;
+use cubecl::prelude::*;
 
 use crate::kernel::{launch_unary, UnaryOp};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+
+#[derive(CubeLaunch)]
+struct Options<C: Numeric> {
+    min_value: C,
+    max_value: C,
+}
 
 pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
     input: JitTensor<R, E, D>,
     min_value: E,
     max_value: E,
 ) -> JitTensor<R, E, D> {
-    #[derive(CubeLaunch)]
-    struct Options<C: Numeric> {
-        min_value: C,
-        max_value: C,
-    }
-
     struct ClampOp;
 
     impl<C: Numeric> UnaryOp<C> for ClampOp {
         type Options = Options<C>;
 
-        fn execute_expand(
+        fn __expand_execute(
             context: &mut CubeContext,
             input: C::ExpandType,
             options: OptionsExpand<C>,
@@ -29,7 +29,7 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
                 C::clamp(input, options.min_value, options.max_value)
             }
 
-            execute_expand(context, input, options)
+            execute::__expand(context, input, options)
         }
     }
 

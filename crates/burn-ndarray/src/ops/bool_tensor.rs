@@ -4,10 +4,10 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
 use burn_tensor::ElementConversion;
 use core::ops::Range;
-use ndarray::IntoDimension;
+use ndarray::{IntoDimension, Zip};
 
 // Current crate
-use crate::element::FloatNdArrayElement;
+use crate::element::{FloatNdArrayElement, QuantElement};
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArray};
 
@@ -16,7 +16,7 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E, Q> {
     fn bool_from_data<const D: usize>(
         data: TensorData,
         _device: &NdArrayDevice,
@@ -103,10 +103,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         lhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
         rhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
-        let mut array = lhs.array;
-        array.zip_mut_with(&rhs.array, |a, b| *a = *a == *b);
-
-        NdArrayTensor { array }
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn bool_not<const D: usize>(

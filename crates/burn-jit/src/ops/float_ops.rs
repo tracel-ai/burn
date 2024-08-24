@@ -4,10 +4,10 @@ use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, launch_unary, reduce, unary_op, UnaryOp};
 use crate::JitBackend;
 use crate::{FloatElement, IntElement, JitRuntime};
-use burn_cube::prelude::*;
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
+use cubecl::prelude::*;
 use std::ops::Range;
 
 impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
@@ -334,7 +334,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::exp(input)
             }
-            execute_expand::<C>(context, input)
+            execute::__expand::<C>(context, input)
         })
     }
 
@@ -344,7 +344,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::log(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -354,7 +354,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::log1p(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -367,7 +367,7 @@ where
             fn execute<C: Float>(input: C, scalar: C) -> C {
                 C::powf(input, scalar)
             }
-            execute_expand::<C>(context, tensor, scalar)
+            execute::__expand::<C>(context, tensor, scalar)
         })
     }
 
@@ -377,7 +377,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::sqrt(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -387,7 +387,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::abs(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -397,7 +397,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::cos(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -407,7 +407,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::sin(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -417,7 +417,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::tanh(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -427,7 +427,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::erf(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
@@ -463,16 +463,16 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::recip(input)
             }
-            execute_expand::<C>(context, tensor)
+            execute::__expand::<C>(context, tensor)
         })
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: FloatTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> FloatTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn float_powf<const D: usize>(

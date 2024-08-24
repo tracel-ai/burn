@@ -1,13 +1,14 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
+use crate::check;
 use crate::check::TensorCheck;
 use crate::ops::FullPrecisionBackend;
+use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, Shape, TensorData};
 use crate::Tensor;
-use crate::{check, QuantizationStrategy};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
@@ -270,10 +271,7 @@ where
     pub fn is_require_grad(&self) -> bool {
         match &self.primitive {
             TensorPrimitive::Float(tensor) => B::float_is_require_grad(tensor),
-            TensorPrimitive::QFloat {
-                tensor: _,
-                strategy: _,
-            } => B::float_is_require_grad(&self.primitive.clone().tensor()),
+            TensorPrimitive::QFloat(tensor) => B::q_is_require_grad(tensor),
         }
     }
 
@@ -282,10 +280,15 @@ where
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_set_require_grad(
-            self.primitive.tensor(),
-            require_grad,
-        )))
+        let primitive = match self.primitive {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_set_require_grad(tensor, require_grad))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_set_require_grad(tensor, require_grad))
+            }
+        };
+        Self::new(primitive)
     }
 
     /// Applies the relu function to the tensor.
@@ -309,20 +312,26 @@ where
             .div_scalar(n as f32 - correction_factor as f32)
     }
 
-    /// Convert the tensor to a lower precision data type based on the quantization strategy.
+    /// Convert the tensor to a lower precision data type based on the quantization scheme.
     ///
     /// # Arguments
     ///
-    /// * `strategy` - The quantization strategy.
+    /// * `scheme` - The quantization scheme.
+    /// * `qparams` - The pre-computed quantization parameters.
     ///
     /// # Returns
     ///
     /// The quantized tensor.
-    pub fn quantize(self, strategy: QuantizationStrategy) -> Tensor<B, D> {
-        Tensor::new(TensorPrimitive::QFloat {
-            tensor: B::quantize(self.primitive.tensor(), &strategy),
-            strategy,
-        })
+    pub fn quantize(
+        self,
+        scheme: &QuantizationScheme,
+        qparams: QuantizationParameters<B>,
+    ) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::QFloat(B::quantize(
+            self.primitive.tensor(),
+            scheme,
+            qparams.into(),
+        )))
     }
 
     /// Convert the tensor back to a higher precision data type.

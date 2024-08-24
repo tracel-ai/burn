@@ -21,7 +21,7 @@ Success!
 Predicted: 5
 Actual: 5
 See the image online, click the link below:
-https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/15/image/image.jpg
+https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 ```
 
 ## Feature Flags

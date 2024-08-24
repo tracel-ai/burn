@@ -9,7 +9,7 @@ name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
 version.workspace = true
-rust-version = "1.75"
+rust-version = "1.79"
 
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]
@@ -49,6 +49,7 @@ template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
+cuda-jit = ["burn-core/cuda-jit"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
 

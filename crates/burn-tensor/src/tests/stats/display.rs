@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::{set_print_options, PrintOptions, Shape, Tensor, TensorData};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -271,6 +271,55 @@ mod tests {
    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]]],
   shape:  [2, 2, 200, 6],
+  device:  {:?},
+  backend:  {:?},
+  kind:  "Float",
+  dtype:  "f32",
+}}"#,
+            tensor.device(),
+            TestBackend::name(),
+        );
+        assert_eq!(output, expected);
+    }
+    #[test]
+    fn test_display_precision() {
+        let tensor = Tensor::<TestBackend, 2>::full([1, 1], 0.123456789, &Default::default());
+
+        let output = format!("{}", tensor);
+        let expected = format!(
+            r#"Tensor {{
+  data:
+[[0.12345679]],
+  shape:  [1, 1],
+  device:  {:?},
+  backend:  {:?},
+  kind:  "Float",
+  dtype:  "f32",
+}}"#,
+            tensor.device(),
+            TestBackend::name(),
+        );
+        assert_eq!(output, expected);
+
+        // CAN'T DO THIS BECAUSE OF GLOBAL STATE
+        // let print_options = PrintOptions {
+        //     precision: Some(3),
+        //     ..Default::default()
+        // };
+        // set_print_options(print_options);
+
+        let tensor = Tensor::<TestBackend, 2>::full([3, 2], 0.123456789, &Default::default());
+
+        // Set precision to 3
+        let output = format!("{:.3}", tensor);
+
+        let expected = format!(
+            r#"Tensor {{
+  data:
+[[0.123, 0.123],
+ [0.123, 0.123],
+ [0.123, 0.123]],
+  shape:  [3, 2],
   device:  {:?},
   backend:  {:?},
   kind:  "Float",

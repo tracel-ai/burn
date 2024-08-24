@@ -8,10 +8,12 @@ use burn_tensor::Distribution;
 use burn_tensor::ElementConversion;
 use core::ops::Range;
 use ndarray::IntoDimension;
+use ndarray::Zip;
 
 // Current crate
 use crate::element::ExpElement;
 use crate::element::FloatNdArrayElement;
+use crate::element::QuantElement;
 use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
@@ -20,7 +22,7 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
-impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> IntTensorOps<Self> for NdArray<E, Q> {
     fn int_from_data<const D: usize>(
         data: TensorData,
         _device: &NdArrayDevice,
@@ -108,9 +110,11 @@ impl<E: FloatNdArrayElement> IntTensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<i64, D>,
         rhs: NdArrayTensor<i64, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = Self::int_sub(lhs, rhs);
-
-        Self::int_equal_elem(tensor, 0)
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn int_equal_elem<const D: usize>(

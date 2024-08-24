@@ -81,6 +81,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "cuda-jit")]
+mod cuda_jit {
+    use crate::{launch, ElemType};
+    use burn::backend::{cuda_jit::CudaDevice, CudaJit};
+
+    pub fn run() {
+        launch::<CudaJit<ElemType, i32>>(CudaDevice::default());
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -95,4 +105,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
+    #[cfg(feature = "cuda-jit")]
+    cuda_jit::run();
 }

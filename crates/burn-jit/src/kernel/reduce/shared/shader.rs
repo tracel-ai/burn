@@ -1,6 +1,6 @@
-use burn_cube::{
-    cpa, frontend::TensorHandle, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings,
-    Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+use cubecl::{
+    cpa, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings, Execution, InputInfo,
+    KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -10,7 +10,7 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
+use cubecl::ir::{Branch, CubeDim, Elem, Scope, Synchronization, Variable, Visibility};
 
 use super::base::ReduceDimShared;
 
@@ -51,8 +51,14 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray(0, item_input);
-        let output = Variable::GlobalOutputArray(0, item_output);
+        let tensor = Variable::GlobalInputArray {
+            id: 0,
+            item: item_input,
+        };
+        let output = Variable::GlobalOutputArray {
+            id: 0,
+            item: item_output,
+        };
 
         // Reduce groups are elements that are aligned along the reduce dim
         SharedReduceDimComputeShader {
@@ -90,16 +96,14 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}dim={}x={}y={}n={}divshape={}",
-            core::any::TypeId::of::<Self>(),
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((
             self.dim,
             self.cube_dim_x,
             self.cube_dim_y,
             self.n_input_values_per_thread,
-            self.divisible_shape
-        )
+            self.divisible_shape,
+        ))
     }
 }
 
@@ -262,17 +266,9 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Custom(grid));
 
     output

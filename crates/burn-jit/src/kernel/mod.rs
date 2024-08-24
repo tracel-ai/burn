@@ -7,13 +7,13 @@ mod index;
 mod mask;
 mod unary;
 
-pub use binary::*;
+pub(crate) use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
-pub use unary::*;
+pub(crate) use unary::*;
 
-pub use burn_cube::{Kernel, SUBCUBE_DIM_APPROX};
+pub use cubecl::{Kernel, SUBCUBE_DIM_APPROX};
 
 /// Convolution kernels
 pub mod conv;

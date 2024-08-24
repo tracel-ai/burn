@@ -1,11 +1,11 @@
-use super::ParamId;
+use super::{ParamId, Quantizer};
 use crate::{
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{Bool, Int, Tensor};
+use burn_tensor::{quantization::Calibration, Bool, Int, Tensor};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
@@ -201,6 +201,11 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         let record = recorder.load(file_path.into(), device)?;
 
         Ok(self.load_record(record))
+    }
+
+    /// Quantize the weights of the module.
+    fn quantize_weights<C: Calibration>(self, quantizer: &mut Quantizer<C>) -> Self {
+        self.map(quantizer)
     }
 }
 

@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::resize::ResizeMode;
+use crate::burn::node::{pad::PadConfig, tile::TileConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -16,7 +16,7 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut strides = vec![1];
     let mut pads = vec![0, 0];
     let mut dilations = vec![1];
-    let mut group: i64 = 1;
+    let mut group: usize = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
@@ -28,28 +28,28 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
-    // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels_in = shape[1];
-    let channels_out = shape[0];
-
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64(),
+            "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
     }
+
+    // the channels are inverted in the weight tensor
+    let shape = weight.shape.clone().unwrap();
+    let channels_in = shape[1] * group;
+    let channels_out = shape[0];
 
     let padding = padding_config_1d(&pads);
 
     Conv1dConfig::new(channels_in, channels_out, kernel_shape[0] as usize)
         .with_stride(strides[0] as usize)
         .with_dilation(dilations[0] as usize)
-        .with_groups(group as usize)
+        .with_groups(group)
         .with_bias(bias)
         .with_padding(padding)
 }
@@ -60,7 +60,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     let mut strides = vec![1, 1];
     let mut pads = vec![0, 0, 0, 0];
     let mut dilations = vec![1, 1];
-    let mut group: i64 = 1;
+    let mut group: usize = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
@@ -71,20 +71,20 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
-    // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
-
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64(),
+            "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
     }
+
+    // the channels are inverted in the weight tensor
+    let shape = weight.shape.clone().unwrap();
+    let channels: [usize; 2] = [shape[1] * group, shape[0]];
 
     let padding = padding_config_2d(&pads);
 
@@ -94,7 +94,7 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
     )
     .with_stride([strides[0] as usize, strides[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_groups(group as usize)
+    .with_groups(group)
     .with_bias(bias)
     .with_padding(padding)
 }
@@ -105,7 +105,7 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
     let mut strides = vec![1, 1, 1];
     let mut pads = vec![0, 0, 0, 0, 0, 0];
     let mut dilations = vec![1, 1, 1];
-    let mut group: i64 = 1;
+    let mut group: usize = 1;
 
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
@@ -116,20 +116,20 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
     // check if the bias is present
     let bias = curr.inputs.len() == 3;
 
-    // the channels are inverted in the weight tensor
-    let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
-
     for (key, value) in curr.attrs.iter() {
         match key.as_str() {
             "kernel_shape" => kernel_shape = value.clone().into_i64s(),
             "strides" => strides = value.clone().into_i64s(),
             "pads" => pads = value.clone().into_i64s(),
             "dilations" => dilations = value.clone().into_i64s(),
-            "group" => group = value.clone().into_i64(),
+            "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
     }
+
+    // the channels are inverted in the weight tensor
+    let shape = weight.shape.clone().unwrap();
+    let channels: [usize; 2] = [shape[1] * group, shape[0]];
 
     let padding = padding_config_3d(&pads);
 
@@ -151,7 +151,7 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
         dilations[1] as usize,
         dilations[2] as usize,
     ])
-    .with_groups(group as usize)
+    .with_groups(group)
     .with_bias(bias)
     .with_padding(padding)
 }
@@ -228,7 +228,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let group = attrs
         .remove("group")
         .map(AttributeValue::into_i64)
-        .unwrap_or(1);
+        .unwrap_or(1) as usize;
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -247,7 +247,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
 
     // the channels are inverted in the weight tensor
     let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
+    let channels: [usize; 2] = [shape[1] * group, shape[0]];
 
     ConvTranspose2dConfig::new(
         channels,
@@ -256,7 +256,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_stride([stride[0] as usize, stride[1] as usize])
     .with_padding([pads[0] as usize, pads[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
-    .with_groups(group as usize)
+    .with_groups(group)
     .with_bias(bias)
 }
 pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
@@ -280,7 +280,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     let group = attrs
         .remove("group")
         .map(AttributeValue::into_i64)
-        .unwrap_or(1);
+        .unwrap_or(1) as usize;
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -299,7 +299,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
 
     // the channels are inverted in the weight tensor
     let shape = weight.shape.clone().unwrap();
-    let channels: [usize; 2] = [shape[1], shape[0]];
+    let channels: [usize; 2] = [shape[1] * group, shape[0]];
 
     ConvTranspose3dConfig::new(
         channels,
@@ -316,7 +316,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         dilations[1] as usize,
         dilations[2] as usize,
     ])
-    .with_groups(group as usize)
+    .with_groups(group)
     .with_bias(bias)
 }
 
@@ -454,9 +454,10 @@ pub fn gather_config(curr: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    let input_dim = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor.dim as i64,
+        ArgType::Shape(_shape) => 1, //Shape is always 1-D
+        other => panic!("Only tensor or shape input is valid, got {:?}", other),
     };
 
     // extract the attributes
@@ -469,7 +470,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // if dim is negative, it is counted from the end
     if dim < 0 {
-        dim += tensor.dim as i64;
+        dim += input_dim;
     }
 
     dim as usize
@@ -745,6 +746,150 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     )
 }
 
+/// Create a TileConfig from the attributes of the node
+pub fn tile_config(node: &Node) -> TileConfig {
+    let repeat = node
+        .inputs
+        .get(1)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+    TileConfig::new(repeat)
+}
+
+/// Create a PadConfig from the attributes of the node
+pub fn pad_config(node: &Node) -> PadConfig {
+    fn get_pads_input(node: &Node) -> Vec<i64> {
+        // If the input is not provided, return an empty vector
+        if node.inputs.get(1).is_none() {
+            return Vec::new();
+        }
+
+        match &node.inputs[1].value {
+            Some(Data::Int64s(shape)) => shape.clone(),
+            _ => panic!("Tensor data type must be int64"),
+        }
+    }
+    fn get_pads(node: &Node) -> Vec<usize> {
+        if node.inputs.is_empty() {
+            panic!("Pad: must provide data as input")
+        }
+        if node.inputs.len() >= 4 {
+            panic!("Pad: axes input is not supported")
+        }
+
+        let input_dim = match &node.inputs.first().unwrap().ty {
+            ArgType::Tensor(tensor) => tensor.dim,
+            _ => panic!("Pad: Only tensor input is valid"),
+        };
+
+        //TODO : handle more possible attributes
+        let mut pads: Vec<usize> = get_pads_input(node)
+            .into_iter()
+            .map(|x| x as usize)
+            .collect();
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "pads" => {
+                    pads = value
+                        .clone()
+                        .into_i64s()
+                        .iter()
+                        .map(|&x| {
+                            if x < 0 {
+                                panic!("Pad: Negative pad is not supported");
+                            }
+                            x as usize
+                        })
+                        .collect()
+                }
+                "mode" => {
+                    let mode = value.clone().into_string();
+                    if mode != "constant" {
+                        panic!("only constant mode is supported, given mode is {}", mode);
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        if pads.is_empty() {
+            panic!("Pad: pads should be given as attribute or as input");
+        }
+
+        if pads.len() != input_dim * 2 {
+            panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
+        }
+        // TODO: Burn's pad should support 1D tensor
+        if input_dim < 2 {
+            panic!("Pad: input tensor should be rank 2 or higher");
+        }
+
+        let left_index = input_dim - 1;
+        let top_index = input_dim - 2;
+        let right_index = pads.len() - 1;
+        let bottom_index = pads.len() - 2;
+        let index_list = [left_index, top_index, right_index, bottom_index];
+
+        for (index, &item) in pads.iter().enumerate() {
+            if !index_list.contains(&index) && item != 0 {
+                panic!("Pad: padding will only be applied to the last two dimensions but found non zero padding for other dimensions");
+            }
+        }
+
+        let left = pads[left_index];
+        let top = pads[top_index];
+        let right = pads[right_index];
+        let bottom = pads[bottom_index];
+        vec![left, right, top, bottom]
+    }
+    fn get_constant_value(node: &Node) -> f32 {
+        // TODO: support int, boolean
+        let mut constant_value = node.inputs
+                .get(2)
+                .and_then(|input| match &input.value {
+                    Some(Data::Float16s(constant_value)) => {
+                        constant_value.first().map(|&f| f32::from(f))
+                    }
+                    Some(Data::Float32s(constant_value)) => {
+                        constant_value.first().copied()
+                    }
+                    Some(Data::Float64s(constant_value)) => {
+                        constant_value.first().map(|&f| f as f32)
+                    }
+                    Some(Data::Float16(constant_value)) => Some(f32::from(*constant_value)),
+                    Some(Data::Float32(constant_value)) => Some(*constant_value),
+                    Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
+                     _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
+                })
+                .unwrap_or(0.0);
+
+        if node.attrs.contains_key("value") {
+            constant_value = node.attrs.get("value").map(|value| match value {
+                AttributeValue::Float32(value) => *value,
+                _ => panic!("Pad: only float32 values are currently supported for constant value as attribute, submit an issue on github"),
+            }).expect("constant_value should have had a value now");
+        }
+        constant_value
+    }
+
+    let pads = get_pads(node);
+    let constant_value = get_constant_value(node);
+
+    PadConfig::new(pads, constant_value)
+}
+
 /// Calculate the padding configuration for a 1D operations such as Convolution and Pooling.
 ///
 /// # Arguments
@@ -874,6 +1019,22 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     alpha
 }
 
+// Create a HardSigmoidConfig from the alpha and beta attributes of the node
+pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
+    let mut alpha = 0.2;
+    let mut beta = 0.5;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32() as f64,
+            "beta" => beta = value.clone().into_f32() as f64,
+            _ => {}
+        }
+    }
+
+    (alpha, beta)
+}
+
 pub fn reshape_config(node: &Node) -> Vec<i64> {
     let mut allowzero = 0;
 
@@ -910,26 +1071,132 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     }
 }
 
-pub fn resize_config(node: &Node) -> ResizeMode {
+pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     let mut mode: String = "".to_string();
+
+    let mut scales: Vec<f32>;
+    let mut sizes: Vec<usize>;
+
+    let input = if let ArgType::Tensor(tensor) = &node
+        .inputs
+        .first()
+        .expect("Resize: Input tensor must be present")
+        .ty
+    {
+        tensor
+    } else {
+        panic!("Resize: input must be a tensor")
+    };
+
+    // Note: we are ignoring some attributes because results are approximately the same
+    // and we are not supporting all the attributes of the Resize operator.
+    // However, some attributes are important to be checked and we are checking
+    // against the default values of the attributes.
+    // TODO revisit this when we have more Resize operators in the model
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
-            "coordinate_transformation_mode" => {}
-            "cubic_coeff_a" => {}
-            "mode" => mode = value.clone().into_string(),
-            "nearest_mode" => {}
+            "antialias" => assert_eq!(
+                value.clone().into_i32(),
+                0,
+                "Resize: antialias other than 0 is not supported"
+            ),
+            "axes" => panic!("Resize: custom axes attribute is not supported"),
+            "coordinate_transformation_mode" => {
+                log::warn!("Resize: coordinate_transformation_mode is ignored")
+            }
+
+            "cubic_coeff_a" => log::warn!("Resize: cubic_coeff_a is ignored"),
+            "exclude_outside" => assert_eq!(
+                value.clone().into_i32(),
+                0,
+                "Resize: exclude_outside other than 0 is not supported"
+            ),
+            "extrapolation_value" => assert_eq!(
+                value.clone().into_f32(),
+                0.0,
+                "Resize: extrapolation_value other than 0.0 is not supported"
+            ),
+            "keep_aspect_ratio_policy" => {
+                assert_eq!(
+                    value.clone().into_string().to_lowercase(),
+                    "stretch",
+                    "Resize: keep_aspect_ratio_policy other than 'stretch' is not supported"
+                )
+            }
+            "mode" => mode = value.clone().into_string().to_lowercase(),
+            "nearest_mode" => log::warn!("Resize: nearest_mode is ignored"),
+
             _ => {}
         }
     }
 
-    let mode = match mode.as_str() {
-        "nearest" => ResizeMode::Nearest,
-        "linear" => ResizeMode::Linear,
-        "cubic" => ResizeMode::Cubic,
-        _ => panic!("Resize: invalid mode string, must be 'nearest', 'linear', or 'cubic'"),
-    };
+    let roi: Vec<f32> = node
+        .inputs
+        .get(1)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone().into_f32s()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
 
-    mode
+    scales = node
+        .inputs
+        .get(2)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone().into_f32s()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+
+    sizes = node
+        .inputs
+        .get(3)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+
+    if mode.is_empty() {
+        panic!("Resize: mode attribute is required")
+    }
+
+    if !roi.is_empty() {
+        panic!("Resize: roi input is not supported")
+    }
+
+    if scales.is_empty() && sizes.is_empty() {
+        panic!("Resize: either scales or sizes input is required")
+    }
+
+    if !scales.is_empty() {
+        assert!(scales.len() == input.dim);
+        // ignore the fist two items from scales
+        // because they are the batch and channel dimensions
+        scales = scales.iter().skip(2).cloned().collect();
+    }
+
+    if !sizes.is_empty() {
+        assert!(sizes.len() == input.dim);
+        // ignore the fist two items from sizes
+        // because they are the batch and channel dimensions
+        sizes = sizes.iter().skip(2).cloned().collect();
+    }
+
+    (mode, scales, sizes)
 }
 
 //Note this function should only execute if the second input is a constant

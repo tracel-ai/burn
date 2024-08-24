@@ -24,14 +24,14 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu", "burn/autotune"]
 wgpu-fusion = ["wgpu", "burn/fusion"]
-cuda-jit = ["burn-cuda"]
+# cuda-jit = ["burn-cuda"]
 
 [dependencies]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.14.0" }
-burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.14.0" }
-burn-cuda = { path = "../crates/burn-cuda", version = "0.14.0", optional = true }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.14.0", optional = true }
+# burn-cuda = { path = "../crates/burn-cuda", version = "0.14.0", optional = true }
 clap = { workspace = true }
 colored = { workspace = true }
 derive-new = { workspace = true }
@@ -49,6 +49,7 @@ strum_macros = { workspace = true }
 sysinfo = { workspace = true, features = ["serde"] }
 wgpu = { workspace = true }
 wsl = { workspace = true }
+cubecl = { workspace = true, features = ["wgpu"] }
 
 [dev-dependencies]
 rstest = { workspace = true }

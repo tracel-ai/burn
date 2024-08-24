@@ -229,11 +229,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         unimplemented!("deserialize_bytes is not implemented")
     }
 
-    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_byte_buf is not implemented")
+        visitor.visit_byte_buf(self.value.unwrap().as_bytes().unwrap())
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>

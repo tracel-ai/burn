@@ -1,5 +1,6 @@
-use crate::NdArrayTensor;
-use crate::{element::FloatNdArrayElement, PrecisionBridge};
+use crate::element::{FloatNdArrayElement, QuantElement};
+use crate::PrecisionBridge;
+use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
@@ -34,11 +35,12 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32> {
-    phantom: PhantomData<E>,
+pub struct NdArray<E = f32, Q = i8> {
+    _e: PhantomData<E>,
+    _q: PhantomData<Q>,
 }
 
-impl<E: FloatNdArrayElement> Backend for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
     type Device = NdArrayDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
@@ -50,7 +52,7 @@ impl<E: FloatNdArrayElement> Backend for NdArray<E> {
 
     type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
 
-    type QuantizedTensorPrimitive<const D: usize> = NdArrayTensor<i8, D>;
+    type QuantizedTensorPrimitive<const D: usize> = NdArrayQTensor<Q, D>;
 
     fn ad_enabled() -> bool {
         false

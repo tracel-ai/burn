@@ -189,10 +189,10 @@ pub enum BaseOperationDescription {
     Equal(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Float => [repeat](crate::ops::FloatTensorOps::float_repeat).
-    /// Int => [repeat](crate::ops::IntTensorOps::int_repeat).
-    /// Bool => [repeat](crate::ops::BoolTensorOps::bool_repeat).
-    Repeat(RepeatOperationDescription),
+    /// Float => [repeat dim](crate::ops::FloatTensorOps::float_repeat_dim).
+    /// Int => [repeat dim](crate::ops::IntTensorOps::int_repeat_dim).
+    /// Bool => [repeat dim](crate::ops::BoolTensorOps::bool_repeat_dim).
+    RepeatDim(RepeatDimOperationDescription),
     /// Operation corresponding to:
     ///
     /// Float => [cat](crate::ops::FloatTensorOps::float_cat).
@@ -627,7 +627,7 @@ pub struct ClampOperationDescription<E> {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct RepeatOperationDescription {
+pub struct RepeatDimOperationDescription {
     pub tensor: TensorDescription,
     pub dim: usize,
     pub times: usize,
@@ -1189,7 +1189,7 @@ impl BaseOperationDescription {
             BaseOperationDescription::Equal(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            BaseOperationDescription::Repeat(desc) => {
+            BaseOperationDescription::RepeatDim(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),

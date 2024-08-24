@@ -1,4 +1,4 @@
-use burn_cube::{calculate_cube_count_elemwise, prelude::*, SUBCUBE_DIM_APPROX};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
@@ -161,16 +161,17 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     };
 
     let num_elems_output = output.shape.num_elements();
-    let cube_dim = calculate_cube_count_elemwise(num_elems_output, SUBCUBE_DIM_APPROX);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    conv2d_kernel_launch::<E::FloatPrimitive, R>(
-        input.client,
+    conv2d_kernel::launch::<E::FloatPrimitive, R>(
+        &input.client,
+        cube_count,
         cube_dim,
-        CubeDim::default(),
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&weight.handle, &weight.strides, &weight.shape.dims),
-        TensorArg::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        input.as_tensor_arg(1),
+        weight.as_tensor_arg(1),
+        bias.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         Conv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),

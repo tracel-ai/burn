@@ -1,14 +1,13 @@
 use crate::{
     element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
 };
-use burn_cube::{
+use burn_tensor::ElementConversion;
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
-use burn_tensor::ElementConversion;
 use std::marker::PhantomData;
 
 #[derive(new)]
@@ -43,7 +42,10 @@ impl FlipComputeShader {
             cpa!(scope, shape = shape(output, i));
             cpa!(
                 scope,
-                flip = cast(Variable::GlobalScalar(i as u16, Elem::UInt))
+                flip = cast(Variable::GlobalScalar {
+                    id: i as u16,
+                    elem: Elem::UInt
+                })
             );
             cpa!(scope, flip_bool = flip == 1u32);
 
@@ -70,8 +72,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 
@@ -102,8 +104,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}-rank={:?}", core::any::TypeId::of::<Self>(), self.rank)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.rank)
     }
 }
 
@@ -132,17 +134,9 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, const D: usize>(
 
     let kernel = FlipEagerKernel::<R, E>::new(D);
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &tensor.handle,
-            &tensor.strides,
-            &tensor.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, tensor.client.clone())
+        .inputs(&[tensor.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&scalars)
         .execute(CubeCountSettings::Output { pos: 0 });
 

@@ -5,9 +5,8 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use burn_cube::{
+use cubecl::{
     cpa,
-    frontend::TensorHandle,
     ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -71,10 +70,22 @@ impl AvgPool2dBackwardComputeShader {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
         let b = scope.create_local(Elem::UInt);
@@ -215,12 +226,30 @@ impl AvgPool2dBackwardComputeShader {
         output_stride_2: Variable,
         output_stride_3: Variable,
     ) -> (Variable, Variable, Variable, Variable) {
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
@@ -321,8 +350,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let grad = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let grad = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
         scope.write_global_custom(output);
 
@@ -354,13 +383,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
         KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}count_include_pad={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-            self.count_include_pad
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.kernel_size, self.count_include_pad))
     }
 }
 
@@ -379,16 +403,8 @@ pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
     let kernel = AvgPool2dBackwardEagerKernel::<R, E>::new(kernel_size, count_include_pad);
 
     Execution::start(kernel, x.client)
-        .inputs(&[TensorHandle::<R>::new(
-            &grad.handle,
-            &grad.strides,
-            &grad.shape.dims,
-        )])
-        .outputs(&[TensorHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .inputs(&[grad.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&[
             stride[0] as i32,
             stride[1] as i32,

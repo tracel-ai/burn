@@ -14,7 +14,7 @@ use burn_tensor::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
         CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
         HandleContainer, OperationDescription, PermuteOperationDescription,
-        RepeatOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
+        RepeatDimOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
         SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
     },
     Device, Shape,
@@ -575,22 +575,22 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> BoolTensor<Self, D> {
         #[derive(new)]
-        struct RepeatOps<B: FusionBackend, const D: usize> {
-            desc: RepeatOperationDescription,
+        struct RepeatDimOps<B: FusionBackend, const D: usize> {
+            desc: RepeatDimOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatOps<B, D> {
+        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for RepeatDimOps<B, D> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_bool_tensor::<B, D>(&self.desc.tensor);
 
-                let output = B::bool_repeat::<D>(tensor, self.desc.dim, self.desc.times);
+                let output = B::bool_repeat_dim::<D>(tensor, self.desc.dim, self.desc.times);
 
                 handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
             }
@@ -601,7 +601,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         shape[dim] *= times;
         let out = tensor.client.tensor_uninitialized(shape, DType::Bool);
 
-        let desc = RepeatOperationDescription {
+        let desc = RepeatDimOperationDescription {
             tensor: tensor.into_description(),
             dim,
             times,
@@ -609,8 +609,8 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::BaseBool(BaseOperationDescription::Repeat(desc.clone())),
-            RepeatOps::<B, D>::new(desc),
+            OperationDescription::BaseBool(BaseOperationDescription::RepeatDim(desc.clone())),
+            RepeatDimOps::<B, D>::new(desc),
         );
 
         out
