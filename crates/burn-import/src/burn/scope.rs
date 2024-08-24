@@ -24,7 +24,6 @@ impl Scope {
         if let Some(variable) = self.variables.get_mut(&tensor.name) {
             if variable.node_position == node_position {
                 variable.references += 1;
-                return;
             }
         } else {
             self.variables
@@ -52,7 +51,7 @@ impl Scope {
             //should there be any validation checks here?
             // The tensor originated from an initializer or lifted constant
             self.constant_set.insert(tensor.name.clone());
-            self.tensor_register_variable(&tensor, node_position);
+            self.tensor_register_variable(tensor, node_position);
             //pretend this is the first use of a tensor declared
             self.variables.get_mut(&tensor.name).unwrap().references += 1;
         }

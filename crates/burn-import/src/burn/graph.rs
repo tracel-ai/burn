@@ -14,9 +14,7 @@ use serde::{
     ser::{SerializeMap, SerializeTuple},
     Serialize,
 };
-use std::{
-    any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf, process::exit,
-};
+use std::{any::type_name, collections::HashMap, marker::PhantomData, path::PathBuf};
 
 /// Type of the record to be saved.
 #[derive(Debug, Clone, Default, Copy)]

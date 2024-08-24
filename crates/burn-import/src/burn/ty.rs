@@ -285,7 +285,7 @@ impl TensorType {
                         result.push(self.render_row(&tmp));
                     }
                 }
-                return self.tensor_internal(self.render_row(&result));
+                self.tensor_internal(self.render_row(&result))
             } else {
                 panic!(
                     "Tensor {:?} has no shape, likely should be scalar or shape",
@@ -304,7 +304,7 @@ impl TensorType {
     fn tensor_internal(&self, tok: TokenStream) -> TokenStream {
         //what to do for bools?
         let dim = self.dim;
-        return match self.kind {
+        match self.kind {
             TensorKind::Int => quote! {
                 Tensor::<B,#dim>::from_ints(#tok, &self.device)
             },
@@ -314,7 +314,7 @@ impl TensorType {
             TensorKind::Bool => quote! {
                 Tensor::<B,#dim>::from_data(#tok, &self.device)
             },
-        };
+        }
     }
 }
 
