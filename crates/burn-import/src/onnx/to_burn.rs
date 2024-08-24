@@ -1227,9 +1227,6 @@ fn serialize_data<E: Element>(data: Data, shape: Vec<usize>) -> TensorData {
 
 impl From<&OnnxArgument> for TensorType {
     fn from(arg: &OnnxArgument) -> Self {
-        if arg.name.contains("initializer") {
-            println!("Initializer: {:?}", arg);
-        }
         let OnnxTensorType {
             elem_type,
             dim,
@@ -1265,7 +1262,15 @@ impl From<&OnnxArgument> for Type {
                         ScalarKind::from(&tensor.elem_type),
                     ))
                 } else {
-                    Type::Tensor(TensorType::from(arg))
+                    let kind: TensorKind = tensor.elem_type.clone().into();
+                    let dim = tensor.dim;
+                    let name = arg.name.clone();
+                    let shape = tensor.shape.clone();
+                    let mut res = TensorType::new(name, dim, kind, shape);
+                    if arg.value.is_some() {
+                        res.val = Some(CodeGenTensorData::from(arg.value.clone().unwrap()));
+                    }
+                    Type::Tensor(res)
                 }
             }
 

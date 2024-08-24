@@ -217,6 +217,11 @@ impl TensorType {
             val: None,
         }
     }
+
+    pub fn set_val(&mut self, val: TensorData) {
+        self.val = Some(val);
+    }
+
     pub fn new_float<S: AsRef<str>>(name: S, dim: usize) -> Self {
         Self::new(name, dim, TensorKind::Float, None)
     }
