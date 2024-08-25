@@ -16,6 +16,8 @@ members = [
 
 exclude = [
     "examples/notebook",
+    "examples/raspberry-pi-pico", # will cause dependency building issues otherwise
+    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -72,11 +74,15 @@ serde_bytes = { version = "0.11.15", default-features = false, features = [
 ] } # alloc for no_std
 serde_rusqlite = "0.35.0"
 serial_test = "3.1.1"
-spin = { version = "0.9.8", features = ["mutex", "spin_mutex"] }
+spin = { version = "0.9.8", features = [
+    "mutex",
+    "spin_mutex",
+    "portable-atomic",
+] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.74", features = ["full", "extra-traits"] }
-tempfile = "3.11.0"
+tempfile = "3.12.0"
 thiserror = "1.0.61"
 tokio = { version = "1.39.2", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
@@ -118,7 +124,7 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-ndarray = { version = "0.15.6", default-features = false }
+ndarray = { version = "0.16.0", default-features = false }
 matrixmultiply = { version = "0.3.9", default-features = false }
 openblas-src = "0.10.9"
 blas-src = { version = "0.10.0", default-features = false }
@@ -129,18 +135,20 @@ rand = { version = "0.8.5", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
 rand_distr = { version = "0.4.3", default-features = false }
-serde = { version = "1.0.206", default-features = false, features = [
+serde = { version = "1.0.208", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.124", default-features = false }
 uuid = { version = "1.9.1", default-features = false }
 
-libc = "0.2.155"
+libc = "0.2.157"
 tch = "0.15.0"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.30.13"
 systemstat = "0.2.3"
+
+portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d41dd0c00381fb935e4389927ee4bef0b8aba785" }

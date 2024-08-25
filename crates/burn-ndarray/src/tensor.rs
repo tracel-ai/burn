@@ -70,10 +70,10 @@ macro_rules! reshape {
         let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
         let array: ndarray::ArcArray<$ty, Dim<[usize; $n]>> = match $array.is_standard_layout() {
             true => $array
-                .into_shape(dim)
+                .to_shape(dim)
                 .expect("Safe to change shape without relayout")
                 .into_shared(),
-            false => $array.reshape(dim),
+            false => $array.to_shape(dim).unwrap().as_standard_layout().into_shared(),
         };
         let array = array.into_dyn();
 

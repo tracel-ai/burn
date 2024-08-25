@@ -78,7 +78,7 @@ Running benchmarks...
 
 By default `burnbench` uses a compact output with a progress bar which hides the
 compilation logs and benchmarks results as they are executed. If a benchmark
-failed to run, the `--verbose` flag can be use to investigate the error.
+failed to run, the `--verbose` flag can be used to investigate the error.
 
 #### Authentication and benchmarks sharing
 
