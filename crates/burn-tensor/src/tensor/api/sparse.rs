@@ -117,14 +117,16 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Float {
     fn into_data_async<const D: usize>(
         tensor: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> impl Future<Output = TensorData> + Send {
-        SR::float_into_data(tensor)
+        async {
+            panic!("into_data not supported for sparse tensors, convert to dense first.");
+        }
     }
 
     fn from_data<const D: usize>(
         data: TensorData,
         device: &<B as Backend>::Device,
     ) -> ReprPrimitive<B, Self, Sparse<B, SR>, D> {
-        SR::float_from_data(data, device)
+        panic!("from_data not supported for sparse tensors, convert from dense..");
     }
 
     fn repeat_dim<const D: usize>(
@@ -270,14 +272,16 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Bool {
     fn into_data_async<const D: usize>(
         tensor: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> impl Future<Output = TensorData> + Send {
-        SR::bool_into_data(tensor)
+        async {
+            panic!("into_data not supported for sparse tensors, convert to dense first.");
+        }
     }
 
     fn from_data<const D: usize>(
         data: TensorData,
         device: &<B as Backend>::Device,
     ) -> ReprPrimitive<B, Self, Sparse<B, SR>, D> {
-        SR::bool_from_data(data, device)
+        panic!("from_data not supported for sparse tensors, convert from dense..");
     }
 
     fn repeat_dim<const D: usize>(
@@ -423,14 +427,16 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Int {
     fn into_data_async<const D: usize>(
         tensor: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> impl Future<Output = TensorData> + Send {
-        SR::int_into_data(tensor)
+        async {
+            panic!("into_data not supported for sparse tensors, convert to dense first.");
+        }
     }
 
     fn from_data<const D: usize>(
         data: TensorData,
         device: &<B as Backend>::Device,
     ) -> ReprPrimitive<B, Self, Sparse<B, SR>, D> {
-        SR::int_from_data(data, device)
+        panic!("from_data not supported for sparse tensors, convert from dense..");
     }
 
     fn repeat_dim<const D: usize>(

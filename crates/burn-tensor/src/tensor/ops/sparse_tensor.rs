@@ -108,34 +108,6 @@ where
     /// The shape of the tensor.
     fn float_shape<const D: usize>(tensor: &ReprPrimitive<B, Float, Sparse<B, SR>, D>) -> Shape<D>;
 
-    /// Converts the tensor to a data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data structure with the tensor's data.
-    fn float_into_data<const D: usize>(
-        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
-    ) -> impl Future<Output = TensorData> + Send;
-
-    /// Creates a tensor from the data structure.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - The data structure.
-    /// * `device` - The device to create the tensor on.
-    ///
-    /// # Returns
-    ///
-    /// The tensor with the data.
-    fn float_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<B>,
-    ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
-
     fn float_reshape<const D1: usize, const D2: usize>(
         tensor: SR::SparsePrimitive<Float, D1>,
         shape: Shape<D2>,
@@ -476,15 +448,6 @@ pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
         device: &Device<B>,
     ) -> SR::SparsePrimitive<Bool, D>;
 
-    fn bool_into_data<const D: usize>(
-        tensor: SR::SparsePrimitive<Bool, D>,
-    ) -> impl Future<Output = TensorData> + Send;
-
-    fn bool_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<B>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
     fn bool_repeat_dim<const D: usize>(
         tensor: SR::SparsePrimitive<Bool, D>,
         dim: usize,
@@ -578,15 +541,6 @@ pub trait SparseIntOps<SR: SparseStorage<B>, B: Backend> {
 
     fn int_to_device<const D: usize>(
         tensor: SR::SparsePrimitive<Int, D>,
-        device: &Device<B>,
-    ) -> SR::SparsePrimitive<Int, D>;
-
-    fn int_into_data<const D: usize>(
-        tensor: SR::SparsePrimitive<Int, D>,
-    ) -> impl Future<Output = TensorData> + Send;
-
-    fn int_from_data<const D: usize>(
-        data: TensorData,
         device: &Device<B>,
     ) -> SR::SparsePrimitive<Int, D>;
 

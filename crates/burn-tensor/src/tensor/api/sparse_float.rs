@@ -35,8 +35,16 @@ where
     pub fn spmm(self, rhs: Tensor<B, D, Float, Dense>) -> Tensor<B, D, Float, Dense> {
         // check!(TensorCheck::spmm(&self, &rhs));
         Tensor::<B, D, Float, Dense>::new(TensorPrimitive::Float(SR::float_spmm(
-            self.primitive,
-            rhs.primitive,
+            self.into_primitive(),
+            rhs.into_primitive(),
         )))
+    }
+
+    pub fn sddmm(self, lhs: Tensor<B, D, Float, Dense>, rhs: Tensor<B, D, Float, Dense>) -> Self {
+        Tensor::new(SR::float_sddmm(
+            lhs.into_primitive().tensor(),
+            rhs.into_primitive().tensor(),
+            self.into_primitive(),
+        ))
     }
 }
