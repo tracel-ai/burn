@@ -19,7 +19,7 @@ def build_model():
                 inputs=["input1", "input2"],
                 outputs=["output1"],
                 name="/Gather",
-                axis=1
+                axis=0
             ),
         ],
         inputs=[
