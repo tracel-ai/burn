@@ -171,8 +171,6 @@ impl<B: Backend> SparseFloatOps<COO, B> for COO {
             Tensor::zeros([out_shape.dims[0], rhs.shape().dims[1]], &device);
         let gathered = rhs.gather(0, gather_index);
 
-        println!("{}", gathered);
-        println!("{}", values);
         let multiplied = gathered.mul(values);
 
         let scattered = output.scatter(0, scatter_index, multiplied);
