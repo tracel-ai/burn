@@ -4,186 +4,65 @@ use crate::{
     tensor::JitTensor,
     JitRuntime,
 };
-use cubecl::InputInfo;
-use cubecl::{
-    calculate_cube_count_elemwise, cpa, CubeCountSettings, CubeDim, KernelExpansion,
-    KernelIntegrator, KernelSettings,
-};
-use cubecl::{
-    ir::{Branch, Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
-    Execution,
-};
-use std::marker::PhantomData;
+use cubecl::prelude::*;
+use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
-#[derive(new)]
-struct ScatterEagerKernel<R: JitRuntime, E: JitElement> {
-    dim: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
+#[cube(launch_unchecked)]
+fn scatter_kernel<T: Numeric>(
+    input: &mut Tensor<T>,
+    indices: &Tensor<I32>,
+    value: &Tensor<T>,
+    dim: &UInt,
+) {
+    let stride_input = input.stride(*dim);
+    let shape_value = value.shape(*dim);
+    let id = ABSOLUTE_POS;
 
-struct ScatterComputeShader {
-    input: Variable,
-    indices: Variable,
-    value: Variable,
-    dim: usize,
-}
+    let mut offset_input = UInt::new(0);
+    let mut offset_value = UInt::new(0);
+    let mut num_elems = UInt::new(1);
 
-impl ScatterComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        match self.input {
-            Variable::GlobalInputArray { .. } => (),
-            Variable::GlobalOutputArray { .. } => (),
-            _ => panic!("Input variable must be an global array."),
-        };
-        match self.value {
-            Variable::GlobalInputArray { .. } => (),
-            Variable::GlobalOutputArray { .. } => (),
-            _ => panic!("Value variable must be an global array."),
-        };
+    for i in range(0, value.rank(), Comptime::new(false)) {
+        let shouldnt_skip = i != *dim;
+        if shouldnt_skip {
+            let shape_input_loop = input.shape(i);
+            let shape_value_loop = value.shape(i);
 
-        let input = self.input;
-        let value = self.value;
-        let indices = self.indices;
+            let stride_value_loop = value.stride(i);
+            let stride_input_loop = input.stride(i);
+            let stride_tmp = indices.stride(i);
 
-        let stride_input = scope.create_local(Elem::UInt);
-        let shape_value = scope.create_local(Elem::UInt);
+            let mut num_blocks = id / stride_tmp;
+            num_blocks = num_blocks % shape_input_loop;
 
-        cpa!(scope, stride_input = stride(input, self.dim));
-        cpa!(scope, shape_value = shape(value, self.dim));
+            let mut offset_tmp = num_blocks * stride_input_loop;
+            offset_input += offset_tmp;
 
-        let id = Variable::AbsolutePos;
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_value = scope.zero(Elem::UInt);
+            offset_tmp = num_blocks * stride_value_loop;
+            offset_value += offset_tmp;
 
-        let num_elems = scope.create_local(Elem::UInt);
-        cpa!(scope, num_elems = cast(1usize));
-        cpa!(
-            scope,
-            range(0u32, Variable::Rank).for_each(|i, scope| {
-                let should_skip = scope.create_local(Elem::Bool);
-                cpa!(scope, should_skip = i == self.dim);
-
-                cpa!(scope, if(should_skip).then(|_| {
-                    // Nothing to do.
-                }).else(|scope| {
-                    let shape_input_loop = scope.create_local(Elem::UInt);
-                    let shape_value_loop = scope.create_local(Elem::UInt);
-                    let stride_value_loop = scope.create_local(Elem::UInt);
-
-                    let stride_tmp = scope.create_local(Elem::UInt);
-                    let num_blocks = scope.create_local(Elem::UInt);
-                    let offset_tmp = scope.create_local(Elem::UInt);
-                    let stride_input_loop = scope.create_local(Elem::UInt);
-
-                    cpa!(scope, stride_value_loop = stride(value, i));
-                    cpa!(scope, stride_input_loop = stride(input, i));
-                    cpa!(scope, stride_tmp = stride(indices, i));
-
-                    cpa!(scope, shape_value_loop = shape(value, i));
-                    cpa!(scope, shape_input_loop = shape(input, i));
-
-                    cpa!(scope, num_blocks = id / stride_tmp);
-                    cpa!(scope, num_blocks = num_blocks % shape_input_loop);
-
-                    cpa!(scope, offset_tmp = num_blocks * stride_input_loop);
-                    cpa!(scope, offset_input += offset_tmp);
-
-                    cpa!(scope, offset_tmp = num_blocks * stride_value_loop);
-                    cpa!(scope, offset_value += offset_tmp);
-
-                    cpa!(scope, num_elems = num_elems * shape_value_loop);
-                }));
-            })
-        );
-
-        let should_stop = scope.create_local(Elem::Bool);
-        cpa!(scope, should_stop = id >= num_elems);
-        cpa!(scope, if (should_stop).then(|scope|{
-            scope.register(Branch::Return);
-        }));
-
-        let index_input = scope.create_local(Elem::UInt);
-        let index = scope.create_local(Elem::UInt);
-
-        let result_input = scope.create_local(input.item());
-        let result_value = scope.create_local(value.item());
-        let result_indices = scope.create_local(Elem::UInt);
-
-        cpa!(
-            scope,
-            range(0u32, shape_value).for_each(|i, scope| {
-                cpa!(scope, index = stride_input * i);
-                cpa!(scope, index += offset_value);
-
-                cpa!(scope, result_value = value[index]);
-                cpa!(scope, result_indices = indices[index]);
-
-                cpa!(scope, index_input = stride_input * result_indices);
-                cpa!(scope, index_input += offset_input);
-
-                cpa!(scope, result_input = input[index_input]);
-                cpa!(scope, result_input += result_value);
-                cpa!(scope, input[index_input] = result_input);
-            })
-        );
-    }
-}
-
-impl<R: JitRuntime, E: JitElement> Kernel for ScatterEagerKernel<R, E> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item_value = E::cube_elem().into();
-        let item_indices: Item = Elem::Int(IntKind::I32).into();
-
-        let input_output = Variable::GlobalInputArray {
-            id: 0,
-            item: item_value,
-        };
-        let indices = Variable::GlobalInputArray {
-            id: 1,
-            item: Elem::Int(IntKind::I32).into(),
-        };
-        let value = Variable::GlobalInputArray {
-            id: 2,
-            item: item_value,
-        };
-
-        scope.write_global_custom(input_output);
-
-        ScatterComputeShader {
-            input: input_output,
-            indices,
-            value,
-            dim: self.dim,
+            num_elems *= shape_value_loop;
         }
-        .expand(&mut scope);
-
-        let input_output = InputInfo::Array {
-            item: item_value,
-            visibility: Visibility::ReadWrite,
-        };
-        let indices = InputInfo::Array {
-            item: item_indices,
-            visibility: Visibility::Read,
-        };
-        let value = InputInfo::Array {
-            item: item_value,
-            visibility: Visibility::Read,
-        };
-
-        let info = KernelExpansion {
-            inputs: vec![input_output, indices, value],
-            outputs: vec![],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info(self.dim)
+    let should_stop = id >= num_elems;
+    if should_stop {
+        return;
+    }
+
+    for i in range(0, shape_value, Comptime::new(false)) {
+        let mut idx = stride_input * i;
+        idx += offset_value;
+
+        let result_value = value[idx];
+        let result_indices = UInt::cast_from(indices[idx]);
+
+        let mut index_input = stride_input * result_indices;
+        index_input += offset_input;
+
+        let mut result_input = input[index_input];
+        result_input += result_value;
+        input[index_input] = result_input;
     }
 }
 
@@ -202,7 +81,6 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
         false => tensor.copy(),
     };
 
-    let kernel = ScatterEagerKernel::<R, E>::new(dim);
     let mut strides = [0; D];
     let mut current = 1;
     let mut num_elems = 1;
@@ -226,13 +104,16 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    Execution::start(kernel, indices.client.clone())
-        .inputs(&[
-            tensor.as_handle_ref(),
-            indices.as_handle_ref(),
-            value.as_handle_ref(),
-        ])
-        .execute(CubeCountSettings::Custom(cube_count));
-
+    unsafe {
+        scatter_kernel::launch_unchecked::<E::Primitive, R>(
+            &indices.client.clone(),
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            indices.as_tensor_arg(1),
+            value.as_tensor_arg(1),
+            ScalarArg::new(dim as u32),
+        )
+    }
     tensor
 }
