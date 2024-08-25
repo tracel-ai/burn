@@ -78,19 +78,6 @@ impl<B: Backend> SparseIntOps<COO, B> for COO {
         todo!()
     }
 
-    fn int_into_data<const D: usize>(
-        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
-    ) -> impl std::future::Future<Output = burn_tensor::TensorData> + Send {
-        async { todo!() }
-    }
-
-    fn int_from_data<const D: usize>(
-        data: burn_tensor::TensorData,
-        device: &burn_tensor::Device<B>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D> {
-        todo!()
-    }
-
     fn int_repeat_dim<const D: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
         dim: usize,

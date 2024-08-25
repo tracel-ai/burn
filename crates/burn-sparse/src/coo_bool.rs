@@ -88,19 +88,6 @@ impl<B: Backend> SparseBoolOps<COO, B> for COO {
         todo!()
     }
 
-    fn bool_into_data<const D: usize>(
-        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
-    ) -> impl std::future::Future<Output = burn_tensor::TensorData> + Send {
-        async { todo!() }
-    }
-
-    fn bool_from_data<const D: usize>(
-        data: burn_tensor::TensorData,
-        device: &burn_tensor::Device<B>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
     fn bool_repeat_dim<const D: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
         dim: usize,

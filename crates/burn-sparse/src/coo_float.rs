@@ -403,19 +403,6 @@ impl<B: Backend> SparseFloatOps<COO, B> for COO {
         tensor.shape.clone()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
-    ) -> impl std::future::Future<Output = burn_tensor::TensorData> + Send {
-        async { todo!() }
-    }
-
-    fn float_from_data<const D: usize>(
-        data: burn_tensor::TensorData,
-        device: &burn_tensor::Device<B>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
-        todo!()
-    }
-
     fn float_reshape<const D1: usize, const D2: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D1>,
         out_shape: burn_tensor::Shape<D2>,
