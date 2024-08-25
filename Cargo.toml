@@ -143,11 +143,11 @@ sysinfo = "0.30.13"
 systemstat = "0.2.3"
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e158a93b8cac316f27dc520c247dc3e7d4ea51ae" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e158a93b8cac316f27dc520c247dc3e7d4ea51ae" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d41dd0c00381fb935e4389927ee4bef0b8aba785" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d41dd0c00381fb935e4389927ee4bef0b8aba785" }
 ### For local development. ###
-cubecl = { path = "../cubecl/crates/cubecl" }
-cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+# cubecl = { path = "../cubecl/crates/cubecl" }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common" }
 
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.
