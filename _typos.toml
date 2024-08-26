@@ -3,6 +3,7 @@ extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
 
 [files]
 extend-exclude = [
+    "*.onnx",
     "assets/ModuleSerialization.xml",
     "examples/image-classification-web/src/model/label.txt",
 ]
