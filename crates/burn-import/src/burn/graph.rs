@@ -556,13 +556,13 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         // Get the input and output types of the graph using passed in names
         input_names.iter().for_each(|input| {
             self.graph_input_types
-                .push(inputs.get(input).unwrap().clone());
+                .push(inputs.get(&TensorType::format_name(input)).unwrap().clone());
         });
 
         output_names.iter().for_each(|output| {
             self.graph_output_types.push(
                 outputs
-                    .get(output)
+                    .get(&TensorType::format_name(output))
                     .unwrap_or_else(|| panic!("Output type is not found for {output}"))
                     .clone(),
             );

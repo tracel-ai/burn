@@ -6,8 +6,12 @@ authors = [
     "Dilshod Tadjibaev",
     "Guillaume Lagrange",
     "Sylvain Benner",
+    "Bjorn Beishline"
 ]
 language = "en"
 multilingual = false
 src = "src"
 title = "The Burn Book 🔥"
+
+[output.html]
+mathjax-support = true

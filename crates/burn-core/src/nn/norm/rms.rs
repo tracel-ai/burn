@@ -68,8 +68,14 @@ impl<B: Backend> RmsNorm<B> {
     /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
         // Calculate the root-mean-square norm of the input tensor along the last dimension
-        let rms = (x.clone().powf_scalar(2.0).mean_dim(D - 1) + self.epsilon).sqrt();
-        (x / rms) * self.gamma.val().unsqueeze()
+        let rms = (x
+            .clone()
+            .into_full_precision()
+            .powf_scalar(2.0)
+            .mean_dim(D - 1)
+            + self.epsilon)
+            .sqrt();
+        (x / Tensor::from_full_precision(rms)) * self.gamma.val().unsqueeze()
     }
 }
 

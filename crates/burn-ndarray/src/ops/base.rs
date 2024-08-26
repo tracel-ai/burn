@@ -612,7 +612,7 @@ fn arg<E: NdArrayElement, const D: usize>(
         idx as i64
     });
 
-    let output = output.into_shape(Dim(reshape.as_slice())).unwrap();
+    let output = output.to_shape(Dim(reshape.as_slice())).unwrap();
 
     NdArrayTensor {
         array: output.into_shared(),

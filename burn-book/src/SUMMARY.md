@@ -31,4 +31,4 @@
     - [Custom WGPU Kernel](./advanced/backend-extension/custom-wgpu-kernel.md)
   - [Custom Optimizer]()
   - [WebAssembly]()
-  - [No-Std]()
+  - [No-Std](./advanced/no-std.md)
