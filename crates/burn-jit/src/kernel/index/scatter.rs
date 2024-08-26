@@ -16,7 +16,6 @@ fn scatter_kernel<T: Numeric>(
 ) {
     let stride_input = input.stride(*dim);
     let shape_value = value.shape(*dim);
-    let id = ABSOLUTE_POS;
 
     let mut offset_input = UInt::new(0);
     let mut offset_value = UInt::new(0);
@@ -32,7 +31,7 @@ fn scatter_kernel<T: Numeric>(
             let stride_input_loop = input.stride(i);
             let stride_tmp = indices.stride(i);
 
-            let mut num_blocks = id / stride_tmp;
+            let mut num_blocks = ABSOLUTE_POS / stride_tmp;
             num_blocks = num_blocks % shape_input_loop;
 
             let mut offset_tmp = num_blocks * stride_input_loop;
@@ -45,7 +44,7 @@ fn scatter_kernel<T: Numeric>(
         }
     }
 
-    let should_stop = id >= num_elems;
+    let should_stop = ABSOLUTE_POS >= num_elems;
     if should_stop {
         return;
     }

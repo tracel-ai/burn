@@ -13,6 +13,10 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     output: &mut Tensor<T>,
     dim: &UInt,
 ) {
+    if ABSOLUTE_POS >= indices.len() {
+        return;
+    }
+
     let index = indices[ABSOLUTE_POS];
 
     let stride = input.stride(*dim);
