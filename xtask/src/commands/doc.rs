@@ -11,7 +11,13 @@ pub(crate) fn handle_command(mut args: DocCmdArgs) -> anyhow::Result<()> {
     // Specific additional commands to build other docs
     if args.get_command() == DocSubCommand::Build {
         // burn-dataset
-        helpers::custom_crates_doc_build(vec!["burn-dataset"], vec!["--all-features"])?;
+        helpers::custom_crates_doc_build(
+            vec!["burn-dataset"],
+            vec!["--all-features"],
+            None,
+            None,
+            "All features",
+        )?;
     }
     Ok(())
 }

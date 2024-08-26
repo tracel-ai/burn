@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use strum::IntoEnumIterator;
 use tracel_xtask::prelude::*;
 
-use crate::{ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
+use crate::{ARM_NO_ATOMIC_PTR_TARGET, ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
 
 pub(crate) fn handle_command(
     mut args: BuildCmdArgs,
@@ -9,15 +11,33 @@ pub(crate) fn handle_command(
 ) -> anyhow::Result<()> {
     match exec_env {
         ExecutionEnvironment::NoStd => {
-            ["Default", WASM32_TARGET, ARM_TARGET]
-                .iter()
-                .try_for_each(|build_target| {
-                    let mut build_args = vec!["--no-default-features"];
-                    if *build_target != "Default" {
-                        build_args.extend(vec!["--target", *build_target]);
-                    }
-                    helpers::custom_crates_build(NO_STD_CRATES.to_vec(), build_args)
-                })?;
+            [
+                "Default",
+                WASM32_TARGET,
+                ARM_TARGET,
+                ARM_NO_ATOMIC_PTR_TARGET,
+            ]
+            .iter()
+            .try_for_each(|build_target| {
+                let mut build_args = vec!["--no-default-features"];
+                let mut env_vars = HashMap::new();
+                if *build_target != "Default" {
+                    build_args.extend(vec!["--target", *build_target]);
+                }
+                if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
+                    env_vars.insert(
+                        "RUSTFLAGS",
+                        "--cfg portable_atomic_unsafe_assume_single_core",
+                    );
+                }
+                helpers::custom_crates_build(
+                    NO_STD_CRATES.to_vec(),
+                    build_args,
+                    Some(env_vars),
+                    None,
+                    &format!("no-std with target {}", *build_target),
+                )
+            })?;
             Ok(())
         }
         ExecutionEnvironment::Std => {
@@ -31,7 +51,13 @@ pub(crate) fn handle_command(
             base_commands::build::handle_command(args.clone())?;
             // Specific additional commands to test specific features
             // burn-dataset
-            helpers::custom_crates_build(vec!["burn-dataset"], vec!["--all-features"])?;
+            helpers::custom_crates_build(
+                vec!["burn-dataset"],
+                vec!["--all-features"],
+                None,
+                None,
+                "std with all features",
+            )?;
             Ok(())
         }
         ExecutionEnvironment::All => ExecutionEnvironment::iter()

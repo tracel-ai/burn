@@ -9,6 +9,7 @@ use tracel_xtask::prelude::*;
 // no-std
 const WASM32_TARGET: &str = "wasm32-unknown-unknown";
 const ARM_TARGET: &str = "thumbv7m-none-eabi";
+const ARM_NO_ATOMIC_PTR_TARGET: &str = "thumbv6m-none-eabi";
 const NO_STD_CRATES: &[&str] = &[
     "burn",
     "burn-core",
@@ -45,6 +46,7 @@ fn main() -> anyhow::Result<()> {
         // Install additional targets for no-std execution environments
         rustup_add_target(WASM32_TARGET)?;
         rustup_add_target(ARM_TARGET)?;
+        rustup_add_target(ARM_NO_ATOMIC_PTR_TARGET)?;
     }
 
     match args.command {
@@ -56,7 +58,9 @@ fn main() -> anyhow::Result<()> {
         Command::Test(cmd_args) => {
             commands::test::handle_command(cmd_args, args.execution_environment)
         }
-        Command::Validate(cmd_args) => commands::validate::handle_command(&cmd_args, &args.execution_environment),
+        Command::Validate(cmd_args) => {
+            commands::validate::handle_command(&cmd_args, &args.execution_environment)
+        }
         _ => dispatch_base_commands(args),
     }?;
 

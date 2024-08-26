@@ -14,7 +14,13 @@ pub(crate) fn handle_command(
                 if *test_target != "Default" {
                     test_args.extend(vec!["--target", *test_target]);
                 }
-                helpers::custom_crates_tests(NO_STD_CRATES.to_vec(), test_args)
+                helpers::custom_crates_tests(
+                    NO_STD_CRATES.to_vec(),
+                    test_args,
+                    None,
+                    None,
+                    "no-std",
+                )
             })?;
             Ok(())
         }
@@ -32,16 +38,31 @@ pub(crate) fn handle_command(
             // Specific additional commands to test specific features
 
             // burn-dataset
-            helpers::custom_crates_tests(vec!["burn-dataset"], vec!["--all-features"])?;
+            helpers::custom_crates_tests(
+                vec!["burn-dataset"],
+                vec!["--all-features"],
+                None,
+                None,
+                "std all features",
+            )?;
 
             // burn-core
             helpers::custom_crates_tests(
                 vec!["burn-core"],
                 vec!["--features", "test-tch,record-item-custom-serde"],
+                None,
+                None,
+                "std with features: test-tch,record-item-custom-serde",
             )?;
 
             if std::env::var("DISABLE_WGPU").is_err() {
-                helpers::custom_crates_tests(vec!["burn-core"], vec!["--features", "test-wgpu"])?;
+                helpers::custom_crates_tests(
+                    vec!["burn-core"],
+                    vec!["--features", "test-wgpu"],
+                    None,
+                    None,
+                    "std wgpu",
+                )?;
             }
 
             // MacOS specific tests
