@@ -72,11 +72,17 @@ pub(crate) fn handle_command(
                 helpers::custom_crates_tests(
                     vec!["burn-candle"],
                     vec!["--features", "accelerate"],
+                    None,
+                    None,
+                    "std accelerate",
                 )?;
                 // burn-ndarray
                 helpers::custom_crates_tests(
                     vec!["burn-ndarray"],
                     vec!["--features", "blas-accelerate"],
+                    None,
+                    None,
+                    "std blas-accelerate",
                 )?;
             }
             Ok(())
