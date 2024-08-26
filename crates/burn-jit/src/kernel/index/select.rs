@@ -9,27 +9,25 @@ fn select_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
     indices: &Tensor<I>,
     output: &mut Tensor<T>,
-    dim: &UInt,
+    dim: UInt,
 ) {
-    let id = ABSOLUTE_POS;
-    let mut offset_input = UInt::new(0);
-    for i in range(UInt::new(0), output.rank(), Comptime::new(false)) {
-        let stride_input = input.stride(i);
-        let stride_output = output.stride(i);
-        let shape_output = output.shape(i);
-        let mut offset_local = id / stride_output;
-        offset_local = offset_local % shape_output;
-
-        let dim_index = i == *dim;
-        if dim_index {
-            offset_local = UInt::cast_from(indices[offset_local]);
-            offset_local *= stride_input;
-        } else {
-            offset_local *= stride_input;
-        }
-        offset_input += offset_local;
+    if ABSOLUTE_POS > output.len() {
+        return;
     }
-    output[id] = input[offset_input];
+
+    let mut offset_input = UInt::new(0);
+
+    for i in range(0u32, output.rank(), Comptime::new(false)) {
+        let mut offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i);
+
+        if i == dim {
+            offset_local = UInt::cast_from(indices[offset_local]);
+        }
+
+        offset_input += offset_local * input.stride(i);
+    }
+
+    output[ABSOLUTE_POS] = input[offset_input];
 }
 
 pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
