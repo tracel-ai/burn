@@ -58,7 +58,7 @@ proc-macro2 = "1.0.86"
 polars = { version = "0.41.3", features = ["lazy"] }
 protobuf = "3.4.0"
 protobuf-codegen = "3.4.0"
-quote = "1.0.36"
+quote = "1.0.37"
 r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.24.0" }
 rayon = "1.10.0"
