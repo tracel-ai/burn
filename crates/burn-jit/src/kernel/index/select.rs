@@ -11,7 +11,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output: &mut Tensor<T>,
     dim: UInt,
 ) {
-    if ABSOLUTE_POS > output.len() {
+    if ABSOLUTE_POS >= output.len() {
         return;
     }
 
@@ -41,14 +41,8 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
 
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
 
-    let num_elems = indices.shape.dims[0];
-    let mut shapes = [1; D];
-    let mut strides = [num_elems; D];
-    shapes[D - 1] = num_elems;
-    strides[D - 1] = 1;
-
+    let dummy_array = [1; D];
     let cube_dim = CubeDim::default();
-
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
     unsafe {
@@ -57,7 +51,8 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             cube_count,
             cube_dim,
             tensor.as_tensor_arg(1),
-            TensorArg::from_raw_parts(&indices.handle, &strides, &shapes, 1),
+            // Ignore shape and stride
+            TensorArg::from_raw_parts(&indices.handle, &dummy_array, &dummy_array, 1),
             output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )
