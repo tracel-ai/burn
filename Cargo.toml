@@ -89,7 +89,7 @@ tracing-appender = "0.2.3"
 tracing-core = "0.1.32"
 tracing-subscriber = "0.3.18"
 web-time = "1.1.0"
-zip = "2.1.5"
+zip = "2.2.0"
 
 # Async handling
 pollster = "0.3"
