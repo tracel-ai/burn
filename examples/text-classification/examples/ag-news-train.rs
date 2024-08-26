@@ -97,7 +97,7 @@ mod cuda_jit {
     use burn::backend::{Autodiff, CudaJit};
 
     pub fn run() {
-        launch::<Autodiff<CudaJit>>(vec![Default::default()]);
+        launch::<Autodiff<CudaJit<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
