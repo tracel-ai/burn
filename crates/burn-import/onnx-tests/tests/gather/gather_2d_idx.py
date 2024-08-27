@@ -50,7 +50,7 @@ def build_model():
 
 def main():
     onnx_model = build_model()
-    file_name = "gather.onnx"
+    file_name = "gather_2d_idx.onnx"
 
     # Ensure valid ONNX:
     onnx.checker.check_model(onnx_model)
