@@ -111,6 +111,19 @@ jobs:
       crate: burn-wgpu
     secrets: inherit
 
+  publish-burn-cuda:
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-compute
+      - publish-burn-autodiff
+      - publish-burn-ndarray
+      - publish-burn-common
+      - publish-burn-jit
+    with:
+      crate: burn-cuda
+    secrets: inherit
+
   publish-burn-candle:
     uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
