@@ -26,14 +26,6 @@ jobs:
       crate: burn-common
     secrets: inherit
 
-  publish-burn-compute:
-    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
-    needs:
-      - publish-burn-common
-    with:
-      crate: burn-compute
-    secrets: inherit
-
   publish-burn-tensor-testgen:
     uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     with:
@@ -102,13 +94,24 @@ jobs:
     uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
     needs:
       - publish-burn-tensor
-      - publish-burn-compute
       - publish-burn-autodiff
       - publish-burn-ndarray
       - publish-burn-common
       - publish-burn-jit
     with:
       crate: burn-wgpu
+    secrets: inherit
+
+  publish-burn-cuda:
+    uses: tracel-ai/burn/.github/workflows/publish-template.yml@main
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-ndarray
+      - publish-burn-common
+      - publish-burn-jit
+    with:
+      crate: burn-cuda
     secrets: inherit
 
   publish-burn-candle:

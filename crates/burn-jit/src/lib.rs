@@ -31,6 +31,9 @@ mod bridge;
 pub use backend::*;
 pub use bridge::*;
 
+// Re-export cubecl.
+pub use cubecl;
+
 mod tune_key;
 pub use tune_key::JitAutotuneKey;
 

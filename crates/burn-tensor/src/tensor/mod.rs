@@ -33,6 +33,12 @@ pub mod ops;
 /// Tensor quantization module.
 pub mod quantization;
 
+#[cfg(feature = "std")]
+pub use report::*;
+
+#[cfg(feature = "std")]
+mod report;
+
 #[cfg(feature = "experimental-named-tensor")]
 mod named;
 #[cfg(feature = "experimental-named-tensor")]

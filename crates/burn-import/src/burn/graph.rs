@@ -557,7 +557,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         input_names.iter().for_each(|input| {
             self.graph_input_types.push(
                 inputs
-                    .get(input)
+                    .get(&TensorType::format_name(input))
                     .unwrap_or_else(|| panic!("Input type not found for {input}"))
                     .clone(),
             );
@@ -566,7 +566,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         output_names.iter().for_each(|output| {
             self.graph_output_types.push(
                 outputs
-                    .get(output)
+                    .get(&TensorType::format_name(output))
                     .unwrap_or_else(|| panic!("Output type not found for {output}"))
                     .clone(),
             );
