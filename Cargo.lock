@@ -1395,7 +1395,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1406,7 +1406,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "derive-new",
  "getrandom",
@@ -1421,7 +1421,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "bytemuck",
  "cubecl-macros",
@@ -1436,7 +1436,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1451,7 +1451,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1462,7 +1462,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -1473,7 +1473,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "async-channel",
  "cfg_aliases 0.2.1",
@@ -1493,10 +1493,11 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.1.1"
-source = "git+https://github.com/tracel-ai/cubecl?rev=034f667da6e92a81b7da9f303e8507db944cc2a4#034f667da6e92a81b7da9f303e8507db944cc2a4"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d41dd0c00381fb935e4389927ee4bef0b8aba785#d41dd0c00381fb935e4389927ee4bef0b8aba785"
 dependencies = [
  "async-channel",
  "bytemuck",
+ "cfg_aliases 0.2.1",
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
@@ -6668,7 +6669,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 [[package]]
 name = "tracel-xtask"
 version = "1.0.0"
-source = "git+https://github.com/tracel-ai/xtask?rev=3385401c801f5c885ec4559dc76d6f6913f78fa2#3385401c801f5c885ec4559dc76d6f6913f78fa2"
+source = "git+https://github.com/tracel-ai/xtask?rev=921408bc16e74d3ef8ae59356d928fb6706fb8f4#921408bc16e74d3ef8ae59356d928fb6706fb8f4"
 dependencies = [
  "anyhow",
  "clap 4.5.16",
@@ -6686,7 +6687,7 @@ dependencies = [
 [[package]]
 name = "tracel-xtask-macros"
 version = "1.0.0"
-source = "git+https://github.com/tracel-ai/xtask?rev=3385401c801f5c885ec4559dc76d6f6913f78fa2#3385401c801f5c885ec4559dc76d6f6913f78fa2"
+source = "git+https://github.com/tracel-ai/xtask?rev=921408bc16e74d3ef8ae59356d928fb6706fb8f4#921408bc16e74d3ef8ae59356d928fb6706fb8f4"
 dependencies = [
  "proc-macro2",
  "quote",

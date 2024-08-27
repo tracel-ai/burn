@@ -161,7 +161,7 @@ cubecl = { version="0.2.0", default-features = false }
 cubecl-common = { version="0.2.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { git = "https://github.com/tracel-ai/xtask", rev = "3385401c801f5c885ec4559dc76d6f6913f78fa2" }
+tracel-xtask = { git = "https://github.com/tracel-ai/xtask", rev = "921408bc16e74d3ef8ae59356d928fb6706fb8f4" }
 
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.
