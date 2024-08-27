@@ -46,7 +46,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ExpandNode {
                 // we'll need to download the Tensor from device to cpu for expand operation.
                 // Also, we'll need to convert it to an array for conversion into BroadcastArgs
                 quote! {
-                    TryInto::<[i64; #dim]>::try_into(#tensor_name.to_data().as_slice::<i64>().unwrap()).unwrap()
+                    TryInto::<[B::IntElem; #dim]>::try_into(#tensor_name.to_data().as_slice::<B::IntElem>().unwrap()).unwrap()
                 }
             }
             ExpandShape::Runtime(Type::Shape(shape)) => {
@@ -219,7 +219,7 @@ mod tests {
                     tensor3: Tensor<B, 4, Int>,
                 ) -> Tensor<B, 4> {
                     let tensor2 = tensor1.expand(
-                        TryInto::<[i64; 4usize]>::try_into(tensor3.to_data().as_slice::<i64>().unwrap())
+                        TryInto::<[B::IntElem; 4usize]>::try_into(tensor3.to_data().as_slice::<B::IntElem>().unwrap())
                             .unwrap(),
                     );
                     tensor2

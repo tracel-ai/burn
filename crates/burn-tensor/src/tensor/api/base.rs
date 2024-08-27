@@ -2365,55 +2365,26 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
     }
 }
 
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i32; D2] {
+impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape<D1>) -> Shape<D2> {
         if self.len() < shape.dims.len() {
             panic!("Broadcast arguments must be greater than the number of dimensions");
         }
 
-        if self.iter().any(|&x| x < -1 || x == 0) {
-            panic!("Broadcast arguments must be positive or -1");
-        }
-
         // Zip the two shapes in reverse order and replace -1 with the actual dimension value.
         let new_shape: Vec<_> = self
             .iter()
             .rev()
+            .map(|x| {
+                let primitive = x.to_i64();
+                if primitive < -1 || primitive == 0 {
+                    panic!("Broadcast arguments must be positive or -1");
+                }
+                primitive
+            })
             .zip(shape.dims.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
-            .map(|(&x, &y)| if x == -1 { y } else { x as usize })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect();
-
-        if new_shape.iter().any(|&x| x == 0) {
-            panic!("Cannot substitute -1 for a non-existing dimension");
-        }
-
-        let new_shape: [usize; D2] = new_shape.try_into().unwrap();
-
-        Shape::from(new_shape)
-    }
-}
-
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i64; D2] {
-    // Passing -1 as the size for a dimension means not changing the size of that dimension.
-    fn into_shape(self, shape: &Shape<D1>) -> Shape<D2> {
-        if self.len() < shape.dims.len() {
-            panic!("Broadcast arguments must be greater than the number of dimensions");
-        }
-
-        if self.iter().any(|&x| x < -1 || x == 0) {
-            panic!("Broadcast arguments must be positive or -1");
-        }
-
-        // Zip the two shapes in reverse order and replace -1 with the actual dimension value.
-        let new_shape: Vec<_> = self
-            .iter()
-            .rev()
-            .zip(shape.dims.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
-            .map(|(&x, &y)| if x == -1 { y } else { x as usize })
+            .map(|(x, &y)| if x == -1 { y } else { x as usize })
             .collect::<Vec<_>>()
             .into_iter()
             .rev()
