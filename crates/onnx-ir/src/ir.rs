@@ -128,6 +128,15 @@ impl Default for ArgType {
     }
 }
 
+impl ArgType {
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, Self::Scalar(_))
+    }
+    pub fn is_tensor(&self) -> bool {
+        matches!(self, Self::Tensor(_))
+    }
+}
+
 impl Argument {
     pub fn new(name: String) -> Self {
         Self {
