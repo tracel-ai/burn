@@ -10,7 +10,7 @@ pub trait OutputProcessor: Send + Sync + 'static {
     fn process_line(&self, line: &str);
     /// To be called to indicate progress has been made
     fn progress(&self);
-    /// To be called whent the processor has finished processing
+    /// To be called went the processor has finished processing
     fn finish(&self);
 }
 
