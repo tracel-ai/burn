@@ -24,8 +24,8 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
     fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
         let images = items
             .iter()
-            .map(|item| TensorData::from(item.image))
-            .map(|data| Tensor::<B, 2>::from_data(data.convert::<B::FloatElem>(), &self.device))
+            .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())
+            .map(|data| Tensor::<B, 2>::from_data(data, &self.device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // normalize: make between [0,1] and make the mean =  0 and std = 1
             // values mean=0.1307,std=0.3081 were copied from Pytorch Mist Example
