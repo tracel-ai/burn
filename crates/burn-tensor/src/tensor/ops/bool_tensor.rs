@@ -6,7 +6,7 @@ use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,
     TensorData,
 };
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
