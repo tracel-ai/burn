@@ -21,7 +21,6 @@ const NO_STD_CRATES: &[&str] = &[
 
 #[macros::base_commands(
     Bump,
-    Build,
     Check,
     Compile,
     Coverage,
@@ -29,13 +28,16 @@ const NO_STD_CRATES: &[&str] = &[
     Dependencies,
     Fix,
     Publish,
-    Test,
     Validate,
     Vulnerabilities
 )]
 pub enum Command {
     /// Run commands to manage Burn Books.
     Books(commands::books::BooksArgs),
+    /// Build Burn in different modes.
+    Build(commands::build::BurnBuildCmdArgs),
+    /// Test Burn.
+    Test(commands::test::BurnTestCmdArgs),
 }
 
 fn main() -> anyhow::Result<()> {

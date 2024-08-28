@@ -3,8 +3,15 @@ use tracel_xtask::prelude::*;
 
 use crate::NO_STD_CRATES;
 
+#[macros::extend_command_args(TestCmdArgs, Target, TestSubCommand)]
+pub struct BurnTestCmdArgs {
+    /// Test in CI mode which excludes unsupported crates.
+    #[arg(long)]
+    pub ci: bool,
+}
+
 pub(crate) fn handle_command(
-    mut args: TestCmdArgs,
+    mut args: BurnTestCmdArgs,
     exec_env: ExecutionEnvironment,
 ) -> anyhow::Result<()> {
     match exec_env {
@@ -25,15 +32,17 @@ pub(crate) fn handle_command(
             Ok(())
         }
         ExecutionEnvironment::Std => {
-            // Exclude crates that are not supported on CI
-            args.exclude
-                .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
+            if args.ci {
+                // Exclude crates that are not supported on CI
+                args.exclude
+                    .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
+            }
             if std::env::var("DISABLE_WGPU").is_ok() {
                 args.exclude.extend(vec!["burn-wgpu".to_string()]);
             };
 
             // test workspace
-            base_commands::test::handle_command(args.clone())?;
+            base_commands::test::handle_command(args.try_into().unwrap())?;
 
             // Specific additional commands to test specific features
 
@@ -91,13 +100,14 @@ pub(crate) fn handle_command(
             .filter(|env| *env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
-                    TestCmdArgs {
+                    BurnTestCmdArgs {
                         command: args.command.clone(),
                         target: args.target.clone(),
                         exclude: args.exclude.clone(),
                         only: args.only.clone(),
                         threads: args.threads,
                         jobs: args.jobs,
+                        ci: args.ci,
                     },
                     env,
                 )

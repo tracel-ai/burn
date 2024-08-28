@@ -1,5 +1,7 @@
 use tracel_xtask::prelude::*;
 
+use crate::commands::{build::BurnBuildCmdArgs, test::BurnTestCmdArgs};
+
 pub fn handle_command(
     args: &ValidateCmdArgs,
     exec_env: &ExecutionEnvironment,
@@ -34,23 +36,25 @@ pub fn handle_command(
 
         // build
         super::build::handle_command(
-            BuildCmdArgs {
+            BurnBuildCmdArgs {
                 target: target.clone(),
                 exclude: exclude.clone(),
                 only: only.clone(),
+                ci: true,
             },
             ExecutionEnvironment::Std,
         )?;
 
         // tests
         super::test::handle_command(
-            TestCmdArgs {
+            BurnTestCmdArgs {
                 target: target.clone(),
                 exclude: exclude.clone(),
                 only: only.clone(),
                 threads: None,
                 jobs: None,
                 command: Some(TestSubCommand::All),
+                ci: true,
             },
             ExecutionEnvironment::Std,
         )?;
@@ -78,23 +82,25 @@ pub fn handle_command(
         {
             // build
             super::build::handle_command(
-                BuildCmdArgs {
+                BurnBuildCmdArgs {
                     target: target.clone(),
                     exclude: exclude.clone(),
                     only: only.clone(),
+                    ci: true,
                 },
                 ExecutionEnvironment::NoStd,
             )?;
 
             // tests
             super::test::handle_command(
-                TestCmdArgs {
+                BurnTestCmdArgs {
                     target: target.clone(),
                     exclude: exclude.clone(),
                     only: only.clone(),
                     threads: None,
                     jobs: None,
                     command: Some(TestSubCommand::All),
+                    ci: true,
                 },
                 ExecutionEnvironment::NoStd,
             )?;

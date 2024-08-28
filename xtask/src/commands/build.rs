@@ -5,8 +5,15 @@ use tracel_xtask::prelude::*;
 
 use crate::{ARM_NO_ATOMIC_PTR_TARGET, ARM_TARGET, NO_STD_CRATES, WASM32_TARGET};
 
+#[macros::extend_command_args(BuildCmdArgs, Target, None)]
+pub struct BurnBuildCmdArgs {
+    /// Build in CI mode which excludes unsupported crates.
+    #[arg(long)]
+    pub ci: bool,
+}
+
 pub(crate) fn handle_command(
-    mut args: BuildCmdArgs,
+    mut args: BurnBuildCmdArgs,
     exec_env: ExecutionEnvironment,
 ) -> anyhow::Result<()> {
     match exec_env {
@@ -41,14 +48,16 @@ pub(crate) fn handle_command(
             Ok(())
         }
         ExecutionEnvironment::Std => {
-            // Exclude crates that are not supported on CI
-            args.exclude
-                .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
-            if std::env::var("DISABLE_WGPU").is_ok() {
-                args.exclude.extend(vec!["burn-wgpu".to_string()]);
-            };
+            if args.ci {
+                // Exclude crates that are not supported on CI
+                args.exclude
+                    .extend(vec!["burn-cuda".to_string(), "burn-tch".to_string()]);
+                if std::env::var("DISABLE_WGPU").is_ok() {
+                    args.exclude.extend(vec!["burn-wgpu".to_string()]);
+                };
+            }
             // Build workspace
-            base_commands::build::handle_command(args.clone())?;
+            base_commands::build::handle_command(args.try_into().unwrap())?;
             // Specific additional commands to test specific features
             // burn-dataset
             helpers::custom_crates_build(
@@ -64,10 +73,11 @@ pub(crate) fn handle_command(
             .filter(|env| *env != ExecutionEnvironment::All)
             .try_for_each(|env| {
                 handle_command(
-                    BuildCmdArgs {
+                    BurnBuildCmdArgs {
                         target: args.target.clone(),
                         exclude: args.exclude.clone(),
                         only: args.only.clone(),
+                        ci: args.ci,
                     },
                     env,
                 )

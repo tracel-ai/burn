@@ -153,7 +153,7 @@ jobs:
           cargo xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test all
+        run: cargo xtask ${{ matrix.coverage }} test --ci
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
@@ -192,10 +192,10 @@ jobs:
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --execution-environment no-std build
+        run: cargo xtask --execution-environment no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        run: cargo xtask --execution-environment no-std test all
+        run: cargo xtask --execution-environment no-std test --ci
 
   windows-std-tests:
     runs-on: windows-2022
@@ -225,7 +225,7 @@ jobs:
           warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test all
+        run: cargo xtask test --ci
 
   macos-std-tests:
     runs-on: blaze/macos-14
@@ -244,4 +244,4 @@ jobs:
           cache-key: ${{ matrix.cache-version }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test all
+        run: cargo xtask test --ci
