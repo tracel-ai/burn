@@ -91,4 +91,12 @@ mod tests {
             actual.assert_eq(&data_expected[idx], false)
         }
     }
+
+    #[test]
+    fn test_nonzero_empty() {
+        let tensor = TestTensorBool::<1>::from([false, false, false, false, false]);
+        let output = tensor.nonzero();
+
+        assert_eq!(output.len(), 0);
+    }
 }
