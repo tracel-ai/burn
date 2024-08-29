@@ -10,7 +10,7 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         self.transposed_conv = nn.ConvTranspose3d(
-            4, 6, (3, 5, 5), groups=2, stride=(2, 1, 1), padding=(4, 2, 1), dilation=(3, 1, 1)
+            4, 6, (3, 5, 5), groups=2, stride=(2, 1, 1), padding=(4, 2, 1), dilation=(3, 1, 1), output_padding=(1, 0, 0),
         )
 
     def forward(self, x):

@@ -229,6 +229,10 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -256,6 +260,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_stride([stride[0] as usize, stride[1] as usize])
     .with_padding([pads[0] as usize, pads[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_padding_out([output_padding[0] as usize, output_padding[1] as usize])
     .with_groups(group)
     .with_bias(bias)
 }
@@ -281,6 +286,10 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -315,6 +324,11 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         dilations[0] as usize,
         dilations[1] as usize,
         dilations[2] as usize,
+    ])
+    .with_padding_out([
+        output_padding[0] as usize,
+        output_padding[1] as usize,
+        output_padding[2] as usize,
     ])
     .with_groups(group)
     .with_bias(bias)
