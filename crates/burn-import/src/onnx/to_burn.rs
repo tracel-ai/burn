@@ -30,7 +30,7 @@ use crate::{
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
-            expand::ExpandNode,
+            expand::{ExpandNode, ExpandShape},
             gather::GatherNode,
             gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -1084,8 +1084,14 @@ impl ParsedOnnxGraph {
 
     fn expand_conversion(node: Node) -> ExpandNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let mut output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
+        output.dim = match &shape {
+            ExpandShape::Static(s) => s.len(),
+            ExpandShape::Runtime(Type::Shape(s)) => s.dim,
+            ExpandShape::Runtime(Type::Tensor(t)) => t.shape.as_ref().unwrap()[0],
+            _ => panic!("Invalid ExpandShape {shape:?}!"),
+        };
 
         ExpandNode::new(input, output, shape)
     }
