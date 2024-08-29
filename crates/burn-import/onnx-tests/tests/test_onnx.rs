@@ -1512,14 +1512,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected_shape = Shape::from([2, 6, 17, 15]);
+        let expected_shape = Shape::from([2, 6, 18, 15]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv_transpose2d node
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -120.070_15; // result running pytorch model (conv_transpose2d.py)
+        let expected_sum = -134.96603; // result running pytorch model (conv_transpose2d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -1534,14 +1534,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected_shape = Shape::from([2, 6, 5, 5, 9]);
+        let expected_shape = Shape::from([2, 6, 6, 5, 9]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv_transpose3d node
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -67.267_15; // result running pytorch model (conv_transpose3d.py)
+        let expected_sum = -105.69771; // result running pytorch model (conv_transpose3d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
