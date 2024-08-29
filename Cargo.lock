@@ -829,7 +829,7 @@ dependencies = [
  "byteorder",
  "candle-kernels",
  "candle-metal-kernels",
- "cudarc 0.11.5",
+ "cudarc",
  "gemm",
  "half",
  "libc",
@@ -922,12 +922,6 @@ name = "cfg_aliases"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
-
-[[package]]
-name = "cfg_aliases"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
@@ -1399,10 +1393,8 @@ version = "0.1.1"
 source = "git+https://github.com/tracel-ai/cubecl?rev=dd274b6515f853ab1c82db410d6fc7697060f69e#dd274b6515f853ab1c82db410d6fc7697060f69e"
 dependencies = [
  "derive-new",
- "derive_more 1.0.0",
  "getrandom",
  "pollster",
- "portable-atomic-util",
  "rand",
  "serde",
  "spin",
@@ -1415,12 +1407,9 @@ version = "0.1.1"
 source = "git+https://github.com/tracel-ai/cubecl?rev=dd274b6515f853ab1c82db410d6fc7697060f69e#dd274b6515f853ab1c82db410d6fc7697060f69e"
 dependencies = [
  "bytemuck",
- "cubecl-common",
  "cubecl-macros",
- "cubecl-macros-2",
  "cubecl-runtime",
  "derive-new",
- "derive_more 1.0.0",
  "half",
  "log",
  "num-traits",
@@ -1436,7 +1425,7 @@ dependencies = [
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
- "cudarc 0.12.0",
+ "cudarc",
  "derive-new",
  "half",
  "log",
@@ -1465,27 +1454,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubecl-macros-2"
-version = "0.1.1"
-dependencies = [
- "cubecl-common",
- "darling",
- "derive-new",
- "derive_more 1.0.0",
- "ident_case",
- "prettyplease",
- "proc-macro2",
- "quote",
- "syn 2.0.72",
-]
-
-[[package]]
 name = "cubecl-runtime"
 version = "0.1.1"
 source = "git+https://github.com/tracel-ai/cubecl?rev=dd274b6515f853ab1c82db410d6fc7697060f69e#dd274b6515f853ab1c82db410d6fc7697060f69e"
 dependencies = [
  "async-channel",
- "cfg_aliases 0.2.1",
  "cubecl-common",
  "derive-new",
  "dirs 5.0.1",
@@ -1523,15 +1496,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e395cd01168d63af826749573071f3c5069b338ae473cab355d22db0b2bb5a0d"
 dependencies = [
  "half",
- "libloading",
-]
-
-[[package]]
-name = "cudarc"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e736ec4e22548a5677d65fe191301c243cd63365db2e2def0e263b176f51531c"
-dependencies = [
  "libloading",
 ]
 
@@ -1732,27 +1696,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.72",
-]
-
-[[package]]
-name = "derive_more"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
-dependencies = [
- "derive_more-impl",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.72",
- "unicode-xid",
 ]
 
 [[package]]
@@ -3636,7 +3579,7 @@ dependencies = [
  "arrayvec",
  "bit-set",
  "bitflags 2.6.0",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "codespan-reporting",
  "hexf-parse",
  "indexmap 2.2.6",
@@ -4805,15 +4748,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da544ee218f0d287a911e9c99a39a8c9bc8fcad3cb8db5959940044ecfc67265"
 
 [[package]]
-name = "portable-atomic-util"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcdd8420072e66d54a407b3316991fe946ce3ab1083a7f575b2463866624704d"
-dependencies = [
- "portable-atomic",
-]
-
-[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4842,16 +4776,6 @@ checksum = "af7cee1a6c8a5b9208b3cb1061f10c0cb689087b3d8ce85fb9d2dd7a29b6ba66"
 dependencies = [
  "diff",
  "yansi",
-]
-
-[[package]]
-name = "prettyplease"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f12335488a2f3b0a83b14edad48dca9879ce89b2edd10e80237e4e852dd645e"
-dependencies = [
- "proc-macro2",
- "syn 2.0.72",
 ]
 
 [[package]]
@@ -6000,7 +5924,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
- "portable-atomic",
 ]
 
 [[package]]
@@ -7031,7 +6954,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c87e07e87a179614940ad845397e03201847453a37b43a31a3b54eee2e6e32ce"
 dependencies = [
  "arrayvec",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "document-features",
  "js-sys",
  "log",
@@ -7058,7 +6981,7 @@ dependencies = [
  "arrayvec",
  "bit-vec",
  "bitflags 2.6.0",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "document-features",
  "indexmap 2.2.6",
  "log",
@@ -7086,7 +7009,7 @@ dependencies = [
  "bit-set",
  "bitflags 2.6.0",
  "block",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "core-graphics-types",
  "d3d12",
  "glow",
@@ -7433,7 +7356,7 @@ version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap 4.5.12",
- "derive_more 0.99.18",
+ "derive_more",
  "env_logger",
  "log",
  "rand",
