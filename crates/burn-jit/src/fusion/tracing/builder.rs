@@ -544,21 +544,6 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Subcube::And(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
-                    Subcube::Or(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
-                    Subcube::Xor(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
                     Subcube::Min(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
