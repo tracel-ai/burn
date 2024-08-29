@@ -289,7 +289,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     let output_padding = attrs
         .remove("output_padding")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
+        .unwrap_or_else(|| vec![0, 0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {

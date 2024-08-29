@@ -175,6 +175,7 @@ mod tests {
                     let conv_transpose_2d = ConvTranspose2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding([0, 0])
+                        .with_padding_out([0, 0])
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
