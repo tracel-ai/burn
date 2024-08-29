@@ -10,7 +10,7 @@ cost. Let's create a simple `infer` method in a new file `src/inference.rs` whic
 load our trained model.
 
 ```rust , ignore
-# use crate::{data::MnistBatcher, model::Model, training::TrainingConfig};
+# use crate::{data::MnistBatcher, training::TrainingConfig};
 # use burn::{
 #     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
 #     prelude::*,

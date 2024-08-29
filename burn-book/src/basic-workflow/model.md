@@ -221,8 +221,8 @@ impl ModelConfig {
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
+use crate::model::ModelConfig;
 use burn::backend::Wgpu;
-use guide::model::ModelConfig;
 
 fn main() {
     type MyBackend = Wgpu<f32, i32>;
