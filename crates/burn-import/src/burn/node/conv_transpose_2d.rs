@@ -64,12 +64,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose2dNode {
         let dilation = self.config.dilation.to_tokens();
         let groups = self.config.groups.to_tokens();
         let padding = self.config.padding.to_tokens();
+        let padding_out = self.config.padding_out.to_tokens();
         let bias = self.config.bias;
 
         let tokens = quote! {
             let #name = ConvTranspose2dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
                 .with_padding(#padding)
+                .with_padding_out(#padding_out)
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
