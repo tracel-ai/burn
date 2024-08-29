@@ -10,15 +10,12 @@ cost. Let's create a simple `infer` method in a new file `src/inference.rs` whic
 load our trained model.
 
 ```rust , ignore
-# use burn::{
-#     config::Config,
-#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
-#     module::Module,
-#     record::{CompactRecorder, Recorder},
-#     tensor::backend::Backend,
-# };
-# 
 # use crate::{data::MnistBatcher, training::TrainingConfig};
+# use burn::{
+#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+#     prelude::*,
+#     record::{CompactRecorder, Recorder},
+# };
 # 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
