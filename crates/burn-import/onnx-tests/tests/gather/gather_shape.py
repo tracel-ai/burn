@@ -33,7 +33,7 @@ def build_model():
             onnx.helper.make_value_info(
                 name="input1",
                 type_proto=onnx.helper.make_tensor_type_proto(
-                    elem_type=onnx.TensorProto.FLOAT, shape=[2,3]
+                    elem_type=onnx.TensorProto.FLOAT, shape=[2, 3]
                 ),
             ),
             onnx.helper.make_value_info(

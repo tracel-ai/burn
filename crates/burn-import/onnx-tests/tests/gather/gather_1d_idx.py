@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate model: onnx-tests/tests/gather/gather_scalar.onnx
+# used to generate model: onnx-tests/tests/gather/gather.onnx
 
 # There is no current support for `Split`, and the `for` loop over the indices
 # results in a `Split` node in the ONNX model.
@@ -19,7 +19,7 @@ def build_model():
                 inputs=["input1", "input2"],
                 outputs=["output1"],
                 name="/Gather",
-                axis=0
+                axis=1
             ),
         ],
         inputs=[
@@ -32,7 +32,7 @@ def build_model():
             onnx.helper.make_value_info(
                 name="input2",
                 type_proto=onnx.helper.make_tensor_type_proto(
-                    elem_type=onnx.TensorProto.INT64, shape=[]
+                    elem_type=onnx.TensorProto.INT64, shape=[2]
                 ),
             ),
 
@@ -41,7 +41,7 @@ def build_model():
             onnx.helper.make_value_info(
                 name="output1",
                 type_proto=onnx.helper.make_tensor_type_proto(
-                    elem_type=onnx.TensorProto.FLOAT, shape=[3]
+                    elem_type=onnx.TensorProto.FLOAT, shape=[2, 2]
                 ),
             )
         ]),
@@ -50,7 +50,7 @@ def build_model():
 
 def main():
     onnx_model = build_model()
-    file_name = "gather_scalar.onnx"
+    file_name = "gather_1d_idx.onnx"
 
     # Ensure valid ONNX:
     onnx.checker.check_model(onnx_model)

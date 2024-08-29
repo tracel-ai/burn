@@ -4,7 +4,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 name = "pytorch-import"
 publish = false
-version = "0.14.0"
+version = "0.15.0"
 
 [dependencies]
 burn = { path = "../../crates/burn", features = [

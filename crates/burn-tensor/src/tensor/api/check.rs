@@ -892,6 +892,7 @@ impl TensorCheck {
 
         check
     }
+
     pub(crate) fn check_prelu_shape<const D: usize>(
         shape_tensor: &Shape<D>,
         shape_weight: &Shape<1>,

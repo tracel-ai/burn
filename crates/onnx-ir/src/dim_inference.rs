@@ -816,10 +816,6 @@ fn gather_update_outputs(node: &mut Node) {
         _ => panic!("Only tensor indices is valid, got {:?}", node.inputs[1].ty),
     };
 
-    if indices_dim > 1 {
-        panic!("Gather: indices tensor rank above 1 not supported")
-    }
-
     match &node.inputs[0].ty {
         ArgType::Tensor(input_tensor) => {
             // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
