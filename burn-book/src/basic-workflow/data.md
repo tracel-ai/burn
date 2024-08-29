@@ -79,10 +79,12 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1, Int>::from_data(
-                TensorData::from([(item.label as i64).elem()]),
-                &self.device
-            ))
+            .map(|item| {
+                Tensor::<B, 1, Int>::from_data(
+                    [(item.label as i64).elem::<B::IntElem>()],
+                    &self.device,
+                )
+            })
             .collect();
 
         let images = Tensor::cat(images, 0).to_device(&self.device);
