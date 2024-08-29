@@ -365,7 +365,14 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
+/// Perform a 2D convolution transposition using the direct algorithm.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement + Element>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,

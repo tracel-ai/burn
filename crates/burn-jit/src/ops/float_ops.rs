@@ -146,7 +146,7 @@ where
         lhs: FloatTensor<Self, D>,
         rhs: FloatTensor<Self, D>,
     ) -> FloatTensor<Self, D> {
-        matmul(lhs, rhs, MatmulStrategy::default())
+        matmul(lhs, rhs, MatmulStrategy::Cube)
     }
 
     fn float_swap_dims<const D: usize>(

@@ -1,9 +1,8 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
-
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::into_contiguous,
@@ -27,7 +26,7 @@ struct Conv2dArgs {
 }
 
 #[cube(launch)]
-fn conv2d_kernel<F: Float>(
+fn direct_conv2d_kernel<F: Float>(
     input: &Tensor<F>,
     weight: &Tensor<F>,
     bias: &Tensor<F>,
@@ -115,34 +114,40 @@ fn conv2d_kernel<F: Float>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
+/// Perform a 2D convolution using the direct convolution algorithm.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R, E, 4> {
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_0, kernel_1] = weight.shape.dims;
-
-    let out_0 = calculate_conv_output_size(
-        kernel_0,
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+    let out_h = calculate_conv_output_size(
+        kernel_h,
         options.stride[0],
         options.padding[0],
         options.dilation[0],
         in_height,
     );
-    let out_1 = calculate_conv_output_size(
-        kernel_1,
+    let out_w = calculate_conv_output_size(
+        kernel_w,
         options.stride[1],
         options.padding[1],
         options.dilation[1],
         in_width,
     );
 
-    let shape_out = Shape::new([batch_size, out_channels, out_0, out_1]);
+    let input = into_contiguous(input);
+    let weight = into_contiguous(weight);
 
+    let shape_out = Shape::new([batch_size, out_channels, out_h, out_w]);
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
@@ -164,7 +169,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    conv2d_kernel::launch::<E::FloatPrimitive, R>(
+    direct_conv2d_kernel::launch::<E::FloatPrimitive, R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -181,8 +186,8 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        Some(kernel_0.into()),
-        Some(kernel_1.into()),
+        Some(kernel_h.into()),
+        Some(kernel_w.into()),
     );
 
     output
