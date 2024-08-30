@@ -558,6 +558,7 @@ dependencies = [
  "burn-tensor",
  "bytemuck",
  "cubecl",
+ "cudarc 0.12.0",
  "derive-new",
  "half",
  "log",
@@ -838,7 +839,7 @@ dependencies = [
  "byteorder",
  "candle-kernels",
  "candle-metal-kernels",
- "cudarc",
+ "cudarc 0.11.5",
  "gemm",
  "half",
  "libc",
@@ -1395,6 +1396,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1405,6 +1407,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "derive-new",
  "getrandom",
@@ -1419,6 +1422,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "bytemuck",
  "cubecl-macros",
@@ -1433,12 +1437,13 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "bytemuck",
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
- "cudarc",
+ "cudarc 0.12.0",
  "derive-new",
  "half",
  "log",
@@ -1447,6 +1452,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1457,6 +1463,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -1467,6 +1474,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "async-channel",
  "cfg_aliases 0.2.1",
@@ -1486,6 +1494,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.2.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=d5ad690f794e33e3dec8cf400a6bbd7912073fe7#d5ad690f794e33e3dec8cf400a6bbd7912073fe7"
 dependencies = [
  "async-channel",
  "bytemuck",
@@ -1507,6 +1516,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e395cd01168d63af826749573071f3c5069b338ae473cab355d22db0b2bb5a0d"
 dependencies = [
  "half",
+ "libloading",
+]
+
+[[package]]
+name = "cudarc"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e736ec4e22548a5677d65fe191301c243cd63365db2e2def0e263b176f51531c"
+dependencies = [
  "libloading",
 ]
 
