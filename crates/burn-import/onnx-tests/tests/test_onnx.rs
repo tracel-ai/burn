@@ -962,7 +962,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
     fn resize_with_scales_1d_linear() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
