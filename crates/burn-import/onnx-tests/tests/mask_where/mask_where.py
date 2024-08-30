@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-# used to generate model: onnx-tests/tests/mask_where/mask_where.onnx
+# used to generate models:
+#  mask_where.onnx
+#  mask_where_broadcast.onnx
+#  mask_where_scalar_x.onnx
+#  mask_where_scalar_y.onnx
 
 import torch
 import torch.nn as nn
@@ -10,23 +14,18 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def forward(self, condition, x1, y1, x2, y2):
-        return torch.where(condition, x1, y1), torch.where(condition, x2, y2)
+    def forward(self, condition, x, y):
+        return torch.where(condition, x, y)
 
 
-def main():
-    # Set random seed for reproducibility
-    torch.manual_seed(0)
-
+def create_model(name: str, device: torch.device, x: torch.Tensor, y: torch.Tensor):
+    print(f"--- {name} ---")
     # Export to onnx
     model = Model()
     model.eval()
-    device = torch.device("cpu")
-    onnx_name = "mask_where.onnx"
-    x = torch.ones(2, 2, device=device)
-    y = torch.zeros(2, 2, device=device)
+    onnx_name = f"{name}.onnx"
     mask = torch.tensor([[True, False], [False, True]], device=device)
-    test_input = (mask, x, y, x[0], y[0])
+    test_input = (mask, x, y)
 
     torch.onnx.export(model, (test_input), onnx_name, verbose=False, opset_version=16)
 
@@ -36,6 +35,23 @@ def main():
     print(f"Test input data: {test_input}")
     output = model.forward(*test_input)
     print(f"Test output data: {output}")
+
+def main():
+    # Set random seed for reproducibility
+    torch.manual_seed(0)
+    device = torch.device("cpu")
+
+    x = torch.ones(2, 2, device=device)
+    y = torch.zeros(2, 2, device=device)
+    create_model("mask_where", device, x, y)
+    create_model("mask_where_broadcast", device, x[0], y[0])
+    x = torch.tensor(1., device=device)
+    y = torch.zeros(2, 2, device=device)
+    create_model("mask_where_scalar_x", device, x, y)
+    x = torch.ones(2, 2, device=device)
+    y = torch.tensor(0., device=device)
+    create_model("mask_where_scalar_y", device, x, y)
+    
 
 
 if __name__ == "__main__":

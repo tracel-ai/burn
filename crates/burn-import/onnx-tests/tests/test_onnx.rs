@@ -65,6 +65,9 @@ include_models!(
     log,
     log_softmax,
     mask_where,
+    mask_where_broadcast,
+    mask_where_scalar_x,
+    mask_where_scalar_y,
     matmul,
     max,
     maxpool1d,
@@ -1955,17 +1958,59 @@ mod tests {
         let device = Default::default();
         let model: mask_where::Model<Backend> = mask_where::Model::new(&device);
 
-        let x1 = Tensor::ones([2, 2], &device);
-        let y1 = Tensor::zeros([2, 2], &device);
-        let x2 = Tensor::ones([2], &device);
-        let y2 = Tensor::zeros([2], &device);
+        let x = Tensor::ones([2, 2], &device);
+        let y = Tensor::zeros([2, 2], &device);
         let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
 
-        let (output, output_broadcasted) = model.forward(mask, x1, y1, x2, y2);
+        let output = model.forward(mask, x, y);
         let expected = TensorData::from([[1f32, 0.0], [0.0, 1.0]]);
 
         output.to_data().assert_eq(&expected, true);
-        output_broadcasted.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mask_where_broadcast() {
+        let device = Default::default();
+        let model: mask_where_broadcast::Model<Backend> = mask_where_broadcast::Model::new(&device);
+
+        let x = Tensor::ones([2], &device);
+        let y = Tensor::zeros([2], &device);
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let output = model.forward(mask, x, y);
+        let expected = TensorData::from([[1f32, 0.0], [0.0, 1.0]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mask_where_scalar_x() {
+        let device = Default::default();
+        let model: mask_where_scalar_x::Model<Backend> = mask_where_scalar_x::Model::new(&device);
+
+        let x = 1.0f32;
+        let y = Tensor::zeros([2, 2], &device);
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let output = model.forward(mask, x, y);
+        let expected = TensorData::from([[1f32, 0.0], [0.0, 1.0]]);
+
+        output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mask_where_scalar_y() {
+        let device = Default::default();
+        let model: mask_where_scalar_y::Model<Backend> = mask_where_scalar_y::Model::new(&device);
+
+        let x = Tensor::ones([2, 2], &device);
+        let y = 0.0f32;
+        let mask = Tensor::from_bool([[true, false], [false, true]].into(), &device);
+
+        let output = model.forward(mask, x, y);
+        let expected = TensorData::from([[1f32, 0.0], [0.0, 1.0]]);
+
+        output.to_data().assert_eq(&expected, true);
     }
 
     #[test]

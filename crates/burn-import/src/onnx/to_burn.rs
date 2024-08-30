@@ -747,10 +747,10 @@ impl ParsedOnnxGraph {
     }
 
     fn where_conversion(node: Node) -> WhereNode {
-        let condition = TensorType::from(node.inputs.first().unwrap());
-        let x = TensorType::from(node.inputs.get(1).unwrap());
-        let y = TensorType::from(node.inputs.get(2).unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
+        let condition = Type::from(node.inputs.first().unwrap());
+        let x = Type::from(node.inputs.get(1).unwrap());
+        let y = Type::from(node.inputs.get(2).unwrap());
+        let output = Type::from(node.outputs.first().unwrap());
 
         WhereNode::new(condition, x, y, output)
     }
