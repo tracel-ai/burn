@@ -18,6 +18,10 @@ where
     fn into_sparse<const D: usize>(
         tensor: ReprPrimitive<B, K, Dense, D>,
     ) -> ReprPrimitive<B, K, Sparse<B, SR>, D>;
+
+    fn coordinates<const D: usize>(
+        tensor: ReprPrimitive<B, K, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
 }
 
 impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Float, SR> for SR
@@ -34,6 +38,58 @@ where
         tensor: ReprPrimitive<B, Float, Dense, D>,
     ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D> {
         SR::float_to_sparse(tensor.tensor())
+    }
+
+    fn coordinates<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        SR::float_coordinates(tensor)
+    }
+}
+
+impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Int, SR> for SR
+where
+    (B, Int, Sparse<B, SR>): TensorRepr,
+{
+    fn into_dense<const D: usize>(
+        tensor: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Int, Dense, D> {
+        SR::int_to_dense(tensor)
+    }
+
+    fn into_sparse<const D: usize>(
+        tensor: ReprPrimitive<B, Int, Dense, D>,
+    ) -> ReprPrimitive<B, Int, Sparse<B, SR>, D> {
+        SR::int_to_sparse(tensor)
+    }
+
+    fn coordinates<const D: usize>(
+        tensor: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        SR::int_coordinates(tensor)
+    }
+}
+
+impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Bool, SR> for SR
+where
+    (B, Bool, Sparse<B, SR>): TensorRepr,
+{
+    fn into_dense<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> ReprPrimitive<B, Bool, Dense, D> {
+        SR::bool_to_dense(tensor)
+    }
+
+    fn into_sparse<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, Dense, D>,
+    ) -> ReprPrimitive<B, Bool, Sparse<B, SR>, D> {
+        SR::bool_to_sparse(tensor)
+    }
+
+    fn coordinates<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        SR::bool_coordinates(tensor)
     }
 }
 

@@ -3,8 +3,8 @@ use burn_tensor::cast::ToElement;
 use burn_tensor::ops::{FloatElem, SparseBoolOps};
 use burn_tensor::{backend::Backend, ops::SparseFloatOps, Tensor};
 use burn_tensor::{
-    Bool, ElementConversion, Float, Shape, Sparse, SparseStorage, TensorData, TensorKind,
-    TensorPrimitive,
+    Bool, Dense, ElementConversion, Float, ReprPrimitive, Shape, Sparse, SparseStorage, TensorData,
+    TensorKind, TensorPrimitive,
 };
 use burn_tensor::{Device, Int};
 
@@ -1010,5 +1010,11 @@ impl<B: Backend> SparseFloatOps<COO, B> for COO {
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D> {
         tensor.values = tensor.values.map(|values| values.neg());
         tensor
+    }
+
+    fn float_coordinates<const D: usize>(
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        tensor.coordinates.map(|c| c.into_primitive())
     }
 }
