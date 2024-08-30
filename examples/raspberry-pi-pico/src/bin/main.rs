@@ -4,7 +4,7 @@
 use burn::{backend::NdArray, tensor::Tensor};
 use defmt::*;
 use embassy_executor::Spawner;
-use onnx_inference_rp2040::sine::Model;
+use raspberry_pi_pico::sine::Model;
 use {defmt_rtt as _, panic_probe as _};
 use embassy_rp as _;
 use embedded_alloc::Heap;
