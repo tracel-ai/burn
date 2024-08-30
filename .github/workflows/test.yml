@@ -31,6 +31,9 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
+  RUST_PREVIOUS_VERSION: 1.79.0
+  RUST_PREVIOUS_VERSION_CACHE: 1-79-0
+
   # Cargo
   CARGO_TERM_COLOR: "always"
 
@@ -66,19 +69,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare-checks:
+    runs-on: ubuntu-latest
+    outputs:
+      rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
+      rust-prev-version-cache: ${{ env.RUST_PREVIOUS_VERSION_CACHE }}
+    steps:
+      - name: Do Nothing
+        if: false
+        run: echo
+
   code-quality:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
       - name: Audit
@@ -100,17 +115,19 @@ jobs:
 
   documentation:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
       - name: Documentation Build
@@ -121,20 +138,23 @@ jobs:
 
   linux-std-tests:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable, prev]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
             coverage: --enable-coverage
-          - rust: 1.79.0
-            cache-version: 1-79-0
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+            cache-version: ${{ needs.prepare-checks.outputs.rust-prev-version-cache }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-linux
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
@@ -169,19 +189,22 @@ jobs:
 
   linux-no-std-tests:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable, prev]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
-          - rust: 1.79.0
-            cache-version: 1-79-0
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+            cache-version: ${{ needs.prepare-checks.outputs.rust-prev-version-cache }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
@@ -199,6 +222,7 @@ jobs:
 
   windows-std-tests:
     runs-on: windows-2022
+    needs: prepare-checks
     env:
       DISABLE_WGPU: '1'
     # Keep the stragegy to be able to easily add new rust versions if required
@@ -207,12 +231,13 @@ jobs:
         rust: [stable]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
@@ -229,18 +254,20 @@ jobs:
 
   macos-std-tests:
     runs-on: blaze/macos-14
+    needs: prepare-checks
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
+            toolchain: stable
             cache-version: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
+          rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.cache-version }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
