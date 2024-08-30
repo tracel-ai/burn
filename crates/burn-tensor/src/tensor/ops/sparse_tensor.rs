@@ -150,16 +150,6 @@ where
         dim: usize,
     ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
 
-    fn float_equal<const D: usize>(
-        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
-        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
-    fn float_not_equal<const D: usize>(
-        lhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
-        rhs: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
     fn float_any<const D: usize>(
         tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> SR::SparsePrimitive<Bool, 1>;
@@ -459,16 +449,6 @@ pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
         dim: usize,
     ) -> SR::SparsePrimitive<Bool, D>;
 
-    fn bool_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Bool, D>,
-        rhs: SR::SparsePrimitive<Bool, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
-    fn bool_not_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Bool, D>,
-        rhs: SR::SparsePrimitive<Bool, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
     fn bool_any<const D: usize>(
         tensor: SR::SparsePrimitive<Bool, D>,
     ) -> SR::SparsePrimitive<Bool, 1>;
@@ -554,16 +534,6 @@ pub trait SparseIntOps<SR: SparseStorage<B>, B: Backend> {
         tensors: Vec<SR::SparsePrimitive<Int, D>>,
         dim: usize,
     ) -> SR::SparsePrimitive<Int, D>;
-
-    fn int_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Int, D>,
-        rhs: SR::SparsePrimitive<Int, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
-
-    fn int_not_equal<const D: usize>(
-        lhs: SR::SparsePrimitive<Int, D>,
-        rhs: SR::SparsePrimitive<Int, D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
 
     fn int_any<const D: usize>(tensor: SR::SparsePrimitive<Int, D>)
         -> SR::SparsePrimitive<Bool, 1>;

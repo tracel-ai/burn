@@ -93,20 +93,6 @@ impl<B: Backend> SparseIntOps<COO, B> for COO {
         todo!()
     }
 
-    fn int_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
-    fn int_not_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
     fn int_any<const D: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, 1> {

@@ -103,20 +103,6 @@ impl<B: Backend> SparseBoolOps<COO, B> for COO {
         todo!()
     }
 
-    fn bool_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
-    fn bool_not_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
     fn bool_any<const D: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, 1> {

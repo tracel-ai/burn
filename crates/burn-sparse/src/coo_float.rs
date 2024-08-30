@@ -627,20 +627,6 @@ impl<B: Backend> SparseFloatOps<COO, B> for COO {
         todo!()
     }
 
-    fn float_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
-    fn float_not_equal<const D: usize>(
-        lhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
-        rhs: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
-    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D> {
-        todo!()
-    }
-
     fn float_any<const D: usize>(
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, 1> {

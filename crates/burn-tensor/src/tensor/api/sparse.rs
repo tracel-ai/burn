@@ -155,14 +155,14 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Float {
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        Tensor::new(SR::float_equal(lhs, rhs))
+        panic!("equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn not_equal<const D: usize>(
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        Tensor::new(SR::float_not_equal(lhs, rhs))
+        panic!("not_equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn any<const D: usize>(
@@ -303,14 +303,14 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Bool {
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        panic!("Non-zero preserving operations are not supported for sparse tensors");
+        panic!("equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn not_equal<const D: usize>(
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        panic!("Non-zero preserving operations are not supported for sparse tensors");
+        panic!("not_equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn any<const D: usize>(
@@ -458,16 +458,14 @@ impl<B: Backend, SR: SparseStorage<B>> BasicOps<B, Sparse<B, SR>> for Int {
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        panic!("Non-zero preserving operations are not supported for sparse tensors");
-        Tensor::new(SR::int_equal(lhs, rhs))
+        panic!("equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn not_equal<const D: usize>(
         lhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
         rhs: ReprPrimitive<B, Self, Sparse<B, SR>, D>,
     ) -> Tensor<B, D, Bool, Sparse<B, SR>> {
-        panic!("Non-zero preserving operations are not supported for sparse tensors");
-        Tensor::new(SR::int_not_equal(lhs, rhs))
+        panic!("not_equal is unsupported for sparse tensors as it is non zero-preserving");
     }
 
     fn any<const D: usize>(
