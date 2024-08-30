@@ -1,0 +1,25 @@
+[package]
+authors = ["Shashank (@scramjet911)"]
+name = "mnist-inference-android"
+edition.workspace = true
+license = "MIT OR Apache-2.0"
+publish = false
+version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["ndarray"]
+
+ndarray = ["burn/ndarray"]
+wgpu = ["burn/wgpu"]
+
+[dependencies]
+burn = { path = "../../../../../../crates/burn", features = ["ndarray"] }
+jni = "0.21.1"
+android_logger = "0.14.1"
+log = "0.4"
+
+[build-dependencies]
+burn-import = { path = "../../../../../../crates/burn-import" }
