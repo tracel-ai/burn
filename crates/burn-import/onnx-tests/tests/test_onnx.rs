@@ -68,6 +68,7 @@ include_models!(
     mask_where_broadcast,
     mask_where_scalar_x,
     mask_where_scalar_y,
+    mask_where_all_scalar,
     matmul,
     max,
     maxpool1d,
@@ -2011,6 +2012,22 @@ mod tests {
         let expected = TensorData::from([[1f32, 0.0], [0.0, 1.0]]);
 
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn mask_where_all_scalar() {
+        let device = Default::default();
+        let model: mask_where_all_scalar::Model<Backend> =
+            mask_where_all_scalar::Model::new(&device);
+
+        let x = 1.0f32;
+        let y = 0.0f32;
+        let mask = true;
+
+        let output = model.forward(mask, x, y);
+        let expected = 1.0f32;
+
+        assert_eq!(output, expected);
     }
 
     #[test]

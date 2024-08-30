@@ -56,7 +56,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
-        imports.register("burn::tensor::Bool");
+        if matches!(&self.output, Type::Tensor(_)) {
+            imports.register("burn::tensor::Bool");
+        }
     }
 
     fn into_node(self) -> super::Node<PS> {
@@ -352,6 +354,64 @@ mod tests {
                         .mask_where(tensor1, tensor2);
 
                     tensor4
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_where_all_scalar() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(WhereNode::new(
+            Type::Scalar(ScalarType::new("scalar1", ScalarKind::Bool)),
+            Type::Scalar(ScalarType::new("scalar2", ScalarKind::Float64)),
+            Type::Scalar(ScalarType::new("scalar3", ScalarKind::Float64)),
+            Type::Scalar(ScalarType::new("scalar4", ScalarKind::Float64)),
+        ));
+
+        graph.register_input_output(
+            vec![
+                "scalar1".to_string(),
+                "scalar2".to_string(),
+                "scalar3".to_string(),
+            ],
+            vec!["scalar4".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    scalar1: bool,
+                    scalar2: f64,
+                    scalar3: f64
+                ) -> f64 {
+                    let scalar4: f64 = if scalar1 { scalar2 } else { scalar3 };
+
+                    scalar4
                 }
             }
         };

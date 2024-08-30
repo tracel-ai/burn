@@ -59,6 +59,7 @@ fn main() {
         .input("tests/mask_where/mask_where_broadcast.onnx")
         .input("tests/mask_where/mask_where_scalar_x.onnx")
         .input("tests/mask_where/mask_where_scalar_y.onnx")
+        .input("tests/mask_where/mask_where_all_scalar.onnx")
         .input("tests/matmul/matmul.onnx")
         .input("tests/max/max.onnx")
         .input("tests/maxpool1d/maxpool1d.onnx")

@@ -18,13 +18,12 @@ class Model(nn.Module):
         return torch.where(condition, x, y)
 
 
-def create_model(name: str, device: torch.device, x: torch.Tensor, y: torch.Tensor):
+def create_model(name: str, device: torch.device, mask: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
     print(f"--- {name} ---")
     # Export to onnx
     model = Model()
     model.eval()
     onnx_name = f"{name}.onnx"
-    mask = torch.tensor([[True, False], [False, True]], device=device)
     test_input = (mask, x, y)
 
     torch.onnx.export(model, (test_input), onnx_name, verbose=False, opset_version=16)
@@ -41,16 +40,17 @@ def main():
     torch.manual_seed(0)
     device = torch.device("cpu")
 
+    mask = torch.tensor([[True, False], [False, True]], device=device)
     x = torch.ones(2, 2, device=device)
     y = torch.zeros(2, 2, device=device)
-    create_model("mask_where", device, x, y)
-    create_model("mask_where_broadcast", device, x[0], y[0])
-    x = torch.tensor(1., device=device)
-    y = torch.zeros(2, 2, device=device)
-    create_model("mask_where_scalar_x", device, x, y)
-    x = torch.ones(2, 2, device=device)
-    y = torch.tensor(0., device=device)
-    create_model("mask_where_scalar_y", device, x, y)
+    mask_scalar = torch.tensor(True, device=device)
+    x_scalar = torch.tensor(1., device=device)
+    y_scalar = torch.tensor(0., device=device)
+    create_model("mask_where", device, mask, x, y)
+    create_model("mask_where_broadcast", device, mask, x[0], y[0])
+    create_model("mask_where_scalar_x", device, mask, x_scalar, y)
+    create_model("mask_where_scalar_y", device, mask, x, y_scalar)
+    create_model("mask_where_all_scalar", device, mask_scalar, x_scalar, y_scalar)
     
 
 
