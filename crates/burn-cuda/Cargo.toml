@@ -33,8 +33,6 @@ derive-new = { workspace = true }
 burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
-# For the CI and dev we use the latest version.
-cudarc = { version = "0.12", features = ["cuda-12050"], default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]
