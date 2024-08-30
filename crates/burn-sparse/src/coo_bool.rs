@@ -1,9 +1,16 @@
 use super::coo::COO;
+use crate::SparseCOOTensor;
+use crate::{flatten_coordinates, unflatten_coordinates};
+use burn_tensor::Int;
+use burn_tensor::ReprPrimitive;
+use burn_tensor::Shape;
+use burn_tensor::Tensor;
 use burn_tensor::{
     backend::Backend,
     ops::{SparseBoolOps, SparseTensorOps},
     SparseStorage,
 };
+use burn_tensor::{Bool, Dense};
 
 impl<B: Backend> SparseBoolOps<COO, B> for COO {
     fn bool_to_sparse<const D: usize>(
@@ -133,6 +140,18 @@ impl<B: Backend> SparseBoolOps<COO, B> for COO {
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D1>,
         shape: burn_tensor::Shape<D2>,
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D2> {
+        todo!()
+    }
+
+    fn bool_coordinates<const D: usize>(
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        tensor.coordinates.map(|c| c.into_primitive())
+    }
+
+    fn bool_to_dense<const D: usize>(
+        sparse: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Bool, D>,
+    ) -> B::BoolTensorPrimitive<D> {
         todo!()
     }
 }

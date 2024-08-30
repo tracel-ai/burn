@@ -1,4 +1,11 @@
 use super::coo::COO;
+use crate::SparseCOOTensor;
+use crate::{flatten_coordinates, unflatten_coordinates};
+use burn_tensor::Dense;
+use burn_tensor::Int;
+use burn_tensor::ReprPrimitive;
+use burn_tensor::Shape;
+use burn_tensor::Tensor;
 use burn_tensor::{backend::Backend, ops::SparseIntOps, SparseStorage};
 
 impl<B: Backend> SparseIntOps<COO, B> for COO {
@@ -123,6 +130,40 @@ impl<B: Backend> SparseIntOps<COO, B> for COO {
         tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D1>,
         shape: burn_tensor::Shape<D2>,
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D2> {
+        todo!()
+    }
+
+    fn int_coordinates<const D: usize>(
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
+        tensor.coordinates.map(|c| c.into_primitive())
+    }
+
+    fn int_to_dense<const D: usize>(
+        sparse: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D>,
+    ) -> B::IntTensorPrimitive<D> {
+        let SparseCOOTensor {
+            coordinates,
+            values,
+            shape,
+            device,
+        } = sparse;
+
+        let (Some(coordinates), Some(values)) = (coordinates, values) else {
+            return Tensor::<B, D, Int>::zeros(shape, &device).into_primitive();
+        };
+
+        let dense: Tensor<B, 1, Int> = Tensor::zeros(Shape::new([shape.num_elements()]), &device);
+        let flat_coordinates =
+            flatten_coordinates::<B, D, 0>(coordinates, shape.clone(), &device).squeeze(0);
+        let dense = dense.select_assign(0, flat_coordinates, values);
+
+        dense.reshape(shape).into_primitive()
+    }
+
+    fn int_to_sparse<const D: usize>(
+        dense: <B as Backend>::IntTensorPrimitive<D>,
+    ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D> {
         todo!()
     }
 }

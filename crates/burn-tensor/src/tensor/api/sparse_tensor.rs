@@ -1,5 +1,7 @@
 use crate::{backend::Backend, check::TensorCheck, Dense, Float, Sparse, Tensor, TensorKind};
-use crate::{check, BasicOps, BasicSparseOps, Bool, SparseStorage, TensorPrimitive, TensorRepr};
+use crate::{
+    check, BasicOps, BasicSparseOps, Bool, Int, SparseStorage, TensorPrimitive, TensorRepr,
+};
 
 impl<const D: usize, B, K> Tensor<B, D, K, Dense>
 where
@@ -25,6 +27,12 @@ where
     (B, K, Sparse<B, SR>): TensorRepr,
 {
     pub fn into_dense(self) -> Tensor<B, D, K, Dense> {
-        Tensor::<B, D, K, Dense>::from_primitive(SR::into_dense(self.primitive))
+        Tensor::<B, D, K, Dense>::from_primitive(SR::into_dense(self.into_primitive()))
+    }
+
+    pub fn coordinates(self) -> Option<Tensor<B, 2, Int, Dense>> {
+        Some(Tensor::<B, 2, Int, Dense>::from_primitive(SR::coordinates(
+            self.into_primitive(),
+        )?))
     }
 }

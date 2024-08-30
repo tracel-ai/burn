@@ -1,9 +1,9 @@
 use super::{BoolTensor, FloatElem, FloatTensor, IntTensor, QuantizedTensor};
-use crate::TensorRepr;
 use crate::{
     backend::Backend, Bool, Device, Float, Int, ReprPrimitive, Shape, Sparse, SparseStorage,
     TensorData, TensorKind,
 };
+use crate::{Dense, TensorRepr};
 use core::{future::Future, ops::Range};
 
 pub trait SparseTensorOps<SR: SparseStorage<B>, B: Backend>:
@@ -15,7 +15,12 @@ pub trait SparseFloatOps<SR: SparseStorage<B>, B: Backend>
 where
     (B, Float, Sparse<B, SR>): TensorRepr,
     (B, Bool, Sparse<B, SR>): TensorRepr,
+    (B, Int, Sparse<B, SR>): TensorRepr,
 {
+    fn float_coordinates<const D: usize>(
+        sparse: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
+
     fn float_to_sparse<const D: usize>(
         dense: B::FloatTensorPrimitive<D>,
     ) -> ReprPrimitive<B, Float, Sparse<B, SR>, D>;
@@ -384,9 +389,17 @@ where
 }
 
 pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
+    fn bool_coordinates<const D: usize>(
+        sparse: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
+
+    fn bool_to_dense<const D: usize>(
+        sparse: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> B::BoolTensorPrimitive<D>;
+
     fn bool_to_sparse<const D: usize>(
         dense: B::BoolTensorPrimitive<D>,
-    ) -> SR::SparsePrimitive<Bool, D>;
+    ) -> ReprPrimitive<B, Bool, Sparse<B, SR>, D>;
 
     fn bool_empty<const D: usize>(
         shape: Shape<D>,
@@ -474,6 +487,18 @@ pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
 }
 
 pub trait SparseIntOps<SR: SparseStorage<B>, B: Backend> {
+    fn int_coordinates<const D: usize>(
+        sparse: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
+
+    fn int_to_dense<const D: usize>(
+        sparse: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> B::IntTensorPrimitive<D>;
+
+    fn int_to_sparse<const D: usize>(
+        dense: B::IntTensorPrimitive<D>,
+    ) -> ReprPrimitive<B, Int, Sparse<B, SR>, D>;
+
     fn int_empty<const D: usize>(
         shape: Shape<D>,
         device: &Device<B>,
