@@ -6,23 +6,6 @@ import onnx
 from onnx import helper, TensorProto
 
 def main() -> None:
-    # Define the shape tensor as a constant node
-    shape_value = [2, 2]  # Example shape value
-    shape_tensor = helper.make_tensor(
-        name='shape',
-        data_type=TensorProto.INT64,
-        dims=[len(shape_value)],
-        vals=shape_value,
-    )
-
-    shape_node = helper.make_node(
-        'Constant',
-        name='shape_constant',
-        inputs=[],
-        outputs=['shape'],
-        value=shape_tensor,
-    )
-
     # Define the Expand node that uses the outputs from the constant nodes
     expand_node = helper.make_node(
         'Expand',
@@ -33,13 +16,14 @@ def main() -> None:
 
     # Create the graph
     graph_def = helper.make_graph(
-        nodes=[shape_node, expand_node],
+        nodes=[expand_node],
         name='ExpandGraph',
         inputs=[
             helper.make_tensor_value_info('input_tensor', TensorProto.FLOAT, [2, 1]),
+            helper.make_tensor_value_info('shape', TensorProto.INT64, [2]),
         ],
         outputs=[
-            helper.make_tensor_value_info('output', TensorProto.FLOAT, [2, 2])
+            helper.make_tensor_value_info('output', TensorProto.FLOAT, [2,2])
         ],
     )
 
@@ -51,7 +35,7 @@ def main() -> None:
     onnx.checker.check_model(model_def)
 
     # Save the model to a file
-    onnx.save(model_def, 'expand.onnx')
+    onnx.save(model_def, 'expand_tensor.onnx')
 
 if __name__ == '__main__':
     main()

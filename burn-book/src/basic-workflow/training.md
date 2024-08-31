@@ -39,7 +39,9 @@ impl<B: Backend> Model<B> {
         targets: Tensor<B, 1, Int>,
     ) -> ClassificationOutput<B> {
         let output = self.forward(images);
-        let loss = CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
+        let loss = CrossEntropyLossConfig::new()
+            .init(&output.device())
+            .forward(output.clone(), targets.clone());
 
         ClassificationOutput::new(loss, output, targets)
     }
@@ -60,26 +62,21 @@ Moving forward, we will proceed with the implementation of both the training and
 for our model.
 
 ```rust , ignore
+# use crate::{
+#     data::{MnistBatch, MnistBatcher},
+#     model::{Model, ModelConfig},
+# };
 # use burn::{
-#     config::Config,
 #     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
-#     module::Module,
-#     nn::loss::CrossEntropyLoss,
+#     nn::loss::CrossEntropyLossConfig,
 #     optim::AdamConfig,
+#     prelude::*,
 #     record::CompactRecorder,
-#     tensor::{
-#         backend::{AutodiffBackend, Backend},
-#         Int, Tensor,
-#     },
+#     tensor::backend::AutodiffBackend,
 #     train::{
 #         metric::{AccuracyMetric, LossMetric},
 #         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 #     },
-# };
-# 
-# use crate::{
-#     data::{MnistBatch, MnistBatcher},
-#     model::{Model, ModelConfig},
 # };
 # 
 # impl<B: Backend> Model<B> {
@@ -89,8 +86,9 @@ for our model.
 #         targets: Tensor<B, 1, Int>,
 #     ) -> ClassificationOutput<B> {
 #         let output = self.forward(images);
-#         let loss =
-#             CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
+#         let loss = CrossEntropyLossConfig::new()
+#             .init(&output.device())
+#             .forward(output.clone(), targets.clone());
 # 
 #         ClassificationOutput::new(loss, output, targets)
 #     }
@@ -147,26 +145,21 @@ Book.
 Let us move on to establishing the practical training configuration.
 
 ```rust , ignore
+# use crate::{
+#     data::{MnistBatch, MnistBatcher},
+#     model::{Model, ModelConfig},
+# };
 # use burn::{
-#     config::Config,
 #     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
-#     module::Module,
-#     nn::loss::CrossEntropyLoss,
+#     nn::loss::CrossEntropyLossConfig,
 #     optim::AdamConfig,
+#     prelude::*,
 #     record::CompactRecorder,
-#     tensor::{
-#         backend::{AutodiffBackend, Backend},
-#         Int, Tensor,
-#     },
+#     tensor::backend::AutodiffBackend,
 #     train::{
 #         metric::{AccuracyMetric, LossMetric},
 #         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 #     },
-# };
-# 
-# use crate::{
-#     data::{MnistBatch, MnistBatcher},
-#     model::{Model, ModelConfig},
 # };
 # 
 # impl<B: Backend> Model<B> {
@@ -176,8 +169,9 @@ Let us move on to establishing the practical training configuration.
 #         targets: Tensor<B, 1, Int>,
 #     ) -> ClassificationOutput<B> {
 #         let output = self.forward(images);
-#         let loss =
-#             CrossEntropyLoss::new(None, &output.device()).forward(output.clone(), targets.clone());
+#         let loss = CrossEntropyLossConfig::new()
+#             .init(&output.device())
+#             .forward(output.clone(), targets.clone());
 # 
 #         ClassificationOutput::new(loss, output, targets)
 #     }

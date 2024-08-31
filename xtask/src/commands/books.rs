@@ -1,46 +1,36 @@
-use std::{collections::HashMap, path::Path, time::Instant};
+use std::path::Path;
 
-use clap::{Args, Subcommand};
-use derive_more::Display;
+use tracel_xtask::prelude::*;
 
-use crate::{
-    endgroup, group,
-    logging::init_logger,
-    utils::{
-        cargo::ensure_cargo_crate_is_installed, mdbook::run_mdbook_with_path, process::random_port,
-        time::format_duration, Params,
-    },
-};
-
-#[derive(Args)]
-pub(crate) struct BooksArgs {
+#[derive(clap::Args)]
+pub struct BooksArgs {
     #[command(subcommand)]
     book: BookKind,
 }
 
-#[derive(Subcommand)]
+#[derive(clap::Subcommand)]
 pub(crate) enum BookKind {
     ///  Burn Book, a.k.a. the guide, made for the Burn users.
     Burn(BookKindArgs),
-    /// Contributor book, made for people willing to get all the technical understanding and advices to contribute actively to the project.
+    /// Contributor book, made for people willing to get all the technical understanding and advice to contribute actively to the project.
     Contributor(BookKindArgs),
 }
 
-#[derive(Args)]
+#[derive(clap::Args)]
 pub(crate) struct BookKindArgs {
     #[command(subcommand)]
-    command: BookCommand,
+    command: BookSubCommand,
 }
 
-#[derive(Subcommand, Display)]
-pub(crate) enum BookCommand {
+#[derive(clap::Subcommand, strum::Display)]
+pub(crate) enum BookSubCommand {
     /// Build the book
     Build,
     /// Open the book on the specified port or random port and rebuild it automatically upon changes
     Open(OpenArgs),
 }
 
-#[derive(Args, Display)]
+#[derive(clap::Args)]
 pub(crate) struct OpenArgs {
     /// Specify the port to open the book on (defaults to a random port if not specified)
     #[clap(long, default_value_t = random_port())]
@@ -55,15 +45,7 @@ pub(crate) struct Book {
 
 impl BooksArgs {
     pub(crate) fn parse(&self) -> anyhow::Result<()> {
-        init_logger().init();
-        let start = Instant::now();
-        Book::run(&self.book)?;
-        let duration = start.elapsed();
-        info!(
-            "\x1B[32;1mTime elapsed for the current execution: {}\x1B[0m",
-            format_duration(&duration)
-        );
-        Ok(())
+        Book::run(&self.book)
     }
 }
 
@@ -91,37 +73,37 @@ impl Book {
                 &args.command,
             ),
         };
-        book.execute(command);
+        book.execute(command)
+    }
+
+    fn execute(&self, command: &BookSubCommand) -> anyhow::Result<()> {
+        ensure_cargo_crate_is_installed("mdbook", None, None, false)?;
+        group!("{}: {}", self.name, command);
+        match command {
+            BookSubCommand::Build => self.build(),
+            BookSubCommand::Open(args) => self.open(args),
+        }?;
+        endgroup!();
         Ok(())
     }
 
-    fn execute(&self, command: &BookCommand) {
-        ensure_cargo_crate_is_installed("mdbook");
-        group!("{}: {}", self.name, command);
-        match command {
-            BookCommand::Build => self.build(),
-            BookCommand::Open(args) => self.open(args),
-        };
-        endgroup!();
-    }
-
-    fn build(&self) {
-        run_mdbook_with_path(
-            "build",
-            Params::from([]),
-            HashMap::new(),
+    fn build(&self) -> anyhow::Result<()> {
+        run_process(
+            "mdbook",
+            &vec!["build"],
+            None,
             Some(self.path),
             "mdbook should build the book successfully",
-        );
+        )
     }
 
-    fn open(&self, args: &OpenArgs) {
-        run_mdbook_with_path(
-            "serve",
-            Params::from(["--open", "--port", &args.port.to_string()]),
-            HashMap::new(),
+    fn open(&self, args: &OpenArgs) -> anyhow::Result<()> {
+        run_process(
+            "mdbook",
+            &vec!["serve", "--open", "--port", &args.port.to_string()],
+            None,
             Some(self.path),
-            "mdbook should build the book successfully",
-        );
+            "mdbook should open the book successfully",
+        )
     }
 }

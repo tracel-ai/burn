@@ -7,8 +7,8 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{pad::PadConfig, tile::TileConfig};
-use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig};
+use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -229,6 +229,10 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -256,6 +260,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_stride([stride[0] as usize, stride[1] as usize])
     .with_padding([pads[0] as usize, pads[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_padding_out([output_padding[0] as usize, output_padding[1] as usize])
     .with_groups(group)
     .with_bias(bias)
 }
@@ -281,6 +286,10 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -315,6 +324,11 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         dilations[0] as usize,
         dilations[1] as usize,
         dilations[2] as usize,
+    ])
+    .with_padding_out([
+        output_padding[0] as usize,
+        output_padding[1] as usize,
+        output_padding[2] as usize,
     ])
     .with_groups(group)
     .with_bias(bias)
@@ -382,18 +396,33 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         .with_count_include_pad(count_include_pad == 1)
 }
 
-pub fn expand_config(node: &Node) -> Vec<i64> {
+pub fn expand_config(node: &Node) -> ExpandShape {
     let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
-                shape.clone()
-            } else {
-                panic!("Tensor data type must be int64")
-            }
+            assert!(
+                tensor.shape.is_some(),
+                "Expand: shape tensor shape must be known!"
+            );
+            assert!(
+                matches!(tensor.elem_type, ElementType::Int64),
+                "Expand: shape tensor must have element type int64"
+            );
+        }
+        ArgType::Shape(_) => {
+            // Shapes are always 1-D int64 data, so nothing to assert here
         }
         _ => panic!("Only tensor input is valid for shape"),
+    }
+
+    match input_value.as_ref() {
+        Some(Data::Int64s(shape)) => ExpandShape::Static(shape.clone()),
+        None => {
+            // we were unable to statically determine the input value, so we'll need to fetch it at runtime
+            ExpandShape::Runtime(crate::burn::Type::from(&node.inputs[1]))
+        }
+        _ => panic!("Shape data type must be int64, is {:?}", input_value),
     }
 }
 

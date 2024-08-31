@@ -143,6 +143,10 @@ impl TensorType {
             );
         }
         let formatted_name = Self::format_name(name.as_ref());
+        assert_ne!(
+            dim, 0,
+            "Trying to create TensorType with dim = 0 - should be a Scalar instead!"
+        );
         Self {
             name: Ident::new(&formatted_name, Span::call_site()),
             dim,
@@ -151,15 +155,39 @@ impl TensorType {
         }
     }
     pub fn new_float<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new(name, dim, TensorKind::Float, None)
+        Self::new_float_with_shape(name, dim, None)
+    }
+
+    pub fn new_float_with_shape<S: AsRef<str>>(
+        name: S,
+        dim: usize,
+        shape: Option<Vec<usize>>,
+    ) -> Self {
+        Self::new(name, dim, TensorKind::Float, shape)
     }
 
     pub fn new_int<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new(name, dim, TensorKind::Int, None)
+        Self::new_int_with_shape(name, dim, None)
+    }
+
+    pub fn new_int_with_shape<S: AsRef<str>>(
+        name: S,
+        dim: usize,
+        shape: Option<Vec<usize>>,
+    ) -> Self {
+        Self::new(name, dim, TensorKind::Int, shape)
     }
 
     pub fn new_bool<S: AsRef<str>>(name: S, dim: usize) -> Self {
-        Self::new(name, dim, TensorKind::Bool, None)
+        Self::new_bool_with_shape(name, dim, None)
+    }
+
+    pub fn new_bool_with_shape<S: AsRef<str>>(
+        name: S,
+        dim: usize,
+        shape: Option<Vec<usize>>,
+    ) -> Self {
+        Self::new(name, dim, TensorKind::Bool, shape)
     }
 
     pub fn ty(&self) -> TokenStream {

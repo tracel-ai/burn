@@ -3,11 +3,11 @@
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
+[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
 [![Blaze](https://runblaze.dev/gh/114041730602611213183421653564341667516/badge.svg)](https://runblaze.dev)
-[![Rust Version](https://img.shields.io/badge/Rust-1.79.0+-blue)](https://releases.rs/docs/1.79.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---

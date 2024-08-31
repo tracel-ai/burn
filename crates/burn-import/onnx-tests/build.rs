@@ -31,6 +31,8 @@ fn main() {
         .input("tests/erf/erf.onnx")
         .input("tests/exp/exp.onnx")
         .input("tests/expand/expand.onnx")
+        .input("tests/expand/expand_tensor.onnx")
+        .input("tests/expand/expand_shape.onnx")
         .input("tests/flatten/flatten.onnx")
         .input("tests/gather/gather_1d_idx.onnx")
         .input("tests/gather/gather_2d_idx.onnx")
