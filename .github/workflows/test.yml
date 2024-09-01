@@ -31,6 +31,8 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
+  RUST_PREVIOUS_VERSION: 1.79.0
+
   # Cargo
   CARGO_TERM_COLOR: "always"
 
@@ -66,20 +68,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare-checks:
+    runs-on: ubuntu-latest
+    outputs:
+      rust-prev-version: ${{ env.RUST_PREVIOUS_VERSION }}
+    steps:
+      - name: Do Nothing
+        if: false
+        run: echo
+
   code-quality:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
-            cache-version: stable
+            toolchain: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-linux
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
       - name: Audit
         run: cargo xtask check audit
@@ -100,18 +112,19 @@ jobs:
 
   documentation:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
-            cache-version: stable
+            toolchain: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-linux
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
       - name: Documentation Build
         run: cargo xtask doc build
@@ -121,21 +134,22 @@ jobs:
 
   linux-std-tests:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable, prev]
         include:
           - rust: stable
-            cache-version: stable
+            toolchain: stable
             coverage: --enable-coverage
-          - rust: 1.79.0
-            cache-version: 1-79-0
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-linux
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
         uses: tracel-ai/github-actions/setup-linux@v1
@@ -169,20 +183,21 @@ jobs:
 
   linux-no-std-tests:
     runs-on: ubuntu-22.04
+    needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, 1.79.0]
+        rust: [stable, prev]
         include:
           - rust: stable
-            cache-version: stable
-          - rust: 1.79.0
-            cache-version: 1-79-0
+            toolchain: stable
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-linux-no-std
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Setup Linux runner
         uses: tracel-ai/github-actions/setup-linux@v1
@@ -199,6 +214,7 @@ jobs:
 
   windows-std-tests:
     runs-on: windows-2022
+    needs: prepare-checks
     env:
       DISABLE_WGPU: '1'
     # Keep the stragegy to be able to easily add new rust versions if required
@@ -207,13 +223,13 @@ jobs:
         rust: [stable]
         include:
           - rust: stable
-            cache-version: stable
+            toolchain: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-windows
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
@@ -229,19 +245,20 @@ jobs:
 
   macos-std-tests:
     runs-on: blaze/macos-14
+    needs: prepare-checks
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
         rust: [stable]
         include:
           - rust: stable
-            cache-version: stable
+            toolchain: stable
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
         with:
-          rust-toolchain: ${{ matrix.rust }}
-          cache-key: ${{ matrix.cache-version }}-macos
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-macos
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test --ci
