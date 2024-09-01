@@ -23,17 +23,8 @@ To use the debugger, follow these steps:
 1. Open `Command Palette` with `Ctrl+Shift+P` or `F1` and type
    `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file
    that should be saved as `.vscode/launch.json`.
-2. Select the configuration from the "run and debug" side panel, then select the target from the
-   list.
-   You may also want to enable debugging by creating a `.vscode/settings.json` file:
-    ```
-    {
-      "rust-analyzer.runnables.extraEnv": {
-        "CARGO_PROFILE_DEV_DEBUG": true
-      }
-    }
-    ```
-    since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
+2. Select the configuration from the "run and debug" side panel, then select the target from the list.
+   Since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation, you need replace it with `debug = true` in the root `Cargo.toml` when using a debugger and breakpoints with `launch.json` settings.
 3. Now you can enable breakpoints on code through IDE then start debugging the library/binary you
    want, like in the following example:
 
