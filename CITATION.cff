@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Simard"
+    given-names: "Nathaniel"
+    email: "nathaniel.simard.42@gmail.com"
+  - family-names: "Fortier-Dubois"
+    given-names: "Louis"
+    email: "louisfd94@gmail.com"
+  - family-names: "Tadjibaev"
+    given-names: "Dilshod"
+    email: "dilshod@gmail.com"
+  - family-names: "Lagrange"
+    given-names: "Guillaume"
+    email: "lagrange.guillaume.1@gmail.com"
+  - name: "Burn Framework Contributors"
+title: "Burn"
+version: 0.14.0
+date-released: 2024-08-27
+url: "https://burn.dev/"
+repository-code: "https://github.com/tracel-ai/burn"
+license:
+  - MIT
+  - Apache-2.0
+abstract: "Burn is a new comprehensive dynamic Deep Learning Framework built using Rust with extreme flexibility, compute efficiency and portability as its primary goals."
+keywords:
+  - scientific-computing
+  - deep-learning
+  - machine-learning
+  - neural-networks
+  - rust
+  - high-performance-computing
+  - portability
+  - compute-efficiency

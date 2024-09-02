@@ -968,7 +968,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
     fn resize_with_scales_1d_linear() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -984,10 +983,11 @@ mod tests {
         // The scales are 1.5
         let output = model.forward(input);
 
-        let output_sum = output.sum().into_scalar();
-        let expected_sum = -4.568_224; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+        Tensor::<Backend, 3>::from([[[
+            1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
+        ]]])
+        .to_data()
+        .assert_approx_eq(&output.into_data(), 3);
     }
 
     #[test]

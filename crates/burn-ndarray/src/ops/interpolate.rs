@@ -96,8 +96,8 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
 
-    let y_ratio = ((in_height - 1) as f64) / ((out_height - 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / ((out_width - 1) as f64);
+    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
 
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (
@@ -174,8 +174,8 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
 
-    let y_ratio = ((in_height - 1) as f64) / ((out_height - 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / ((out_width - 1) as f64);
+    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
 
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (
