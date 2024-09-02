@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{prelude::*, Terminal};
-use std::panic::{set_hook, take_hook, PanicHookInfo};
+use std::panic::{set_hook, take_hook};
 use std::sync::Arc;
 use std::{
     error::Error,
@@ -25,7 +25,8 @@ pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
 /// The current terminal frame.
 pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a>;
 
-type PanicHook = Box<dyn Fn(&PanicHookInfo<'_>) + 'static + Sync + Send>;
+#[allow(deprecated)] // `PanicInfo` type is renamed to `PanicHookInfo` in Rust 1.82
+type PanicHook = Box<dyn Fn(&std::panic::PanicInfo<'_>) + 'static + Sync + Send>;
 
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
