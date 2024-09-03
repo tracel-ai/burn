@@ -129,7 +129,7 @@ macro_rules! bench_on_backend {
 
         #[cfg(feature = "cuda-jit")]
         {
-            use burn_cuda::{Cuda, CudaDevice};
+            use burn::backend::cuda_jit::{Cuda, CudaDevice};
 
             bench::<Cuda>(&CudaDevice::default(), feature_name, url, token);
         }

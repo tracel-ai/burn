@@ -37,7 +37,7 @@ impl HuberLossConfig {
 /// The loss for each element of the residuals `r = targets - predictions` is given by
 ///
 /// ```text
-/// L(r) = 0.5 * x^2                  if |r| <= d
+/// L(r) = 0.5 * r^2                  if |r| <= d
 /// L(r) = 0.5 * d^2 + d * (|r| - d)  if |r| >  d
 /// ```
 ///

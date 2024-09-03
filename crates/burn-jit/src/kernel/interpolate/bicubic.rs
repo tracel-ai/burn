@@ -100,6 +100,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
 
         cpa!(scope, input_height = input_shape_2 - 1u32);
         cpa!(scope, output_height = output_shape_2 - 1u32);
+        cpa!(scope, output_height = max(output_height, 1u32));
         cpa!(scope, numerator = h * input_height);
         cpa!(scope, numerator_float = cast(numerator));
         cpa!(scope, output_height_float = cast(output_height));
@@ -129,6 +130,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
 
         cpa!(scope, input_width = input_shape_3 - 1u32);
         cpa!(scope, output_width = output_shape_3 - 1u32);
+        cpa!(scope, output_width = max(output_width, 1u32));
         cpa!(scope, numerator = w * input_width);
         cpa!(scope, numerator_float = cast(numerator));
         cpa!(scope, output_width_float = cast(output_width));

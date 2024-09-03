@@ -101,6 +101,7 @@ impl InterpolateBilinearShader {
 
         cpa!(scope, numerator_int = input_shape_2 - 1u32);
         cpa!(scope, denominator_int = output_shape_2 - 1u32);
+        cpa!(scope, denominator_int = max(denominator_int, 1u32));
         cpa!(scope, factor_float = cast(h));
         cpa!(scope, numerator_float = cast(numerator_int));
         cpa!(scope, denominator_float = cast(denominator_int));
@@ -115,6 +116,7 @@ impl InterpolateBilinearShader {
 
         cpa!(scope, numerator_int = input_shape_3 - 1u32);
         cpa!(scope, denominator_int = output_shape_3 - 1u32);
+        cpa!(scope, denominator_int = max(denominator_int, 1u32));
         cpa!(scope, factor_float = cast(w));
         cpa!(scope, numerator_float = cast(numerator_int));
         cpa!(scope, denominator_float = cast(denominator_int));
