@@ -27,7 +27,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-bytemuck = "1.16.1"
+bytemuck = "1.17.1"
 candle-core = { version = "0.6.0" }
 clap = { version = "4.5.16", features = ["derive"] }
 colored = "2.1.0"
