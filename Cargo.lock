@@ -838,7 +838,7 @@ dependencies = [
  "byteorder",
  "candle-kernels",
  "candle-metal-kernels",
- "cudarc",
+ "cudarc 0.11.5",
  "gemm",
  "half",
  "libc",
@@ -1395,8 +1395,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "222d7052864d80ae9009a51ad6abfd5fb141a4ccf7e1d061888cc11c3c674de3"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1407,8 +1406,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6e358cb0b4de9f602e1b6f6656d88f351cc29664536cdb54ea17f7e44f7a393"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "derive-new",
  "getrandom",
@@ -1423,8 +1421,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "719df0318ac22c09f16801225c205780615e97ecf79fd07fdb0e08aa32d332f6"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "bytemuck",
  "cubecl-macros",
@@ -1439,14 +1436,13 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9491684e95c27fd989dcefdcaff5047afd50b0dcf3d9f540c0c0c7d85815f9a"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "bytemuck",
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
- "cudarc",
+ "cudarc 0.12.0",
  "derive-new",
  "half",
  "log",
@@ -1455,8 +1451,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad47dab1a1347cb0df322eaddfff82441890760eb367dd2afd7f5cd463c88193"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1467,8 +1462,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b02de789371373c9e09924b93ce1f7248c42e2dac7f4bc7be4872e3a18025daf"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -1479,8 +1473,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fab9586f79f8a4db35a16556575217786f743b2d1c030cd4515174b3dfd8817"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "async-channel",
  "cfg_aliases 0.2.1",
@@ -1500,8 +1493,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83293243697e7270e3c0e3354cd75cfe0a2745f6305bda5c3637248b0d368afc"
+source = "git+https://github.com/tracel-ai/cubecl?rev=b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73#b0fa39bad9d5ecbd98a955e6f7f94c855b6e9a73"
 dependencies = [
  "async-channel",
  "bytemuck",
@@ -1523,6 +1515,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e395cd01168d63af826749573071f3c5069b338ae473cab355d22db0b2bb5a0d"
 dependencies = [
  "half",
+ "libloading",
+]
+
+[[package]]
+name = "cudarc"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e736ec4e22548a5677d65fe191301c243cd63365db2e2def0e263b176f51531c"
+dependencies = [
  "libloading",
 ]
 

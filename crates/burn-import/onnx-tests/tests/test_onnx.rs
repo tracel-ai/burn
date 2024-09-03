@@ -40,6 +40,8 @@ include_models!(
     erf,
     exp,
     expand,
+    expand_tensor,
+    expand_shape,
     flatten,
     gather_1d_idx,
     gather_2d_idx,
@@ -962,7 +964,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
     fn resize_with_scales_1d_linear() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
@@ -978,10 +979,11 @@ mod tests {
         // The scales are 1.5
         let output = model.forward(input);
 
-        let output_sum = output.sum().into_scalar();
-        let expected_sum = -4.568_224; // from pytorch
-
-        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+        Tensor::<Backend, 3>::from([[[
+            1.5410, 0.3945, -0.7648, -1.9431, -0.8052, 0.3618, -0.6713, -1.2023, -1.3986,
+        ]]])
+        .to_data()
+        .assert_approx_eq(&output.into_data(), 3);
     }
 
     #[test]
@@ -1510,14 +1512,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected_shape = Shape::from([2, 6, 17, 15]);
+        let expected_shape = Shape::from([2, 6, 18, 15]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv_transpose2d node
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -120.070_15; // result running pytorch model (conv_transpose2d.py)
+        let expected_sum = -134.96603; // result running pytorch model (conv_transpose2d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -1532,14 +1534,14 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected_shape = Shape::from([2, 6, 5, 5, 9]);
+        let expected_shape = Shape::from([2, 6, 6, 5, 9]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv_transpose3d node
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = -67.267_15; // result running pytorch model (conv_transpose3d.py)
+        let expected_sum = -105.69771; // result running pytorch model (conv_transpose3d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -1580,6 +1582,34 @@ mod tests {
 
         let output = model.forward(input1);
         let expected_shape = Shape::from([2, 2]);
+
+        assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn expand_tensor() {
+        let device = Default::default();
+        let model: expand_tensor::Model<Backend> = expand_tensor::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_floats([[-1.0], [1.0]], &device);
+        let input2 = Tensor::<Backend, 1, Int>::from_ints([2, 2], &device);
+
+        let output = model.forward(input1, input2);
+        let expected_shape = Shape::from([2, 2]);
+
+        assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn expand_shape() {
+        let device = Default::default();
+        let model: expand_shape::Model<Backend> = expand_shape::Model::new(&device);
+
+        let input1 = Tensor::<Backend, 2>::from_floats([[-1.0], [1.0], [1.0], [1.0]], &device);
+        let input2 = Tensor::<Backend, 2>::zeros([4, 4], &device);
+
+        let output = model.forward(input1, input2);
+        let expected_shape = Shape::from([4, 4]);
 
         assert_eq!(output.shape(), expected_shape);
     }

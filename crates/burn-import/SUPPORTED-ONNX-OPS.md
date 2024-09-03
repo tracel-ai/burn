@@ -126,7 +126,7 @@ represent the corresponding Burn Op.
 | [OptionalGetElement][117]        |       ❌       |      ❌      |
 | [OptionalHasElement][118]        |       ❌       |      ❌      |
 | [Or][119]                        |       ❌       |      ❌      |
-| [Pad][120]                       |       ❌       |      ✅      |
+| [Pad][120]                       |       ✅       |      ✅      |
 | [Pow][121]                       |       ✅       |      ✅      |
 | [PRelu][122]                     |       ✅       |      ✅      |
 | [QLinearConv][123]               |       ❌       |      ❌      |

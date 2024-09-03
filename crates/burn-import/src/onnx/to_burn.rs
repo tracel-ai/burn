@@ -30,7 +30,7 @@ use crate::{
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
-            expand::ExpandNode,
+            expand::{ExpandNode, ExpandShape},
             gather::GatherNode,
             gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -424,12 +424,7 @@ impl ParsedOnnxGraph {
 
     fn random_uniform_conversion(node: Node) -> RandomUniformNode {
         let output = node.outputs.first().unwrap();
-        // cannot use output.to_tensor_type() here, since it drops the shape info...
-        let output_type = if let Type::Tensor(t) = Type::from(output) {
-            t
-        } else {
-            panic!("RandomUniform output type is no Tensor.");
-        };
+        let output_type = TensorType::from(output);
 
         let high = node
             .attrs
@@ -451,12 +446,7 @@ impl ParsedOnnxGraph {
 
     fn random_normal_conversion(node: Node) -> RandomNormalNode {
         let output = node.outputs.first().unwrap();
-        // cannot use output.to_tensor_type() here, since it drops the shape info...
-        let output_type = if let Type::Tensor(t) = Type::from(output) {
-            t
-        } else {
-            panic!("RandomNormal output type is no Tensor.");
-        };
+        let output_type = TensorType::from(output);
 
         let mean = node
             .attrs
@@ -480,11 +470,12 @@ impl ParsedOnnxGraph {
         // Additional types needed for ConstantOfShape:
         use crate::burn::node::constant_of_shape::ConstantValue;
 
-        let input = node
-            .inputs
-            .first()
-            .expect("ConstantOfShape requires an input tensor");
-        let output = node.outputs.first().unwrap();
+        let input = Type::from(
+            node.inputs
+                .first()
+                .expect("ConstantOfShape requires an input tensor"),
+        );
+        let output = Type::from(node.outputs.first().unwrap());
 
         // The value of the output elements.Should be a one-element tensor.
         // If not specified, it defaults to a tensor of value 0 and datatype float32
@@ -504,7 +495,7 @@ impl ParsedOnnxGraph {
             })
             .unwrap_or(ConstantValue::Float32(0.0f32));
 
-        ConstantOfShapeNode::new(Type::from(input), Type::from(output), value)
+        ConstantOfShapeNode::new(input, output, value)
     }
 
     fn add_conversion(node: Node) -> BinaryNode {
@@ -1082,12 +1073,27 @@ impl ParsedOnnxGraph {
         UnaryNode::exp(input, output)
     }
 
-    fn expand_conversion(node: Node) -> ExpandNode {
+    fn expand_conversion(mut node: Node) -> ExpandNode {
         let input = TensorType::from(node.inputs.first().unwrap());
-        let output = TensorType::from(node.outputs.first().unwrap());
         let shape = expand_config(&node);
 
-        ExpandNode::new(input, output, shape)
+        // dim_inference left the dim at zero, so it needs to be filled before converting to TensorType:
+        assert_eq!(
+            node.outputs.len(),
+            1,
+            "ExpandNode must have exactly 1 output!"
+        );
+        let mut output_arg = node.outputs.pop().unwrap();
+        if let ArgType::Tensor(output_arg_tensor) = &mut output_arg.ty {
+            output_arg_tensor.dim = match &shape {
+                ExpandShape::Static(s) => s.len(),
+                ExpandShape::Runtime(Type::Shape(s)) => s.dim,
+                ExpandShape::Runtime(Type::Tensor(t)) => t.shape.as_ref().unwrap()[0],
+                _ => panic!("Invalid ExpandShape {shape:?}!"),
+            };
+        }
+
+        ExpandNode::new(input, TensorType::from(&output_arg), shape)
     }
 
     fn neg_conversion(node: Node) -> UnaryNode {
@@ -1230,18 +1236,21 @@ impl From<&OnnxArgument> for TensorType {
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Float16 | ElementType::Float32 | ElementType::Float64,
                 dim,
+                shape,
                 ..
-            }) => TensorType::new_float(arg.name.clone(), *dim),
+            }) => TensorType::new_float_with_shape(arg.name.clone(), *dim, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Int32 | ElementType::Int64,
                 dim,
+                shape,
                 ..
-            }) => TensorType::new_int(arg.name.clone(), *dim),
+            }) => TensorType::new_int_with_shape(arg.name.clone(), *dim, shape.clone()),
             ArgType::Tensor(OnnxTensorType {
                 elem_type: ElementType::Bool,
                 dim,
+                shape,
                 ..
-            }) => TensorType::new_bool(arg.name.clone(), *dim),
+            }) => TensorType::new_bool_with_shape(arg.name.clone(), *dim, shape.clone()),
             _ => panic!("Can't transform {:?} to tensor.", arg.ty),
         }
     }

@@ -86,7 +86,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "https://github.com/tracel-ai/burn/issues/2080"]
     fn test_1d_bicubic() {
         // Initialize the model without weights (because the exported file does not contain them)
         let device = Default::default();
