@@ -155,6 +155,8 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
             .tensor
             .nonzero_numpy()
             .into_iter()
+            // As opposed to tch, the resulting vector should be empty for zero tensors
+            .filter_map(|t| if t.numel() > 0 { Some(t) } else { None })
             .map(TchTensor::new)
             .collect()
     }

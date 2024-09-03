@@ -33,6 +33,11 @@ impl<B: Backend> ModuleBasic<B> {
 }
 
 #[derive(Module, Debug)]
+struct ModuleWithConstGeneric<B: Backend, const N: usize> {
+    modules: [ModuleBasic<B>; N],
+}
+
+#[derive(Module, Debug)]
 struct ModuleWithGenericModule<B: Backend, M> {
     module: M,
     _backend: PhantomData<B>,
@@ -148,6 +153,44 @@ mod state {
         assert_eq!(
             module_1_basic.weight_basic.to_data(),
             module_2_basic.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    fn should_load_from_record_const_generic() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleWithConstGeneric {
+            modules: [
+                ModuleBasic::<TestBackend>::new(&device),
+                ModuleBasic::<TestBackend>::new(&device),
+            ],
+        };
+        let mut module_2 = ModuleWithConstGeneric {
+            modules: [
+                ModuleBasic::<TestBackend>::new(&device),
+                ModuleBasic::<TestBackend>::new(&device),
+            ],
+        };
+        let state_1 = module_1.clone().into_record();
+
+        assert_ne!(
+            module_1.modules[0].weight_basic.to_data(),
+            module_2.modules[0].weight_basic.to_data(),
+        );
+        assert_ne!(
+            module_1.modules[1].weight_basic.to_data(),
+            module_2.modules[1].weight_basic.to_data(),
+        );
+
+        module_2 = module_2.load_record(state_1);
+
+        assert_eq!(
+            module_1.modules[0].weight_basic.to_data(),
+            module_2.modules[0].weight_basic.to_data(),
+        );
+        assert_eq!(
+            module_1.modules[1].weight_basic.to_data(),
+            module_2.modules[1].weight_basic.to_data(),
         );
     }
 

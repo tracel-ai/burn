@@ -6,7 +6,7 @@ use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,
     TensorData,
 };
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
@@ -426,12 +426,18 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
-    /// the non-zero elements in that dimension.
+    /// the non-zero elements in that dimension. If all elements are zero, the vector is empty.
     fn bool_nonzero<const D: usize>(
         tensor: BoolTensor<B, D>,
     ) -> impl Future<Output = Vec<IntTensor<B, 1>>> + Send {
         async {
             let indices = B::bool_argwhere(tensor).await;
+
+            if B::int_shape(&indices).num_elements() == 0 {
+                // Return empty vec when all elements are zero
+                return vec![];
+            }
+
             let dims = B::int_shape(&indices).dims;
             B::int_chunk(indices, dims[1], 1)
                 .into_iter()
