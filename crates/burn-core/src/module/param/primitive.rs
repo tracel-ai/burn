@@ -173,8 +173,7 @@ where
 
 impl<const N: usize, T, B> Module<B> for [T; N]
 where
-    T: Module<B> + Debug + Send + Clone + Copy,
-    T::Record: Debug,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = [T::Record; N];
@@ -245,16 +244,14 @@ impl<const N: usize, T: ModuleDisplay> ModuleDisplay for [T; N] {}
 
 impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
 where
-    T: AutodiffModule<B> + Debug + Send + Clone + Copy,
-    T::InnerModule: Copy + Debug,
-    <T::InnerModule as Module<B::InnerBackend>>::Record: Debug,
-    <T as Module<B>>::Record: Debug,
+    T: AutodiffModule<B> + Debug + Send + Clone,
+    T::InnerModule: Debug,
     B: AutodiffBackend,
 {
     type InnerModule = [T::InnerModule; N];
 
     fn valid(&self) -> Self::InnerModule {
-        self.map(|module| module.valid())
+        self.clone().map(|module| module.valid())
     }
 }
 
