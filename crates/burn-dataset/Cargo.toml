@@ -21,7 +21,7 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
-vision = ["dep:flate2", "dep:globwalk", "dep:burn-common"]
+vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
 
 # internal
 __sqlite-shared = [

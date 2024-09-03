@@ -86,7 +86,7 @@ impl ProgressBarView {
 
         let iteration = Gauge::default()
             .gauge_style(Style::default().fg(Color::Yellow))
-            .ratio(self.progress);
+            .ratio(self.progress.min(1.0));
         let eta = Paragraph::new(Line::from(vec![
             Span::from(" ("),
             Span::from(self.eta).italic(),
