@@ -766,17 +766,31 @@ fn reduce_sum_update_outputs(node: &mut Node) {
 }
 
 fn where_update_outputs(node: &mut Node) {
-    match (&node.inputs[0].ty, &node.inputs[1].ty, &node.inputs[2].ty) {
-        (ArgType::Tensor(condition), ArgType::Tensor(x), ArgType::Tensor(y)) => {
-            // With broadcasting support, output dim has to be computed based on the inputs
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: x.elem_type.clone(),
-                dim: max(condition.dim, max(x.dim, y.dim)),
-                ..Default::default()
-            });
-            set_broadcasting_output_shape(node);
-        }
-        _ => panic!("Only tensor input is valid"),
+    let condition = &node.inputs[0].ty;
+    let x = &node.inputs[1].ty;
+    let y = &node.inputs[2].ty;
+    let elem_type = x.elem_type().clone();
+    assert_eq!(
+        *condition.elem_type(),
+        ElementType::Bool,
+        "Where condition must be boolean!"
+    );
+    assert_eq!(
+        elem_type,
+        *y.elem_type(),
+        "Where x and y have different element types!"
+    );
+
+    let output_rank = max(condition.rank(), max(x.rank(), y.rank()));
+    if output_rank == 0 {
+        node.outputs[0].ty = ArgType::Scalar(elem_type);
+    } else {
+        node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type,
+            dim: output_rank,
+            ..Default::default()
+        });
+        set_broadcasting_output_shape(node);
     }
 }
 

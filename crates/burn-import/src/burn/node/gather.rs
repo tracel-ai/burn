@@ -35,13 +35,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
         let input = match &self.input {
             Type::Tensor(in_tensor) => scope.tensor_use_owned(in_tensor, node_position),
-            Type::Shape(in_shape) => {
-                let in_shape_name = &in_shape.name;
-                // To copy just the values from the shape value without moving it
-                // (which could lead to ownership problems if the same Shape is used multiple times)
-                // borrow the array as a slice and use that to create the Tensor:
-                quote! { Tensor::<B, 1, Int>::from_data(&#in_shape_name as &[_], &*self.device) }
-            }
+            Type::Shape(in_shape) => in_shape.to_tensor(),
             _ => panic!("Gather needs Scalar or Shape input, got {:?}!", self.input),
         };
 
@@ -281,7 +275,7 @@ mod tests {
                     let indices = tensor1;
 
                     let tensor2 = Tensor::select(
-                        Tensor::<B, 1, Int>::from_data(&shape1 as &[_], &*self.device),
+                        Tensor::<B, 1, burn::tensor::Int>::from_data(&shape1 as &[_], &*self.device),
                         0,
                         indices,
                     );
