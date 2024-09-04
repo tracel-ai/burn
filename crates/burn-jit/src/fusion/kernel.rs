@@ -223,20 +223,17 @@ impl<R: JitRuntime> FusionKernel<R> {
 
         // Finally we finish with the named bindings.
         if running_info.scalars.num_f32 > 0 {
-            assert_eq!(running_info.scalars.num_f32, context.scalar_f32.len());
-            let bytes = bytemuck::cast_slice(context.scalar_f32);
+            let bytes = bytemuck::cast_slice(&context.scalar_f32[0..running_info.scalars.num_f32]);
             bindings.push(client.create(bytes).binding());
         }
 
         if running_info.scalars.num_f16 > 0 {
-            assert_eq!(running_info.scalars.num_f16, context.scalar_f16.len());
-            let bytes = bytemuck::cast_slice(context.scalar_f16);
+            let bytes = bytemuck::cast_slice(&context.scalar_f16[0..running_info.scalars.num_f16]);
             bindings.push(client.create(bytes).binding());
         }
 
         if running_info.scalars.num_bf16 > 0 {
-            assert_eq!(running_info.scalars.num_bf16, context.scalar_bf16.len());
-            let bytes = bytemuck::cast_slice(context.scalar_bf16);
+            let bytes = bytemuck::cast_slice(&context.scalar_bf16[0..running_info.scalars.num_bf16]);
             bindings.push(client.create(bytes).binding());
         }
 
