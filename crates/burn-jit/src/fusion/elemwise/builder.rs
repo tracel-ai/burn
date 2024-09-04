@@ -46,19 +46,19 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
                     return;
                 }
             }
-            OperationDescription::Float(ops) => {
+            OperationDescription::Float(_dtype, ops) => {
                 if !self.register_float(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            OperationDescription::NumericFloat(ops) => {
+            OperationDescription::NumericFloat(_dtype, ops) => {
                 if !self.register_numeric::<f32>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
                 }
             }
-            OperationDescription::NumericInt(ops) => {
+            OperationDescription::NumericInt(_dtype, ops) => {
                 if !self.register_numeric::<i32>(ops) {
                     self.status = OptimizationStatus::Closed;
                     return;
@@ -390,8 +390,9 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
             return false;
         }
 
+        let elem = desc.lhs.dtype.into();
         let lhs = self.builder.input(&desc.lhs, Variable::AbsolutePos);
-        let rhs = self.builder.scalar(&desc.rhs, desc.lhs.dtype.into());
+        let rhs = self.builder.scalar(&desc.rhs, elem);
         let out = self.builder.output(&desc.out, Variable::AbsolutePos);
 
         self.builder.register_operation(func(lhs, rhs, out));

@@ -1,7 +1,7 @@
 use super::Scalars;
 use burn_tensor::repr::TensorDescription;
 use cubecl::{
-    ir::{Elem, FloatKind, IntKind, Item, Scope, Variable, Visibility},
+    ir::{Elem, IntKind, Item, Scope, Variable, Visibility},
     InputInfo, KernelExpansion, OutputInfo,
 };
 use serde::{Deserialize, Serialize};
@@ -64,10 +64,23 @@ impl Trace {
             .collect::<Vec<_>>();
 
         // NOTE: we might want to pass a struct including all inputs/outputs metadata instead of 3 arrays
-        if self.scalars.num_float > 0 {
+        if self.scalars.num_f32 > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: Elem::Float(FloatKind::F32),
-                size: self.scalars.num_float,
+                elem: Elem::Float(cubecl::ir::FloatKind::F32),
+                size: self.scalars.num_f32,
+            })
+        }
+        if self.scalars.num_f16 > 0 {
+            inputs.push(InputInfo::Scalar {
+                elem: Elem::Float(cubecl::ir::FloatKind::F16),
+                size: self.scalars.num_f16,
+            })
+        }
+
+        if self.scalars.num_bf16 > 0 {
+            inputs.push(InputInfo::Scalar {
+                elem: Elem::Float(cubecl::ir::FloatKind::BF16),
+                size: self.scalars.num_bf16,
             })
         }
 

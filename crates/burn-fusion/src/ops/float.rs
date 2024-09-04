@@ -62,7 +62,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Random(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Random(desc.clone()),
+            ),
             RandomOps::<B, D>::new(desc, device.clone()),
         );
 
@@ -92,7 +95,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let desc = out.to_description_out();
         client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Zeros(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Zeros(desc.clone()),
+            ),
             ZerosOps::<B, D>::new(desc, device.clone()),
         );
 
@@ -122,7 +128,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let desc = out.to_description_out();
         client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Ones(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Ones(desc.clone()),
+            ),
             OnesOps::<B, D>::new(desc, device.clone()),
         );
 
@@ -158,7 +167,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let desc = (out.to_description_out(), fill_value.elem::<f32>());
         client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Full(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Full(desc.clone()),
+            ),
             FullOps::<B, D>::new(desc.0, desc.1, device.clone()),
         );
 
@@ -226,7 +238,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::IntoInt(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::IntoInt(desc.clone()),
+            ),
             IntoIntOps::<B, D>::new(desc),
         );
 
@@ -267,7 +282,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Add(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Add(desc.clone()),
+            ),
             AddOps::<B, D>::new(desc),
         );
 
@@ -292,9 +310,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::AddScalar(desc.clone()),
+            ),
             AddOps::<B, D>::new(desc),
         );
 
@@ -334,7 +353,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Clamp(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Clamp(desc.clone()),
+            ),
             ClampOps::<B, D>::new(desc),
         );
 
@@ -361,7 +383,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Sub(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Sub(desc.clone()),
+            ),
             SubOps::<B, D>::new(desc),
         );
 
@@ -386,9 +411,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::SubScalar(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::SubScalar(desc.clone()),
+            ),
             SubOps::<B, D>::new(desc),
         );
 
@@ -415,7 +441,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Mul(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Mul(desc.clone()),
+            ),
             MulOps::<B, D>::new(desc),
         );
 
@@ -440,9 +469,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MulScalar(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MulScalar(desc.clone()),
+            ),
             MulOps::<B, D>::new(desc),
         );
 
@@ -469,7 +499,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Div(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Div(desc.clone()),
+            ),
             DivOps::<B, D>::new(desc),
         );
 
@@ -494,9 +527,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::DivScalar(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::DivScalar(desc.clone()),
+            ),
             DivOps::<B, D>::new(desc),
         );
 
@@ -521,9 +555,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::RemScalar(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::RemScalar(desc.clone()),
+            ),
             ModOps::<B, D>::new(desc),
         );
 
@@ -554,7 +589,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::Float(FloatOperationDescription::Matmul(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Matmul(desc.clone()),
+            ),
             MatmulOps::<B, D>::new(desc),
         );
 
@@ -680,7 +718,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Gather(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Gather(desc.clone()),
+            ),
             GatherOps::<B, D>::new(desc),
         );
 
@@ -729,7 +770,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out.client.register(
             vec![stream_1, stream_2, stream_3],
-            OperationDescription::NumericFloat(NumericOperationDescription::Scatter(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Scatter(desc.clone()),
+            ),
             ScatterOps::<B, D>::new(desc),
         );
 
@@ -773,7 +817,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Select(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Select(desc.clone()),
+            ),
             SelectOps::<B, D>::new(desc),
         );
 
@@ -821,9 +868,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2, stream_3],
-            OperationDescription::NumericFloat(NumericOperationDescription::SelectAssign(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::SelectAssign(desc.clone()),
+            ),
             SelectAssignOps::<B, D>::new(desc),
         );
 
@@ -966,9 +1014,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2, stream_3],
-            OperationDescription::NumericFloat(NumericOperationDescription::MaskWhere(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MaskWhere(desc.clone()),
+            ),
             MaskWhereOps::<B, D>::new(desc),
         );
 
@@ -1011,7 +1060,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::MaskFill(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MaskFill(desc.clone()),
+            ),
             MaskFillOps::<B, D>::new(desc),
         );
 
@@ -1062,9 +1114,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::EqualElem(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::EqualElem(desc.clone()),
+            ),
             EqualElemOps::<B, D>::new(desc),
         );
 
@@ -1090,7 +1143,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Greater(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Greater(desc.clone()),
+            ),
             GreaterOps::<B, D>::new(desc),
         );
 
@@ -1115,9 +1171,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::GreaterElem(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::GreaterElem(desc.clone()),
+            ),
             GreaterElemOps::<B, D>::new(desc),
         );
 
@@ -1143,9 +1200,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::GreaterEqual(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::GreaterEqual(desc.clone()),
+            ),
             GreaterEqualOps::<B, D>::new(desc),
         );
 
@@ -1170,9 +1228,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::GreaterEqualElem(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::GreaterEqualElem(desc.clone()),
+            ),
             GreaterEqualElemOps::<B, D>::new(desc),
         );
 
@@ -1198,7 +1257,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Lower(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Lower(desc.clone()),
+            ),
             LowerOps::<B, D>::new(desc),
         );
 
@@ -1223,9 +1285,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::LowerElem(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::LowerElem(desc.clone()),
+            ),
             LowerElemOps::<B, D>::new(desc),
         );
 
@@ -1251,9 +1314,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::LowerEqual(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::LowerEqual(desc.clone()),
+            ),
             LowerEqualOps::<B, D>::new(desc),
         );
 
@@ -1278,9 +1342,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::LowerEqualElem(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::LowerEqualElem(desc.clone()),
+            ),
             LowerEqualElemOps::<B, D>::new(desc),
         );
 
@@ -1301,7 +1366,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Sum(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Sum(desc.clone()),
+            ),
             SumOps::<B, D>::new(desc),
         );
 
@@ -1328,7 +1396,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::SumDim(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::SumDim(desc.clone()),
+            ),
             SumDimOps::<B, D>::new(desc),
         );
 
@@ -1349,7 +1420,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Mean(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Mean(desc.clone()),
+            ),
             MeanOps::<B, D>::new(desc),
         );
 
@@ -1376,7 +1450,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MeanDim(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MeanDim(desc.clone()),
+            ),
             MeanDimOps::<B, D>::new(desc),
         );
 
@@ -1397,7 +1474,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Exp(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Exp(desc.clone()),
+            ),
             ExpOps::<B, D>::new(desc),
         );
 
@@ -1418,7 +1498,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Log(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Log(desc.clone()),
+            ),
             LogOps::<B, D>::new(desc),
         );
 
@@ -1439,7 +1522,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Log1p(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Log1p(desc.clone()),
+            ),
             Log1pOps::<B, D>::new(desc),
         );
 
@@ -1464,7 +1550,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::PowfScalar(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::PowfScalar(desc.clone()),
+            ),
             PowfOps::<B, D>::new(desc),
         );
 
@@ -1485,7 +1574,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Sqrt(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Sqrt(desc.clone()),
+            ),
             SqrtOps::<B, D>::new(desc),
         );
 
@@ -1506,7 +1598,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Abs(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Abs(desc.clone()),
+            ),
             AbsOps::<B, D>::new(desc),
         );
 
@@ -1527,7 +1622,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Cos(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Cos(desc.clone()),
+            ),
             CosOps::<B, D>::new(desc),
         );
 
@@ -1548,7 +1646,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Sin(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Sin(desc.clone()),
+            ),
             SinOps::<B, D>::new(desc),
         );
 
@@ -1569,7 +1670,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Tanh(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Tanh(desc.clone()),
+            ),
             TanhOps::<B, D>::new(desc),
         );
 
@@ -1589,7 +1693,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Recip(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Recip(desc.clone()),
+            ),
             Recip::<B, D>::new(desc),
         );
 
@@ -1610,7 +1717,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Float(FloatOperationDescription::Erf(desc.clone())),
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Erf(desc.clone()),
+            ),
             TanhOps::<B, D>::new(desc),
         );
 
@@ -1689,7 +1799,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::ArgMax(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::ArgMax(desc.clone()),
+            ),
             ArgMaxOps::<B, D>::new(desc),
         );
 
@@ -1759,7 +1872,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::ArgMin(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::ArgMin(desc.clone()),
+            ),
             ArgMinOps::<B, D>::new(desc),
         );
 
@@ -1780,7 +1896,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Max(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Max(desc.clone()),
+            ),
             MaxOps::<B, D>::new(desc),
         );
 
@@ -1807,7 +1926,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MaxDim(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MaxDim(desc.clone()),
+            ),
             MaxDimOps::<B, D>::new(desc),
         );
 
@@ -1849,9 +1971,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MaxDimWithIndices(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MaxDimWithIndices(desc.clone()),
+            ),
             MaxDimWithIndicesOps::<B, D>::new(desc),
         );
 
@@ -1872,7 +1995,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::Min(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Min(desc.clone()),
+            ),
             MinOps::<B, D>::new(desc),
         );
 
@@ -1899,7 +2025,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MinDim(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MinDim(desc.clone()),
+            ),
             MinDimOps::<B, D>::new(desc),
         );
 
@@ -1941,9 +2070,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         client.register(
             vec![stream],
-            OperationDescription::NumericFloat(NumericOperationDescription::MinDimWithIndices(
-                desc.clone(),
-            )),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::MinDimWithIndices(desc.clone()),
+            ),
             MinDimWithIndicesOps::<B, D>::new(desc),
         );
 
@@ -1970,7 +2100,10 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            OperationDescription::NumericFloat(NumericOperationDescription::Powf(desc.clone())),
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Powf(desc.clone()),
+            ),
             PowOps::<B, D>::new(desc),
         );
 
