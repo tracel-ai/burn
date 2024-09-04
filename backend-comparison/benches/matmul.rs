@@ -52,10 +52,13 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     const D: usize = 3;
-    let batch_size = 8;
+    let batch_size = 1;
     let m = 2048;
     let k = 2048;
     let n = 2048;
+    let m = 8192;
+    let k = 8192;
+    let n = 8192;
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 

@@ -110,12 +110,28 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
     indices: [Range<usize>; D2],
 ) -> JitTensor<R, E, D1> {
     let mut dims = tensor.shape.dims;
+    let mut offset = 0;
+
     for i in 0..D2 {
+        offset += indices[i].start * tensor.strides[i];
         dims[i] = indices[i].end - indices[i].start;
     }
-    let shape_output = Shape::new(dims);
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    slice_on_output(tensor, output, indices)
+
+    let offset = offset * E::cube_elem().size();
+
+    if offset % 4 == 0 {
+        JitTensor::new(
+            tensor.client,
+            tensor.handle.offset(offset),
+            Shape::new(dims),
+            tensor.device,
+            tensor.strides,
+        )
+    } else {
+        let shape_output = Shape::new(dims);
+        let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+        slice_on_output(tensor, output, indices)
+    }
 }
 
 pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
