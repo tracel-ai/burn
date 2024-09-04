@@ -157,6 +157,7 @@ jobs:
           vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
           mesa-version: ${{ env.MESA_VERSION }}
           mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
+          cargo-package-to-clean: burn-tch
       # --------------------------------------------------------------------------------
       - name: Install grcov
         if: matrix.rust == 'stable'
