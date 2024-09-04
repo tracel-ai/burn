@@ -233,7 +233,8 @@ impl<R: JitRuntime> FusionKernel<R> {
         }
 
         if running_info.scalars.num_bf16 > 0 {
-            let bytes = bytemuck::cast_slice(&context.scalar_bf16[0..running_info.scalars.num_bf16]);
+            let bytes =
+                bytemuck::cast_slice(&context.scalar_bf16[0..running_info.scalars.num_bf16]);
             bindings.push(client.create(bytes).binding());
         }
 
