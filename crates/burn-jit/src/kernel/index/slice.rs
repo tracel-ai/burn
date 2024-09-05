@@ -119,7 +119,7 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
 
     let offset = offset * E::cube_elem().size();
 
-    if offset % 4 == 0 {
+    if offset % 32 == 0 {
         JitTensor::new(
             tensor.client,
             tensor.handle.offset(offset),
