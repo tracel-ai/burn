@@ -113,7 +113,7 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
     let mut offset = 0;
 
     for i in 0..D2 {
-        offset += indices[i].start * tensor.strides[i];
+        offset += tensor.strides[i] * indices[i].start;
         dims[i] = indices[i].end - indices[i].start;
     }
 
@@ -122,7 +122,7 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
     if offset % 32 == 0 {
         JitTensor::new(
             tensor.client,
-            tensor.handle.offset(offset),
+            tensor.handle.offset_start(offset),
             Shape::new(dims),
             tensor.device,
             tensor.strides,

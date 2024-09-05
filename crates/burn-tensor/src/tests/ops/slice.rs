@@ -175,20 +175,26 @@ mod tests {
         // Negative dimensions
         let data = TensorData::from([[0.0f32]]);
         let output = tensor.clone().slice([Some((0, -1)), Some((0, -2))]);
+        println!("Allo1");
         output.into_data().assert_eq(&data, true);
 
         // Missing dimensions
         let output = tensor.clone().slice([Some((0, 1)), None]);
         let data = TensorData::from([[0.0f32, 1.0, 2.0]]);
+        println!("Allo2");
+        println!("{output}");
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, Some((0, 2))]);
         let data = TensorData::from([[0.0f32, 1.0], [3.0, 4.0]]);
+        println!("Allo3");
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, None]);
         let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        println!("Allo4");
         output.into_data().assert_eq(&data, true);
+        println!("End");
     }
 
     #[test]

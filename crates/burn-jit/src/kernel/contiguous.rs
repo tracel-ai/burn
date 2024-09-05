@@ -5,6 +5,7 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
     if tensor.is_contiguous() {
+        println!("In contiguous");
         return tensor;
     }
 

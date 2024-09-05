@@ -4,7 +4,7 @@ use crate::JitRuntime;
 use burn_tensor::Shape;
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::linalg::tensor::{matrix_layout, MatrixLayout, TensorHandle};
+use cubecl::linalg::tensor::TensorHandle;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
 use std::marker::PhantomData;
