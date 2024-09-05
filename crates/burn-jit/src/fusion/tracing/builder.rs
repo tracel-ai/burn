@@ -103,13 +103,33 @@ impl TraceBuilder {
     /// Create a variable from an input [scalar](Element).
     pub fn scalar<E: Element>(&mut self, _value: &E, elem_type: Elem) -> Variable {
         match elem_type {
-            Elem::Float(_) => {
-                let var = self
-                    .scope
-                    .read_scalar(self.scalars.num_float as u16, elem_type);
-                self.scalars.num_float += 1;
-                var
-            }
+            Elem::Float(kind) => match kind {
+                cubecl::ir::FloatKind::F16 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_f16 as u16, elem_type);
+
+                    self.scalars.num_f16 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::F32 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_f32 as u16, elem_type);
+
+                    self.scalars.num_f32 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::BF16 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_bf16 as u16, elem_type);
+
+                    self.scalars.num_bf16 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::F64 => todo!(),
+            },
             Elem::Int(_) => {
                 let var = self
                     .scope

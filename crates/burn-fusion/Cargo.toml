@@ -23,6 +23,7 @@ derive-new = {workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true }
+half = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

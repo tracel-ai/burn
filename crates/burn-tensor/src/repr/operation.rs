@@ -4,7 +4,7 @@ use std::ops::Range;
 use crate::{
     ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions},
     repr::tensor::TensorDescription,
-    Distribution, Element,
+    DType, Distribution, Element,
 };
 
 /// Describe all tensor operations possible.
@@ -17,15 +17,15 @@ pub enum OperationDescription {
     /// Basic operation on a bool tensor.
     BaseBool(BaseOperationDescription),
     /// Numeric operation on a float tensor.
-    NumericFloat(NumericOperationDescription<f32>),
+    NumericFloat(DType, NumericOperationDescription<f32>),
     /// Numeric operation on an int tensor.
-    NumericInt(NumericOperationDescription<i32>),
+    NumericInt(DType, NumericOperationDescription<i32>),
     /// Operation specific to a bool tensor.
     Bool(BoolOperationDescription),
     /// Operation specific to an int tensor.
     Int(IntOperationDescription),
     /// Operation specific to a float tensor.
-    Float(FloatOperationDescription),
+    Float(DType, FloatOperationDescription),
     /// Module operation.
     Module(ModuleOperationDescription),
 }
@@ -1149,11 +1149,11 @@ impl OperationDescription {
             OperationDescription::BaseFloat(ops) => ops.nodes(),
             OperationDescription::BaseInt(ops) => ops.nodes(),
             OperationDescription::BaseBool(ops) => ops.nodes(),
-            OperationDescription::NumericFloat(ops) => ops.nodes(),
-            OperationDescription::NumericInt(ops) => ops.nodes(),
+            OperationDescription::NumericFloat(_dtype, ops) => ops.nodes(),
+            OperationDescription::NumericInt(_dtype, ops) => ops.nodes(),
             OperationDescription::Bool(ops) => ops.nodes(),
             OperationDescription::Int(ops) => ops.nodes(),
-            OperationDescription::Float(ops) => ops.nodes(),
+            OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
         }
     }

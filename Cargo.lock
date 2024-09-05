@@ -612,6 +612,7 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "derive-new",
+ "half",
  "hashbrown 0.14.5",
  "log",
  "serde",
