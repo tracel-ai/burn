@@ -22,7 +22,6 @@ impl Scope {
         if let Some(variable) = self.variables.get_mut(&tensor.name) {
             if variable.node_position == node_position {
                 variable.references += 1;
-                return;
             }
         } else {
             self.variables
