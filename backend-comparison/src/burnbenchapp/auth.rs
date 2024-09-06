@@ -156,7 +156,7 @@ fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
         // reqwest won't send the request in release build
         .body(reqwest::blocking::Body::from(""))
         .send();
-    response.ok()?.json::<Tokens>().ok().inspect(|new_tokens| {
+    response.ok()?.json::<Tokens>().ok().inspect(|_new_tokens| {
         println!("✅ Token refreshed!");
     })
 }
