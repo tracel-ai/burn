@@ -52,7 +52,7 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     const D: usize = 3;
-    let batch_size = 1;
+    let batch_size = 8;
     let m = 2048;
     let k = 2048;
     let n = 2048;
