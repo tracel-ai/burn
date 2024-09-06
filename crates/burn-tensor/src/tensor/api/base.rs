@@ -639,7 +639,6 @@ where
     /// index handling internally.
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
         let ranges = ranges.into_ranges(self.shape());
-        println!("Slice {:?}: Tensor {:?}", ranges, self);
 
         check!(TensorCheck::slice(&self.shape(), &ranges));
         Self::new(K::slice(self.primitive, ranges))
