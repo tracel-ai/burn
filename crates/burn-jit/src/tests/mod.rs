@@ -100,6 +100,7 @@ macro_rules! testgen_jit {
 
         burn_tensor::testgen_all!();
         burn_autodiff::testgen_all!();
+        burn_tensor::testgen_quantization!();
     };
 }
 
