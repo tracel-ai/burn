@@ -520,8 +520,9 @@ impl<'i> StreamSegment<TestOptimization> for TestSegment<'i> {
 
 /// Just a simple operation.
 fn operation_1() -> OperationDescription {
-    OperationDescription::NumericFloat(NumericOperationDescription::Add(
-        BinaryOperationDescription {
+    OperationDescription::NumericFloat(
+        DType::F32,
+        NumericOperationDescription::Add(BinaryOperationDescription {
             lhs: TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
@@ -540,14 +541,15 @@ fn operation_1() -> OperationDescription {
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
-        },
-    ))
+        }),
+    )
 }
 
 /// Just a simple operation.
 fn operation_2() -> OperationDescription {
-    OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
-        ScalarOperationDescription {
+    OperationDescription::NumericFloat(
+        DType::F32,
+        NumericOperationDescription::AddScalar(ScalarOperationDescription {
             lhs: TensorDescription {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
@@ -561,24 +563,27 @@ fn operation_2() -> OperationDescription {
                 status: TensorStatus::NotInit,
                 dtype: DType::F32,
             },
-        },
-    ))
+        }),
+    )
 }
 
 /// Just a simple operation.
 fn operation_3() -> OperationDescription {
-    OperationDescription::Float(FloatOperationDescription::Log(UnaryOperationDescription {
-        input: TensorDescription {
-            id: TensorId::new(0),
-            shape: vec![32, 32],
-            status: TensorStatus::ReadOnly,
-            dtype: DType::F32,
-        },
-        out: TensorDescription {
-            id: TensorId::new(0),
-            shape: vec![32, 32],
-            status: TensorStatus::NotInit,
-            dtype: DType::F32,
-        },
-    }))
+    OperationDescription::Float(
+        DType::F32,
+        FloatOperationDescription::Log(UnaryOperationDescription {
+            input: TensorDescription {
+                id: TensorId::new(0),
+                shape: vec![32, 32],
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            },
+            out: TensorDescription {
+                id: TensorId::new(0),
+                shape: vec![32, 32],
+                status: TensorStatus::NotInit,
+                dtype: DType::F32,
+            },
+        }),
+    )
 }

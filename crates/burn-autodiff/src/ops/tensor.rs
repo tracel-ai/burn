@@ -1816,8 +1816,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             ) {
                 let tensor: B::FloatTensorPrimitive<D> =
                     checkpointer.retrieve_node_output(ops.state);
-                let output = B::float_abs(tensor.clone());
-                let state = B::float_div(tensor, output);
+                let state = B::float_sign(tensor);
                 unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
                     B::float_mul(grad, state)
                 });

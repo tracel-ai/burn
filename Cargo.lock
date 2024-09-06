@@ -507,7 +507,7 @@ name = "burn-common"
 version = "0.15.0"
 dependencies = [
  "cubecl-common",
- "dashmap 5.5.3",
+ "dashmap",
  "data-encoding",
  "getrandom",
  "indicatif",
@@ -612,6 +612,7 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "derive-new",
+ "half",
  "hashbrown 0.14.5",
  "log",
  "serde",
@@ -1630,19 +1631,6 @@ dependencies = [
 
 [[package]]
 name = "dashmap"
-version = "5.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
-dependencies = [
- "cfg-if",
- "hashbrown 0.14.5",
- "lock_api",
- "once_cell",
- "parking_lot_core 0.9.10",
-]
-
-[[package]]
-name = "dashmap"
 version = "6.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "804c8821570c3f8b70230c2ba75ffa5c0f9a4189b9a432b6656c536712acae28"
@@ -2446,7 +2434,7 @@ version = "14.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046b4927969fa816a150a0cda2e62c80016fe11fb3c3184e4dddf4e542f108aa"
 dependencies = [
- "dashmap 6.0.1",
+ "dashmap",
  "gix-fs",
  "libc",
  "once_cell",
@@ -3274,7 +3262,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6677,8 +6665,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tracel-xtask"
-version = "1.0.0"
-source = "git+https://github.com/tracel-ai/xtask?rev=921408bc16e74d3ef8ae59356d928fb6706fb8f4#921408bc16e74d3ef8ae59356d928fb6706fb8f4"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63f307c8a22d3c67bb2a0678290243e4917d235c507f0c8b35e8612919978a08"
 dependencies = [
  "anyhow",
  "clap 4.5.16",
@@ -6695,8 +6684,9 @@ dependencies = [
 
 [[package]]
 name = "tracel-xtask-macros"
-version = "1.0.0"
-source = "git+https://github.com/tracel-ai/xtask?rev=921408bc16e74d3ef8ae59356d928fb6706fb8f4#921408bc16e74d3ef8ae59356d928fb6706fb8f4"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9b7ee23c050536c8c932ca7daaebbf45ff6c1d57f1bd65fc084833ac6a8d419"
 dependencies = [
  "proc-macro2",
  "quote",

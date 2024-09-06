@@ -218,8 +218,9 @@ mod tests {
     }
 
     fn ops_1() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::Add(
-            BinaryOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::Add(BinaryOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
@@ -238,13 +239,14 @@ mod tests {
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 
     fn ops_2() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
-            ScalarOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::AddScalar(ScalarOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
@@ -258,13 +260,14 @@ mod tests {
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 
     fn ops_3() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::Sub(
-            BinaryOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::Sub(BinaryOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
@@ -283,7 +286,7 @@ mod tests {
                     status: TensorStatus::NotInit,
                     dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 }
