@@ -56,7 +56,6 @@ mod tests {
             .assert_approx_eq(&TensorData::from([[3.0, 5.0, 7.0], [6.0, 8.0, 10.0]]), 1);
     }
 
-    // TODO: tests
     #[test]
     fn test_add_different_strides_rhs() {
         // Quantized [[0.0, 1.0], [2.0, 3.0]]
