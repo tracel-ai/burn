@@ -30,7 +30,7 @@ burn-import = { version = "0.14" } # Used to auto generate the rust code to impo
 ```
 
 ### Import the Model
-Follow the directions to [import models](./import/README.md).
+Follow the directions to [import models](../import/README.md).
 
 Use the following ModelGen config
 ```rs
