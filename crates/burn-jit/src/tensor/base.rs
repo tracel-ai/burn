@@ -197,7 +197,7 @@ where
 }
 
 pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
-    if shape.len() == 0 {
+    if shape.is_empty() {
         return true;
     }
 
