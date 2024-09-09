@@ -5,34 +5,19 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 #[cube(launch)]
 fn mask_fill_readonly_kernel<T: Numeric>(
     input: &Tensor<T>,
-    mask: &Tensor<UInt>,
+    mask: &Tensor<u32>,
     output: &mut Tensor<T>,
     value: T,
-    rank: Comptime<UInt>,
+    #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
     }
 
-    let index_input = index_offset_with_layout(
-        input,
-        output,
-        ABSOLUTE_POS,
-        UInt::new(0),
-        Comptime::runtime(rank),
-        Comptime::new(true),
-    );
+    let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
+    let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
 
-    let index_mask = index_offset_with_layout(
-        mask,
-        output,
-        ABSOLUTE_POS,
-        UInt::new(0),
-        Comptime::runtime(rank),
-        Comptime::new(true),
-    );
-
-    if mask[index_mask] >= UInt::new(1) {
+    if mask[index_mask] >= 1 {
         output[ABSOLUTE_POS] = value;
     } else {
         output[ABSOLUTE_POS] = input[index_input];
@@ -42,24 +27,17 @@ fn mask_fill_readonly_kernel<T: Numeric>(
 #[cube(launch)]
 fn mask_fill_inplace_kernel<T: Numeric>(
     input: &mut Tensor<T>,
-    mask: &Tensor<UInt>,
+    mask: &Tensor<u32>,
     value: T,
-    rank: Comptime<UInt>,
+    #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= input.len() {
         return;
     }
 
-    let index_mask = index_offset_with_layout(
-        mask,
-        input,
-        ABSOLUTE_POS,
-        UInt::new(0),
-        Comptime::runtime(rank),
-        Comptime::new(true),
-    );
+    let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= UInt::new(1) {
+    if mask[index_mask] >= 1 {
         input[ABSOLUTE_POS] = value;
     }
 }
@@ -104,7 +82,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
 
-    mask_fill_readonly_kernel::launch::<EI::Primitive, R>(
+    mask_fill_readonly_kernel::launch::<EI, R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -112,7 +90,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
         mask.as_tensor_arg(1),
         output.as_tensor_arg(1),
         ScalarArg::new(value),
-        UInt::new(D as u32),
+        D as u32,
     );
 
     output
@@ -126,14 +104,14 @@ fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usi
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
 
-    mask_fill_inplace_kernel::launch::<EI::Primitive, R>(
+    mask_fill_inplace_kernel::launch::<EI, R>(
         &input.client,
         cube_count,
         cube_dim,
         input.as_tensor_arg(1),
         mask.as_tensor_arg(1),
         ScalarArg::new(value),
-        UInt::new(D as u32),
+        D as u32,
     );
 
     input

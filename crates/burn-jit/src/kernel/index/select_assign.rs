@@ -1,4 +1,4 @@
-use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
@@ -7,15 +7,14 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     tensor: &mut Tensor<F>,
     indices: &Tensor<I>,
     value: &Tensor<F>,
-    dim: &UInt,
+    dim: u32,
 ) {
-    let dim = *dim;
-    let mut offset_tensor = UInt::new(0u32);
-    let mut offset_value = UInt::new(0u32);
-    let mut num_elems = UInt::new(1u32);
+    let mut offset_tensor = 0u32;
+    let mut offset_value = 0u32;
+    let mut num_elems = 1u32;
 
     // Calculate offsets and num_elems
-    for i in range(0, tensor.rank(), Comptime::new(false)) {
+    for i in 0..tensor.rank() {
         if i != dim {
             let shape_tensor = tensor.shape(i);
 
@@ -36,8 +35,8 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     let strides_value_dim = value.stride(dim);
 
     // Main operation
-    for i in range(0, value.shape(dim), Comptime::new(false)) {
-        let index_tensor = UInt::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
+    for i in 0..value.shape(dim) {
+        let index_tensor = u32::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
         tensor[index_tensor] += value[index_value];
@@ -75,7 +74,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        select_assign_kernel::launch_unchecked::<E::Primitive, I::Primitive, R>(
+        select_assign_kernel::launch_unchecked::<E, I, R>(
             &tensor.client,
             cube_count,
             cube_dim,
