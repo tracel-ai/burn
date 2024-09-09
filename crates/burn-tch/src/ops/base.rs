@@ -509,6 +509,15 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
     }
 
+    pub fn sort_with_indices<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
+        let sorted = tensor.tensor.sort(dim as i64, descending);
+        (TchTensor::new(sorted.0), TchTensor::new(sorted.1))
+    }
+
     pub fn argsort<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
