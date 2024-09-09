@@ -66,6 +66,7 @@ impl TensorData {
         // Ensure shape is valid
         let shape = shape.into();
         let shape_numel = Self::numel(&shape);
+        value.truncate(shape_numel);
         let numel = value.len();
         assert_eq!(
             shape_numel, numel,
