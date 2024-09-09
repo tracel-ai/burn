@@ -196,12 +196,12 @@ where
     }
 }
 
-fn is_contiguous<const D: usize>(shape: &[usize; D], strides: &[usize; D]) -> bool {
-    if D == 0 {
+pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
+    if shape.len() == 0 {
         return true;
     }
 
-    if D == 1 {
+    if shape.len() == 1 {
         return strides[0] == 1;
     }
 

@@ -1,5 +1,9 @@
 use crate::{
-    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
+    element::JitElement,
+    kernel::{into_contiguous, Kernel},
+    ops::numeric::empty_device,
+    tensor::JitTensor,
+    JitRuntime,
 };
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
