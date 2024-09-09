@@ -16,6 +16,7 @@ members = [
 
 exclude = [
     "examples/notebook",
+    "examples/tch-ci",
     "examples/raspberry-pi-pico", # will cause dependency building issues otherwise
     # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
