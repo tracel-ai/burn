@@ -1,4 +1,40 @@
+use burn_core::prelude::{Backend, Tensor};
 use burn_core::{data::dataloader::Progress, LearningRate};
+use burn_core::tensor::{Int};
+use burn_core::tensor::cast::ToElement;
+
+///Aggregation types for Classification metrics
+#[derive(Copy, Clone)]
+pub enum AggregationType {
+    Micro,
+    Macro,
+    //Weighted(Box<[f64]>), todo!()
+}
+
+impl AggregationType {
+    pub fn aggregate<B: Backend>(self, cm_mask: Tensor<B, 2, Int>) -> Tensor<B, 1, Int> {
+        match self {
+            AggregationType::Macro => cm_mask.sum_dim(0).squeeze(0),
+            AggregationType::Micro => cm_mask.sum()
+            //MetricAverage::Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+        }
+    }
+
+    pub fn to_averaged_metric<B: Backend>(self, metrics: Tensor<B, 1>) -> f64 {
+        let [n_classes] = metrics.dims();
+        match self {
+            AggregationType::Macro => metrics.sum().into_scalar().to_f64() / n_classes as f64,
+            AggregationType::Micro => metrics.into_scalar().to_f64()
+            //MetricAverage::Weighted(weights) =>
+        }
+    }
+}
+
+pub enum ClassificationType {
+    Binary,
+    Multiclass,
+    Multilabel,
+}
 
 /// Metric metadata that can be used when computing metrics.
 pub struct MetricMetadata {
