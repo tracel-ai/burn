@@ -243,10 +243,13 @@ is to use a PyTorch installation. This requires a Python installation.
 _Note: MPS acceleration is available on MacOS 12.3+._
 
 ```shell
-pip install torch==2.2.0
+pip install torch==2.2.0 numpy==1.26.4 setuptools
 export LIBTORCH_USE_PYTORCH=1
 export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ```
+
+If `venv` is used, it should be activated during coding and building,
+or the `Rust Analyzer` may not work properly.
 
 ## Example Usage
 
@@ -255,3 +258,6 @@ sets the device to use and performs a simple element-wise addition.
 
 For a more complete example using the `tch` backend, take a loot at the
 [Burn mnist example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
+
+For a ci example with `tch` feature, take a look at the
+[tch ci example](https://github.com/tracel-ai/burn/tree/main/examples/tch-ci)
