@@ -386,6 +386,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::Round(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     Operator::Floor(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
@@ -407,6 +412,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Operator::UncheckedIndexAssign(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::BitwiseOr(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
@@ -494,6 +504,11 @@ impl TraceBuilder {
                     Operator::AtomicCompareAndSwap(_op) => {
                         // Nothing to do.
                     }
+                    Operator::Normalize(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                 },
                 Operation::Procedure(proc) => {
                     match proc {
