@@ -1,6 +1,6 @@
 use crate::{
     element::JitElement,
-    kernel::{self, Kernel},
+    kernel::{self},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -10,18 +10,18 @@ use cubecl::{calculate_cube_count_elemwise, CubeDim};
 #[cube(launch_unchecked)]
 fn scatter_kernel<T: Numeric>(
     input: &mut Tensor<T>,
-    indices: &Tensor<I32>,
+    indices: &Tensor<i32>,
     value: &Tensor<T>,
-    dim: &UInt,
+    dim: &u32,
 ) {
     let stride_input = input.stride(*dim);
     let shape_value = value.shape(*dim);
 
-    let mut offset_input = UInt::new(0);
-    let mut offset_value = UInt::new(0);
-    let mut num_elems = UInt::new(1);
+    let mut offset_input = 0;
+    let mut offset_value = 0;
+    let mut num_elems = 1;
 
-    for i in range(0, value.rank(), Comptime::new(false)) {
+    for i in 0..value.rank() {
         let shouldnt_skip = i != *dim;
         if shouldnt_skip {
             let shape_input_loop = input.shape(i);
@@ -49,12 +49,12 @@ fn scatter_kernel<T: Numeric>(
         return;
     }
 
-    for i in range(0, shape_value, Comptime::new(false)) {
+    for i in 0..shape_value {
         let mut idx = stride_input * i;
         idx += offset_value;
 
         let result_value = value[idx];
-        let result_indices = UInt::cast_from(indices[idx]);
+        let result_indices = u32::cast_from(indices[idx]);
 
         let mut index_input = stride_input * result_indices;
         index_input += offset_input;
@@ -104,7 +104,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<E::Primitive, R>(
+        scatter_kernel::launch_unchecked::<E, R>(
             &indices.client.clone(),
             cube_count,
             cube_dim,

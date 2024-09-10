@@ -1,3 +1,4 @@
+use burn_tensor::cast::ToElement;
 use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
@@ -20,7 +21,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
         let min = input_item
             .elem()
-            .constant_from_f64(E::maximum_value().to_f64());
+            .constant_from_f64(ToElement::to_f64(&E::maximum_value()));
         cpa!(scope, value_shared_memory[write_position] = min);
         (value_shared_memory, index_shared_memory)
     }

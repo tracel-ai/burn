@@ -1,6 +1,4 @@
-use crate::{
-    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
@@ -9,19 +7,19 @@ fn select_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
     indices: &Tensor<I>,
     output: &mut Tensor<T>,
-    dim: UInt,
+    dim: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
     }
 
-    let mut offset_input = UInt::new(0);
+    let mut offset_input = 0;
 
-    for i in range(0u32, output.rank(), Comptime::new(false)) {
+    for i in 0..output.rank() {
         let mut offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i);
 
         if i == dim {
-            offset_local = UInt::cast_from(indices[offset_local]);
+            offset_local = u32::cast_from(indices[offset_local]);
         }
 
         offset_input += offset_local * input.stride(i);
@@ -46,7 +44,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
     unsafe {
-        select_kernel::launch_unchecked::<E::Primitive, I::Primitive, R>(
+        select_kernel::launch_unchecked::<E, I, R>(
             &tensor.client,
             cube_count,
             cube_dim,

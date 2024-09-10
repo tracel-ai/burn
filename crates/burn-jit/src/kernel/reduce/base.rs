@@ -9,7 +9,7 @@ use super::{
 
 #[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
-    ReduceDimNaive<EI::Primitive> + ReduceDimShared<EI>
+    ReduceDimNaive<EI> + ReduceDimShared<EI>
 {
 }
 

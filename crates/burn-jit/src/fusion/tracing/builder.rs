@@ -494,6 +494,10 @@ impl TraceBuilder {
                     Operator::AtomicCompareAndSwap(_op) => {
                         // Nothing to do.
                     }
+                    Operator::Round(_) => todo!(),
+                    Operator::Neg(_) => todo!(),
+                    Operator::BitwiseOr(_) => todo!(),
+                    Operator::Normalize(_) => todo!(),
                 },
                 Operation::Procedure(proc) => {
                     match proc {

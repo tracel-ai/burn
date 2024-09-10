@@ -2,13 +2,11 @@
 //!
 //! Each local unit will compute a single element of the output matrix.
 use crate::{
-    kernel::{into_contiguous, Kernel, SUBCUBE_DIM_APPROX},
+    kernel::{into_contiguous, SUBCUBE_DIM_APPROX},
     ops::swap_dims,
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
-use cubecl::ir::KernelDefinition;
-use cubecl::KernelSettings;
 
 use super::simple_cube_count;
 use cubecl::prelude::*;
@@ -19,15 +17,15 @@ fn matmul_kernel<F: Float>(
     rhs: &Tensor<F>,
     out: &mut Tensor<F>,
     // number of dimensions not involved in the matmul
-    num_batches: Comptime<Option<UInt>>,
+    #[comptime] num_batches: Option<u32>,
 ) {
     let rank = out.rank();
-    let end = Comptime::unwrap_or_else(num_batches, || rank - UInt::new(2));
-    let unroll = Comptime::is_some(num_batches);
+    let end = num_batches.unwrap_or_else(|| rank - 2);
+    let unroll = num_batches.is_some();
 
-    let n_rows = lhs.shape(rank - UInt::new(2));
-    let n_cols = rhs.shape(rank - UInt::new(1));
-    let mut k = rhs.shape(rank - UInt::new(2));
+    let n_rows = lhs.shape(rank - 2);
+    let n_cols = rhs.shape(rank - 1);
+    let mut k = rhs.shape(rank - 2);
 
     let batch_pos = ABSOLUTE_POS_Z;
     let row = CUBE_DIM_X * CUBE_POS_X + UNIT_POS_X;
@@ -37,27 +35,28 @@ fn matmul_kernel<F: Float>(
         return;
     }
 
-    let vectorization_factor = Comptime::vectorization(lhs);
+    let vectorization_factor = vectorization_of(lhs);
 
-    let mut offset_lhs = UInt::new(0);
-    let mut offset_rhs = UInt::new(0);
+    let mut offset_lhs = 0;
+    let mut offset_rhs = 0;
     let offset_out = n_rows * n_cols * batch_pos;
 
-    for i in range(0u32, end, unroll) {
+    #[unroll(unroll)]
+    for i in 0u32..end {
         let ogwl = offset_out / out.stride(i);
 
         offset_lhs += ogwl % lhs.shape(i) * lhs.stride(i);
         offset_rhs += ogwl % rhs.shape(i) * rhs.stride(i);
     }
 
-    offset_lhs /= Comptime::runtime(vectorization_factor);
-    offset_rhs /= Comptime::runtime(vectorization_factor);
+    offset_lhs /= vectorization_factor;
+    offset_rhs /= vectorization_factor;
 
-    let mut sum = F::vectorized(0., Comptime::get(vectorization_factor));
+    let mut sum = F::vectorized(0., vectorization_factor);
 
-    k /= Comptime::runtime(vectorization_factor);
+    k /= vectorization_factor;
 
-    for i in range(0u32, k, Comptime::new(false)) {
+    for i in 0u32..k {
         let lhs_index = row * k + i + offset_lhs;
         let rhs_index = col * k + i + offset_rhs;
 
@@ -67,16 +66,14 @@ fn matmul_kernel<F: Float>(
     let mut out_index = row * n_cols + col;
     out_index += offset_out;
 
-    let unroll_sum = Comptime::map(vectorization_factor, |w: UInt| w != UInt::new(1));
-    if Comptime::get(unroll_sum) {
+    let unroll_sum = vectorization_factor != 1;
+
+    if unroll_sum {
         let mut accum = F::new(0.);
         // we unroll the loop to sum `vectorization_factor` elements at once, which lets us
         // use SIMD instructions to speed up the computation
-        for v in range(
-            0u32,
-            Comptime::get(vectorization_factor),
-            Comptime::new(true),
-        ) {
+        #[unroll]
+        for v in 0u32..vectorization_factor {
             accum += sum[v];
         }
 
@@ -126,7 +123,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     };
 
     unsafe {
-        matmul_kernel::launch_unchecked::<E::FloatPrimitive, R>(
+        matmul_kernel::launch_unchecked::<E, R>(
             &lhs.client,
             cube_count,
             CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
@@ -138,7 +135,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
                 vectorization_factor,
             ),
             out.as_tensor_arg(1),
-            Some(UInt::new(D as u32 - 2)),
+            Some(D as u32 - 2),
         );
     };
 

@@ -6,7 +6,7 @@ use cubecl::{
 use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
+use burn_tensor::{cast::ToElement, ops::conv::calculate_pool_output_size, Shape};
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
@@ -28,7 +28,9 @@ impl<E: JitElement> PoolStrategy for MaxPool<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial = item.elem().constant_from_f64(E::minimum_value().to_f64());
+        let max_initial = item
+            .elem()
+            .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
         cpa!(scope, max_val = max_initial);
         max_val
     }
@@ -82,7 +84,9 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
         let max_val = scope.create_local(item);
-        let max_initial = item.elem().constant_from_f64(E::minimum_value().to_f64());
+        let max_initial = item
+            .elem()
+            .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
         cpa!(scope, max_val = max_initial);
         let max_index = scope.create_local(Elem::UInt);
         (max_val, max_index)

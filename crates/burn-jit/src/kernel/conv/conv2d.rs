@@ -17,13 +17,13 @@ use crate::{
 
 #[derive(CubeLaunch)]
 struct Conv2dArgs {
-    conv_stride_0: UInt,
-    conv_stride_1: UInt,
-    dilation_0: UInt,
-    dilation_1: UInt,
-    padding_0: UInt,
-    padding_1: UInt,
-    groups: UInt,
+    conv_stride_0: u32,
+    conv_stride_1: u32,
+    dilation_0: u32,
+    dilation_1: u32,
+    padding_0: u32,
+    padding_1: u32,
+    groups: u32,
 }
 
 #[cube(launch)]
@@ -33,7 +33,7 @@ fn conv2d_kernel<F: Float>(
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
     args: &Conv2dArgs,
-    kernel_size_1_unroll: Comptime<Option<UInt>>,
+    #[comptime] kernel_size_1_unroll: Option<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -42,8 +42,8 @@ fn conv2d_kernel<F: Float>(
     let in_channels = weight.shape(1);
 
     let kernel_size_0 = weight.shape(2);
-    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
-    let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
+    let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
+    let unroll_1 = kernel_size_1_unroll.is_some();
 
     let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -76,12 +76,13 @@ fn conv2d_kernel<F: Float>(
     let index_input_0 = b * input.stride(0);
     let index_weight_0 = oc * weight.stride(0);
 
-    for ic in range(ic_start, ic_end, Comptime::new(false)) {
+    for ic in ic_start..ic_end {
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0, kernel_size_0, Comptime::new(false)) {
-            for kw in range(0, kernel_size_1, unroll_1) {
+        for kh in 0..kernel_size_0 {
+            #[unroll(unroll_1)]
+            for kw in 0..kernel_size_1 {
                 let ih = kh * args.dilation_0 + ih_base;
                 let iw = kw * args.dilation_1 + iw_base;
 
@@ -128,7 +129,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let kernel_1_unroll = if kernel_1 > 8 {
         None
     } else {
-        Some(kernel_1.into())
+        Some(kernel_1 as u32)
     };
 
     let out_0 = calculate_conv_output_size(
@@ -169,7 +170,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    conv2d_kernel::launch::<E::FloatPrimitive, R>(
+    conv2d_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,

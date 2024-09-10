@@ -1,14 +1,15 @@
-use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
+use cubecl::prelude::*;
+
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
 use cubecl::linalg::tensor::index_offset_with_layout;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
-use cubecl::{ir::KernelDefinition, KernelSettings};
+use cubecl::{calculate_cube_count_elemwise, tensor_vectorization_factor};
 use std::any::TypeId;
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
     input: &Tensor<I>,
     output: &mut Tensor<O>,
-    rank: Comptime<Option<UInt>>,
+    #[comptime] rank: Option<u32>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -20,9 +21,9 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
         input,
         output,
         offset_output,
-        UInt::new(0),
-        Comptime::unwrap_or_else(rank, || output.rank()),
-        Comptime::is_some(rank),
+        0,
+        rank.unwrap_or_else(|| output.rank()),
+        rank.is_some(),
     );
 
     output[offset_output] = O::cast_from(input[offset_input]);
@@ -57,14 +58,16 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
         handle,
     );
 
-    cast_element::launch::<EI::Primitive, EO::Primitive, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        input.as_tensor_arg(vectorization_factor),
-        output.as_tensor_arg(vectorization_factor),
-        Some(UInt::new(rank as u32)),
-    );
+    unsafe {
+        cast_element::launch_unchecked::<EI, EO, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            input.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
+            Some(rank as u32),
+        );
+    }
 
     output
 }
