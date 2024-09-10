@@ -31,7 +31,7 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.79.0
+  RUST_PREVIOUS_VERSION: 1.80.0
 
   # Cargo
   CARGO_TERM_COLOR: "always"
@@ -137,14 +137,13 @@ jobs:
     needs: prepare-checks
     strategy:
       matrix:
-        # rust: [stable, prev]
-        rust: [stable]
+        rust: [stable, prev]
         include:
           - rust: stable
             toolchain: stable
             coverage: --enable-coverage
-            #- rust: prev
-            #  toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
@@ -188,12 +187,12 @@ jobs:
     needs: prepare-checks
     strategy:
       matrix:
-        # rust: [stable]
+        rust: [stable, prev]
         include:
           - rust: stable
             toolchain: stable
-          #- rust: prev
-          #  toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+          - rust: prev
+            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
