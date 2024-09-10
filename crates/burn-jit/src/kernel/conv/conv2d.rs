@@ -41,10 +41,9 @@ fn conv2d_kernel<F: Float>(
 
     let in_channels = weight.shape(1);
 
-    let kernel_size_0 = kernel_size_0_unroll.unwrap_or_else(|| weight.shape(2));
+    let kernel_size_0 = weight.shape(2);
     let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
     let unroll_1 = kernel_size_1_unroll.is_some();
-
 
     let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -130,7 +129,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let kernel_1_unroll = if kernel_1 > 8 {
         None
     } else {
-        Some(kernel_1.into())
+        Some(kernel_1 as u32)
     };
 
     let out_0 = calculate_conv_output_size(
@@ -188,7 +187,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        Some(kernel_1 as u32),
+        kernel_1_unroll,
     );
 
     output
