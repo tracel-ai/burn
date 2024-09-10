@@ -149,7 +149,7 @@ where
                 tensor.as_tensor_arg(vectorization_factor),
                 // Ignore shape and stride
                 TensorArg::from_raw_parts(&scale.handle, &dummy_array, &dummy_array, 1),
-                output.as_tensor_arg(vectorization_factor),
+                output.as_tensor_arg(1),
             )
         };
     }
