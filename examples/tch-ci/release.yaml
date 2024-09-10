@@ -78,11 +78,11 @@ jobs:
       - name: setup environment macOS
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          python3 -m venv pytorch
-          source pytorch/bin/activate
+          python3 -m venv .venv
+          source .venv/bin/activate
           pip install torch==2.2.0 numpy==1.26.4 setuptools
           export LIBTORCH_USE_PYTORCH=1
-          export DYLD_LIBRARY_PATH="$(find pytorch -type d -name "lib" | grep /torch):$DYLD_LIBRARY_PATH"
+          export DYLD_LIBRARY_PATH="$(find .venv -type d -name "lib" | grep /torch):$DYLD_LIBRARY_PATH"
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
