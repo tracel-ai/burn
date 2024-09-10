@@ -20,11 +20,11 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         grad_1
-            .to_data()
-            .assert_eq(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), false); // 1x2x2
-        grad_2.to_data().assert_eq(
+            .into_data()
+            .assert_approx_eq(&TensorData::from([[[7.2, 12.0], [7.2, 12.0]]]), 3); // 1x2x2
+        grad_2.into_data().assert_approx_eq(
             &TensorData::from([[[10.0, 10.0, 10.0], [3.0, 3.0, 3.0]]]),
-            false,
+            3,
         ); // 1x2x3
     }
 }
