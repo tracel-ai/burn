@@ -35,7 +35,7 @@ fn matmul_kernel<F: Float>(
         return;
     }
 
-    let vectorization_factor = lhs.vectorization_factor();
+    let vectorization_factor = vectorization_of(lhs);
 
     let mut offset_lhs = 0;
     let mut offset_rhs = 0;
