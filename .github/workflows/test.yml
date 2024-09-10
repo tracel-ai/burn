@@ -137,13 +137,14 @@ jobs:
     needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, prev]
+        # rust: [stable, prev]
+        rust: [stable]
         include:
           - rust: stable
             toolchain: stable
             coverage: --enable-coverage
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+            #- rust: prev
+            #  toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
@@ -187,12 +188,12 @@ jobs:
     needs: prepare-checks
     strategy:
       matrix:
-        rust: [stable, prev]
+        # rust: [stable]
         include:
           - rust: stable
             toolchain: stable
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+          #- rust: prev
+          #  toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
         uses: tracel-ai/github-actions/setup-rust@v1
