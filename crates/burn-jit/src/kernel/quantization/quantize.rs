@@ -120,7 +120,7 @@ where
 
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
-    // Output tensor contains 4x less elements (four int8 values packed in a signle u32)
+    // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let handle = client.empty(num_elems / 4 * core::mem::size_of::<I>());
     let output =
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
