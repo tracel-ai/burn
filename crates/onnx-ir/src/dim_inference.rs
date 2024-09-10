@@ -28,7 +28,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Cos => same_as_input(node),
         NodeType::Div => same_as_input_broadcast(node),
         NodeType::Dropout => same_as_input(node),
-        NodeType::Equal => elementwise_comparsion_outputs(node),
+        NodeType::Equal => elementwise_comparison_outputs(node),
         NodeType::Erf => same_as_input(node),
         NodeType::Exp => same_as_input(node),
         NodeType::Expand => expand_update_outputs(node),
@@ -36,15 +36,15 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
         NodeType::GatherElements => same_as_input(node),
-        NodeType::Greater => elementwise_comparsion_outputs(node),
-        NodeType::GreaterOrEqual => elementwise_comparsion_outputs(node),
+        NodeType::Greater => elementwise_comparison_outputs(node),
+        NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
-        NodeType::Less => elementwise_comparsion_outputs(node),
-        NodeType::LessOrEqual => elementwise_comparsion_outputs(node),
+        NodeType::Less => elementwise_comparison_outputs(node),
+        NodeType::LessOrEqual => elementwise_comparison_outputs(node),
         NodeType::Linear => linear_update_outputs(node),
         NodeType::Log => same_as_input(node),
         NodeType::LogSoftmax => same_as_input(node),
@@ -488,7 +488,7 @@ fn temporary_pass_through_stub(node: &mut Node) {
 /// i.e., comparison operators like Equal, Greater, Less, etc.
 ///
 /// Support for broadcasting is assumed
-fn elementwise_comparsion_outputs(node: &mut Node) {
+fn elementwise_comparison_outputs(node: &mut Node) {
     let input1_type = &node.inputs[0].ty;
     let input2_type = &node.inputs[1].ty;
 

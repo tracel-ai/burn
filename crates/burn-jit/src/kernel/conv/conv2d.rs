@@ -33,7 +33,6 @@ fn conv2d_kernel<F: Float>(
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
     args: &Conv2dArgs,
-    #[comptime] kernel_size_0_unroll: Option<u32>,
     #[comptime] kernel_size_1_unroll: Option<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -43,9 +42,9 @@ fn conv2d_kernel<F: Float>(
     let in_channels = weight.shape(1);
 
     let kernel_size_0 = kernel_size_0_unroll.unwrap_or_else(|| weight.shape(2));
-    let unroll_0 = kernel_size_0_unroll.is_some();
     let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
     let unroll_1 = kernel_size_1_unroll.is_some();
+
 
     let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -82,7 +81,6 @@ fn conv2d_kernel<F: Float>(
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        #[unroll(unroll_0)]
         for kh in 0..kernel_size_0 {
             #[unroll(unroll_1)]
             for kw in 0..kernel_size_1 {
@@ -127,6 +125,13 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims;
     let [out_channels, _, kernel_0, kernel_1] = weight.shape.dims;
+
+    // Limit loop unrolling factor to 8 or smaller
+    let kernel_1_unroll = if kernel_1 > 8 {
+        None
+    } else {
+        Some(kernel_1.into())
+    };
 
     let out_0 = calculate_conv_output_size(
         kernel_0,
@@ -183,7 +188,6 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        Some(kernel_0 as u32),
         Some(kernel_1 as u32),
     );
 
