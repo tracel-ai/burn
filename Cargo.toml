@@ -27,7 +27,7 @@ readme = "README.md"
 version = "0.15.0"
 
 [workspace.dependencies]
-bytemuck = "1.17.1"
+bytemuck = "1.18.0"
 candle-core = { version = "0.6.0" }
 clap = { version = "4.5.16", features = ["derive"] }
 colored = "2.1.0"
