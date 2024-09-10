@@ -272,6 +272,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::Neg(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     Operator::Index(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -303,6 +308,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Operator::Abs(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::Round(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
@@ -411,6 +421,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::BitwiseOr(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     Operator::BitwiseAnd(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -487,6 +502,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Operator::AtomicXor(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::Normalize(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,

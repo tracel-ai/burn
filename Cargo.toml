@@ -22,9 +22,9 @@ exclude = [
 
 [workspace.package]
 edition = "2021"
-version = "0.15.0"
-readme = "README.md"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
+version = "0.15.0"
 
 [workspace.dependencies]
 bytemuck = "1.17.1"
@@ -53,9 +53,9 @@ libm = "0.2.8"
 log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
 percent-encoding = "2.3.1"
+polars = { version = "0.41.3", features = ["lazy"] }
 pretty_assertions = "1.4.0"
 proc-macro2 = "1.0.86"
-polars = { version = "0.41.3", features = ["lazy"] }
 protobuf = "3.4.0"
 protobuf-codegen = "3.4.0"
 quote = "1.0.37"
@@ -92,12 +92,12 @@ web-time = "1.1.0"
 zip = "2.2.0"
 
 # Async handling
-pollster = "0.3"
 async-channel = "2.3"
+pollster = "0.3"
 
 # Terminal UI
-ratatui = "0.26.3"
 crossterm = "0.27.0"
+ratatui = "0.26.3"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
@@ -119,18 +119,18 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 derive-new = { version = "0.6.0", default-features = false }
 
+blas-src = { version = "0.10.0", default-features = false }
 half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
     "serde",
 ], default-features = false }
-ndarray = { version = "0.16.0", default-features = false }
 matrixmultiply = { version = "0.3.9", default-features = false }
-openblas-src = "0.10.9"
-blas-src = { version = "0.10.0", default-features = false }
+ndarray = { version = "0.16.0", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
+openblas-src = "0.10.9"
 rand = { version = "0.8.5", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
@@ -143,16 +143,16 @@ serde_json = { version = "1.0.127", default-features = false }
 uuid = { version = "1.9.1", default-features = false }
 
 libc = "0.2.157"
-tch = "0.15.0"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.30.13"
 systemstat = "0.2.3"
+tch = "0.15.0"
 
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea9e6ba3e338aa0c528e885fb17f763b9366b799" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ea9e6ba3e338aa0c528e885fb17f763b9366b799" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1b2eeeabfdd6f111f8bac7d4c4d00357d023e15b" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1b2eeeabfdd6f111f8bac7d4c4d00357d023e15b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl" }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common" }

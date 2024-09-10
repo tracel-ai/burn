@@ -29,9 +29,7 @@ where
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>>
-    for TensorHandle<R, E::Primitive>
-{
+impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for TensorHandle<R, E> {
     fn from(val: JitTensor<R, E, D>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
@@ -171,7 +169,7 @@ where
             fn execute<C: Numeric>(input: C) -> C {
                 input
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
