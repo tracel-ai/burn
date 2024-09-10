@@ -9,14 +9,14 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     value: &Tensor<F>,
     dim: &u32,
 ) {
-    let dim2 = *dim;
+    let dim = *dim;
     let mut offset_tensor = 0u32;
     let mut offset_value = 0u32;
     let mut num_elems = 1u32;
 
     // Calculate offsets and num_elems
     for i in 0..tensor.rank() {
-        if i != dim2 {
+        if i != dim {
             let shape_tensor = tensor.shape(i);
 
             num_elems *= shape_tensor;
@@ -32,11 +32,11 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
         return;
     }
 
-    let strides_tensor_dim = tensor.stride(dim2);
-    let strides_value_dim = value.stride(dim2);
+    let strides_tensor_dim = tensor.stride(dim);
+    let strides_value_dim = value.stride(dim);
 
     // Main operation
-    for i in 0..value.shape(dim2) {
+    for i in 0..value.shape(dim) {
         let index_tensor = u32::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
