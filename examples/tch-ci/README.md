@@ -12,7 +12,7 @@ Things the action does:
 # Usage
 
 - copy `CHANGELOG.md` file and `dist` folder to your project root
-- copy `release.yaml` to `.github/workflows` folder and modify `NAME`
+- copy `release.yaml` to `.github/workflows` folder and modify `NAME` `BIN1` `BIN2`
 - allow actions and enable read and write permissions in your repository
 - trigger the action by pushing a new tag
 

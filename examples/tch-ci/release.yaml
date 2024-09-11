@@ -40,6 +40,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
       - name: retrieve dist macOS
         if: ${{ matrix.os == 'macos-latest' }}
         run: mkdir run && ls dist | grep macOS | xargs -I {} sh -c 'cp dist/{} run/$(echo {} | sed s/_macOS//g)'
@@ -52,42 +53,31 @@ jobs:
           New-Item -Path "run" -ItemType Directory && Get-ChildItem -Path "dist" | Where-Object { $_.Name -match "windows" } | ForEach-Object {
           $newName = $_.Name -replace "_windows", "" && Copy-Item -Path $_.FullName -Destination (Join-Path -Path "run" -ChildPath $newName)
           }
+
       - name: setup cuda
         if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'windows-latest' }}
         uses: Jimver/cuda-toolkit@master
         with:
           method: network
           sub-packages: '["nvcc"]'
-      - name: download pytorch-lib
-        if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'windows-latest' }}
-        run: |
-          curl -L -o libtorch.zip https://download.pytorch.org/libtorch/cu121/libtorch-cxx11-abi-shared-with-deps-2.2.0%2Bcu121.zip
-          unzip libtorch.zip
-          rm libtorch.zip
+
       - name: setup environment Linux
         if: ${{ matrix.os == 'ubuntu-22.04'  }}
-        run: |
-          export PATH="${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin:$PATH"
-          export LD_LIBRARY_PATH="$(pwd)/libtorch/lib:$LD_LIBRARY_PATH" LIBTORCH="$(pwd)/libtorch"
+        run: scripts/setup_linux.sh
       - name: setup environment Windows
         if: ${{ matrix.os == 'windows-latest' }}
-        run: |
-          $Env:PATH = "${{steps.cuda-toolkit.outputs.CUDA_PATH}}/bin;$Env:PATH"
-          $Env:LIBTORCH = "$(pwd)/libtorch/"
-          $Env:Path += ";$(pwd)/libtorch/;$(pwd)/libtorch/lib/"
+        run: scripts/setup_windows.ps1
       - name: setup environment macOS
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          python3 -m venv .venv
+          scripts/setup_macOS.sh
           source .venv/bin/activate
-          pip install torch==2.2.0 numpy==1.26.4 setuptools
-          export LIBTORCH_USE_PYTORCH=1
-          export DYLD_LIBRARY_PATH="$(find .venv -type d -name "lib" | grep /torch):$DYLD_LIBRARY_PATH"
+
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           # (required) Comma-separated list of binary names (non-extension portion of filename) to build and upload.
           # Note that glob pattern is not supported yet.
-          bin: NAME
+          bin: BIN1,BIN2
           # (optional) Target triple, default is host triple.
           # This is optional but it is recommended that this always be set to
           # clarify which target you are building for if macOS is included in
@@ -96,7 +86,7 @@ jobs:
           target: ${{ matrix.target }}
           # (optional) Comma-separated list of additional files to be included to archive.
           # Note that glob pattern is not supported yet.
-          include: README.md
+          include: run,README.md
           # (optional) Whether to create the leading directory in the archive or not. default to false.
           leading-dir: true
           # (optional) Archive name (non-extension portion of filename) to be uploaded.
