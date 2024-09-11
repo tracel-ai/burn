@@ -115,7 +115,7 @@ where
     let num_elems = tensor.shape.num_elements();
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
-    let handle = client.empty(num_elems * core::mem::size_of::<I>());
+    let handle = client.empty(num_elems * core::mem::size_of::<F>());
     let output =
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 
