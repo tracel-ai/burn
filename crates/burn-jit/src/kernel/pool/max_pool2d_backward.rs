@@ -346,7 +346,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: 
     let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
     let kernel = MaxPool2dWithIndicesBackwardEagerKernel::<R, E>::new(kernel_size);
 
-    Execution::start(kernel, x.client)
+    Execution::start(kernel, x.client.clone())
         .inputs(&[indices.as_handle_ref(), grad.as_handle_ref()])
         .outputs(&[output.as_handle_ref()])
         .with_scalars(&[

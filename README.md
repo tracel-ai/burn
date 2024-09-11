@@ -3,11 +3,11 @@
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
+[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
 [![Blaze](https://runblaze.dev/gh/114041730602611213183421653564341667516/badge.svg)](https://runblaze.dev)
-[![Rust Version](https://img.shields.io/badge/Rust-1.79.0+-blue)](https://releases.rs/docs/1.79.0)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---
@@ -155,7 +155,7 @@ Hardware specific features 🔥
 </summary>
 <br />
 
-It is no secret that deep learning is mosly relying on matrix multiplication as its core operation,
+It is no secret that deep learning is mostly relying on matrix multiplication as its core operation,
 since this is how fully-connected neural networks are modeled.
 
 More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
@@ -545,7 +545,6 @@ Additional examples:
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
   [`Learner`](./building-blocks/learner.md) progress.
-- [Simple CubeCL Kernel](./examples/gelu) : Implements a simple GELU kernel with `CubeCL`.
 - [Image Classification Web](./examples/image-classification-web) : Image classification web browser
   demo using Burn, WGPU and WebAssembly.
 - [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in

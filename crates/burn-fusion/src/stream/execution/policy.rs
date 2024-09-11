@@ -549,10 +549,10 @@ mod tests {
             // Out node.
             self.new_empty_node(out_id);
 
-            self.operations
-                .push(OperationDescription::Float(FloatOperationDescription::Log(
-                    self.unary_description(),
-                )));
+            self.operations.push(OperationDescription::Float(
+                DType::F32,
+                FloatOperationDescription::Log(self.unary_description()),
+            ));
         }
 
         fn new_empty_node(&mut self, id: u64) {

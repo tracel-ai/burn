@@ -46,6 +46,10 @@ def main() -> None:
     # Create the model
     model_def = helper.make_model(graph_def, producer_name='expand')
 
+    
+    # Ensure valid ONNX:
+    onnx.checker.check_model(model_def)
+
     # Save the model to a file
     onnx.save(model_def, 'expand.onnx')
 

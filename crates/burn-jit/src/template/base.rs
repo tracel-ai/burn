@@ -19,7 +19,7 @@ pub struct SourceKernel<K> {
 }
 
 impl<K: KernelSource> CubeTask for SourceKernel<K> {
-    fn compile(&self, _execution_mode: ExecutionMode) -> CompiledKernel {
+    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 

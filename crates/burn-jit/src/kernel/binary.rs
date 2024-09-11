@@ -1,9 +1,8 @@
-use super::Kernel;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
-    tensor_vectorization_factor, Runtime,
+    tensor_vectorization_factor,
 };
 
 #[cube]
@@ -81,9 +80,9 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
     lhs: &Tensor<C>,
     rhs: &Tensor<C>,
     out: &mut Tensor<C>,
-    rank: Comptime<Option<UInt>>,
-    to_contiguous_lhs: Comptime<bool>,
-    to_contiguous_rhs: Comptime<bool>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] to_contiguous_lhs: bool,
+    #[comptime] to_contiguous_rhs: bool,
 ) {
     let offset_out = ABSOLUTE_POS;
     let mut offset_lhs = ABSOLUTE_POS;
@@ -93,37 +92,32 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
         return;
     }
 
-    if Comptime::get(to_contiguous_lhs) {
+    if to_contiguous_lhs {
         offset_lhs = index_offset_with_layout::<C, C>(
             lhs,
             out,
             offset_out,
-            UInt::new(0),
-            Comptime::unwrap_or_else(rank, || out.rank()),
-            Comptime::is_some(rank),
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
         );
     }
 
-    if Comptime::get(to_contiguous_rhs) {
+    if to_contiguous_rhs {
         offset_rhs = index_offset_with_layout::<C, C>(
             rhs,
             out,
             offset_out,
-            UInt::new(0),
-            Comptime::unwrap_or_else(rank, || out.rank()),
-            Comptime::is_some(rank),
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
         );
     }
 
     out[offset_out] = O::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<
-    const D: usize,
-    R: JitRuntime,
-    E: JitElement,
-    O: BinaryOp<E::Primitive>,
->(
+pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
@@ -153,12 +147,12 @@ pub(crate) fn launch_binop<
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if lhs.can_mut_broadcast(&rhs) {
-        kernel_binop::launch::<E::Primitive, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
-            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             None,
             false,
@@ -167,12 +161,12 @@ pub(crate) fn launch_binop<
 
         lhs
     } else if rhs.can_mut_broadcast(&lhs) {
-        kernel_binop::launch::<E::Primitive, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
-            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
             TensorArg::alias(1),
             None,
             rhs.strides != lhs.strides || rhs.shape != lhs.shape,
@@ -187,13 +181,13 @@ pub(crate) fn launch_binop<
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_binop::launch::<E::Primitive, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_handle_ref().as_tensor_arg(vectorization_factor),
-            rhs.as_handle_ref().as_tensor_arg(vectorization_factor),
-            output.as_handle_ref().as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             None,
             to_contiguous_lhs,
             to_contiguous_rhs,
@@ -203,12 +197,7 @@ pub(crate) fn launch_binop<
     }
 }
 
-pub(crate) fn launch_scalar_binop<
-    const D: usize,
-    R: JitRuntime,
-    E: JitElement,
-    O: BinaryOp<E::Primitive>,
->(
+pub(crate) fn launch_scalar_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
     tensor: JitTensor<R, E, D>,
     scalar: E,
 ) -> JitTensor<R, E, D> {
@@ -223,11 +212,11 @@ pub(crate) fn launch_scalar_binop<
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if tensor.can_mut() {
-        kernel_scalar_binop::launch::<E::Primitive, O, R>(
+        kernel_scalar_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
-            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
             TensorArg::alias(0),
         );
@@ -243,13 +232,13 @@ pub(crate) fn launch_scalar_binop<
             tensor.strides,
         );
 
-        kernel_scalar_binop::launch::<E::Primitive, O, R>(
+        kernel_scalar_binop::launch::<E, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
             ScalarArg::new(scalar),
-            output.as_handle_ref().as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
         );
 
         output

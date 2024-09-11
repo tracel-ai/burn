@@ -1,4 +1,5 @@
-use burn_tensor::{repr::*, Element, ElementConversion};
+use burn_tensor::{repr::*, DType, Element, ElementConversion};
+use half::{bf16, f16};
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -13,8 +14,12 @@ pub struct Context<'a, H> {
     pub tensors: &'a HashMap<TensorId, TensorDescription>,
     /// Handle container to retrieve tensors based on their description.
     pub handles: &'a mut HandleContainer<H>,
-    /// Float scalars found in the graph in the order they appeared.
-    pub scalar_floats: &'a Vec<f32>,
+    /// F32 scalars found in the graph in the order they appeared.
+    pub scalar_f32: &'a Vec<f32>,
+    /// F16 scalars found in the graph in the order they appeared.
+    pub scalar_f16: &'a Vec<f16>,
+    /// BF16 scalars found in the graph in the order they appeared.
+    pub scalar_bf16: &'a Vec<bf16>,
     /// Int scalars found in the graph in the order they appeared.
     pub scalar_ints: &'a Vec<i32>,
 }
@@ -26,7 +31,9 @@ pub(crate) struct OperationConverter {
     /// Only useful to create new shape ID.
     /// You should use tensor descriptions to retrieve the proper shape.
     shapes_global2relative: HashMap<usize, usize>,
-    scalar_floats: Vec<f32>,
+    scalar_f32: Vec<f32>,
+    scalar_f16: Vec<f16>,
+    scalar_bf16: Vec<bf16>,
     scalar_ints: Vec<i32>,
 }
 
@@ -45,7 +52,9 @@ impl OperationConverter {
         Context {
             handles,
             tensors: &self.tensors_relative2global,
-            scalar_floats: &self.scalar_floats,
+            scalar_f32: &self.scalar_f32,
+            scalar_f16: &self.scalar_f16,
+            scalar_bf16: &self.scalar_bf16,
             scalar_ints: &self.scalar_ints,
         }
     }
@@ -54,12 +63,20 @@ impl OperationConverter {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
         self.shapes_global2relative.clear();
-        self.scalar_floats.clear();
+        self.scalar_f32.clear();
+        self.scalar_f16.clear();
+        self.scalar_bf16.clear();
         self.scalar_ints.clear();
     }
 
-    pub(crate) fn relative_float<E: Element>(&mut self, elem: &E) -> E {
-        self.scalar_floats.push(elem.elem());
+    pub(crate) fn relative_float<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
+        match dtype {
+            burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
+            burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
+            burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
+            _ => todo!("Unsupported"),
+        }
+
         // We return 0 so that the id from a scalar operation is the same no matter its scalar
         // value.
         0.elem()
@@ -85,19 +102,24 @@ impl RelativeOps for OperationDescription {
             OperationDescription::BaseBool(ops) => {
                 OperationDescription::BaseBool(ops.to_relative(converter))
             }
-            OperationDescription::NumericFloat(ops) => OperationDescription::NumericFloat(
-                ops.to_relative(converter, |converter, e| converter.relative_float(e)),
+            OperationDescription::NumericFloat(dtype, ops) => OperationDescription::NumericFloat(
+                *dtype,
+                ops.to_relative(converter, |converter, e| converter.relative_float(e, dtype)),
             ),
-            OperationDescription::NumericInt(ops) => OperationDescription::NumericInt(
+            OperationDescription::NumericInt(dtype, ops) => OperationDescription::NumericInt(
+                *dtype,
                 ops.to_relative(converter, |converter, e| converter.relative_int(e)),
             ),
             OperationDescription::Bool(ops) => {
                 OperationDescription::Bool(ops.to_relative(converter))
             }
             OperationDescription::Int(ops) => OperationDescription::Int(ops.to_relative(converter)),
-            OperationDescription::Float(ops) => {
-                OperationDescription::Float(ops.to_relative(converter))
-            }
+            OperationDescription::Float(dtype, ops) => OperationDescription::Float(
+                *dtype,
+                RelativeOpsScalar::<f32>::to_relative(ops, converter, |converter, e| {
+                    converter.relative_float(e, dtype)
+                }),
+            ),
             OperationDescription::Module(ops) => {
                 OperationDescription::Module(ops.to_relative(converter))
             }
@@ -371,8 +393,11 @@ impl RelativeOps for ModuleOperationDescription {
     }
 }
 
-impl RelativeOps for FloatOperationDescription {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+impl RelativeOpsScalar<f32> for FloatOperationDescription {
+    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
+    where
+        F: Fn(&mut OperationConverter, &f32) -> f32,
+    {
         match self {
             FloatOperationDescription::Exp(desc) => {
                 FloatOperationDescription::Exp(UnaryOperationDescription {
@@ -401,7 +426,7 @@ impl RelativeOps for FloatOperationDescription {
             FloatOperationDescription::PowfScalar(desc) => {
                 FloatOperationDescription::PowfScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: converter.relative_float(&desc.rhs),
+                    rhs: local_elem(converter, &desc.rhs.elem()),
                     out: desc.out.to_relative(converter),
                 })
             }

@@ -314,21 +314,17 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
                     .flat_map(to_tensor)
                     .for_each(|tensor| {
                         self.scope
-                            .tensor_register_variable(&tensor, node_position + 1)
-                    })
-            });
-
-        self.nodes
-            .iter()
-            .enumerate()
-            .for_each(|(node_position, node)| {
+                            .tensor_register_variable(&tensor, node_position + 1);
+                    });
+                // Since the graph is guaranteed to be a DAG, we can safely register future uses
+                // of the inputs (which are the previous nodes' outputs)
                 node.input_types()
                     .into_iter()
                     .flat_map(to_tensor)
                     .for_each(|tensor| {
                         self.scope
                             .tensor_register_future_use(&tensor, node_position)
-                    })
+                    });
             });
     }
 
@@ -555,15 +551,19 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
 
         // Get the input and output types of the graph using passed in names
         input_names.iter().for_each(|input| {
-            self.graph_input_types
-                .push(inputs.get(input).unwrap().clone());
+            self.graph_input_types.push(
+                inputs
+                    .get(&TensorType::format_name(input))
+                    .unwrap_or_else(|| panic!("Input type not found for {input}"))
+                    .clone(),
+            );
         });
 
         output_names.iter().for_each(|output| {
             self.graph_output_types.push(
                 outputs
-                    .get(output)
-                    .unwrap_or_else(|| panic!("Output type is not found for {output}"))
+                    .get(&TensorType::format_name(output))
+                    .unwrap_or_else(|| panic!("Output type not found for {output}"))
                     .clone(),
             );
         });

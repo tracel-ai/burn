@@ -17,16 +17,16 @@ use crate::{
 
 #[derive(CubeLaunch)]
 struct Conv3dArgs {
-    conv_stride_0: UInt,
-    conv_stride_1: UInt,
-    conv_stride_2: UInt,
-    dilation_0: UInt,
-    dilation_1: UInt,
-    dilation_2: UInt,
-    padding_0: UInt,
-    padding_1: UInt,
-    padding_2: UInt,
-    groups: UInt,
+    conv_stride_0: u32,
+    conv_stride_1: u32,
+    conv_stride_2: u32,
+    dilation_0: u32,
+    dilation_1: u32,
+    dilation_2: u32,
+    padding_0: u32,
+    padding_1: u32,
+    padding_2: u32,
+    groups: u32,
 }
 
 #[cube(launch)]
@@ -36,9 +36,9 @@ fn conv3d_kernel<F: Float>(
     bias: Tensor<F>,
     mut output: Tensor<F>,
     args: Conv3dArgs,
-    kernel_size_0_unroll: Comptime<Option<UInt>>,
-    kernel_size_1_unroll: Comptime<Option<UInt>>,
-    kernel_size_2_unroll: Comptime<Option<UInt>>,
+    #[comptime] kernel_size_0_unroll: Option<u32>,
+    #[comptime] kernel_size_1_unroll: Option<u32>,
+    #[comptime] kernel_size_2_unroll: Option<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -46,12 +46,12 @@ fn conv3d_kernel<F: Float>(
 
     let in_channels = weight.shape(1);
 
-    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || weight.shape(2));
-    let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
-    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
-    let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
-    let kernel_size_2 = Comptime::unwrap_or_else(kernel_size_2_unroll, || weight.shape(4));
-    let unroll_2 = Comptime::is_some(kernel_size_2_unroll);
+    let kernel_size_0 = kernel_size_0_unroll.unwrap_or_else(|| weight.shape(2));
+    let unroll_0 = kernel_size_0_unroll.is_some();
+    let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
+    let unroll_1 = kernel_size_1_unroll.is_some();
+    let kernel_size_2 = kernel_size_2_unroll.unwrap_or_else(|| weight.shape(4));
+    let unroll_2 = kernel_size_2_unroll.is_some();
 
     let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -91,13 +91,16 @@ fn conv3d_kernel<F: Float>(
     let index_input_0 = b * input.stride(0);
     let index_weight_0 = oc * weight.stride(0);
 
-    for ic in range(ic_start, ic_end, Comptime::new(false)) {
+    for ic in ic_start..ic_end {
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kd in range(0, kernel_size_0, unroll_0) {
-            for kh in range(0, kernel_size_1, unroll_1) {
-                for kw in range(0, kernel_size_2, unroll_2) {
+        #[unroll(unroll_0)]
+        for kd in 0..kernel_size_0 {
+            #[unroll(unroll_1)]
+            for kh in 0..kernel_size_1 {
+                #[unroll(unroll_2)]
+                for kw in 0..kernel_size_2 {
                     let id = kd * args.dilation_0 + id_base;
                     let ih = kh * args.dilation_1 + ih_base;
                     let iw = kw * args.dilation_2 + iw_base;
@@ -191,14 +194,14 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    conv3d_kernel::launch::<E::FloatPrimitive, R>(
+    conv3d_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_handle_ref().as_tensor_arg(1),
-        weight.as_handle_ref().as_tensor_arg(1),
-        bias.as_handle_ref().as_tensor_arg(1),
-        output.as_handle_ref().as_tensor_arg(1),
+        input.as_tensor_arg(1),
+        weight.as_tensor_arg(1),
+        bias.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         Conv3dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -211,9 +214,9 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[2] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        Some(kernel_0.into()),
-        Some(kernel_1.into()),
-        Some(kernel_2.into()),
+        Some(kernel_0 as u32),
+        Some(kernel_1 as u32),
+        Some(kernel_2 as u32),
     );
 
     output

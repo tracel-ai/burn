@@ -7,6 +7,8 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{prelude::*, Terminal};
+use std::panic::{set_hook, take_hook};
+use std::sync::Arc;
 use std::{
     error::Error,
     io::{self, Stdout},
@@ -23,6 +25,9 @@ pub(crate) type TerminalBackend = CrosstermBackend<Stdout>;
 /// The current terminal frame.
 pub(crate) type TerminalFrame<'a> = ratatui::Frame<'a>;
 
+#[allow(deprecated)] // `PanicInfo` type is renamed to `PanicHookInfo` in Rust 1.82
+type PanicHook = Box<dyn Fn(&std::panic::PanicInfo<'_>) + 'static + Sync + Send>;
+
 const MAX_REFRESH_RATE_MILLIS: u64 = 100;
 
 /// The terminal UI metrics renderer.
@@ -35,6 +40,7 @@ pub struct TuiMetricsRenderer {
     status: StatusState,
     interuptor: TrainingInterrupter,
     popup: PopupState,
+    previous_panic_hook: Option<Arc<PanicHook>>,
 }
 
 impl MetricsRenderer for TuiMetricsRenderer {
@@ -85,6 +91,18 @@ impl TuiMetricsRenderer {
         enable_raw_mode().unwrap();
         let terminal = Terminal::new(CrosstermBackend::new(stdout)).unwrap();
 
+        // Reset the terminal to raw mode on panic before running the panic handler
+        // This prevents that the panic message is not visible for the user.
+        let previous_panic_hook = Arc::new(take_hook());
+        set_hook(Box::new({
+            let previous_panic_hook = previous_panic_hook.clone();
+            move |panic_info| {
+                let _ = disable_raw_mode();
+                let _ = execute!(io::stdout(), LeaveAlternateScreen);
+                previous_panic_hook(panic_info);
+            }
+        }));
+
         Self {
             terminal,
             last_update: Instant::now(),
@@ -94,6 +112,7 @@ impl TuiMetricsRenderer {
             status: StatusState::default(),
             interuptor,
             popup: PopupState::Empty,
+            previous_panic_hook: Some(previous_panic_hook),
         }
     }
 
@@ -205,8 +224,20 @@ impl CallbackFn for PopupCancel {
 
 impl Drop for TuiMetricsRenderer {
     fn drop(&mut self) {
-        disable_raw_mode().ok();
-        execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
-        self.terminal.show_cursor().ok();
+        // Reset the terminal back to raw mode. This can be skipped during
+        // panicking because the panic hook has already reset the terminal
+        if !std::thread::panicking() {
+            disable_raw_mode().ok();
+            execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
+            self.terminal.show_cursor().ok();
+
+            // Reinstall the previous panic hook
+            let _ = take_hook();
+            if let Some(previous_panic_hook) =
+                Arc::into_inner(self.previous_panic_hook.take().unwrap())
+            {
+                set_hook(previous_panic_hook);
+            }
+        }
     }
 }

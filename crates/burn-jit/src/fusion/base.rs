@@ -1,4 +1,5 @@
 use super::{ElementWise, ElementWiseState};
+use crate::tensor::is_contiguous;
 use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
     IntElement, JitBackend, JitRuntime,
@@ -263,7 +264,7 @@ fn dynamic_inplace<R: JitRuntime>(
 
             let handle = &handles_inputs[pos];
 
-            if handle.handle.can_mut() && is_contiguous(&handle.strides) {
+            if handle.handle.can_mut() && is_contiguous(&desc.shape, &handle.strides) {
                 Some((pos, desc, input))
             } else {
                 None
@@ -318,24 +319,11 @@ fn dynamic_reading_strategy<R: JitRuntime>(
             continue;
         }
 
-        if is_contiguous(&handle.strides) {
+        if is_contiguous(&description_input.shape, &handle.strides) {
             settings
                 .reading_strategy
                 .push((input_id, ReadingStrategy::Plain));
         }
     }
     settings
-}
-
-fn is_contiguous(strides: &[usize]) -> bool {
-    let mut current = 0;
-
-    for stride in strides.iter().rev() {
-        if current > *stride {
-            return false;
-        }
-        current = *stride;
-    }
-
-    true
 }

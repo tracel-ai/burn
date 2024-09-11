@@ -6,7 +6,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_common::stub::Mutex;
+use burn_common::stub::RwLock;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -15,7 +15,6 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
-use crate::tensor::api::chunk::chunk;
 use crate::tensor::api::narrow::narrow;
 use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
 use crate::{DType, Element, TensorPrimitive};
@@ -58,7 +57,9 @@ where
 
     /// Create an empty tensor of the given shape.
     pub fn empty<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::empty(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
+        Self::new(K::empty(shape, device))
     }
 
     /// Returns the dimensions of the current tensor.
@@ -717,7 +718,10 @@ where
         T: Into<TensorData>,
     {
         let data = data.into();
-        check!(TensorCheck::from_data::<D>(data.shape.as_slice()));
+        check!(TensorCheck::creation_ops::<D>(
+            "From Data",
+            data.shape.as_slice()
+        ));
         Self::new(K::from_data(data, device))
     }
 
@@ -829,9 +833,9 @@ where
     /// A vector of tensors.
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-        chunk::<B, D, K>(self.primitive, chunks, dim)
+        K::chunk(self.primitive, chunks, dim)
             .into_iter()
-            .map(|v| Self::new(v))
+            .map(Self::new)
             .collect()
     }
 
@@ -1021,13 +1025,13 @@ where
             acc.push(' ');
         }
     }
-
     fn fmt_inner_tensor(
         &self,
         acc: &mut String,
         depth: usize,
         multi_index: &mut [usize],
         range: (usize, usize),
+        precision: Option<usize>,
     ) {
         let (start, end) = range;
         for i in start..end {
@@ -1043,7 +1047,10 @@ where
 
             if let Some(data) = data {
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
-                acc.push_str(&format!("{elem:?}"));
+                match (precision, K::name()) {
+                    (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    _ => acc.push_str(&format!("{:?}", elem)),
+                }
             } else {
                 acc.push_str("<Tensor data not available>");
             }
@@ -1102,7 +1109,13 @@ where
             // if we are at the innermost dimension, just push its elements into the accumulator
             if summarize && self.dims()[depth] > 2 * edge_items {
                 // print the starting `edge_items` elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, edge_items));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, edge_items),
+                    print_options.precision,
+                );
                 acc.push_str(", ...");
                 // print the last `edge_items` elements
                 self.fmt_inner_tensor(
@@ -1110,10 +1123,17 @@ where
                     depth,
                     multi_index,
                     (self.dims()[depth] - edge_items, self.dims()[depth]),
+                    print_options.precision,
                 );
             } else {
                 // print all the elements
-                self.fmt_inner_tensor(acc, depth, multi_index, (0, self.dims()[depth]));
+                self.fmt_inner_tensor(
+                    acc,
+                    depth,
+                    multi_index,
+                    (0, self.dims()[depth]),
+                    print_options.precision,
+                );
             }
         } else {
             // otherwise, iterate through the current dimension and recursively display the inner tensors
@@ -1158,29 +1178,42 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 /// Options for Tensor pretty printing
 pub struct PrintOptions {
     /// number of elements to start summarizing tensor
     pub threshold: usize,
+
     /// number of starting elements and ending elements to display
     pub edge_items: usize,
+
+    /// Precision for floating point numbers
+    pub precision: Option<usize>,
 }
 
-static PRINT_OPTS: Mutex<PrintOptions> = Mutex::new(PrintOptions::const_default());
+static PRINT_OPTS: RwLock<PrintOptions> = RwLock::new(PrintOptions::const_default());
 
 impl PrintOptions {
-    // We cannot use the default trait as it's not const.
-    const fn const_default() -> Self {
+    /// Print options with default values
+    pub const fn const_default() -> Self {
         Self {
             threshold: 1000,
             edge_items: 3,
+            precision: None,
         }
+    }
+}
+
+impl Default for PrintOptions {
+    fn default() -> Self {
+        Self::const_default()
     }
 }
 
 /// Set print options
 pub fn set_print_options(options: PrintOptions) {
-    *PRINT_OPTS.lock().unwrap() = options
+    let mut print_opts = PRINT_OPTS.write().unwrap();
+    *print_opts = options;
 }
 
 /// Pretty print tensors
@@ -1195,7 +1228,15 @@ where
         writeln!(f, "Tensor {{")?;
 
         {
-            let po = PRINT_OPTS.lock().unwrap();
+            // Do not lock the mutex for the whole function
+            let mut po = { PRINT_OPTS.read().unwrap().clone() };
+
+            // Override the precision if it is set from the formatter
+            // This will be possible when the tensor is printed using the `{:.*}` syntax
+            if let Some(precision) = f.precision() {
+                po.precision = Some(precision);
+            }
+
             let mut acc = String::new();
             let mut multi_index = vec![0; D];
             let summarize = self.shape().num_elements() > po.threshold;
@@ -1546,6 +1587,33 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
 
+    /// Attempts to split the tensor along the given dimension into chunks.
+    /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
+    ///
+    /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
+    /// Otherwise all chunks will be of equal size except for the last one.
+    ///
+    /// # Panics
+    ///
+    ///  If the dimension is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    /// A vector of tensors.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// To split a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
+    /// which is more high-level and designed for public use.
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>>;
+
     /// Equates the given tensors.
     ///
     /// # Arguments
@@ -1717,7 +1785,10 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_transpose(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_transpose(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_transpose(tensor)),
+        }
     }
 
     fn swap_dims<const D: usize>(
@@ -1726,14 +1797,26 @@ impl<B: Backend> BasicOps<B> for Float {
         dim2: usize,
     ) -> Self::Primitive<D> {
         check!(TensorCheck::swap_dims::<D>(dim1, dim2));
-        TensorPrimitive::Float(B::float_swap_dims(tensor.tensor(), dim1, dim2))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_swap_dims(tensor, dim1, dim2))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_swap_dims(tensor, dim1, dim2))
+            }
+        }
     }
 
     fn slice<const D1: usize, const D2: usize>(
         tensor: Self::Primitive<D1>,
         ranges: [Range<usize>; D2],
     ) -> Self::Primitive<D1> {
-        TensorPrimitive::Float(B::float_slice(tensor.tensor(), ranges))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_slice(tensor, ranges))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_slice(tensor, ranges)),
+        }
     }
 
     fn slice_assign<const D1: usize, const D2: usize>(
@@ -1741,11 +1824,15 @@ impl<B: Backend> BasicOps<B> for Float {
         ranges: [Range<usize>; D2],
         value: Self::Primitive<D1>,
     ) -> Self::Primitive<D1> {
-        TensorPrimitive::Float(B::float_slice_assign(
-            tensor.tensor(),
-            ranges,
-            value.tensor(),
-        ))
+        match (tensor, value) {
+            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(value)) => {
+                TensorPrimitive::Float(B::float_slice_assign(tensor, ranges, value))
+            }
+            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(value)) => {
+                TensorPrimitive::QFloat(B::q_slice_assign(tensor, ranges, value))
+            }
+            _ => panic!("Primitive type mismatch for tensor and value"),
+        }
     }
 
     fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
@@ -1759,7 +1846,14 @@ impl<B: Backend> BasicOps<B> for Float {
         tensor: Self::Primitive<D>,
         device: &<B as Backend>::Device,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_to_device(tensor.tensor(), device))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_to_device(tensor, device))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_to_device(tensor, device))
+            }
+        }
     }
 
     async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
@@ -1781,14 +1875,36 @@ impl<B: Backend> BasicOps<B> for Float {
         dim: usize,
         times: usize,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_repeat_dim(tensor.tensor(), dim, times))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_repeat_dim(tensor, dim, times))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_repeat_dim(tensor, dim, times))
+            }
+        }
     }
 
     fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_cat(
-            vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
-            dim,
-        ))
+        match vectors.first().unwrap() {
+            TensorPrimitive::Float(_) => TensorPrimitive::Float(B::float_cat(
+                vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
+                dim,
+            )),
+            TensorPrimitive::QFloat(_) => TensorPrimitive::QFloat(B::q_cat(
+                vectors
+                    .into_iter()
+                    .map(|tensor| {
+                        if let TensorPrimitive::QFloat(t) = tensor {
+                            t
+                        } else {
+                            panic!("Concatenation only works with vector of QFloat")
+                        }
+                    })
+                    .collect(),
+                dim,
+            )),
+        }
     }
 
     fn equal<const D: usize>(
@@ -1822,7 +1938,12 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_permute(tensor.tensor(), axes))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_permute(tensor, axes))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_permute(tensor, axes)),
+        }
     }
 
     fn expand<const D1: usize, const D2: usize>(
@@ -1833,7 +1954,27 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_flip(tensor.tensor(), axes))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_flip(tensor, axes)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
+        }
+    }
+
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_chunk(tensor, chunks, dim)
+                .into_iter()
+                .map(TensorPrimitive::Float)
+                .collect(),
+            TensorPrimitive::QFloat(tensor) => B::q_chunk(tensor, chunks, dim)
+                .into_iter()
+                .map(TensorPrimitive::QFloat)
+                .collect(),
+        }
     }
 }
 
@@ -1957,6 +2098,14 @@ impl<B: Backend> BasicOps<B> for Int {
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
         B::int_flip(tensor, axes)
     }
+
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        B::int_chunk(tensor, chunks, dim)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -2078,6 +2227,14 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
         B::bool_flip(tensor, axes)
+    }
+
+    fn chunk<const D: usize>(
+        tensor: Self::Primitive<D>,
+        chunks: usize,
+        dim: usize,
+    ) -> Vec<Self::Primitive<D>> {
+        B::bool_chunk(tensor, chunks, dim)
     }
 }
 
@@ -2323,23 +2480,26 @@ impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
     }
 }
 
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [i32; D2] {
+impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
     fn into_shape(self, shape: &Shape<D1>) -> Shape<D2> {
         if self.len() < shape.dims.len() {
             panic!("Broadcast arguments must be greater than the number of dimensions");
         }
 
-        if self.iter().any(|&x| x < -1 || x == 0) {
-            panic!("Broadcast arguments must be positive or -1");
-        }
-
         // Zip the two shapes in reverse order and replace -1 with the actual dimension value.
         let new_shape: Vec<_> = self
             .iter()
             .rev()
+            .map(|x| {
+                let primitive = x.to_i64();
+                if primitive < -1 || primitive == 0 {
+                    panic!("Broadcast arguments must be positive or -1");
+                }
+                primitive
+            })
             .zip(shape.dims.iter().rev().chain(repeat(&0)).take(self.len())) // Pad the original shape with 0s
-            .map(|(&x, &y)| if x == -1 { y } else { x as usize })
+            .map(|(x, &y)| if x == -1 { y } else { x as usize })
             .collect::<Vec<_>>()
             .into_iter()
             .rev()

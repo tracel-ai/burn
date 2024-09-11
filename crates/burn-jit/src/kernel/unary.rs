@@ -4,8 +4,6 @@ use cubecl::{
     tensor_vectorization_factor, unexpanded,
 };
 
-use super::Kernel;
-
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;
 
@@ -25,8 +23,8 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
     input: &Tensor<C>,
     output: &mut Tensor<C>,
     options: &O::Options,
-    rank: Comptime<Option<UInt>>,
-    to_contiguous: Comptime<bool>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] to_contiguous: bool,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -34,14 +32,14 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
         return;
     }
 
-    if Comptime::get(to_contiguous) {
+    if to_contiguous {
         let offset_input = index_offset_with_layout::<C, C>(
             input,
             output,
             offset_output,
-            UInt::new(0),
-            Comptime::unwrap_or_else(rank, || output.rank()),
-            Comptime::is_some(rank),
+            0,
+            rank.unwrap_or_else(|| output.rank()),
+            rank.is_some(),
         );
 
         output[offset_output] = O::execute(input[offset_input], options);
@@ -50,13 +48,7 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
     }
 }
 
-pub(crate) fn launch_unary<
-    const D: usize,
-    R: JitRuntime,
-    E: JitElement,
-    O: UnaryOp<E::Primitive>,
-    F,
->(
+pub(crate) fn launch_unary<const D: usize, R: JitRuntime, E: JitElement, O: UnaryOp<E>, F>(
     tensor: JitTensor<R, E, D>,
     options: F,
 ) -> JitTensor<R, E, D>
@@ -78,11 +70,11 @@ where
     let is_contiguous = tensor.is_contiguous();
 
     if tensor.can_mut() && is_contiguous {
-        unary_kernel::launch::<E::Primitive, O, R>(
+        unary_kernel::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
-            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
             TensorArg::alias(0),
             options(&()),
             None,
@@ -99,14 +91,14 @@ where
             buffer,
         );
 
-        unary_kernel::launch::<E::Primitive, O, R>(
+        unary_kernel::launch::<E, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
-            tensor.as_handle_ref().as_tensor_arg(vectorization_factor),
-            output.as_handle_ref().as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             options(&()),
-            Some(UInt::new(D as u32)),
+            Some(D as u32),
             !is_contiguous,
         );
         output

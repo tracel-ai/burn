@@ -19,9 +19,9 @@ std = ["burn-jit/std", "cubecl/std"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["cuda"] }
-burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.14.0", features = ["cubecl-cuda"] }
-burn-fusion = { path = "../burn-fusion", version = "0.14.0", optional = true }
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = ["cubecl-cuda"] }
+burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
 
 half = { workspace = true }
 bytemuck = { workspace = true }
@@ -30,7 +30,7 @@ log = { workspace = true }
 derive-new = { workspace = true }
 
 [dev-dependencies]
-burn-jit = { path = "../burn-jit", version = "0.14.0", default-features = false, features = [
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
 

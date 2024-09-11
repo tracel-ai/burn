@@ -131,7 +131,7 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 matmul_tune_ops!(
     MatmulCube,
     |lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>| {
-        cubecl::linalg::matmul::launch_ref::<R, E::Primitive>(
+        cubecl::linalg::matmul::launch_ref::<R, E>(
             &lhs.client,
             lhs.as_handle_ref(),
             rhs.as_handle_ref(),

@@ -21,7 +21,7 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
-vision = ["dep:flate2", "dep:globwalk", "dep:burn-common"]
+vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
 
 # internal
 __sqlite-shared = [
@@ -35,7 +35,7 @@ __sqlite-shared = [
 dataframe = ["dep:polars"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.14.0", optional = true, features = [
+burn-common = { path = "../burn-common", version = "0.15.0", optional = true, features = [
     "network",
 ] }
 csv = { workspace = true }

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-# used to generate model: onnx-tests/tests/mask_where/mask_where.onnx
+# used to generate models:
+#  mask_where.onnx
+#  mask_where_broadcast.onnx
+#  mask_where_scalar_x.onnx
+#  mask_where_scalar_y.onnx
 
 import torch
 import torch.nn as nn
@@ -10,23 +14,17 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def forward(self, condition, x1, y1, x2, y2):
-        return torch.where(condition, x1, y1), torch.where(condition, x2, y2)
+    def forward(self, condition, x, y):
+        return torch.where(condition, x, y)
 
 
-def main():
-    # Set random seed for reproducibility
-    torch.manual_seed(0)
-
+def create_model(name: str, device: torch.device, mask: torch.Tensor, x: torch.Tensor, y: torch.Tensor):
+    print(f"--- {name} ---")
     # Export to onnx
     model = Model()
     model.eval()
-    device = torch.device("cpu")
-    onnx_name = "mask_where.onnx"
-    x = torch.ones(2, 2, device=device)
-    y = torch.zeros(2, 2, device=device)
-    mask = torch.tensor([[True, False], [False, True]], device=device)
-    test_input = (mask, x, y, x[0], y[0])
+    onnx_name = f"{name}.onnx"
+    test_input = (mask, x, y)
 
     torch.onnx.export(model, (test_input), onnx_name, verbose=False, opset_version=16)
 
@@ -36,6 +34,24 @@ def main():
     print(f"Test input data: {test_input}")
     output = model.forward(*test_input)
     print(f"Test output data: {output}")
+
+def main():
+    # Set random seed for reproducibility
+    torch.manual_seed(0)
+    device = torch.device("cpu")
+
+    mask = torch.tensor([[True, False], [False, True]], device=device)
+    x = torch.ones(2, 2, device=device)
+    y = torch.zeros(2, 2, device=device)
+    mask_scalar = torch.tensor(True, device=device)
+    x_scalar = torch.tensor(1., device=device)
+    y_scalar = torch.tensor(0., device=device)
+    create_model("mask_where", device, mask, x, y)
+    create_model("mask_where_broadcast", device, mask, x[0], y[0])
+    create_model("mask_where_scalar_x", device, mask, x_scalar, y)
+    create_model("mask_where_scalar_y", device, mask, x, y_scalar)
+    create_model("mask_where_all_scalar", device, mask_scalar, x_scalar, y_scalar)
+    
 
 
 if __name__ == "__main__":

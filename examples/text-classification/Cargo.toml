@@ -16,13 +16,22 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+cuda-jit = ["burn/cuda-jit"]
 
 [dependencies]
 # Burn
-burn = {path = "../../crates/burn", features=["train", "ndarray", "fusion"]}
+burn = { path = "../../crates/burn", features = [
+    "train",
+    "ndarray",
+    "std",
+    "metrics",
+    "autotune",
+    "fusion",
+    "default",
+], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.19.1", default-features = false, features = [
+tokenizers = { version = "0.20.0", default-features = false, features = [
   "onig",
   "http",
 ] }

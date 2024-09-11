@@ -1,4 +1,5 @@
 use crate::{kernel::reduce::Argmax, JitElement};
+use burn_tensor::cast::ToElement;
 use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
@@ -19,7 +20,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmax {
         let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
         let max = input_item
             .elem()
-            .constant_from_f64(E::minimum_value().to_f64());
+            .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
         cpa!(scope, value_shared_memory[write_position] = max);
         (value_shared_memory, index_shared_memory)
     }

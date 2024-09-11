@@ -29,7 +29,7 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
                 C::clamp(input, options.min_value, options.max_value)
             }
 
-            execute::__expand(context, input, options)
+            execute::expand(context, input, options)
         }
     }
 

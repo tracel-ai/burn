@@ -7,8 +7,8 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::pad::PadConfig;
-use onnx_ir::ir::{ArgType, AttributeValue, Data, Node};
+use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig};
+use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
@@ -229,6 +229,10 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -256,6 +260,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_stride([stride[0] as usize, stride[1] as usize])
     .with_padding([pads[0] as usize, pads[1] as usize])
     .with_dilation([dilations[0] as usize, dilations[1] as usize])
+    .with_padding_out([output_padding[0] as usize, output_padding[1] as usize])
     .with_groups(group)
     .with_bias(bias)
 }
@@ -281,6 +286,10 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0, 0]);
 
     // Trick with remove + empty check is simplest way to not forget some attribute for runtime:
     if !attrs.is_empty() {
@@ -315,6 +324,11 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         dilations[0] as usize,
         dilations[1] as usize,
         dilations[2] as usize,
+    ])
+    .with_padding_out([
+        output_padding[0] as usize,
+        output_padding[1] as usize,
+        output_padding[2] as usize,
     ])
     .with_groups(group)
     .with_bias(bias)
@@ -382,18 +396,33 @@ pub fn avg_pool2d_config(curr: &Node) -> AvgPool2dConfig {
         .with_count_include_pad(count_include_pad == 1)
 }
 
-pub fn expand_config(node: &Node) -> Vec<i64> {
+pub fn expand_config(node: &Node) -> ExpandShape {
     let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
             assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
-            if let Some(Data::Int64s(shape)) = input_value.as_ref() {
-                shape.clone()
-            } else {
-                panic!("Tensor data type must be int64")
-            }
+            assert!(
+                tensor.shape.is_some(),
+                "Expand: shape tensor shape must be known!"
+            );
+            assert!(
+                matches!(tensor.elem_type, ElementType::Int64),
+                "Expand: shape tensor must have element type int64"
+            );
+        }
+        ArgType::Shape(_) => {
+            // Shapes are always 1-D int64 data, so nothing to assert here
         }
         _ => panic!("Only tensor input is valid for shape"),
+    }
+
+    match input_value.as_ref() {
+        Some(Data::Int64s(shape)) => ExpandShape::Static(shape.clone()),
+        None => {
+            // we were unable to statically determine the input value, so we'll need to fetch it at runtime
+            ExpandShape::Runtime(crate::burn::Type::from(&node.inputs[1]))
+        }
+        _ => panic!("Shape data type must be int64, is {:?}", input_value),
     }
 }
 
@@ -454,9 +483,10 @@ pub fn gather_config(curr: &Node) -> usize {
     }
 
     // extract the shape of the input tensor
-    let tensor = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor,
-        _ => panic!("Only tensor input is valid"),
+    let input_dim = match curr.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor.dim as i64,
+        ArgType::Shape(_shape) => 1, //Shape is always 1-D
+        other => panic!("Only tensor or shape input is valid, got {:?}", other),
     };
 
     // extract the attributes
@@ -469,7 +499,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // if dim is negative, it is counted from the end
     if dim < 0 {
-        dim += tensor.dim as i64;
+        dim += input_dim;
     }
 
     dim as usize
@@ -745,11 +775,45 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
     )
 }
 
+/// Create a TileConfig from the attributes of the node
+pub fn tile_config(node: &Node) -> TileConfig {
+    let repeat = node
+        .inputs
+        .get(1)
+        .map(|input| {
+            if let Some(data) = &input.value {
+                data.clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect()
+            } else {
+                vec![]
+            }
+        })
+        .unwrap_or_default();
+    TileConfig::new(repeat)
+}
+
 /// Create a PadConfig from the attributes of the node
 pub fn pad_config(node: &Node) -> PadConfig {
+    fn get_pads_input(node: &Node) -> Vec<i64> {
+        // If the input is not provided, return an empty vector
+        if node.inputs.get(1).is_none() {
+            return Vec::new();
+        }
+
+        match &node.inputs[1].value {
+            Some(Data::Int64s(shape)) => shape.clone(),
+            _ => panic!("Tensor data type must be int64"),
+        }
+    }
     fn get_pads(node: &Node) -> Vec<usize> {
-        if node.inputs.len() < 2 {
-            panic!("Pad: must provide at least two inputs")
+        if node.inputs.is_empty() {
+            panic!("Pad: must provide data as input")
+        }
+        if node.inputs.len() >= 4 {
+            panic!("Pad: axes input is not supported")
         }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
@@ -757,19 +821,41 @@ pub fn pad_config(node: &Node) -> PadConfig {
             _ => panic!("Pad: Only tensor input is valid"),
         };
 
-        let pads: Vec<usize> = match &node.inputs[1].value {
-            Some(Data::Int64s(shape)) => shape
-                .iter()
-                .map(|&x| {
-                    if x < 0 {
-                        // TODO: support negative pads
-                        panic!("Pad: Negative pad is not supported");
+        //TODO : handle more possible attributes
+        let mut pads: Vec<usize> = get_pads_input(node)
+            .into_iter()
+            .map(|x| x as usize)
+            .collect();
+
+        for (key, value) in node.attrs.iter() {
+            match key.as_str() {
+                "pads" => {
+                    pads = value
+                        .clone()
+                        .into_i64s()
+                        .iter()
+                        .map(|&x| {
+                            if x < 0 {
+                                panic!("Pad: Negative pad is not supported");
+                            }
+                            x as usize
+                        })
+                        .collect()
+                }
+                "mode" => {
+                    let mode = value.clone().into_string();
+                    if mode != "constant" {
+                        panic!("only constant mode is supported, given mode is {}", mode);
                     }
-                    x as usize
-                })
-                .collect(),
-            _ => panic!("Pad: pads data type must be int64"),
-        };
+                }
+
+                _ => {}
+            }
+        }
+
+        if pads.is_empty() {
+            panic!("Pad: pads should be given as attribute or as input");
+        }
 
         if pads.len() != input_dim * 2 {
             panic!("Pad: pads should be a 1D tensor of shape [2 * num_axes]");
@@ -799,10 +885,32 @@ pub fn pad_config(node: &Node) -> PadConfig {
     }
     fn get_constant_value(node: &Node) -> f32 {
         // TODO: support int, boolean
-        match &node.inputs[2].value {
-            Some(Data::Float32s(shape)) => shape.first().unwrap().to_owned(),
-            _ => 0.0,
+        let mut constant_value = node.inputs
+                .get(2)
+                .and_then(|input| match &input.value {
+                    Some(Data::Float16s(constant_value)) => {
+                        constant_value.first().map(|&f| f32::from(f))
+                    }
+                    Some(Data::Float32s(constant_value)) => {
+                        constant_value.first().copied()
+                    }
+                    Some(Data::Float64s(constant_value)) => {
+                        constant_value.first().map(|&f| f as f32)
+                    }
+                    Some(Data::Float16(constant_value)) => Some(f32::from(*constant_value)),
+                    Some(Data::Float32(constant_value)) => Some(*constant_value),
+                    Some(Data::Float64(constant_value)) => Some(*constant_value as f32),
+                     _ => panic!("Pad: only float values are currently supported for constant value, submit an issue on github"),
+                })
+                .unwrap_or(0.0);
+
+        if node.attrs.contains_key("value") {
+            constant_value = node.attrs.get("value").map(|value| match value {
+                AttributeValue::Float32(value) => *value,
+                _ => panic!("Pad: only float32 values are currently supported for constant value as attribute, submit an issue on github"),
+            }).expect("constant_value should have had a value now");
         }
+        constant_value
     }
 
     let pads = get_pads(node);
@@ -938,6 +1046,22 @@ pub fn leaky_relu_config(node: &Node) -> f64 {
     }
 
     alpha
+}
+
+// Create a HardSigmoidConfig from the alpha and beta attributes of the node
+pub fn hard_sigmoid_config(node: &Node) -> (f64, f64) {
+    let mut alpha = 0.2;
+    let mut beta = 0.5;
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "alpha" => alpha = value.clone().into_f32() as f64,
+            "beta" => beta = value.clone().into_f32() as f64,
+            _ => {}
+        }
+    }
+
+    (alpha, beta)
 }
 
 pub fn reshape_config(node: &Node) -> Vec<i64> {

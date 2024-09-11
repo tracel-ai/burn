@@ -7,6 +7,7 @@ pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
     data: TensorData,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
+    // TODO: from_data QFloat should not convert
     let shape: Shape<D> = (&data.shape).into();
     let client = R::client(device);
     let buffer = client.create(data.convert::<E>().as_bytes());

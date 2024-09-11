@@ -242,20 +242,26 @@ impl TryFrom<ValueInfoProto> for Argument {
             }
         };
 
-        let tensor_type = TensorType {
-            dim: tensor_proto.shape.dim.len(),
-            elem_type,
-            shape: Some(
-                tensor_proto
-                    .shape
-                    .dim
-                    .iter()
-                    .map(|x| x.dim_value() as Dim)
-                    .collect(),
-            ),
-        };
+        let ty = if tensor_proto.shape.dim.is_empty() {
+            // tensor_proto describes a scalar
+            ArgType::Scalar(elem_type)
+        } else {
+            // tensor_proto describes a tensor
+            let tensor_type = TensorType {
+                dim: tensor_proto.shape.dim.len(),
+                elem_type,
+                shape: Some(
+                    tensor_proto
+                        .shape
+                        .dim
+                        .iter()
+                        .map(|x| x.dim_value() as Dim)
+                        .collect(),
+                ),
+            };
 
-        let ty = ArgType::Tensor(tensor_type);
+            ArgType::Tensor(tensor_type)
+        };
 
         Ok(Argument {
             ty,

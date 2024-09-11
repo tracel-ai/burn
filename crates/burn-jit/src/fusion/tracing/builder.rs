@@ -103,13 +103,33 @@ impl TraceBuilder {
     /// Create a variable from an input [scalar](Element).
     pub fn scalar<E: Element>(&mut self, _value: &E, elem_type: Elem) -> Variable {
         match elem_type {
-            Elem::Float(_) => {
-                let var = self
-                    .scope
-                    .read_scalar(self.scalars.num_float as u16, elem_type);
-                self.scalars.num_float += 1;
-                var
-            }
+            Elem::Float(kind) => match kind {
+                cubecl::ir::FloatKind::F16 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_f16 as u16, elem_type);
+
+                    self.scalars.num_f16 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::F32 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_f32 as u16, elem_type);
+
+                    self.scalars.num_f32 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::BF16 => {
+                    let var = self
+                        .scope
+                        .read_scalar(self.scalars.num_bf16 as u16, elem_type);
+
+                    self.scalars.num_bf16 += 1;
+                    var
+                }
+                cubecl::ir::FloatKind::F64 => todo!(),
+            },
             Elem::Int(_) => {
                 let var = self
                     .scope
@@ -132,18 +152,18 @@ impl TraceBuilder {
                 self.scalars.num_bool += 1;
                 var
             }
-            Elem::AtomicInt(_) => {
+            Elem::AtomicInt(_kind) => {
                 let var = self
                     .scope
-                    .read_scalar(self.scalars.num_atomic_int as u16, elem_type);
-                self.scalars.num_atomic_int += 1;
+                    .read_scalar(self.scalars.num_int as u16, elem_type);
+                self.scalars.num_int += 1;
                 var
             }
             Elem::AtomicUInt => {
                 let var = self
                     .scope
-                    .read_scalar(self.scalars.num_atomic_uint as u16, elem_type);
-                self.scalars.num_atomic_uint += 1;
+                    .read_scalar(self.scalars.num_uint as u16, elem_type);
+                self.scalars.num_int += 1;
                 var
             }
         }
@@ -253,6 +273,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::Neg(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     Operator::Index(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -284,6 +309,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Operator::Abs(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::Round(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
@@ -392,6 +422,11 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::BitwiseOr(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                     Operator::BitwiseAnd(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -437,12 +472,6 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
-                    Operator::AtomicCompareAndSwap(op) => {
-                        mark(&op.input, &mut local_tensor_ids_input);
-                        mark(&op.cmp, &mut local_tensor_ids_input);
-                        mark(&op.val, &mut local_tensor_ids_input);
-                        mark(&op.out, &mut local_tensor_ids_output);
-                    }
                     Operator::AtomicAdd(op) => mark_binary(
                         op,
                         &mut local_tensor_ids_input,
@@ -478,6 +507,14 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::Normalize(op) => mark_unary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
+                    Operator::AtomicCompareAndSwap(_op) => {
+                        // Nothing to do.
+                    }
                 },
                 Operation::Procedure(proc) => {
                     match proc {
@@ -544,21 +581,6 @@ impl TraceBuilder {
                         &mut local_tensor_ids_output,
                     ),
                     Subcube::Prod(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
-                    Subcube::And(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
-                    Subcube::Or(op) => mark_unary(
-                        op,
-                        &mut local_tensor_ids_input,
-                        &mut local_tensor_ids_output,
-                    ),
-                    Subcube::Xor(op) => mark_unary(
                         op,
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
