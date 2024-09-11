@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-cuda"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cuda"
+documentation = "https://docs.rs/burn-cuda"
 version.workspace = true
 
 [features]
@@ -36,3 +37,4 @@ burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false,
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
