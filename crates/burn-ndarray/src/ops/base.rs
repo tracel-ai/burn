@@ -409,17 +409,14 @@ where
         mask: NdArrayTensor<bool, D>,
         source: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul_4tensor = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_mul_4source = mask.array.mapv(|x| match x {
-            true => 1.elem(),
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul_4tensor) + (source.array * mask_mul_4source);
-
-        NdArrayTensor::new(array)
+        let tensor = tensor.array.broadcast(mask.array.dim()).unwrap();
+        let source = source.array.broadcast(mask.array.dim()).unwrap();
+        let output = Zip::from(&tensor)
+            .and(&mask.array)
+            .and(&source)
+            .map_collect(|&x, &mask_val, &y| if mask_val { y } else { x })
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     pub fn mask_fill<const D: usize>(
