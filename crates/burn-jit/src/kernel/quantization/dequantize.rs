@@ -2,8 +2,8 @@ use crate::tensor::{JitTensor, QJitTensor};
 use crate::FloatElement;
 use crate::{kernel::Kernel, IntElement, JitElement, JitRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
+use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
-use cubecl::{calculate_cube_count_elemwise, tensor_vectorization_factor};
 
 #[cube]
 pub(crate) fn dequantize_affine_int8<F: Float>(value: I32, scale: F, offset: I32) -> F {
@@ -27,6 +27,7 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
     scale: &Tensor<F32>,
     offset: &Tensor<I32>,
     output: &mut Tensor<F32>,
+    vectorized: Comptime<bool>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -36,26 +37,40 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
     let offset = offset[0];
 
     let num_packed = UInt::new(4);
-    let vectorization_factor = Comptime::vectorization(input);
-    let vectorization = Comptime::get(vectorization_factor);
-
     let value = input[ABSOLUTE_POS];
     let output_pos = ABSOLUTE_POS * num_packed;
 
-    for i in range(0u32, vectorization, Comptime::new(true)) {
-        // Extract each 8-bit segment
-        let v1 = extract_i8(value[i], UInt::new(24));
-        let v2 = extract_i8(value[i], UInt::new(16));
-        let v3 = extract_i8(value[i], UInt::new(8));
-        let v4 = extract_i8(value[i], UInt::new(0));
+    if Comptime::get(vectorized) {
+        let vectorization_factor = Comptime::vectorization(input);
+        let vectorization = Comptime::get(vectorization_factor);
+        let runtime_vec = Comptime::runtime(vectorization_factor);
+        for i in range(0u32, vectorization, Comptime::new(true)) {
+            // Extract each 8-bit segment
+            let v1 = extract_i8(value[i], UInt::new(24));
+            let v2 = extract_i8(value[i], UInt::new(16));
+            let v3 = extract_i8(value[i], UInt::new(8));
+            let v4 = extract_i8(value[i], UInt::new(0));
 
-        output[output_pos + i * num_packed] = dequantize_affine_int8::<F32>(v1, scale, offset);
-        output[output_pos + i * num_packed + UInt::new(1)] =
-            dequantize_affine_int8::<F32>(v2, scale, offset);
-        output[output_pos + i * num_packed + UInt::new(2)] =
-            dequantize_affine_int8::<F32>(v3, scale, offset);
-        output[output_pos + i * num_packed + UInt::new(3)] =
-            dequantize_affine_int8::<F32>(v4, scale, offset);
+            output[output_pos * runtime_vec + i * num_packed] =
+                dequantize_affine_int8::<F32>(v1, scale, offset);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(1)] =
+                dequantize_affine_int8::<F32>(v2, scale, offset);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(2)] =
+                dequantize_affine_int8::<F32>(v3, scale, offset);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(3)] =
+                dequantize_affine_int8::<F32>(v4, scale, offset);
+        }
+    } else {
+        // Extract each 8-bit segment
+        let v1 = extract_i8(value, UInt::new(24));
+        let v2 = extract_i8(value, UInt::new(16));
+        let v3 = extract_i8(value, UInt::new(8));
+        let v4 = extract_i8(value, UInt::new(0));
+
+        output[output_pos] = dequantize_affine_int8::<F32>(v1, scale, offset);
+        output[output_pos + UInt::new(1)] = dequantize_affine_int8::<F32>(v2, scale, offset);
+        output[output_pos + UInt::new(2)] = dequantize_affine_int8::<F32>(v3, scale, offset);
+        output[output_pos + UInt::new(3)] = dequantize_affine_int8::<F32>(v4, scale, offset);
     }
 }
 
@@ -71,6 +86,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     input: &Tensor<UInt>,
     scale: &Tensor<F32>,
     output: &mut Tensor<F32>,
+    vectorized: Comptime<bool>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -79,26 +95,40 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     let scale = scale[0];
 
     let num_packed = UInt::new(4);
-    let vectorization_factor = Comptime::vectorization(input);
-    let vectorization = Comptime::get(vectorization_factor);
-
     let value = input[ABSOLUTE_POS];
     let output_pos = ABSOLUTE_POS * num_packed;
 
-    for i in range(0u32, vectorization, Comptime::new(true)) {
-        // Extract each 8-bit segment
-        let v1 = extract_i8(value[i], UInt::new(24));
-        let v2 = extract_i8(value[i], UInt::new(16));
-        let v3 = extract_i8(value[i], UInt::new(8));
-        let v4 = extract_i8(value[i], UInt::new(0));
+    if Comptime::get(vectorized) {
+        let vectorization_factor = Comptime::vectorization(input);
+        let vectorization = Comptime::get(vectorization_factor);
+        let runtime_vec = Comptime::runtime(vectorization_factor);
+        for i in range(0u32, vectorization, Comptime::new(true)) {
+            // Extract each 8-bit segment
+            let v1 = extract_i8(value[i], UInt::new(24));
+            let v2 = extract_i8(value[i], UInt::new(16));
+            let v3 = extract_i8(value[i], UInt::new(8));
+            let v4 = extract_i8(value[i], UInt::new(0));
 
-        output[output_pos + i * num_packed] = dequantize_symmetric_int8::<F32>(v1, scale);
-        output[output_pos + i * num_packed + UInt::new(1)] =
-            dequantize_symmetric_int8::<F32>(v2, scale);
-        output[output_pos + i * num_packed + UInt::new(2)] =
-            dequantize_symmetric_int8::<F32>(v3, scale);
-        output[output_pos + i * num_packed + UInt::new(3)] =
-            dequantize_symmetric_int8::<F32>(v4, scale);
+            output[output_pos * runtime_vec + i * num_packed] =
+                dequantize_symmetric_int8::<F32>(v1, scale);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(1)] =
+                dequantize_symmetric_int8::<F32>(v2, scale);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(2)] =
+                dequantize_symmetric_int8::<F32>(v3, scale);
+            output[output_pos * runtime_vec + i * num_packed + UInt::new(3)] =
+                dequantize_symmetric_int8::<F32>(v4, scale);
+        }
+    } else {
+        // Extract each 8-bit segment
+        let v1 = extract_i8(value, UInt::new(24));
+        let v2 = extract_i8(value, UInt::new(16));
+        let v3 = extract_i8(value, UInt::new(8));
+        let v4 = extract_i8(value, UInt::new(0));
+
+        output[output_pos] = dequantize_symmetric_int8::<F32>(v1, scale);
+        output[output_pos + UInt::new(1)] = dequantize_symmetric_int8::<F32>(v2, scale);
+        output[output_pos + UInt::new(2)] = dequantize_symmetric_int8::<F32>(v3, scale);
+        output[output_pos + UInt::new(3)] = dequantize_symmetric_int8::<F32>(v4, scale);
     }
 }
 
@@ -112,19 +142,29 @@ where
     F: JitElement,
     I: IntElement,
 {
-    let num_elems = tensor.shape.num_elements();
-    let shape_output = tensor.shape.clone();
-    let client = tensor.client.clone();
-    let handle = client.empty(num_elems * core::mem::size_of::<F>());
-    let output =
-        JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
-
-    // Vectorization is only enabled when the last dimension is contiguous.
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
+    // The actual number of elements is 1/4 (four int8 values packed in a single u32)
+    // so we choose a vectorization factor to match a valid input binding size.
+    let num_elems = tensor.shape.num_elements() / 4;
+    let vectorization_factor = [4u8, 2, 1]
+        .iter()
+        .filter_map(|&v| {
+            if num_elems >= v as usize {
+                Some(v)
+            } else {
+                None
+            }
+        })
+        .next()
+        .unwrap();
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+
+    let shape_output = tensor.shape.clone();
+    let client = tensor.client.clone();
+    let handle = client.empty(num_elems * 4 * core::mem::size_of::<F>());
+    let output =
+        JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 
     let dummy_array = [1; D];
     if let Some(offset) = offset {
@@ -138,6 +178,7 @@ where
                 TensorArg::from_raw_parts(&scale.handle, &dummy_array, &dummy_array, 1),
                 TensorArg::from_raw_parts(&offset.handle, &dummy_array, &dummy_array, 1),
                 output.as_tensor_arg(1),
+                vectorization_factor > 1,
             )
         };
     } else {
@@ -150,6 +191,7 @@ where
                 // Ignore shape and stride
                 TensorArg::from_raw_parts(&scale.handle, &dummy_array, &dummy_array, 1),
                 output.as_tensor_arg(1),
+                vectorization_factor > 1,
             )
         };
     }
