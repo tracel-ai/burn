@@ -1,6 +1,6 @@
 use crate::tensor::{JitQuantizationParameters, JitTensor, QJitTensor};
 use crate::FloatElement;
-use crate::{kernel::Kernel, IntElement, JitElement, JitRuntime};
+use crate::{IntElement, JitElement, JitRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
@@ -9,14 +9,14 @@ use cubecl::prelude::*;
 pub(crate) fn quantize_affine_int8<F: Float>(
     value: F,
     scale: F,
-    offset: I32,
+    offset: i32,
     range_min: F,
     range_max: F,
-) -> UInt {
+) -> u32 {
     let offset = F::cast_from(offset);
 
     // x_q = clamp(round(x / scale + offset), a, b)
-    UInt::cast_from(F::clamp(
+    u32::cast_from(F::clamp(
         F::round((value / scale) + offset),
         range_min,
         range_max,
@@ -25,13 +25,13 @@ pub(crate) fn quantize_affine_int8<F: Float>(
 
 #[cube(launch_unchecked)]
 pub(crate) fn quantize_per_tensor_affine_int8_kernel(
-    input: &Tensor<F32>,
-    scale: &Tensor<F32>,
-    offset: &Tensor<I32>,
-    range_min: F32,
-    range_max: F32,
-    output: &mut Tensor<UInt>,
-    vectorized: Comptime<bool>,
+    input: &Tensor<f32>,
+    scale: &Tensor<f32>,
+    offset: &Tensor<i32>,
+    range_min: f32,
+    range_max: f32,
+    output: &mut Tensor<u32>,
+    #[comptime] vectorized: bool,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -40,24 +40,22 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     let scale = scale[0];
     let offset = offset[0];
 
-    // Assuming a vectorization factor of 4 (equal to the number of values packed)
-    let num_packed = UInt::new(4);
-    let vectorization_factor = Comptime::vectorization(input);
-    let vectorization = Comptime::get(vectorization_factor);
+    let num_packed = 4;
+    let mut v_packed = 0;
 
-    let bit_shift = UInt::new(8);
-    let mut v_packed = UInt::new(0);
-
-    if Comptime::get(vectorized) {
+    if vectorized {
+        // Assuming a vectorization factor of 4 (equal to the number of values packed)
         let value = input[ABSOLUTE_POS];
-        for i in range(0u32, vectorization, Comptime::new(true)) {
-            let v = quantize_affine_int8::<F32>(value[i], scale, offset, range_min, range_max);
+        let vectorization_factor = vectorization_of(input);
+        #[unroll]
+        for i in 0..vectorization_factor {
+            let v = quantize_affine_int8::<f32>(value[i], scale, offset, range_min, range_max);
             // Shift and combine into u32
-            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+            v_packed |= (v & 0xFF) << (8 * (num_packed - i - 1));
         }
     } else {
-        for i in range(0u32, num_packed, Comptime::new(false)) {
-            let v = quantize_affine_int8::<F32>(
+        for i in 0..num_packed {
+            let v = quantize_affine_int8::<f32>(
                 input[ABSOLUTE_POS + i],
                 scale,
                 offset,
@@ -65,7 +63,7 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
                 range_max,
             );
             // Shift and combine into u32
-            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+            v_packed |= (v & 0xFF) << (8 * (num_packed - i - 1));
         }
     }
 
@@ -78,20 +76,20 @@ pub(crate) fn quantize_symmetric_int8<F: Float>(
     scale: F,
     range_min: F,
     range_max: F,
-) -> UInt {
+) -> u32 {
     // x_q = clamp(round(x / scale), a, b)
-    UInt::cast_from(F::clamp(F::round(value / scale), range_min, range_max))
+    u32::cast_from(F::clamp(F::round(value / scale), range_min, range_max))
 }
 
 // Would have wrapped symmetric with the same affine kernel but cube doesn't support Option<Tensor> for offset.
 #[cube(launch_unchecked)]
 pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
-    input: &Tensor<F32>,
-    scale: &Tensor<F32>,
-    range_min: F32,
-    range_max: F32,
-    output: &mut Tensor<UInt>,
-    vectorized: Comptime<bool>,
+    input: &Tensor<f32>,
+    scale: &Tensor<f32>,
+    range_min: f32,
+    range_max: f32,
+    output: &mut Tensor<u32>,
+    #[comptime] vectorized: bool,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -99,30 +97,29 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
 
     let scale = scale[0];
 
-    let num_packed = UInt::new(4);
-    let bit_shift = UInt::new(8);
-    let mut v_packed = UInt::new(0);
+    let num_packed = 4;
+    let mut v_packed = 0;
 
-    if Comptime::get(vectorized) {
+    if vectorized {
         // Assuming a vectorization factor of 4 (equal to the number of values packed)
         let value = input[ABSOLUTE_POS];
-        let vectorization_factor = Comptime::vectorization(input);
-        let vectorization = Comptime::get(vectorization_factor);
-        for i in range(0u32, vectorization, Comptime::new(true)) {
-            let v = quantize_symmetric_int8::<F32>(value[i], scale, range_min, range_max);
+        let vectorization_factor = vectorization_of(input);
+        #[unroll]
+        for i in 0..vectorization_factor {
+            let v = quantize_symmetric_int8::<f32>(value[i], scale, range_min, range_max);
             // Shift and combine into u32
-            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+            v_packed |= (v & 0xFF) << (8 * (num_packed - i - 1));
         }
     } else {
-        for i in range(0u32, num_packed, Comptime::new(false)) {
-            let v = quantize_symmetric_int8::<F32>(
+        for i in 0..num_packed {
+            let v = quantize_symmetric_int8::<f32>(
                 input[ABSOLUTE_POS + i],
                 scale,
                 range_min,
                 range_max,
             );
             // Shift and combine into u32
-            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+            v_packed |= (v & 0xFF) << (8 * (num_packed - i - 1));
         }
     }
 
