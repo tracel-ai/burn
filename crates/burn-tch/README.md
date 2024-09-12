@@ -211,6 +211,8 @@ export LIBTORCH=/absolute/path/to/libtorch/
 export LD_LIBRARY_PATH=/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH
 ```
 
+**Note:** if relative path is used, the compiler may not work correctly.
+
 **Note:** make sure your CUDA installation is in your `PATH` and `LD_LIBRARY_PATH`.
 
 </details><br>
@@ -233,6 +235,8 @@ $Env:LIBTORCH = "/absolute/path/to/libtorch/"
 $Env:Path += ";/absolute/path/to/libtorch/"
 ```
 
+**Note:** if relative path is used, the compiler may not work correctly.
+
 </details><br>
 
 #### Metal (MPS)
@@ -248,8 +252,10 @@ export LIBTORCH_USE_PYTORCH=1
 export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ```
 
-If `venv` is used, it should be activated during coding and building,
-or the `Rust Analyzer` may not work properly.
+**Note:** if relative path is used, the compiler may not work correctly.
+
+**Note:** if `venv` is used, it should be activated during coding and building,
+or the compiler may not work properly.
 
 ## Example Usage
 
@@ -261,3 +267,44 @@ For a more complete example using the `tch` backend, take a loot at the
 
 For a ci example with `tch` feature, take a look at the
 [tch ci example](https://github.com/tracel-ai/burn/tree/main/examples/tch-ci)
+
+## Too many environment variables?
+
+Try `.cargo/config.toml` ([cargo book](https://doc.rust-lang.org/cargo/reference/config.html#env)):
+
+### Linux
+```shell
+mkdir .cargo
+cat <<EOF > .cargo/config.toml
+[env]
+LD_LIBRARY_PATH = "$(pwd)/libtorch/lib:$LD_LIBRARY_PATH"
+LIBTORCH = "$(pwd)/libtorch"
+EOF
+```
+
+### Windows
+```powershell
+$directory = ".cargo"
+if (-Not (Test-Path -Path $directory)) {
+    New-Item -ItemType Directory -Force -Path $directory
+}
+
+$currentPath = (Get-Location).Path -replace '\\', '/'
+
+$content = @"
+[env]
+LIBTORCH = "$currentPath/libtorch/"
+Path = "$PATH;$currentPath/libtorch/;$currentPath/libtorch/lib/"
+"@
+
+Set-Content -Path ".cargo/config.toml" -Value $content
+```
+
+### macOS
+```shell
+cat <<EOF > .cargo/config.toml
+[env]
+LIBTORCH_USE_PYTORCH = "1"
+DYLD_LIBRARY_PATH = "$(pwd)/$(find .venv -type d -name "lib" | grep /torch):$DYLD_LIBRARY_PATH"
+EOF
+```
