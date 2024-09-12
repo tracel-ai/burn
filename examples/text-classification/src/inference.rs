@@ -14,16 +14,16 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},
 };
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 // Define inference function
-pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
+pub fn infer<B: Backend, D: TextClassificationDataset + 'static, P: AsRef<Path>>(
     device: B::Device, // Device on which to perform computation (e.g., CPU or CUDA device)
-    artifact_dir: &str, // Directory containing model and config files
+    artifact_dir: P,   // Directory containing model and config files
     samples: Vec<String>, // Text samples for inference
 ) {
     // Load experiment configuration
-    let config = ExperimentConfig::load(format!("{artifact_dir}/config.json").as_str())
+    let config = ExperimentConfig::load(artifact_dir.as_ref().join("config.json"))
         .expect("Config file present");
 
     // Initialize tokenizer
@@ -42,7 +42,7 @@ pub fn infer<B: Backend, D: TextClassificationDataset + 'static>(
     // Load pre-trained model weights
     println!("Loading weights ...");
     let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+        .load(artifact_dir.as_ref().join("model"), &device)
         .expect("Trained model weights");
 
     // Create model using loaded weights

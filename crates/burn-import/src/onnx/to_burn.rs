@@ -102,14 +102,14 @@ impl ModelGen {
     }
 
     /// Set output directory.
-    pub fn out_dir(&mut self, out_dir: &str) -> &mut Self {
-        self.out_dir = Some(Path::new(out_dir).into());
+    pub fn out_dir<P: AsRef<Path>>(&mut self, out_dir: P) -> &mut Self {
+        self.out_dir = Some(out_dir.as_ref().into());
         self
     }
 
     /// Add input file.
-    pub fn input(&mut self, input: &str) -> &mut Self {
-        self.inputs.push(input.into());
+    pub fn input<P: AsRef<Path>>(&mut self, input: P) -> &mut Self {
+        self.inputs.push(input.as_ref().into());
         self
     }
 

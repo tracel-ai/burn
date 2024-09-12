@@ -22,7 +22,7 @@ use burn::{
         LearnerBuilder,
     },
 };
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 // Define configuration struct for the experiment
 #[derive(Config)]
@@ -38,12 +38,12 @@ pub struct ExperimentConfig {
 }
 
 // Define train function
-pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
+pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static, P: AsRef<Path>>(
     devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
     dataset_train: D,        // Training dataset
     dataset_test: D,         // Testing dataset
     config: ExperimentConfig, // Experiment configuration
-    artifact_dir: &str,      // Directory to save model and config files
+    artifact_dir: P,         // Directory to save model and config files
 ) {
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
@@ -89,7 +89,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .init();
 
     // Initialize learner
-    let learner = LearnerBuilder::new(artifact_dir)
+    let learner = LearnerBuilder::new(artifact_dir.as_ref())
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new())
@@ -109,11 +109,13 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     // Save the configuration and the trained model
-    config.save(format!("{artifact_dir}/config.json")).unwrap();
+    config
+        .save(artifact_dir.as_ref().join("config.json"))
+        .unwrap();
     CompactRecorder::new()
         .record(
             model_trained.into_record(),
-            format!("{artifact_dir}/model").into(),
+            artifact_dir.as_ref().join("model"),
         )
         .unwrap();
 }

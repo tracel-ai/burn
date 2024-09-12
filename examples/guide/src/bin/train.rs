@@ -20,14 +20,14 @@ fn main() {
     let artifact_dir = "/tmp/guide";
 
     // Train the model
-    training::train::<MyAutodiffBackend>(
+    training::train::<MyAutodiffBackend, &str>(
         artifact_dir,
         TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
         device.clone(),
     );
 
     // Infer the model
-    inference::infer::<MyBackend>(
+    inference::infer::<MyBackend, &str>(
         artifact_dir,
         device,
         burn::data::dataset::vision::MnistDataset::test()

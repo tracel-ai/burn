@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{data::MnistBatcher, model::Model, training::TrainingConfig};
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
@@ -5,11 +7,11 @@ use burn::{
     record::{CompactRecorder, Recorder},
 };
 
-pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
-    let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
+pub fn infer<B: Backend, P: AsRef<Path>>(artifact_dir: P, device: B::Device, item: MnistItem) {
+    let config = TrainingConfig::load(artifact_dir.as_ref().join("config.json"))
         .expect("Config should exist for the model; run train first");
     let record = CompactRecorder::new()
-        .load(format!("{artifact_dir}/model").into(), &device)
+        .load(artifact_dir.as_ref().join("model"), &device)
         .expect("Trained model should exist; run train first");
 
     let model: Model<B> = config.model.init(&device).load_record(record);

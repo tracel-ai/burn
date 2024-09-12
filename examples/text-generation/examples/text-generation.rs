@@ -15,7 +15,7 @@ fn main() {
         burn::optim::AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(1.0e-6))),
     );
 
-    text_generation::training::train::<Backend, DbPediaDataset>(
+    text_generation::training::train::<Backend, DbPediaDataset, &str>(
         if cfg!(target_os = "macos") {
             burn::tensor::Device::<Backend>::Mps
         } else {

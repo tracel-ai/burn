@@ -1,5 +1,6 @@
 use burn::config::{config_to_json, Config};
 use burn_core as burn;
+use std::path::Path;
 
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct TestEmptyStructConfig {}
@@ -26,7 +27,7 @@ pub enum TestEnumConfig {
 
 #[cfg(feature = "std")]
 #[inline(always)]
-fn file_path(file_name: &str) -> std::path::PathBuf {
+fn file_path<P: AsRef<Path>>(file_name: P) -> std::path::PathBuf {
     std::env::temp_dir().join(file_name)
 }
 

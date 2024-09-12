@@ -18,7 +18,7 @@ pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
     );
 
-    text_classification::training::train::<B, DbPediaDataset>(
+    text_classification::training::train::<B, DbPediaDataset, &str>(
         devices,
         DbPediaDataset::train(),
         DbPediaDataset::test(),

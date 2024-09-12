@@ -8,7 +8,7 @@ type ElemType = f32;
 type ElemType = burn::tensor::f16;
 
 pub fn launch<B: Backend>(device: B::Device) {
-    text_classification::inference::infer::<B, AgNewsDataset>(
+    text_classification::inference::infer::<B, AgNewsDataset, &str>(
         device,
         "/tmp/text-classification-ag-news",
         // Samples from the test dataset, but you are free to test with your own text.

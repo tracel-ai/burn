@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
 use crate::{
     data::{ClassificationBatch, ClassificationBatcher},
@@ -65,9 +65,9 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-fn create_artifact_dir(artifact_dir: &str) {
+fn create_artifact_dir<P: AsRef<Path>>(artifact_dir: P) {
     // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_dir_all(artifact_dir.as_ref()).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 

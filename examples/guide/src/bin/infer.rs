@@ -10,7 +10,7 @@ fn main() {
     let artifact_dir = "/tmp/guide";
 
     // Infer the model
-    inference::infer::<MyBackend>(
+    inference::infer::<MyBackend, &str>(
         artifact_dir,
         device,
         burn::data::dataset::vision::MnistDataset::test()

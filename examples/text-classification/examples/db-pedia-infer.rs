@@ -9,7 +9,7 @@ type ElemType = f32;
 type ElemType = burn::tensor::f16;
 
 pub fn launch<B: AutodiffBackend>(device: B::Device) {
-    text_classification::inference::infer::<B, DbPediaDataset>(
+    text_classification::inference::infer::<B, DbPediaDataset, &str>(
         device,
         "/tmp/text-classification-db-pedia",
         // Samples from the test dataset, but you are free to test with your own text.

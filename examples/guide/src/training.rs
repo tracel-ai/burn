@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::{
     data::{MnistBatch, MnistBatcher},
     model::{Model, ModelConfig},
@@ -60,16 +62,20 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
-fn create_artifact_dir(artifact_dir: &str) {
+fn create_artifact_dir<P: AsRef<Path>>(artifact_dir: P) {
     // Remove existing artifacts before to get an accurate learner summary
-    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::remove_dir_all(artifact_dir.as_ref()).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
-    create_artifact_dir(artifact_dir);
+pub fn train<B: AutodiffBackend, P: AsRef<Path>>(
+    artifact_dir: P,
+    config: TrainingConfig,
+    device: B::Device,
+) {
+    create_artifact_dir(artifact_dir.as_ref());
     config
-        .save(format!("{artifact_dir}/config.json"))
+        .save(artifact_dir.as_ref().join("config.json"))
         .expect("Config should be saved successfully");
 
     B::seed(config.seed);
@@ -89,7 +95,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
-    let learner = LearnerBuilder::new(artifact_dir)
+    let learner = LearnerBuilder::new(artifact_dir.as_ref())
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
@@ -107,6 +113,6 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
     model_trained
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
+        .save_file(artifact_dir.as_ref().join("model"), &CompactRecorder::new())
         .expect("Trained model should be saved successfully");
 }

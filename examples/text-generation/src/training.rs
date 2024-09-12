@@ -18,7 +18,7 @@ use burn::{
         LearnerBuilder,
     },
 };
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 #[derive(Config)]
 pub struct ExperimentConfig {
@@ -32,12 +32,12 @@ pub struct ExperimentConfig {
     num_epochs: usize,
 }
 
-pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
+pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static, P: AsRef<Path>>(
     device: B::Device,
     dataset_train: D,
     dataset_test: D,
     config: ExperimentConfig,
-    artifact_dir: &str,
+    artifact_dir: P,
 ) {
     let tokenizer = Arc::new(Gpt2Tokenizer::default());
     let batcher_train = TextGenerationBatcher::new(tokenizer.clone(), config.max_seq_length);
@@ -68,7 +68,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .with_model_size(config.transformer.d_model)
         .init();
 
-    let learner = LearnerBuilder::new(artifact_dir)
+    let learner = LearnerBuilder::new(artifact_dir.as_ref())
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
@@ -85,12 +85,14 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
-    config.save(format!("{artifact_dir}/config.json")).unwrap();
+    config
+        .save(artifact_dir.as_ref().join("config.json"))
+        .unwrap();
 
     DefaultRecorder::new()
         .record(
             model_trained.into_record(),
-            format!("{artifact_dir}/model").into(),
+            artifact_dir.as_ref().join("model"),
         )
         .unwrap();
 }
