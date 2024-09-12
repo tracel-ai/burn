@@ -18,10 +18,6 @@ use crate::{
 use cubecl::CubeElement;
 
 fn pack_i8s_to_u32s(data: &TensorData) -> Vec<u32> {
-    if data.bytes.len() % 4 != 0 {
-        panic!("Number of elements in the input must be a factor of 4");
-    }
-
     // Shift and combine groups of four 8-bit values into a u32.
     // Same as doing this:
     //     let result = (a_u8 & 0xFF) << 24 | (b_u8 & 0xFF) << 16 | (c_u8 & 0xFF) << 8 | (d_u8 & 0xFF);
@@ -127,6 +123,7 @@ where
 
     async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
         let strategy = tensor.strategy();
+        let numel = tensor.qtensor.shape.num_elements();
         let qtensor = kernel::into_contiguous(tensor.qtensor);
 
         let bytes = qtensor.client.read_async(qtensor.handle.binding()).await;
@@ -139,14 +136,17 @@ where
                 QuantizationType::QInt8 => TensorData::quantized(
                     u32::from_bytes(&bytes)
                         .iter()
-                        .flat_map(|packed| {
+                        .enumerate()
+                        .flat_map(|(i, packed)| {
+                            // A single u32 could contain less than four 8-bit values...
+                            let n = core::cmp::min(4, numel - i * 4);
                             // Extract each 8-bit segment from u32 and cast back to i8
-                            // Same as doing this:
+                            // Same as doing this (when 4 values are fully packed):
                             //     let a = ((packed >> 24) & 0xFF) as i8;
                             //     let b = ((packed >> 16) & 0xFF) as i8;
                             //     let c = ((packed >> 8) & 0xFF) as i8;
                             //     let d = (packed & 0xFF) as i8;
-                            (0..4).map(move |i| (packed >> ((3 - i) * 8) & 0xFF) as i8)
+                            (0..n).map(move |i| (packed >> ((3 - i) * 8) & 0xFF) as i8)
                         })
                         .collect(),
                     qtensor.shape,

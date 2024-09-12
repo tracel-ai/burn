@@ -103,32 +103,27 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
         let vectorization = Comptime::get(vectorization_factor);
         let runtime_vec = Comptime::runtime(vectorization_factor);
         for i in range(0u32, vectorization, Comptime::new(true)) {
-            // Extract each 8-bit segment
-            let v1 = extract_i8(value[i], UInt::new(24));
-            let v2 = extract_i8(value[i], UInt::new(16));
-            let v3 = extract_i8(value[i], UInt::new(8));
-            let v4 = extract_i8(value[i], UInt::new(0));
-
-            output[output_pos * runtime_vec + i * num_packed] =
-                dequantize_symmetric_int8::<F32>(v1, scale);
-            output[output_pos * runtime_vec + i * num_packed + UInt::new(1)] =
-                dequantize_symmetric_int8::<F32>(v2, scale);
-            output[output_pos * runtime_vec + i * num_packed + UInt::new(2)] =
-                dequantize_symmetric_int8::<F32>(v3, scale);
-            output[output_pos * runtime_vec + i * num_packed + UInt::new(3)] =
-                dequantize_symmetric_int8::<F32>(v4, scale);
+            for j in range(0u32, num_packed, Comptime::new(false)) {
+                let output_idx = output_pos * runtime_vec + i * num_packed + j;
+                if output_idx >= output.len() {
+                    return; // value not quantized (padding)
+                }
+                // Extract each 8-bit segment
+                let v = extract_i8(value[i], (UInt::new(3) - j) * UInt::new(8));
+                output[output_idx] = dequantize_symmetric_int8::<F32>(v, scale);
+            }
         }
     } else {
         // Extract each 8-bit segment
-        let v1 = extract_i8(value, UInt::new(24));
-        let v2 = extract_i8(value, UInt::new(16));
-        let v3 = extract_i8(value, UInt::new(8));
-        let v4 = extract_i8(value, UInt::new(0));
-
-        output[output_pos] = dequantize_symmetric_int8::<F32>(v1, scale);
-        output[output_pos + UInt::new(1)] = dequantize_symmetric_int8::<F32>(v2, scale);
-        output[output_pos + UInt::new(2)] = dequantize_symmetric_int8::<F32>(v3, scale);
-        output[output_pos + UInt::new(3)] = dequantize_symmetric_int8::<F32>(v4, scale);
+        for j in range(0u32, num_packed, Comptime::new(false)) {
+            let output_idx = output_pos + j;
+            if output_idx >= output.len() {
+                return; // value not quantized (padding)
+            }
+            // Extract each 8-bit segment
+            let v = extract_i8(value, (UInt::new(3) - j) * UInt::new(8));
+            output[output_pos + j] = dequantize_symmetric_int8::<F32>(v, scale);
+        }
     }
 }
 
@@ -144,7 +139,8 @@ where
 {
     // The actual number of elements is 1/4 (four int8 values packed in a single u32)
     // so we choose a vectorization factor to match a valid input binding size.
-    let num_elems = tensor.shape.num_elements() / 4;
+    let num_out_elems = tensor.shape.num_elements();
+    let num_elems = usize::div_ceil(num_out_elems, 4);
     let vectorization_factor = [4u8, 2, 1]
         .iter()
         .filter_map(|&v| {
@@ -162,7 +158,7 @@ where
 
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
-    let handle = client.empty(num_elems * 4 * core::mem::size_of::<F>());
+    let handle = client.empty(num_out_elems * core::mem::size_of::<F>());
     let output =
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 

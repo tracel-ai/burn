@@ -114,14 +114,14 @@ where
     I: IntElement,
 {
     let num_elems = tensor.shape.num_elements();
-    if num_elems % 4 != 0 {
-        panic!("Number of elements in the input must be a factor of 4");
+    if num_elems < 4 {
+        panic!("Input must have at least 4 elements");
     }
 
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
-    let handle = client.empty(num_elems / 4 * core::mem::size_of::<I>());
+    let handle = client.empty(usize::div_ceil(num_elems, 4) * core::mem::size_of::<I>());
     let output =
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 
@@ -177,11 +177,6 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    let num_elems = tensor.shape.num_elements();
-    if num_elems % 4 != 0 {
-        panic!("Number of elements in the input must be a factor of 4");
-    }
-
     let qtensor = match scheme {
         QuantizationScheme::PerTensorAffine(dtype)
         | QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
