@@ -31,6 +31,7 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     range_min: F32,
     range_max: F32,
     output: &mut Tensor<UInt>,
+    vectorized: Comptime<bool>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -44,15 +45,28 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     let vectorization_factor = Comptime::vectorization(input);
     let vectorization = Comptime::get(vectorization_factor);
 
-    let value = input[ABSOLUTE_POS];
-
     let bit_shift = UInt::new(8);
     let mut v_packed = UInt::new(0);
 
-    for i in range(0u32, vectorization, Comptime::new(true)) {
-        let v = quantize_affine_int8::<F32>(value[i], scale, offset, range_min, range_max);
-        // Shift and combine into u32
-        v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+    if Comptime::get(vectorized) {
+        let value = input[ABSOLUTE_POS];
+        for i in range(0u32, vectorization, Comptime::new(true)) {
+            let v = quantize_affine_int8::<F32>(value[i], scale, offset, range_min, range_max);
+            // Shift and combine into u32
+            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+        }
+    } else {
+        for i in range(0u32, num_packed, Comptime::new(false)) {
+            let v = quantize_affine_int8::<F32>(
+                input[ABSOLUTE_POS + i],
+                scale,
+                offset,
+                range_min,
+                range_max,
+            );
+            // Shift and combine into u32
+            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+        }
     }
 
     output[ABSOLUTE_POS] = v_packed;
@@ -77,6 +91,7 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
     range_min: F32,
     range_max: F32,
     output: &mut Tensor<UInt>,
+    vectorized: Comptime<bool>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -84,20 +99,31 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
 
     let scale = scale[0];
 
-    // Assuming a vectorization factor of 4 (equal to the number of values packed)
     let num_packed = UInt::new(4);
-    let vectorization_factor = Comptime::vectorization(input);
-    let vectorization = Comptime::get(vectorization_factor);
-
-    let value = input[ABSOLUTE_POS];
-
     let bit_shift = UInt::new(8);
     let mut v_packed = UInt::new(0);
 
-    for i in range(0u32, vectorization, Comptime::new(true)) {
-        let v = quantize_symmetric_int8::<F32>(value[i], scale, range_min, range_max);
-        // Shift and combine into u32
-        v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+    if Comptime::get(vectorized) {
+        // Assuming a vectorization factor of 4 (equal to the number of values packed)
+        let value = input[ABSOLUTE_POS];
+        let vectorization_factor = Comptime::vectorization(input);
+        let vectorization = Comptime::get(vectorization_factor);
+        for i in range(0u32, vectorization, Comptime::new(true)) {
+            let v = quantize_symmetric_int8::<F32>(value[i], scale, range_min, range_max);
+            // Shift and combine into u32
+            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+        }
+    } else {
+        for i in range(0u32, num_packed, Comptime::new(false)) {
+            let v = quantize_symmetric_int8::<F32>(
+                input[ABSOLUTE_POS + i],
+                scale,
+                range_min,
+                range_max,
+            );
+            // Shift and combine into u32
+            v_packed = v_packed | (v & UInt::new(0xFF)) << (bit_shift * (num_packed - i - 1));
+        }
     }
 
     output[ABSOLUTE_POS] = v_packed;
@@ -114,10 +140,6 @@ where
     I: IntElement,
 {
     let num_elems = tensor.shape.num_elements();
-    if num_elems < 4 {
-        panic!("Input must have at least 4 elements");
-    }
-
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
@@ -126,7 +148,7 @@ where
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 
     // Force vectorization to process 4 quantized values packed for 1 output value
-    let vectorization_factor: u8 = 4;
+    let vectorization_factor: u8 = if num_elems < 4 { 1 } else { 4 };
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
@@ -145,6 +167,7 @@ where
                 ScalarArg::new(i8::MIN as f32),
                 ScalarArg::new(i8::MAX as f32),
                 output.as_tensor_arg(1),
+                vectorization_factor > 1,
             )
         };
     } else {
@@ -159,6 +182,7 @@ where
                 ScalarArg::new(-i8::MAX as f32),
                 ScalarArg::new(i8::MAX as f32),
                 output.as_tensor_arg(1),
+                vectorization_factor > 1,
             )
         };
     }
