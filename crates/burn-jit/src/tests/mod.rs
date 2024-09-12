@@ -16,6 +16,7 @@ mod matmul;
 mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
+mod quantization;
 mod reduce;
 mod repeat_dim;
 mod scatter;
@@ -73,6 +74,8 @@ macro_rules! testgen_all {
                 burn_jit::testgen_cat!();
                 burn_jit::testgen_clamp!();
                 burn_jit::testgen_unary!();
+
+                burn_jit::testgen_quantization!();
             }
         }
         mod jit_fusion {
@@ -100,7 +103,14 @@ macro_rules! testgen_jit {
 
         burn_tensor::testgen_all!();
         burn_autodiff::testgen_all!();
-        burn_tensor::testgen_quantization!();
+
+        // Not all ops are implemented for quantization yet, notably missing:
+        // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
+        // burn_tensor::testgen_quantization!();
+        // test quantization
+        burn_tensor::testgen_calibration!();
+        burn_tensor::testgen_scheme!();
+        burn_tensor::testgen_quantize!();
     };
 }
 
