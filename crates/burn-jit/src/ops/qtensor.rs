@@ -104,10 +104,12 @@ where
     }
 
     fn q_to_device<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _device: &Device<Self>,
+        tensor: QuantizedTensor<Self, D>,
+        device: &Device<Self>,
     ) -> QuantizedTensor<Self, D> {
-        unimplemented!()
+        let mut tensor = tensor;
+        tensor.qtensor = super::to_device(tensor.qtensor, device);
+        tensor
     }
 
     fn q_reshape<const D1: usize, const D2: usize>(
