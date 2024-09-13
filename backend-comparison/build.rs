@@ -5,185 +5,209 @@ use std::process::Command;
 
 const MODELS_DIR: &str = "/tmp/models";
 const MODELS_REPO: &str = "https://github.com/tracel-ai/models.git";
-// Patch code
-// 1) ReLU -> Relu
-// 2) disable `init_with` methods to suppress unused warnings
-const PATCH: &str = r#"diff --git a/resnet-burn/src/model/block.rs b/resnet-burn/src/model/block.rs
-index 7d92554..408c51a 100644
---- a/resnet-burn/src/model/block.rs
-+++ b/resnet-burn/src/model/block.rs
-@@ -7,7 +7,7 @@ use burn::{
-     module::Module,
-     nn::{
-         conv::{Conv2d, Conv2dConfig},
--        BatchNorm, BatchNormConfig, Initializer, PaddingConfig2d, ReLU,
-+        BatchNorm, BatchNormConfig, Initializer, PaddingConfig2d, Relu,
-     },
-     tensor::{backend::Backend, Device, Tensor},
- };
-@@ -22,7 +22,7 @@ pub trait ResidualBlock<B: Backend> {
- pub struct BasicBlock<B: Backend> {
-     conv1: Conv2d<B>,
-     bn1: BatchNorm<B, 2>,
--    relu: ReLU,
-+    relu: Relu,
-     conv2: Conv2d<B>,
-     bn2: BatchNorm<B, 2>,
-     downsample: Option<Downsample<B>>,
-@@ -63,7 +63,7 @@ impl<B: Backend> ResidualBlock<B> for BasicBlock<B> {
- pub struct Bottleneck<B: Backend> {
-     conv1: Conv2d<B>,
-     bn1: BatchNorm<B, 2>,
--    relu: ReLU,
-+    relu: Relu,
-     conv2: Conv2d<B>,
-     bn2: BatchNorm<B, 2>,
-     conv3: Conv2d<B>,
-@@ -187,7 +187,7 @@ impl BasicBlockConfig {
-                 .with_initializer(initializer.clone())
-                 .init(device),
-             bn1: self.bn1.init(device),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             conv2: self
-                 .conv2
-                 .clone()
-@@ -199,11 +199,12 @@ impl BasicBlockConfig {
+
+// Patch resnet code (remove pretrained feature code)
+const PATCH: &str = r#"diff --git a/resnet-burn/resnet/src/resnet.rs b/resnet-burn/resnet/src/resnet.rs
+index e7f8787..3967049 100644
+--- a/resnet-burn/resnet/src/resnet.rs
++++ b/resnet-burn/resnet/src/resnet.rs
+@@ -12,13 +12,6 @@ use burn::{
+ 
+ use super::block::{LayerBlock, LayerBlockConfig};
+ 
+-#[cfg(feature = "pretrained")]
+-use {
+-    super::weights::{self, WeightsMeta},
+-    burn::record::{FullPrecisionSettings, Recorder, RecorderError},
+-    burn_import::pytorch::{LoadArgs, PyTorchFileRecorder},
+-};
+-
+ // ResNet residual layer block configs
+ const RESNET18_BLOCKS: [usize; 4] = [2, 2, 2, 2];
+ const RESNET34_BLOCKS: [usize; 4] = [3, 4, 6, 3];
+@@ -77,29 +70,6 @@ impl<B: Backend> ResNet<B> {
+         ResNetConfig::new(RESNET18_BLOCKS, num_classes, 1).init(device)
      }
- 
-     /// Initialize a new [basic residual block](BasicBlock) module with a [record](BasicBlockRecord).
-+    #[cfg(feature = "pretrained")]
-     fn init_with<B: Backend>(&self, record: BasicBlockRecord<B>) -> BasicBlock<B> {
-         BasicBlock {
-             conv1: self.conv1.init_with(record.conv1),
-             bn1: self.bn1.init_with(record.bn1),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             conv2: self.conv2.init_with(record.conv2),
-             bn2: self.bn2.init_with(record.bn2),
-             downsample: self.downsample.as_ref().map(|d| {
-@@ -286,7 +287,7 @@ impl BottleneckConfig {
-                 .with_initializer(initializer.clone())
-                 .init(device),
-             bn1: self.bn1.init(device),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             conv2: self
-                 .conv2
-                 .clone()
-@@ -304,11 +305,12 @@ impl BottleneckConfig {
+
+-    /// ResNet-18 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385)
+-    /// with pre-trained weights.
+-    ///
+-    /// # Arguments
+-    ///
+-    /// * `weights`: Pre-trained weights to load.
+-    /// * `device` - Device to create the module on.
+-    ///
+-    /// # Returns
+-    ///
+-    /// A ResNet-18 module with pre-trained weights.
+-    #[cfg(feature = "pretrained")]
+-    pub fn resnet18_pretrained(
+-        weights: weights::ResNet18,
+-        device: &Device<B>,
+-    ) -> Result<Self, RecorderError> {
+-        let weights = weights.weights();
+-        let record = Self::load_weights_record(&weights, device)?;
+-        let model = ResNet::<B>::resnet18(weights.num_classes, device).load_record(record);
+-
+-        Ok(model)
+-    }
+-
+     /// ResNet-34 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385).
+     ///
+     /// # Arguments
+@@ -114,29 +84,6 @@ impl<B: Backend> ResNet<B> {
+         ResNetConfig::new(RESNET34_BLOCKS, num_classes, 1).init(device)
      }
- 
-     /// Initialize a new [bottleneck residual block](Bottleneck) module with a [record](BottleneckRecord).
-+    #[cfg(feature = "pretrained")]
-     fn init_with<B: Backend>(&self, record: BottleneckRecord<B>) -> Bottleneck<B> {
-         Bottleneck {
-             conv1: self.conv1.init_with(record.conv1),
-             bn1: self.bn1.init_with(record.bn1),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             conv2: self.conv2.init_with(record.conv2),
-             bn2: self.bn2.init_with(record.bn2),
-             conv3: self.conv3.init_with(record.conv3),
-@@ -358,6 +360,7 @@ impl DownsampleConfig {
+
+-    /// ResNet-34 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385)
+-    /// with pre-trained weights.
+-    ///
+-    /// # Arguments
+-    ///
+-    /// * `weights`: Pre-trained weights to load.
+-    /// * `device` - Device to create the module on.
+-    ///
+-    /// # Returns
+-    ///
+-    /// A ResNet-34 module with pre-trained weights.
+-    #[cfg(feature = "pretrained")]
+-    pub fn resnet34_pretrained(
+-        weights: weights::ResNet34,
+-        device: &Device<B>,
+-    ) -> Result<Self, RecorderError> {
+-        let weights = weights.weights();
+-        let record = Self::load_weights_record(&weights, device)?;
+-        let model = ResNet::<B>::resnet34(weights.num_classes, device).load_record(record);
+-
+-        Ok(model)
+-    }
+-
+     /// ResNet-50 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385).
+     ///
+     /// # Arguments
+@@ -151,29 +98,6 @@ impl<B: Backend> ResNet<B> {
+         ResNetConfig::new(RESNET50_BLOCKS, num_classes, 4).init(device)
      }
- 
-     /// Initialize a new [downsample](Downsample) module with a [record](DownsampleRecord).
-+    #[cfg(feature = "pretrained")]
-     fn init_with<B: Backend>(&self, record: DownsampleRecord<B>) -> Downsample<B> {
-         Downsample {
-             conv: self.conv.init_with(record.conv),
-@@ -412,6 +415,7 @@ impl<B: Backend> LayerBlockConfig<BasicBlock<B>> {
- 
-     /// Initialize a new [LayerBlock](LayerBlock) module with a [record](LayerBlockRecord) for
-     /// [basic residual blocks](BasicBlock).
-+    #[cfg(feature = "pretrained")]
-     pub fn init_with(
-         &self,
-         record: LayerBlockRecord<B, BasicBlock<B>>,
-@@ -461,6 +465,7 @@ impl<B: Backend> LayerBlockConfig<Bottleneck<B>> {
- 
-     /// Initialize a new [LayerBlock](LayerBlock) module with a [record](LayerBlockRecord) for
-     /// [bottleneck residual blocks](Bottleneck).
-+    #[cfg(feature = "pretrained")]
-     pub fn init_with(
-         &self,
-         record: LayerBlockRecord<B, Bottleneck<B>>,
-diff --git a/resnet-burn/src/model/resnet.rs b/resnet-burn/src/model/resnet.rs
-index 0bc6a6c..2504159 100644
---- a/resnet-burn/src/model/resnet.rs
-+++ b/resnet-burn/src/model/resnet.rs
-@@ -6,12 +6,13 @@ use burn::{
-     nn::{
-         conv::{Conv2d, Conv2dConfig},
-         pool::{AdaptiveAvgPool2d, AdaptiveAvgPool2dConfig, MaxPool2d, MaxPool2dConfig},
--        BatchNorm, BatchNormConfig, Initializer, Linear, LinearConfig, PaddingConfig2d, ReLU,
-+        BatchNorm, BatchNormConfig, Initializer, Linear, LinearConfig, PaddingConfig2d, Relu,
-     },
-     tensor::{backend::Backend, Device, Tensor},
- };
- 
--use super::block::{BasicBlock, Bottleneck, LayerBlock, LayerBlockConfig, ResidualBlock};
-+pub use super::block::{BasicBlock, Bottleneck};
-+use super::block::{LayerBlock, LayerBlockConfig, ResidualBlock};
- 
- #[cfg(feature = "pretrained")]
- use {
-@@ -33,7 +34,7 @@ const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];
- pub struct ResNet<B: Backend, M> {
-     conv1: Conv2d<B>,
-     bn1: BatchNorm<B, 2>,
--    relu: ReLU,
-+    relu: Relu,
-     maxpool: MaxPool2d,
-     layer1: LayerBlock<B, M>,
-     layer2: LayerBlock<B, M>,
-@@ -360,7 +361,7 @@ impl<B: Backend> ResNetConfig<B, BasicBlock<B>> {
-         ResNet {
-             conv1: self.conv1.with_initializer(initializer).init(device),
-             bn1: self.bn1.init(device),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             maxpool: self.maxpool.init(),
-             layer1: self.layer1.init(device),
-             layer2: self.layer2.init(device),
-@@ -372,11 +373,12 @@ impl<B: Backend> ResNetConfig<B, BasicBlock<B>> {
+
+-    /// ResNet-50 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385)
+-    /// with pre-trained weights.
+-    ///
+-    /// # Arguments
+-    ///
+-    /// * `weights`: Pre-trained weights to load.
+-    /// * `device` - Device to create the module on.
+-    ///
+-    /// # Returns
+-    ///
+-    /// A ResNet-50 module with pre-trained weights.
+-    #[cfg(feature = "pretrained")]
+-    pub fn resnet50_pretrained(
+-        weights: weights::ResNet50,
+-        device: &Device<B>,
+-    ) -> Result<Self, RecorderError> {
+-        let weights = weights.weights();
+-        let record = Self::load_weights_record(&weights, device)?;
+-        let model = ResNet::<B>::resnet50(weights.num_classes, device).load_record(record);
+-
+-        Ok(model)
+-    }
+-
+     /// ResNet-101 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385).
+     ///
+     /// # Arguments
+@@ -188,29 +112,6 @@ impl<B: Backend> ResNet<B> {
+         ResNetConfig::new(RESNET101_BLOCKS, num_classes, 4).init(device)
      }
- 
-     /// Initialize a new [ResNet](ResNet) module with a [record](ResNetRecord).
-+    #[cfg(feature = "pretrained")]
-     fn init_with(&self, record: ResNetRecord<B, BasicBlock<B>>) -> ResNet<B, BasicBlock<B>> {
-         ResNet {
-             conv1: self.conv1.init_with(record.conv1),
-             bn1: self.bn1.init_with(record.bn1),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             maxpool: self.maxpool.init(),
-             layer1: self.layer1.init_with(record.layer1),
-             layer2: self.layer2.init_with(record.layer2),
-@@ -400,7 +402,7 @@ impl<B: Backend> ResNetConfig<B, Bottleneck<B>> {
-         ResNet {
-             conv1: self.conv1.with_initializer(initializer).init(device),
-             bn1: self.bn1.init(device),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             maxpool: self.maxpool.init(),
-             layer1: self.layer1.init(device),
-             layer2: self.layer2.init(device),
-@@ -412,11 +414,12 @@ impl<B: Backend> ResNetConfig<B, Bottleneck<B>> {
+
+-    /// ResNet-101 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385)
+-    /// with pre-trained weights.
+-    ///
+-    /// # Arguments
+-    ///
+-    /// * `weights`: Pre-trained weights to load.
+-    /// * `device` - Device to create the module on.
+-    ///
+-    /// # Returns
+-    ///
+-    /// A ResNet-101 module with pre-trained weights.
+-    #[cfg(feature = "pretrained")]
+-    pub fn resnet101_pretrained(
+-        weights: weights::ResNet101,
+-        device: &Device<B>,
+-    ) -> Result<Self, RecorderError> {
+-        let weights = weights.weights();
+-        let record = Self::load_weights_record(&weights, device)?;
+-        let model = ResNet::<B>::resnet101(weights.num_classes, device).load_record(record);
+-
+-        Ok(model)
+-    }
+-
+     /// ResNet-152 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385).
+     ///
+     /// # Arguments
+@@ -225,29 +126,6 @@ impl<B: Backend> ResNet<B> {
+         ResNetConfig::new(RESNET152_BLOCKS, num_classes, 4).init(device)
      }
- 
-     /// Initialize a new [ResNet](ResNet) module with a [record](ResNetRecord).
-+    #[cfg(feature = "pretrained")]
-     fn init_with(&self, record: ResNetRecord<B, Bottleneck<B>>) -> ResNet<B, Bottleneck<B>> {
-         ResNet {
-             conv1: self.conv1.init_with(record.conv1),
-             bn1: self.bn1.init_with(record.bn1),
--            relu: ReLU::new(),
-+            relu: Relu::new(),
-             maxpool: self.maxpool.init(),
-             layer1: self.layer1.init_with(record.layer1),
-             layer2: self.layer2.init_with(record.layer2),
+
+-    /// ResNet-152 from [`Deep Residual Learning for Image Recognition`](https://arxiv.org/abs/1512.03385)
+-    /// with pre-trained weights.
+-    ///
+-    /// # Arguments
+-    ///
+-    /// * `weights`: Pre-trained weights to load.
+-    /// * `device` - Device to create the module on.
+-    ///
+-    /// # Returns
+-    ///
+-    /// A ResNet-152 module with pre-trained weights.
+-    #[cfg(feature = "pretrained")]
+-    pub fn resnet152_pretrained(
+-        weights: weights::ResNet152,
+-        device: &Device<B>,
+-    ) -> Result<Self, RecorderError> {
+-        let weights = weights.weights();
+-        let record = Self::load_weights_record(&weights, device)?;
+-        let model = ResNet::<B>::resnet152(weights.num_classes, device).load_record(record);
+-
+-        Ok(model)
+-    }
+-
+     /// Re-initialize the last layer with the specified number of output classes.
+     pub fn with_classes(mut self, num_classes: usize) -> Self {
+         let [d_input, _d_output] = self.fc.weight.dims();
+@@ -256,32 +134,6 @@ impl<B: Backend> ResNet<B> {
+     }
+ }
+
+-#[cfg(feature = "pretrained")]
+-impl<B: Backend> ResNet<B> {
+-    /// Load specified pre-trained PyTorch weights as a record.
+-    fn load_weights_record(
+-        weights: &weights::Weights,
+-        device: &Device<B>,
+-    ) -> Result<ResNetRecord<B>, RecorderError> {
+-        // Download torch weights
+-        let torch_weights = weights.download().map_err(|err| {
+-            RecorderError::Unknown(format!("Could not download weights.\nError: {err}"))
+-        })?;
+-
+-        // Load weights from torch state_dict
+-        let load_args = LoadArgs::new(torch_weights)
+-            // Map *.downsample.0.* -> *.downsample.conv.*
+-            .with_key_remap("(.+)\\.downsample\\.0\\.(.+)", "$1.downsample.conv.$2")
+-            // Map *.downsample.1.* -> *.downsample.bn.*
+-            .with_key_remap("(.+)\\.downsample\\.1\\.(.+)", "$1.downsample.bn.$2")
+-            // Map layer[i].[j].* -> layer[i].blocks.[j].*
+-            .with_key_remap("(layer[1-4])\\.([0-9]+)\\.(.+)", "$1.blocks.$2.$3");
+-        let record = PyTorchFileRecorder::<FullPrecisionSettings>::new().load(load_args, device)?;
+-
+-        Ok(record)
+-    }
+-}
+-
+ /// [ResNet](ResNet) configuration.
+ struct ResNetConfig {
+     conv1: Conv2dConfig,
 "#;
 
 fn run<F>(name: &str, mut configure: F)
@@ -226,7 +250,6 @@ fn main() {
 
         let patch_file = models_dir.join("benchmark.patch");
 
-        // TODO: remove Relu patch when the models dir is updated to use Burn v0.13.0
         fs::write(&patch_file, PATCH).expect("should write to file successfully");
 
         // Apply patch
@@ -240,7 +263,7 @@ fn main() {
 
     // Copy contents to output dir
     let out_dir = env::var("OUT_DIR").unwrap();
-    let source_path = models_dir.join("resnet-burn").join("src").join("model");
+    let source_path = models_dir.join("resnet-burn").join("resnet").join("src");
     let dest_path = Path::new(&out_dir);
 
     for file in fs::read_dir(source_path).unwrap() {

@@ -1,6 +1,7 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
+use cubecl::client::SyncType;
 
 // Files retrieved during build to avoid reimplementing ResNet for benchmarks
 mod block {
@@ -18,7 +19,7 @@ pub struct ResNetBenchmark<B: Backend> {
 }
 
 impl<B: Backend> Benchmark for ResNetBenchmark<B> {
-    type Args = (model::ResNet<B, model::Bottleneck<B>>, Tensor<B, 4>);
+    type Args = (model::ResNet<B>, Tensor<B, 4>);
 
     fn name(&self) -> String {
         "resnet50".into()
@@ -41,18 +42,30 @@ impl<B: Backend> Benchmark for ResNetBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     let benchmark = ResNetBenchmark::<B> {
         shape: [1, 3, 224, 224].into(),
         device: device.clone(),
     };
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {
