@@ -349,7 +349,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     let x = apply_padding_4d::<E, Q>(x, options.padding, 0i32.elem()).array;
     let offsets = offset
         .array
-        .into_shape([
+        .into_shape_with_order([
             batch_size,
             options.offset_groups * kernel_height * kernel_width * 2,
             out_height,
@@ -358,7 +358,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
         .unwrap();
     let mask = mask.map(|mask| {
         mask.array
-            .into_shape([
+            .into_shape_with_order([
                 batch_size,
                 options.offset_groups * kernel_height * kernel_width,
                 out_height,
@@ -471,7 +471,7 @@ pub(crate) fn deform_conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     });
 
     let output = output
-        .into_shape([batch_size, out_channels, out_height, out_width])
+        .into_shape_with_order([batch_size, out_channels, out_height, out_width])
         .unwrap()
         .into_dyn()
         .into_shared();

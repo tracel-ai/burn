@@ -297,8 +297,6 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     Elem::UInt => ConstantScalarValue::UInt(1),
                     Elem::AtomicUInt => ConstantScalarValue::UInt(1),
                     Elem::Bool => ConstantScalarValue::Bool(true),
-                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(1, kind),
-                    Elem::AtomicUInt => ConstantScalarValue::UInt(1),
                 };
                 let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
@@ -321,8 +319,6 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                     Elem::UInt => ConstantScalarValue::UInt(0),
                     Elem::AtomicUInt => ConstantScalarValue::UInt(0),
                     Elem::Bool => ConstantScalarValue::Bool(false),
-                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(0, kind),
-                    Elem::AtomicUInt => ConstantScalarValue::UInt(0),
                 };
                 let input = Variable::ConstantScalar(input);
                 let out = self.builder.output(desc, Variable::AbsolutePos);
