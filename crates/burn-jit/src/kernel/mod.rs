@@ -1,4 +1,3 @@
-mod base;
 mod binary;
 mod cast;
 mod clamp;
@@ -6,16 +5,15 @@ mod comparison;
 mod contiguous;
 mod index;
 mod mask;
-mod source;
 mod unary;
 
-pub use base::*;
-pub use binary::*;
+pub(crate) use binary::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
-pub use source::*;
-pub use unary::*;
+pub(crate) use unary::*;
+
+pub use cubecl::{Kernel, SUBCUBE_DIM_APPROX};
 
 /// Convolution kernels
 pub mod conv;

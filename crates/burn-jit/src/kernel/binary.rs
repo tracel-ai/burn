@@ -1,210 +1,246 @@
-use crate::{
-    codegen::{execute_static, EagerHandle, WorkgroupLaunch},
-    element::JitElement,
-    tensor::JitTensor,
-    Runtime,
-};
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
+use cubecl::{
+    calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
+    tensor_vectorization_factor,
+};
 
-/// Creates a binary kernel.
-#[macro_export]
-macro_rules! binary {
-    (
-        operation: $ops:expr,
-        runtime: $runtime:ty,
-        input: $lhs:expr; $rhs:expr,
-        elem: $elem:ty
-    ) => {{
-        binary!(operation: $ops, compiler: <$runtime as Runtime>::Compiler, elem_in: $elem, elem_out: $elem);
-
-        $crate::kernel::binary::<
-            Ops<<$runtime as Runtime>::Compiler, $elem, $elem>,
-            OpsInplaceLhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
-            OpsInplaceRhs<<$runtime as Runtime>::Compiler, $elem, $elem>,
-            $runtime,
-            $elem,
-            D
-        >($lhs, $rhs, true)
-    }};
-
-    (
-        operation: $ops:expr,
-        compiler: $compiler:ty,
-        elem_in: $elem_in:ty,
-        elem_out: $elem_out:ty
-    ) => {
-        pub struct Ops<C, I, O> {
-            _c: core::marker::PhantomData<C>,
-            _i: core::marker::PhantomData<I>,
-            _o: core::marker::PhantomData<O>,
-        }
-        pub struct OpsInplaceLhs<C, I, O> {
-            _c: core::marker::PhantomData<C>,
-            _i: core::marker::PhantomData<I>,
-            _o: core::marker::PhantomData<O>,
-        }
-        pub struct OpsInplaceRhs<C, I, O> {
-            _c: core::marker::PhantomData<C>,
-            _i: core::marker::PhantomData<I>,
-            _o: core::marker::PhantomData<O>,
-        }
-
-        #[allow(clippy::redundant_closure_call)]
-        fn compile<C, I, O>(
-            settings: $crate::codegen::CompilationSettings,
-        ) -> $crate::kernel::SourceTemplate
-        where
-            C: $crate::codegen::Compiler,
-            I: $crate::element::JitElement,
-            O: $crate::element::JitElement
-        {
-            let mut scope = $crate::codegen::dialect::gpu::Scope::root();
-            let op = $ops(&mut scope, I::gpu_elem());
-            scope.register(op);
-
-            let local = scope.last_local_index().unwrap().index().unwrap();
-
-            let lhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-            };
-            let rhs = $crate::codegen::InputInfo::Array {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(I::gpu_elem()),
-                visibility: $crate::codegen::dialect::gpu::Visibility::Read,
-            };
-            let out = $crate::codegen::OutputInfo::ArrayWrite {
-                item: $crate::codegen::dialect::gpu::Item::Scalar(O::gpu_elem()),
-                local,
-            };
-            let info = $crate::codegen::CompilationInfo {
-                inputs: vec![lhs, rhs],
-                outputs: vec![out],
-                scope,
-            };
-            let shader = $crate::codegen::Compilation::new(info).compile(settings);
-
-            let compiled = C::compile(shader);
-            $crate::kernel::SourceTemplate::new(compiled.to_string())
-        }
-
-        #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource for Ops<C, I, O>
-        where
-            C: $crate::codegen::Compiler,
-            I: $crate::element::JitElement,
-            O: $crate::element::JitElement
-        {
-            fn source() -> $crate::kernel::SourceTemplate {
-                let settings = $crate::codegen::CompilationSettings::default();
-                compile::<C, I, O>(settings)
-            }
-        }
-
-        #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource
-            for OpsInplaceLhs<C, I, O>
-        where
-            C: $crate::codegen::Compiler,
-            I: $crate::element::JitElement,
-            O: $crate::element::JitElement
-        {
-            fn source() -> $crate::kernel::SourceTemplate {
-                let mapping = $crate::codegen::InplaceMapping {
-                    pos_input: 0,
-                    pos_output: 0,
-                };
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(vec![mapping]);
-                compile::<C, I, O>(settings)
-            }
-        }
-
-        #[allow(clippy::redundant_closure_call)]
-        impl<C, I, O> $crate::kernel::StaticKernelSource
-            for OpsInplaceRhs<C, I, O>
-        where
-            C: $crate::codegen::Compiler,
-            I: $crate::element::JitElement,
-            O: $crate::element::JitElement
-        {
-            fn source() -> $crate::kernel::SourceTemplate {
-                let mapping = $crate::codegen::InplaceMapping {
-                    pos_input: 1,
-                    pos_output: 0,
-                };
-                let settings = $crate::codegen::CompilationSettings::default()
-                    .inplace(vec![mapping]);
-                compile::<C, I, O>(settings)
-            }
-        }
-    };
+#[cube]
+pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
+    /// Execute a binary operation.
+    fn execute(lhs: C, rhs: C) -> C;
 }
 
-/// Launch an binary operation.
-pub fn binary<Kernel, KernelInplaceLhs, KernelInplaceRhs, R: Runtime, E, const D: usize>(
+pub(crate) struct AddOp;
+pub(crate) struct SubOp;
+pub(crate) struct MulOp;
+pub(crate) struct DivOp;
+pub(crate) struct RemainderOp;
+pub(crate) struct PowOp;
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for AddOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs + rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for SubOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs - rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for MulOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs * rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for DivOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        lhs / rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for RemainderOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        N::rem(lhs, rhs)
+    }
+}
+
+#[cube]
+impl<N: Float> BinaryOp<N> for PowOp {
+    fn execute(lhs: N, rhs: N) -> N {
+        N::powf(lhs, rhs)
+    }
+}
+
+#[cube(launch)]
+pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
+    input: &Tensor<C>,
+    scalar: C,
+    output: &mut Tensor<C>,
+) {
+    let offset_output = ABSOLUTE_POS;
+
+    if offset_output >= output.len() {
+        return;
+    }
+
+    output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], scalar);
+}
+
+#[cube(launch)]
+pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
+    lhs: &Tensor<C>,
+    rhs: &Tensor<C>,
+    out: &mut Tensor<C>,
+    #[comptime] rank: Option<u32>,
+    #[comptime] to_contiguous_lhs: bool,
+    #[comptime] to_contiguous_rhs: bool,
+) {
+    let offset_out = ABSOLUTE_POS;
+    let mut offset_lhs = ABSOLUTE_POS;
+    let mut offset_rhs = ABSOLUTE_POS;
+
+    if offset_out >= out.len() {
+        return;
+    }
+
+    if to_contiguous_lhs {
+        offset_lhs = index_offset_with_layout::<C, C>(
+            lhs,
+            out,
+            offset_out,
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
+        );
+    }
+
+    if to_contiguous_rhs {
+        offset_rhs = index_offset_with_layout::<C, C>(
+            rhs,
+            out,
+            offset_out,
+            0,
+            rank.unwrap_or_else(|| out.rank()),
+            rank.is_some(),
+        );
+    }
+
+    out[offset_out] = O::execute(lhs[offset_lhs], rhs[offset_rhs]);
+}
+
+pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
-    inplace_enabled: bool,
-) -> JitTensor<R, E, D>
-where
-    Kernel: crate::kernel::StaticKernelSource,
-    KernelInplaceLhs: crate::kernel::StaticKernelSource,
-    KernelInplaceRhs: crate::kernel::StaticKernelSource,
-    E: JitElement,
-{
-    if inplace_enabled && lhs.can_mut_broadcast(&rhs) {
-        execute_static::<R, KernelInplaceLhs, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[],
+) -> JitTensor<R, E, D> {
+    let vectorization_factor_lhs =
+        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+    let vectorization_factor_rhs =
+        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, D - 1);
+
+    let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
+
+    let mut shape_out = [0; D];
+    lhs.shape
+        .dims
+        .iter()
+        .zip(rhs.shape.dims.iter())
+        .enumerate()
+        .for_each(|(index, (dim_lhs, dim_rhs))| {
+            shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
+        });
+
+    let shape_out = Shape::new(shape_out);
+    let client = lhs.client.clone();
+    let num_elems = shape_out.num_elements();
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+
+    if lhs.can_mut_broadcast(&rhs) {
+        kernel_binop::launch::<E, O, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
+            TensorArg::alias(0),
             None,
-            WorkgroupLaunch::Input { pos: 0 },
-            rhs.client,
+            false,
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
         );
 
         lhs
-    } else if inplace_enabled && rhs.can_mut_broadcast(&lhs) {
-        execute_static::<R, KernelInplaceRhs, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[],
+    } else if rhs.can_mut_broadcast(&lhs) {
+        kernel_binop::launch::<E, O, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
+            TensorArg::alias(1),
             None,
-            WorkgroupLaunch::Input { pos: 1 },
-            lhs.client,
+            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            false,
         );
 
         rhs
     } else {
-        let mut shape_out = [0; D];
-        lhs.shape
-            .dims
-            .iter()
-            .zip(rhs.shape.dims.iter())
-            .enumerate()
-            .for_each(|(index, (dim_lhs, dim_rhs))| {
-                shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
-            });
-
-        let shape_out = Shape::new(shape_out);
-        let num_elems = shape_out.num_elements();
         let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let out = JitTensor::new(lhs.client.clone(), lhs.device, shape_out, buffer);
+        let output =
+            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
+        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        execute_static::<R, Kernel, E>(
-            &[
-                EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-                EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-            ],
-            &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
+        kernel_binop::launch::<E, O, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            lhs.as_tensor_arg(vectorization_factor),
+            rhs.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg(vectorization_factor),
             None,
-            WorkgroupLaunch::Output { pos: 0 },
-            lhs.client,
+            to_contiguous_lhs,
+            to_contiguous_rhs,
         );
 
-        out
+        output
+    }
+}
+
+pub(crate) fn launch_scalar_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
+    tensor: JitTensor<R, E, D>,
+    scalar: E,
+) -> JitTensor<R, E, D> {
+    // Vectorization is only enabled when the last dimension is contiguous.
+    let vectorization_factor =
+        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
+    let client = tensor.client.clone();
+    let num_elems = tensor.shape.num_elements();
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+
+    if tensor.can_mut() {
+        kernel_scalar_binop::launch::<E, O, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(vectorization_factor),
+            ScalarArg::new(scalar),
+            TensorArg::alias(0),
+        );
+
+        tensor
+    } else {
+        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+        let output = JitTensor::new(
+            tensor.client.clone(),
+            buffer,
+            tensor.shape.clone(),
+            tensor.device.clone(),
+            tensor.strides,
+        );
+
+        kernel_scalar_binop::launch::<E, O, R>(
+            &client,
+            cube_count,
+            CubeDim::default(),
+            tensor.as_tensor_arg(vectorization_factor),
+            ScalarArg::new(scalar),
+            output.as_tensor_arg(vectorization_factor),
+        );
+
+        output
     }
 }

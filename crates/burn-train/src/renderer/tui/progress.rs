@@ -86,7 +86,7 @@ impl ProgressBarView {
 
         let iteration = Gauge::default()
             .gauge_style(Style::default().fg(Color::Yellow))
-            .ratio(self.progress);
+            .ratio(self.progress.min(1.0));
         let eta = Paragraph::new(Line::from(vec![
             Span::from(" ("),
             Span::from(self.eta).italic(),
@@ -116,10 +116,7 @@ impl ProgressEstimate {
     }
 
     fn secs(&self) -> Option<u64> {
-        let eta = match self.started_after_warmup {
-            Some(started) => started.elapsed(),
-            None => return None,
-        };
+        let eta = self.started_after_warmup?.elapsed();
 
         let total_estimated = (eta.as_secs() as f64) / self.progress;
 

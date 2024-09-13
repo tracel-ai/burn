@@ -1,9 +1,10 @@
+use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use ndarray::Array4;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-use crate::{iter_range_par, run_par, FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
+use crate::{FloatNdArrayElement, NdArrayTensor, UnsafeSharedRef};
 
 pub(crate) fn nearest_interpolate<E: FloatNdArrayElement>(
     x: NdArrayTensor<E, 4>,
@@ -83,7 +84,7 @@ pub(crate) fn nearest_interpolate_backward<E: FloatNdArrayElement>(
 }
 
 fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
-    libm::floorf((output_size_index as f32 * input_size as f32) / output_size as f32) as usize
+    ((output_size_index as f32 * input_size as f32) / output_size as f32).floor() as usize
 }
 
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
@@ -95,8 +96,8 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
 
-    let y_ratio = ((in_height - 1) as f64) / ((out_height - 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / ((out_width - 1) as f64);
+    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
 
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (
@@ -173,8 +174,8 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
 
-    let y_ratio = ((in_height - 1) as f64) / ((out_height - 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / ((out_width - 1) as f64);
+    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
 
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (

@@ -1,18 +1,15 @@
+use alloc::format;
+
 use crate as burn;
 
-use crate::config::Config;
-use crate::module::Module;
-use crate::module::Param;
-use crate::nn::{Initializer, PaddingConfig1d};
-use crate::tensor::backend::Backend;
-use crate::tensor::Tensor;
-use burn_tensor::module::conv1d;
-use burn_tensor::ops::ConvOptions;
-use libm::sqrt;
+use crate::{
+    config::Config,
+    module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param},
+    nn::{conv::checks, Initializer, PaddingConfig1d},
+    tensor::{backend::Backend, module::conv1d, ops::ConvOptions, Tensor},
+};
 
-use super::checks;
-
-/// Configuration to create an [1D convolution](Conv1d) layer.
+/// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
 #[derive(Config, Debug)]
 pub struct Conv1dConfig {
     /// The number of input channels.
@@ -37,28 +34,53 @@ pub struct Conv1dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
 /// Applies a 1D convolution over input tensors.
 ///
-/// # Params
-///
-/// - weight: Tensor of shape [channels_out, channels_in / groups, kernel_size]
-///
-/// - bias:   Tensor of shape `[channels_out]`
+/// Should be created with [Conv1dConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct Conv1d<B: Backend> {
-    /// Tensor of shape [channels_out, channels_in / groups, kernel_size]
+    /// Tensor of shape `[channels_out, channels_in / groups, kernel_size]`
     pub weight: Param<Tensor<B, 3>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: usize,
-    kernel_size: usize,
-    dilation: usize,
-    groups: usize,
-    padding: PaddingConfig1d,
+    /// Stride of the convolution.
+    pub stride: usize,
+    /// Size of the kernel.
+    pub kernel_size: usize,
+    /// Spacing between kernel elements.
+    pub dilation: usize,
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// Padding configuration.
+    pub padding: Ignored<PaddingConfig1d>,
+}
+
+impl<B: Backend> ModuleDisplay for Conv1d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        // Since padding does not implement ModuleDisplay, we need to format it manually.
+        let padding_formatted = format!("{}", &self.padding);
+
+        content
+            .add("stride", &self.stride)
+            .add("kernel_size", &self.kernel_size)
+            .add("dilation", &self.dilation)
+            .add("groups", &self.groups)
+            .add("padding", &padding_formatted)
+            .optional()
+    }
 }
 
 impl Conv1dConfig {
@@ -87,23 +109,11 @@ impl Conv1dConfig {
         }
 
         Conv1d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
-            dilation: self.dilation,
-            groups: self.groups,
-        }
-    }
-    /// Initialize a new [conv1d](Conv1d) module with a [record](Conv1dRecord).
-    pub fn init_with<B: Backend>(&self, record: Conv1dRecord<B>) -> Conv1d<B> {
-        Conv1d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            kernel_size: self.kernel_size,
-            padding: self.padding.clone(),
+            padding: Ignored(self.padding.clone()),
             dilation: self.dilation,
             groups: self.groups,
         }
@@ -113,10 +123,12 @@ impl Conv1dConfig {
 impl<B: Backend> Conv1d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See [conv1d](crate::tensor::module::conv1d) for more information.
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, length_in],
-    /// - output: [batch_size, channels_out, length_out],
+    /// - input: `[batch_size, channels_in, length_in]`
+    /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self
@@ -135,8 +147,8 @@ impl<B: Backend> Conv1d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -144,7 +156,7 @@ mod tests {
 
         let config = Conv1dConfig::new(5, 5, 5);
         let k = (config.channels_in * config.kernel_size) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -160,6 +172,17 @@ mod tests {
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = Conv1dConfig::new(5, 5, 5);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", conv),
+            "Conv1d {stride: 1, kernel_size: 5, dilation: 1, groups: 1, padding: Valid, params: 130}"
+        );
     }
 }

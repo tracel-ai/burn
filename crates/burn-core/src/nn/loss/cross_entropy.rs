@@ -1,18 +1,20 @@
 use crate as burn;
 
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use crate::tensor::activation::log_softmax;
+use crate::tensor::{backend::Backend, Bool, Int, Tensor};
 use crate::{config::Config, module::Module};
+use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::activation::log_softmax;
-use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
-/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss).
+/// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct CrossEntropyLossConfig {
     /// Create padded cross entropy.
     ///
     /// Prevents pad tokens from impacting loss calculation.
-    pad_tokens: Option<Vec<usize>>,
+    pub pad_tokens: Option<Vec<usize>>,
 
     /// Create weighted cross-entropy.
     ///
@@ -21,18 +23,18 @@ pub struct CrossEntropyLossConfig {
     /// # Pre-conditions
     ///   - The order of the weight vector should correspond to the label integer assignment.
     ///   - Targets assigned negative Int's will not be allowed.
-    weights: Option<Vec<f32>>,
+    pub weights: Option<Vec<f32>>,
 
     /// Create cross-entropy with label smoothing.
     ///
     /// Hard labels {0, 1} will be changed to y_smoothed = y(1 - a) + a / nr_classes.
     /// Alpha = 0 would be the same as default.
-    smoothing: Option<f32>,
+    pub smoothing: Option<f32>,
 
-    /// Create cross-entropy with probabilities as input instead of logits.    
+    /// Create cross-entropy with probabilities as input instead of logits.
     ///
     #[config(default = true)]
-    logits: bool,
+    pub logits: bool,
 }
 
 impl CrossEntropyLossConfig {
@@ -68,13 +70,42 @@ impl CrossEntropyLossConfig {
 }
 
 /// Calculate the cross entropy loss from the input logits and the targets.
+///
+/// Should be created using [CrossEntropyLossConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct CrossEntropyLoss<B: Backend> {
-    pad_tokens: Option<Vec<usize>>,
+    /// Pad tokens to ignore in the loss calculation.
+    pub pad_tokens: Option<Vec<usize>>,
     /// Weights for cross-entropy.
     pub weights: Option<Tensor<B, 1>>,
-    smoothing: Option<f32>,
-    logits: bool,
+    /// Label smoothing factor.
+    pub smoothing: Option<f32>,
+    /// Use logits as input.
+    pub logits: bool,
+}
+
+impl<B: Backend> ModuleDisplay for CrossEntropyLoss<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let pad_tokens = if let Some(pad_tokens) = &self.pad_tokens {
+            alloc::format!("Vec<0..{}>", pad_tokens.len())
+        } else {
+            "None".to_string()
+        };
+
+        content
+            .add("pad_tokens", &pad_tokens)
+            .add("weights", &self.weights)
+            .add("smoothing", &self.smoothing)
+            .add("logits", &self.logits)
+            .optional()
+    }
 }
 
 impl<B: Backend> CrossEntropyLoss<B> {
@@ -121,7 +152,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
                     * weights
                         .clone()
                         .reshape([1, nr_classes])
-                        .repeat(0, batch_size);
+                        .repeat_dim(0, batch_size);
                 let weights = weights.clone().gather(0, targets);
                 let tensor = Self::apply_mask_2d(tensor, mask);
                 tensor.sum().neg() / weights.sum()
@@ -193,7 +224,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
     fn apply_mask_2d(mut tensor: Tensor<B, 2>, mask: Option<Tensor<B, 1, Bool>>) -> Tensor<B, 2> {
         if let Some(mask) = mask {
             let [batch_size, nr_classes] = tensor.dims();
-            tensor = tensor.mask_fill(mask.reshape([batch_size, 1]).repeat(1, nr_classes), 0);
+            tensor = tensor.mask_fill(mask.reshape([batch_size, 1]).repeat_dim(1, nr_classes), 0);
         }
 
         tensor
@@ -214,8 +245,8 @@ impl<B: Backend> CrossEntropyLoss<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::{loss::cross_entropy_with_logits, ops::IntElem, Distribution, TensorData};
     use crate::TestBackend;
-    use burn_tensor::{loss::cross_entropy_with_logits, Data, Distribution};
 
     macro_rules! setup {
         () => {{
@@ -227,9 +258,9 @@ mod tests {
                 &device,
             );
             let targets =
-                Tensor::<TestBackend, 1, Int>::from_data(Data::from([2, 0, 4, 1]), &device);
+                Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
             let targets_logits = Tensor::<TestBackend, 2>::from_data(
-                Data::from([
+                TensorData::from([
                     [0.0, 0.0, 1.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -251,11 +282,11 @@ mod tests {
                 &device,
             );
             let targets = Tensor::<TestBackend, 1, Int>::from_data(
-                Data::<i64, 1>::from([2, 0, 4, pad_index as i64]).convert(),
+                TensorData::from([2, 0, 4, pad_index as i64]).convert::<IntElem<TestBackend>>(),
                 &device,
             );
             let targets_logits = Tensor::<TestBackend, 2>::from_data(
-                Data::from([
+                TensorData::from([
                     [0.0, 0.0, 0.0, 0.0, 0.0],
                     [1.0, 0.0, 0.0, 0.0, 0.0],
                     [0.0, 0.0, 0.0, 0.0, 1.0],
@@ -281,7 +312,7 @@ mod tests {
             * targets_logits
             * Tensor::<TestBackend, 1>::from_floats(weights.as_slice(), &device)
                 .unsqueeze()
-                .repeat(0, 4);
+                .repeat_dim(0, 4);
         let loss_2 = loss_2.sum().neg() / (1. + 2. + 3. + 5.);
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
     }
@@ -368,7 +399,7 @@ mod tests {
         let smoothed_targets =
             CrossEntropyLoss::compute_smoothed_targets(logits.dims(), targets, 0.05);
         let targets_logits = Tensor::<TestBackend, 2>::from_data(
-            Data::from([
+            TensorData::from([
                 [0.01, 0.01, 0.96, 0.01, 0.01],
                 [0.96, 0.01, 0.01, 0.01, 0.01],
                 [0.01, 0.01, 0.01, 0.01, 0.96],
@@ -390,7 +421,7 @@ mod tests {
             .init(&device)
             .forward(logits.clone(), targets);
         let targets_logits = Tensor::<TestBackend, 2>::from_data(
-            Data::from([
+            TensorData::from([
                 [0.01, 0.01, 0.96, 0.01, 0.01],
                 [0.96, 0.01, 0.01, 0.01, 0.01],
                 [0.01, 0.01, 0.01, 0.01, 0.96],
@@ -403,5 +434,18 @@ mod tests {
         let loss_2 = (x * targets_logits).sum_dim(1).mean().neg();
 
         loss_1.into_data().assert_approx_eq(&loss_2.into_data(), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = CrossEntropyLossConfig::new()
+            .with_weights(Some(alloc::vec![3., 7., 0.9]))
+            .with_smoothing(Some(0.5));
+        let loss = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
+        );
     }
 }

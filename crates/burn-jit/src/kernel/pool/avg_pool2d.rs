@@ -1,17 +1,15 @@
-use crate::{
-    codegen::{dialect::gpu::Variable, execute_dynamic, EagerHandle, WorkgroupLaunch},
-    element::JitElement,
-    gpu::{gpu, Elem, Item, Scope},
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime, RuntimeInt,
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
+use cubecl::{
+    cpa,
+    ir::{Elem, Item, Scope, Variable},
+    CubeCountSettings, Execution,
 };
-use burn_tensor::{ops::conv::calculate_pool_output_size, ElementConversion, Shape};
 use std::fmt::Debug;
 
 use super::{Pool2dEagerKernel, PoolStrategy};
 
-#[derive(new, Debug, Clone)]
+#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
 struct AvgPool {
     kernel_size: [usize; 2],
     count_include_pad: bool,
@@ -25,10 +23,10 @@ impl PoolStrategy for AvgPool {
         let count = scope.create_local(Elem::UInt);
         if self.count_include_pad {
             let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();
-            gpu!(scope, count = kernel_size);
+            cpa!(scope, count = kernel_size);
         } else {
             let zero: Variable = 0u32.into();
-            gpu!(scope, count = zero);
+            cpa!(scope, count = zero);
         }
         (sum, count)
     }
@@ -43,9 +41,9 @@ impl PoolStrategy for AvgPool {
         let (sum, count) = accumulator;
         if !self.count_include_pad {
             let one: Variable = 1u32.into();
-            gpu!(scope, count += one);
+            cpa!(scope, count += one);
         }
-        gpu!(scope, sum += result);
+        cpa!(scope, sum += result);
         (sum, count)
     }
 
@@ -60,9 +58,9 @@ impl PoolStrategy for AvgPool {
         let (sum, count) = accumulator;
         let avg = scope.create_local(output.item());
         let count_float = scope.create_local(output.item());
-        gpu!(scope, count_float = cast(count));
-        gpu!(scope, avg = sum / count_float);
-        gpu!(scope, output[id] = avg);
+        cpa!(scope, count_float = cast(count));
+        cpa!(scope, avg = sum / count_float);
+        cpa!(scope, output[id] = avg);
     }
 
     fn with_indices() -> bool {
@@ -70,7 +68,7 @@ impl PoolStrategy for AvgPool {
     }
 }
 
-pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
+pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     x: JitTensor<R, E, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
@@ -99,27 +97,20 @@ pub(crate) fn avg_pool2d<R: Runtime, E: JitElement>(
     let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
 
     let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
-    let kernel = Pool2dEagerKernel::new(kernel_size, pool_strategy);
+    let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
 
-    execute_dynamic::<R, Pool2dEagerKernel<AvgPool, R, E>, RuntimeInt<R>>(
-        &[EagerHandle::new(&x.handle, &x.strides, &x.shape.dims)],
-        &[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )],
-        Some(&[
-            (stride[0] as u32).elem(),
-            (stride[1] as u32).elem(),
-            (dilation as u32).elem(),
-            (dilation as u32).elem(),
-            (padding[0] as u32).elem(),
-            (padding[1] as u32).elem(),
-        ]),
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        x.client,
-    );
+    Execution::start(kernel, x.client.clone())
+        .inputs(&[x.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
+        .with_scalars(&[
+            stride[0] as u32,
+            stride[1] as u32,
+            dilation as u32,
+            dilation as u32,
+            padding[0] as u32,
+            padding[1] as u32,
+        ])
+        .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

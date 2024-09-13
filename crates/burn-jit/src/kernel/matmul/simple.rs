@@ -1,254 +1,142 @@
-use crate::codegen::dialect::gpu::{
-    gpu, BinaryOperator, Branch, Elem, IndexOffsetGlobalWithLayout, Scope, Variable,
-};
+//! Naive matmul kernel implementation
+//!
+//! Each local unit will compute a single element of the output matrix.
 use crate::{
-    codegen::{
-        dialect::gpu, execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler,
-        EagerHandle, InputInfo, OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    kernel::{into_contiguous, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    kernel::{into_contiguous, SUBCUBE_DIM_APPROX},
+    ops::swap_dims,
     tensor::JitTensor,
-    Runtime,
+    FloatElement, JitRuntime,
 };
-use std::marker::PhantomData;
 
-use super::simple_launch_options;
+use super::simple_cube_count;
+use cubecl::prelude::*;
 
-#[derive(new, Debug)]
-struct MatmulEagerKernel<R: Runtime> {
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
-    _runtime: PhantomData<R>,
-}
+#[cube(launch_unchecked)]
+fn matmul_kernel<F: Float>(
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    out: &mut Tensor<F>,
+    // number of dimensions not involved in the matmul
+    #[comptime] num_batches: Option<u32>,
+) {
+    let rank = out.rank();
+    let end = num_batches.unwrap_or_else(|| rank - 2);
+    let unroll = num_batches.is_some();
 
-struct MatmulComputeShader {
-    variables: BinaryOperator,
-    block_size: usize,
-}
+    let n_rows = lhs.shape(rank - 2);
+    let n_cols = rhs.shape(rank - 1);
+    let mut k = rhs.shape(rank - 2);
 
-impl MatmulComputeShader {
-    fn expand(self, scope: &mut Scope) {
-        // Define out global variables.
-        let local_idx = Variable::LocalInvocationIndex;
-        let batch = Variable::GlobalInvocationIdZ;
-        let rank = Variable::Rank;
-        let block_size: Variable = self.block_size.into();
+    let batch_pos = ABSOLUTE_POS_Z;
+    let row = CUBE_DIM_X * CUBE_POS_X + UNIT_POS_X;
+    let col = CUBE_DIM_Y * CUBE_POS_Y + UNIT_POS_Y;
 
-        // Extract tensor variables.
-        let lhs = self.variables.lhs;
-        let rhs = self.variables.rhs;
-        let out = self.variables.out;
+    if row >= n_rows || col >= n_cols {
+        return;
+    }
 
-        // Define where we have to work on the current matrix.
-        let tmp_index = scope.create_local(Elem::UInt);
-        let batch_dims = scope.create_local(Elem::UInt);
-        let row = scope.create_local(Elem::UInt);
-        let col = scope.create_local(Elem::UInt);
+    let vectorization_factor = vectorization_of(lhs);
 
-        // Row position.
-        gpu!(scope, tmp_index = local_idx / block_size);
-        gpu!(scope, row = block_size * Variable::WorkgroupIdX);
-        gpu!(scope, row = row + tmp_index);
+    let mut offset_lhs = 0;
+    let mut offset_rhs = 0;
+    let offset_out = n_rows * n_cols * batch_pos;
 
-        // Col position.
-        gpu!(scope, tmp_index = local_idx % block_size);
-        gpu!(scope, col = block_size * Variable::WorkgroupIdY);
-        gpu!(scope, col = col + tmp_index);
+    #[unroll(unroll)]
+    for i in 0..end {
+        let ogwl = offset_out / out.stride(i);
 
-        // Batch position.
-        gpu!(scope, batch_dims = rank - 2u32);
+        offset_lhs += ogwl % lhs.shape(i) * lhs.stride(i);
+        offset_rhs += ogwl % rhs.shape(i) * rhs.stride(i);
+    }
 
-        // Define the matrix size.
-        let n_rows = scope.create_local(Elem::UInt);
-        let n_cols = scope.create_local(Elem::UInt);
-        let k = scope.create_local(Elem::UInt);
+    offset_lhs /= vectorization_factor;
+    offset_rhs /= vectorization_factor;
 
-        // Number of rows.
-        gpu!(scope, n_rows = shape(out, batch_dims));
+    let mut sum = F::vectorized(0., vectorization_factor);
 
-        // Number of cols.
-        gpu!(scope, tmp_index = batch_dims + 1u32);
-        gpu!(scope, n_cols = shape(out, tmp_index));
+    k /= vectorization_factor;
 
-        // The dimension that is going to be squashed.
-        gpu!(scope, k = shape(lhs, tmp_index));
+    for i in 0..k {
+        let lhs_index = row * k + i + offset_lhs;
+        let rhs_index = col * k + i + offset_rhs;
 
-        // Check if there is some work to be done.
-        let should_stop = scope.create_local(Elem::Bool);
-        gpu!(scope, should_stop = row >= n_rows);
-        gpu!(scope, if (should_stop).then(|scope| {
-            scope.register(Branch::Return);
-        }));
+        sum += lhs[lhs_index] * rhs[rhs_index];
+    }
 
-        gpu!(scope, should_stop = col >= n_cols);
-        gpu!(scope, if (should_stop).then(|scope| {
-            scope.register(Branch::Return);
-        }));
+    let mut out_index = row * n_cols + col;
+    out_index += offset_out;
 
-        // Calculate the batch offset.
-        let offset_lhs = scope.zero(Elem::UInt);
-        let offset_rhs = scope.zero(Elem::UInt);
-        let offset_output = scope.create_local(Elem::UInt);
-
-        // Batch offset for the output.
-        gpu!(scope, offset_output = n_rows * n_cols);
-        gpu!(scope, offset_output = offset_output * batch);
-
-        // Batch offset for the lhs & rhs matrices.
-        IndexOffsetGlobalWithLayout {
-            tensors: vec![lhs, rhs],
-            indexes: vec![offset_lhs, offset_rhs],
-            layout: out,
-            index_ref: offset_output,
-            dim_start: 0u32.into(),
-            dim_end: batch_dims,
+    let unroll_sum = vectorization_factor != 1;
+    if unroll_sum {
+        let mut accum = F::new(0.);
+        // we unroll the loop to sum `vectorization_factor` elements at once, which lets us
+        // use SIMD instructions to speed up the computation
+        #[unroll]
+        for v in 0..vectorization_factor {
+            accum += sum[v];
         }
-        .expand(scope);
 
-        // Calculate the dot product (row X col).
-        let sum = scope.create_local(out.item());
-
-        // Initialize the sum to zero.
-        let zero: Variable = 0f32.into();
-        gpu!(scope, sum = zero);
-
-        // Loop over the k dimension.
-        gpu!(
-            scope,
-            range(0u32, k).for_each(|i, scope| {
-                let lhs_index = scope.create_local(Elem::UInt);
-                let rhs_index = scope.create_local(Elem::UInt);
-
-                let lhs_value = scope.create_local(lhs.item());
-                let rhs_value = scope.create_local(rhs.item());
-                let out_value = scope.create_local(out.item());
-
-                gpu!(scope, lhs_index = row * k);
-                gpu!(scope, lhs_index = lhs_index + i);
-                gpu!(scope, lhs_index = lhs_index + offset_lhs);
-
-                gpu!(scope, rhs_index = i * n_cols);
-                gpu!(scope, rhs_index = rhs_index + col);
-                gpu!(scope, rhs_index = rhs_index + offset_rhs);
-
-                gpu!(scope, lhs_value = lhs[lhs_index]);
-                gpu!(scope, rhs_value = rhs[rhs_index]);
-
-                gpu!(scope, out_value = lhs_value * rhs_value);
-                gpu!(scope, sum += out_value);
-            })
-        );
-
-        let out_index = scope.create_local(Elem::UInt);
-
-        gpu!(scope, out_index = row * n_cols);
-        gpu!(scope, out_index += col);
-        gpu!(scope, out_index += offset_output);
-        gpu!(scope, out[out_index] = sum);
+        out[out_index] = accum;
+    } else {
+        out[out_index] = sum;
     }
 }
 
-impl<R: Runtime> DynamicKernelSource for MatmulEagerKernel<R> {
-    fn source(&self) -> SourceTemplate {
-        assert_eq!(
-            self.workgroup_size_x, self.workgroup_size_y,
-            "Only square grid is supported."
-        );
-
-        let mut scope = gpu::Scope::root();
-        let lhs = gpu::Variable::GlobalInputArray(0, gpu::Elem::Float.into());
-        let rhs = gpu::Variable::GlobalInputArray(1, gpu::Elem::Float.into());
-        let out = gpu::Variable::GlobalOutputArray(0, gpu::Elem::Float.into());
-
-        scope.write_global_custom(out);
-
-        MatmulComputeShader {
-            variables: gpu::BinaryOperator { lhs, rhs, out },
-            block_size: self.workgroup_size_x,
-        }
-        .expand(&mut scope);
-
-        let lhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
-            visibility: gpu::Visibility::Read,
-        };
-        let rhs = InputInfo::Array {
-            item: gpu::Elem::Float.into(),
-            visibility: gpu::Visibility::Read,
-        };
-        let out = OutputInfo::Array {
-            item: gpu::Elem::Float.into(),
-        };
-
-        let info = CompilationInfo {
-            inputs: vec![lhs, rhs],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = CompilationSettings::default().workgroup_size(gpu::WorkgroupSize::new(
-            self.workgroup_size_x as u32,
-            self.workgroup_size_y as u32,
-            1,
-        ));
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
-    }
-
-    fn id(&self) -> String {
-        format!(
-            "{:?}x={}y={}",
-            core::any::TypeId::of::<Self>(),
-            self.workgroup_size_x,
-            self.workgroup_size_y,
-        )
-    }
-}
-
-/// Matrix multiplication using memory coalescing algorithm with workgroups of size 16
-pub fn matmul_mem_coalescing_default<R: Runtime, E: JitElement, const D: usize>(
+/// Matrix multiplication using memory coalescing algorithm with cube dimensions of size 16
+pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
 ) -> JitTensor<R, E, D> {
-    matmul_simple::<R, E, D>(lhs, rhs, out, WORKGROUP_DEFAULT, WORKGROUP_DEFAULT)
+    matmul_simple::<R, E, D>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
 }
 
-/// Matrix multiplication using memory coalescing algorithm with custom workgroup sizes
-pub fn matmul_simple<R: Runtime, E: JitElement, const D: usize>(
+/// Matrix multiplication using memory coalescing algorithm with custom cube dimensions
+pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
     lhs: JitTensor<R, E, D>,
     rhs: JitTensor<R, E, D>,
     out: JitTensor<R, E, D>,
-    workgroup_size_x: usize,
-    workgroup_size_y: usize,
+    cube_dim_x: usize,
+    cube_dim_y: usize,
 ) -> JitTensor<R, E, D> {
     lhs.assert_is_on_same_device(&rhs);
     let lhs = into_contiguous(lhs);
-    let rhs = into_contiguous(rhs);
 
-    let workgroup = simple_launch_options(
+    let rhs_original_shape = rhs.shape.clone();
+    // we swap the dimensions to achieve memory-coalescing:
+    // consecutive elements of a column in the original rhs tensor will now be stored
+    // consecutively in memory, which allows to fetch them with fewer memory instructions
+    let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
+
+    let cube_count = simple_cube_count::<R, D>(
         &lhs.shape,
-        &rhs.shape,
+        &rhs_original_shape,
         &out.shape,
-        workgroup_size_x,
-        workgroup_size_y,
+        cube_dim_x,
+        cube_dim_y,
     );
 
-    let kernel = MatmulEagerKernel::new(workgroup_size_x, workgroup_size_y);
+    let vectorization_factor = match lhs.shape.dims[D - 1] % 4 == 0 {
+        true => 4,
+        false => 1,
+    };
 
-    execute_dynamic::<R, MatmulEagerKernel<R>, E>(
-        &[
-            EagerHandle::new(&lhs.handle, &lhs.strides, &lhs.shape.dims),
-            EagerHandle::new(&rhs.handle, &rhs.strides, &rhs.shape.dims),
-        ],
-        &[EagerHandle::new(&out.handle, &out.strides, &out.shape.dims)],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        rhs.client,
-    );
+    unsafe {
+        matmul_kernel::launch_unchecked::<E, R>(
+            &lhs.client,
+            cube_count,
+            CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
+            lhs.as_tensor_arg(vectorization_factor),
+            TensorArg::from_raw_parts(
+                &rhs.handle,
+                &rhs.strides,
+                &rhs_original_shape.dims, // We need the original shape.
+                vectorization_factor,
+            ),
+            out.as_tensor_arg(1),
+            Some(D as u32 - 2),
+        );
+    };
 
     out
 }

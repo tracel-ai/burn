@@ -2,18 +2,18 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::{mask_fill, MaskFillStrategy};
-    use burn_tensor::{Bool, Distribution, Tensor};
+    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive};
 
     #[test]
     fn mask_fill_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill(
-            tensor.into_primitive(),
+        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
+            tensor.into_primitive().tensor(),
             mask.into_primitive(),
             4.0,
             MaskFillStrategy::Readonly,
-        ));
+        )));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected
@@ -25,12 +25,12 @@ mod tests {
     fn mask_fill_inplace_should_work_with_multiple_invocations() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(mask_fill(
-            tensor.into_primitive(),
+        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
+            tensor.into_primitive().tensor(),
             mask.into_primitive(),
             4.0,
             MaskFillStrategy::Inplace,
-        ));
+        )));
         let expected = tensor_ref.mask_fill(mask_ref, 4.0);
 
         expected

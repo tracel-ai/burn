@@ -8,14 +8,17 @@ mod aggregation;
 mod avgpool1d;
 mod avgpool2d;
 mod backward;
+mod bridge;
 mod broadcast;
 mod cat;
 mod checkpoint;
 mod complex;
 mod conv1d;
 mod conv2d;
+mod conv3d;
 mod conv_transpose1d;
 mod conv_transpose2d;
+mod conv_transpose3d;
 mod cos;
 mod cross_entropy;
 mod div;
@@ -28,11 +31,13 @@ mod gelu;
 mod gradients;
 mod log;
 mod log1p;
+mod log_sigmoid;
 mod mask;
 mod matmul;
 mod maxmin;
 mod maxpool1d;
 mod maxpool2d;
+mod memory_management;
 mod mul;
 mod multithread;
 mod nearest_interpolate;
@@ -42,6 +47,7 @@ mod permute;
 mod pow;
 mod recip;
 mod relu;
+mod repeat_dim;
 mod reshape;
 mod select;
 mod sigmoid;
@@ -64,7 +70,9 @@ macro_rules! testgen_all {
         // Behavior
         burn_autodiff::testgen_ad_broadcast!();
         burn_autodiff::testgen_gradients!();
+        burn_autodiff::testgen_bridge!();
         burn_autodiff::testgen_checkpoint!();
+        burn_autodiff::testgen_memory_management!();
 
         // Activation
         burn_autodiff::testgen_ad_relu!();
@@ -73,8 +81,10 @@ macro_rules! testgen_all {
         // Modules
         burn_autodiff::testgen_ad_conv1d!();
         burn_autodiff::testgen_ad_conv2d!();
+        burn_autodiff::testgen_ad_conv3d!();
         burn_autodiff::testgen_ad_conv_transpose1d!();
         burn_autodiff::testgen_ad_conv_transpose2d!();
+        burn_autodiff::testgen_ad_conv_transpose3d!();
         burn_autodiff::testgen_ad_max_pool1d!();
         burn_autodiff::testgen_ad_max_pool2d!();
         burn_autodiff::testgen_ad_avg_pool1d!();
@@ -115,6 +125,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sub!();
         burn_autodiff::testgen_ad_tanh!();
         burn_autodiff::testgen_ad_sigmoid!();
+        burn_autodiff::testgen_ad_log_sigmoid!();
         burn_autodiff::testgen_ad_transpose!();
         burn_autodiff::testgen_ad_permute!();
         burn_autodiff::testgen_ad_flip!();
@@ -122,5 +133,6 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_sign!();
         burn_autodiff::testgen_ad_expand!();
         burn_autodiff::testgen_ad_sort!();
+        burn_autodiff::testgen_ad_repeat_dim!();
     };
 }

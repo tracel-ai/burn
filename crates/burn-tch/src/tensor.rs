@@ -1,5 +1,11 @@
-use crate::{element::TchElement, LibTorch, LibTorchDevice};
-use burn_tensor::{ops::FloatTensorOps, Data, Shape};
+use crate::{LibTorchDevice, QuantElement};
+use burn_tensor::{
+    quantization::{
+        AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
+    },
+    Element, Shape, TensorData,
+};
 use libc::c_void;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -54,13 +60,16 @@ impl Storage {
     }
 }
 
-/// A tensor that uses the tch backend.
+/// A tensor using the tch backend.
 #[derive(Debug, PartialEq)]
 pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     /// Handle to the tensor. Call methods on this field.
     pub tensor: tch::Tensor,
+
     /// The tensor's storage
     pub storage: Storage,
+
+    /// The element type of the tensor.
     phantom: PhantomData<E>,
 }
 
@@ -78,8 +87,8 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 
         Self {
             tensor,
-            phantom: PhantomData,
             storage,
+            phantom: PhantomData,
         }
     }
 
@@ -139,14 +148,6 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     }
 }
 
-impl<E: TchElement, const D: usize> std::ops::Add for TchTensor<E, D> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        LibTorch::float_add(self, rhs)
-    }
-}
-
 impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     pub(crate) fn shape(&self) -> Shape<D> {
         Shape::from(self.tensor.size())
@@ -160,7 +161,17 @@ unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
 unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
 
 impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
-    /// Execute an operation on a tensor if the data can be reused.
+    /// Checks if the tensor can be mutated in-place.
+    ///
+    /// Returns `true` if the tensor's stride does not contain zero (no broadcasting)
+    /// and the storage can be mutated.
+    pub fn can_mut(&self) -> bool {
+        let stride_contains_zero = self.tensor.stride().iter().any(|&s| s == 0);
+
+        !stride_contains_zero && self.storage.can_mut()
+    }
+
+    /// Executes an operation on a tensor if the data can be reused.
     pub fn mut_ops<
         F: Fn(&mut tch::Tensor) -> tch::Tensor,
         EOut: tch::kind::Element,
@@ -169,14 +180,15 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         &mut self,
         func: F,
     ) -> Option<TchTensor<EOut, D_OUT>> {
-        if !self.storage.can_mut() {
+        if !self.can_mut() {
             return None;
         }
 
         let data = self.storage.clone();
         Some(TchTensor::from_existing(func(&mut self.tensor), data))
     }
-    /// Execute a unary ops reusing the tensor data if possible.
+
+    /// Executes a unary operation, reusing the tensor data if possible.
     pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
         self,
         fown: FOwn,
@@ -186,14 +198,14 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
     {
-        if !self.storage.can_mut() {
+        if !self.can_mut() {
             return TchTensor::from_existing(fref(&self.tensor), self.storage);
         }
 
         TchTensor::from_existing(fown(self.tensor), self.storage)
     }
 
-    /// Execute a binary ops reusing the tensor data if possible.
+    /// Executes a binary operation, reusing the tensor data if possible.
     pub fn binary_ops_tensor<FLMut, FRMut, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
         mut lhs: Self,
         mut rhs: Self,
@@ -216,14 +228,14 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
 
         let num_elements_out = out_shape.num_elements();
 
-        // Safe to mut lhs tensor.
+        // Attempt to mutate lhs tensor
         if lhs_shape.num_elements() == num_elements_out {
             if let Some(output) = lhs.mut_ops(|lhs| flmut(lhs, &rhs.tensor)) {
                 return output;
             }
         }
 
-        // Safe to mut rhs tensor.
+        // Attempt to mutate rhs tensor
         if rhs_shape.num_elements() == num_elements_out {
             if let Some(output) = rhs.mut_ops(|rhs| frmut(&lhs.tensor, rhs)) {
                 return output;
@@ -264,7 +276,17 @@ impl<const D: usize> From<Shape<D>> for TchShape<D> {
     }
 }
 
-impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
+impl<const D: usize> From<&[usize]> for TchShape<D> {
+    fn from(shape: &[usize]) -> Self {
+        let mut dims = [0; D];
+        for (i, dim) in dims.iter_mut().enumerate().take(D) {
+            *dim = shape[i] as i64;
+        }
+        TchShape { dims }
+    }
+}
+
+impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> {
     /// Creates a new tensor from a shape and a device.
     ///
     /// # Arguments
@@ -275,27 +297,13 @@ impl<E: tch::kind::Element + Default, const D: usize> TchTensor<E, D> {
     /// # Returns
     ///
     /// A new tensor.
-    pub fn from_data(data: Data<E, D>, device: tch::Device) -> Self {
-        let tensor = tch::Tensor::from_slice(data.value.as_slice()).to(device);
-        let shape_tch = TchShape::from(data.shape);
+    pub fn from_data(data: TensorData, device: tch::Device) -> Self {
+        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+        let tensor =
+            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
-    }
-}
-
-#[cfg(test)]
-mod utils {
-    use super::*;
-    use crate::{backend::LibTorch, element::TchElement};
-
-    impl<P: TchElement, const D: usize> TchTensor<P, D> {
-        pub(crate) fn into_data(self) -> Data<P, D>
-        where
-            P: tch::kind::Element,
-        {
-            <LibTorch<P> as FloatTensorOps<LibTorch<P>>>::float_into_data(self).read()
-        }
     }
 }
 
@@ -318,37 +326,81 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     }
 }
 
+/// A quantized tensor for the tch backend.
+#[derive(Clone, Debug)]
+pub struct TchQTensor<Q: QuantElement, const D: usize> {
+    /// The quantized tensor.
+    pub qtensor: TchTensor<Q, D>,
+    /// The quantization scheme.
+    pub scheme: QuantizationScheme,
+}
+
+impl<Q: QuantElement, const D: usize> QTensorPrimitive for TchQTensor<Q, D> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
+    }
+
+    fn strategy(&self) -> QuantizationStrategy {
+        match &self.scheme {
+            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
+                QuantizationType::QInt8 => {
+                    let scale = self.qtensor.tensor.q_scale();
+                    let offset = self.qtensor.tensor.q_zero_point();
+                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                        scale as f32,
+                        offset as i8,
+                    ))
+                }
+            },
+            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
+                QuantizationType::QInt8 => {
+                    let scale = self.qtensor.tensor.q_scale();
+                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                        scale as f32,
+                    ))
+                }
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::LibTorch;
+
     use super::*;
-    use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::ops::QTensorOps;
+    use burn_tensor::quantization::QuantizationParametersPrimitive;
+    use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
-        let data_expected = Data::<f32, 1>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32, 1>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = tensor.into_data();
+        let data_actual =
+            Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
 
         assert_eq!(data_expected, data_actual);
     }
 
     #[test]
     fn should_support_into_and_from_data_2d() {
-        let data_expected = Data::<f32, 2>::random(
+        let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32, 2>::from_data(data_expected.clone(), tch::Device::Cpu);
 
-        let data_actual = tensor.into_data();
+        let data_actual =
+            Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
 
         assert_eq!(data_expected, data_actual);
     }
@@ -360,7 +412,10 @@ mod tests {
 
         let tensor_3 = tensor_2.reshape([1, 2]).add_scalar(2.0);
 
-        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
+        assert_ne!(
+            tensor_3.to_data().as_slice::<f32>().unwrap(),
+            tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
     }
 
     #[test]
@@ -370,6 +425,32 @@ mod tests {
 
         let tensor_3 = tensor_2.slice([0..2]).add_scalar(2.0);
 
-        assert_ne!(tensor_3.to_data().value, tensor_1.to_data().value);
+        assert_ne!(
+            tensor_3.to_data().as_slice::<f32>().unwrap(),
+            tensor_1.to_data().as_slice::<f32>().unwrap()
+        );
+    }
+
+    #[test]
+    fn should_support_qtensor_strategy() {
+        let tensor = TchTensor::<f32, 1>::from_data(
+            TensorData::from([-1.8, -1.0, 0.0, 0.5]),
+            tch::Device::Cpu,
+        );
+        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let qparams = QuantizationParametersPrimitive {
+            scale: TchTensor::from_data(TensorData::from([0.009_019_608]), tch::Device::Cpu),
+            offset: Some(TchTensor::from_data(
+                TensorData::from([72]),
+                tch::Device::Cpu,
+            )),
+        };
+        let qtensor: TchQTensor<i8, 1> = LibTorch::quantize(tensor, &scheme, qparams);
+
+        assert_eq!(qtensor.scheme(), &scheme);
+        assert_eq!(
+            qtensor.strategy(),
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+        );
     }
 }

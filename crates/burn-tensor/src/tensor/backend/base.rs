@@ -1,7 +1,10 @@
 use alloc::string::String;
+pub use burn_common::sync_type::SyncType;
 
-use crate::ops::*;
 use crate::tensor::Element;
+use crate::{ops::*, quantization::QTensorPrimitive};
+
+use super::{BackendBridge, DeviceOps};
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
 ///
@@ -32,8 +35,8 @@ use crate::tensor::Element;
 ///
 /// ### Multi-Threaded
 ///
-/// Backend tensor types are all `Clone` + `Sync` + `Send`, which allows them to be safely
-/// shared between threads. It is recommended to wrap tensors with [Arc](alloc::sync::Arc),
+/// Backend tensor types are all `Clone` + `Send`, which allows them to be safely
+/// sent between threads. It is recommended to wrap tensors with [Arc](alloc::sync::Arc),
 /// which avoids copying the tensor's buffer. Note that it is still possible to mutate and
 /// reuse tensors' buffer without locking; see the next section on the Mutable API.
 ///
@@ -55,6 +58,7 @@ pub trait Backend:
     + IntTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
+    + QTensorOps<Self>
     + Clone
     + Sized
     + Default
@@ -64,25 +68,30 @@ pub trait Backend:
     + 'static
 {
     /// Device type.
-    type Device: Clone + Default + PartialEq + core::fmt::Debug + Send + Sync;
+    type Device: DeviceOps;
 
-    /// Pointer to another backend that have a full precision float element type
-    type FullPrecisionBackend: Backend<FloatElem = Self::FullPrecisionElem, Device = Self::Device>;
-    /// Full precision float element type.
-    type FullPrecisionElem: Element;
+    /// A bridge that can cast tensors to full precision.
+    type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type IntTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive<const D: usize>: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+
+    /// Tensor primitive to be used for all quantized operations.
+    type QuantizedTensorPrimitive<const D: usize>: QTensorPrimitive
+        + Clone
+        + Send
+        + 'static
+        + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {
@@ -96,7 +105,7 @@ pub trait Backend:
     fn seed(seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
-    fn sync(_device: &Self::Device) {}
+    fn sync(_device: &Self::Device, _sync_type: SyncType) {}
 }
 
 /// Trait that allows a backend to support autodiff.
@@ -106,11 +115,10 @@ pub trait AutodiffBackend: Backend {
         Device = Self::Device,
         FloatElem = Self::FloatElem,
         IntElem = Self::IntElem,
-        FullPrecisionElem = Self::FullPrecisionElem,
     >;
 
     /// Gradients type.
-    type Gradients: Send + Sync;
+    type Gradients: Send;
 
     /// Backward pass.
     ///
@@ -201,6 +209,19 @@ pub trait AutodiffBackend: Backend {
     fn bool_inner<const D: usize>(tensor: BoolTensor<Self, D>)
         -> BoolTensor<Self::InnerBackend, D>;
 
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn q_inner<const D: usize>(
+        tensor: QuantizedTensor<Self, D>,
+    ) -> QuantizedTensor<Self::InnerBackend, D>;
+
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
     /// # Arguments
@@ -242,4 +263,18 @@ pub trait AutodiffBackend: Backend {
     fn bool_from_inner<const D: usize>(
         tensor: BoolTensor<Self::InnerBackend, D>,
     ) -> BoolTensor<Self, D>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn q_from_inner<const D: usize>(
+        tensor: QuantizedTensor<Self::InnerBackend, D>,
+    ) -> QuantizedTensor<Self, D>;
 }

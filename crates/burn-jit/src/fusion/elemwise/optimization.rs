@@ -5,18 +5,21 @@ use super::{
     FusionElemWiseAutotuneKey,
 };
 use crate::{
-    codegen::dialect::gpu::WorkgroupSize,
-    compute::JitAutotuneKey,
-    fusion::{kernel::FusionKernel, tracing::Trace},
-    JitBackend, Runtime,
+    fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
+    tune_key::JitAutotuneKey,
+    JitRuntime, JitTuneId,
 };
 use burn_common::id::IdGenerator;
-use burn_compute::client::ComputeClient;
 use burn_fusion::stream::Context;
+use cubecl::ir::CubeDim;
+use cubecl::{
+    client::ComputeClient,
+    tune::{local_tuner, LocalTuner},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(new)]
-pub struct ElementWise<R: Runtime, Phase = ExecutionPhase<R>> {
+pub struct ElementWise<R: JitRuntime, Phase = ExecutionPhase<R>> {
     pub(super) trace: Trace,
     pub(super) num_operations: usize,
     pub(super) device: R::Device,
@@ -28,10 +31,10 @@ pub struct CompilationPhase;
 
 /// Phase where the kernel should be executed.
 #[derive(new)]
-pub struct ExecutionPhase<R: Runtime> {
-    /// Kernel set with default workgroup size.
+pub struct ExecutionPhase<R: JitRuntime> {
+    /// Kernel set with default cube size.
     pub(super) kernel_factory_1: ElementWiseKernelFactory<R>,
-    /// Kernel set with custom workgroup size.
+    /// Kernel set with custom cube size.
     pub(super) kernel_factory_2: ElementWiseKernelFactory<R>,
 }
 
@@ -41,20 +44,17 @@ pub struct ElementWiseState {
     num_operations: usize,
 }
 
-impl<R: Runtime> ElementWise<R, CompilationPhase> {
+impl<R: JitRuntime> ElementWise<R, CompilationPhase> {
     pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
         let info = Arc::new(self.trace.compiling());
 
         let kernel_factory_1 = ElementWiseKernelFactory::new(
             IdGenerator::generate(),
             info.clone(),
-            WorkgroupSize::default(),
+            CubeDim::default(),
         );
-        let kernel_factory_2 = ElementWiseKernelFactory::new(
-            IdGenerator::generate(),
-            info,
-            WorkgroupSize::new(16, 16, 1),
-        );
+        let kernel_factory_2 =
+            ElementWiseKernelFactory::new(IdGenerator::generate(), info, CubeDim::new(16, 16, 1));
 
         ElementWise {
             trace: self.trace,
@@ -65,8 +65,8 @@ impl<R: Runtime> ElementWise<R, CompilationPhase> {
     }
 }
 
-impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitBackend<R>>) {
+impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
+    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         let client = R::client(&self.device);
 
         let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
@@ -74,16 +74,20 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
             self.autotune_shape(context),
         ));
 
-        if let Some(index) = client.autotune_result(&key) {
+        let id = JitTuneId::new::<R>(&self.device);
+
+        static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+
+        if let Some(index) = TUNER.autotune_result(&id, &key) {
             self.run_kernel(context, client, index)
         } else {
-            self.run_autotune(context, client, key)
+            self.run_autotune(context, client, id, key, &TUNER)
         }
     }
 
     fn run_kernel(
         &mut self,
-        context: &mut Context<'_, JitBackend<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
         fastest_set_index: usize,
     ) {
@@ -108,9 +112,11 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
 
     fn run_autotune(
         &mut self,
-        context: &mut Context<'_, JitBackend<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         client: ComputeClient<R::Server, R::Channel>,
+        id: JitTuneId,
         key: JitAutotuneKey,
+        tuner: &LocalTuner<JitAutotuneKey, JitTuneId>,
     ) {
         let info = self.trace.running();
 
@@ -139,12 +145,16 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
             false,
         );
 
-        client.autotune_execute(Box::new(ElementWiseAutotuneOperationSet::new(
-            key,
-            kernel_1.into(),
-            kernel_2.into(),
-            kernel_default.into(),
-        )));
+        tuner.execute(
+            &id,
+            &client,
+            Box::new(ElementWiseAutotuneOperationSet::new(
+                key,
+                kernel_1.into(),
+                kernel_2.into(),
+                kernel_default.into(),
+            )),
+        );
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -154,7 +164,7 @@ impl<R: Runtime> ElementWise<R, ExecutionPhase<R>> {
     /// The first output is chosen when possible, otherwise the first input is chosen.
     pub(crate) fn autotune_shape<'a>(
         &self,
-        context: &mut Context<'a, JitBackend<R>>,
+        context: &mut Context<'a, JitFusionHandle<R>>,
     ) -> &'a [usize] {
         let info = self.trace.running();
 

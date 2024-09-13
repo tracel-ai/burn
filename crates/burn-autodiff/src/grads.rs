@@ -3,6 +3,7 @@ use burn_tensor::{backend::Backend, container::TensorContainer, Tensor};
 use crate::{
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
+    NodeID,
 };
 
 /// Gradient identifier.
@@ -25,7 +26,7 @@ impl Gradients {
             container: TensorContainer::new(),
         };
         gradients.register::<B, D>(
-            root_node,
+            root_node.id,
             B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
         );
         gradients
@@ -40,12 +41,12 @@ impl Gradients {
             Requirement::Grad => self
                 .container
                 .get::<B, D>(&node.id.value)
-                .map(|tensor| tensor.into_primitive())
+                .map(|tensor| tensor.into_primitive().tensor())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
                 .remove::<B, D>(&node.id.value)
-                .map(|tensor| tensor.into_primitive())
+                .map(|tensor| tensor.into_primitive().tensor())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
         }
@@ -58,7 +59,7 @@ impl Gradients {
     ) -> Option<TensorPrimitive<B, D>> {
         self.container
             .remove::<B, D>(&tensor.node.id.value)
-            .map(|tensor| tensor.into_primitive())
+            .map(|tensor| tensor.into_primitive().tensor())
     }
 
     /// Gets a grad tensor from the container.
@@ -68,7 +69,7 @@ impl Gradients {
     ) -> Option<TensorPrimitive<B, D>> {
         self.container
             .get::<B, D>(&tensor.node.id.value)
-            .map(|tensor| tensor.into_primitive())
+            .map(|tensor| tensor.into_primitive().tensor())
     }
 
     /// Register a grad tensor in the container.
@@ -76,15 +77,19 @@ impl Gradients {
     /// If the tensor already exists, add both tensors together before saving the result.
     pub fn register<B: Backend, const D: usize>(
         &mut self,
-        node: NodeRef,
+        node_id: NodeID,
         value: TensorPrimitive<B, D>,
     ) {
-        if let Some(tensor_old) = self.container.remove::<B, D>(&node.id.value) {
-            self.container
-                .register(node.id.value, Tensor::from_primitive(value).add(tensor_old));
+        if let Some(tensor_old) = self.container.remove::<B, D>(&node_id.value) {
+            self.container.register(
+                node_id.value,
+                Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(value)).add(tensor_old),
+            );
         } else {
-            self.container
-                .register::<B, D>(node.id.value, Tensor::from_primitive(value));
+            self.container.register::<B, D>(
+                node_id.value,
+                Tensor::from_primitive(burn_tensor::TensorPrimitive::Float(value)),
+            );
         }
     }
 }

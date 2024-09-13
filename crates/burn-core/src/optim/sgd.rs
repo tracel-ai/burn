@@ -25,6 +25,7 @@ pub struct SgdConfig {
 /// Optimizer that implements stochastic gradient descent with momentum.
 ///
 /// The optimizer can be configured with [SgdConfig](SgdConfig).
+#[derive(Clone)]
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
     weight_decay: Option<WeightDecay<B>>,

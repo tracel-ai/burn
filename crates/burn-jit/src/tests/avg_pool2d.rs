@@ -1,7 +1,9 @@
 #[burn_tensor_testgen::testgen(avg_pool2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, module, ops::ModuleOps, Distribution, Tensor};
+    use burn_tensor::{
+        backend::Backend, module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive,
+    };
 
     #[test]
     fn avg_pool2d_should_work_with_multiple_invocations() {
@@ -56,23 +58,24 @@ mod tests {
             Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data(), &Default::default());
 
         let grad: Tensor<TestBackend, 4> =
-            Tensor::from_primitive(TestBackend::avg_pool2d_backward(
-                tensor.into_primitive(),
-                grad_output.into_primitive(),
+            Tensor::from_primitive(TensorPrimitive::Float(TestBackend::avg_pool2d_backward(
+                tensor.into_primitive().tensor(),
+                grad_output.into_primitive().tensor(),
                 kernel_size,
                 stride,
                 padding,
                 count_include_pad,
-            ));
-        let grad_ref: Tensor<ReferenceBackend, 4> =
-            Tensor::from_primitive(ReferenceBackend::avg_pool2d_backward(
-                tensor_ref.into_primitive(),
-                grad_output_ref.into_primitive(),
+            )));
+        let grad_ref: Tensor<ReferenceBackend, 4> = Tensor::from_primitive(TensorPrimitive::Float(
+            ReferenceBackend::avg_pool2d_backward(
+                tensor_ref.into_primitive().tensor(),
+                grad_output_ref.into_primitive().tensor(),
                 kernel_size,
                 stride,
                 padding,
                 count_include_pad,
-            ));
+            ),
+        ));
 
         grad.into_data().assert_approx_eq(&grad_ref.into_data(), 3);
     }

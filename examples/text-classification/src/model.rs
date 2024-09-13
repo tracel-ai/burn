@@ -55,29 +55,6 @@ impl TextClassificationModelConfig {
             max_seq_length: self.max_seq_length,
         }
     }
-
-    /// Initializes a model with provided weights
-    pub fn init_with<B: Backend>(
-        &self,
-        record: TextClassificationModelRecord<B>,
-    ) -> TextClassificationModel<B> {
-        let output =
-            LinearConfig::new(self.transformer.d_model, self.n_classes).init_with(record.output);
-        let transformer = self.transformer.init_with(record.transformer);
-        let embedding_token = EmbeddingConfig::new(self.vocab_size, self.transformer.d_model)
-            .init_with(record.embedding_token);
-        let embedding_pos = EmbeddingConfig::new(self.max_seq_length, self.transformer.d_model)
-            .init_with(record.embedding_pos);
-
-        TextClassificationModel {
-            transformer,
-            embedding_token,
-            embedding_pos,
-            output,
-            n_classes: self.n_classes,
-            max_seq_length: self.max_seq_length,
-        }
-    }
 }
 
 /// Define model behavior
@@ -96,7 +73,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
+            .repeat_dim(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;
@@ -136,7 +113,7 @@ impl<B: Backend> TextClassificationModel<B> {
         // Calculate token and position embeddings, and combine them
         let index_positions = Tensor::arange(0..seq_length as i64, device)
             .reshape([1, seq_length])
-            .repeat(0, batch_size);
+            .repeat_dim(0, batch_size);
         let embedding_positions = self.embedding_pos.forward(index_positions);
         let embedding_tokens = self.embedding_token.forward(tokens);
         let embedding = (embedding_positions + embedding_tokens) / 2;

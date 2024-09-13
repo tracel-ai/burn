@@ -1,6 +1,12 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
-use crate::metric::MetricEntry;
-use std::collections::HashMap;
+use crate::metric::{MetricEntry, NumericEntry};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
+
+const EPOCH_PREFIX: &str = "epoch-";
 
 /// Metric logger.
 pub trait MetricLogger: Send {
@@ -19,13 +25,13 @@ pub trait MetricLogger: Send {
     fn end_epoch(&mut self, epoch: usize);
 
     /// Read the logs for an epoch.
-    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String>;
+    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<NumericEntry>, String>;
 }
 
 /// The file metric logger.
 pub struct FileMetricLogger {
     loggers: HashMap<String, AsyncLogger<String>>,
-    directory: String,
+    directory: PathBuf,
     epoch: usize,
 }
 
@@ -39,22 +45,55 @@ impl FileMetricLogger {
     /// # Returns
     ///
     /// The file metric logger.
-    pub fn new(directory: &str) -> Self {
+    pub fn new(directory: impl AsRef<Path>) -> Self {
         Self {
             loggers: HashMap::new(),
-            directory: directory.to_string(),
+            directory: directory.as_ref().to_path_buf(),
             epoch: 1,
         }
     }
 
-    fn file_path(&self, name: &str, epoch: usize) -> String {
-        let directory = format!("{}/epoch-{}", self.directory, epoch);
-        let name = name.replace(' ', "_");
+    /// Number of epochs recorded.
+    pub(crate) fn epochs(&self) -> usize {
+        let mut max_epoch = 0;
 
-        format!("{directory}/{name}.log")
+        for path in fs::read_dir(&self.directory).unwrap() {
+            let path = path.unwrap();
+
+            if fs::metadata(path.path()).unwrap().is_dir() {
+                let dir_name = path.file_name().into_string().unwrap();
+
+                if !dir_name.starts_with(EPOCH_PREFIX) {
+                    continue;
+                }
+
+                let epoch = dir_name.replace(EPOCH_PREFIX, "").parse::<usize>().ok();
+
+                if let Some(epoch) = epoch {
+                    if epoch > max_epoch {
+                        max_epoch = epoch;
+                    }
+                }
+            }
+        }
+
+        max_epoch
     }
+
+    fn epoch_directory(&self, epoch: usize) -> PathBuf {
+        let name = format!("{}{}", EPOCH_PREFIX, epoch);
+        self.directory.join(name)
+    }
+
+    fn file_path(&self, name: &str, epoch: usize) -> PathBuf {
+        let directory = self.epoch_directory(epoch);
+        let name = name.replace(' ', "_");
+        let name = format!("{name}.log");
+        directory.join(name)
+    }
+
     fn create_directory(&self, epoch: usize) {
-        let directory = format!("{}/epoch-{}", self.directory, epoch);
+        let directory = self.epoch_directory(epoch);
         std::fs::create_dir_all(directory).ok();
     }
 }
@@ -70,7 +109,7 @@ impl MetricLogger for FileMetricLogger {
                 self.create_directory(self.epoch);
 
                 let file_path = self.file_path(key, self.epoch);
-                let logger = FileLogger::new(&file_path);
+                let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
                 self.loggers.insert(key.clone(), logger);
@@ -88,7 +127,7 @@ impl MetricLogger for FileMetricLogger {
         self.epoch = epoch + 1;
     }
 
-    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
+    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<NumericEntry>, String> {
         if let Some(value) = self.loggers.get(name) {
             value.sync()
         }
@@ -104,7 +143,7 @@ impl MetricLogger for FileMetricLogger {
                 if value.is_empty() {
                     None
                 } else {
-                    match value.parse::<f64>() {
+                    match NumericEntry::deserialize(value) {
                         Ok(value) => Some(value),
                         Err(err) => {
                             log::error!("{err}");
@@ -117,7 +156,7 @@ impl MetricLogger for FileMetricLogger {
             .collect();
 
         if errors {
-            Err("Parsing float errors".to_string())
+            Err("Parsing numeric entry errors".to_string())
         } else {
             Ok(data)
         }
@@ -154,7 +193,7 @@ impl MetricLogger for InMemoryMetricLogger {
         }
     }
 
-    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<f64>, String> {
+    fn read_numeric(&mut self, name: &str, epoch: usize) -> Result<Vec<NumericEntry>, String> {
         let values = match self.values.get(name) {
             Some(values) => values,
             None => return Ok(Vec::new()),
@@ -164,7 +203,7 @@ impl MetricLogger for InMemoryMetricLogger {
             Some(logger) => Ok(logger
                 .values
                 .iter()
-                .filter_map(|value| value.parse::<f64>().ok())
+                .filter_map(|value| NumericEntry::deserialize(value).ok())
                 .collect()),
             None => Ok(Vec::new()),
         }

@@ -1,11 +1,11 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
-/// Configuration to create a [Dropout](Dropout) layer.
+/// Configuration to create a [Dropout](Dropout) layer using the [init function](DropoutConfig::init).
 #[derive(Config, Debug)]
 pub struct DropoutConfig {
     /// The probability of randomly zeroes some elements of the input tensor during training.
@@ -18,9 +18,13 @@ pub struct DropoutConfig {
 /// [Improving neural networks by preventing co-adaptation of feature detectors](https://arxiv.org/abs/1207.0580).
 ///
 /// The input is also scaled during training to `1 / (1 - prob_keep)`.
+///
+/// Should be created with [DropoutConfig].
 #[derive(Module, Clone, Debug)]
+#[module(custom_display)]
 pub struct Dropout {
-    prob: f64,
+    /// The probability of randomly zeroes some elements of the input tensor during training.
+    pub prob: f64,
 }
 
 impl DropoutConfig {
@@ -32,6 +36,8 @@ impl DropoutConfig {
 
 impl Dropout {
     /// Applies the forward pass on the input tensor.
+    ///
+    /// See [Dropout](Dropout) for more information.
     ///
     /// # Shapes
     ///
@@ -47,6 +53,18 @@ impl Dropout {
         let x = input * random;
 
         x * (1.0 / prob_keep)
+    }
+}
+
+impl ModuleDisplay for Dropout {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content.add("prob", &self.prob).optional()
     }
 }
 
@@ -81,5 +99,13 @@ mod tests {
         let output = dropout.forward(tensor.clone());
 
         assert_eq!(tensor.to_data(), output.to_data());
+    }
+
+    #[test]
+    fn display() {
+        let config = DropoutConfig::new(0.5);
+        let layer = config.init();
+
+        assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
     }
 }

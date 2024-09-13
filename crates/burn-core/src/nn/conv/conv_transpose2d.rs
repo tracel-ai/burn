@@ -1,18 +1,22 @@
+use alloc::format;
+
 use crate as burn;
 
 use crate::config::Config;
+use crate::module::Content;
+use crate::module::DisplaySettings;
 use crate::module::Module;
+use crate::module::ModuleDisplay;
 use crate::module::Param;
+use crate::nn::conv::checks;
 use crate::nn::Initializer;
 use crate::tensor::backend::Backend;
+use crate::tensor::module::conv_transpose2d;
+use crate::tensor::ops::ConvTransposeOptions;
 use crate::tensor::Tensor;
-use burn_tensor::module::conv_transpose2d;
-use burn_tensor::ops::ConvTransposeOptions;
-use libm::sqrt;
 
-use super::checks;
-
-/// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer.
+/// Configuration to create an [2D transposed convolution](ConvTranspose2d) layer
+/// using the [init function](ConvTranspose2dConfig::init).
 #[derive(Config, Debug)]
 pub struct ConvTranspose2dConfig {
     /// The number of channels.
@@ -38,29 +42,54 @@ pub struct ConvTranspose2dConfig {
     #[config(default = true)]
     pub bias: bool,
     /// The type of function used to initialize neural network parameters
-    #[config(default = "Initializer::KaimingUniform{gain:1.0/sqrt(3.0),fan_out_only:false}")]
+    #[config(
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0),fan_out_only:false}"
+    )]
     pub initializer: Initializer,
 }
 
 /// Applies a 2D transposed convolution over input tensors.
-///
-/// # Params
-///
-/// - weight: Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
-///
-/// - bias:   Tensor of shape `[channels_out]`
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct ConvTranspose2d<B: Backend> {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size_1, kernel_size_2]`
     pub weight: Param<Tensor<B, 4>>,
     /// Tensor of shape `[channels_out]`
     pub bias: Option<Param<Tensor<B, 1>>>,
-    stride: [usize; 2],
-    kernel_size: [usize; 2],
-    dilation: [usize; 2],
-    groups: usize,
-    padding: [usize; 2],
-    padding_out: [usize; 2],
+    /// Stride of the convolution.
+    pub stride: [usize; 2],
+    /// Size of the kernel.
+    pub kernel_size: [usize; 2],
+    /// Spacing between kernel elements.
+    pub dilation: [usize; 2],
+    /// Controls the connections between input and output channels.
+    pub groups: usize,
+    /// Padding configuration.
+    pub padding: [usize; 2],
+    /// Padding output configuration.
+    pub padding_out: [usize; 2],
+    /// Number of channels.
+    pub channels: [usize; 2],
+}
+
+impl<B: Backend> ModuleDisplay for ConvTranspose2d<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("channels", &format!("{:?}", &self.channels))
+            .add("stride", &format!("{:?}", &self.stride))
+            .add("kernel_size", &format!("{:?}", &self.kernel_size))
+            .add("dilation", &format!("{:?}", &self.dilation))
+            .add("groups", &self.groups)
+            .add("padding", &format!("{:?}", &self.padding))
+            .add("padding_out", &format!("{:?}", &self.padding_out))
+            .optional()
+    }
 }
 
 impl ConvTranspose2dConfig {
@@ -89,28 +118,15 @@ impl ConvTranspose2dConfig {
         }
 
         ConvTranspose2d {
-            weight: Param::from(weight),
-            bias: bias.map(Param::from),
+            weight,
+            bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
             groups: self.groups,
             padding: self.padding,
             padding_out: self.padding_out,
-        }
-    }
-
-    /// Initialize a new [conv transpose 2d](ConvTranspose2d) module with a [record](ConvTranspose2dRecord).
-    pub fn init_with<B: Backend>(&self, record: ConvTranspose2dRecord<B>) -> ConvTranspose2d<B> {
-        ConvTranspose2d {
-            weight: record.weight,
-            bias: record.bias,
-            stride: self.stride,
-            dilation: self.dilation,
-            kernel_size: self.kernel_size,
-            groups: self.groups,
-            padding: self.padding,
-            padding_out: self.padding_out,
+            channels: self.channels,
         }
     }
 }
@@ -118,10 +134,12 @@ impl ConvTranspose2dConfig {
 impl<B: Backend> ConvTranspose2d<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [conv_transpose2d](crate::tensor::module::conv_transpose2d).
+    ///
     /// # Shapes
     ///
-    /// - input: [batch_size, channels_in, height_in, width_in],
-    /// - output: [batch_size, channels_out, height_out, width_out],
+    /// - input: `[batch_size, channels_in, height_in, width_in]`
+    /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         conv_transpose2d(
             input,
@@ -141,8 +159,8 @@ impl<B: Backend> ConvTranspose2d<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn initializer_default() {
@@ -150,7 +168,7 @@ mod tests {
 
         let config = ConvTranspose2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[1] * config.kernel_size[0] * config.kernel_size[1]) as f64;
-        let k = sqrt(config.groups as f64 / k) as f32;
+        let k = (config.groups as f64 / k).sqrt() as f32;
         let conv = config.init::<TestBackend>(&Default::default());
 
         conv.weight.to_data().assert_within_range(-k..k);
@@ -167,6 +185,17 @@ mod tests {
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight
             .to_data()
-            .assert_approx_eq(&Data::zeros(conv.weight.shape()), 3);
+            .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = ConvTranspose2dConfig::new([5, 2], [5, 5]);
+        let conv = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", conv),
+            "ConvTranspose2d {channels: [5, 2], stride: [1, 1], kernel_size: [5, 5], dilation: [1, 1], groups: 1, padding: [0, 0], padding_out: [0, 0], params: 252}"
+        );
     }
 }

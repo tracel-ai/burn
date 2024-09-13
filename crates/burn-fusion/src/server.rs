@@ -1,28 +1,23 @@
 use crate::{
-    stream::{MultiStream, Operation, OperationDescription, StreamId},
-    FusionBackend, HandleContainer, TensorId,
+    stream::{execution::Operation, MultiStream, StreamId},
+    FusionBackend, FusionRuntime,
 };
-use burn_tensor::ops::{FloatElem, IntElem};
+use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription, TensorId};
 use std::sync::Arc;
 
-pub struct FusionServer<B>
-where
-    B: FusionBackend,
-{
-    streams: MultiStream<B>,
-    pub(crate) handles: HandleContainer<B>,
-    pub device: B::FusionDevice,
+pub struct FusionServer<R: FusionRuntime> {
+    streams: MultiStream<R>,
+    pub(crate) handles: HandleContainer<R::FusionHandle>,
 }
 
-impl<B> FusionServer<B>
+impl<R> FusionServer<R>
 where
-    B: FusionBackend,
+    R: FusionRuntime,
 {
-    pub fn new(device: B::FusionDevice) -> Self {
+    pub fn new(device: R::FusionDevice) -> Self {
         Self {
             streams: MultiStream::new(device.clone()),
-            handles: HandleContainer::new(device.clone()),
-            device,
+            handles: HandleContainer::new(),
         }
     }
 
@@ -30,7 +25,7 @@ where
         &mut self,
         streams: Vec<StreamId>,
         desc: OperationDescription,
-        operation: Box<dyn Operation<B>>,
+        operation: Box<dyn Operation<R>>,
     ) {
         self.streams
             .register(streams, desc, operation, &mut self.handles)
@@ -44,90 +39,110 @@ where
         self.handles.create_tensor_uninit()
     }
 
-    pub fn read_float<const D: usize>(
+    pub async fn read_float<B, const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<FloatElem<B>, D>> {
+    ) -> burn_tensor::TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_float_tensor(&tensor);
-        B::float_into_data(tensor)
+        let tensor = self.handles.get_float_tensor::<B, D>(&tensor);
+        B::float_into_data(tensor).await
     }
 
-    pub fn read_int<const D: usize>(
+    pub async fn read_int<B, const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<IntElem<B>, D>> {
+    ) -> burn_tensor::TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_int_tensor(&tensor);
-        B::int_into_data(tensor)
+        let tensor = self.handles.get_int_tensor::<B, D>(&tensor);
+        B::int_into_data(tensor).await
     }
 
-    pub fn read_bool<const D: usize>(
+    pub async fn read_bool<B, const D: usize>(
         &mut self,
-        tensor: crate::TensorDescription,
+        tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::Reader<burn_tensor::Data<bool, D>> {
+    ) -> burn_tensor::TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_bool_tensor(&tensor);
-        B::bool_into_data(tensor)
+        let tensor = self.handles.get_bool_tensor::<B, D>(&tensor);
+        B::bool_into_data(tensor).await
     }
 
-    pub fn change_server_float<const D: usize>(
+    pub fn change_server_float<B, const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
-        device: &B::Device,
+        tensor: &TensorDescription,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
-        let tensor = self.handles.get_float_tensor::<D>(tensor);
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let tensor = self.handles.get_float_tensor::<B, D>(tensor);
         let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_float_tensor(&id, tensor.clone());
+            .register_float_tensor::<B, D>(&id, tensor.clone());
 
         id
     }
-    pub fn change_server_int<const D: usize>(
+
+    pub fn change_server_int<B, const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
-        device: &B::Device,
+        tensor: &TensorDescription,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
-        let tensor = self.handles.get_int_tensor::<D>(tensor);
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let tensor = self.handles.get_int_tensor::<B, D>(tensor);
         let tensor = B::int_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_int_tensor(&id, tensor.clone());
+            .register_int_tensor::<B, D>(&id, tensor.clone());
 
         id
     }
-    pub fn change_server_bool<const D: usize>(
+
+    pub fn change_server_bool<B, const D: usize>(
         &mut self,
-        tensor: &crate::TensorDescription,
-        device: &B::Device,
+        tensor: &TensorDescription,
+        device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Arc<TensorId> {
-        let tensor = self.handles.get_bool_tensor::<D>(tensor);
+    ) -> Arc<TensorId>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let tensor = self.handles.get_bool_tensor::<B, D>(tensor);
         let tensor = B::bool_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_bool_tensor(&id, tensor.clone());
+            .register_bool_tensor::<B, D>(&id, tensor.clone());
 
         id
     }

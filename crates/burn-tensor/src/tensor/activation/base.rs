@@ -1,19 +1,34 @@
 use crate::backend::Backend;
 use crate::check::TensorCheck;
-use crate::{check, Tensor};
-use crate::{ElementPrecision, Precision};
+use crate::{check, Tensor, TensorPrimitive};
 
-/// Applies the rectified linear unit function.
+/// Applies the rectified linear unit function as described in the paper [Deep Learning using
+/// Rectified Linear Units (ReLU)](https://arxiv.org/pdf/1803.08375).
+///
+/// `y = max(0, x)`
 pub fn relu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.relu()
 }
 
-/// Applies the Gaussian Error Linear Units function as described in the paper in [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
-pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    Tensor::from_primitive(B::gelu(tensor.primitive))
+/// Applies the leaky rectified linear unit function.
+///
+/// f(x) = negative_slope * x for x < 0, f(x) = x for x >= 0
+pub fn leaky_relu<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    negative_slope: f64,
+) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(B::leaky_relu(
+        tensor.primitive.tensor(),
+        crate::ElementConversion::elem(negative_slope),
+    )))
 }
 
-/// Applies Parametric ReLu activation
+/// Applies the Gaussian Error Linear Units function as described in the paper [Gaussian Error Linear Units (GELUs)](https://arxiv.org/pdf/1606.08415v3.pdf).
+pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(B::gelu(tensor.primitive.tensor())))
+}
+
+/// Applies Parametric ReLu activation function as described in the paper [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
 /// ` PReLu(x) = max(0,x) + \alpha * min(0,x)`
 /// tensor is assumed to be of shape \[batch_size, channels, ...\]
 /// alpha is assumed to be of shape \[channels\] or \[1\]
@@ -39,7 +54,10 @@ pub fn prelu<const D: usize, B: Backend>(
         alpha.reshape(s)
     };
 
-    Tensor::from_primitive(B::prelu(tensor.primitive, weight.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::prelu(
+        tensor.primitive.tensor(),
+        weight.primitive.tensor(),
+    )))
 }
 
 /// Applies the softmax function on the input tensor along the given dimension.
@@ -107,19 +125,29 @@ pub fn log_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize)
 
 /// Applies the sigmoid function.
 pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    Tensor::from_primitive(B::sigmoid(tensor.primitive))
+    Tensor::from_primitive(TensorPrimitive::Float(B::sigmoid(
+        tensor.primitive.tensor(),
+    )))
+}
+
+/// Applies the hard sigmoid function
+pub fn hard_sigmoid<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    alpha: f64,
+    beta: f64,
+) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(B::hard_sigmoid(
+        tensor.primitive.tensor(),
+        crate::ElementConversion::elem(alpha),
+        crate::ElementConversion::elem(beta),
+    )))
 }
 
 /// Applies the log sigmoid function.
 pub fn log_sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
-    match B::FloatElem::precision() {
-        Precision::Half => {
-            let tensor_full = tensor.to_full_precision();
-            let tensor_tmp = tensor_full.neg().exp().add_scalar(1.0_f32).log().neg();
-            Tensor::from_full_precision(tensor_tmp)
-        }
-        _ => tensor.neg().exp().add_scalar(1.0_f32).log().neg(),
-    }
+    Tensor::from_primitive(TensorPrimitive::Float(B::log_sigmoid(
+        tensor.primitive.tensor(),
+    )))
 }
 
 /// Applies the silu function

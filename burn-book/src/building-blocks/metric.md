@@ -6,6 +6,7 @@ throughout the training process. We currently offer a restricted range of metric
 | Metric           | Description                                             |
 | ---------------- | ------------------------------------------------------- |
 | Accuracy         | Calculate the accuracy in percentage                    |
+| TopKAccuracy     | Calculate the top-k accuracy in percentage              |
 | Loss             | Output the loss used for the backward pass              |
 | CPU Temperature  | Fetch the temperature of CPUs                           |
 | CPU Usage        | Fetch the CPU utilization                               |
@@ -89,7 +90,7 @@ impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let loss = f64::from_elem(loss.tensor.clone().mean().into_data().value[0]);
+        let loss = loss.tensor.clone().mean().into_scalar().elem::<f64>();
 
         self.state
             .update(loss, 1, FormatOptions::new("Loss").precision(2))

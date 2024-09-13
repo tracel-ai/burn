@@ -2,12 +2,33 @@ use crate::tensor::ops::tensor::FloatTensorOps;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
-use super::FloatTensor;
+use super::{FloatTensor, FullPrecisionBackend};
 
 /// Activation function operations.
 ///
 /// This trait let backend implementations override activation functions for better performance.
 pub trait ActivationOps<B: Backend> {
+    /// Applies the LeakyReLU activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `negative_slope` - The negative_slope value that values smaller than 0 are multiplied with.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn leaky_relu<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        negative_slope: super::FloatElem<B>,
+    ) -> FloatTensor<B, D> {
+        let mask = B::float_lower_elem(tensor.clone(), 0.elem());
+        let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope.elem());
+
+        // Update the tensor where the values are `< 0` by `tensor * negative_slope`.
+        B::float_mask_where(tensor, mask, scaled_tensor)
+    }
+
     /// Applies the ReLU activation function.
     ///
     /// # Arguments
@@ -126,13 +147,16 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        let tensor_full = B::float_to_full_precision(&tensor);
-        let tensor_tmp = B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(
-            B::FullPrecisionBackend::float_log(B::FullPrecisionBackend::float_add_scalar(
-                B::FullPrecisionBackend::float_exp(B::FullPrecisionBackend::float_neg(tensor_full)),
-                1.0.elem(),
-            )),
-        ));
+        let tensor_full = B::float_into_full_precision(tensor);
+        let tensor_tmp =
+            FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                FullPrecisionBackend::<B>::float_log(FullPrecisionBackend::<B>::float_add_scalar(
+                    FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
+                        tensor_full,
+                    )),
+                    1.0.elem(),
+                )),
+            ));
 
         B::float_from_full_precision(tensor_tmp)
     }
@@ -156,5 +180,129 @@ pub trait ActivationOps<B: Backend> {
             B::float_add_scalar(B::float_neg(output), 1.0.elem()),
         );
         B::float_mul(value, grad)
+    }
+
+    /// Applies the hard Sigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `alpha` - The alpha value that the tensor is multiplied with.
+    /// * `beta` - The beta value that is added to the tensor
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn hard_sigmoid<const D: usize>(
+        tensor: FloatTensor<B, D>,
+        alpha: super::FloatElem<B>,
+        beta: super::FloatElem<B>,
+    ) -> FloatTensor<B, D> {
+        let tensor_full = B::float_into_full_precision(tensor);
+
+        let tensor_tmp = FullPrecisionBackend::<B>::float_clamp(
+            FullPrecisionBackend::<B>::float_add_scalar(
+                FullPrecisionBackend::<B>::float_mul_scalar(tensor_full, alpha.elem()),
+                beta.elem(),
+            ),
+            0.0.elem(),
+            1.0.elem(),
+        );
+
+        B::float_from_full_precision(tensor_tmp)
+    }
+
+    /// Applies the LogSigmoid activation function.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn log_sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+        // To avoid overflow, we use the log-sum-exp trick.
+        //
+        // ```ignore
+        // log(sigmoid(x)) = log(1/(1 + exp(-x)))
+        //                 = log(1) - log(1 + exp(-x))
+        //                 = -log(1 + exp(-x))
+        //                 = -log(exp(0) + exp(-x))
+        // ```
+        // The `exp(t)` of even a moderate-magnitude positive number can be astronomically huge, so we
+        // subtract the `max(t, 0)` of each value (where `t = -x` in this case). This results in the
+        // following equivalence:
+        // ```ignore
+        // log(sigmoid(x)) = -(max(-x, 0) + log(exp(-max(-x, 0)) + exp(-x - max(-x, 0))))
+        // ```
+        //
+        // This extends the range of values for which we obtain accurate results.
+
+        // max(-x, 0)
+        let tensor_neg = B::float_neg(tensor);
+        let mask = B::float_lower_elem(tensor_neg.clone(), 0.elem());
+        let max_elem = B::float_mask_fill(tensor_neg.clone(), mask, 0.elem());
+        let max_elem_neg = B::float_neg(max_elem.clone());
+
+        // z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        let z = B::float_add(
+            B::float_exp(max_elem_neg.clone()),
+            B::float_exp(B::float_sub(tensor_neg, max_elem.clone())),
+        );
+
+        // -max(-x, 0) - log(-z)
+        B::float_sub(max_elem_neg, B::float_log(z))
+    }
+
+    /// Applies the LogSigmoid activation function backward.
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input tensor.
+    /// * `grad` - The gradient.
+    ///
+    /// # Returns
+    ///
+    /// The output gradient.
+    fn log_sigmoid_backward<const D: usize>(
+        x: FloatTensor<B, D>,
+        grad: FloatTensor<B, D>,
+    ) -> FloatTensor<B, D> {
+        // Derivative of -max(-x, 0) - log(exp(-max(-x, 0)) - exp(-x - max(-x, 0)))) is
+        // -max_derive - (-max_derive * exp(-max(-x, 0)) + (-1 - max_derive) * exp(-x - max(-x, 0))) / z
+        // where z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        //
+        // This simplifies to:
+        // -max_derive - (z-1)/z if x is >= 0
+        // -max_derive + (z-1)/z if x is < 0
+
+        let shape = B::float_shape(&x);
+        let device = B::float_device(&x);
+
+        // max(-x, 0)
+        let x_neg = B::float_neg(x);
+        let mask = B::float_lower_elem(x_neg.clone(), 0.elem()); // -x < 0 or x >= 0
+        let max_elem = B::float_mask_fill(x_neg.clone(), mask.clone(), 0.elem());
+
+        // z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))
+        let z = B::float_add(
+            B::float_exp(B::float_neg(max_elem.clone())),
+            B::float_exp(B::float_sub(x_neg, max_elem)),
+        );
+
+        // Derivative of max(-x, 0) is 1 if x < 0 or 0 if x >= 0
+        let ones = B::float_ones(shape, &device);
+        let max_derive = B::float_mask_fill(ones.clone(), mask.clone(), 0.elem());
+        let sign = B::float_mask_fill(ones.clone(), mask, (-1).elem());
+
+        // grad * (max_derive - sign * (1 - (1 / z)))
+        B::float_mul(
+            grad,
+            B::float_sub(
+                max_derive,
+                B::float_mul(sign, B::float_sub(ones, B::float_recip(z))),
+            ),
+        )
     }
 }

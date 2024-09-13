@@ -1,14 +1,14 @@
 use super::cat::cat_with_slice_assign;
+use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use crate::Tensor;
-use crate::{backend::Backend, tensor::Shape, Data, Distribution, ElementConversion, Int};
+use crate::cast::ToElement;
+use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Int, TensorData};
+use crate::{cartesian_grid, Tensor};
 use crate::{tensor::api::chunk, tensor::api::narrow};
 use alloc::vec::Vec;
-use burn_common::reader::Reader;
+use core::future::Future;
 use core::ops::Range;
-use num_traits::ToPrimitive;
 
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
 use crate::{argsort, sort, sort_with_indices};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
@@ -46,20 +46,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>>;
-
-    /// Gets the data from the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The data cloned from the data structure.
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<IntElem<B>, D>> {
-        Self::int_into_data(tensor.clone())
-    }
+    fn int_into_data<const D: usize>(
+        tensor: IntTensor<B, D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -71,10 +60,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn int_from_data<const D: usize>(
-        data: Data<IntElem<B>, D>,
-        device: &Device<B>,
-    ) -> IntTensor<B, D>;
+    fn int_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> IntTensor<B, D>;
 
     /// Gets the device of the tensor.
     ///
@@ -265,33 +251,17 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated the given number of times.
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<B, D> {
-        let mut shape = Self::int_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let indices_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::int_empty(shape, &Self::int_device(&tensor));
-        for i in 0..times {
-            let mut indices = indices_select_all.clone();
-            indices[dim] = i..i + 1;
-            tensor_output = Self::int_slice_assign(tensor_output, indices, tensor.clone());
-        }
-
-        tensor_output
+        repeat_with_slice_assign::<B, D, Int>(
+            Tensor::<B, D, Int>::from_primitive(tensor),
+            dim,
+            times,
+        )
+        .into_primitive()
     }
 
     /// Concatenates the given tensors along the given dimension.
@@ -551,10 +521,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D> {
-        B::float_into_int(B::float_powf_scalar(
-            B::int_into_float(lhs),
-            rhs.to_f32().unwrap(),
-        ))
+        B::float_into_int(B::float_powf_scalar(B::int_into_float(lhs), rhs.to_f32()))
     }
 
     /// Element-wise power with a floatTensor.
@@ -691,6 +658,20 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The result of the division.
     fn int_div_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: IntElem<B>) -> IntTensor<B, D>;
+
+    /// Element-wise modulus with a scalar.
+    ///
+    /// # Arguments
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of applying the modulus of the scalar to the tensor.
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: IntElem<B>,
+    ) -> IntTensor<B, D>;
 
     /// Element-wise negation.
     ///
@@ -1033,6 +1014,36 @@ pub trait IntTensorOps<B: Backend> {
         narrow::<B, D, Int>(tensor, dim, start, length)
     }
 
+    /// Generates a cartesian grid for the given tensor shape on the specified device.
+    /// The generated tensor is of dimension `D2 = D + 1`, where each element at dimension D contains the cartesian grid coordinates for that element.
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape specifying the dimensions of the tensor.
+    /// * `device` - The device to create the tensor on.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `D2` is not equal to `D+1`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    ///    use burn_tensor::Int;
+    ///    use burn_tensor::{backend::Backend, Shape, Tensor};
+    ///    fn example<B: Backend>() {
+    ///        let device = Default::default();
+    ///        let result: Tensor<B, 3, _> = Tensor::<B, 2, Int>::cartesian_grid([2, 3], &device);
+    ///        println!("{}", result);
+    ///    }
+    /// ```
+    fn int_cartesian_grid<S: Into<Shape<D>>, const D: usize, const D2: usize>(
+        shape: S,
+        device: &B::Device,
+    ) -> IntTensor<B, D2> {
+        cartesian_grid::<B, _, D, D2>(shape, device)
+    }
+
     /// Split the tensor along the given dimension into chunks.
     ///
     /// # Arguments
@@ -1085,7 +1096,7 @@ pub trait IntTensorOps<B: Backend> {
             .map(|i| i.elem())
             .collect::<Vec<IntElem<B>>>();
         let shape = Shape::new([value.len()]);
-        let data = Data::new(value, shape);
+        let data = TensorData::new(value, shape);
         B::int_from_data(data, device)
     }
 
@@ -1218,7 +1229,6 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
@@ -1240,7 +1250,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// the elements are sorted by value and the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_sort_with_indices<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
@@ -1263,7 +1272,6 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn int_argsort<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,

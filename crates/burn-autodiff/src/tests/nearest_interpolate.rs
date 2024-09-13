@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::interpolate;
     use burn_tensor::ops::{InterpolateMode, InterpolateOptions};
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_upsample_interpolation() {
@@ -77,8 +77,7 @@ mod tests {
             let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &x_grad.device())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
                 &device,
             )
             .require_grad();

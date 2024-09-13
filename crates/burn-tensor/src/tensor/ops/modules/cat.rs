@@ -19,10 +19,8 @@ pub(crate) fn cat_with_slice_assign<B: Backend, const D: usize, K: TensorKind<B>
 
     let mut i = 0;
     let indices_select_all = [0; D].map(|_| {
-        let start = 0;
-        let end = shape.dims[i];
         i += 1;
-        start..end
+        0..shape.dims[i - 1]
     });
 
     let mut output_index = 0;

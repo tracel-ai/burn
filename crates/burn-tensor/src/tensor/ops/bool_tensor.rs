@@ -1,13 +1,13 @@
-use super::{cat::cat_with_slice_assign, BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{
-    backend::Backend, chunk, narrow, tensor::Shape, Bool, Data, ElementConversion, Tensor,
+use super::{
+    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
+    FloatTensor, IntTensor,
 };
-use alloc::vec::Vec;
-use burn_common::reader::Reader;
-use core::ops::Range;
-
-#[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-use crate::argwhere;
+use crate::{
+    argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion, Tensor,
+    TensorData,
+};
+use alloc::{vec, vec::Vec};
+use core::{future::Future, ops::Range};
 
 /// Bool Tensor API for basic operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -44,21 +44,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<B, D>) -> Reader<Data<bool, D>>;
-
-    /// Gets the data from the tensor.
-    ///
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - The data structure.
-    ///
-    /// # Returns
-    ///
-    /// The data cloned from the data structure.
-    fn bool_to_data<const D: usize>(tensor: &BoolTensor<B, D>) -> Reader<Data<bool, D>> {
-        Self::bool_into_data(tensor.clone())
-    }
+    fn bool_into_data<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -70,7 +58,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the data.
-    fn bool_from_data<const D: usize>(data: Data<bool, D>, device: &Device<B>) -> BoolTensor<B, D>;
+    fn bool_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> BoolTensor<B, D>;
 
     /// Converts bool tensor to int tensor.
     ///
@@ -169,33 +157,17 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the dimension repeated.
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<B, D>,
         dim: usize,
         times: usize,
     ) -> BoolTensor<B, D> {
-        let mut shape = Self::bool_shape(&tensor);
-        if shape.dims[dim] != 1 {
-            panic!("Can only repeat dimension with dim=1");
-        }
-        shape.dims[dim] = times;
-
-        let mut i = 0;
-        let ranges_select_all = [0; D].map(|_| {
-            let start = 0;
-            let end = shape.dims[i];
-            i += 1;
-            start..end
-        });
-
-        let mut tensor_output = Self::bool_empty(shape, &Self::bool_device(&tensor));
-        for i in 0..times {
-            let mut ranges = ranges_select_all.clone();
-            ranges[dim] = i..i + 1;
-            tensor_output = Self::bool_slice_assign(tensor_output, ranges, tensor.clone());
-        }
-
-        tensor_output
+        repeat_with_slice_assign::<B, D, Bool>(
+            Tensor::<B, D, Bool>::from_primitive(tensor),
+            dim,
+            times,
+        )
+        .into_primitive()
     }
 
     /// Concatenates the tensors along the given dimension.
@@ -433,9 +405,16 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn bool_argwhere<const D: usize>(tensor: BoolTensor<B, D>) -> IntTensor<B, 2> {
-        argwhere::<B, D>(tensor)
+    fn bool_argwhere<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> impl Future<Output = IntTensor<B, 2>> + Send {
+        async {
+            // Size of each output tensor is variable (= number of nonzero elements in the tensor).
+            // Reading the data to count the number of truth values might cause sync but is required.
+            let device = B::bool_device(&tensor);
+            let data = B::bool_into_data(tensor).await;
+            argwhere_data::<B, D>(data, &device)
+        }
     }
 
     /// Compute the indices of the elements that are non-zero.
@@ -447,15 +426,24 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
-    /// the non-zero elements in that dimension.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
-    fn bool_nonzero<const D: usize>(tensor: BoolTensor<B, D>) -> Vec<IntTensor<B, 1>> {
-        let indices = B::bool_argwhere(tensor);
-        let dims = B::int_shape(&indices).dims;
-        B::int_chunk(indices, dims[1], 1)
-            .into_iter()
-            .map(|t| B::int_reshape(t, Shape::new([dims[0]])))
-            .collect()
+    /// the non-zero elements in that dimension. If all elements are zero, the vector is empty.
+    fn bool_nonzero<const D: usize>(
+        tensor: BoolTensor<B, D>,
+    ) -> impl Future<Output = Vec<IntTensor<B, 1>>> + Send {
+        async {
+            let indices = B::bool_argwhere(tensor).await;
+
+            if B::int_shape(&indices).num_elements() == 0 {
+                // Return empty vec when all elements are zero
+                return vec![];
+            }
+
+            let dims = B::int_shape(&indices).dims;
+            B::int_chunk(indices, dims[1], 1)
+                .into_iter()
+                .map(|t| B::int_reshape(t, Shape::new([dims[0]])))
+                .collect()
+        }
     }
 
     /// Broadcasts the bool `tensor` to the given `shape`.

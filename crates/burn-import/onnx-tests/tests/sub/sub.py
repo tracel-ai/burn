@@ -23,8 +23,11 @@ class Model(nn.Module):
         # Subtract a scalar constant from a scalar input
         d = k - self.b
 
-        # Sutract a scalar from a tensor
+        # Subtract a scalar from a tensor
         x = x - d
+
+        # Subtract a tensor from a scalar
+        x = d - x
 
         return x
 
@@ -40,8 +43,9 @@ def main():
 
     scalar = 3.0
 
-    torch.onnx.export(model, (dummy_input, scalar), onnx_name,
-                      verbose=False, opset_version=16)
+    torch.onnx.export(
+        model, (dummy_input, scalar), onnx_name, verbose=False, opset_version=16
+    )
 
     print("Finished exporting model to {}".format(onnx_name))
 
@@ -53,5 +57,5 @@ def main():
     print("Test output data: {}".format(output))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -1,6 +1,7 @@
-use std::sync::Arc;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use super::log::install_file_logger;
 use super::Learner;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
@@ -14,7 +15,10 @@ use crate::metric::processor::{FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
-use crate::LearnerCheckpointer;
+use crate::{
+    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
+    LearnerSummaryConfig,
+};
 use burn_core::lr_scheduler::LrScheduler;
 use burn_core::module::AutodiffModule;
 use burn_core::optim::Optimizer;
@@ -24,8 +28,8 @@ use burn_core::tensor::backend::AutodiffBackend;
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
 where
-    T: Send + Sync + 'static,
-    V: Send + Sync + 'static,
+    T: Send + 'static,
+    V: Send + 'static,
     B: AutodiffBackend,
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
@@ -42,24 +46,26 @@ where
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
-    directory: String,
+    directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T, V>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
-    log_to_file: bool,
+    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
+    summary_metrics: HashSet<String>,
+    summary: bool,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
 where
     B: AutodiffBackend,
-    T: Send + Sync + 'static,
-    V: Send + Sync + 'static,
+    T: Send + 'static,
+    V: Send + 'static,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler<B>,
@@ -69,19 +75,23 @@ where
     /// # Arguments
     ///
     /// * `directory` - The directory to save the checkpoints.
-    pub fn new(directory: &str) -> Self {
+    pub fn new(directory: impl AsRef<Path>) -> Self {
+        let directory = directory.as_ref().to_path_buf();
+        let experiment_log_file = directory.join("experiment.log");
         Self {
             num_epochs: 1,
             checkpoint: None,
             checkpointers: None,
-            directory: directory.to_string(),
+            directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: TrainingInterrupter::new(),
-            log_to_file: true,
+            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
+                experiment_log_file,
+            ))),
             num_loggers: 0,
             checkpointer_strategy: Box::new(
                 ComposedCheckpointingStrategy::builder()
@@ -94,6 +104,8 @@ where
                     .build(),
             ),
             early_stopping: None,
+            summary_metrics: HashSet::new(),
+            summary: false,
         }
     }
 
@@ -115,11 +127,12 @@ where
     }
 
     /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy<CS>(&mut self, strategy: CS)
+    pub fn with_checkpointing_strategy<CS>(mut self, strategy: CS) -> Self
     where
         CS: CheckpointingStrategy + 'static,
     {
         self.checkpointer_strategy = Box::new(strategy);
+        self
     }
 
     /// Replace the default CLI renderer with a custom one.
@@ -140,7 +153,7 @@ where
     where
         T: Adaptor<Me::Input>,
     {
-        self.metrics.register_metric_train(metric);
+        self.metrics.register_train_metric(metric);
         self
     }
 
@@ -174,6 +187,7 @@ where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
+        self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_train_metric_numeric(metric);
         self
     }
@@ -186,6 +200,7 @@ where
     where
         V: Adaptor<Me::Input>,
     {
+        self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_valid_metric_numeric(metric);
         self
     }
@@ -226,8 +241,11 @@ where
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
-    pub fn log_to_file(mut self, enabled: bool) -> Self {
-        self.log_to_file = enabled;
+    pub fn with_application_logger(
+        mut self,
+        logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    ) -> Self {
+        self.tracing_logger = logger;
         self
     }
 
@@ -241,21 +259,12 @@ where
         M::Record: 'static,
         S::Record: 'static,
     {
-        let checkpointer_model = FileCheckpointer::new(
-            recorder.clone(),
-            format!("{}/checkpoint", self.directory).as_str(),
-            "model",
-        );
-        let checkpointer_optimizer = FileCheckpointer::new(
-            recorder.clone(),
-            format!("{}/checkpoint", self.directory).as_str(),
-            "optim",
-        );
-        let checkpointer_scheduler = FileCheckpointer::new(
-            recorder,
-            format!("{}/checkpoint", self.directory).as_str(),
-            "scheduler",
-        );
+        let checkpoint_dir = self.directory.join("checkpoint");
+        let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
+        let checkpointer_optimizer =
+            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
+        let checkpointer_scheduler: FileCheckpointer<FR> =
+            FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
 
         self.checkpointers = Some((
             AsyncCheckpointer::new(checkpointer_model),
@@ -263,6 +272,14 @@ where
             AsyncCheckpointer::new(checkpointer_scheduler),
         ));
 
+        self
+    }
+
+    /// Enable the training summary report.
+    ///
+    /// The summary will be displayed at the end of `.fit()`.
+    pub fn summary(mut self) -> Self {
+        self.summary = true;
         self
     }
 
@@ -294,31 +311,37 @@ where
         O::Record: 'static,
         S::Record: 'static,
     {
-        if self.log_to_file {
-            self.init_logger();
+        if self.tracing_logger.is_some() {
+            if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
+                log::warn!("Failed to install the experiment logger: {}", e);
+            }
         }
         let renderer = self.renderer.unwrap_or_else(|| {
             Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
         });
-        let directory = &self.directory;
 
         if self.num_loggers == 0 {
             self.event_store
-                .register_logger_train(FileMetricLogger::new(
-                    format!("{directory}/train").as_str(),
-                ));
+                .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
             self.event_store
-                .register_logger_valid(FileMetricLogger::new(
-                    format!("{directory}/valid").as_str(),
-                ));
+                .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
         }
 
-        let event_store = Arc::new(EventStoreClient::new(self.event_store));
+        let event_store = Rc::new(EventStoreClient::new(self.event_store));
         let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
         });
+
+        let summary = if self.summary {
+            Some(LearnerSummaryConfig {
+                directory: self.directory,
+                metrics: self.summary_metrics.into_iter().collect::<Vec<_>>(),
+            })
+        } else {
+            None
+        };
 
         Learner {
             model,
@@ -333,11 +356,7 @@ where
             devices: self.devices,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
+            summary,
         }
-    }
-
-    fn init_logger(&self) {
-        let file_path = format!("{}/experiment.log", self.directory);
-        install_file_logger(file_path.as_str());
     }
 }

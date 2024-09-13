@@ -1,11 +1,16 @@
-use crate::module::{AutodiffModule, Module, ModuleMapper, ModuleVisitor};
-use alloc::vec::Vec;
+use crate::module::{
+    AutodiffModule, Content, Module, ModuleDisplay, ModuleDisplayDefault, ModuleMapper,
+    ModuleVisitor,
+};
+
+use alloc::{format, vec::Vec};
+
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::fmt::Debug;
 
 impl<T, B> Module<B> for Option<T>
 where
-    T: Module<B> + Debug + Send + Sync + Clone,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = Option<T::Record>;
@@ -21,6 +26,12 @@ where
     }
 
     fn load_record(self, record: Self::Record) -> Self {
+        let is_constant = self.num_params() == 0;
+
+        if is_constant {
+            return self;
+        }
+
         self.zip(record)
             .map(|(module, record)| module.load_record(record))
     }
@@ -46,9 +57,20 @@ where
     }
 }
 
+impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        match self {
+            Some(module) => content.add_single(module).optional(),
+            None => content.add_single("None").optional(),
+        }
+    }
+}
+
+impl<T: ModuleDisplay> ModuleDisplay for Option<T> {}
+
 impl<T, B> AutodiffModule<B> for Option<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    T: AutodiffModule<B> + Debug + Send + Clone,
     B: AutodiffBackend,
 {
     type InnerModule = Option<T::InnerModule>;
@@ -60,7 +82,7 @@ where
 
 impl<T, B> Module<B> for Vec<T>
 where
-    T: Module<B> + Debug + Send + Sync + Clone,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = Vec<T::Record>;
@@ -89,6 +111,14 @@ where
     }
 
     fn load_record(self, record: Self::Record) -> Self {
+        assert_eq!(
+            self.len(),
+            record.len(),
+            r#"[Load Record Error] The vec record does not the same length as the module.
+            Make sure you module initialization is compatible with the record being loaded.
+            "#,
+        );
+
         self.into_iter()
             .zip(record)
             .map(|(module, record)| module.load_record(record))
@@ -114,9 +144,24 @@ where
     }
 }
 
+impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
+    fn content(&self, content: Content) -> Option<Content> {
+        self.iter()
+            .enumerate()
+            .fold(content, |acc, (i, module)| {
+                let index = format!("{}", i);
+                acc.add(&index, module)
+            })
+            .set_top_level_type(format!("Vec<0..{}>", self.len()).as_str())
+            .optional()
+    }
+}
+
+impl<T: ModuleDisplay> ModuleDisplay for Vec<T> {}
+
 impl<T, B> AutodiffModule<B> for Vec<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone,
+    T: AutodiffModule<B> + Debug + Send + Clone,
     B: AutodiffBackend,
 {
     type InnerModule = Vec<T::InnerModule>;
@@ -128,8 +173,7 @@ where
 
 impl<const N: usize, T, B> Module<B> for [T; N]
 where
-    T: Module<B> + Debug + Send + Sync + Clone + Copy,
-    T::Record: Debug,
+    T: Module<B> + Debug + Send + Clone,
     B: Backend,
 {
     type Record = [T::Record; N];
@@ -183,18 +227,31 @@ where
     }
 }
 
+impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
+    fn content(&self, content: Content) -> Option<Content> {
+        self.iter()
+            .enumerate()
+            .fold(content, |acc, (i, module)| {
+                let index = format!("{}", i);
+                acc.add(&index, module)
+            })
+            .set_top_level_type(format!("[0..{}]", self.len()).as_str())
+            .optional()
+    }
+}
+
+impl<const N: usize, T: ModuleDisplay> ModuleDisplay for [T; N] {}
+
 impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
 where
-    T: AutodiffModule<B> + Debug + Send + Sync + Clone + Copy,
-    T::InnerModule: Copy + Debug,
-    <T::InnerModule as Module<B::InnerBackend>>::Record: Debug,
-    <T as Module<B>>::Record: Debug,
+    T: AutodiffModule<B> + Debug + Send + Clone,
+    T::InnerModule: Debug,
     B: AutodiffBackend,
 {
     type InnerModule = [T::InnerModule; N];
 
     fn valid(&self) -> Self::InnerModule {
-        self.map(|module| module.valid())
+        self.clone().map(|module| module.valid())
     }
 }
 
@@ -210,7 +267,7 @@ macro_rules! impl_module_tuple {
         impl<B, $($l,)*> Module<B> for ($($l,)*)
         where
             B: Backend,
-            $($l: Module<B> + Debug + Send + Sync + Clone,)*
+            $($l: Module<B> + Debug + Send + Clone,)*
         {
             type Record = ($($l::Record),*);
 
@@ -247,7 +304,7 @@ macro_rules! impl_module_tuple {
         impl<B, $($l,)*> AutodiffModule<B> for ($($l,)*)
         where
             B: AutodiffBackend,
-            $($l: AutodiffModule<B> + Debug + Send + Sync + Clone,)*
+            $($l: AutodiffModule<B> + Debug + Send + Clone,)*
         {
             type InnerModule = ($($l::InnerModule,)*);
 
@@ -255,6 +312,21 @@ macro_rules! impl_module_tuple {
                 ($(self.$i.valid(),)*)
             }
         }
+
+        impl<$($l,)*> ModuleDisplayDefault for ($($l,)*)
+        where
+            $($l: ModuleDisplay,)*
+        {
+            fn content(&self, content: Content) -> Option<Content> {
+                let content = content
+                    $(.add(&format!("{}", $i), &self.$i))*
+                    .set_top_level_type(format!("({})", stringify!($($l),*)).as_str());
+                content.optional()
+            }
+        }
+
+        impl<$($l,)*> ModuleDisplay for ($($l,)*) where $($l: ModuleDisplay,)* {}
+
     };
 }
 
@@ -267,3 +339,28 @@ impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6][0, 1, 2, 3, 4, 5, 6]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8, L9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+
+    #[test]
+    fn dont_override_constant_module_when_loading_record() {
+        let module = Some(42);
+
+        let record = Module::<TestBackend>::into_record(module);
+        let loaded = Module::<TestBackend>::load_record(module, record);
+
+        assert_eq!(loaded, module);
+    }
+    #[test]
+    fn dont_override_constant_module_when_loading_none_record() {
+        let module = Some(42);
+
+        let record = None;
+        let loaded = Module::<TestBackend>::load_record(module, record);
+
+        assert_eq!(loaded, module);
+    }
+}

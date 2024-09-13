@@ -15,7 +15,7 @@ idea of what kind of work is currently being planned or is in progress.
 
 ### Step 2: Get Familiar with the Project Architecture
 
-It's crucial to have an understanding of the [project's architecture](/ARCHITECTURE.md). Familiarize
+It's crucial to have an understanding of the [project's architecture](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture). Familiarize
 yourself with the structure of the project, the purpose of different components, and how they
 interact with each other. This will give you the context needed to make meaningful contributions.
 
@@ -43,12 +43,20 @@ your changes easier. You can create a new branch by using the command
 Once you have set up your local repository and created a new branch, you can start making changes.
 Be sure to follow the coding standards and guidelines used in the rest of the project.
 
-### Step 6: Run the Pre-Pull Request Script
+### Step 6: Validate code before opening a Pull Request
 
-Before you open a pull request, please run the [`run-checks.sh`](/run-before-pr.sh) script. This
+Before you open a pull request, please run [`./run-checks.sh all`](/run-checks.sh). This
 will ensure that your changes are in line with our project's standards and guidelines. You can run
 this script by opening a terminal, navigating to your local project directory, and typing
 `./run-checks`.
+
+Note that under the hood `run-checks` runs the `cargo xtask validate` command which is powered by
+the [tracel-xtask crate](https://github.com/tracel-ai/xtask). It is recommended to get familiar with
+it as it provides a wide variety of commands to help you work with the code base.
+
+If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
+
+Format and lint errors can often be fixed automatically using the command `cargo xtask fix all`.
 
 ### Step 7: Submit a Pull Request
 
@@ -69,55 +77,23 @@ the issue or issues that your changes address.
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
 2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
+You may also want to enable debugging by creating a `.vscode/settings.json` file:
+   ```json
+   {
+   "rust-analyzer.runnables.extraEnv": {
+      "CARGO_PROFILE_DEV_DEBUG": true
+   }
+   }
+   ```
+   since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
 
 3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
 
 <div align="center">
-<img src="./assets/debug-options-vscode.png" width="700px"/>
+<img src="./contributor-book/src/getting-started/debug-options-vscode.png" width="700px"/>
 <div align="left">
 
 4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
-
-## Continuous Integration
-
-### Run checks
-
-On Unix systems, run `run-checks.sh` using this command
-
-```
-run-checks.sh environment
-```
-
-On Windows systems, run `run-checks.ps1` using this command:
-
-```
-run-checks.ps1 environment
-```
-
-The `environment` argument can assume **ONLY** the following values:
-
-- `std` to perform checks using `libstd`
-- `no_std` to perform checks on an embedded environment using `libcore`
-
-If no `environment` value has been passed, run both `std` and `no_std` checks.
-
-## Continuous Deployment
-
-### Publish crates
-
-Compile `scripts/publish.rs` using this command:
-
-```
-rustc scripts/publish.rs --crate-type bin --out-dir scripts
-```
-
-Run `scripts/publish` using this command
-
-```
-./scripts/publish crate_name
-```
-
-where `crate_name` is the name of the crate to publish
 
 ## Code Guidelines
 
@@ -137,6 +113,11 @@ _Think of `expect()` messages as guidelines for future you and other developers.
 
 This approach ensures that `expect()` messages are informative and aligned with the intended
 function outcomes, making debugging and maintenance more straightforward for everyone.
+
+### Writing integration tests
+
+[Integration tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html) should be in a directory called `tests`
+besides the `src` directory of a crate. Per convention, they must be implemented in files whose name start with the `test_` prefix.
 
 ## Others
 

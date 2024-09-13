@@ -1,20 +1,22 @@
+use burn_tensor::repr::{HandleContainer, OperationDescription};
+
 use super::{
-    execution::{ExecutionMode, Processor, StreamSegment},
+    execution::{ExecutionMode, Operation, Processor, StreamSegment},
     store::{ExecutionPlanId, ExecutionPlanStore},
-    Operation, OperationDescription, OperationQueue, StreamId,
+    OperationQueue, StreamId,
 };
-use crate::{FusionBackend, HandleContainer};
+use crate::FusionRuntime;
 use std::collections::HashMap;
 
 /// Keep track of multiple concurrent streams of operations.
-pub struct MultiStream<B: FusionBackend> {
-    streams: HashMap<StreamId, Stream<B>>,
-    optimizations: ExecutionPlanStore<B::Optimization>,
-    device: B::FusionDevice,
+pub struct MultiStream<R: FusionRuntime> {
+    streams: HashMap<StreamId, Stream<R>>,
+    optimizations: ExecutionPlanStore<R::Optimization>,
+    device: R::FusionDevice,
 }
 
-impl<B: FusionBackend> MultiStream<B> {
-    pub(crate) fn new(device: B::FusionDevice) -> Self {
+impl<R: FusionRuntime> MultiStream<R> {
+    pub(crate) fn new(device: R::FusionDevice) -> Self {
         Self {
             streams: HashMap::new(),
             optimizations: ExecutionPlanStore::new(),
@@ -27,8 +29,8 @@ impl<B: FusionBackend> MultiStream<B> {
         &mut self,
         streams: Vec<StreamId>,
         desc: OperationDescription,
-        operation: Box<dyn Operation<B>>,
-        handles: &mut HandleContainer<B>,
+        operation: Box<dyn Operation<R>>,
+        handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.maybe_drain(streams, handles);
 
@@ -63,7 +65,7 @@ impl<B: FusionBackend> MultiStream<B> {
     }
 
     /// Drain the streams.
-    pub fn drain(&mut self, handles: &mut HandleContainer<B>, id: StreamId) {
+    pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(mut stream) = self.streams.remove(&id) {
             stream.processor.process(
                 Segment::new(&mut stream.queue, handles),
@@ -78,7 +80,7 @@ impl<B: FusionBackend> MultiStream<B> {
     fn maybe_drain(
         &mut self,
         streams: Vec<StreamId>,
-        handles: &mut HandleContainer<B>,
+        handles: &mut HandleContainer<R::FusionHandle>,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
@@ -111,7 +113,7 @@ impl<B: FusionBackend> MultiStream<B> {
         output
     }
 
-    fn free_orphans(&self, handles: &mut HandleContainer<B>) {
+    fn free_orphans(&self, handles: &mut HandleContainer<R::FusionHandle>) {
         let nodes = self
             .streams
             .values()
@@ -124,31 +126,31 @@ impl<B: FusionBackend> MultiStream<B> {
     }
 }
 
-struct Stream<B: FusionBackend> {
-    queue: OperationQueue<B>,
-    processor: Processor<B::Optimization>,
+struct Stream<R: FusionRuntime> {
+    queue: OperationQueue<R>,
+    processor: Processor<R::Optimization>,
 }
 
 #[derive(new)]
-struct Segment<'a, B: FusionBackend> {
-    queue: &'a mut OperationQueue<B>,
-    handles: &'a mut HandleContainer<B>,
+struct Segment<'a, R: FusionRuntime> {
+    queue: &'a mut OperationQueue<R>,
+    handles: &'a mut HandleContainer<R::FusionHandle>,
 }
 
-impl<'i, B: FusionBackend> StreamSegment<B::Optimization> for Segment<'i, B> {
+impl<'i, R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'i, R> {
     fn operations(&self) -> &[OperationDescription] {
         &self.queue.relative
     }
 
-    fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<B::Optimization>) {
+    fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<R::Optimization>) {
         self.queue.execute(id, self.handles, store)
     }
 }
 
-impl<B: FusionBackend> Stream<B> {
-    fn new(device: B::FusionDevice) -> Self {
+impl<R: FusionRuntime> Stream<R> {
+    fn new(device: R::FusionDevice) -> Self {
         Self {
-            processor: Processor::new(B::optimizations(device.into())),
+            processor: Processor::new(R::optimizations(device)),
             queue: OperationQueue::new(),
         }
     }

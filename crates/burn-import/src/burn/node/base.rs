@@ -1,10 +1,17 @@
-use super::unsqueeze::UnsqueezeNode;
+use std::marker::PhantomData;
+
 use super::{
-    avg_pool2d::AvgPool2dNode, batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode,
-    concat::ConcatNode, constant::ConstantNode, conv1d::Conv1dNode, conv2d::Conv2dNode,
-    conv_transpose_2d::ConvTranspose2dNode, dropout::DropoutNode, gather::GatherNode,
-    global_avg_pool::GlobalAvgPoolNode, linear::LinearNode, matmul::MatmulNode,
-    max_pool2d::MaxPool2dNode, reshape::ReshapeNode, unary::UnaryNode,
+    argmax::ArgMaxNode, avg_pool1d::AvgPool1dNode, avg_pool2d::AvgPool2dNode,
+    batch_norm::BatchNormNode, binary::BinaryNode, clip::ClipNode, concat::ConcatNode,
+    constant::ConstantNode, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode,
+    conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_2d::ConvTranspose2dNode,
+    conv_transpose_3d::ConvTranspose3dNode, dropout::DropoutNode, expand::ExpandNode,
+    gather::GatherNode, gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
+    layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
+    max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
+    prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -57,10 +64,10 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
         None
     }
 
-    /// (Optional) Declare how the parameters are initialized with and without a record.
+    /// (Optional) Declare how the parameters are initialized.
     ///
     /// The function should be implemented along [field_type](NodeCodegen::field_type).
-    fn field_init(&self, _with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         None
     }
 
@@ -74,30 +81,56 @@ pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
 
 #[derive(Debug, Clone)]
 pub enum Node<PS: PrecisionSettings> {
+    ArgMax(ArgMaxNode),
+    AvgPool1d(AvgPool1dNode),
     AvgPool2d(AvgPool2dNode),
-    BatchNorm(BatchNormNode<PS>),
+    BatchNorm(BatchNormNode),
     Binary(BinaryNode),
     Clip(ClipNode),
     Concat(ConcatNode),
-    Constant(ConstantNode<PS>),
-    Conv1d(Conv1dNode<PS>),
-    Conv2d(Conv2dNode<PS>),
-    ConvTranspose2d(ConvTranspose2dNode<PS>),
+    Constant(ConstantNode),
+    Conv1d(Conv1dNode),
+    Conv2d(Conv2dNode),
+    Conv3d(Conv3dNode),
+    ConvTranspose2d(ConvTranspose2dNode),
+    ConvTranspose3d(ConvTranspose3dNode),
+    PRelu(PReluNode),
     Dropout(DropoutNode),
+    Expand(ExpandNode),
     Gather(GatherNode),
+    GatherElements(GatherElementsNode),
     GlobalAvgPool(GlobalAvgPoolNode),
-    Linear(LinearNode<PS>),
+    LayerNorm(LayerNormNode),
+    Linear(LinearNode),
     Matmul(MatmulNode),
+    MaxPool1d(MaxPool1dNode),
     MaxPool2d(MaxPool2dNode),
+    Mean(MeanNode),
+    Pad(PadNode),
+    Range(RangeNode),
     Reshape(ReshapeNode),
+    Resize(ResizeNode),
+    Slice(SliceNode),
+    Squeeze(SqueezeNode),
+    Sum(SumNode),
+    Tile(TileNode),
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
+    Where(WhereNode),
+    RandomUniform(RandomUniformNode),
+    RandomNormal(RandomNormalNode),
+    ConstantOfShape(ConstantOfShapeNode),
+    // For now, we have to keep the precision settings in order to correctly serialize the fields
+    // into the right data types.
+    _Unreachable(std::convert::Infallible, PhantomData<PS>),
 }
 
 macro_rules! match_all {
     ($self:expr, $func:expr) => {{
         #[allow(clippy::redundant_closure_call)]
         match $self {
+            Node::ArgMax(node) => $func(node),
+            Node::AvgPool1d(node) => $func(node),
             Node::AvgPool2d(node) => $func(node),
             Node::BatchNorm(node) => $func(node),
             Node::Binary(node) => $func(node),
@@ -106,16 +139,36 @@ macro_rules! match_all {
             Node::Constant(node) => $func(node),
             Node::Conv1d(node) => $func(node),
             Node::Conv2d(node) => $func(node),
+            Node::Conv3d(node) => $func(node),
             Node::ConvTranspose2d(node) => $func(node),
+            Node::ConvTranspose3d(node) => $func(node),
+            Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
+            Node::Expand(node) => $func(node),
             Node::Gather(node) => $func(node),
+            Node::GatherElements(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
+            Node::LayerNorm(node) => $func(node),
             Node::Linear(node) => $func(node),
             Node::Matmul(node) => $func(node),
+            Node::MaxPool1d(node) => $func(node),
             Node::MaxPool2d(node) => $func(node),
+            Node::Mean(node) => $func(node),
+            Node::Pad(node) => $func(node),
+            Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
+            Node::Resize(node) => $func(node),
+            Node::Slice(node) => $func(node),
+            Node::Squeeze(node) => $func(node),
+            Node::Sum(node) => $func(node),
+            Node::Tile(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
+            Node::Where(node) => $func(node),
+            Node::RandomNormal(node) => $func(node),
+            Node::RandomUniform(node) => $func(node),
+            Node::ConstantOfShape(node) => $func(node),
+            _ => unimplemented!(),
         }
     }};
 }
@@ -132,6 +185,8 @@ impl<PS: PrecisionSettings> Serialize for Node<PS> {
 impl<PS: PrecisionSettings> Node<PS> {
     pub fn name(&self) -> &str {
         match self {
+            Node::ArgMax(_) => "argmax",
+            Node::AvgPool1d(_) => "avg_pool1d",
             Node::AvgPool2d(_) => "avg_pool2d",
             Node::BatchNorm(_) => "batch_norm",
             Node::Binary(binary) => binary.binary_type.as_str(),
@@ -140,16 +195,36 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Constant(_) => "constant",
             Node::Conv1d(_) => "conv1d",
             Node::Conv2d(_) => "conv2d",
+            Node::Conv3d(_) => "conv3d",
             Node::ConvTranspose2d(_) => "conv_transpose2d",
+            Node::ConvTranspose3d(_) => "conv_transpose3d",
+            Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
+            Node::Expand(_) => "expand",
             Node::Gather(_) => "gather",
+            Node::GatherElements(_) => "gather_elements",
             Node::GlobalAvgPool(_) => "global_avg_pool",
+            Node::LayerNorm(_) => "layer_norm",
             Node::Linear(_) => "linear",
             Node::Matmul(_) => "matmul",
+            Node::MaxPool1d(_) => "max_pool1d",
             Node::MaxPool2d(_) => "max_pool2d",
+            Node::Mean(_) => "mean",
+            Node::Pad(_) => "pad",
+            Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
+            Node::Resize(_) => "resize",
+            Node::Slice(_) => "slice",
+            Node::Squeeze(_) => "squeeze",
+            Node::Sum(_) => "add",
+            Node::Tile(_) => "tile",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
+            Node::Where(_) => "where",
+            Node::RandomNormal(_) => "random_normal",
+            Node::RandomUniform(_) => "random_uniform",
+            Node::ConstantOfShape(_) => "constant_of_shape",
+            _ => unimplemented!(),
         }
     }
 }
@@ -175,11 +250,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for Node<PS> {
         match_all!(self, NodeCodegen::<PS>::field_type)
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
-        match_all!(self, |node| NodeCodegen::<PS>::field_init(
-            node,
-            with_record
-        ))
+    fn field_init(&self) -> Option<TokenStream> {
+        match_all!(self, |node| NodeCodegen::<PS>::field_init(node,))
     }
 
     fn register_imports(&self, imports: &mut BurnImports) {
@@ -207,7 +279,8 @@ pub(crate) mod tests {
         BurnImports, TensorType,
     };
     use burn::{
-        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings, tensor::Data,
+        nn::conv::Conv2dConfig, nn::PaddingConfig2d, record::FullPrecisionSettings,
+        tensor::TensorData,
     };
     use proc_macro2::TokenStream;
     use quote::quote;
@@ -235,13 +308,15 @@ pub(crate) mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
 
@@ -266,7 +341,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor3", 4),
             TensorType::new_float("tensor4", 4),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
@@ -289,22 +364,24 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
@@ -337,7 +414,7 @@ pub(crate) mod tests {
             "conv2d",
             TensorType::new_float("tensor2", 4),
             TensorType::new_float("tensor4", 4),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
             None,
             Conv2dConfig::new([3, 3], [3, 3]).with_padding(PaddingConfig2d::Valid),
         ));
@@ -365,22 +442,24 @@ pub(crate) mod tests {
             pub struct Model <B: Backend> {
                 conv2d: Conv2d<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let conv2d = Conv2dConfig::new([3, 3], [3, 3])
                         .with_stride([1, 1])
                         .with_padding(PaddingConfig2d::Valid)
                         .with_dilation([1, 1])
                         .with_groups(1)
                         .with_bias(true)
-                        .init_with(record.conv2d);
+                        .init(device);
 
                     Self {
                         conv2d,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

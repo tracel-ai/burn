@@ -9,15 +9,12 @@ use burn::{
             ops::{broadcast_shape, Backward, Ops, OpsKind},
             Autodiff, NodeID,
         },
-        wgpu::{FloatElement, GraphicsApi, IntElement, JitBackend, WgpuRuntime},
+        wgpu::{FloatElement, IntElement, JitBackend, WgpuRuntime},
     },
     tensor::Shape,
 };
 
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<JitBackend<WgpuRuntime<G, F, I>>>
-{
-}
+impl<F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<JitBackend<WgpuRuntime, F, I>> {}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //
@@ -87,13 +84,13 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
-                    grads.register::<B, D>(node, grad_bias);
+                    grads.register::<B, D>(node.id, grad_bias);
                 }
                 if let Some(node) = node_lhs {
-                    grads.register::<B, D>(node, grad_lhs);
+                    grads.register::<B, D>(node.id, grad_lhs);
                 }
                 if let Some(node) = node_rhs {
-                    grads.register::<B, D>(node, grad_rhs);
+                    grads.register::<B, D>(node.id, grad_rhs);
                 }
             }
         }
@@ -102,10 +99,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         //
         // Each node can be fetched with `ops.parents` in the same order as defined here.
         match FusedMatmulAddReluBackward
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone(), bias.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone(), bias.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone(), bias.node.clone()])
             // Marks the operation as compute bound, meaning it will save its
             // state instead of recomputing itself during checkpointing
             .compute_bound()

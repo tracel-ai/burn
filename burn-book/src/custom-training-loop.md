@@ -72,13 +72,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our training loop.
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             let output = model.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
                 "[Train - Epoch {} - Iteration {}] Loss {:.3} | Accuracy {:.3} %",
-                iteration,
                 epoch,
+                iteration,
                 loss.clone().into_scalar(),
                 accuracy,
             );
@@ -97,13 +98,14 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Implement our validation loop.
         for (iteration, batch) in dataloader_test.iter().enumerate() {
             let output = model_valid.forward(batch.images);
-            let loss = CrossEntropyLoss::new(None).forward(output.clone(), batch.targets.clone());
+            let loss = CrossEntropyLoss::new(None, &output.device())
+                .forward(output.clone(), batch.targets.clone());
             let accuracy = accuracy(output, batch.targets);
 
             println!(
                 "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
-                iteration,
                 epoch,
+                iteration,
                 loss.clone().into_scalar(),
                 accuracy,
             );

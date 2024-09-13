@@ -1,22 +1,22 @@
 use super::{
     adaptive_avgpool::{adaptive_avg_pool2d, adaptive_avg_pool2d_backward},
     avgpool::{avg_pool2d, avg_pool2d_backward},
-    conv::{conv2d, conv_transpose2d},
+    conv::{conv2d, conv3d, conv_transpose2d, conv_transpose3d},
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
-use crate::ops::interpolate::nearest_interpolate_backward;
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
+use crate::{element::QuantElement, ops::interpolate::nearest_interpolate_backward};
 use burn_tensor::ops::*;
 
-impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> ModuleOps<Self> for NdArray<E, Q> {
     fn conv2d(
         x: NdArrayTensor<E, 4>,
         weight: NdArrayTensor<E, 4>,
         bias: Option<NdArrayTensor<E, 1>>,
         options: ConvOptions<2>,
     ) -> NdArrayTensor<E, 4> {
-        conv2d(x, weight, bias, options)
+        conv2d::<E, Q>(x, weight, bias, options)
     }
 
     fn conv_transpose2d(
@@ -56,7 +56,7 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> NdArrayTensor<E, 4> {
-        max_pool2d(x, kernel_size, stride, padding, dilation)
+        max_pool2d::<E, Q>(x, kernel_size, stride, padding, dilation)
     }
 
     fn max_pool2d_with_indices(
@@ -65,8 +65,9 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<NdArray<E>> {
-        let (output, indices) = max_pool2d_with_indices(x, kernel_size, stride, padding, dilation);
+    ) -> MaxPool2dWithIndices<NdArray<E, Q>> {
+        let (output, indices) =
+            max_pool2d_with_indices::<E, Q>(x, kernel_size, stride, padding, dilation);
 
         MaxPool2dWithIndices::new(output, indices)
     }
@@ -79,7 +80,7 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
         dilation: [usize; 2],
         output_grad: NdArrayTensor<E, 4>,
         indices: NdArrayTensor<i64, 4>,
-    ) -> MaxPool2dBackward<NdArray<E>> {
+    ) -> MaxPool2dBackward<NdArray<E, Q>> {
         MaxPool2dBackward::new(max_pool2d_backward(
             x,
             kernel_size,
@@ -129,5 +130,23 @@ impl<E: FloatNdArrayElement> ModuleOps<Self> for NdArray<E> {
                 panic!("bicubic interpolation backward is not supported for ndarray backend")
             }
         }
+    }
+
+    fn conv3d(
+        x: NdArrayTensor<E, 5>,
+        weight: NdArrayTensor<E, 5>,
+        bias: Option<NdArrayTensor<E, 1>>,
+        options: ConvOptions<3>,
+    ) -> NdArrayTensor<E, 5> {
+        conv3d::<E, Q>(x, weight, bias, options)
+    }
+
+    fn conv_transpose3d(
+        x: NdArrayTensor<E, 5>,
+        weight: NdArrayTensor<E, 5>,
+        bias: Option<NdArrayTensor<E, 1>>,
+        options: ConvTransposeOptions<3>,
+    ) -> NdArrayTensor<E, 5> {
+        conv_transpose3d(x, weight, bias, options)
     }
 }

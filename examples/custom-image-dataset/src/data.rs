@@ -11,6 +11,7 @@ const MEAN: [f32; 3] = [0.4914, 0.48216, 0.44653];
 const STD: [f32; 3] = [0.24703, 0.24349, 0.26159];
 
 /// Normalizer for the CIFAR-10 dataset.
+#[derive(Clone)]
 pub struct Normalizer<B: Backend> {
     pub mean: Tensor<B, 4>,
     pub std: Tensor<B, 4>,
@@ -19,8 +20,8 @@ pub struct Normalizer<B: Backend> {
 impl<B: Backend> Normalizer<B> {
     /// Creates a new normalizer.
     pub fn new(device: &Device<B>) -> Self {
-        let mean = Tensor::from_floats(MEAN, device).reshape([1, 3, 1, 1]);
-        let std = Tensor::from_floats(STD, device).reshape([1, 3, 1, 1]);
+        let mean = Tensor::<B, 1>::from_floats(MEAN, device).reshape([1, 3, 1, 1]);
+        let std = Tensor::<B, 1>::from_floats(STD, device).reshape([1, 3, 1, 1]);
         Self { mean, std }
     }
 
@@ -36,6 +37,7 @@ impl<B: Backend> Normalizer<B> {
     }
 }
 
+#[derive(Clone)]
 pub struct ClassificationBatcher<B: Backend> {
     normalizer: Normalizer<B>,
     device: B::Device,
@@ -71,7 +73,10 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             .map(|item| {
                 // Expect class label (int) as target
                 if let Annotation::Label(y) = item.annotation {
-                    Tensor::<B, 1, Int>::from_data(Data::from([(y as i64).elem()]), &self.device)
+                    Tensor::<B, 1, Int>::from_data(
+                        TensorData::from([(y as i64).elem::<B::IntElem>()]),
+                        &self.device,
+                    )
                 } else {
                     panic!("Invalid target type")
                 }
@@ -80,9 +85,9 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
 
         let images = items
             .into_iter()
-            .map(|item| Data::new(image_as_vec_u8(item), Shape::new([32, 32, 3])))
+            .map(|item| TensorData::new(image_as_vec_u8(item), Shape::new([32, 32, 3])))
             .map(|data| {
-                Tensor::<B, 3>::from_data(data.convert(), &self.device)
+                Tensor::<B, 3>::from_data(data.convert::<B::FloatElem>(), &self.device)
                     // permute(2, 0, 1)
                     .swap_dims(2, 1) // [H, C, W]
                     .swap_dims(1, 0) // [C, H, W]

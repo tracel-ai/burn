@@ -10,20 +10,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn subsequent_calls_give_different_tensors() {
-        TestBackend::seed(0);
-        let shape = [4, 5];
-        let device = Default::default();
-
-        let tensor_1 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
-        let tensor_2 = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
-        for i in 0..20 {
-            assert!(tensor_1.to_data().value[i] != tensor_2.to_data().value[i]);
-        }
-    }
-
-    #[test]
-    #[serial]
     fn values_all_within_interval_default() {
         TestBackend::seed(0);
         let shape = [24, 24];
@@ -53,8 +39,11 @@ mod tests {
         let device = Default::default();
 
         let tensor =
-            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device);
-        let numbers = tensor.into_data().value;
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Uniform(-5., 10.), &device)
+                .into_data();
+        let numbers = tensor
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 3, -5., 10.);
         assert!(stats[0].count >= 1);
         assert!(stats[1].count >= 1);
@@ -67,9 +56,12 @@ mod tests {
         TestBackend::seed(0);
         let shape = Shape::new([512, 512]);
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device);
+        let tensor =
+            Tensor::<TestBackend, 2>::random(shape, Distribution::Default, &device).into_data();
 
-        let numbers = tensor.into_data().value;
+        let numbers = tensor
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 2, 0., 1.);
         let n_0 = stats[0].count as f32;
         let n_1 = stats[1].count as f32;
@@ -111,10 +103,21 @@ mod tests {
 
         let data_float = tensor.float().into_data();
 
-        let numbers = data_float.value;
+        let numbers = data_float
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 10, -10., 10.);
         assert!(stats[0].count >= 1);
         assert!(stats[1].count >= 1);
         assert!(stats[2].count >= 1);
+    }
+
+    #[test]
+    fn should_not_fail_on_non_float_autotune() {
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2>::from_floats([[1., 2., 3.], [3., 4., 5.]], &device);
+
+        // Autotune of all (reduce) on lower_equal_elem's output calls uniform distribution
+        tensor_1.lower_equal_elem(1.0).all();
     }
 }

@@ -1,24 +1,22 @@
 #[burn_tensor_testgen::testgen(flip)]
 mod tests {
     use super::*;
-    use burn_tensor::backend::Backend;
-    use burn_tensor::{Data, Device, Int, Shape, Tensor};
+    use burn_tensor::{Device, Int, Shape, Tensor, TensorData};
 
     #[test]
-    fn normal_int() {
+    fn flip_int() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
 
         let flipped = tensor.clone().flip([0, 2]);
-
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).flip((0, 2))
-        let data_expected = Data::from([
+        let expected = TensorData::from([
             [[15, 14, 13, 12], [19, 18, 17, 16], [23, 22, 21, 20]],
             [[3, 2, 1, 0], [7, 6, 5, 4], [11, 10, 9, 8]],
         ]);
 
-        assert_eq!(data_expected, flipped.into_data());
+        flipped.into_data().assert_eq(&expected, false);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
@@ -26,17 +24,16 @@ mod tests {
     }
 
     #[test]
-    fn normal_float() {
+    fn flip_float() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
         let flipped = tensor.clone().flip([0, 2]);
-
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).flip((0, 2)).float()
-        let data_expected = Data::from([
+        let expected = TensorData::from([
             [
                 [15., 14., 13., 12.],
                 [19., 18., 17., 16.],
@@ -45,15 +42,15 @@ mod tests {
             [[3., 2., 1., 0.], [7., 6., 5., 4.], [11., 10., 9., 8.]],
         ]);
 
-        assert_eq!(data_expected, flipped.into_data());
+        flipped.into_data().assert_eq(&expected, false);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        assert_eq!(tensor.into_data(), flipped.into_data());
+        tensor.into_data().assert_eq(&flipped.into_data(), true);
     }
 
     #[test]
-    fn normal_bool() {
+    fn flip_bool() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
             .reshape([2, 3, 4])
@@ -63,7 +60,7 @@ mod tests {
 
         // from pytorch:
         // import torch; torch.arange(0, 24).reshape(2, 3, 4).flip((0, 2)).gt(10)
-        let data_expected = Data::from([
+        let data_expected = TensorData::from([
             [
                 [true, true, true, true],
                 [true, true, true, true],
@@ -76,16 +73,16 @@ mod tests {
             ],
         ]);
 
-        assert_eq!(data_expected, flipped.into_data());
+        flipped.into_data().assert_eq(&data_expected, true);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        assert_eq!(tensor.into_data(), flipped.into_data());
+        tensor.into_data().assert_eq(&flipped.into_data(), true);
     }
 
     #[test]
     #[should_panic]
-    fn edge_duplicated_axes() {
+    fn flip_duplicated_axes() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
 
@@ -95,7 +92,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn edge_out_of_bound_axis() {
+    fn flip_out_of_bound_axis() {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
 

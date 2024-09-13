@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{Data, Element, Shape};
+use burn_tensor::{
+    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
+    Element, Shape, TensorData,
+};
 
 use crate::{element::CandleElement, CandleDevice};
 
@@ -30,15 +33,38 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
     /// # Returns
     ///
     /// A new tensor.
-    pub fn from_data(data: Data<E, D>, device: CandleDevice) -> Self {
-        let candle_shape: candle_core::Shape = (&data.shape.dims).into();
-        let tensor =
-            candle_core::Tensor::from_slice(data.value.as_slice(), candle_shape, &device.into());
+    pub fn from_data(data: TensorData, device: CandleDevice) -> Self {
+        let candle_shape: candle_core::Shape = data.shape.clone().into();
+        let tensor = candle_core::Tensor::from_slice(
+            data.convert::<E>().as_slice::<E>().unwrap(),
+            candle_shape,
+            &device.into(),
+        );
         Self::new(tensor.unwrap())
     }
 
     pub(crate) fn shape(&self) -> Shape<D> {
         let x: [usize; D] = self.tensor.dims().try_into().unwrap();
         Shape::from(x)
+    }
+}
+
+/// A quantized tensor for the candle backend.
+#[derive(Clone, Debug)]
+pub struct CandleQTensor<const D: usize> {
+    /// The quantized tensor.
+    // NOTE: candle  does not implement `WithDType` for i8
+    pub qtensor: CandleTensor<u8, D>,
+    /// The quantization scheme.
+    pub scheme: QuantizationScheme,
+}
+
+impl<const D: usize> QTensorPrimitive for CandleQTensor<D> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
+    }
+
+    fn strategy(&self) -> QuantizationStrategy {
+        todo!()
     }
 }

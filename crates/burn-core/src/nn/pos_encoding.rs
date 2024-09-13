@@ -2,26 +2,28 @@ use alloc::vec::Vec;
 
 use crate as burn;
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+
 use crate::tensor::backend::Backend;
 use crate::tensor::Tensor;
-use burn_tensor::Data;
+use crate::tensor::TensorData;
 
-use libm::{cosf, expf, logf, sinf};
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
-/// Configuration to create an [PositionalEncoding](PositionalEncoding) layer.
+/// Configuration to create a [PositionalEncoding](PositionalEncoding) layer using the [init function](PositionalEncodingConfig::init).
 #[derive(Config)]
 pub struct PositionalEncodingConfig {
     /// Maximum sequence size to use.
     #[config(default = "5_000")]
-    max_sequence_size: usize,
+    pub max_sequence_size: usize,
 
     /// The size of each vector.
-    d_model: usize,
+    pub d_model: usize,
 
     /// Max time scale to use.
     #[config(default = "10_000")]
-    max_timescale: usize,
+    pub max_timescale: usize,
 }
 
 /// Positional encoding layer for transformer models.
@@ -36,9 +38,34 @@ pub struct PositionalEncodingConfig {
 /// The reference implementation can be found here:
 /// [LANGUAGE MODELING WITH NN.TRANSFORMER AND TORCHTEXT
 /// ](https://pytorch.org/tutorials/beginner/transformer_tutorial.html)
+///
+/// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct PositionalEncoding<B: Backend> {
-    sinusoids: Tensor<B, 3>,
+    /// The sinusoids used to add positional information to the input embeddings.
+    pub sinusoids: Tensor<B, 3>,
+    /// The maximum sequence size to use.
+    pub max_sequence_size: usize,
+    /// Max time scale to use.
+    pub max_timescale: usize,
+}
+
+impl<B: Backend> ModuleDisplay for PositionalEncoding<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [_, _, d_model] = self.sinusoids.shape().dims;
+        content
+            .add("d_model", &d_model)
+            .add("max_sequence_size", &self.max_sequence_size)
+            .add("max_timescale", &self.max_timescale)
+            .optional()
+    }
 }
 
 impl PositionalEncodingConfig {
@@ -52,7 +79,11 @@ impl PositionalEncodingConfig {
         )
         .unsqueeze::<3>();
 
-        PositionalEncoding { sinusoids }
+        PositionalEncoding {
+            sinusoids,
+            max_sequence_size: self.max_sequence_size,
+            max_timescale: self.max_timescale,
+        }
     }
 }
 
@@ -122,7 +153,7 @@ pub fn generate_sinusoids<B: Backend>(
     );
 
     // Calculate the increment for the logarithmic timescale
-    let log_timescale_increment = -logf(max_timescale as f32) / d_model as f32;
+    let log_timescale_increment = -(max_timescale as f32).ln() / d_model as f32;
 
     // Create a vector to hold the sinusoids
     let mut scaled_time_sin_cos = Vec::with_capacity(length);
@@ -134,10 +165,10 @@ pub fn generate_sinusoids<B: Backend>(
         // Loop over each dimension of the sinusoids
         for k in (0..d_model).step_by(2) {
             // Calculate the division term for this dimension
-            let div_term = expf(k as f32 * log_timescale_increment);
+            let div_term = (k as f32 * log_timescale_increment).exp();
             // Calculate the sine and cosine values for this dimension and position
-            row.push(sinf(div_term * i as f32));
-            row.push(cosf(div_term * i as f32));
+            row.push((div_term * i as f32).sin());
+            row.push((div_term * i as f32).cos());
         }
 
         // Add the sinusoids for this position to the vector
@@ -145,12 +176,12 @@ pub fn generate_sinusoids<B: Backend>(
     }
 
     // Convert the sinusoids to a tensor and return it
-    let data = Data::new(
+    let data = TensorData::new(
         scaled_time_sin_cos.into_iter().flatten().collect(),
-        [length, d_model].into(),
+        [length, d_model],
     );
 
-    Tensor::<B, 2>::from_data(data.convert(), device)
+    Tensor::<B, 2>::from_data(data, device)
 }
 
 #[cfg(test)]
@@ -241,5 +272,16 @@ mod tests {
         let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
         let input = Tensor::zeros([1, 6_000, d_model], &device);
         let _output = pe.forward(input);
+    }
+
+    #[test]
+    fn display() {
+        let config = PositionalEncodingConfig::new(4);
+        let pe = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", pe),
+            "PositionalEncoding {d_model: 4, max_sequence_size: 5000, max_timescale: 10000}"
+        );
     }
 }

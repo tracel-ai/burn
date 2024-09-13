@@ -1,13 +1,30 @@
 use burn::serde::{Deserialize, Serialize};
-use burn_wgpu::GraphicsApi;
+use cubecl::wgpu::GraphicsApi;
 use std::collections::HashSet;
 use sysinfo;
 use wgpu;
 
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub(crate) struct BenchmarkSystemInfo {
+pub struct BenchmarkSystemInfo {
     cpus: Vec<String>,
     gpus: Vec<String>,
+    pub os: BenchmarkOSInfo,
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct BenchmarkOSInfo {
+    pub name: String,
+    #[serde(rename = "wsl")]
+    windows_linux_subsystem: bool,
+}
+
+impl From<os_info::Info> for BenchmarkOSInfo {
+    fn from(info: os_info::Info) -> Self {
+        BenchmarkOSInfo {
+            name: format!("{}", info),
+            windows_linux_subsystem: wsl::is_wsl(),
+        }
+    }
 }
 
 impl BenchmarkSystemInfo {
@@ -15,6 +32,7 @@ impl BenchmarkSystemInfo {
         Self {
             cpus: BenchmarkSystemInfo::enumerate_cpus(),
             gpus: BenchmarkSystemInfo::enumerate_gpus(),
+            os: BenchmarkOSInfo::from(os_info::get()),
         }
     }
 
@@ -33,7 +51,8 @@ impl BenchmarkSystemInfo {
     fn enumerate_gpus() -> Vec<String> {
         let instance = wgpu::Instance::default();
         let adapters: Vec<wgpu::Adapter> = instance
-            .enumerate_adapters(burn_wgpu::AutoGraphicsApi::backend().into())
+            .enumerate_adapters(cubecl::wgpu::AutoGraphicsApi::backend().into())
+            .into_iter()
             .filter(|adapter| {
                 let info = adapter.get_info();
                 info.device_type == wgpu::DeviceType::DiscreteGpu

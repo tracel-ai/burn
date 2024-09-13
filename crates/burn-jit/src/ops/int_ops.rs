@@ -1,12 +1,19 @@
 use super::{expand, numeric, permute};
-use crate::codegen::dialect::gpu::{Elem, Item, Operator, Scope, UnaryOperator};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::{kernel, unary, JitBackend, Runtime};
+use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{ops::IntTensorOps, Data, Distribution, ElementConversion, Reader, Shape};
+use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
+use cubecl::frontend::Numeric;
+use cubecl::prelude::*;
 use std::ops::Range;
 
-impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
+impl<R, F, I> IntTensorOps<Self> for JitBackend<R, F, I>
+where
+    R: JitRuntime,
+    F: FloatElement,
+    I: IntElement,
+{
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         super::empty(shape, device)
     }
@@ -15,12 +22,12 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         tensor.shape.clone()
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        super::into_data(tensor)
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+        super::into_data(tensor).await
     }
 
     fn int_from_data<const D: usize>(
-        data: Data<IntElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         super::from_data(data, device)
@@ -235,6 +242,13 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        numeric::remainder_scalar(lhs, rhs)
+    }
+
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         numeric::zeros(shape, device)
     }
@@ -280,15 +294,13 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
     }
 
     fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
-        unary!(
-            operation: |scope: &mut Scope, elem: Elem| Operator::Abs(UnaryOperator {
-                input: scope.read_array(0, Item::Scalar(elem)),
-                out: scope.create_local(elem),
-            }),
-            runtime: R,
-            input: tensor,
-            elem: IntElem<Self>
-        )
+        unary_op!(int(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Numeric>(input: C) -> C {
+                C::abs(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
     }
 
     fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
@@ -306,12 +318,12 @@ impl<R: Runtime> IntTensorOps<Self> for JitBackend<R> {
         tensor
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn int_random<const D: usize>(

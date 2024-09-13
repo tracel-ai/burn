@@ -13,27 +13,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn subsequent_calls_give_different_tensors() {
-        TestBackend::seed(0);
-        let shape: Shape<2> = [40, 40].into();
-        let device = Default::default();
-
-        let tensor_1 =
-            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
-        let tensor_2 =
-            Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(0.5), &device);
-        let mut diff_exists = false;
-        for i in 0..shape.num_elements() {
-            if tensor_1.to_data().value[i] != tensor_2.to_data().value[i] {
-                diff_exists = true;
-                break;
-            }
-        }
-        assert!(diff_exists);
-    }
-
-    #[test]
-    #[serial]
     fn number_of_1_proportional_to_prob() {
         TestBackend::seed(0);
         let shape: Shape<2> = [40, 40].into();
@@ -44,7 +23,15 @@ mod tests {
             Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Bernoulli(prob), &device);
 
         // High bound slightly over 1 so 1.0 is included in second bin
-        let bin_stats = calculate_bin_stats(tensor_1.into_data().value, 2, 0., 1.1);
+        let bin_stats = calculate_bin_stats(
+            tensor_1
+                .into_data()
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap(),
+            2,
+            0.,
+            1.1,
+        );
         assert!(
             f32::abs((bin_stats[1].count as f32 / shape.num_elements() as f32) - prob as f32)
                 < 0.05
@@ -59,7 +46,10 @@ mod tests {
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 2>::random(shape, Distribution::Bernoulli(0.5), &device);
 
-        let numbers = tensor.into_data().value;
+        let data = tensor.into_data();
+        let numbers = data
+            .as_slice::<<TestBackend as Backend>::FloatElem>()
+            .unwrap();
         let stats = calculate_bin_stats(numbers, 2, 0., 1.1);
         let n_0 = stats[0].count as f32;
         let n_1 = stats[1].count as f32;

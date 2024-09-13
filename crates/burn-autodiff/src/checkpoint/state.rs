@@ -3,7 +3,7 @@ use std::{any::Any, collections::HashMap};
 use crate::graph::NodeID;
 
 /// In order to accept arbitrary node output in the same hashmap, we need to upcast them to any.
-pub(crate) type StateContent = Box<dyn Any + Send + Sync>;
+pub(crate) type StateContent = Box<dyn Any + Send>;
 
 #[derive(Debug)]
 /// The state contained at one node. Encapsulates the node output if precomputed,
@@ -60,18 +60,18 @@ impl State {
 }
 
 #[derive(new, Default, Debug)]
-/// Links [NodeID]s to their current [State]
+/// Links [NodeID]s to their current state
 pub struct BackwardStates {
     map: HashMap<NodeID, State>,
 }
 
 impl BackwardStates {
-    /// Returns the output in the [State] of the given [NodeID],
+    /// Returns the output in the state of the given [NodeID],
     /// and decrements the number of times this state is required.
     /// This function always gives ownership of the output, but will clone it if needed for further uses.
-    pub(crate) fn get_state<T>(&mut self, node_id: &NodeID) -> T
+    pub fn get_state<T>(&mut self, node_id: &NodeID) -> T
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
         // Fetch the state and decrement its number of required
         let state = self.map.remove(node_id).unwrap();
@@ -97,7 +97,7 @@ impl BackwardStates {
                 .unwrap()
                 .clone();
 
-            self.insert_state(node_id.clone(), new_stored_state);
+            self.insert_state(*node_id, new_stored_state);
 
             downcasted
         } else {
@@ -117,9 +117,10 @@ impl BackwardStates {
         self.map.insert(node_id, state);
     }
 
-    pub(crate) fn save<T>(&mut self, node_id: NodeID, saved_output: T)
+    /// Saves the output to the state of the given [NodeID].
+    pub fn save<T>(&mut self, node_id: NodeID, saved_output: T)
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + 'static,
     {
         let n_required = self.get_state_ref(&node_id).unwrap().n_required();
         self.insert_state(

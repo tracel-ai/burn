@@ -33,12 +33,38 @@ macro_rules! bench_on_backend {
         let args: Vec<String> = env::args().collect();
         let url = backend_comparison::get_sharing_url(&args);
         let token = backend_comparison::get_sharing_token(&args);
+        #[cfg(feature = "candle-accelerate")]
+        let feature_name = "candle-accelerate";
+        #[cfg(feature = "candle-cpu")]
+        let feature_name = "candle-cpu";
+        #[cfg(feature = "candle-cuda")]
+        let feature_name = "candle-cuda";
+        #[cfg(feature = "candle-metal")]
+        let feature_name = "candle-metal";
+        #[cfg(feature = "ndarray")]
+        let feature_name = "ndarray";
+        #[cfg(feature = "ndarray-blas-accelerate")]
+        let feature_name = "ndarray-blas-accelerate";
+        #[cfg(feature = "ndarray-blas-netlib")]
+        let feature_name = "ndarray-blas-netlib";
+        #[cfg(feature = "ndarray-blas-openblas")]
+        let feature_name = "ndarray-blas-openblas";
+        #[cfg(feature = "tch-cpu")]
+        let feature_name = "tch-cpu";
+        #[cfg(feature = "tch-gpu")]
+        let feature_name = "tch-gpu";
+        #[cfg(feature = "wgpu")]
+        let feature_name = "wgpu";
+        #[cfg(feature = "wgpu-fusion")]
+        let feature_name = "wgpu-fusion";
+        #[cfg(feature = "cuda-jit")]
+        let feature_name = "cuda-jit";
 
         #[cfg(feature = "wgpu")]
         {
-            use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+            use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
-            bench::<Wgpu<AutoGraphicsApi, f32, i32>>(&WgpuDevice::default(), url, token);
+            bench::<Wgpu<f32, i32>>(&WgpuDevice::default(), feature_name, url, token);
         }
 
         #[cfg(feature = "tch-gpu")]
@@ -49,7 +75,7 @@ macro_rules! bench_on_backend {
             let device = LibTorchDevice::Cuda(0);
             #[cfg(target_os = "macos")]
             let device = LibTorchDevice::Mps;
-            bench::<LibTorch>(&device, url, token);
+            bench::<LibTorch>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "tch-cpu")]
@@ -57,7 +83,7 @@ macro_rules! bench_on_backend {
             use burn::backend::{libtorch::LibTorchDevice, LibTorch};
 
             let device = LibTorchDevice::Cpu;
-            bench::<LibTorch>(&device, url, token);
+            bench::<LibTorch>(&device, feature_name, url, token);
         }
 
         #[cfg(any(
@@ -71,7 +97,7 @@ macro_rules! bench_on_backend {
             use burn::backend::NdArray;
 
             let device = NdArrayDevice::Cpu;
-            bench::<NdArray>(&device, url, token);
+            bench::<NdArray>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-cpu")]
@@ -80,7 +106,7 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::Cpu;
-            bench::<Candle>(&device, url, token);
+            bench::<Candle>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-cuda")]
@@ -89,7 +115,7 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::Cuda(0);
-            bench::<Candle>(&device, url, token);
+            bench::<Candle>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-metal")]
@@ -98,7 +124,14 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::Metal(0);
-            bench::<Candle>(&device, url, token);
+            bench::<Candle>(&device, feature_name, url, token);
+        }
+
+        #[cfg(feature = "cuda-jit")]
+        {
+            use burn::backend::cuda_jit::{Cuda, CudaDevice};
+
+            bench::<Cuda>(&CudaDevice::default(), feature_name, url, token);
         }
     };
 }

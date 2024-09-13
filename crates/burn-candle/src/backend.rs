@@ -1,11 +1,15 @@
 use std::marker::PhantomData;
 
-use burn_tensor::backend::Backend;
+use burn_tensor::{
+    backend::{Backend, DeviceId, DeviceOps, SyncType},
+    quantization::{QTensorPrimitive, QuantizationStrategy},
+    Device,
+};
 use candle_core::DeviceLocation;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleTensor,
+    CandleQTensor, CandleTensor, PrecisionBridge,
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
@@ -60,6 +64,16 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
+impl DeviceOps for CandleDevice {
+    fn id(&self) -> burn_tensor::backend::DeviceId {
+        match self {
+            CandleDevice::Cpu => DeviceId::new(0, 0),
+            CandleDevice::Cuda(index) => DeviceId::new(1, *index as u32),
+            CandleDevice::Metal(index) => DeviceId::new(2, *index as u32),
+        }
+    }
+}
+
 impl Default for CandleDevice {
     fn default() -> Self {
         Self::Cpu
@@ -69,8 +83,7 @@ impl Default for CandleDevice {
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
-    type FullPrecisionBackend = Candle<Self::FullPrecisionElem, Self::IntElem>;
-    type FullPrecisionElem = f32;
+    type FullPrecisionBridge = PrecisionBridge<f32>;
 
     type FloatTensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
     type FloatElem = F;
@@ -79,6 +92,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type IntElem = I;
 
     type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+
+    type QuantizedTensorPrimitive<const D: usize> = CandleQTensor<D>;
 
     fn ad_enabled() -> bool {
         false
@@ -91,5 +106,27 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     fn seed(seed: u64) {
         // TODO submit an issue at Candle
         panic!("Manual seed not supported by Candle. ")
+    }
+
+    fn sync(device: &Device<Self>, sync_type: SyncType) {
+        match sync_type {
+            SyncType::Wait => {
+                let device: candle_core::Device = (*device).into();
+
+                match device {
+                    candle_core::Device::Cpu => (),
+                    candle_core::Device::Cuda(device) => {
+                        #[cfg(feature = "cuda")]
+                        device.synchronize().unwrap();
+                    }
+                    candle_core::Device::Metal(device) => {
+                        // For some reason, device.wait_until_completed() does not seem to work,
+                        // and neither does writing and reading a value with into_data
+                        panic!("Device synchronization unavailable with Metal device on Candle backend")
+                    }
+                }
+            }
+            SyncType::Flush => (), // Nothhing to flush.
+        };
     }
 }

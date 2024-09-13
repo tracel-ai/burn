@@ -2,6 +2,7 @@ use backend_comparison::persistence::save;
 use burn::backend::Autodiff;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::sync_type::SyncType;
 use core::f64::consts::SQRT_2;
 use derive_new::new;
 
@@ -27,10 +28,9 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
 
     fn name(&self) -> String {
         match self.autodiff {
-            true => "gelu_autodiff",
-            false => "gelu",
+            true => format!("gelu_autodiff_{:?}", self.kind),
+            false => format!("gelu_{:?}", self.kind),
         }
-        .into()
     }
 
     fn options(&self) -> Option<String> {
@@ -69,7 +69,7 @@ impl<B: Backend, const D: usize> Benchmark for CustomGeluBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 
     fn num_samples(&self) -> usize {
@@ -114,7 +114,12 @@ fn erf_positive<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 2048].into();
 
@@ -145,6 +150,7 @@ fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>)
                 run_benchmark(custom_erf_gelu),
             ],
             device,
+            feature_name,
             url,
             token,
         )

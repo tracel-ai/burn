@@ -1,11 +1,11 @@
 #[burn_tensor_testgen::testgen(transpose)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, Data, Int, Tensor};
+    use burn_tensor::{Bool, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_transpose_ops() {
-        let tensor = TestTensor::from_floats(
+        let tensor = TestTensor::<3>::from_floats(
             [
                 [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
                 [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
@@ -13,18 +13,18 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.transpose().into_data();
-
-        let data_expected = Data::from([
+        let output = tensor.transpose();
+        let expected = TensorData::from([
             [[0.0, 3.0], [1.0, 4.0], [2.0, 5.0]],
             [[6.0, 9.0], [7.0, 10.0], [8.0, 11.0]],
         ]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
     fn should_support_swap_dims() {
-        let tensor = TestTensor::from_floats(
+        let tensor = TestTensor::<3>::from_floats(
             [
                 [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]],
                 [[6.0, 7.0, 8.0], [9.0, 10.0, 11.0]],
@@ -32,14 +32,14 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.swap_dims(0, 2).into_data();
-
-        let data_expected = Data::from([
+        let output = tensor.swap_dims(0, 2);
+        let expected = TensorData::from([
             [[0.0, 6.0], [3.0, 9.0]],
             [[1.0, 7.0], [4.0, 10.0]],
             [[2.0, 8.0], [5.0, 11.0]],
         ]);
-        data_expected.assert_approx_eq(&data_actual, 3);
+
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -49,10 +49,10 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.transpose().into_data();
+        let output = tensor.transpose();
+        let expected = TensorData::from([[[0, 3], [1, 4], [2, 5]], [[6, 9], [7, 10], [8, 11]]]);
 
-        let data_expected = Data::from([[[0, 3], [1, 4], [2, 5]], [[6, 9], [7, 10], [8, 11]]]);
-        assert_eq!(&data_expected, &data_actual);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -62,10 +62,10 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.swap_dims(0, 2).into_data();
+        let output = tensor.swap_dims(0, 2);
+        let expected = TensorData::from([[[0, 6], [3, 9]], [[1, 7], [4, 10]], [[2, 8], [5, 11]]]);
 
-        let data_expected = Data::from([[[0, 6], [3, 9]], [[1, 7], [4, 10]], [[2, 8], [5, 11]]]);
-        assert_eq!(&data_expected, &data_actual);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -78,13 +78,13 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.transpose().into_data();
-
-        let data_expected = Data::from([
+        let output = tensor.transpose();
+        let expected = TensorData::from([
             [[false, false], [true, false], [false, false]],
             [[false, false], [false, false], [true, true]],
         ]);
-        assert_eq!(&data_expected, &data_actual);
+
+        output.into_data().assert_eq(&expected, true);
     }
 
     #[test]
@@ -97,13 +97,13 @@ mod tests {
             &Default::default(),
         );
 
-        let data_actual = tensor.swap_dims(0, 2).into_data();
-
-        let data_expected = Data::from([
+        let output = tensor.swap_dims(0, 2);
+        let expected = TensorData::from([
             [[false, false], [false, false]],
             [[true, false], [false, false]],
             [[false, true], [false, true]],
         ]);
-        assert_eq!(&data_expected, &data_actual);
+
+        output.into_data().assert_eq(&expected, true);
     }
 }

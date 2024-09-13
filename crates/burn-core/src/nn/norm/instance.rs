@@ -1,52 +1,76 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
+use crate::module::{Module, Param};
+use crate::nn::norm::group_norm;
+use crate::nn::Initializer;
 use crate::tensor::{backend::Backend, Tensor};
 
-use super::{GroupNorm, GroupNormConfig};
-
-/// Configuration to create a [InstanceNorm](InstanceNorm) layer.
+/// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
 pub struct InstanceNormConfig {
     /// The number of channels expected in the input
-    num_channels: usize,
+    pub num_channels: usize,
     /// A value required for numerical stability. Default: 1e-5
     #[config(default = 1e-5)]
-    epsilon: f64,
+    pub epsilon: f64,
     /// A boolean value that when set to `true`, this module has learnable
     /// per-channel affine parameters initialized to ones (for weights)
     /// and zeros (for biases). Default: `true`
     #[config(default = true)]
-    affine: bool,
+    pub affine: bool,
 }
 
-/// Applies Instance Normalization over  a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
+/// Applies Instance Normalization over a tensor as described in the paper [Instance Normalization](https://arxiv.org/abs/1607.08022)
+///
+/// Should be created using [InstanceNormConfig](InstanceNormConfig).
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct InstanceNorm<B: Backend> {
-    group_norm: GroupNorm<B>,
+    /// The learnable weight
+    pub gamma: Option<Param<Tensor<B, 1>>>,
+    /// The learnable bias
+    pub beta: Option<Param<Tensor<B, 1>>>,
+    /// The number of channels expected in the input
+    pub num_channels: usize,
+    /// A value required for numerical stability
+    pub epsilon: f64,
+    /// A boolean value that when set to `true`, this module has learnable
+    pub affine: bool,
+}
+
+impl<B: Backend> ModuleDisplay for InstanceNorm<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("num_channels", &self.num_channels)
+            .add("epsilon", &self.epsilon)
+            .add("affine", &self.affine)
+            .optional()
+    }
 }
 
 impl InstanceNormConfig {
     /// Initialize a new [instance norm](InstanceNorm) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
-        InstanceNorm {
-            group_norm: self.to_group_norm().init(device),
-        }
-    }
+        let (gamma, beta) = if self.affine {
+            let gamma = Initializer::Ones.init([self.num_channels], device);
+            let beta = Initializer::Zeros.init([self.num_channels], device);
 
-    /// Initialize a new [instance norm](InstanceNorm) module with a [record](InstanceNormRecord).
-    pub fn init_with<B: Backend>(&self, record: InstanceNormRecord<B>) -> InstanceNorm<B> {
-        InstanceNorm {
-            group_norm: self.to_group_norm().init_with(record.group_norm),
-        }
-    }
+            (Some(gamma), Some(beta))
+        } else {
+            (None, None)
+        };
 
-    fn to_group_norm(&self) -> GroupNormConfig {
-        GroupNormConfig {
-            // Group norm is equivalent to instance norm, when the number of groups is
-            // equal to the number of channels.
-            num_groups: self.num_channels,
+        InstanceNorm {
+            gamma,
+            beta,
             num_channels: self.num_channels,
             epsilon: self.epsilon,
             affine: self.affine,
@@ -57,20 +81,29 @@ impl InstanceNormConfig {
 impl<B: Backend> InstanceNorm<B> {
     /// Applies the forward pass on the input tensor.
     ///
+    /// See also [InstanceNormConfig](InstanceNormConfig) for more information.
+    ///
     /// # Shapes
     ///
-    /// - input: `[..., any, d_model]`
-    /// - output: `[..., any, d_model]`
+    /// - input: `[batch_size, num_channels, *]`
+    /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        self.group_norm.forward(input)
+        // Instance norm is equivalent to group norm when the number of groups is equal to the number of channels.
+        let num_groups = self.num_channels;
+
+        let gamma = self.gamma.as_ref().map(|x| x.val());
+        let beta = self.beta.as_ref().map(|x| x.val());
+
+        group_norm(input, gamma, beta, num_groups, self.epsilon, self.affine)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
+    use alloc::format;
 
     #[test]
     fn instance_norm_forward_affine_false() {
@@ -79,8 +112,8 @@ mod tests {
             .with_affine(false)
             .init::<TestBackend>(&device);
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
                     [-1.1845, 1.4078, 0.9774],
@@ -103,27 +136,25 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [0.0569, 1.1952, -1.2522],
-                    [-1.3971, 0.8883, 0.5088],
-                    [0.2183, -1.3192, 1.1009],
-                    [1.4126, -0.7649, -0.6477],
-                    [0.5999, 0.8091, -1.409],
-                    [1.39, -0.4696, -0.9205],
-                ],
-                [
-                    [-1.3492, 1.0417, 0.3075],
-                    [1.411, -0.6243, -0.7867],
-                    [-0.9363, 1.386, -0.4497],
-                    [-1.3899, 0.4692, 0.9208],
-                    [-1.3822, 0.4319, 0.9503],
-                    [-1.3714, 0.3868, 0.9846],
-                ],
-            ]),
-            3,
-        );
+        let expected = TensorData::from([
+            [
+                [0.0569, 1.1952, -1.2522],
+                [-1.3971, 0.8883, 0.5088],
+                [0.2183, -1.3192, 1.1009],
+                [1.4126, -0.7649, -0.6477],
+                [0.5999, 0.8091, -1.409],
+                [1.39, -0.4696, -0.9205],
+            ],
+            [
+                [-1.3492, 1.0417, 0.3075],
+                [1.411, -0.6243, -0.7867],
+                [-0.9363, 1.386, -0.4497],
+                [-1.3899, 0.4692, 0.9208],
+                [-1.3822, 0.4319, 0.9503],
+                [-1.3714, 0.3868, 0.9846],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]
@@ -133,8 +164,8 @@ mod tests {
             .with_affine(true)
             .init::<TestBackend>(&device);
 
-        let input = Tensor::from_data(
-            Data::from([
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
                     [0.5041, 0.4175, 0.8437],
@@ -157,26 +188,35 @@ mod tests {
 
         let output = module.forward(input);
 
-        output.to_data().assert_approx_eq(
-            &Data::from([
-                [
-                    [-1.06458, -0.2738, 1.33838],
-                    [-0.45848, -0.92929, 1.38777],
-                    [1.40388, -0.84877, -0.55511],
-                    [-0.88515, -0.51245, 1.3976],
-                    [-0.22397, 1.32124, -1.09727],
-                    [-1.05468, 1.34316, -0.28848],
-                ],
-                [
-                    [1.26372, -0.08229, -1.18144],
-                    [-0.44049, 1.38403, -0.94354],
-                    [-1.23979, 0.03109, 1.2087],
-                    [1.32524, -1.08999, -0.23524],
-                    [-0.75061, 1.4132, -0.66259],
-                    [-0.45469, 1.38697, -0.93228],
-                ],
-            ]),
-            3,
+        let expected = TensorData::from([
+            [
+                [-1.06458, -0.2738, 1.33838],
+                [-0.45848, -0.92929, 1.38777],
+                [1.40388, -0.84877, -0.55511],
+                [-0.88515, -0.51245, 1.3976],
+                [-0.22397, 1.32124, -1.09727],
+                [-1.05468, 1.34316, -0.28848],
+            ],
+            [
+                [1.26372, -0.08229, -1.18144],
+                [-0.44049, 1.38403, -0.94354],
+                [-1.23979, 0.03109, 1.2087],
+                [1.32524, -1.08999, -0.23524],
+                [-0.75061, 1.4132, -0.66259],
+                [-0.45469, 1.38697, -0.93228],
+            ],
+        ]);
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = InstanceNormConfig::new(6);
+        let instance_norm = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            format!("{}", instance_norm),
+            "InstanceNorm {num_channels: 6, epsilon: 0.00001, affine: true, params: 12}"
         );
     }
 }

@@ -1,19 +1,22 @@
 use super::Scalars;
-use crate::codegen::{dialect::gpu, CompilationInfo, InputInfo, OutputInfo};
-use burn_fusion::TensorDescription;
+use burn_tensor::repr::TensorDescription;
+use cubecl::{
+    ir::{Elem, IntKind, Item, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, OutputInfo,
+};
 use serde::{Deserialize, Serialize};
 
-/// A trace encaptulates all information necessary to perform the compilation and execution of
-/// captured [tensor operations](burn_fusion::stream::OperationDescription).
+/// A trace encapsulates all information necessary to perform the compilation and execution of
+/// captured [tensor operations](burn_tensor::repr::OperationDescription).
 ///
 /// A trace should be built using a [builder](super::TraceBuilder).
 #[derive(new, Clone, Serialize, Deserialize)]
 pub struct Trace {
-    inputs: Vec<(TensorDescription, gpu::Elem)>,
-    outputs: Vec<(TensorDescription, gpu::Elem)>,
+    inputs: Vec<(TensorDescription, Elem, Variable)>,
+    output_writes: Vec<(TensorDescription, Elem, Variable)>,
     locals: Vec<u16>,
     scalars: Scalars,
-    scope: gpu::Scope,
+    scope: Scope,
 }
 
 /// Information necessary to execute a kernel.
@@ -31,54 +34,71 @@ impl Trace {
     pub fn running(&self) -> ExecutionInfo<'_> {
         ExecutionInfo {
             inputs: self.inputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
-            outputs: self.outputs.iter().map(|a| &a.0).collect::<Vec<_>>(),
+            outputs: self.output_writes.iter().map(|a| &a.0).collect::<Vec<_>>(),
             scalars: &self.scalars,
         }
     }
 
     /// Collect information related to compiling the trace.
-    pub fn compiling(&self) -> CompilationInfo {
+    pub fn compiling(&self) -> KernelExpansion {
         let mut inputs = self
             .inputs
             .iter()
-            .map(|(_tensor, elem)| InputInfo::Array {
-                item: gpu::Item::Scalar(*elem),
-                visibility: gpu::Visibility::Read,
+            .map(|(_tensor, elem, _)| InputInfo::Array {
+                item: Item::new(*elem),
+                visibility: Visibility::Read,
             })
             .collect::<Vec<_>>();
 
         let outputs = self
-            .outputs
+            .output_writes
             .iter()
             .zip(self.locals.iter())
-            .map(|((_tensor, elem), local)| OutputInfo::ArrayWrite {
-                item: gpu::Item::Scalar(*elem),
-                local: *local,
-            })
+            .map(
+                |((_tensor, elem, index_ref), local)| OutputInfo::ArrayWrite {
+                    item: Item::new(*elem),
+                    local: *local,
+                    position: *index_ref,
+                },
+            )
             .collect::<Vec<_>>();
 
-        if self.scalars.num_float > 0 {
+        // NOTE: we might want to pass a struct including all inputs/outputs metadata instead of 3 arrays
+        if self.scalars.num_f32 > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Float,
-                size: self.scalars.num_float,
+                elem: Elem::Float(cubecl::ir::FloatKind::F32),
+                size: self.scalars.num_f32,
+            })
+        }
+        if self.scalars.num_f16 > 0 {
+            inputs.push(InputInfo::Scalar {
+                elem: Elem::Float(cubecl::ir::FloatKind::F16),
+                size: self.scalars.num_f16,
+            })
+        }
+
+        if self.scalars.num_bf16 > 0 {
+            inputs.push(InputInfo::Scalar {
+                elem: Elem::Float(cubecl::ir::FloatKind::BF16),
+                size: self.scalars.num_bf16,
             })
         }
 
         if self.scalars.num_uint > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::UInt,
+                elem: Elem::UInt,
                 size: self.scalars.num_uint,
             })
         }
 
         if self.scalars.num_int > 0 {
             inputs.push(InputInfo::Scalar {
-                elem: gpu::Elem::Int,
+                elem: Elem::Int(IntKind::I32),
                 size: self.scalars.num_int,
             })
         }
 
-        CompilationInfo {
+        KernelExpansion {
             inputs,
             outputs,
             scope: self.scope.clone(),

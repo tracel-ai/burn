@@ -6,7 +6,7 @@ use burn_tensor::{backend::Backend, Tensor};
 ///
 /// Implementations don't have to handle missing gradients, loading and exporting records, navigate the
 /// module parameter structure, handle tracked and untracked tensors, and the likes.
-pub trait SimpleOptimizer<B>: Send + Sync
+pub trait SimpleOptimizer<B>: Send + Sync + Clone
 where
     B: Backend,
 {

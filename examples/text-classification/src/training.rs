@@ -29,7 +29,7 @@ use std::sync::Arc;
 pub struct ExperimentConfig {
     pub transformer: TransformerEncoderConfig,
     pub optimizer: AdamConfig,
-    #[config(default = 512)]
+    #[config(default = 256)]
     pub max_seq_length: usize,
     #[config(default = 32)]
     pub batch_size: usize,
@@ -102,6 +102,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .devices(devices)
         .num_epochs(config.num_epochs)
+        .summary()
         .build(model, optim, lr_scheduler);
 
     // Train the model

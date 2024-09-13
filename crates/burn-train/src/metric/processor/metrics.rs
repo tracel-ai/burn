@@ -24,7 +24,7 @@ impl<T, V> Default for Metrics<T, V> {
 
 impl<T, V> Metrics<T, V> {
     /// Register a training metric.
-    pub(crate) fn register_metric_train<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_train_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
         T: Adaptor<Me::Input> + 'static,
     {

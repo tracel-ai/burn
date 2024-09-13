@@ -65,8 +65,15 @@ pub struct TrainingConfig {
     pub learning_rate: f64,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
-    std::fs::create_dir_all(ARTIFACT_DIR).ok();
+    create_artifact_dir(ARTIFACT_DIR);
+
     config
         .save(format!("{ARTIFACT_DIR}/config.json"))
         .expect("Config should be saved successfully");
@@ -98,6 +105,7 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .with_file_checkpointer(CompactRecorder::new())
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
+        .summary()
         .build(
             Cnn::new(NUM_CLASSES.into(), &device),
             config.optimizer.init(),

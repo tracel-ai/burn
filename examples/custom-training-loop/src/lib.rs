@@ -95,8 +95,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
             println!(
                 "[Valid - Epoch {} - Iteration {}] Loss {} | Accuracy {}",
-                iteration,
                 epoch,
+                iteration,
                 loss.clone().into_scalar(),
                 accuracy,
             );
@@ -159,7 +159,7 @@ where
 
 #[allow(dead_code)]
 impl<M, O> Learner2<M, O> {
-    pub fn step3<B: AutodiffBackend>(&mut self, _batch: MnistBatch<B>)
+    pub fn step3<B>(&mut self, _batch: MnistBatch<B>)
     where
         B: AutodiffBackend,
         M: AutodiffModule<B>,

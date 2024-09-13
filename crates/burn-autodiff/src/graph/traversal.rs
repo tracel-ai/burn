@@ -1,29 +1,34 @@
-use std::collections::HashSet;
-
-use super::{Graph, NodeRef, StepBoxed};
+use super::{Step, StepBoxed};
+use crate::NodeID;
+use std::collections::{HashMap, HashSet};
 
 /// Breadth for search algorithm.
 pub struct BreadthFirstSearch;
 
+pub trait TraversalItem {
+    fn id(&self) -> NodeID;
+    fn parents(&self) -> Vec<NodeID>;
+}
+
 impl BreadthFirstSearch {
     /// Traverse the graph of backward steps from a root node.
-    pub fn traverse<F: FnMut(NodeRef, StepBoxed)>(
+    pub fn traverse<F, I>(
         &self,
-        root: NodeRef,
-        graph: Graph,
+        root_id: NodeID,
+        root_step: I,
+        steps: &mut HashMap<NodeID, I>,
         mut callback: F,
-    ) {
-        let mut visited = HashSet::with_capacity(root.order);
-        let mut parents = Vec::with_capacity(root.order);
-        let mut steps = graph.steps();
-        let root_step = steps.remove(&root.id).expect(
-            "Root node should have a step registered, did you forget to call \
-             `Tensor::register_grad` on the tensor where you need gradients?",
-        );
+    ) where
+        F: FnMut(NodeID, I),
+        I: TraversalItem,
+    {
+        let mut visited = HashSet::new();
+        let mut parents = Vec::new();
 
-        visited.insert(root.id.clone());
-        parents.append(&mut root.parents.clone());
-        callback(root, root_step);
+        visited.insert(root_id);
+        parents.append(&mut root_step.parents());
+
+        callback(root_id, root_step);
 
         while let Some(id) = parents.pop() {
             let step = match steps.remove(&id) {
@@ -31,21 +36,32 @@ impl BreadthFirstSearch {
                 None => continue,
             };
 
-            let node = step.node();
+            let step_node = step.id();
+            let step_parents = step.parents();
 
-            if visited.contains(&node.id) {
+            if visited.contains(&step_node) {
                 continue;
             }
 
-            visited.insert(node.id.clone());
+            visited.insert(step_node);
 
-            for id in node.parents.iter() {
+            for id in step_parents.iter() {
                 if !visited.contains(id) {
-                    parents.push(id.clone());
+                    parents.push(*id);
                 }
             }
 
-            callback(node, step);
+            callback(step_node, step);
         }
+    }
+}
+
+impl TraversalItem for StepBoxed {
+    fn id(&self) -> NodeID {
+        Step::node(self.as_ref())
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        Step::parents(self.as_ref())
     }
 }

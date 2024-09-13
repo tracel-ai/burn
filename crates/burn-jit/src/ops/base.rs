@@ -1,43 +1,41 @@
+use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
+use burn_tensor::{Shape, TensorData};
+use cubecl::CubeElement;
 use std::marker::PhantomData;
 
-use crate::{element::JitElement, kernel, tensor::JitTensor, Runtime};
-use burn_tensor::{Data, Reader, Shape};
-
-pub(crate) fn from_data<R: Runtime, E: JitElement, const D: usize>(
-    data: Data<E, D>,
+pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
+    data: TensorData,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
+    // TODO: from_data QFloat should not convert
+    let shape: Shape<D> = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(E::as_bytes(&data.value));
+    let buffer = client.create(data.convert::<E>().as_bytes());
 
-    JitTensor::new(client, device.clone(), data.shape, buffer)
+    JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
-pub(crate) fn into_data<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) async fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
-) -> Reader<Data<E, D>> {
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
-    tensor
-        .client
-        .read(&tensor.handle)
-        .map(|bytes| Data::new(E::from_bytes(&bytes).to_vec(), tensor.shape))
+    let bytes = tensor.client.read_async(tensor.handle.binding()).await;
+    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
-pub(crate) fn bool_into_data<R: Runtime, const D: usize>(
+pub(crate) async fn bool_into_data<R: JitRuntime, const D: usize>(
     tensor: JitTensor<R, u32, D>,
-) -> Reader<Data<bool, D>> {
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
-
-    tensor.client.read(&tensor.handle).map(|bytes| {
-        Data::new(
-            u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
-            tensor.shape,
-        )
-    })
+    let bytes = tensor.client.read_async(tensor.handle.binding()).await;
+    TensorData::new(
+        u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+        tensor.shape,
+    )
 }
 
-pub(crate) fn to_device<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn to_device<R: JitRuntime, E: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
@@ -49,17 +47,17 @@ pub(crate) fn to_device<R: Runtime, E: JitElement, const D: usize>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn empty<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
 ) -> JitTensor<R, E, D> {
     let client = R::client(device);
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    JitTensor::new(client, device.clone(), shape, buffer)
+    JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
-pub(crate) fn swap_dims<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn swap_dims<R: JitRuntime, E: JitElement, const D: usize>(
     mut tensor: JitTensor<R, E, D>,
     dim1: usize,
     dim2: usize,
@@ -70,7 +68,7 @@ pub(crate) fn swap_dims<R: Runtime, E: JitElement, const D: usize>(
     tensor
 }
 
-pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn permute<R: JitRuntime, E: JitElement, const D: usize>(
     mut tensor: JitTensor<R, E, D>,
     axes: [usize; D],
 ) -> JitTensor<R, E, D> {
@@ -82,7 +80,7 @@ pub(crate) fn permute<R: Runtime, E: JitElement, const D: usize>(
 
     tensor
 }
-pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usize>(
+pub(crate) fn expand<R: JitRuntime, E: JitElement, const D: usize, const D_OUT: usize>(
     tensor: JitTensor<R, E, D>,
     target_shape: Shape<D_OUT>,
 ) -> JitTensor<R, E, D_OUT> {
@@ -132,12 +130,12 @@ pub(crate) fn expand<R: Runtime, E: JitElement, const D: usize, const D_OUT: usi
     }
 }
 
-pub(crate) fn reshape<R: Runtime, E: JitElement, const D1: usize, const D2: usize>(
+pub(crate) fn reshape<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
     tensor: JitTensor<R, E, D1>,
     shape: Shape<D2>,
 ) -> JitTensor<R, E, D2> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
-    JitTensor::new(tensor.client, tensor.device, shape, tensor.handle)
+    JitTensor::new_contiguous(tensor.client, tensor.device, shape, tensor.handle)
 }

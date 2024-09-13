@@ -1,15 +1,15 @@
+use cubecl::{
+    cpa,
+    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    InputInfo, KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+};
 use std::marker::PhantomData;
 
-use crate::{
-    codegen::{Compilation, CompilationInfo, CompilationSettings, InputInfo, OutputInfo},
-    gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-    kernel::{DynamicKernelSource, SourceTemplate},
-    Compiler, JitElement, Runtime,
-};
+use crate::{kernel::Kernel, JitElement, JitRuntime};
 
 use super::PoolStrategy;
 
-pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: JitRuntime, E: JitElement> {
     input: Variable,
     output: Variable,
     indices: Option<Variable>,
@@ -19,11 +19,11 @@ pub(crate) struct Pool2dComputeShader<P: PoolStrategy, R: Runtime, E: JitElement
     _runtime: PhantomData<R>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
+impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Pool2dComputeShader<P, R, E> {
     fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::Id;
+        let id = Variable::AbsolutePos;
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -45,49 +45,67 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
         let output_shape_2 = scope.create_local(Elem::UInt);
         let output_shape_3 = scope.create_local(Elem::UInt);
 
-        gpu!(scope, input_stride_0 = stride(input, 0u32));
-        gpu!(scope, input_stride_1 = stride(input, 1u32));
-        gpu!(scope, input_stride_2 = stride(input, 2u32));
-        gpu!(scope, input_stride_3 = stride(input, 3u32));
+        cpa!(scope, input_stride_0 = stride(input, 0u32));
+        cpa!(scope, input_stride_1 = stride(input, 1u32));
+        cpa!(scope, input_stride_2 = stride(input, 2u32));
+        cpa!(scope, input_stride_3 = stride(input, 3u32));
 
-        gpu!(scope, input_shape_0 = shape(input, 2u32));
-        gpu!(scope, input_shape_1 = shape(input, 3u32));
-        gpu!(scope, input_shape_2 = shape(input, 2u32));
-        gpu!(scope, input_shape_3 = shape(input, 3u32));
+        cpa!(scope, input_shape_0 = shape(input, 2u32));
+        cpa!(scope, input_shape_1 = shape(input, 3u32));
+        cpa!(scope, input_shape_2 = shape(input, 2u32));
+        cpa!(scope, input_shape_3 = shape(input, 3u32));
 
-        gpu!(scope, output_stride_0 = stride(output, 0u32));
-        gpu!(scope, output_stride_1 = stride(output, 1u32));
-        gpu!(scope, output_stride_2 = stride(output, 2u32));
-        gpu!(scope, output_stride_3 = stride(output, 3u32));
+        cpa!(scope, output_stride_0 = stride(output, 0u32));
+        cpa!(scope, output_stride_1 = stride(output, 1u32));
+        cpa!(scope, output_stride_2 = stride(output, 2u32));
+        cpa!(scope, output_stride_3 = stride(output, 3u32));
 
-        gpu!(scope, output_shape_0 = shape(output, 0u32));
-        gpu!(scope, output_shape_1 = shape(output, 1u32));
-        gpu!(scope, output_shape_2 = shape(output, 2u32));
-        gpu!(scope, output_shape_3 = shape(output, 3u32));
+        cpa!(scope, output_shape_0 = shape(output, 0u32));
+        cpa!(scope, output_shape_1 = shape(output, 1u32));
+        cpa!(scope, output_shape_2 = shape(output, 2u32));
+        cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let pool_stride_0 = Variable::GlobalScalar(0, Elem::UInt);
-        let pool_stride_1 = Variable::GlobalScalar(1, Elem::UInt);
-        let dilation_0 = Variable::GlobalScalar(2, Elem::UInt);
-        let dilation_1 = Variable::GlobalScalar(3, Elem::UInt);
-        let padding_0 = Variable::GlobalScalar(4, Elem::UInt);
-        let padding_1 = Variable::GlobalScalar(5, Elem::UInt);
+        let pool_stride_0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let pool_stride_1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let dilation_0 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let dilation_1 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
+        let padding_0 = Variable::GlobalScalar {
+            id: 4,
+            elem: Elem::UInt,
+        };
+        let padding_1 = Variable::GlobalScalar {
+            id: 5,
+            elem: Elem::UInt,
+        };
 
         let b = scope.create_local(Elem::UInt);
         let c = scope.create_local(Elem::UInt);
         let oh = scope.create_local(Elem::UInt);
         let ow = scope.create_local(Elem::UInt);
 
-        gpu!(scope, b = id / output_stride_0);
-        gpu!(scope, b = b % output_shape_0);
+        cpa!(scope, b = id / output_stride_0);
+        cpa!(scope, b = b % output_shape_0);
 
-        gpu!(scope, c = id / output_stride_1);
-        gpu!(scope, c = c % output_shape_1);
+        cpa!(scope, c = id / output_stride_1);
+        cpa!(scope, c = c % output_shape_1);
 
-        gpu!(scope, oh = id / output_stride_2);
-        gpu!(scope, oh = oh % output_shape_2);
+        cpa!(scope, oh = id / output_stride_2);
+        cpa!(scope, oh = oh % output_shape_2);
 
-        gpu!(scope, ow = id / output_stride_3);
-        gpu!(scope, ow = ow % output_shape_3);
+        cpa!(scope, ow = id / output_stride_3);
+        cpa!(scope, ow = ow % output_shape_3);
 
         let ih = scope.create_local(Elem::UInt);
         let iw = scope.create_local(Elem::UInt);
@@ -110,48 +128,48 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
         let border_bottom = scope.create_local(Elem::UInt);
         let border_right = scope.create_local(Elem::UInt);
 
-        gpu!(scope, border_bottom = input_shape_2 + padding_0);
-        gpu!(scope, border_right = input_shape_3 + padding_1);
+        cpa!(scope, border_bottom = input_shape_2 + padding_0);
+        cpa!(scope, border_right = input_shape_3 + padding_1);
 
-        gpu!(scope, index_input_0 = b * input_stride_0);
-        gpu!(scope, index_input_1 = c * input_stride_1);
+        cpa!(scope, index_input_0 = b * input_stride_0);
+        cpa!(scope, index_input_1 = c * input_stride_1);
 
         let accumulator = self.pool_strategy.initialize(scope, input.item());
 
         (0..self.kernel_size[0]).for_each(|kh| {
-            gpu!(scope, ih = oh * pool_stride_0);
-            gpu!(scope, dilated = kh * dilation_0);
-            gpu!(scope, ih += dilated);
+            cpa!(scope, ih = oh * pool_stride_0);
+            cpa!(scope, dilated = kh * dilation_0);
+            cpa!(scope, ih += dilated);
 
-            gpu!(scope, within_padding_h = ih >= padding_0);
-            gpu!(scope, tmp_padding = ih < border_bottom);
-            gpu!(scope, within_padding_h = within_padding_h && tmp_padding);
+            cpa!(scope, within_padding_h = ih >= padding_0);
+            cpa!(scope, tmp_padding = ih < border_bottom);
+            cpa!(scope, within_padding_h = within_padding_h && tmp_padding);
 
-            gpu!(scope, if (within_padding_h).then(|scope| {
+            cpa!(scope, if (within_padding_h).then(|scope| {
                 (0..self.kernel_size[1]).for_each(|kw| {
-                        gpu!(scope, iw = ow * pool_stride_1);
-                        gpu!(scope, dilated = kw * dilation_1);
-                        gpu!(scope, iw += dilated);
+                        cpa!(scope, iw = ow * pool_stride_1);
+                        cpa!(scope, dilated = kw * dilation_1);
+                        cpa!(scope, iw += dilated);
 
-                        gpu!(scope, within_padding_w = iw >= padding_1);
-                        gpu!(scope, tmp_padding = iw < border_right);
-                        gpu!(scope, within_padding_w = within_padding_w && tmp_padding);
+                        cpa!(scope, within_padding_w = iw >= padding_1);
+                        cpa!(scope, tmp_padding = iw < border_right);
+                        cpa!(scope, within_padding_w = within_padding_w && tmp_padding);
 
-                        gpu!(scope, if (within_padding_w).then(|scope| {
-                            gpu!(scope, ih_pad = ih - padding_0);
-                            gpu!(scope, iw_pad = iw - padding_1);
+                        cpa!(scope, if (within_padding_w).then(|scope| {
+                            cpa!(scope, ih_pad = ih - padding_0);
+                            cpa!(scope, iw_pad = iw - padding_1);
 
-                            gpu!(scope, index_input_2 = ih_pad * input_stride_2);
-                            gpu!(scope, idx = index_input_2);
-                            gpu!(scope, idx += iw_pad);
-                            gpu!(scope, index_input_3 = iw_pad * input_stride_3);
+                            cpa!(scope, index_input_2 = ih_pad * input_stride_2);
+                            cpa!(scope, idx = index_input_2);
+                            cpa!(scope, idx += iw_pad);
+                            cpa!(scope, index_input_3 = iw_pad * input_stride_3);
 
-                            gpu!(scope, index_input = index_input_0);
-                            gpu!(scope, index_input += index_input_1);
-                            gpu!(scope, index_input += index_input_2);
-                            gpu!(scope, index_input += index_input_3);
+                            cpa!(scope, index_input = index_input_0);
+                            cpa!(scope, index_input += index_input_1);
+                            cpa!(scope, index_input += index_input_2);
+                            cpa!(scope, index_input += index_input_3);
 
-                            gpu!(scope, result = input[index_input]);
+                            cpa!(scope, result = input[index_input]);
 
                             self.pool_strategy.process_result(scope, accumulator, result, idx);
                         }));
@@ -165,24 +183,25 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> Pool2dComputeShader<P, R, E> {
 }
 
 #[derive(new)]
-pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: Runtime, E: JitElement> {
+pub(crate) struct Pool2dEagerKernel<P: PoolStrategy, R: JitRuntime, E: JitElement> {
     kernel_size: [usize; 2],
     pool_strategy: P,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
 }
 
-impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
-    for Pool2dEagerKernel<P, R, E>
-{
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<P: PoolStrategy, R: JitRuntime, E: JitElement> Kernel for Pool2dEagerKernel<P, R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray(0, item);
-        let output = Variable::GlobalOutputArray(0, item);
+        let input = Variable::GlobalInputArray { id: 0, item };
+        let output = Variable::GlobalOutputArray { id: 0, item };
         let indices = if P::with_indices() {
-            Some(Variable::GlobalOutputArray(1, Item::Scalar(Elem::Int)))
+            Some(Variable::GlobalOutputArray {
+                id: 1,
+                item: Item::new(Elem::Int(IntKind::I32)),
+            })
         } else {
             None
         };
@@ -213,31 +232,24 @@ impl<P: PoolStrategy, R: Runtime, E: JitElement> DynamicKernelSource
             vec![
                 output,
                 OutputInfo::Array {
-                    item: Item::Scalar(Elem::Int),
+                    item: Item::new(Elem::Int(IntKind::I32)),
                 },
             ]
         } else {
             vec![output]
         };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![input, scalars],
             outputs,
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!(
-            "{:?}k={:?}pl={:?}",
-            core::any::TypeId::of::<Self>(),
-            self.kernel_size,
-            self.pool_strategy
-        )
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info((self.kernel_size, self.pool_strategy.clone()))
     }
 }

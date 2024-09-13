@@ -39,8 +39,8 @@ fn main() {
 
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
-    let mut input: Tensor<Backend, 4> =
-        Tensor::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
+    let mut input =
+        Tensor::<Backend, 1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;
@@ -57,10 +57,6 @@ fn main() {
     println!("Success!");
     println!("Predicted: {}", arg_max);
     println!("Actual: {}", item.label);
-
-    // Print the image URL if the image index is less than 100 (the online dataset only has 100 images)
-    if image_index < 100 {
-        println!("See the image online, click the link below:");
-        println!("https://datasets-server.huggingface.co/assets/mnist/--/mnist/test/{image_index}/image/image.jpg");
-    }
+    println!("See the image online, click the link below:");
+    println!("https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row={image_index}");
 }

@@ -1,9 +1,11 @@
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
-    graph::backward::backward,
+    runtime::AutodiffClient,
     tensor::AutodiffTensor,
+    AutodiffBridge,
 };
+use burn_common::sync_type::SyncType;
 use burn_tensor::backend::{AutodiffBackend, Backend};
 use core::marker::PhantomData;
 
@@ -20,8 +22,7 @@ pub struct Autodiff<B, C = NoCheckpointing> {
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type Device = B::Device;
 
-    type FullPrecisionElem = B::FullPrecisionElem;
-    type FullPrecisionBackend = Autodiff<B::FullPrecisionBackend>;
+    type FullPrecisionBridge = AutodiffBridge<B::FullPrecisionBridge>;
 
     type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
     type FloatElem = B::FloatElem;
@@ -30,6 +31,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type IntElem = B::IntElem;
 
     type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
+
+    type QuantizedTensorPrimitive<const D: usize> = B::QuantizedTensorPrimitive<D>;
 
     fn ad_enabled() -> bool {
         true
@@ -43,8 +46,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::seed(seed)
     }
 
-    fn sync(device: &B::Device) {
-        B::sync(device);
+    fn sync(device: &B::Device, sync_type: SyncType) {
+        B::sync(device, sync_type)
     }
 }
 
@@ -53,7 +56,9 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type Gradients = Gradients;
 
     fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
-        backward(tensor)
+        let client = tensor.node.client.clone();
+
+        AutodiffClient::backward(&client, tensor)
     }
 
     fn grad<const D: usize>(
@@ -83,7 +88,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         grad: B::FloatTensorPrimitive<D>,
     ) {
         grads.remove(tensor);
-        grads.register::<B, D>(tensor.node.clone(), grad);
+        grads.register::<B, D>(tensor.node.id, grad);
     }
 
     fn int_inner<const D: usize>(
@@ -107,6 +112,18 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     fn bool_from_inner<const D: usize>(
         tensor: burn_tensor::ops::BoolTensor<Self::InnerBackend, D>,
     ) -> burn_tensor::ops::BoolTensor<Self, D> {
+        tensor
+    }
+
+    fn q_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D> {
+        tensor
+    }
+
+    fn q_from_inner<const D: usize>(
+        tensor: burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D>,
+    ) -> burn_tensor::ops::QuantizedTensor<Self, D> {
         tensor
     }
 }

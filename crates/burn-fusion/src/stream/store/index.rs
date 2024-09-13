@@ -1,4 +1,5 @@
-use crate::stream::{store::ExecutionPlanId, OperationDescription};
+use crate::stream::store::ExecutionPlanId;
+use burn_tensor::repr::OperationDescription;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -115,13 +116,15 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        stream::{
+    use burn_tensor::{
+        repr::{
             BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
+            TensorDescription, TensorId, TensorStatus,
         },
-        TensorDescription, TensorId, TensorStatus,
+        DType,
     };
+
+    use super::*;
 
     #[test]
     fn should_find_optimization_id_based_on_tensor_ops() {
@@ -215,64 +218,75 @@ mod tests {
     }
 
     fn ops_1() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::Add(
-            BinaryOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::Add(BinaryOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: TensorDescription {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 
     fn ops_2() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::AddScalar(
-            ScalarOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::AddScalar(ScalarOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: 5.0,
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 
     fn ops_3() -> OperationDescription {
-        OperationDescription::NumericFloat(NumericOperationDescription::Sub(
-            BinaryOperationDescription {
+        OperationDescription::NumericFloat(
+            DType::F32,
+            NumericOperationDescription::Sub(BinaryOperationDescription {
                 lhs: TensorDescription {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 rhs: TensorDescription {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
+                    dtype: DType::F32,
                 },
                 out: TensorDescription {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
+                    dtype: DType::F32,
                 },
-            },
-        ))
+            }),
+        )
     }
 }

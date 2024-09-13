@@ -1,29 +1,28 @@
 // Language
 use alloc::vec::Vec;
 use core::ops::Range;
-use ndarray::IntoDimension;
+use ndarray::Zip;
 
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
-use crate::element::FloatNdArrayElement;
+use crate::element::{FloatNdArrayElement, QuantElement};
 use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::{backend::Backend, ops::FloatTensorOps, Data, ElementConversion, Shape};
-use burn_tensor::{Distribution, Reader};
-
-// External crates
-use libm::{cos, erf, sin, tanh};
+use burn_tensor::Distribution;
+use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
 
-impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
+use libm::erf;
+
+impl<E: FloatNdArrayElement, Q: QuantElement> FloatTensorOps<Self> for NdArray<E, Q> {
     fn float_from_data<const D: usize>(
-        data: Data<E, D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<E, D> {
         NdArrayTensor::from_data(data)
@@ -40,7 +39,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         } else {
             get_seeded_rng()
         };
-        let tensor = Self::float_from_data(Data::random(shape, distribution, &mut rng), device);
+        let tensor = Self::float_from_data(
+            TensorData::random::<E, _, _>(shape, distribution, &mut rng),
+            device,
+        );
         *seed = Some(rng);
         tensor
     }
@@ -49,13 +51,10 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-    ) -> Reader<Data<<NdArray<E> as Backend>::FloatElem, D>> {
+    async fn float_into_data<const D: usize>(tensor: NdArrayTensor<E, D>) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(Data::new(values, shape))
+        TensorData::new(values, shape)
     }
 
     fn float_device<const D: usize>(_tensor: &NdArrayTensor<E, D>) -> NdArrayDevice {
@@ -118,6 +117,13 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
 
     fn float_div_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
         NdArrayMathOps::div_scalar(lhs, rhs)
+    }
+
+    fn float_remainder_scalar<const D: usize>(
+        lhs: NdArrayTensor<E, D>,
+        rhs: E,
+    ) -> NdArrayTensor<E, D> {
+        NdArrayMathOps::remainder_scalar(lhs, rhs)
     }
 
     fn float_matmul<const D: usize>(
@@ -219,10 +225,11 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<bool, D> {
-        let tensor = NdArray::<E>::float_sub(lhs, rhs);
-        let zero = 0.elem();
-
-        Self::float_equal_elem(tensor, zero)
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn float_equal_elem<const D: usize>(
@@ -332,22 +339,6 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         NdArrayMathOps::sum_dim(tensor, dim)
     }
 
-    fn float_to_full_precision<const D: usize>(
-        tensor: &NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<f32, D> {
-        let array = tensor.array.mapv(|a| a.elem()).into_shared();
-
-        NdArrayTensor::new(array)
-    }
-
-    fn float_from_full_precision<const D: usize>(
-        tensor: NdArrayTensor<f32, D>,
-    ) -> NdArrayTensor<E, D> {
-        let array = tensor.array.mapv(|a| a.elem()).into_shared();
-
-        NdArrayTensor::new(array)
-    }
-
     fn float_argmax<const D: usize>(
         tensor: NdArrayTensor<E, D>,
         dim: usize,
@@ -416,7 +407,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_cos<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| cos(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64()).cos().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -425,7 +416,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_sin<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| sin(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64()).sin().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -434,7 +425,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_tanh<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| tanh(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| (a.to_f64()).tanh().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -443,7 +434,7 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
     fn float_erf<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor
             .array
-            .mapv_into(|a| erf(a.to_f64().unwrap()).elem())
+            .mapv_into(|a| erf(a.to_f64()).elem())
             .into_shared();
 
         NdArrayTensor::new(array)
@@ -483,15 +474,14 @@ impl<E: FloatNdArrayElement> FloatTensorOps<Self> for NdArray<E> {
         lhs: NdArrayTensor<E, D>,
         rhs: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32().unwrap()))
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32()))
     }
 
     fn float_permute<const D: usize>(
         tensor: burn_tensor::ops::FloatTensor<Self, D>,
         axes: [usize; D],
     ) -> burn_tensor::ops::FloatTensor<Self, D> {
-        let array = tensor.array.permuted_axes(axes.into_dimension());
-        NdArrayTensor { array }
+        NdArrayOps::permute(tensor, axes)
     }
 
     fn float_flip<const D: usize>(

@@ -1,15 +1,15 @@
 use alloc::vec::Vec;
-use burn_tensor::Bool;
 
+use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
+
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
+use crate::tensor::Bool;
 use crate::{
     self as burn,
     nn::{attention::MhaCache, cache::TensorCache, Initializer},
 };
-
-use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 use crate::{
     config::Config,
-    module::Module,
     nn::{
         attention::{MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
         Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
@@ -17,7 +17,7 @@ use crate::{
     tensor::{backend::Backend, Tensor},
 };
 
-/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer.
+/// Configuration to create a [Transformer Decoder](TransformerDecoder) layer using the [init function](TransformerDecoderConfig::init).
 #[derive(Config)]
 pub struct TransformerDecoderConfig {
     /// The size of the model.
@@ -44,7 +44,7 @@ pub struct TransformerDecoderConfig {
     pub quiet_softmax: bool,
     /// The type of function used to initialize neural network parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -54,9 +54,54 @@ pub struct TransformerDecoderConfig {
 /// # Params
 ///
 /// - layers: transformer decoder layers with `d_model` input and output features.
+///
+/// Should be created using [TransformerDecoderConfig]
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct TransformerDecoder<B: Backend> {
-    layers: Vec<TransformerDecoderLayer<B>>,
+    /// Transformer decoder layers.
+    pub layers: Vec<TransformerDecoderLayer<B>>,
+
+    /// The size of the model.
+    pub d_model: usize,
+
+    /// The size of the position-wise feed-forward network.
+    pub d_ff: usize,
+
+    /// The number of attention heads.
+    pub n_heads: usize,
+
+    /// The number of layers.
+    pub n_layers: usize,
+
+    /// The dropout rate. Default: 0.1
+    pub dropout: f64,
+
+    /// Layer norm will be applied first instead of after the other modules.
+    pub norm_first: bool,
+
+    /// Use "quiet softmax" instead of regular softmax.
+    pub quiet_softmax: bool,
+}
+
+impl<B: Backend> ModuleDisplay for TransformerDecoder<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("d_model", &self.d_model)
+            .add("d_ff", &self.d_ff)
+            .add("n_heads", &self.n_heads)
+            .add("n_layers", &self.n_layers)
+            .add("dropout", &self.dropout)
+            .add("norm_first", &self.norm_first)
+            .add("quiet_softmax", &self.quiet_softmax)
+            .optional()
+    }
 }
 
 impl TransformerDecoderConfig {
@@ -66,24 +111,15 @@ impl TransformerDecoderConfig {
             .map(|_| TransformerDecoderLayer::new(self, device))
             .collect::<Vec<_>>();
 
-        TransformerDecoder { layers }
-    }
-
-    /// Initialize a new [Transformer Decoder](TransformerDecoder) module with a record.
-    ///
-    /// # Params
-    ///
-    /// - record: the record to initialize the module with.
-    pub fn init_with<B: Backend>(
-        &self,
-        record: TransformerDecoderRecord<B>,
-    ) -> TransformerDecoder<B> {
         TransformerDecoder {
-            layers: record
-                .layers
-                .into_iter()
-                .map(|record| TransformerDecoderLayer::new_with(self, record))
-                .collect(),
+            layers,
+            d_model: self.d_model,
+            d_ff: self.d_ff,
+            n_heads: self.n_heads,
+            n_layers: self.n_layers,
+            dropout: self.dropout,
+            norm_first: self.norm_first,
+            quiet_softmax: self.quiet_softmax,
         }
     }
 }
@@ -222,40 +258,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         }
     }
 
-    fn new_with(
-        config: &TransformerDecoderConfig,
-        record: TransformerDecoderLayerRecord<B>,
-    ) -> Self {
-        let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .with_quiet_softmax(config.quiet_softmax)
-            .init_with(record.self_attn);
-        let cross_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
-            .with_initializer(config.initializer.clone())
-            .with_dropout(config.dropout)
-            .with_quiet_softmax(config.quiet_softmax)
-            .init_with(record.cross_attn);
-        let norm_1 = LayerNormConfig::new(config.d_model).init_with(record.norm_1);
-        let norm_2 = LayerNormConfig::new(config.d_model).init_with(record.norm_2);
-        let norm_3 = LayerNormConfig::new(config.d_model).init_with(record.norm_3);
-        let dropout = DropoutConfig::new(config.dropout).init();
-        let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
-            .with_dropout(config.dropout)
-            .init_with(record.pwff);
-
-        Self {
-            cross_attn,
-            self_attn,
-            norm_1,
-            norm_2,
-            norm_3,
-            pwff,
-            dropout,
-            norm_first: config.norm_first,
-        }
-    }
-
+    /// Applies the TransformerDecoder forward pass to the input tensor.
     fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
@@ -453,8 +456,8 @@ impl<B: Backend> TransformerDecoder<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::Distribution;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
-    use burn_tensor::Distribution;
 
     #[test]
     fn test_autoregressive_norm_last() {
@@ -521,5 +524,17 @@ mod tests {
         output_1
             .into_data()
             .assert_approx_eq(&output_2.into_data(), 3);
+    }
+
+    #[test]
+    fn display() {
+        let config = TransformerDecoderConfig::new(2, 4, 2, 3);
+        let transformer = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", transformer),
+            "TransformerDecoder {d_model: 2, d_ff: 4, n_heads: 2, n_layers: 3, \
+            dropout: 0.1, norm_first: false, quiet_softmax: false, params: 246}"
+        );
     }
 }

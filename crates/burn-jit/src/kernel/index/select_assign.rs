@@ -1,183 +1,50 @@
-use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Branch, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    kernel::{elemwise_workgroup, DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
-    tensor::JitTensor,
-    Runtime,
-};
-use std::marker::PhantomData;
+use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use cubecl::prelude::*;
+use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
-pub struct SelectAssignComputeShader {
-    tensor: Variable,
-    indices: Variable,
-    value: Variable,
-    dim: usize,
-}
+#[cube(launch_unchecked)]
+fn select_assign_kernel<F: Numeric, I: Numeric>(
+    tensor: &mut Tensor<F>,
+    indices: &Tensor<I>,
+    value: &Tensor<F>,
+    dim: &u32,
+) {
+    let dim = *dim;
+    let mut offset_tensor = 0u32;
+    let mut offset_value = 0u32;
+    let mut num_elems = 1u32;
 
-#[derive(new)]
-pub struct SelectAssignEagerKernel<R: Runtime, E: JitElement> {
-    dim: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
+    // Calculate offsets and num_elems
+    for i in 0..tensor.rank() {
+        if i != dim {
+            let shape_tensor = tensor.shape(i);
 
-impl SelectAssignComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        let tensor = self.tensor;
-        let value = self.value;
-        let indices = self.indices;
-        let id = Variable::Id;
+            num_elems *= shape_tensor;
 
-        let offset_tensor = scope.zero(Elem::UInt);
-        let offset_value = scope.zero(Elem::UInt);
+            let ogwl = ABSOLUTE_POS / indices.stride(i);
 
-        let stride_tensor_dim = scope.create_local(Elem::UInt);
-        let stride_value_dim = scope.create_local(Elem::UInt);
-        let shape_value_dim = scope.create_local(Elem::UInt);
-
-        let num_elems = scope.create_local(Elem::UInt);
-        gpu!(scope, num_elems = cast(1u32));
-
-        gpu!(
-            scope,
-            range(0u32, Variable::Rank).for_each(|i, scope| {
-                let shape_value = scope.create_local(Elem::UInt);
-                let stride_tensor = scope.create_local(Elem::UInt);
-                let stride_value = scope.create_local(Elem::UInt);
-
-                gpu!(scope, stride_tensor = stride(tensor, i));
-                gpu!(scope, stride_value = stride(value, i));
-                gpu!(scope, shape_value = shape(value, i));
-
-                let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
-
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, shape_value_dim = shape_value);
-                    gpu!(scope, stride_tensor_dim = stride_tensor);
-                    gpu!(scope, stride_value_dim = stride_value);
-                }).else(|scope| {
-                    let stride_tmp = scope.create_local(Elem::UInt);
-                    let shape_tensor = scope.create_local(Elem::UInt);
-
-                    gpu!(scope, stride_tmp = stride(indices, i));
-                    gpu!(scope, shape_tensor = shape(tensor, i));
-
-                    gpu!(scope, num_elems = num_elems * shape_tensor);
-
-                    let offset_local = scope.create_local(Elem::UInt);
-                    let offset_local_tensor = scope.create_local(Elem::UInt);
-                    let offset_local_value = scope.create_local(Elem::UInt);
-
-                    gpu!(scope, offset_local = id / stride_tmp);
-
-                    gpu!(scope, offset_local_tensor = offset_local % shape_tensor);
-                    gpu!(
-                        scope,
-                        offset_local_tensor = offset_local_tensor * stride_tensor
-                    );
-                    gpu!(scope, offset_tensor += offset_local_tensor);
-
-                    gpu!(scope, offset_local_value = offset_local % shape_value);
-                    gpu!(
-                        scope,
-                        offset_local_value = offset_local_value * stride_value
-                    );
-                    gpu!(scope, offset_value += offset_local_value);
-                }));
-            })
-        );
-
-        let should_stop = scope.create_local(Elem::Bool);
-        gpu!(scope, should_stop = id >= num_elems);
-        gpu!(scope, if(should_stop).then(|scope| {
-            scope.register(Branch::Return);
-        }));
-
-        gpu!(
-            scope,
-            range(0u32, shape_value_dim).for_each(|i, scope| {
-                let index = scope.create_local(Elem::UInt);
-                let index_tensor = scope.create_local(Elem::UInt);
-                let index_value = scope.create_local(Elem::UInt);
-
-                let result_tensor = scope.create_local(tensor.item());
-                let result_value = scope.create_local(value.item());
-                let result = scope.create_local(tensor.item());
-
-                gpu!(scope, index = indices[i]);
-
-                gpu!(scope, index_tensor = index * stride_tensor_dim);
-                gpu!(scope, index_tensor += offset_tensor);
-
-                gpu!(scope, index_value = i * stride_value_dim);
-                gpu!(scope, index_value += offset_value);
-
-                gpu!(scope, result_tensor = tensor[index_tensor]);
-                gpu!(scope, result_value = value[index_value]);
-                gpu!(scope, result = result_value + result_tensor);
-
-                gpu!(scope, tensor[index_tensor] = result);
-            })
-        );
-    }
-}
-
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectAssignEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-        let item_indices: Item = Elem::Int.into();
-
-        let tensor = Variable::GlobalInputArray(0, item);
-        let value = Variable::GlobalInputArray(1, item);
-        let indices = Variable::GlobalInputArray(2, item_indices);
-
-        scope.write_global_custom(tensor);
-
-        SelectAssignComputeShader {
-            tensor,
-            indices,
-            value,
-            dim: self.dim,
+            offset_tensor += ogwl % shape_tensor * tensor.stride(i);
+            offset_value += ogwl % value.shape(i) * value.stride(i);
         }
-        .expand(&mut scope);
-
-        let tensor = InputInfo::Array {
-            item,
-            visibility: Visibility::ReadWrite,
-        };
-        let value = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let indices = InputInfo::Array {
-            item: item_indices,
-            visibility: Visibility::Read,
-        };
-
-        let info = CompilationInfo {
-            inputs: vec![tensor, value, indices],
-            outputs: vec![],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
+    if ABSOLUTE_POS >= num_elems {
+        return;
+    }
+
+    let strides_tensor_dim = tensor.stride(dim);
+    let strides_value_dim = value.stride(dim);
+
+    // Main operation
+    for i in 0..value.shape(dim) {
+        let index_tensor = u32::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
+        let index_value = i * strides_value_dim + offset_value;
+
+        tensor[index_tensor] += value[index_value];
     }
 }
 
-pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,
@@ -190,7 +57,7 @@ pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: u
 
     let mut strides = [0; D];
     let mut current = 1;
-    let mut num_elems_per_workgroup = 1;
+    let mut num_elems = 1;
 
     tensor
         .shape
@@ -202,26 +69,23 @@ pub(crate) fn select_assign<R: Runtime, E: JitElement, I: JitElement, const D: u
         .for_each(|(index, val)| {
             strides[index] = current;
             current *= val;
-            num_elems_per_workgroup *= tensor.shape.dims[index];
+            num_elems *= tensor.shape.dims[index];
         });
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    let kernel = SelectAssignEagerKernel::new(dim);
-    let workgroup = elemwise_workgroup(num_elems_per_workgroup, WORKGROUP_DEFAULT);
-
-    execute_dynamic::<R, SelectAssignEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            EagerHandle::new(&value.handle, &value.strides, &value.shape.dims),
-            // We use the custom strides here instead of the shape, since we don't use it in the
-            // kernel, but we need to put the right number of dimensions (rank).
-            EagerHandle::new(&indices.handle, &strides, &strides),
-        ],
-        &[],
-        None,
-        kernel,
-        WorkgroupLaunch::Custom(workgroup),
-        indices.client,
-    );
+    unsafe {
+        select_assign_kernel::launch_unchecked::<E, I, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            // Ignored shape + custom strides.
+            TensorArg::from_raw_parts(&indices.handle, &strides, &strides, 1),
+            value.as_tensor_arg(1),
+            ScalarArg::new(dim as u32),
+        );
+    };
 
     tensor
 }

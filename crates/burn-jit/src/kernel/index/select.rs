@@ -1,151 +1,59 @@
-use crate::{
-    codegen::{
-        dialect::gpu::{gpu, Elem, Item, Scope, Variable, Visibility},
-        execute_dynamic, Compilation, CompilationInfo, CompilationSettings, Compiler, EagerHandle,
-        InputInfo, OutputInfo, WorkgroupLaunch,
-    },
-    element::JitElement,
-    kernel::{DynamicKernelSource, SourceTemplate},
-    ops::numeric::empty_device,
-    tensor::JitTensor,
-    Runtime,
-};
-use std::marker::PhantomData;
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use cubecl::prelude::*;
+use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
-#[derive(new)]
-struct SelectEagerKernel<R: Runtime, E: JitElement> {
-    dim: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
-
-pub struct SelectComputeShader {
-    input: Variable,
-    indices: Variable,
-    output: Variable,
-    dim: usize,
-}
-
-impl SelectComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        let input = self.input;
-        let indices = self.indices;
-        let output = self.output;
-        let id = Variable::Id;
-        let offset_input = scope.zero(Elem::UInt);
-
-        gpu!(
-            scope,
-            range(0u32, Variable::Rank).for_each(|i, scope| {
-                let stride_input = scope.create_local(Elem::UInt);
-                let stride_output = scope.create_local(Elem::UInt);
-                let shape_output = scope.create_local(Elem::UInt);
-
-                gpu!(scope, stride_input = stride(input, i));
-                gpu!(scope, stride_output = stride(output, i));
-                gpu!(scope, shape_output = shape(output, i));
-
-                let offset_local = scope.create_local(Elem::UInt);
-                gpu!(scope, offset_local = id / stride_output);
-                gpu!(scope, offset_local = offset_local % shape_output);
-
-                let dim_index = scope.create_local(Elem::Bool);
-                gpu!(scope, dim_index = i == self.dim);
-
-                gpu!(scope, if(dim_index).then(|scope| {
-                    gpu!(scope, offset_local = indices[offset_local]);
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                }).else(|scope| {
-                    gpu!(scope, offset_local = offset_local * stride_input);
-                }));
-
-                gpu!(scope, offset_input += offset_local);
-            })
-        );
-
-        let value = scope.create_local(input.item());
-        gpu!(scope, value = input[offset_input]);
-        gpu!(scope, output[id] = value);
+#[cube(launch_unchecked)]
+fn select_kernel<T: Numeric, I: Numeric>(
+    input: &Tensor<T>,
+    indices: &Tensor<I>,
+    output: &mut Tensor<T>,
+    dim: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
     }
-}
 
-impl<R: Runtime, E: JitElement> DynamicKernelSource for SelectEagerKernel<R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
-        let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
-        let item_indices: Item = Elem::Int.into();
+    let mut offset_input = 0;
 
-        let input = Variable::GlobalInputArray(0, item);
-        let indices = Variable::GlobalInputArray(1, item_indices);
-        let output = Variable::GlobalOutputArray(0, item);
+    for i in 0..output.rank() {
+        let mut offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i);
 
-        scope.write_global_custom(output);
-
-        SelectComputeShader {
-            input,
-            indices,
-            output,
-            dim: self.dim,
+        if i == dim {
+            offset_local = u32::cast_from(indices[offset_local]);
         }
-        .expand(&mut scope);
 
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let indices = InputInfo::Array {
-            item: item_indices,
-            visibility: Visibility::Read,
-        };
-        let output = OutputInfo::Array { item };
-
-        let info = CompilationInfo {
-            inputs: vec![input, indices],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        offset_input += offset_local * input.stride(i);
     }
 
-    fn id(&self) -> String {
-        format!("{:?}dim={}", core::any::TypeId::of::<Self>(), self.dim)
-    }
+    output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: Runtime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
     tensor: JitTensor<R, E, D>,
     dim: usize,
     indices: JitTensor<R, I, 1>,
 ) -> JitTensor<R, E, D> {
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
+    let total_elem = shape_output.num_elements();
 
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    let kernel = SelectEagerKernel::new(dim);
 
-    execute_dynamic::<R, SelectEagerKernel<R, E>, E>(
-        &[
-            EagerHandle::new(&tensor.handle, &tensor.strides, &tensor.shape.dims),
-            // This is a current hacks because the info buffer that contains the strides and shapes is
-            // hardcoded to only contains information about tensors of the same rank. However, since
-            // we don't rely on the shape and stride of the indices tensors, it doesn't matter
-            // which value we put, it just needs to be of the same rank.
-            EagerHandle::new(&indices.handle, &[1; D], &[1; D]),
-        ],
-        &[EagerHandle::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )],
-        None,
-        kernel,
-        WorkgroupLaunch::Output { pos: 0 },
-        tensor.client,
-    );
+    let dummy_array = [1; D];
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
+    unsafe {
+        select_kernel::launch_unchecked::<E, I, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            // Ignore shape and stride
+            TensorArg::from_raw_parts(&indices.handle, &dummy_array, &dummy_array, 1),
+            output.as_tensor_arg(1),
+            ScalarArg::new(dim as u32),
+        )
+    };
     output
 }

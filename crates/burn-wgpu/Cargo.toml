@@ -7,33 +7,26 @@ keywords = ["deep-learning", "machine-learning", "gpu", "wgpu", "webgpu"]
 license.workspace = true
 name = "burn-wgpu"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-wgpu"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-wgpu"
 version.workspace = true
 
 [features]
-default = ["fusion", "burn-jit/default"]
+default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 autotune = ["burn-jit/autotune"]
+template = ["burn-jit/template", "cubecl/template"]
 doc = ["burn-jit/doc"]
-std = ["burn-jit/std"]
+std = ["burn-jit/std", "cubecl/std"]
+simple-memory-management = ["cubecl/simple-memory-management"]
 
 [dependencies]
-burn-jit = { path = "../burn-jit", version = "0.13.0", default-features = false }
-burn-compute = { path = "../burn-compute", version = "0.13.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.13.0" }
-burn-common = { path = "../burn-common", version = "0.13.0" }
-burn-fusion = { path = "../burn-fusion", version = "0.13.0", optional = true }
+cubecl = { workspace = true, features = ["wgpu"] }
 
-bytemuck = { workspace = true }
-wgpu = { workspace = true, features = ["fragile-send-sync-non-atomic-wasm"] }
-pollster = { workspace = true }
-
-log = { workspace = true }
-futures-intrusive = { workspace = true }
-derive-new = { workspace = true }
-hashbrown = { workspace = true }
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = ["cubecl-wgpu"] }
+burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
 
 [dev-dependencies]
-burn-jit = { path = "../burn-jit", version = "0.13.0", default-features = false, features = [
+burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }

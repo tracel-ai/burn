@@ -166,11 +166,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         visitor.visit_i64(self.value.unwrap().as_i64().unwrap().to_owned())
     }
 
-    fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_u8 is not implemented")
+        visitor.visit_u8(self.value.unwrap().as_u8().unwrap().to_owned())
     }
 
     fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -229,11 +229,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         unimplemented!("deserialize_bytes is not implemented")
     }
 
-    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        unimplemented!("deserialize_byte_buf is not implemented")
+        visitor.visit_byte_buf(self.value.unwrap().as_bytes().unwrap())
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -286,13 +286,31 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        if let Some(NestedValue::Vec(vec)) = self.value {
-            visitor.visit_seq(VecSeqAccess::<A>::new(vec, self.default_for_missing_fields))
+        if let Some(value) = self.value {
+            match value {
+                NestedValue::Vec(_) => visitor.visit_seq(VecSeqAccess::<A, NestedValue>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )),
+                NestedValue::U8s(_) => visitor.visit_seq(VecSeqAccess::<A, u8>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )),
+                NestedValue::U16s(_) => visitor.visit_seq(VecSeqAccess::<A, u16>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )),
+                NestedValue::F32s(_) => visitor.visit_seq(VecSeqAccess::<A, f32>::new(
+                    value,
+                    self.default_for_missing_fields,
+                )),
+                _ => Err(de::Error::custom(format!(
+                    "Expected Vec but got {:?}",
+                    value
+                ))),
+            }
         } else {
-            Err(de::Error::custom(format!(
-                "Expected Vec but got {:?}",
-                self.value
-            )))
+            Err(de::Error::custom("Expected Vec but got None"))
         }
     }
 
@@ -348,13 +366,13 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
         fn clone_unsafely<T>(thing: &T) -> T {
             unsafe {
                 // Allocate memory for the clone.
-                let clone = ptr::null_mut();
-                // Correcting pointer usage based on feedback
-                let clone = ptr::addr_of_mut!(*clone);
+                let mut clone = std::mem::MaybeUninit::<T>::uninit();
+                // Get a mutable pointer to the allocated memory.
+                let clone_ptr = clone.as_mut_ptr();
                 // Copy the memory
-                ptr::copy_nonoverlapping(thing as *const T, clone, 1);
-                // Transmute the cloned data pointer into an owned instance of T.
-                ptr::read(clone)
+                ptr::copy_nonoverlapping(thing as *const T, clone_ptr, 1);
+                // Assume the cloned data is initialized and convert it to an owned instance of T.
+                clone.assume_init()
             }
         }
 
@@ -385,23 +403,70 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
 }
 
 /// A sequence access for a vector in the nested value data structure.
-struct VecSeqAccess<A: BurnModuleAdapter> {
-    iter: std::vec::IntoIter<NestedValue>,
+struct VecSeqAccess<A: BurnModuleAdapter, I> {
+    iter: Box<dyn Iterator<Item = I>>,
     default_for_missing_fields: bool,
     phantom: std::marker::PhantomData<A>,
 }
 
-impl<A: BurnModuleAdapter> VecSeqAccess<A> {
-    fn new(vec: Vec<NestedValue>, default_for_missing_fields: bool) -> Self {
-        VecSeqAccess {
-            iter: vec.into_iter(),
-            default_for_missing_fields,
-            phantom: std::marker::PhantomData,
+// Concrete implementation for `Vec<NestedValue>`
+impl<A: BurnModuleAdapter> VecSeqAccess<A, NestedValue> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
+        match vec {
+            NestedValue::Vec(v) => VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            },
+            _ => panic!("Invalid vec sequence"),
         }
     }
 }
 
-impl<'de, A> SeqAccess<'de> for VecSeqAccess<A>
+// Concrete implementation for `Vec<u8>`
+impl<A: BurnModuleAdapter> VecSeqAccess<A, u8> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
+        match vec {
+            NestedValue::U8s(v) => VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            },
+            _ => panic!("Invalid vec sequence"),
+        }
+    }
+}
+
+// Concrete implementation for `Vec<u16>`
+impl<A: BurnModuleAdapter> VecSeqAccess<A, u16> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
+        match vec {
+            NestedValue::U16s(v) => VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            },
+            _ => panic!("Invalid vec sequence"),
+        }
+    }
+}
+
+// Concrete implementation for `Vec<f32>`
+impl<A: BurnModuleAdapter> VecSeqAccess<A, f32> {
+    fn new(vec: NestedValue, default_for_missing_fields: bool) -> Self {
+        match vec {
+            NestedValue::F32s(v) => VecSeqAccess {
+                iter: Box::new(v.into_iter()),
+                default_for_missing_fields,
+                phantom: std::marker::PhantomData,
+            },
+            _ => panic!("Invalid vec sequence"),
+        }
+    }
+}
+
+// Concrete implementation for `Vec<NestedValue>`
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, NestedValue>
 where
     NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
     A: BurnModuleAdapter,
@@ -419,6 +484,81 @@ where
 
         seed.deserialize(
             NestedValueWrapper::<A>::new(item, self.default_for_missing_fields).into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+// Concrete implementation for `Vec<u8>`
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, u8>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::U8(item), self.default_for_missing_fields)
+                .into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+// Concrete implementation for `Vec<u16>`
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, u16>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::U16(item), self.default_for_missing_fields)
+                .into_deserializer(),
+        )
+        .map(Some)
+    }
+}
+
+// Concrete implementation for `Vec<f32>`
+impl<'de, A> SeqAccess<'de> for VecSeqAccess<A, f32>
+where
+    NestedValueWrapper<A>: IntoDeserializer<'de, Error>,
+    A: BurnModuleAdapter,
+{
+    type Error = Error;
+
+    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        let item = match self.iter.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        seed.deserialize(
+            NestedValueWrapper::<A>::new(NestedValue::F32(item), self.default_for_missing_fields)
+                .into_deserializer(),
         )
         .map(Some)
     }
@@ -534,7 +674,24 @@ where
     }
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        unimplemented!("unit variant is not implemented because it is not used in the burn module")
+        // Support tensor `DType` deserialization
+        match self.value {
+            NestedValue::Map(value) if value.contains_key("DType") => {
+                match value.get("DType") {
+                    Some(NestedValue::String(variant)) => {
+                        if *variant == self.current_variant {
+                            Ok(())
+                        } else {
+                            Err(Error::Other("Wrong variant".to_string())) // wrong match
+                        }
+                    }
+                    _ => panic!("expected DType variant as string"),
+                }
+            }
+            _ => unimplemented!(
+                "unit variant is not implemented because it is not used in the burn module"
+            ),
+        }
     }
 
     fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>

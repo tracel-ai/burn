@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
-use burn_tensor::Data;
 use burn_tensor::ElementConversion;
+use burn_tensor::TensorData;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -111,6 +111,15 @@ where
     ) -> NdArrayTensor<E, D> {
         let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
+
+        NdArrayTensor::new(array)
+    }
+
+    pub fn permute<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        axes: [usize; D],
+    ) -> NdArrayTensor<E, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
 
         NdArrayTensor::new(array)
     }
@@ -232,6 +241,16 @@ where
         NdArrayTensor { array }
     }
 
+    pub fn remainder_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D>
+    where
+        E: core::ops::Rem<Output = E>,
+    {
+        let array = lhs.array.mapv(|x| ((x % rhs) + rhs) % rhs);
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
     pub fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
         let array = tensor.array.map(|x| 1.elem::<E>() / *x);
         let array = array.into_shared();
@@ -240,17 +259,17 @@ where
     }
 
     pub fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        let data = Data::from([tensor.array.mean().unwrap()]);
+        let data = TensorData::from([tensor.array.mean().unwrap()]);
         NdArrayTensor::from_data(data)
     }
 
     pub fn sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        let data = Data::from([tensor.array.sum()]);
+        let data = TensorData::from([tensor.array.sum()]);
         NdArrayTensor::from_data(data)
     }
 
     pub fn prod<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
-        let data = Data::from([tensor.array.product()]);
+        let data = TensorData::from([tensor.array.product()]);
         NdArrayTensor::from_data(data)
     }
 
@@ -390,17 +409,14 @@ where
         mask: NdArrayTensor<bool, D>,
         source: NdArrayTensor<E, D>,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul_4tensor = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_mul_4source = mask.array.mapv(|x| match x {
-            true => 1.elem(),
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul_4tensor) + (source.array * mask_mul_4source);
-
-        NdArrayTensor::new(array)
+        let tensor = tensor.array.broadcast(mask.array.dim()).unwrap();
+        let source = source.array.broadcast(mask.array.dim()).unwrap();
+        let output = Zip::from(&tensor)
+            .and(&mask.array)
+            .and(&source)
+            .map_collect(|&x, &mask_val, &y| if mask_val { y } else { x })
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     pub fn mask_fill<const D: usize>(
@@ -408,17 +424,16 @@ where
         mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_add = mask.array.mapv(|x| match x {
-            true => value,
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul) + mask_add;
-
-        NdArrayTensor::new(array)
+        let mut output = tensor.array.clone();
+        let broadcast_mask = mask.array.broadcast(output.dim()).unwrap();
+        Zip::from(&mut output)
+            .and(&broadcast_mask)
+            .for_each(|out, &mask_val| {
+                if mask_val {
+                    *out = value;
+                }
+            });
+        NdArrayTensor::new(output.into_shared())
     }
 
     fn gather_batch_size<const D: usize>(
@@ -553,16 +568,18 @@ where
     where
         E: Signed,
     {
+        let zero = 0.elem();
+        let one = 1.elem::<E>();
         NdArrayTensor::new(
             tensor
                 .array
                 .mapv(|x| {
-                    if x > E::zero() {
-                        E::one()
-                    } else if x < E::zero() {
-                        -E::one()
+                    if x > zero {
+                        one
+                    } else if x < zero {
+                        -one
                     } else {
-                        E::zero()
+                        zero
                     }
                 })
                 .into_shared(),
@@ -601,7 +618,7 @@ fn arg<E: NdArrayElement, const D: usize>(
         idx as i64
     });
 
-    let output = output.into_shape(Dim(reshape.as_slice())).unwrap();
+    let output = output.to_shape(Dim(reshape.as_slice())).unwrap();
 
     NdArrayTensor {
         array: output.into_shared(),
@@ -616,7 +633,7 @@ mod tests {
     fn should_generate_row_major_layout_for_cat() {
         let expected_shape: &[usize] = &[4, 6, 2];
         let expected_strides: &[isize] = &[12, 2, 1];
-        let expected_array = NdArrayTensor::from_data(Data::<i32, 3>::from([
+        let expected_array: NdArrayTensor<i32, 3> = NdArrayTensor::from_data(TensorData::from([
             [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0]],
             [[7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0]],
             [[13, 0], [14, 0], [15, 0], [16, 0], [17, 0], [18, 0]],
@@ -625,7 +642,7 @@ mod tests {
 
         // unsqueeze dim on the outermost axis
         let array = NdArrayOps::reshape(
-            NdArrayTensor::from_data(Data::<i32, 2>::from([
+            NdArrayTensor::<i32, 3>::from_data(TensorData::from([
                 [1, 2, 3, 4, 5, 6],
                 [7, 8, 9, 10, 11, 12],
                 [13, 14, 15, 16, 17, 18],
@@ -633,7 +650,7 @@ mod tests {
             ])),
             Shape::from([4, 6, 1]),
         );
-        let zeros = NdArrayTensor::<i32, 3>::from_data(Data::zeros([4, 6, 1]));
+        let zeros = NdArrayTensor::<i32, 3>::from_data(TensorData::zeros::<i32, _>([4, 6, 1]));
         // make `ndarray` concatenates array on the outermost axis
         let array = NdArrayOps::cat([array, zeros].to_vec(), 2);
 

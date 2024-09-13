@@ -7,12 +7,12 @@ use hashbrown::HashMap;
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 
-use crate::{backend::Backend, Tensor};
+use crate::{backend::Backend, Tensor, TensorPrimitive};
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<ID> {
-    tensors: HashMap<ID, Box<dyn Any + Send + Sync>>,
+    tensors: HashMap<ID, Box<dyn Any + Send>>,
 }
 
 impl<ID> Default for TensorContainer<ID>
@@ -23,8 +23,6 @@ where
         Self::new()
     }
 }
-
-type TensorPrimitive<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
 
 impl<ID> TensorContainer<ID>
 where
@@ -42,10 +40,7 @@ where
     where
         B: Backend,
     {
-        let grad = match self.tensors.get(id) {
-            Some(grad) => grad,
-            None => return None,
-        };
+        let grad = self.tensors.get(id)?;
 
         let tensor = grad
             .downcast_ref::<TensorPrimitive<B, D>>()

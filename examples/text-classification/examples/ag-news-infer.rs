@@ -74,10 +74,20 @@ mod tch_cpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::{launch, ElemType};
-    use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+    use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
     pub fn run() {
-        launch::<Wgpu<AutoGraphicsApi, ElemType, i32>>(WgpuDevice::default());
+        launch::<Wgpu<ElemType, i32>>(WgpuDevice::default());
+    }
+}
+
+#[cfg(feature = "cuda-jit")]
+mod cuda_jit {
+    use crate::{launch, ElemType};
+    use burn::backend::{cuda_jit::CudaDevice, CudaJit};
+
+    pub fn run() {
+        launch::<CudaJit<ElemType, i32>>(CudaDevice::default());
     }
 }
 
@@ -95,4 +105,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
+    #[cfg(feature = "cuda-jit")]
+    cuda_jit::run();
 }

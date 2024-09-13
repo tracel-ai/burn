@@ -16,7 +16,7 @@ solution.
 
    This can include constants, database connections, other module references, or any other
    information. Only parameters should be serialized since the structure of the module itself should
-   be encapsulated with module configurations (hyper-parameters).
+   be encapsulated with module configurations (hyperparameters).
 
 3. **Users should be able to declare the format in which the module should be saved.**
 
@@ -45,19 +45,19 @@ main types and traits used in the solution.
 
 <div align="center">
 <h4>Module Serialization Types</h4>
-<img src="./assets/ModuleSerialization.png" width="700px"/>
+<img src="./module-serialization.png" width="700px"/>
 <div align="left">
 
 The way the types interact with each other is pretty straightforward. First, a module can be
 converted into a record using `into_record()`. Note that tensors can be cloned, but it won't
-actually copy any data; it will create another reference to the same data.
+actually copy any data; it will simply create another reference to the same data.
 
 Then, a `Recorder` instance can be used to serialize any record. The `Recorder` has the
 `PrecisionSettings` type as associate type, so any record will be serialized using the settings
 provided at the creation of the `Recorder` instance. Note that tensors implement record, and their
 item is just a wrapper struct that contains information about the precision in which the tensor
 should be saved or loaded. No actual copy of the tensor is made until this point. The tensor is
-converted to the `Data` struct and then converted into the specified precision only when
+converted to the `TensorData` struct and then converted into the specified precision only when
 `serialize()` or `deserialize()` are called, which makes the whole process lazy.
 
 To recapitulate, the `Module` trait has an associated type that implements `Record`, which only

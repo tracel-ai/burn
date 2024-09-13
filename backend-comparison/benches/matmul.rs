@@ -1,6 +1,9 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 use derive_new::new;
 
 #[derive(new)]
@@ -37,23 +40,35 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
-    let batch_size = 3;
-    let m = 1024;
+    let batch_size = 8;
+    let m = 2048;
     let k = 2048;
-    let n = 1024;
+    let n = 2048;
     let shape_lhs = [batch_size, m, k].into();
     let shape_rhs = [batch_size, k, n].into();
 
     let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {

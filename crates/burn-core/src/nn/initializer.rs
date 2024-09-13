@@ -1,11 +1,14 @@
-use burn_tensor::Shape;
-use libm::sqrt;
+use crate::tensor::Shape;
 
 use crate::config::Config;
+use crate::module::{Param, ParamId};
 use crate::tensor::backend::Backend;
 use crate::tensor::{Distribution, Tensor};
 
 use crate as burn;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 /// Enum specifying with what values a tensor should be initialized
 #[derive(Config, Debug, PartialEq)]
@@ -68,7 +71,7 @@ pub enum Initializer {
 }
 
 impl Initializer {
-    /// Inits a tensor of given shape with values depending on initializer kind.
+    /// Inits a tensor parameter of given shape with values depending on initializer kind.
     ///
     /// # Params
     ///
@@ -77,19 +80,43 @@ impl Initializer {
         &self,
         shape: S,
         device: &B::Device,
-    ) -> Tensor<B, D> {
+    ) -> Param<Tensor<B, D>> {
         self.init_with(shape, None, None, device)
     }
 
-    /// Inits a tensor of given shape with values depending on initializer kind, with the possibility
-    /// of specifying fan in and fan out
+    /// Inits a tensor parameter of given shape with values depending on initializer kind.
     ///
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    /// - fan_in: `Option<usize>`, the fan in to use in initialization formula, if needed
-    /// - fan_out: `Option<usize>`, the fan out to use in initialization formula, if needed
     pub fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+        &self,
+        shape: S,
+        fan_in: Option<usize>,
+        fan_out: Option<usize>,
+        device: &B::Device,
+    ) -> Param<Tensor<B, D>> {
+        let device = device.clone();
+        let shape: Shape<D> = shape.into();
+        let config = self.clone();
+
+        Param::uninitialized(
+            ParamId::new(),
+            move |device, require_grad| {
+                let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
+
+                if require_grad {
+                    tensor = tensor.require_grad();
+                }
+
+                tensor
+            },
+            device,
+            true,
+        )
+    }
+
+    fn init_tensor<B: Backend, const D: usize, S: Into<Shape<D>>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
@@ -104,7 +131,7 @@ impl Initializer {
             Initializer::Uniform { min, max } => uniform_draw(shape, *min, *max, device),
             Initializer::Normal { mean, std } => normal_draw(shape, *mean, *std, device),
             Initializer::KaimingUniform { gain, fan_out_only } => {
-                let a = sqrt(3.0) * *gain * self.kaiming_std(*fan_out_only, fan_in, fan_out);
+                let a = 3.0f64.sqrt() * *gain * self.kaiming_std(*fan_out_only, fan_in, fan_out);
                 uniform_draw(shape, -a, a, device)
             }
             Initializer::KaimingNormal { gain, fan_out_only } => {
@@ -112,7 +139,7 @@ impl Initializer {
                 normal_draw(shape, 0.0, std, device)
             }
             Initializer::XavierUniform { gain } => {
-                let a = sqrt(3.0) * *gain * self.xavier_std(fan_in, fan_out);
+                let a = 3.0f64.sqrt() * *gain * self.xavier_std(fan_in, fan_out);
                 uniform_draw(shape, -a, a, device)
             }
             Initializer::XavierNormal { gain } => {
@@ -133,7 +160,7 @@ impl Initializer {
             "Can't use Kaiming initialization without specifying fan. Use init_with method.",
         );
 
-        1.0 / sqrt(fan as f64)
+        1.0 / (fan as f64).sqrt()
     }
 
     fn xavier_std(&self, fan_in: Option<usize>, fan_out: Option<usize>) -> f64 {
@@ -145,7 +172,7 @@ impl Initializer {
             "Can't use Xavier initialization without specifying fan out. Use init_with method and \
              provide fan_out.",
         );
-        sqrt(2.0 / (fan_in + fan_out) as f64)
+        (2.0 / (fan_in + fan_out) as f64).sqrt()
     }
 }
 
@@ -173,16 +200,25 @@ fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
 mod tests {
     use super::*;
 
-    use burn_tensor::{Data, ElementConversion};
+    use crate::tensor::{ElementConversion, TensorData};
+    use num_traits::Pow;
 
     pub type TB = burn_ndarray::NdArray<f32>;
 
     fn assert_normal_init(expected_mean: f64, expected_var: f64, tensor: &Tensor<TB, 2>) {
         let (actual_vars, actual_means) = tensor.clone().var_mean(0);
+        let actual_vars = actual_vars.to_data();
+        let actual_vars = actual_vars
+            .as_slice::<<TB as Backend>::FloatElem>()
+            .unwrap();
+        let actual_means = actual_means.to_data();
+        let actual_means = actual_means
+            .as_slice::<<TB as Backend>::FloatElem>()
+            .unwrap();
 
         for i in 0..tensor.shape().dims[0] {
-            let actual_var = actual_vars.to_data().value[i] as f64;
-            let actual_mean = actual_means.to_data().value[i] as f64;
+            let actual_var = actual_vars[i] as f64;
+            let actual_mean = actual_means[i] as f64;
 
             assert!(
                 (expected_var - actual_var).abs() <= 0.1,
@@ -201,7 +237,7 @@ mod tests {
 
         let (min, max) = (0.0, 1.0);
         let uniform = Initializer::Uniform { min, max };
-        let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default());
+        let tensor: Tensor<TB, 4> = uniform.init([2, 2, 2, 2], &Default::default()).into_value();
 
         tensor.into_data().assert_within_range(min..max);
     }
@@ -211,8 +247,9 @@ mod tests {
         // seed random generator
         TB::seed(0);
         let (mean, std) = (0.0, 1.0);
-        let normal: Tensor<TB, 1> =
-            Initializer::Normal { mean, std }.init([1000], &Default::default());
+        let normal: Tensor<TB, 1> = Initializer::Normal { mean, std }
+            .init([1000], &Default::default())
+            .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
         let var_act: f32 = var_act.into_scalar().elem();
@@ -231,29 +268,34 @@ mod tests {
     #[test]
     fn initializer_constant_init() {
         let value = 5.0;
-        let constants: Tensor<TB, 4> =
-            Initializer::Constant { value }.init([2, 2, 2, 2], &Default::default());
+        let constants: Tensor<TB, 4> = Initializer::Constant { value }
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         constants
             .sum()
             .to_data()
-            .assert_approx_eq(&Data::from([value as f32 * 16.0]), 3);
+            .assert_approx_eq(&TensorData::from([value as f32 * 16.0]), 3);
     }
 
     #[test]
     fn initializer_zeros_init() {
-        let zeros: Tensor<TB, 4> = Initializer::Zeros.init([2, 2, 2, 2], &Default::default());
+        let zeros: Tensor<TB, 4> = Initializer::Zeros
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         zeros
             .sum()
             .to_data()
-            .assert_approx_eq(&Data::from([0.0]), 3);
+            .assert_approx_eq(&TensorData::from([0.0]), 3);
     }
 
     #[test]
     fn initializer_ones_init() {
-        let ones: Tensor<TB, 4> = Initializer::Ones.init([2, 2, 2, 2], &Default::default());
+        let ones: Tensor<TB, 4> = Initializer::Ones
+            .init([2, 2, 2, 2], &Default::default())
+            .into_value();
         ones.sum()
             .to_data()
-            .assert_approx_eq(&Data::from([16.0]), 3);
+            .assert_approx_eq(&TensorData::from([16.0]), 3);
     }
 
     #[test]
@@ -262,13 +304,14 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * sqrt(3.0 / fan_in as f64);
+        let k = gain * (3.0 / fan_in as f64).sqrt();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default());
+        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -280,12 +323,13 @@ mod tests {
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
-        let expected_var = (gain * sqrt(1. / (fan_in as f64))).powf(2.);
+        let expected_var = (gain * (1. / (fan_in as f64)).sqrt()).pow(2.);
         let tensor: Tensor<TB, 2> = Initializer::KaimingNormal {
             gain,
             fan_out_only: false,
         }
-        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default());
+        .init_with([fan_out, fan_in], Some(fan_in), None, &Default::default())
+        .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
 
@@ -296,13 +340,14 @@ mod tests {
         let gain = 2_f64;
         let shape = [3];
         let fan_in = 5;
-        let k = gain * sqrt(3.0 / fan_in as f64);
+        let k = gain * (3.0 / fan_in as f64).sqrt();
 
         let tensor: Tensor<TB, 1> = Initializer::KaimingUniform {
             gain,
             fan_out_only: false,
         }
-        .init_with(shape, Some(fan_in), None, &Default::default());
+        .init_with(shape, Some(fan_in), None, &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -312,13 +357,14 @@ mod tests {
 
         let gain = 2_f64;
         let (fan_in, fan_out) = (5, 6);
-        let k = gain * sqrt(3.0 / fan_out as f64);
+        let k = gain * (3.0 / fan_out as f64).sqrt();
 
         let tensor: Tensor<TB, 2> = Initializer::KaimingUniform {
             gain,
             fan_out_only: true,
         }
-        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default());
+        .init_with([fan_out, fan_in], None, Some(fan_out), &Default::default())
+        .into_value();
         tensor.into_data().assert_within_range(-k..k);
     }
 
@@ -334,7 +380,8 @@ mod tests {
             gain,
             fan_out_only: false,
         }
-        .init([fan_out, fan_in], &Default::default());
+        .init([fan_out, fan_in], &Default::default())
+        .into_value();
     }
 
     #[test]
@@ -343,13 +390,15 @@ mod tests {
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let bound = gain * sqrt(6. / (fan_in + fan_out) as f64);
-        let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }.init_with(
-            [fan_out, fan_in],
-            Some(fan_in),
-            Some(fan_out),
-            &Default::default(),
-        );
+        let bound = gain * (6. / (fan_in + fan_out) as f64).sqrt();
+        let tensor: Tensor<TB, 2> = Initializer::XavierUniform { gain }
+            .init_with(
+                [fan_out, fan_in],
+                Some(fan_in),
+                Some(fan_out),
+                &Default::default(),
+            )
+            .into_value();
 
         tensor.into_data().assert_within_range(-bound..bound);
     }
@@ -362,13 +411,15 @@ mod tests {
         let (fan_in, fan_out) = (1000, 10);
         let expected_mean = 0_f64;
 
-        let expected_var = (gain * sqrt(2. / (fan_in as f64 + fan_out as f64))).powf(2.);
-        let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }.init_with(
-            [fan_out, fan_in],
-            Some(fan_in),
-            Some(fan_out),
-            &Default::default(),
-        );
+        let expected_var = (gain * (2. / (fan_in as f64 + fan_out as f64)).sqrt()).powf(2.);
+        let tensor: Tensor<TB, 2> = Initializer::XavierNormal { gain }
+            .init_with(
+                [fan_out, fan_in],
+                Some(fan_in),
+                Some(fan_out),
+                &Default::default(),
+            )
+            .into_value();
         assert_normal_init(expected_mean, expected_var, &tensor)
     }
 
@@ -379,7 +430,8 @@ mod tests {
 
         let gain = 2.;
         let (fan_in, fan_out) = (5, 6);
-        let _: Tensor<TB, 2> =
-            Initializer::XavierUniform { gain }.init([fan_out, fan_in], &Default::default());
+        let _: Tensor<TB, 2> = Initializer::XavierUniform { gain }
+            .init([fan_out, fan_in], &Default::default())
+            .into_value();
     }
 }

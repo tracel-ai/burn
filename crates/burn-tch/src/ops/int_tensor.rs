@@ -1,14 +1,14 @@
 use std::ops::Range;
 
-use burn_tensor::{backend::Backend, ops::IntTensorOps, Data, Distribution, Reader, Shape};
+use burn_tensor::{backend::Backend, ops::IntTensorOps, Distribution, Shape, TensorData};
 
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 
 use super::TchOps;
 
-impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_from_data<const D: usize>(
-        data: Data<i64, D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<i64, D> {
         TchTensor::from_data(data, (*device).into())
@@ -18,20 +18,19 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         tensor.shape()
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: TchTensor<i64, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<i64, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
-    fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> Reader<Data<i64, D>> {
+    async fn int_into_data<const D: usize>(tensor: TchTensor<i64, D>) -> TensorData {
         let shape = Self::int_shape(&tensor);
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
-
-        Reader::Concrete(Data::new(values.unwrap(), shape))
+        TensorData::new(values.unwrap(), shape)
     }
 
     fn int_to_device<const D: usize>(
@@ -214,6 +213,13 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         );
 
         TchTensor::<i64, D>::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
+    }
+
+    fn int_remainder_scalar<const D: usize>(lhs: TchTensor<i64, D>, rhs: i64) -> TchTensor<i64, D> {
+        lhs.unary_ops(
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+        )
     }
 
     fn int_neg<const D: usize>(tensor: TchTensor<i64, D>) -> TchTensor<i64, D> {

@@ -1,14 +1,14 @@
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<{{ elem }}>;
+var<storage, read_write> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<{{ elem }}>;
+var<storage, read_write> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read> bias: array<{{ elem }}>;
+var<storage, read_write> bias: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
@@ -16,7 +16,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(4)
-var<storage, read> info: array<u32>;
+var<storage, read_write> info: array<u32>;
 
 const BLOCK_SIZE = {{ workgroup_size_x }}u;
 

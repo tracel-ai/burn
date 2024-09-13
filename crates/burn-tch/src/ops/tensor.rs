@@ -1,13 +1,13 @@
 use super::TchOps;
-use crate::{element::TchElement, LibTorch, LibTorchDevice, TchShape, TchTensor};
+use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 use burn_tensor::{
-    backend::Backend, ops::FloatTensorOps, Data, Distribution, ElementConversion, Reader, Shape,
+    backend::Backend, ops::FloatTensorOps, Distribution, ElementConversion, Shape, TensorData,
 };
 use std::ops::Range;
 
-impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     fn float_from_data<const D: usize>(
-        data: Data<E, D>,
+        data: TensorData,
         device: &LibTorchDevice,
     ) -> TchTensor<E, D> {
         TchTensor::from_data(data, (*device).into())
@@ -42,12 +42,12 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         }
     }
 
-    fn float_repeat<const D: usize>(
+    fn float_repeat_dim<const D: usize>(
         tensor: TchTensor<E, D>,
         dim: usize,
         times: usize,
     ) -> TchTensor<E, D> {
-        TchOps::repeat(tensor, dim, times)
+        TchOps::repeat_dim(tensor, dim, times)
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &LibTorchDevice) -> TchTensor<E, D> {
@@ -70,14 +70,14 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor.shape()
     }
 
-    fn float_into_data<const D: usize>(
+    async fn float_into_data<const D: usize>(
         tensor: <LibTorch<E> as Backend>::FloatTensorPrimitive<D>,
-    ) -> Reader<Data<<LibTorch<E> as Backend>::FloatElem, D>> {
+    ) -> TensorData {
         let shape = Self::float_shape(&tensor);
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<E>, tch::TchError> = tensor.tensor.try_into();
 
-        Reader::Concrete(Data::new(values.unwrap(), shape))
+        TensorData::new(values.unwrap(), shape)
     }
 
     fn float_device<const D: usize>(tensor: &TchTensor<E, D>) -> LibTorchDevice {
@@ -149,6 +149,15 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         lhs.unary_ops(
             |mut tensor| tensor.f_div_scalar_(rhs).unwrap(),
             |tensor| tensor.f_div_scalar(rhs).unwrap(),
+        )
+    }
+
+    fn float_remainder_scalar<const D: usize>(lhs: TchTensor<E, D>, rhs: E) -> TchTensor<E, D> {
+        let rhs: f64 = rhs.elem();
+
+        lhs.unary_ops(
+            |tensor| tensor.f_remainder(rhs).unwrap(),
+            |tensor| tensor.f_remainder(rhs).unwrap(),
         )
     }
 
@@ -334,20 +343,6 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::prod_dim(tensor, dim)
     }
 
-    fn float_to_full_precision<const D: usize>(tensor: &TchTensor<E, D>) -> TchTensor<f32, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(tch::Kind::Float);
-
-        TchTensor::from_existing(tensor, storage)
-    }
-
-    fn float_from_full_precision<const D: usize>(tensor: TchTensor<f32, D>) -> TchTensor<E, D> {
-        let storage = tensor.storage.clone();
-        let tensor = tensor.tensor.to_kind(E::KIND);
-
-        TchTensor::from_existing(tensor, storage)
-    }
-
     fn float_argmax<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<i64, D> {
         TchOps::argmax(tensor, dim)
     }
@@ -509,6 +504,14 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         descending: bool,
     ) -> <LibTorch<E> as Backend>::FloatTensorPrimitive<D> {
         TchOps::sort(tensor, dim, descending)
+    }
+
+    fn float_sort_with_indices<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
+        TchOps::sort_with_indices(tensor, dim, descending)
     }
 
     fn float_argsort<const D: usize>(

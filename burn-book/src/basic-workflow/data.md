@@ -20,6 +20,7 @@ use burn::{
     prelude::*,
 };
 
+#[derive(Clone)]
 pub struct MnistBatcher<B: Backend> {
     device: B::Device,
 }
@@ -41,6 +42,22 @@ not all backends expose the same devices. As an example, the Libtorch-based back
 Next, we need to actually implement the batching logic.
 
 ```rust , ignore
+# use burn::{
+#     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
+#     prelude::*,
+# };
+#
+# #[derive(Clone)]
+# pub struct MnistBatcher<B: Backend> {
+#     device: B::Device,
+# }
+#
+# impl<B: Backend> MnistBatcher<B> {
+#     pub fn new(device: B::Device) -> Self {
+#         Self { device }
+#     }
+# }
+#
 #[derive(Clone, Debug)]
 pub struct MnistBatch<B: Backend> {
     pub images: Tensor<B, 3>,
@@ -51,8 +68,8 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
     fn batch(&self, items: Vec<MnistItem>) -> MnistBatch<B> {
         let images = items
             .iter()
-            .map(|item| Data::<f32, 2>::from(item.image))
-            .map(|data| Tensor::<B, 2>::from_data(data.convert(), &self.device))
+            .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())
+            .map(|data| Tensor::<B, 2>::from_data(data, &self.device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
             // Normalize: make between [0,1] and make the mean=0 and std=1
             // values mean=0.1307,std=0.3081 are from the PyTorch MNIST example
@@ -62,10 +79,12 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1, Int>::from_data(
-                Data::from([(item.label as i64).elem()]),
-                &self.device
-            ))
+            .map(|item| {
+                Tensor::<B, 1, Int>::from_data(
+                    [(item.label as i64).elem::<B::IntElem>()],
+                    &self.device,
+                )
+            })
             .collect();
 
         let images = Tensor::cat(images, 0).to_device(&self.device);
@@ -102,8 +121,8 @@ images.
 ```rust, ignore
 let images = items                                                       // take items Vec<MnistItem>
     .iter()                                                              // create an iterator over it
-    .map(|item| Data::<f32, 2>::from(item.image))                        // for each item, convert the image to float32 data struct
-    .map(|data| Tensor::<B, 2>::from_data(data.convert(), &self.device)) // for each data struct, create a tensor on the device
+    .map(|item| TensorData::from(item.image).convert::<B::FloatElem>())  // for each item, convert the image to float data struct
+    .map(|data| Tensor::<B, 2>::from_data(data, &self.device))           // for each data struct, create a tensor on the device
     .map(|tensor| tensor.reshape([1, 28, 28]))                           // for each tensor, reshape to the image dimensions [C, H, W]
     .map(|tensor| ((tensor / 255) - 0.1307) / 0.3081)                    // for each image tensor, apply normalization
     .collect();                                                          // consume the resulting iterator & collect the values into a new vector
@@ -118,8 +137,9 @@ Book.
 In the previous example, we implement the `Batcher` trait with a list of `MnistItem` as input and a
 single `MnistBatch` as output. The batch contains the images in the form of a 3D tensor, along with
 a targets tensor that contains the indexes of the correct digit class. The first step is to parse
-the image array into a `Data` struct. Burn provides the `Data` struct to encapsulate tensor storage
-information without being specific for a backend. When creating a tensor from data, we often need to
-convert the data precision to the current backend in use. This can be done with the `.convert()`
-method. While importing the `burn::tensor::ElementConversion` trait, you can call `.elem()` on a
-specific number to convert it to the current backend element type in use.
+the image array into a `TensorData` struct. Burn provides the `TensorData` struct to encapsulate
+tensor storage information without being specific for a backend. When creating a tensor from data,
+we often need to convert the data precision to the current backend in use. This can be done with the
+`.convert()` method (in this example, the data is converted backend's float element type
+`B::FloatElem`). While importing the `burn::tensor::ElementConversion` trait, you can call `.elem()`
+on a specific number to convert it to the current backend element type in use.

@@ -73,17 +73,17 @@ impl From<&'static str> for SqliteDatasetError {
 /// Table columns can be represented in two ways:
 ///
 /// 1. The table can have a column for each field in the `I` struct. In this case, the column names in the table
-/// should match the field names of the `I` struct. The field names can be a subset of column names and
-/// can be in any order.
+///    should match the field names of the `I` struct. The field names can be a subset of column names and
+///    can be in any order.
 ///
 /// For the supported field types, refer to:
 /// - [Serialization field types](https://docs.rs/serde_rusqlite/latest/serde_rusqlite)
 /// - [SQLite data types](https://www.sqlite.org/datatype3.html)
 ///
 /// 2. The fields in the `I` struct can be serialized into a single column `item` in the table. In this case, the table
-/// should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
-/// that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
-/// [MessagePack](https://msgpack.org/).
+///    should have a single column named `item` of type `BLOB`. This is useful when the `I` struct contains complex fields
+///    that cannot be mapped to a SQLite type, such as nested structs, vectors, etc. The serialization is done using
+///    [MessagePack](https://msgpack.org/).
 ///
 /// Note: The code automatically figures out which of the above two cases is applicable, and uses the appropriate
 /// method to read the data from the table.

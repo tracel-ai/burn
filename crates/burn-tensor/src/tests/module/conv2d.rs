@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::module::conv2d;
     use burn_tensor::ops::ConvOptions;
-    use burn_tensor::{Data, Shape, Tensor};
+    use burn_tensor::{Shape, Tensor};
 
     #[test]
     fn test_conv2d_simple() {
@@ -134,19 +134,15 @@ mod tests {
             let weight = TestTensor::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                     .reshape(shape_weight)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
             );
             let bias = TestTensor::from(
-                TestTensorInt::arange(0..self.channels_out as i64, &device)
-                    .into_data()
-                    .convert(),
+                TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             );
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape(shape_x)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
             );
             let output = conv2d(
                 x,

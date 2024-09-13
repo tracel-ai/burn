@@ -1,8 +1,7 @@
-use crate::{backend::Backend, Bool, Data, Int, Shape, Tensor};
+use crate::{backend::Backend, Bool, Int, Shape, Tensor, TensorData, TensorPrimitive};
 use alloc::vec::Vec;
 
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-use crate::argwhere;
+use crate::try_read_sync;
 
 /// The part of the tensor to keep when creating a triangular mask.
 enum TriPart {
@@ -21,7 +20,7 @@ where
     B: Backend,
 {
     /// Create a boolean tensor from data on the given device.
-    pub fn from_bool(data: Data<bool, D>, device: &B::Device) -> Self {
+    pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
         Self::new(B::bool_from_data(data, device))
     }
 
@@ -32,7 +31,7 @@ where
 
     /// Convert the bool tensor into an float tensor.
     pub fn float(self) -> Tensor<B, D> {
-        Tensor::new(B::bool_into_float(self.primitive))
+        Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
     }
 
     /// Inverses boolean values.
@@ -46,27 +45,21 @@ where
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
-        B::bool_nonzero(self.primitive)
-            .into_iter()
-            .map(Tensor::new)
-            .collect()
+        try_read_sync(self.nonzero_async())
+            .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
     }
 
-    /// Compute the indices of the elements that are true.
+    /// Compute the indices of the elements that are non-zero.
     ///
     /// # Returns
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
-        let indices = self.argwhere().await.primitive;
-        let dims = B::int_shape(&indices).dims;
-        B::int_chunk(indices, dims[1], 1)
+    pub async fn nonzero_async(self) -> Vec<Tensor<B, 1, Int>> {
+        B::bool_nonzero(self.primitive)
+            .await
             .into_iter()
-            .map(|t| B::int_reshape(t, Shape::new([dims[0]])))
             .map(Tensor::new)
             .collect()
     }
@@ -77,9 +70,9 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     pub fn argwhere(self) -> Tensor<B, 2, Int> {
-        Tensor::new(B::bool_argwhere(self.primitive))
+        try_read_sync(self.argwhere_async())
+            .expect("Failed to read tensor data synchronously. Try using argwhere_async instead.")
     }
 
     /// Compute the indices of the elements that are true, grouped by element.
@@ -88,9 +81,8 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn argwhere(self) -> Tensor<B, 2, Int> {
-        Tensor::new(argwhere::<B, D>(self.primitive).await)
+    pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
+        Tensor::new(B::bool_argwhere(self.primitive).await)
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
@@ -142,7 +134,7 @@ where
     ///
     /// * `shape`: The shape of the matrix.
     /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and positive values shift
-    ///  towards the upper triangle.
+    ///    towards the upper triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns
@@ -162,7 +154,7 @@ where
     ///
     /// * `shape`: The shape of the matrix.
     /// * `offset`: The offset from the diagonal, where 0 means the diagonal, and negative values shift
-    /// towards the lower triangle.
+    ///    towards the lower triangle.
     /// * `device`: The device on which the tensor will be allocated.
     ///
     /// # Returns

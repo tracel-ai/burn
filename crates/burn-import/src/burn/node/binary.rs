@@ -14,6 +14,12 @@ pub enum BinaryType {
     Equal,
     Powf,
     Powi,
+    Min,
+    Max,
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual,
 }
 
 impl BinaryType {
@@ -26,6 +32,12 @@ impl BinaryType {
             BinaryType::Equal => "equal",
             BinaryType::Powi => "powi",
             BinaryType::Powf => "powf",
+            BinaryType::Min => "min_pair",
+            BinaryType::Max => "max_pair",
+            BinaryType::Greater => "greater",
+            BinaryType::GreaterOrEqual => "greater_equal",
+            BinaryType::Less => "lower",
+            BinaryType::LessOrEqual => "lower_equal",
         }
     }
 }
@@ -119,6 +131,7 @@ impl BinaryNode {
             (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.sub(#rhs) },
             (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.sub_scalar(#rhs) },
             (Type::Scalar(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs - #rhs },
+            (Type::Scalar(_), Type::Tensor(_)) => move |lhs, rhs| quote! { -#rhs.sub_scalar(#lhs) },
             _ => panic!("Subtraction is supported for tensor and scalar only"),
         };
 
@@ -172,6 +185,94 @@ impl BinaryNode {
             _ => panic!("pow is supported for tensor only"),
         };
         Self::new(lhs, rhs, output, BinaryType::Powi, Arc::new(function))
+    }
+
+    pub(crate) fn min_pair(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.min_pair(#rhs) },
+            _ => panic!("min_pair is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Min, Arc::new(function))
+    }
+
+    pub(crate) fn max_pair(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.max_pair(#rhs) },
+            _ => panic!("max is supported for tensor only"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Max, Arc::new(function))
+    }
+
+    pub(crate) fn greater(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.greater(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => {
+                move |lhs, rhs| quote! { #lhs.greater_elem(#rhs) }
+            }
+            (Type::Scalar(_), Type::Tensor(_)) => {
+                // L > R == R < L
+                move |lhs, rhs| quote! { #rhs.lower_elem(#lhs) }
+            }
+            (lhs, rhs) => panic!("greater is not supported for {lhs:?} > {rhs:?}"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Greater, Arc::new(function))
+    }
+
+    pub(crate) fn greater_equal(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => {
+                move |lhs, rhs| quote! { #lhs.greater_equal(#rhs) }
+            }
+            (Type::Tensor(_), Type::Scalar(_)) => {
+                move |lhs, rhs| quote! { #lhs.greater_equal_elem(#rhs) }
+            }
+            (Type::Scalar(_), Type::Tensor(_)) => {
+                // L >= R == R <= L
+                move |lhs, rhs| quote! { #rhs.lower_equal_elem(#lhs) }
+            }
+            (lhs, rhs) => panic!("greater_equal is not supported for {lhs:?} > {rhs:?}"),
+        };
+        Self::new(
+            lhs,
+            rhs,
+            output,
+            BinaryType::GreaterOrEqual,
+            Arc::new(function),
+        )
+    }
+
+    pub(crate) fn lower(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => move |lhs, rhs| quote! { #lhs.lower_elem(#rhs) },
+            (Type::Scalar(_), Type::Tensor(_)) => {
+                // L < R == R > L
+                move |lhs, rhs| quote! { #rhs.greater_elem(#lhs) }
+            }
+            (lhs, rhs) => panic!("lower is not supported for {lhs:?} > {rhs:?}"),
+        };
+        Self::new(lhs, rhs, output, BinaryType::Less, Arc::new(function))
+    }
+
+    pub(crate) fn lower_equal(lhs: Type, rhs: Type, output: Type) -> Self {
+        let function = match (&lhs, &rhs) {
+            (Type::Tensor(_), Type::Tensor(_)) => move |lhs, rhs| quote! { #lhs.lower_equal(#rhs) },
+            (Type::Tensor(_), Type::Scalar(_)) => {
+                move |lhs, rhs| quote! { #lhs.lower_equal_elem(#rhs) }
+            }
+            (Type::Scalar(_), Type::Tensor(_)) => {
+                // L <= R == R >= L
+                move |lhs, rhs| quote! { #rhs.greater_equal_elem(#lhs) }
+            }
+            (lhs, rhs) => panic!("lower_equal is not supported for {lhs:?} > {rhs:?}"),
+        };
+        Self::new(
+            lhs,
+            rhs,
+            output,
+            BinaryType::LessOrEqual,
+            Arc::new(function),
+        )
     }
 }
 
@@ -329,6 +430,56 @@ mod tests {
     }
 
     #[test]
+    fn test_binary_codegen_min() {
+        test_binary_operator_on_tensors!(min_pair);
+    }
+
+    #[test]
+    fn test_binary_codegen_max() {
+        test_binary_operator_on_tensors!(max_pair);
+    }
+
+    #[test]
+    fn test_binary_codegen_greater() {
+        test_binary_operator_on_tensors!(greater);
+    }
+
+    #[test]
+    fn test_binary_codegen_greater_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(greater, greater_elem);
+    }
+
+    #[test]
+    fn test_binary_codegen_greater_or_equal() {
+        test_binary_operator_on_tensors!(greater_equal);
+    }
+
+    #[test]
+    fn test_binary_codegen_greater_or_equal_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(greater_equal, greater_equal_elem);
+    }
+
+    #[test]
+    fn test_binary_codegen_less() {
+        test_binary_operator_on_tensors!(lower);
+    }
+
+    #[test]
+    fn test_binary_codegen_less_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(lower, lower_elem);
+    }
+
+    #[test]
+    fn test_binary_codegen_less_or_equal() {
+        test_binary_operator_on_tensors!(lower_equal);
+    }
+
+    #[test]
+    fn test_binary_codegen_less_or_equal_scalar() {
+        test_binary_operator_on_tensor_and_scalar!(lower_equal, lower_equal_elem);
+    }
+
+    #[test]
     fn test_binary_codegen_equal_tensors() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         let node_gen = BinaryNode::equal(
@@ -354,13 +505,15 @@ mod tests {
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
 

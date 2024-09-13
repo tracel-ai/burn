@@ -85,6 +85,46 @@ mod tests {
         ]]]));
     }
 
+    #[test]
+    fn test_1d_bicubic() {
+        // Initialize the model without weights (because the exported file does not contain them)
+        let device = Default::default();
+
+        // Run the model
+        let input = TestTensor::<3>::from_floats(
+            [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+            &device,
+        );
+
+        let input = input.unsqueeze_dim(2);
+
+        let output = interpolate(
+            input,
+            [1, 9],
+            InterpolateOptions::new(InterpolateMode::Bicubic),
+        );
+
+        assert_eq!(output.dims(), [1, 1, 1, 9]);
+
+        // assert output data does not contain NaN
+        assert!(
+            !output
+                .clone()
+                .to_data()
+                .as_slice::<f32>()
+                .unwrap()
+                .iter()
+                .any(|&x| x.is_nan()),
+            "interpolate output contains NaN"
+        );
+
+        TestTensor::<4>::from([[[[
+            1.541, 0.5747652, -1.010614, -2.197787, -0.8269969, 0.59609234, -0.5803058, -1.3792794,
+            -1.3986,
+        ]]]])
+        .to_data()
+        .assert_approx_eq(&output.into_data(), 3);
+    }
     struct InterpolateTestCase {
         batch_size: usize,
         channels: usize,
@@ -100,8 +140,7 @@ mod tests {
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
                     .reshape(shape_x)
-                    .into_data()
-                    .convert(),
+                    .into_data(),
             );
             let output = interpolate(
                 x,

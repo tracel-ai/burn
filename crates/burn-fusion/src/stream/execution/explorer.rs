@@ -1,5 +1,7 @@
+use burn_tensor::repr::OperationDescription;
+
 use super::ExecutionMode;
-use crate::{stream::OperationDescription, OptimizationBuilder, OptimizationStatus};
+use crate::{OptimizationBuilder, OptimizationStatus};
 
 /// Explore and create new optimization.
 pub struct Explorer<O> {

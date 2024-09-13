@@ -9,7 +9,9 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-use burn_tensor::{backend::Backend, Bool, DataSerialize, Element, Int, Tensor};
+#[allow(deprecated)]
+use burn_tensor::DataSerialize;
+use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor};
 
 use hashbrown::HashMap;
 use serde::{
@@ -145,6 +147,7 @@ where
     }
 }
 
+#[allow(deprecated)]
 impl<E, B> Record<B> for DataSerialize<E>
 where
     E: Element,
@@ -175,11 +178,12 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<FloatTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        ParamSerde::new(self.id.into_string(), self.value.into_item())
+        let (id, tensor) = self.consume();
+        ParamSerde::new(id.into_string(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::new(
+        Param::initialized(
             ParamId::from(item.id),
             Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
                                                                   // Param from a tensor.
@@ -194,11 +198,12 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<IntTensorSerde<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        ParamSerde::new(self.id.into_string(), self.value.into_item())
+        let (id, tensor) = self.consume();
+        ParamSerde::new(id.into_string(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::new(
+        Param::initialized(
             ParamId::from(item.id),
             Tensor::from_item(item.param, device),
         )
@@ -212,11 +217,12 @@ where
     type Item<S: PrecisionSettings> = ParamSerde<BoolTensorSerde>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        ParamSerde::new(self.id.into_string(), self.value.into_item::<S>())
+        let (id, tensor) = self.consume();
+        ParamSerde::new(id.into_string(), tensor.into_item::<S>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Param::new(
+        Param::initialized(
             ParamId::from(item.id),
             Tensor::from_item::<S>(item.param, device),
         )

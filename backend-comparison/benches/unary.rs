@@ -1,6 +1,9 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::benchmark::{run_benchmark, Benchmark};
+use burn_common::{
+    benchmark::{run_benchmark, Benchmark},
+    sync_type::SyncType,
+};
 use derive_new::new;
 
 #[derive(new)]
@@ -22,7 +25,7 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
 
     fn execute(&self, args: Self::Args) {
         // Choice of tanh is arbitrary
-        B::float_tanh(args.clone().into_primitive());
+        B::float_tanh(args.clone().into_primitive().tensor());
     }
 
     fn prepare(&self) -> Self::Args {
@@ -30,18 +33,30 @@ impl<B: Backend, const D: usize> Benchmark for UnaryBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device)
+        B::sync(&self.device, SyncType::Wait)
     }
 }
 
 #[allow(dead_code)]
-fn bench<B: Backend>(device: &B::Device, url: Option<&str>, token: Option<&str>) {
+fn bench<B: Backend>(
+    device: &B::Device,
+    feature_name: &str,
+    url: Option<&str>,
+    token: Option<&str>,
+) {
     const D: usize = 3;
     let shape: Shape<D> = [32, 512, 1024].into();
 
     let benchmark = UnaryBenchmark::<B, D>::new(shape, device.clone());
 
-    save::<B>(vec![run_benchmark(benchmark)], device, url, token).unwrap();
+    save::<B>(
+        vec![run_benchmark(benchmark)],
+        device,
+        feature_name,
+        url,
+        token,
+    )
+    .unwrap();
 }
 
 fn main() {

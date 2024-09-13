@@ -1,7 +1,6 @@
-use crate::stream::{
-    store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger},
-    OperationDescription,
-};
+use burn_tensor::repr::OperationDescription;
+
+use crate::stream::store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
 
 /// Compare each operation in the list of operations provided by the [store](OperationsStore)
 /// to verify if the newly added operations match the original list.

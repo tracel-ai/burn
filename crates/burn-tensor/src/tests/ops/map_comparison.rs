@@ -2,7 +2,8 @@
 mod tests {
     use super::*;
     use burn_tensor::{
-        backend::Backend, BasicOps, Bool, Data, Element, Float, Int, Numeric, Tensor, TensorKind,
+        backend::Backend, BasicOps, Bool, Element, Float, Int, Numeric, Tensor, TensorData,
+        TensorKind,
     };
 
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -127,13 +128,45 @@ mod tests {
         lower_equal::<Int, IntElem>()
     }
 
+    #[test]
+    fn test_equal_inf() {
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [f32::INFINITY, 4.0, f32::NEG_INFINITY]]);
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [f32::INFINITY, 3.0, f32::NEG_INFINITY]]);
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+
+        let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
+        let data_actual_inplace = tensor_1.equal(tensor_2);
+
+        let data_expected = TensorData::from([[false, true, false], [true, false, true]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
+    #[test]
+    fn test_not_equal_inf() {
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, f32::INFINITY, 5.0]]);
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [f32::INFINITY, 3.0, f32::NEG_INFINITY]]);
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
+        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+
+        let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
+        let data_actual_inplace = tensor_1.not_equal(tensor_2);
+
+        let data_expected = TensorData::from([[true, false, true], [true, true, true]]);
+        assert_eq!(data_expected, data_actual_cloned.into_data());
+        assert_eq!(data_expected, data_actual_inplace.into_data());
+    }
+
     fn equal<K, E>()
     where
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -141,7 +174,7 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
 
-        let data_expected = Data::from([[false, true, false], [false, false, true]]);
+        let data_expected = TensorData::from([[false, true, false], [false, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -151,8 +184,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 5.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -160,7 +193,7 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
 
-        let data_expected = Data::from([[true, false, true], [true, true, false]]);
+        let data_expected = TensorData::from([[true, false, true], [true, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -170,13 +203,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().equal_elem(2);
         let data_actual_inplace = tensor_1.equal_elem(2);
 
-        let data_expected = Data::from([[false, false, true], [false, true, false]]);
+        let data_expected = TensorData::from([[false, false, true], [false, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -186,13 +219,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 2.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().not_equal_elem(2);
         let data_actual_inplace = tensor_1.not_equal_elem(2);
 
-        let data_expected = Data::from([[true, true, false], [true, false, true]]);
+        let data_expected = TensorData::from([[true, true, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -202,13 +235,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().greater_elem(4);
         let data_actual_inplace = tensor_1.greater_elem(4);
 
-        let data_expected = Data::from([[false, false, false], [false, false, true]]);
+        let data_expected = TensorData::from([[false, false, false], [false, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -218,13 +251,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().greater_equal_elem(4.0);
         let data_actual_inplace = tensor_1.greater_equal_elem(4.0);
 
-        let data_expected = Data::from([[false, false, false], [false, true, true]]);
+        let data_expected = TensorData::from([[false, false, false], [false, true, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -234,8 +267,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -243,7 +276,7 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().greater(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater(tensor_2);
 
-        let data_expected = Data::from([[false, false, true], [false, true, false]]);
+        let data_expected = TensorData::from([[false, false, true], [false, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -253,8 +286,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -262,7 +295,7 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().greater_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.greater_equal(tensor_2);
 
-        let data_expected = Data::from([[false, true, true], [false, true, false]]);
+        let data_expected = TensorData::from([[false, true, true], [false, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -272,13 +305,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().lower_elem(4.0);
         let data_actual_inplace = tensor_1.lower_elem(4.0);
 
-        let data_expected = Data::from([[true, true, true], [true, false, false]]);
+        let data_expected = TensorData::from([[true, true, true], [true, false, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -288,13 +321,13 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().lower_equal_elem(4.0);
         let data_actual_inplace = tensor_1.lower_equal_elem(4.0);
 
-        let data_expected = Data::from([[true, true, true], [true, true, false]]);
+        let data_expected = TensorData::from([[true, true, true], [true, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -304,8 +337,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -313,7 +346,7 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().lower(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower(tensor_2);
 
-        let data_expected = Data::from([[true, false, false], [true, false, true]]);
+        let data_expected = TensorData::from([[true, false, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
@@ -323,8 +356,8 @@ mod tests {
         K: Numeric<TestBackend, Elem = E> + BasicOps<TestBackend, Elem = E>,
         E: Element,
     {
-        let data_1 = Data::<f32, 2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert();
-        let data_2 = Data::<f32, 2>::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert();
+        let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]).convert::<E>();
+        let data_2 = TensorData::from([[1.0, 1.0, 1.0], [4.0, 3.0, 50.0]]).convert::<E>();
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, K>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, K>::from_data(data_2, &device);
@@ -332,15 +365,15 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().lower_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.lower_equal(tensor_2);
 
-        let data_expected = Data::from([[true, true, false], [true, false, true]]);
+        let data_expected = TensorData::from([[true, true, false], [true, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
 
     #[test]
     fn should_support_bool_equal() {
-        let data_1 = Data::from([[false, true, true], [true, false, true]]);
-        let data_2 = Data::from([[false, false, true], [false, true, true]]);
+        let data_1 = TensorData::from([[false, true, true], [true, false, true]]);
+        let data_2 = TensorData::from([[false, false, true], [false, true, true]]);
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2, &device);
@@ -348,15 +381,15 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
 
-        let data_expected = Data::from([[true, false, true], [false, false, true]]);
+        let data_expected = TensorData::from([[true, false, true], [false, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
 
     #[test]
     fn should_support_bool_not_equal() {
-        let data_1 = Data::from([[false, true, true], [true, false, true]]);
-        let data_2 = Data::from([[false, false, true], [false, true, true]]);
+        let data_1 = TensorData::from([[false, true, true], [true, false, true]]);
+        let data_2 = TensorData::from([[false, false, true], [false, true, true]]);
         let device = Default::default();
         let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &device);
         let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2, &device);
@@ -364,20 +397,20 @@ mod tests {
         let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
 
-        let data_expected = Data::from([[false, true, false], [true, true, false]]);
+        let data_expected = TensorData::from([[false, true, false], [true, true, false]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }
 
     #[test]
     fn should_support_bool_not() {
-        let data_1 = Data::from([[false, true, true], [true, true, false]]);
+        let data_1 = TensorData::from([[false, true, true], [true, true, false]]);
         let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().bool_not();
         let data_actual_inplace = tensor_1.bool_not();
 
-        let data_expected = Data::from([[true, false, false], [false, false, true]]);
+        let data_expected = TensorData::from([[true, false, false], [false, false, true]]);
         assert_eq!(data_expected, data_actual_cloned.into_data());
         assert_eq!(data_expected, data_actual_inplace.into_data());
     }

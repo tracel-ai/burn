@@ -1,13 +1,13 @@
 use crate as burn;
 
 use crate::config::Config;
-use crate::module::Module;
+use crate::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use crate::tensor::activation::silu;
 use crate::tensor::{backend::Backend, Tensor};
 
 use super::{Initializer, Linear, LinearConfig};
 
-/// Configuration to create a [SwiGlu](SwiGlu) activation layer.
+/// Configuration to create a [SwiGlu](SwiGlu) activation layer using the [init function](SwiGluConfig::init).
 #[derive(Config, Debug)]
 pub struct SwiGluConfig {
     /// The size of the input features.
@@ -20,7 +20,7 @@ pub struct SwiGluConfig {
     pub bias: bool,
     /// The type of function used to initialize the linear layer parameters
     #[config(
-        default = "Initializer::KaimingUniform{gain:1.0/libm::sqrt(3.0), fan_out_only:false}"
+        default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
 }
@@ -29,16 +29,33 @@ pub struct SwiGluConfig {
 /// The SwiGLU activation function is defined as:
 /// `SwiGLU(x) = Swish(W_inner * x + b_inner) * (W_outer * x + b_outer)`
 ///
-/// # Params
-///
-/// - linear inner: The inner linear layer for Swish activation function
-/// with `d_input` input features and `d_output` output features.
-/// - linear outer: Outer Linear layer for element wise multiplication
-/// with `d_input` input features and `d_output` output features.
+/// Should be created with [SwiGluConfig].
 #[derive(Module, Debug)]
+#[module(custom_display)]
 pub struct SwiGlu<B: Backend> {
-    linear_inner: Linear<B>,
-    linear_outer: Linear<B>,
+    /// The inner linear layer for Swish activation function
+    /// with `d_input` input features and `d_output` output features.
+    pub linear_inner: Linear<B>,
+    /// The outer linear layer for element wise multiplication
+    /// with `d_input` input features and `d_output` output features.
+    pub linear_outer: Linear<B>,
+}
+
+impl<B: Backend> ModuleDisplay for SwiGlu<B> {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        let [d_input, d_output] = self.linear_inner.weight.shape().dims;
+        content
+            .add("d_input", &d_input)
+            .add("d_output", &d_output)
+            .add("bias", &self.linear_inner.bias.is_some())
+            .optional()
+    }
 }
 
 impl SwiGluConfig {
@@ -55,25 +72,14 @@ impl SwiGluConfig {
                 .init(device),
         }
     }
-    /// Initialize a new [SwiGlu](SwiGlu) activation layer with a [record](SwiGlu).
-    pub fn init_with<B: Backend>(&self, record: SwiGluRecord<B>) -> SwiGlu<B> {
-        SwiGlu {
-            linear_inner: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_inner),
-            linear_outer: LinearConfig::new(self.d_input, self.d_output)
-                .with_bias(self.bias)
-                .init_with(record.linear_outer),
-        }
-    }
 }
 
 impl<B: Backend> SwiGlu<B> {
-    /// Applies the forward pass on the input tensor.
+    /// Applies the Swish Gated Linear Unit to the input tensor.
     ///
     /// # Shapes
     ///
-    /// - tensor: `[batch_size, seq_length, d_input]`
+    /// - input: `[batch_size, seq_length, d_input]`
     /// - output: `[batch_size, seq_length, d_output]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input.clone());
@@ -123,5 +129,16 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq(&expected_output.to_data(), 4);
+    }
+
+    #[test]
+    fn display() {
+        let config = SwiGluConfig::new(3, 5);
+        let swiglu = config.init::<TestBackend>(&Default::default());
+
+        assert_eq!(
+            alloc::format!("{}", swiglu),
+            "SwiGlu {d_input: 3, d_output: 5, bias: false, params: 30}"
+        );
     }
 }

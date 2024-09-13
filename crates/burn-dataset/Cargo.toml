@@ -7,7 +7,7 @@ keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
 name = "burn-dataset"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/burn-dataset"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dataset"
 version.workspace = true
 
 [features]
@@ -21,20 +21,22 @@ fake = ["dep:fake"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 
-vision = ["dep:flate2", "dep:globwalk", "dep:burn-common"]
+vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
 
 # internal
 __sqlite-shared = [
-  "dep:r2d2",
-  "dep:r2d2_sqlite",
-  "dep:serde_rusqlite",
-  "dep:image",
-  "dep:gix-tempfile",
+    "dep:r2d2",
+    "dep:r2d2_sqlite",
+    "dep:serde_rusqlite",
+    "dep:image",
+    "dep:gix-tempfile",
 ]
 
+dataframe = ["dep:polars"]
+
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.13.0", optional = true, features = [
-  "network",
+burn-common = { path = "../burn-common", version = "0.15.0", optional = true, features = [
+    "network",
 ] }
 csv = { workspace = true }
 derive-new = { workspace = true }
@@ -45,6 +47,7 @@ gix-tempfile = { workspace = true, optional = true }
 globwalk = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 image = { workspace = true, optional = true }
+polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
 rand = { workspace = true, features = ["std"] }

@@ -1,15 +1,15 @@
+use cubecl::{
+    cpa,
+    ir::{Elem, Scope, Variable},
+    prelude::*,
+    CubeCountSettings, Execution, InputInfo, OutputInfo,
+};
 use std::marker::PhantomData;
 
 use crate::{
-    codegen::{
-        Compilation, CompilationInfo, CompilationSettings, EagerHandle, Execution, InputInfo,
-        OutputInfo, WorkgroupLaunch,
-    },
-    compute::WorkGroup,
-    gpu::{gpu, Elem, Scope, Variable},
-    kernel::{DynamicKernelSource, SourceTemplate, WORKGROUP_DEFAULT},
+    kernel::{Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
-    Compiler, JitElement, Runtime, SEED,
+    JitElement, JitRuntime, SEED,
 };
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
@@ -18,7 +18,7 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: Prng<E>, R: Runtime, E: JitElement, const D: usize>(
+pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
     device: &R::Device,
     prng: P,
@@ -27,56 +27,67 @@ pub(crate) fn random<P: Prng<E>, R: Runtime, E: JitElement, const D: usize>(
     let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
     let num_elems = shape.num_elements();
     let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new(client.clone(), device.clone(), shape.clone(), buffer);
+    let output = JitTensor::new_contiguous(client.clone(), device.clone(), shape.clone(), buffer);
     let seeds = get_seeds();
 
     Execution::start(kernel, client)
-        .outputs(&[EagerHandle::<R>::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
-        .execute(WorkgroupLaunch::Custom(prng_workgroup(
+        .execute(CubeCountSettings::Custom(prng_cube_count::<R>(
             num_elems,
-            WORKGROUP_DEFAULT,
+            SUBCUBE_DIM_APPROX,
             N_VALUES_PER_THREAD,
         )));
 
     output
 }
 
-fn prng_workgroup(
+fn prng_cube_count<R: JitRuntime>(
     num_elems: usize,
-    workgroup_size: usize,
+    cube_dim: usize,
     n_values_per_thread: usize,
-) -> WorkGroup {
+) -> CubeCount<R::Server> {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
-    let num_elem_per_invocation = workgroup_size * workgroup_size;
-    let num_invocations = f32::ceil(num_threads / num_elem_per_invocation as f32);
-    let workgroup_x = f32::ceil(f32::sqrt(num_invocations));
-    let workgroup_y = f32::ceil(num_invocations / workgroup_x);
+    let num_elems_per_cube = cube_dim * cube_dim;
+    let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);
+    let cubes_x = f32::ceil(f32::sqrt(num_invocations));
+    let cubes_y = f32::ceil(num_invocations / cubes_x);
 
-    WorkGroup::new(workgroup_x as u32, workgroup_y as u32, 1)
+    CubeCount::Static(cubes_x as u32, cubes_y as u32, 1)
 }
 
-impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKernel<P, R, E> {
-    fn source(&self) -> crate::kernel::SourceTemplate {
+impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {
+    fn define(&self) -> KernelDefinition {
         let mut scope = Scope::root();
-        let item = E::gpu_elem().into();
+        let item = E::cube_elem().into();
 
-        let output = Variable::GlobalOutputArray(0, item);
+        let output = Variable::GlobalOutputArray { id: 0, item };
 
-        let seed0 = Variable::GlobalScalar(0, Elem::UInt);
-        let seed1 = Variable::GlobalScalar(1, Elem::UInt);
-        let seed2 = Variable::GlobalScalar(2, Elem::UInt);
-        let seed3 = Variable::GlobalScalar(3, Elem::UInt);
+        let seed0 = Variable::GlobalScalar {
+            id: 0,
+            elem: Elem::UInt,
+        };
+        let seed1 = Variable::GlobalScalar {
+            id: 1,
+            elem: Elem::UInt,
+        };
+        let seed2 = Variable::GlobalScalar {
+            id: 2,
+            elem: Elem::UInt,
+        };
+        let seed3 = Variable::GlobalScalar {
+            id: 3,
+            elem: Elem::UInt,
+        };
         let seeds = [seed0, seed1, seed2, seed3];
 
         let mut args = Vec::<Variable>::new();
         for i in 0..P::args_length() {
-            args.push(Variable::GlobalScalar(i as u16, item.elem()));
+            args.push(Variable::GlobalScalar {
+                id: i as u16,
+                elem: item.elem(),
+            });
         }
 
         PrngShader::<P, E>::new(output, N_VALUES_PER_THREAD, seeds, args).expand(&mut scope);
@@ -84,7 +95,7 @@ impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKer
         scope.write_global_custom(output);
 
         let args = InputInfo::Scalar {
-            elem: E::gpu_elem(),
+            elem: E::cube_elem(),
             size: P::args_length(),
         };
         let seeds = InputInfo::Scalar {
@@ -93,25 +104,23 @@ impl<P: Prng<E>, R: Runtime, E: JitElement> DynamicKernelSource for PrngEagerKer
         };
         let out = OutputInfo::Array { item };
 
-        let info = CompilationInfo {
+        let info = KernelExpansion {
             inputs: vec![args, seeds],
             outputs: vec![out],
             scope,
         };
 
-        let settings = CompilationSettings::default();
-        let shader = Compilation::new(info).compile(settings);
-        let shader = <R::Compiler as Compiler>::compile(shader);
-        SourceTemplate::new(shader.to_string())
+        let settings = KernelSettings::default();
+        KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> String {
-        format!("{:?}", core::any::TypeId::of::<Self>(),)
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>()
     }
 }
 
 #[derive(new)]
-pub(crate) struct PrngEagerKernel<P: Prng<E>, R: Runtime, E: JitElement> {
+pub(crate) struct PrngEagerKernel<P: Prng<E>, R: JitRuntime, E: JitElement> {
     _prng: PhantomData<P>,
     _runtime: PhantomData<R>,
     _elem: PhantomData<E>,
@@ -169,49 +178,49 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let n_values_per_thread: Variable = self.n_values_per_thread.into();
         let args = self.args;
 
-        let workgroup_size_x = Variable::WorkgroupSizeX;
-        let workgroup_size_y = Variable::WorkgroupSizeY;
-        let workgroup_id_x = Variable::WorkgroupIdX;
-        let workgroup_id_y = Variable::WorkgroupIdY;
-        let num_workgroups_y = Variable::NumWorkgroupsY;
-        let local_index = Variable::LocalInvocationIndex;
+        let cube_dim_x = Variable::CubeDimX;
+        let cube_dim_y = Variable::CubeDimY;
+        let cube_pos_x = Variable::CubePosX;
+        let cube_pos_y = Variable::CubePosY;
+        let cube_count_y = Variable::CubeCountY;
+        let local_index = Variable::UnitPos;
 
         let n_invocations = scope.create_local(Elem::UInt);
-        gpu!(scope, n_invocations = workgroup_size_x);
-        gpu!(scope, n_invocations *= workgroup_size_y);
+        cpa!(scope, n_invocations = cube_dim_x);
+        cpa!(scope, n_invocations *= cube_dim_y);
 
-        let workgroup_offset = scope.create_local(Elem::UInt);
-        gpu!(scope, workgroup_offset = workgroup_id_x * num_workgroups_y);
-        gpu!(scope, workgroup_offset += workgroup_id_y);
-        gpu!(scope, workgroup_offset *= n_invocations);
+        let cube_offset = scope.create_local(Elem::UInt);
+        cpa!(scope, cube_offset = cube_pos_x * cube_count_y);
+        cpa!(scope, cube_offset += cube_pos_y);
+        cpa!(scope, cube_offset *= n_invocations);
 
         let write_index_base = scope.create_local(Elem::UInt);
-        gpu!(scope, write_index_base = workgroup_offset);
-        gpu!(scope, write_index_base *= n_values_per_thread);
-        gpu!(scope, write_index_base += local_index);
+        cpa!(scope, write_index_base = cube_offset);
+        cpa!(scope, write_index_base *= n_values_per_thread);
+        cpa!(scope, write_index_base += local_index);
 
         // Set state with unique seeds
         let thread_seed = scope.create_local(Elem::UInt);
-        gpu!(scope, thread_seed = cast(1000000007));
+        cpa!(scope, thread_seed = cast(1000000007));
         let thread_seed_index = scope.create_local(Elem::UInt);
-        gpu!(scope, thread_seed_index = workgroup_offset + local_index);
-        gpu!(scope, thread_seed *= thread_seed_index);
+        cpa!(scope, thread_seed_index = cube_offset + local_index);
+        cpa!(scope, thread_seed *= thread_seed_index);
 
         let state_0 = scope.create_local(Elem::UInt);
-        gpu!(scope, state_0 = thread_seed);
-        gpu!(scope, state_0 += seed_0);
+        cpa!(scope, state_0 = thread_seed);
+        cpa!(scope, state_0 += seed_0);
 
         let state_1 = scope.create_local(Elem::UInt);
-        gpu!(scope, state_1 = thread_seed);
-        gpu!(scope, state_1 += seed_1);
+        cpa!(scope, state_1 = thread_seed);
+        cpa!(scope, state_1 += seed_1);
 
         let state_2 = scope.create_local(Elem::UInt);
-        gpu!(scope, state_2 = thread_seed);
-        gpu!(scope, state_2 += seed_2);
+        cpa!(scope, state_2 = thread_seed);
+        cpa!(scope, state_2 += seed_2);
 
         let state_3 = scope.create_local(Elem::UInt);
-        gpu!(scope, state_3 = thread_seed);
-        gpu!(scope, state_3 += seed_3);
+        cpa!(scope, state_3 = thread_seed);
+        cpa!(scope, state_3 += seed_3);
 
         // Creation of n_values_per_thread values, specific to the distribution
         P::inner_loop(
@@ -271,25 +280,25 @@ fn taus_step(
     m: Variable,
 ) {
     let b = scope.create_local(Elem::UInt);
-    gpu!(scope, b = z << s1);
-    gpu!(scope, b = b ^ z);
-    gpu!(scope, b = b >> s2);
-    gpu!(scope, z = z & m);
-    gpu!(scope, z = z << s3);
-    gpu!(scope, z = z ^ b);
+    cpa!(scope, b = z << s1);
+    cpa!(scope, b = b ^ z);
+    cpa!(scope, b = b >> s2);
+    cpa!(scope, z = z & m);
+    cpa!(scope, z = z << s3);
+    cpa!(scope, z = z ^ b);
 }
 
 pub(crate) fn lcg_step(scope: &mut Scope, z: Variable) {
     let a: Variable = 1664525u32.into();
     let b: Variable = 1013904223u32.into();
-    gpu!(scope, z *= a);
-    gpu!(scope, z += b);
+    cpa!(scope, z *= a);
+    cpa!(scope, z += b);
 }
 
 pub(crate) fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_random: Variable) {
-    let tmp: Variable = 2.328_306_4e-10.into();
-    gpu!(scope, float_random = cast(int_random));
-    gpu!(scope, float_random *= tmp);
+    let tmp: Variable = 2.328_306_4e-10f32.into();
+    cpa!(scope, float_random = cast(int_random));
+    cpa!(scope, float_random *= tmp);
 }
 
 #[allow(missing_docs)]
@@ -304,7 +313,7 @@ pub mod tests_utils {
 
     #[allow(unused)]
     pub fn calculate_bin_stats<E: Element>(
-        numbers: Vec<E>,
+        numbers: &[E],
         number_of_bins: usize,
         low: f32,
         high: f32,

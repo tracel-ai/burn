@@ -4,36 +4,36 @@ use burn::{
     module::{ConstantRecord, Param, ParamId},
     nn::{BatchNormConfig, BatchNormRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct BatchNormNode<PS: PrecisionSettings> {
+pub struct BatchNormNode {
     pub dim: usize,
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub gamma: DataSerialize<PS::FloatElem>,
-    pub beta: DataSerialize<PS::FloatElem>,
-    pub running_mean: DataSerialize<PS::FloatElem>,
-    pub running_var: DataSerialize<PS::FloatElem>,
+    pub gamma: TensorData,
+    pub beta: TensorData,
+    pub running_mean: TensorData,
+    pub running_var: TensorData,
     pub config: BatchNormConfig,
 }
 
-impl<PS: PrecisionSettings> BatchNormNode<PS> {
+impl BatchNormNode {
     #[allow(clippy::too_many_arguments)]
     pub fn new<S: AsRef<str>>(
         dim: usize,
         name: S,
         input: TensorType,
         output: TensorType,
-        gamma: DataSerialize<PS::FloatElem>,
-        beta: DataSerialize<PS::FloatElem>,
-        running_mean: DataSerialize<PS::FloatElem>,
-        running_var: DataSerialize<PS::FloatElem>,
+        gamma: TensorData,
+        beta: TensorData,
+        running_mean: TensorData,
+        running_var: TensorData,
         config: BatchNormConfig,
     ) -> Self {
         let dim_tokens = dim.to_tokens();
@@ -80,21 +80,21 @@ macro_rules! batch_norm_serialize {
     (record $self:expr) => {{
         let device = Default::default();
         BatchNormRecord {
-            gamma: Param::new(
+            gamma: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.gamma.clone().convert(), &device),
+                Tensor::from_data($self.gamma.clone().convert::<PS::FloatElem>(), &device),
             ),
-            beta: Param::new(
+            beta: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.beta.clone().convert(), &device),
+                Tensor::from_data($self.beta.clone().convert::<PS::FloatElem>(), &device),
             ),
-            running_mean: Param::new(
+            running_mean: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.running_mean.clone().convert(), &device),
+                Tensor::from_data($self.running_mean.clone().convert::<PS::FloatElem>(), &device),
             ),
-            running_var: Param::new(
+            running_var: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data($self.running_var.clone().convert(), &device),
+                Tensor::from_data($self.running_var.clone().convert::<PS::FloatElem>(), &device),
             ),
             epsilon: ConstantRecord::new(),
             momentum: ConstantRecord::new(),
@@ -102,7 +102,7 @@ macro_rules! batch_norm_serialize {
     }};
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -113,26 +113,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let num_features = self.config.num_features.to_tokens();
         let epsilon = self.config.epsilon;
         let momentum = self.config.momentum;
 
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = BatchNormConfig::new(#num_features)
                 .with_epsilon(#epsilon)
                 .with_momentum(#momentum)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)
@@ -165,7 +156,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for BatchNormNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -176,10 +167,10 @@ mod tests {
             "norm",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
+            TensorData::from([2f32]),
+            TensorData::from([2f32]),
+            TensorData::from([2f32]),
             BatchNormConfig::new(128),
         ));
 
@@ -197,19 +188,21 @@ mod tests {
             pub struct Model <B: Backend> {
                 norm: BatchNorm<B, 2>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let norm = BatchNormConfig::new(128)
                         .with_epsilon(0.00001f64)
                         .with_momentum(0.1f64)
-                        .init_with(record.norm);
+                        .init(device);
 
                     Self {
                         norm,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

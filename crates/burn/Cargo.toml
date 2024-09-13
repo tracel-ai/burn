@@ -9,16 +9,12 @@ name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
 version.workspace = true
-rust-version = "1.75"
+rust-version = "1.80"
 
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
-doc = [
-  "default",
-  "burn-core/doc",
-  "burn-train/doc",
-]
+doc = ["default", "burn-core/doc", "burn-train/doc"]
 
 # Training with full features
 train = ["burn-train", "autodiff", "dataset"]
@@ -28,9 +24,6 @@ tui = ["burn-train?/tui"]
 
 ##  Includes system info metrics (CPU/GPU usage, etc)
 metrics = ["burn-train?/metrics"]
-
-# Useful when targeting WASM and not using WGPU.
-wasm-sync = ["burn-core/wasm-sync"]
 
 # Datasets
 dataset = ["burn-core/dataset"]
@@ -45,16 +38,18 @@ autodiff = ["burn-core/autodiff"]
 fusion = ["burn-core/fusion"]
 
 ## Backend features
-cuda = ["burn-core/cuda"]
+candle-cuda = ["burn-core/candle-cuda"]
 metal = ["burn-core/metal"]
 accelerate = ["burn-core/accelerate"]
 openblas = ["burn-core/openblas"]
 openblas-system = ["burn-core/openblas-system"]
 blas-netlib = ["burn-core/blas-netlib"]
 autotune = ["burn-core/autotune"]
+template = ["burn-core/template"]
 
 ndarray = ["burn-core/ndarray"]
 wgpu = ["burn-core/wgpu"]
+cuda-jit = ["burn-core/cuda-jit"]
 tch = ["burn-core/tch"]
 candle = ["burn-core/candle"]
 
@@ -66,13 +61,14 @@ experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # Records
 record-item-custom-serde = ["burn-core/record-item-custom-serde"]
+record-backward-compat = ["burn-core/record-backward-compat"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.13.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.13.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.15.0", default-features = false }
+burn-train = { path = "../burn-train", version = "0.15.0", optional = true, default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]

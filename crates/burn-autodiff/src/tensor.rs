@@ -1,20 +1,24 @@
-use burn_tensor::backend::Backend;
+use std::sync::Arc;
 
 use crate::{
     checkpoint::{base::Checkpointer, builder::CheckpointerBuilder},
     grads::Gradients,
-    graph::{ComputingProperty, Graph, Node, NodeID, NodeRef, Requirement, Step},
+    graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
+    runtime::{AutodiffClient, AutodiffClientImpl},
 };
+use burn_tensor::backend::Backend;
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend, const D: usize> {
     pub primitive: B::FloatTensorPrimitive<D>,
     pub node: NodeRef,
-    pub graph: Graph,
+    pub rc: NodeRefCount,
 }
 
+pub type NodeRefCount = Arc<NodeID>;
+
 #[derive(new, Debug)]
-struct RootStep {
+pub(crate) struct RootStep {
     node: NodeRef,
 }
 
@@ -23,8 +27,16 @@ impl Step for RootStep {
         // Nothing to do
     }
 
-    fn node(&self) -> NodeRef {
-        self.node.clone()
+    fn node(&self) -> NodeID {
+        self.node.id
+    }
+
+    fn parents(&self) -> Vec<NodeID> {
+        self.node.parents.clone()
+    }
+
+    fn depth(&self) -> usize {
+        self.node.order
     }
 }
 
@@ -38,13 +50,14 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             id,
             Requirement::None,
             ComputingProperty::Ambiguous,
+            AutodiffClientImpl::new(),
         )
         .into();
 
         Self {
+            rc: Arc::new(node.id),
             primitive,
-            node,
-            graph: Graph::new(),
+            node: node.clone(),
         }
     }
 
@@ -67,33 +80,26 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
                 self.node = Node::new(
                     vec![],
                     0,
-                    self.node.id.clone(),
+                    self.node.id,
                     Requirement::Grad,
                     self.node.properties.clone(),
+                    self.node.client.clone(),
                 )
                 .into();
-                let ops = RootStep::new(self.node.clone());
+                let step = RootStep::new(self.node.clone());
 
-                self.register_step(ops)
+                self.register_step(step, CheckpointerBuilder::default())
             }
         }
     }
 
     /// Create a tensor from parent infos.
-    pub fn from_parents<I: Iterator<Item = Graph>>(
+    pub fn from_parents(
         primitive: B::FloatTensorPrimitive<D>,
         parent_nodes: &[NodeRef],
-        parent_graphs: I,
         requirement: Requirement,
         computing_properties: ComputingProperty,
-        checkpointer_builder: CheckpointerBuilder,
     ) -> Self {
-        let graph = parent_graphs
-            .reduce(|acc, graph| acc.merge(graph))
-            .unwrap_or_else(Graph::new);
-
-        graph.extend_checkpointer_builder(checkpointer_builder);
-
         let order = parent_nodes
             .iter()
             .map(|node| node.order)
@@ -101,25 +107,51 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
             .unwrap_or(0)
             + 1;
 
+        let client = parent_nodes
+            .first()
+            .map(|node| node.client.clone())
+            .unwrap_or_else(AutodiffClientImpl::new);
+
         let node: NodeRef = Node::new(
-            parent_nodes.iter().map(|node| node.id.clone()).collect(),
+            parent_nodes
+                .iter()
+                .filter_map(|node| node.clone_if_require_grad())
+                .map(|node| node.id)
+                .collect(),
             order,
             NodeID::new(),
             requirement,
             computing_properties,
+            client,
         )
         .into();
 
         Self {
+            rc: Arc::new(node.id),
             primitive,
             node,
-            graph,
         }
     }
 
     /// Register a step into a graph for that tensor.
-    pub fn register_step<O: Step + 'static>(mut self, ops: O) -> Self {
-        self.graph = self.graph.register(&self.node.id, Box::new(ops));
+    ///
+    /// # Warning
+    ///
+    /// This should be called only once per tensor.
+    pub fn register_step<S: Step + 'static>(
+        self,
+        step_that_created_the_tensor: S,
+        actions: CheckpointerBuilder,
+    ) -> Self {
+        self.node.client.register(
+            self.rc.clone(),
+            Box::new(step_that_created_the_tensor),
+            actions,
+        );
         self
+    }
+
+    pub fn into_primitive(self) -> B::FloatTensorPrimitive<D> {
+        self.primitive
     }
 }

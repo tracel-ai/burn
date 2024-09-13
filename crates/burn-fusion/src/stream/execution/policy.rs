@@ -1,13 +1,12 @@
+use burn_tensor::repr::OperationDescription;
+
 use super::validator::{
     ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
     ValidatorState,
 };
 use super::ExecutionMode;
 use crate::stream::execution::validator::OperationsValidator;
-use crate::stream::{
-    store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery},
-    OperationDescription,
-};
+use crate::stream::store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger, SearchQuery};
 use std::marker::PhantomData;
 
 /// The policy keeps track of all possible execution plans for the current operations.
@@ -266,14 +265,16 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        stream::{
-            store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger},
-            FloatOperationDescription, UnaryOperationDescription,
+    use burn_tensor::{
+        repr::{
+            FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
+            UnaryOperationDescription,
         },
-        TensorDescription, TensorId, TensorStatus,
+        DType,
     };
+
+    use super::*;
+    use crate::stream::store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger};
     use std::ops::Range;
 
     #[test]
@@ -548,10 +549,10 @@ mod tests {
             // Out node.
             self.new_empty_node(out_id);
 
-            self.operations
-                .push(OperationDescription::Float(FloatOperationDescription::Log(
-                    self.unary_description(),
-                )));
+            self.operations.push(OperationDescription::Float(
+                DType::F32,
+                FloatOperationDescription::Log(self.unary_description()),
+            ));
         }
 
         fn new_empty_node(&mut self, id: u64) {
@@ -559,6 +560,7 @@ mod tests {
                 id: TensorId::new(id),
                 shape: vec![32, 32, 1],
                 status: TensorStatus::NotInit,
+                dtype: DType::F32,
             });
         }
 

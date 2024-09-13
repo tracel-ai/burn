@@ -14,13 +14,14 @@ extern crate derive_new;
 extern crate blas_src;
 
 mod backend;
+mod bridge;
 mod element;
 mod ops;
-mod parallel;
 mod sharing;
 mod tensor;
 
 pub use backend::*;
+pub use bridge::*;
 pub use element::FloatNdArrayElement;
 pub(crate) use sharing::*;
 pub use tensor::*;
@@ -38,6 +39,7 @@ mod tests {
     use alloc::vec;
 
     burn_tensor::testgen_all!();
+    burn_tensor::testgen_quantization!();
 
     #[cfg(feature = "std")]
     burn_autodiff::testgen_all!();

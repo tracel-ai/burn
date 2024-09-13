@@ -3,14 +3,13 @@ use core::convert::TryInto;
 
 use crate::check;
 use crate::check::TensorCheck;
+use crate::ops::FullPrecisionBackend;
+use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::{Data, Distribution, Shape};
-use crate::Int;
+use crate::tensor::{Distribution, Shape, TensorData};
 use crate::Tensor;
-
-#[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-use crate::{argsort, sort, sort_with_indices, Float};
+use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
 where
@@ -38,53 +37,71 @@ where
     ///
     /// `y = e^x`
     pub fn exp(self) -> Self {
-        Self::new(B::float_exp(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_exp(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise natural log operation *ln*.
     ///
     /// `y = log(x)`
     pub fn log(self) -> Self {
-        Self::new(B::float_log(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_log(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies the natural logarithm of one plus the input tensor, element-wise.
     ///
     /// `y = log(x+1)`
     pub fn log1p(self) -> Self {
-        Self::new(B::float_log1p(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_log1p(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies the [error function](https://en.wikipedia.org/wiki/Error_function) element wise.
     ///
     /// `y = erf(x)`
     pub fn erf(self) -> Self {
-        Self::new(B::float_erf(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_erf(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise reciprocal operation.
     pub fn recip(self) -> Self {
-        Self::new(B::float_recip(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_recip(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise root square operation.
     pub fn sqrt(self) -> Self {
-        Self::new(B::float_sqrt(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_sqrt(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise cosine operation.
     pub fn cos(self) -> Self {
-        Self::new(B::float_cos(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_cos(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise sine operation.
     pub fn sin(self) -> Self {
-        Self::new(B::float_sin(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_sin(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Applies element wise hyperbolic tangent operation.
     pub fn tanh(self) -> Self {
-        Self::new(B::float_tanh(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_tanh(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Create a tensor from floats (f32) on a given device.
@@ -101,8 +118,8 @@ where
     ///     let _ = Tensor::<B, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
     /// }
     /// ```
-    pub fn from_floats<A: Into<Data<f32, D>>>(floats: A, device: &B::Device) -> Self {
-        Self::from_data(floats.into().convert(), device)
+    pub fn from_floats<A: Into<TensorData>>(floats: A, device: &B::Device) -> Self {
+        Self::from_data(floats.into().convert::<f32>(), device)
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
@@ -121,23 +138,33 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::float_into_int(self.primitive))
+        Tensor::new(B::float_into_int(self.primitive.tensor()))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
     pub fn zeros_like(&self) -> Self {
-        Tensor::new(B::float_zeros(self.shape(), &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_zeros(
+            self.shape(),
+            &self.device(),
+        )))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
     pub fn ones_like(&self) -> Self {
-        Tensor::new(B::float_ones(self.shape(), &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_ones(
+            self.shape(),
+            &self.device(),
+        )))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
-        Tensor::new(B::float_random(self.shape(), distribution, &self.device()))
+        Tensor::new(TensorPrimitive::Float(B::float_random(
+            self.shape(),
+            distribution,
+            &self.device(),
+        )))
     }
 
     /// Create a one hot tensor.
@@ -178,7 +205,10 @@ where
     /// If the two tensors dont' have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
-        Self::new(B::float_matmul(self.primitive, other.primitive))
+        Self::new(TensorPrimitive::Float(B::float_matmul(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+        )))
     }
 
     /// Calculate the variance along the given dimension.
@@ -206,13 +236,17 @@ where
     }
 
     /// Returns a tensor with full precision based on the selected backend.
-    pub fn to_full_precision(&self) -> Tensor<B::FullPrecisionBackend, D> {
-        Tensor::new(B::float_to_full_precision(&self.primitive))
+    pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_into_full_precision(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Returns a tensor on the selected backend from a full precision tensor.
-    pub fn from_full_precision(tensor: Tensor<B::FullPrecisionBackend, D>) -> Self {
-        Self::new(B::float_from_full_precision(tensor.primitive))
+    pub fn from_full_precision(tensor: Tensor<FullPrecisionBackend<B>, D>) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_from_full_precision(
+            tensor.primitive.tensor(),
+        )))
     }
 
     /// Detach the current tensor from the autodiff graph.
@@ -221,7 +255,9 @@ where
     /// This can be used in batchers or elsewhere to ensure that previous operations are not
     /// considered in the autodiff graph.
     pub fn detach(self) -> Self {
-        Self::new(B::float_detach(self.primitive))
+        Self::new(TensorPrimitive::Float(B::float_detach(
+            self.primitive.tensor(),
+        )))
     }
 
     /// Mark the tensor to keep gradients during the backward pass.
@@ -233,7 +269,10 @@ where
 
     /// Returns true if the tensor requires gradients during the backward pass.
     pub fn is_require_grad(&self) -> bool {
-        B::float_is_require_grad(&self.primitive)
+        match &self.primitive {
+            TensorPrimitive::Float(tensor) => B::float_is_require_grad(tensor),
+            TensorPrimitive::QFloat(tensor) => B::q_is_require_grad(tensor),
+        }
     }
 
     /// Mark the tensor as tracked or untracked depending on the require grad argument.
@@ -241,12 +280,20 @@ where
     ///
     /// This function does nothing when autodiff is not enabled.
     pub fn set_require_grad(self, require_grad: bool) -> Self {
-        Self::new(B::float_set_require_grad(self.primitive, require_grad))
+        let primitive = match self.primitive {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_set_require_grad(tensor, require_grad))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_set_require_grad(tensor, require_grad))
+            }
+        };
+        Self::new(primitive)
     }
 
     /// Applies the relu function to the tensor.
     pub(crate) fn relu(self) -> Self {
-        Self::new(B::relu(self.primitive))
+        Self::new(TensorPrimitive::Float(B::relu(self.primitive.tensor())))
     }
 
     /// Calculate covaraince matrix between different entries alongside a given dimension.
@@ -265,87 +312,52 @@ where
             .div_scalar(n as f32 - correction_factor as f32)
     }
 
-    /// Sort the elements by value in ascending order along a given dimension.
+    /// Convert the tensor to a lower precision data type based on the quantization scheme.
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort(self, dim: usize) -> Tensor<B, D> {
-        Tensor::new(sort::<B, D, Float>(self.primitive, dim, /*descending*/ false).await)
-    }
-
-    /// Sort the elements by value in descending order along a given dimension.
+    /// # Arguments
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort_descending(self, dim: usize) -> Tensor<B, D> {
-        Tensor::new(sort::<B, D, Float>(self.primitive, dim, /*descending*/ true).await)
-    }
-
-    /// Sort the elements by value in ascending order along a given dimension.
-    /// Also returns the indices.
+    /// * `scheme` - The quantization scheme.
+    /// * `qparams` - The pre-computed quantization parameters.
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort_with_indices(self, dim: usize) -> (Tensor<B, D>, Tensor<B, D, Int>) {
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
-        let (values, indices) =
-            sort_with_indices::<B, D, Float>(self.primitive, dim, /*descending*/ false).await;
-        (Tensor::new(values), Tensor::new(indices))
-    }
-
-    /// Sort the elements by value in descending order along a given dimension.
-    /// Also returns the indices.
+    /// # Returns
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn sort_descending_with_indices(
+    /// The quantized tensor.
+    pub fn quantize(
         self,
-        dim: usize,
-    ) -> (Tensor<B, D>, Tensor<B, D, Int>) {
-        check!(TensorCheck::sort_dim::<D>("Sort_with_indices", dim));
-        let (values, indices) =
-            sort_with_indices::<B, D, Float>(self.primitive, dim, /*descending*/ true).await;
-        (Tensor::new(values), Tensor::new(indices))
+        scheme: &QuantizationScheme,
+        qparams: QuantizationParameters<B>,
+    ) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::QFloat(B::quantize(
+            self.primitive.tensor(),
+            scheme,
+            qparams.into(),
+        )))
     }
 
-    /// Returns the indices that sort the elements by value in ascending order along a given dimension.
+    /// Dynamically convert the tensor to a lower precision data type based on the quantization scheme.
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn argsort(self, dim: usize) -> Tensor<B, D, Int> {
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
-        Tensor::new(argsort::<B, D, Float>(self.primitive, dim, /*descending*/ false).await)
-    }
-
-    /// Returns the indices that sort the elements by value in descending order along a given dimension.
+    /// # Arguments
     ///
-    /// This sort is unstable (i.e., may reorder equal elements).
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn argsort_descending(self, dim: usize) -> Tensor<B, D, Int> {
-        check!(TensorCheck::sort_dim::<D>("Argsort", dim));
-        Tensor::new(argsort::<B, D, Float>(self.primitive, dim, /*descending*/ true).await)
+    /// * `scheme` - The quantization scheme.
+    ///
+    /// # Returns
+    ///
+    /// The quantized tensor.
+    pub fn quantize_dynamic(self, scheme: &QuantizationScheme) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
+            self.primitive.tensor(),
+            scheme,
+        )))
     }
 
-    /// Returns the `k` largest elements of the given input tensor along a given dimension.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn topk(self, k: usize, dim: usize) -> Tensor<B, D> {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        self.sort_descending(dim).await.select(dim, k_indices)
-    }
-
-    /// Returns the `k` largest elements of the given input tensor along a given dimension.
-    /// Also returns the indices.
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    pub async fn topk_with_indices(
-        self,
-        k: usize,
-        dim: usize,
-    ) -> (Tensor<B, D>, Tensor<B, D, Int>) {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        let (values, indices) = self.sort_descending_with_indices(dim).await;
-        (
-            values.select(dim, k_indices.clone()),
-            indices.select(dim, k_indices),
-        )
+    /// Convert the tensor back to a higher precision data type.
+    ///
+    /// If the tensor is not quantized, its value is simply returned.
+    ///
+    /// # Returns
+    ///
+    /// The dequantized tensor.
+    pub fn dequantize(self) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(self.primitive.tensor()))
     }
 }

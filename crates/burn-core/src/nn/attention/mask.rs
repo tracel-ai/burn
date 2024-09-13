@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
+use burn_tensor::ops::IntElem;
 
-use burn_tensor::{backend::Backend, Bool, Data, ElementConversion, Int, Shape, Tensor};
+use crate::tensor::{backend::Backend, Bool, ElementConversion, Int, Shape, Tensor, TensorData};
 
 /// Generate an autoregressive attention mask.
 ///
@@ -18,7 +19,7 @@ pub fn generate_autoregressive_mask<B: Backend>(
         mask = mask.slice_assign([0..1, i..i + 1, i + 1..seq_length], values);
     }
 
-    mask = mask.repeat(0, batch_size);
+    mask = mask.repeat_dim(0, batch_size);
 
     mask.equal_elem(1_i64.elem::<i64>())
 }
@@ -72,8 +73,11 @@ pub fn generate_padding_mask<B: Backend>(
         tensor = tensor.slice_assign(
             [index..index + 1, 0..tokens.len()],
             Tensor::from_data(
-                Data::new(
-                    tokens.into_iter().map(|e| (e as i64).elem()).collect(),
+                TensorData::new(
+                    tokens
+                        .into_iter()
+                        .map(|e| (e as i64).elem::<IntElem<B>>())
+                        .collect(),
                     Shape::new([1, seq_length]),
                 ),
                 device,
@@ -89,9 +93,9 @@ pub fn generate_padding_mask<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
     use alloc::vec;
-    use burn_tensor::Data;
 
     #[test]
     fn test_generate_autoregressive_mask() {
@@ -101,7 +105,7 @@ mod tests {
 
         assert_eq!(
             mask.into_data(),
-            Data::from([
+            TensorData::from([
                 [
                     [false, true, true],
                     [false, false, true],
@@ -130,7 +134,7 @@ mod tests {
 
         assert_eq!(
             mask.mask.into_data(),
-            Data::from([
+            TensorData::from([
                 [false, false, false, true, true, true],
                 [false, false, false, true, true, true],
                 [false, false, false, false, true, true],

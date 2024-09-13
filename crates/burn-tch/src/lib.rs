@@ -4,11 +4,13 @@
 //! Burn Tch Backend
 
 mod backend;
+mod bridge;
 mod element;
 mod ops;
 mod tensor;
 
 pub use backend::*;
+pub use bridge::*;
 pub use element::*;
 pub use tensor::*;
 
@@ -23,4 +25,5 @@ mod tests {
 
     burn_tensor::testgen_all!();
     burn_autodiff::testgen_all!();
+    burn_tensor::testgen_quantization!();
 }

@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    Bool, Data, Device, Distribution, ElementConversion, Reader, Shape,
+    Bool, Device, Distribution, ElementConversion, Shape, TensorData,
 };
 
 use crate::{
@@ -8,7 +8,7 @@ use crate::{
     Candle, CandleTensor,
 };
 
-use super::base::{expand, permute};
+use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
@@ -19,12 +19,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::shape(tensor)
     }
 
-    fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> Reader<Data<IntElem<Self>, D>> {
-        Reader::Concrete(super::base::into_data(tensor))
+    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+        super::base::into_data(tensor)
     }
 
     fn int_from_data<const D: usize>(
-        data: Data<IntElem<Self>, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
         super::base::from_data(data, device)
@@ -289,6 +289,14 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         panic!("Not supported by Candle")
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<Self, D>,
+        rhs: IntElem<Self>,
+    ) -> IntTensor<Self, D> {
+        // Same problem as int_div_scalar.
+        panic!("Not supported by Candle")
+    }
+
     fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         CandleTensor::new(
             candle_core::Tensor::zeros(&shape.dims, I::DTYPE, &(*device).into()).unwrap(),
@@ -304,7 +312,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<I>().unwrap();
         CandleTensor::from_data(
-            Data::new([sum].into(), [1].into()),
+            TensorData::new([sum].into(), [1]),
             Self::int_device(&tensor),
         )
     }
@@ -439,6 +447,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         expand(tensor, shape)
     }
 
-    // TODO add sign operator once Candle supports it:
-    // https://github.com/huggingface/candle/issues/1827
+    fn int_sign<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+        sign(tensor)
+    }
 }

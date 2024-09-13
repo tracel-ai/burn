@@ -4,29 +4,29 @@ use burn::{
     module::{Param, ParamId},
     nn::{LinearConfig, LinearRecord},
     record::{PrecisionSettings, Record},
-    tensor::{DataSerialize, Tensor},
+    tensor::{Tensor, TensorData},
 };
 use proc_macro2::TokenStream;
 use quote::quote;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct LinearNode<PS: PrecisionSettings> {
+pub struct LinearNode {
     pub field: OtherType,
     pub input: TensorType,
     pub output: TensorType,
-    pub data_weights: DataSerialize<PS::FloatElem>,
-    pub data_bias: Option<DataSerialize<PS::FloatElem>>,
+    pub data_weights: TensorData,
+    pub data_bias: Option<TensorData>,
     pub config: LinearConfig,
 }
 
-impl<PS: PrecisionSettings> LinearNode<PS> {
+impl LinearNode {
     pub fn new<S: AsRef<str>>(
         name: S,
         input: TensorType,
         output: TensorType,
-        data_weights: DataSerialize<PS::FloatElem>,
-        data_bias: Option<DataSerialize<PS::FloatElem>>,
+        data_weights: TensorData,
+        data_bias: Option<TensorData>,
         config: LinearConfig,
     ) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> LinearNode<PS> {
     }
 }
 
-impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
+impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode {
     fn input_types(&self) -> Vec<Type> {
         vec![Type::Tensor(self.input.clone())]
     }
@@ -57,25 +57,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
         Some(Type::Other(self.field.clone()))
     }
 
-    fn field_init(&self, with_record: bool) -> Option<TokenStream> {
+    fn field_init(&self) -> Option<TokenStream> {
         let name = &self.field.name;
         let d_input = self.config.d_input.to_tokens();
         let d_output = self.config.d_output.to_tokens();
         let bias = self.config.bias;
-
-        let init_line = match with_record {
-            true => quote! {
-                init_with(record.#name);
-            },
-            false => quote! {
-                init(device);
-            },
-        };
-
         let tokens = quote! {
             let #name = LinearConfig::new(#d_input, #d_output)
                 .with_bias(#bias)
-                .#init_line
+                .init(device);
         };
 
         Some(tokens)
@@ -84,14 +74,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let device = Default::default();
         let record = LinearRecord::<SerializationBackend> {
-            weight: Param::new(
+            weight: Param::initialized(
                 ParamId::new(),
-                Tensor::from_data(self.data_weights.clone().convert(), &device),
+                Tensor::from_data(
+                    self.data_weights.clone().convert::<PS::FloatElem>(),
+                    &device,
+                ),
             ),
             bias: self.data_bias.as_ref().map(|bias| {
-                Param::new(
+                Param::initialized(
                     ParamId::new(),
-                    Tensor::from_data(bias.clone().convert(), &device),
+                    Tensor::from_data(bias.clone().convert::<PS::FloatElem>(), &device),
                 )
             }),
         };
@@ -124,7 +117,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for LinearNode<PS> {
 mod tests {
     use super::*;
     use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorType};
-    use burn::{record::FullPrecisionSettings, tensor::Data};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen() {
@@ -134,7 +127,7 @@ mod tests {
             "linear",
             TensorType::new_float("input", 4),
             TensorType::new_float("output", 4),
-            Data::from([2.]).serialize(),
+            TensorData::from([2f32]),
             None,
             LinearConfig::new(128, 128),
         ));
@@ -153,18 +146,20 @@ mod tests {
             pub struct Model <B: Backend> {
                 linear: Linear<B>,
                 phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
             }
 
             impl<B: Backend> Model <B> {
                 #[allow(unused_variables)]
-                pub fn new_with(record: ModelRecord<B>) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     let linear = LinearConfig::new(128, 128)
                         .with_bias(true)
-                        .init_with(record.linear);
+                        .init(device);
 
                     Self {
                         linear,
                         phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]

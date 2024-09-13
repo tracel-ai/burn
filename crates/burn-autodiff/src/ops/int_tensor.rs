@@ -3,14 +3,11 @@ use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Au
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, IntTensor, IntTensorOps},
-    Data, Device, Distribution, Reader, Shape,
+    Device, Distribution, Shape, TensorData,
 };
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
-    fn int_from_data<const D: usize>(
-        data: Data<B::IntElem, D>,
-        device: &Device<Self>,
-    ) -> IntTensor<B, D> {
+    fn int_from_data<const D: usize>(data: TensorData, device: &Device<Self>) -> IntTensor<B, D> {
         B::int_from_data(data, device)
     }
 
@@ -18,12 +15,8 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_shape(tensor)
     }
 
-    fn int_to_data<const D: usize>(tensor: &IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
-        B::int_to_data(tensor)
-    }
-
-    fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> Reader<Data<B::IntElem, D>> {
-        B::int_into_data(tensor)
+    async fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> TensorData {
+        B::int_into_data(tensor).await
     }
 
     fn int_to_device<const D: usize>(
@@ -126,6 +119,13 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_div_scalar(lhs, rhs)
     }
 
+    fn int_remainder_scalar<const D: usize>(
+        lhs: IntTensor<B, D>,
+        rhs: B::IntElem,
+    ) -> IntTensor<B, D> {
+        B::int_remainder_scalar(lhs, rhs)
+    }
+
     fn int_neg<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, D> {
         B::int_neg(tensor)
     }
@@ -162,12 +162,12 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_mean_dim(tensor, dim)
     }
 
-    fn int_repeat<const D: usize>(
+    fn int_repeat_dim<const D: usize>(
         tensor: IntTensor<B, D>,
         dim: usize,
         times: usize,
     ) -> IntTensor<B, D> {
-        B::int_repeat(tensor, dim, times)
+        B::int_repeat_dim(tensor, dim, times)
     }
 
     fn int_greater<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {

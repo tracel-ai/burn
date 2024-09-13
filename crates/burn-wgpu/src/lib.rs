@@ -1,32 +1,19 @@
-#[macro_use]
-extern crate derive_new;
-
 extern crate alloc;
 
-mod compiler;
-mod compute;
-mod device;
-mod element;
-mod graphics;
-mod runtime;
-
-#[cfg(feature = "fusion")]
-mod fusion;
-
-pub use device::*;
-pub use element::*;
-pub use graphics::*;
-pub use runtime::*;
-
-pub use burn_jit::compute::{DynamicKernel, WorkGroup};
-pub use burn_jit::kernel::{
-    build_info, into_contiguous, DynamicKernelSource, SourceTemplate, StaticKernelSource,
+#[cfg(feature = "template")]
+pub use burn_jit::{
+    kernel::{into_contiguous, Kernel},
+    kernel_source,
+    template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
-pub use burn_jit::kernel_wgsl;
+
 pub use burn_jit::{tensor::JitTensor, JitBackend};
+pub use burn_jit::{FloatElement, IntElement};
+pub use cubecl::ir::CubeDim;
+pub use cubecl::wgpu::*;
 
 #[cfg(feature = "fusion")]
-/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+/// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan] on Linux, Windows, and Android.
@@ -35,18 +22,32 @@ pub use burn_jit::{tensor::JitTensor, JitBackend};
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
+/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
+/// you have to manually initialize the runtime. For example:
+///
+/// ```rust, ignore
+/// fn custom_init() {
+///     let device = Default::default();
+///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///         &device,
+///         Default::default(),
+///     );
+/// }
+/// ```
+/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
+///
 /// # Notes
 ///
-/// This version of the [wgpu] backend uses [burn_fusion] to compile and optimize streams of tensor
+/// This version of the wgpu backend uses [burn_fusion] to compile and optimize streams of tensor
 /// operations for improved performance.
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
-    burn_fusion::Fusion<JitBackend<WgpuRuntime<G, F, I>>>;
+pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
-/// Tensor backend that uses the [wgpu] crate for executing GPU compute shaders.
+/// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
 ///
 /// This backend can target multiple graphics APIs, including:
 ///   - [Vulkan] on Linux, Windows, and Android.
@@ -55,20 +56,34 @@ pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> =
 ///   - [Metal] on Apple hardware.
 ///   - [WebGPU](crate::WebGpu) on supported browsers and `wasm` runtimes.
 ///
+/// To configure the wgpu backend, eg. to select what graphics API to use or what memory strategy to use,
+/// you have to manually initialize the runtime. For example:
+///
+/// ```rust, ignore
+/// fn custom_init() {
+///     let device = Default::default();
+///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///         &device,
+///         Default::default(),
+///     );
+/// }
+/// ```
+/// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
+/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
+///
 /// # Notes
 ///
-/// This version of the [wgpu] backend doesn't use [burn_fusion] to compile and optimize streams of tensor
+/// This version of the wgpu backend doesn't use [burn_fusion] to compile and optimize streams of tensor
 /// operations.
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<G = AutoGraphicsApi, F = f32, I = i32> = JitBackend<WgpuRuntime<G, F, I>>;
+pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuRuntime, F, I>;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    pub type TestRuntime = crate::WgpuRuntime<AutoGraphicsApi, f32, i32>;
+    use burn_jit::JitBackend;
+    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
 
     burn_jit::testgen_all!();
 }

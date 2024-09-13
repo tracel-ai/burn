@@ -2,23 +2,23 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
-use burn_tensor::{ElementConversion, Reader};
+use burn_tensor::ElementConversion;
 use core::ops::Range;
-use ndarray::IntoDimension;
+use ndarray::{IntoDimension, Zip};
 
 // Current crate
-use crate::element::FloatNdArrayElement;
+use crate::element::{FloatNdArrayElement, QuantElement};
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArray};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Data, Shape};
+use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
+impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E, Q> {
     fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
+        data: TensorData,
         _device: &NdArrayDevice,
     ) -> NdArrayTensor<bool, D> {
         NdArrayTensor::from_data(data)
@@ -30,13 +30,12 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         tensor.shape()
     }
 
-    fn bool_into_data<const D: usize>(
+    async fn bool_into_data<const D: usize>(
         tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Reader<Data<bool, D>> {
+    ) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-
-        Reader::Concrete(Data::new(values, shape))
+        TensorData::new(values, shape)
     }
 
     fn bool_to_device<const D: usize>(
@@ -63,10 +62,12 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
     fn bool_into_int<const D: usize>(
         tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> NdArrayTensor<i64, D> {
-        let data = Self::bool_into_data(tensor)
-            .read_sync()
-            .expect("Always sync with ndarray");
-        NdArray::<E>::int_from_data(data.convert(), &NdArrayDevice::Cpu)
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        NdArray::<E>::int_from_data(
+            TensorData::new(values, shape).convert::<i64>(),
+            &NdArrayDevice::Cpu,
+        )
     }
 
     fn bool_device<const D: usize>(
@@ -80,7 +81,7 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         _device: &<NdArray<E> as Backend>::Device,
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
         let values = vec![false; shape.num_elements()];
-        NdArrayTensor::from_data(Data::new(values, shape))
+        NdArrayTensor::from_data(TensorData::new(values, shape))
     }
 
     fn bool_slice_assign<const D1: usize, const D2: usize>(
@@ -102,10 +103,11 @@ impl<E: FloatNdArrayElement> BoolTensorOps<Self> for NdArray<E> {
         lhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
         rhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
     ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
-        let mut array = lhs.array;
-        array.zip_mut_with(&rhs.array, |a, b| *a = *a == *b);
-
-        NdArrayTensor { array }
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn bool_not<const D: usize>(

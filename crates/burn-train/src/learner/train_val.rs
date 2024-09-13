@@ -122,7 +122,7 @@ impl<LC: LearnerComponents> Learner<LC> {
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        log::info!("Fitting {}", self.model.to_string());
+        log::info!("Fitting the model:\n {}", self.model.to_string());
         // The reference model is always on the first device provided.
         if let Some(device) = self.devices.first() {
             self.model = self.model.fork(device);
@@ -196,6 +196,19 @@ impl<LC: LearnerComponents> Learner<LC> {
                 if early_stopping.should_stop(epoch, &self.event_store) {
                     break;
                 }
+            }
+        }
+
+        // Display learner summary
+        if let Some(summary) = self.summary {
+            match summary.init() {
+                Ok(summary) => {
+                    // Drop event processor (includes renderer) so the summary is displayed
+                    // when switching back to "main" screen
+                    core::mem::drop(self.event_processor);
+                    println!("{}", summary.with_model(self.model.to_string()))
+                }
+                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
             }
         }
 

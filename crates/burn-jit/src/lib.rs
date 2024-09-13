@@ -8,29 +8,80 @@ extern crate alloc;
 
 mod ops;
 
-/// Compute related module.
-pub mod compute;
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod codegen;
 pub(crate) mod tune;
 
-mod element;
-pub use codegen::compiler::Compiler;
-pub use codegen::dialect::gpu;
+/// Elements for JIT backend
+pub mod element;
 
+use burn_tensor::backend::{DeviceId, DeviceOps};
+use cubecl::{
+    compute::{CubeCount, CubeTask},
+    FeatureSet, Properties, Runtime,
+};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
+mod bridge;
+
 pub use backend::*;
-mod runtime;
-pub use runtime::*;
+pub use bridge::*;
+
+// Re-export cubecl.
+pub use cubecl;
+
+mod tune_key;
+pub use tune_key::JitAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
 mod fusion;
 
+#[cfg(feature = "template")]
+/// Module for compiling custom non-jit kernels
+pub mod template;
+
 #[cfg(feature = "export_tests")]
 pub mod tests;
+
+/// Just-in-Time runtime extending the [cube runtime](Runtime).
+pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
+    /// The device that should also implement [burn_tensor::backend::DeviceOps].
+    type JitDevice: burn_tensor::backend::DeviceOps;
+    /// The cube server with the [JitAutotuneKey].
+    type JitServer: cubecl::server::ComputeServer<
+        Kernel = Box<dyn CubeTask>,
+        DispatchOptions = CubeCount<Self::JitServer>,
+        Properties = Properties,
+        FeatureSet = FeatureSet,
+    >;
+}
+
+/// ID used to identify a Just-in-Time environment.
+#[derive(Hash, PartialEq, Eq, Debug, Clone)]
+pub struct JitTuneId {
+    device: DeviceId,
+    name: &'static str,
+}
+
+impl JitTuneId {
+    /// Create a new ID.
+    pub fn new<R: JitRuntime>(device: &R::Device) -> Self {
+        Self {
+            device: DeviceOps::id(device),
+            name: R::name(),
+        }
+    }
+}
+
+impl core::fmt::Display for JitTuneId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "device-{}-{}-{}",
+            self.device.type_id, self.device.index_id, self.name
+        ))
+    }
+}

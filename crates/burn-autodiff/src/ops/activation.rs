@@ -40,9 +40,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Gelu::<D>
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -77,9 +77,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Relu
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -115,9 +115,9 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
 
         match Sigmoid
-            .prepare::<C>([tensor.node.clone()], [tensor.graph.clone()])
+            .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id.clone()))
+            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -126,6 +126,44 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
                 prep.finish(state, B::sigmoid(tensor.primitive))
             }
             OpsKind::UnTracked(prep) => prep.finish(B::sigmoid(tensor.primitive)),
+        }
+    }
+
+    fn log_sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+        #[derive(Debug)]
+        struct LogSigmoid<const D: usize>;
+
+        retro_unary!(RetroLogSigmoid, B::log_sigmoid);
+
+        impl<const D: usize, B: Backend> Backward<B, D, 1> for LogSigmoid<D> {
+            type State = NodeID;
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let input = checkpointer.retrieve_node_output(ops.state);
+
+                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                    B::log_sigmoid_backward(input, grad)
+                });
+            }
+        }
+
+        match LogSigmoid::<D>
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroLogSigmoid::<B, D>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let state = prep.checkpoint(&tensor);
+                prep.finish(state, B::log_sigmoid(tensor.primitive.clone()))
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::log_sigmoid(tensor.primitive)),
         }
     }
 }

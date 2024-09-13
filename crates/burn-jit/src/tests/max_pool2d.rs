@@ -47,6 +47,8 @@ mod tests {
         pooled
             .into_data()
             .assert_approx_eq(&pooled_ref.into_data(), 3);
-        assert_eq!(indices.into_data(), indices_ref.into_data().convert());
+        indices
+            .into_data()
+            .assert_eq(&indices_ref.into_data(), false);
     }
 }

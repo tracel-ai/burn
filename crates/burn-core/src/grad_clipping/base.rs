@@ -30,6 +30,7 @@ impl GradientClippingConfig {
 /// Gradient Clipping provides a way to mitigate exploding gradients
 /// by clipping every component of the gradient by value or by norm during
 /// backpropagation.
+#[derive(Clone)]
 pub enum GradientClipping {
     /// Clip the gradient by value.
     Value(f32),
@@ -68,16 +69,6 @@ impl GradientClipping {
         clipped_grad.mask_fill(lower_mask, -threshold)
     }
 
-    #[cfg(all(not(feature = "wasm-sync"), target_family = "wasm"))]
-    fn clip_by_norm<B: Backend, const D: usize>(
-        &self,
-        _grad: Tensor<B, D>,
-        _threshold: f32,
-    ) -> Tensor<B, D> {
-        todo!("Not yet supported on wasm");
-    }
-
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn clip_by_norm<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
@@ -96,11 +87,9 @@ impl GradientClipping {
         }
     }
 
-    #[cfg(any(feature = "wasm-sync", not(target_family = "wasm")))]
     fn l2_norm<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> Tensor<B, 1> {
         let squared = tensor.powf_scalar(2.0);
         let sum = squared.sum();
-
         sum.sqrt()
     }
 }
@@ -124,7 +113,7 @@ mod tests {
         let clipped_gradient = GradientClipping::Value(0.5).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
-        for value in clipped_gradient_data.value {
+        for value in clipped_gradient_data.iter::<f32>() {
             assert!(value <= 0.5);
         }
     }
@@ -142,7 +131,7 @@ mod tests {
         let clipped_gradient = GradientClipping::Norm(2.2).clip_gradient(gradient);
         let clipped_gradient_data = clipped_gradient.into_data();
 
-        for value in clipped_gradient_data.value {
+        for value in clipped_gradient_data.iter::<f32>() {
             assert!(value <= 0.88);
         }
     }

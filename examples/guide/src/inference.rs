@@ -1,4 +1,4 @@
-use crate::{data::MnistBatcher, training::TrainingConfig};
+use crate::{data::MnistBatcher, model::Model, training::TrainingConfig};
 use burn::{
     data::{dataloader::batcher::Batcher, dataset::vision::MnistItem},
     prelude::*,
@@ -7,12 +7,12 @@ use burn::{
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
-        .expect("Config should exist for the model");
+        .expect("Config should exist for the model; run train first");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
-        .expect("Trained model should exist");
+        .expect("Trained model should exist; run train first");
 
-    let model = config.model.init_with::<B>(record);
+    let model: Model<B> = config.model.init(&device).load_record(record);
 
     let label = item.label;
     let batcher = MnistBatcher::new(device);

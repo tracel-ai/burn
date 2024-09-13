@@ -1,59 +1,79 @@
 use crate as burn;
 use crate::config::Config;
 use crate::module::Module;
+use crate::module::{Content, DisplaySettings, ModuleDisplay};
 use crate::tensor::backend::Backend;
-use crate::tensor::Data;
 use crate::tensor::Tensor;
 
+use crate::tensor::activation::leaky_relu;
+
 /// Leaky ReLu layer.
-#[derive(Module, Debug)]
-pub struct LeakyRelu<B: Backend> {
-    /// The weight used in Leaky ReLu
-    pub negative_slope: Tensor<B, 1>,
+///
+/// Should be created with [LeakyReluConfig](LeakyReluConfig).
+#[derive(Module, Clone, Debug)]
+#[module(custom_display)]
+pub struct LeakyRelu {
+    /// The negative slope.
+    pub negative_slope: f64,
 }
-/// Configuration to create a [Leaky Relu](LeakyRelu) layer.
+/// Configuration to create a [Leaky Relu](LeakyRelu) layer using the [init function](LeakyReluConfig::init).
 #[derive(Config, Debug)]
 pub struct LeakyReluConfig {
     /// The negative slope. Default is 0.01
     #[config(default = "0.01")]
-    pub negative_slope: f32,
+    pub negative_slope: f64,
 }
 impl LeakyReluConfig {
     /// Initialize a new [Leaky Relu](LeakyRelu) Layer
-    pub fn init<B: Backend>(&self, device: &B::Device) -> LeakyRelu<B> {
+    pub fn init(&self) -> LeakyRelu {
         LeakyRelu {
-            negative_slope: Tensor::from_data(Data::from([self.negative_slope]).convert(), device),
+            negative_slope: self.negative_slope,
         }
     }
 }
 
-impl<B: Backend> LeakyRelu<B> {
-    /// Applies the forward pass on the input tensor.
+impl ModuleDisplay for LeakyRelu {
+    fn custom_settings(&self) -> Option<DisplaySettings> {
+        DisplaySettings::new()
+            .with_new_line_after_attribute(false)
+            .optional()
+    }
+
+    fn custom_content(&self, content: Content) -> Option<Content> {
+        content
+            .add("negative_slope", &self.negative_slope)
+            .optional()
+    }
+}
+
+impl LeakyRelu {
+    /// Forward pass for the Leaky ReLu layer.
+    ///
+    /// See [leaky_relu](crate::tensor::activation::leaky_relu) for more information.
     ///
     /// # Shapes
-    ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        // leaky relu is a special case of prelu where the weights are all the same. and the
-        // negative_slope is not learnable
-        crate::tensor::activation::prelu(input, self.negative_slope.clone())
+    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+        leaky_relu(input, self.negative_slope)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tensor::TensorData;
     use crate::TestBackend;
-    use burn_tensor::Data;
 
     #[test]
     fn test_leaky_relu_forward() {
         let device = <TestBackend as Backend>::Device::default();
-        let model: LeakyRelu<TestBackend> = LeakyReluConfig::new().init(&device);
-        let input = Tensor::<TestBackend, 2>::from_data(Data::from([[0.4410, -0.2507]]), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.4410, -0.2507]]), &device);
         let out = model.forward(input);
-        assert_eq!(out.to_data(), Data::from([[0.4410, -0.002507]]));
+        let expected = TensorData::from([[0.4410, -0.002507]]);
+        out.to_data().assert_eq(&expected, false);
     }
     #[test]
     fn test_leaky_relu_forward_multi_dim() {
@@ -69,7 +89,7 @@ mod tests {
                 [-0.5523, -0.2741, -0.0210, -1.1352],
             ],
         ];
-        let expected_output = [
+        let expected = TensorData::from([
             [
                 [-1.0222e-02, 1.5810e+00, 3.457e-01, -1.3530e-02],
                 [2.31e-02, 8.681e-01, 2.473e-01, -3.77e-04],
@@ -80,14 +100,21 @@ mod tests {
                 [1.5615e+00, -1.057e-03, -4.886e-03, -1.5184e-02],
                 [-5.523e-03, -2.741e-03, -2.1e-04, -1.1352e-02],
             ],
-        ];
+        ]);
 
         let device = <TestBackend as Backend>::Device::default();
-        let model: LeakyRelu<TestBackend> = LeakyReluConfig::new().init(&device);
-        let input_data = Tensor::<TestBackend, 3>::from_data(Data::from(input), &device);
+        let model: LeakyRelu = LeakyReluConfig::new().init();
+        let input_data = Tensor::<TestBackend, 3>::from_data(TensorData::from(input), &device);
         let actual_output = model.forward(input_data);
-        actual_output
-            .to_data()
-            .assert_approx_eq(&Data::from(expected_output), 4)
+        actual_output.to_data().assert_approx_eq(&expected, 4)
+    }
+
+    #[test]
+    fn display() {
+        let config = LeakyReluConfig::new().init();
+        assert_eq!(
+            alloc::format!("{}", config),
+            "LeakyRelu {negative_slope: 0.01}"
+        );
     }
 }

@@ -2,7 +2,7 @@ use super::{dataset::TextGenerationItem, tokenizer::Tokenizer};
 use burn::{data::dataloader::batcher::Batcher, nn::attention::generate_padding_mask, prelude::*};
 use std::sync::Arc;
 
-#[derive(new)]
+#[derive(Clone, new)]
 pub struct TextGenerationBatcher {
     tokenizer: Arc<dyn Tokenizer>,
     max_seq_length: usize,

@@ -1,40 +1,44 @@
 use crate::{
-    client::FusionClient,
-    stream::{Context, OperationDescription},
-    FusionClientLocator, FusionTensor,
+    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
+    QFusionTensor,
 };
-use burn_tensor::{backend::Backend, Device, Shape};
+use burn_tensor::{
+    backend::{Backend, DeviceOps, SyncType},
+    ops::FloatTensor,
+    repr::{OperationDescription, ReprBackend},
+    Device,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
 pub(crate) static CLIENTS: FusionClientLocator = FusionClientLocator::new();
 
-pub(crate) fn get_client<B: FusionBackend>(device: &B::FusionDevice) -> B::FusionClient {
-    CLIENTS.client(device)
+pub(crate) fn get_client<B: FusionBackend>(device: &Device<B>) -> Client<B::FusionRuntime> {
+    CLIENTS.client::<B::FusionRuntime>(device)
 }
 
 /// Enable dynamic operation fusion on a backend that implements [fusion backend](crate::FusionBackend).
 #[derive(Clone, Debug, Default)]
-pub struct Fusion<B> {
+pub struct Fusion<B: FusionBackend> {
     _backend: PhantomData<B>,
 }
 
 impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
-    // TODO: Find a better way to handle full precision.
-    type FullPrecisionBackend = Self;
-    type FullPrecisionElem = B::FloatElem;
+    type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionClient>;
+    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+
+    type QuantizedTensorPrimitive<const D: usize> = QFusionTensor<B::FusionRuntime>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -44,10 +48,14 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(seed);
     }
 
-    fn sync(device: &Self::Device) {
-        let client = CLIENTS.client::<B::FusionClient>(&device.clone().into());
+    fn sync(device: &Self::Device, sync_type: SyncType) {
+        let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
         client.drain();
-        B::sync(device)
+        B::sync(device, sync_type);
+    }
+
+    fn ad_enabled() -> bool {
+        false
     }
 }
 
@@ -101,9 +109,9 @@ pub trait OptimizationBuilder<O>: Send {
 }
 
 /// The operation created from the [builder](OptimizationBuilder).
-pub trait Optimization<B: FusionBackend>: Send {
+pub trait Optimization<R: FusionRuntime>: Send {
     /// Execute the operation.
-    fn execute(&mut self, context: &mut Context<'_, B>);
+    fn execute(&mut self, context: &mut Context<'_, R::FusionHandle>);
     /// The number of registered operations in this optimization.
     fn len(&self) -> usize;
     /// If the current optimization is empty.
@@ -111,67 +119,51 @@ pub trait Optimization<B: FusionBackend>: Send {
         self.len() == 0
     }
     /// Returns the state that can be serialized.
-    fn to_state(&self) -> B::OptimizationState;
+    fn to_state(&self) -> R::OptimizationState;
     /// Create the optimization from the state.
-    fn from_state(device: &B::Device, state: B::OptimizationState) -> Self;
+    fn from_state(device: &R::FusionDevice, state: R::OptimizationState) -> Self;
 }
 
-/// The device id.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, new)]
-pub struct DeviceId {
-    /// The type id identifies the type of the device.
-    pub type_id: u16,
-    /// The index id identifies the device number.
-    pub index_id: u32,
-}
+/// Type alias for `<R as FusionRuntime>::FusionDevice`.
+pub type FusionDevice<R> = <R as FusionRuntime>::FusionDevice;
+/// Type alias for `<R as FusionRuntime>::FusionHandle`.
+pub type FusionHandle<R> = <R as FusionRuntime>::FusionHandle;
+/// Type alias for `<R as FusionRuntime>::FusionClient`.
+pub type Client<R> = <R as FusionRuntime>::FusionClient;
 
-/// The handle device trait allows to get an id for a backend device.
-pub trait FusionDevice: Clone + Send + Sync + PartialEq {
-    /// Return the [device id](DeviceId).
-    fn id(&self) -> DeviceId;
-}
-
-/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
-/// [operation builder](crate::OptimizationBuilder).
-pub trait FusionBackend: Backend {
+/// Trait that defines a runtime that will benefits from fused operations.
+pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
     /// The state that can be serialized for an optimization.
     type OptimizationState: Serialize + DeserializeOwned;
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
-
-    /// The device type that can return an ID.
-    ///
-    /// It can be the same as (Backend::Device), but must implement (FusionDevice).
-    type FusionDevice: FusionDevice + From<Self::Device> + Into<Self::Device> + core::fmt::Debug;
-    /// The type that can be used to point to a tensor of any kind.
-    type Handle: Sync + Send + Clone;
-    /// What kind of client should be used.
-    type FusionClient: FusionClient<FusionBackend = Self>;
+    /// Handle used to store tensor dynamically.
+    type FusionHandle: Clone + Send;
+    /// Device used by the runtime.
+    type FusionDevice: DeviceOps;
+    /// The client to interact with the runtime.
+    type FusionClient: FusionClient<Self>;
 
     /// The list of optimizations that will be used to optimize the computational graph.
-    fn optimizations(device: Device<Self>)
-        -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+    fn optimizations(
+        device: Self::FusionDevice,
+    ) -> Vec<Box<dyn OptimizationBuilder<Self::Optimization>>>;
+}
 
-    /// Convert a [handle](FusionBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
-    fn float_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::FloatTensorPrimitive<D>;
-    /// Convert a [handle](FusionBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
-    fn int_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::IntTensorPrimitive<D>;
-    /// Convert a [handle](FusionBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
-    fn bool_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> Self::BoolTensorPrimitive<D>;
+/// Trait that allows an existing [backend](Backend) to specify graph optimizations using
+/// [operation builder](crate::OptimizationBuilder).
+pub trait FusionBackend:
+    ReprBackend<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
+{
+    /// The runtime used for this backend.
+    type FusionRuntime: FusionRuntime;
 
-    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn float_tensor_handle<const D: usize>(tensor: Self::FloatTensorPrimitive<D>) -> Self::Handle;
-    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn int_tensor_handle<const D: usize>(tensor: Self::IntTensorPrimitive<D>) -> Self::Handle;
-    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](FusionBackend::Handle).
-    fn bool_tensor_handle<const D: usize>(tensor: Self::BoolTensorPrimitive<D>) -> Self::Handle;
+    /// Cast a float tensor and returns the resulting handle.
+    fn cast_float<const D: usize>(
+        tensor: FloatTensor<Self, D>,
+        dtype: burn_tensor::DType,
+    ) -> Self::Handle;
+
+    /// Pointer to the full precision fusion backend.
+    type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
 }

@@ -1,12 +1,16 @@
-use crate::{kernel, JitBackend, Runtime};
+use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
-use burn_tensor::Reader;
-use burn_tensor::{ops::BoolTensorOps, Data, Shape};
+use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
 use super::{expand, permute};
 
-impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
+impl<R, F, I> BoolTensorOps<Self> for JitBackend<R, F, I>
+where
+    R: JitRuntime,
+    F: FloatElement,
+    I: IntElement,
+{
     fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
         super::empty(shape, device)
     }
@@ -15,24 +19,15 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         tensor.shape.clone()
     }
 
-    fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> Reader<Data<bool, D>> {
-        super::bool_into_data(tensor)
+    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
+        super::bool_into_data(tensor).await
     }
 
     fn bool_from_data<const D: usize>(
-        data: Data<bool, D>,
+        data: TensorData,
         device: &Device<Self>,
     ) -> BoolTensor<Self, D> {
-        let data: Data<u32, D> = Data::new(
-            data.value
-                .into_iter()
-                .map(|c| match c {
-                    true => 1,
-                    false => 0,
-                })
-                .collect(),
-            data.shape,
-        );
+        let data: TensorData = TensorData::new(data.iter::<u32>().collect(), data.shape);
         super::from_data(data, device)
     }
 
@@ -99,12 +94,12 @@ impl<R: Runtime> BoolTensorOps<Self> for JitBackend<R> {
         tensor
     }
 
-    fn bool_repeat<const D: usize>(
+    fn bool_repeat_dim<const D: usize>(
         tensor: BoolTensor<Self, D>,
         dim: usize,
         times: usize,
     ) -> BoolTensor<Self, D> {
-        kernel::repeat(tensor, dim, times)
+        kernel::repeat_dim(tensor, dim, times)
     }
 
     fn bool_permute<const D: usize>(

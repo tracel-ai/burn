@@ -3,10 +3,11 @@
 
 [![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
 [![Current Crates.io Version](https://img.shields.io/crates/v/burn.svg)](https://crates.io/crates/burn)
+[![Minimum Supported Rust Version](https://img.shields.io/crates/msrv/burn)](https://crates.io/crates/burn)
 [![Documentation](https://img.shields.io/badge/docs-latest-blue)](https://burn.dev/docs/burn)
 [![Test Status](https://github.com/tracel-ai/burn/actions/workflows/test.yml/badge.svg)](https://github.com/tracel-ai/burn/actions/workflows/test.yml)
 [![CodeCov](https://codecov.io/gh/tracel-ai/burn/branch/main/graph/badge.svg)](https://codecov.io/gh/tracel-ai/burn)
-[![Rust Version](https://img.shields.io/badge/Rust-1.75.0+-blue)](https://releases.rs/docs/1.75.0)
+[![Blaze](https://runblaze.dev/gh/114041730602611213183421653564341667516/badge.svg)](https://runblaze.dev)
 ![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)
 
 ---
@@ -154,10 +155,10 @@ Hardware specific features 🔥
 </summary>
 <br />
 
-It is no secret that deep learning is mosly relying on matrix multiplication as its core operation,
+It is no secret that deep learning is mostly relying on matrix multiplication as its core operation,
 since this is how fully-connected neural networks are modeled.
 
-More and more, hardware manufacturers optimize their chips specifically for matrix mutiliplication
+More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
 workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
 chips. As of this moment, we support Tensor Cores with our LibTorch and Candle backends, but not
 other accelerators yet. We hope [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets
@@ -246,7 +247,7 @@ Our ONNX support is further described in
 [this section of the Burn Book 🔥](https://burn.dev/book/import/onnx-model.html).
 
 > **Note**: This crate is in active development and currently supports a
-> [limited set of ONNX operators](./burn-import/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](./crates/burn-import/SUPPORTED-ONNX-OPS.md).
 
 </details>
 
@@ -523,8 +524,47 @@ impl<B: Backend> PositionWiseFeedForward<B> {
 ```
 
 We have a somewhat large amount of [examples](./examples) in the repository that shows how to use
-the framework in different scenarios. For more practical insights, you can clone the repository and
-run any of them directly on your computer!
+the framework in different scenarios.
+
+Following [the book](https://burn.dev/book/):
+
+- [Basic Workflow](./examples/guide) : Creates a custom CNN `Module` to train on the MNIST dataset
+  and use for inference.
+- [Custom Training Loop](./examples/custom-training-loop) : Implements a basic training loop instead
+  of using the `Learner`.
+- [Custom WGPU Kernel](./examples/custom-wgpu-kernel) : Learn how to create your own custom
+  operation with the WGPU backend.
+
+Additional examples:
+
+- [Custom CSV Dataset](./examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
+  regression task.
+- [Regression](./examples/simple-regression) : Trains a simple MLP on the CSV dataset for the
+  regression task.
+- [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
+  dataset following a simple folder structure.
+- [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the
+  [`Learner`](./building-blocks/learner.md) progress.
+- [Image Classification Web](./examples/image-classification-web) : Image classification web browser
+  demo using Burn, WGPU and WebAssembly.
+- [MNIST Inference on Web](./examples/mnist-inference-web) : An interactive MNIST inference demo in
+  the browser. The demo is available [online](https://burn.dev/demo/).
+- [MNIST Training](./examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
+  `Learner` configured to log metrics and keep training checkpoints.
+- [Named Tensor](./examples/named-tensor) : Performs operations with the experimental `NamedTensor`
+  feature.
+- [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
+  perform inference on a sample image with Burn.
+- [PyTorch Import Inference](./examples/pytorch-import) : Imports a PyTorch model pre-trained on
+  MNIST to perform inference on a sample image with Burn.
+- [Text Classification](./examples/text-classification) : Trains a text classification transformer
+  model on the AG News or DbPedia dataset. The trained model can then be used to classify a text
+  sample.
+- [Text Generation](./examples/text-generation) : Trains a text generation transformer model on the
+  DbPedia dataset.
+
+For more practical insights, you can clone the repository and run any of them directly on your
+computer!
 
 </details>
 
@@ -573,6 +613,48 @@ leads to more reliable, bug-free solutions built faster (after some practice �
 
 <br />
 
+> **Deprecation Note**<br />Since `0.14.0`, the internal structure for tensor data has changed. The
+> previous `Data` struct is being deprecated in favor of the new `TensorData` struct, which allows
+> for more flexibility by storing the underlying data as bytes and keeping the data type as a field.
+> If you are using `Data` in your code, make sure to switch to `TensorData`.
+
+<!-- >
+> In the event that you are trying to load a model record saved in a previous version, make sure to
+> enable the `record-backward-compat` feature. Otherwise, the record won't be deserialized correctly
+> and you will get an error message (which will also point you to the backward compatible feature
+> flag). The backward compatibility is maintained for deserialization (loading), so as soon as you
+> have saved the record again it will be saved according to the new structure and you won't need the
+> backward compatible feature flag anymore. Please note that binary formats are not backward
+> compatible. Thus, you will need to load your record in a previous version and save it to another
+> of the self-describing record formats before using the new version with the
+> `record-backward-compat` feature flag. -->
+
+<details id="deprecation">
+<summary>
+Loading Model Records From Previous Versions ⚠️
+</summary>
+<br />
+
+In the event that you are trying to load a model record saved in a previous version, make sure to
+enable the `record-backward-compat` feature flag.
+
+```
+features = [..., "record-backward-compat"]
+```
+
+Otherwise, the record won't be deserialized correctly and you will get an error message. This error
+will also point you to the backward compatible feature flag.
+
+The backward compatibility is maintained for deserialization when loading records. Therefore, as
+soon as you have saved the record again it will be saved according to the new structure and you
+won't need the backward compatible feature flag anymore.
+
+Please note that binary formats are not backward compatible. Thus, you will need to load your record
+in a previous version and save it in any of the other self-describing record format (e.g., using the
+`NamedMpkFileRecorder`) before using the new version with the `record-backward-compat` feature flag.
+
+</details>
+
 ## Community
 
 <div align="left">
@@ -590,10 +672,10 @@ any background. You can ask your questions and share what you built with the com
 
 Before contributing, please take a moment to review our
 [code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md). It's also highly
-recommended to read our
-[architecture document](https://github.com/tracel-ai/burn/tree/main/ARCHITECTURE.md), which explains
-some of our architectural decisions. Refer to out [contributing guide](/CONTRIBUTING.md) for more
-details.
+recommended to read the
+[architecture overview](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture),
+which explains some of our architectural decisions. Refer to our
+[contributing guide](/CONTRIBUTING.md) for more details.
 
 ## Status
 
