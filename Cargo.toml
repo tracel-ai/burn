@@ -139,7 +139,7 @@ serde = { version = "1.0.209", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.127", default-features = false }
+serde_json = { version = "1.0.128", default-features = false }
 uuid = { version = "1.9.1", default-features = false }
 
 libc = "0.2.157"
