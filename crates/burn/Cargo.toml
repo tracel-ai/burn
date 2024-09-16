@@ -73,4 +73,3 @@ burn-train = { path = "../burn-train", version = "0.15.0", optional = true, defa
 
 [package.metadata.docs.rs]
 features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
