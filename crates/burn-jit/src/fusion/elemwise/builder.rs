@@ -292,8 +292,8 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
                 let elem: Elem = desc.dtype.into();
                 let input = match elem {
                     Elem::Float(kind) => ConstantScalarValue::Float(1.0, kind),
-                    Elem::UInt => ConstantScalarValue::UInt(1),
                     Elem::Int(kind) => ConstantScalarValue::Int(1, kind),
+                    Elem::UInt => ConstantScalarValue::UInt(1),
                     Elem::Bool => ConstantScalarValue::Bool(true),
                     Elem::AtomicInt(kind) => ConstantScalarValue::Int(1, kind),
                     Elem::AtomicUInt => ConstantScalarValue::UInt(1),
