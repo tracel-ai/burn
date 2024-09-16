@@ -98,6 +98,8 @@ enum BenchmarkValues {
     Unary,
     #[strum(to_string = "max-pool2d")]
     MaxPool2d,
+    #[strum(to_string = "resnet50")]
+    Resnet50,
     #[strum(to_string = "load-record")]
     LoadRecord,
     #[strum(to_string = "autodiff")]
