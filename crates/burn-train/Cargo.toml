@@ -46,3 +46,4 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
