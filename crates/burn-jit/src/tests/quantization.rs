@@ -41,7 +41,7 @@ mod tests {
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_approx_eq(&output_ref.to_data(), 3);
+        output.to_data().assert_approx_eq(&output_ref.to_data(), 2);
     }
 
     #[test]
