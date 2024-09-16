@@ -1,5 +1,3 @@
-// TODO: quantize/dequantize for different sized inputs (i.e., different vectorization factors and packed/unpacked)
-
 #[burn_tensor_testgen::testgen(quantization)]
 mod tests {
     use super::*;
