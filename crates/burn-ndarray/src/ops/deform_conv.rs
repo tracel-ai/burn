@@ -259,7 +259,7 @@ pub mod backward {
     use crate::NdArray;
     use atomic_float::AtomicF32;
     use burn_tensor::ops::DeformConv2dBackward;
-    use ndarray::{Array1, ArrayView1, ArrayView4, ArrayView6, Ix4};
+    use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
 
     use super::*;
 
@@ -278,7 +278,7 @@ pub mod backward {
         let groups = args.weight_groups;
         let out_c_per_group = out_channels / groups;
         let col_shape_1 = batch_size * out_h * out_w;
-        let out_grad = out_grad.array.into_dimensionality::<Ix4>().unwrap();
+        let mut out_grad = out_grad.array.into_dimensionality::<Ix4>().unwrap();
 
         let gradient_bias = bias.map(|_| {
             let out_grad = out_grad
@@ -290,10 +290,9 @@ pub mod backward {
             NdArrayTensor::new(out_grad.into_dyn().into_shared())
         });
 
-        let mut out_grad = out_grad.as_standard_layout();
         out_grad.swap_axes(0, 1);
         let out_grad = out_grad
-            .into_shape_with_order((groups, out_c_per_group, col_shape_1))
+            .to_shape((groups, out_c_per_group, col_shape_1))
             .unwrap();
 
         let input = input.array.into_dimensionality::<Ix4>().unwrap();
@@ -454,28 +453,29 @@ pub mod backward {
         kernel_dims: (usize, usize),
     ) -> (NdArrayTensor<F, 4>, Option<NdArrayTensor<F, 4>>) {
         let (kernel_h, kernel_w) = kernel_dims;
-        let (_, in_channels, _, _) = image.dim();
+        let (_, in_channels, height, width) = image.dim();
         let (batch_size, offset_channels, out_h, out_w) = offset.dim();
         let offs_groups = args.offset_groups;
         let channels_per_offset_group = in_channels / args.offset_groups;
 
-        let mut grad_offset = Array2::zeros((offset_channels, batch_size * out_h * out_w));
-        let mut grad_mask = Array2::zeros((offset_channels / 2, batch_size * out_h * out_w));
+        let mut grad_offset = Array5::zeros((
+            offs_groups,
+            kernel_h,
+            kernel_w,
+            2,
+            batch_size * out_h * out_w,
+        ));
+        let mut grad_mask =
+            Array4::zeros((offs_groups, kernel_h, kernel_w, batch_size * out_h * out_w));
 
         grad_mask
-            .axis_iter_mut(Axis(1))
-            .zip(grad_offset.axis_iter_mut(Axis(1)))
+            .axis_iter_mut(Axis(3))
+            .zip(grad_offset.axis_iter_mut(Axis(4)))
             .enumerate()
-            .for_each(|(index, (grad_mask, grad_offset))| {
+            .for_each(|(index, (mut grad_mask, mut grad_offset))| {
                 let out_x = index % out_w;
                 let out_y = (index / out_w) % out_h;
                 let batch = index / (out_w * out_h);
-                let mut grad_mask = grad_mask
-                    .to_shape((offs_groups, kernel_h, kernel_w))
-                    .unwrap();
-                let mut grad_offset = grad_offset
-                    .to_shape((offs_groups, kernel_h, kernel_w, 2))
-                    .unwrap();
                 let offset = offset.slice(s![batch, .., out_y, out_x]);
                 let offset = offset
                     .to_shape((offs_groups, kernel_h, kernel_w, 2))
@@ -493,32 +493,32 @@ pub mod backward {
                     let mask = mask.map(|it| it[[group, kernel_y, kernel_x]]);
                     let columns = columns.slice(s![.., kernel_y, kernel_x]);
                     let group_offset = group * channels_per_offset_group;
-                    let image = image.slice(s![
-                        group_offset..group_offset + channels_per_offset_group,
-                        ..,
-                        ..
-                    ]);
+                    let image = image.slice(s![group_offset.., .., ..]);
                     let y = F::from_elem(out_y * args.stride[0] + kernel_y * args.dilation[0])
                         - F::from_elem(args.padding[0])
                         + offset[0];
-                    let x = F::from_elem(out_y * args.stride[1] + kernel_y * args.dilation[1])
+                    let x = F::from_elem(out_x * args.stride[1] + kernel_x * args.dilation[1])
                         - F::from_elem(args.padding[1])
                         + offset[1];
                     for (i, grad_offset) in grad_offset.iter_mut().enumerate() {
                         let is_y_direction = i % 2 == 0;
-                        deform_col2img_coord_kernel(
-                            y,
-                            x,
-                            is_y_direction,
-                            image,
-                            mask,
-                            columns,
-                            grad_offset,
-                            grad_mask,
-                        );
+                        let use_mask = mask.is_some();
+
+                        for channel in 0..channels_per_offset_group {
+                            let mask = mask.unwrap_or_else(|| F::one());
+                            let image = image.index_axis(Axis(0), channel);
+                            let weight =
+                                get_coordinate_weight(image, height, width, y, x, is_y_direction);
+                            *grad_offset += mask * weight * columns[channel];
+                            if use_mask && is_y_direction {
+                                *grad_mask += columns[channel]
+                                    * bilinear_interpolate(image, height, width, y, x);
+                            }
+                        }
                     }
                 }
             });
+        println!("{:?}", grad_offset.dim());
 
         let mask_gradient = mask.map(|_| {
             let mut grad_mask = grad_mask
@@ -533,32 +533,6 @@ pub mod backward {
         grad_offset.swap_axes(0, 1);
         let offset_gradient = NdArrayTensor::new(grad_offset.into_dyn().into_shared());
         (offset_gradient, mask_gradient)
-    }
-
-    #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
-    fn deform_col2img_coord_kernel<F: FloatNdArrayElement>(
-        y: F,
-        x: F,
-        is_y_direction: bool,
-        image: ArrayView3<F>,
-        mask: Option<F>,
-        columns: ArrayView1<F>,
-        grad_offset: &mut F,
-        grad_mask: &mut F,
-    ) {
-        let (channels_per_offset_group, height, width) = image.dim();
-        let use_mask = mask.is_some();
-
-        for channel in 0..channels_per_offset_group {
-            let mask = mask.unwrap_or_else(|| F::one());
-            let image = image.index_axis(Axis(0), channel);
-            let weight = get_coordinate_weight(image, height, width, y, x, is_y_direction);
-            *grad_offset += mask * weight * columns[channel];
-            if use_mask && is_y_direction {
-                *grad_mask += columns[channel] * bilinear_interpolate(image, height, width, y, x);
-            }
-        }
     }
 
     fn get_coordinate_weight<F: FloatNdArrayElement>(
