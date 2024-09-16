@@ -5,6 +5,8 @@ use ndarray::{
     s, Array2, Array3, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis,
     Dim, Ix4,
 };
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use crate::{element::QuantElement, FloatNdArrayElement, NdArrayTensor};
 
@@ -254,6 +256,7 @@ pub(crate) fn deform_im2col<F: FloatNdArrayElement>(
 }
 
 pub mod backward {
+    #[cfg(target_has_atomic = "32")]
     use core::sync::atomic::Ordering;
 
     use crate::NdArray;
@@ -518,7 +521,6 @@ pub mod backward {
                     }
                 }
             });
-        println!("{:?}", grad_offset.dim());
 
         let mask_gradient = mask.map(|_| {
             let mut grad_mask = grad_mask
@@ -663,9 +665,13 @@ pub mod backward {
                 {
                     let weight = (1.0 - f32::abs(y - yp)) * (1.0 - f32::abs(x - xp));
 
+                    #[cfg_attr(not(target_has_atomic = "32"), allow(unused))]
                     let value = mask_value * weight * col;
 
+                    #[cfg(target_has_atomic = "32")]
                     grad_input[[yp as usize, xp as usize]].fetch_add(value, Ordering::AcqRel);
+                    #[cfg(not(target_has_atomic = "32"))]
+                    panic!("Can't use deformable convolution backwards pass without atomics");
                 }
             }
         }

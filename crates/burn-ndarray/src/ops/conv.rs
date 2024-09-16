@@ -17,9 +17,6 @@ use crate::{
     tensor::NdArrayTensor,
 };
 
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
-
 #[inline(always)]
 fn conv2d_mad_inner<E: FloatNdArrayElement>(
     mut output: ArrayViewMut2<E>,
