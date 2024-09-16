@@ -8,6 +8,4 @@ pub struct Scalars {
     pub(crate) num_int: usize,
     pub(crate) num_uint: usize,
     pub(crate) num_bool: usize,
-    pub(crate) num_atomic_int: usize,
-    pub(crate) num_atomic_uint: usize,
 }

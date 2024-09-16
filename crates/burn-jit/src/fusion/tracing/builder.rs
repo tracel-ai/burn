@@ -137,7 +137,6 @@ impl TraceBuilder {
                 self.scalars.num_int += 1;
                 var
             }
-
             Elem::UInt => {
                 let var = self
                     .scope
