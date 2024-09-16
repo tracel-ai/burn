@@ -29,6 +29,8 @@ struct DeformConv2dArgs<F: Float> {
     kernel_width: u32,
     out_h: u32,
     out_w: u32,
+
+    col_stride_0: u32,
 }
 
 #[cube(launch)]
@@ -59,6 +61,7 @@ fn deform_im2col_kernel<F: Float>(
     let in_channels = input.shape(1);
     let height = input.shape(2);
     let width = input.shape(3);
+    let col_stride_0 = args.col_stride_0;
 
     let out_x = ABSOLUTE_POS % out_w;
     let out_y = (ABSOLUTE_POS / out_w) % out_h;
@@ -70,7 +73,7 @@ fn deform_im2col_kernel<F: Float>(
     let group_index = in_channel / channels_per_offset_group;
 
     let mut col_base_idx =
-        out_channel * columns.stride(0) + out_batch * (out_h * out_w) + out_y * out_w + out_x;
+        out_channel * col_stride_0 + out_batch * (out_h * out_w) + out_y * out_w + out_x;
 
     let input_base_idx = out_batch * input.stride(0) + in_channel * input.stride(1);
 
@@ -115,7 +118,7 @@ fn deform_im2col_kernel<F: Float>(
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
 
             columns[col_base_idx] = mask_value * interpolated;
-            col_base_idx += columns.stride(0);
+            col_base_idx += col_stride_0;
         }
     }
 }
@@ -238,6 +241,7 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(kernel_width as u32),
             ScalarArg::new(out_height as u32),
             ScalarArg::new(out_width as u32),
+            ScalarArg::new(output.strides[0] as u32),
         ),
         Some(kernel_height as u32),
         Some(kernel_width as u32),
