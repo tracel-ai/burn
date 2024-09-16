@@ -38,6 +38,14 @@ pub(crate) struct OperationConverter {
 }
 
 pub(crate) trait RelativeOps {
+    /// Convert (usually an [`OperationDescription`]) to a relative form.
+    ///
+    /// The id and the shape of tensors will be computed relative to existing
+    /// operations in the queue. We do this because we want to fuse operations
+    /// that have similar shapes, but we do not care about the exact values.
+    ///
+    /// Similar we do not care about the exact ids of the tensor, but about their
+    /// relative ids (how close they are in the operation queue)
     fn to_relative(&self, converter: &mut OperationConverter) -> Self;
 }
 

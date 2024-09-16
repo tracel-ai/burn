@@ -4,7 +4,14 @@ use burn_tensor::repr::OperationDescription;
 
 /// A growing list of [tensor operation descriptions](OperationDescription).
 pub struct OperationQueue<R: FusionRuntime> {
+    /// List of operation descriptions. These contain the exact tensor IDs
+    /// and shapes so that kernels can be optimized correctly.
+    ///
+    /// The length of this list is the same as the length of the `operations` list.
     pub(crate) global: Vec<OperationDescription>,
+    /// List of operation descriptions. The tensor IDs and shapes are relative
+    /// because we don't need to know the exact values to determine which operations
+    /// can be fused.
     pub(crate) relative: Vec<OperationDescription>,
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<Box<dyn Operation<R>>>,
