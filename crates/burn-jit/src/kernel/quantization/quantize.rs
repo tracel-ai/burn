@@ -16,11 +16,13 @@ pub(crate) fn quantize_affine_int8<F: Float>(
     let offset = F::cast_from(offset);
 
     // x_q = clamp(round(x / scale + offset), a, b)
-    u32::cast_from(F::clamp(
-        F::round((value / scale) + offset),
-        range_min,
-        range_max,
-    ))
+    u32::cast_from(
+        i32::cast_from(F::clamp(
+            F::round((value / scale) + offset),
+            range_min,
+            range_max,
+        )) + 256,
+    )
 }
 
 #[cube(launch_unchecked)]
@@ -78,7 +80,7 @@ pub(crate) fn quantize_symmetric_int8<F: Float>(
     range_max: F,
 ) -> u32 {
     // x_q = clamp(round(x / scale), a, b)
-    u32::cast_from(F::clamp(F::round(value / scale), range_min, range_max))
+    u32::cast_from(i32::cast_from(F::clamp(F::round(value / scale), range_min, range_max)) + 256)
 }
 
 // Would have wrapped symmetric with the same affine kernel but cube doesn't support Option<Tensor> for offset.
