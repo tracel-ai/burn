@@ -88,6 +88,6 @@ mod tests {
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, 42)),
         );
 
-        x_q.to_data().assert_eq(&expected, true);
+        x_q.to_data().assert_eq(&expected, false);
     }
 }

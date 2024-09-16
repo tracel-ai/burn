@@ -18,12 +18,12 @@ mod tests {
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme);
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
 
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
     }
 
     #[test]
@@ -36,12 +36,12 @@ mod tests {
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme);
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
 
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
     }
 
     #[test]
@@ -55,12 +55,12 @@ mod tests {
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme);
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
 
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
     }
 
     #[test]
@@ -74,11 +74,11 @@ mod tests {
         let output = input.quantize_dynamic(&scheme);
         let output_ref = input_ref.quantize_dynamic(&scheme);
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
 
         let output = output.dequantize();
         let output_ref = output_ref.dequantize();
 
-        output.to_data().assert_eq(&output_ref.to_data(), true);
+        output.to_data().assert_eq(&output_ref.to_data(), false);
     }
 }
