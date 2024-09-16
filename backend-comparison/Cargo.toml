@@ -104,6 +104,11 @@ path = "benches/custom_gelu.rs"
 harness = false
 
 [[bench]]
+name = "resnet50"
+path = "benches/resnet.rs"
+harness = false
+
+[[bench]]
 name = "autodiff"
 harness = false
 
