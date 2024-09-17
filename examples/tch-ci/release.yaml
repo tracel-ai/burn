@@ -56,7 +56,7 @@ jobs:
           foreach ($file in $files) {
           $newFileName = $file.Name -replace '_windows', ''
           $destinationPath = Join-Path -Path $destinationDir -ChildPath $newFileName
-          Rename-Item -Path $file.FullName -NewName $destinationPath
+          Copy-Item -Path $file -Destination $destinationPath
           }
 
       - name: setup cuda
