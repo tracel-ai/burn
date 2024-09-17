@@ -15,7 +15,20 @@ rust-version = "1.80"
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
-doc = ["default", "burn-core/doc", "burn-train/doc"]
+doc = [
+    "default",
+    "train",
+    "burn-core/doc",
+    "burn-train/doc",
+    "ndarray",
+    "autodiff",
+    "wgpu",
+    "cuda-jit",
+    "candle",
+    "tch",
+    "metrics",
+    "tui",
+]
 
 # Training with full features
 train = ["burn-train", "autodiff", "dataset"]

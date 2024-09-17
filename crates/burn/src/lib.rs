@@ -95,10 +95,75 @@
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
-pub use burn_core::*;
+pub use burn_core::{
+    config, constant, data, grad_clipping, lr_scheduler, module, nn, optim, prelude, record, serde,
+    tensor, LearningRate,
+};
+
+/// Backend module.
+pub mod backend {
+    #[cfg(feature = "autodiff")]
+    pub use burn_core::backend::autodiff;
+    #[cfg(feature = "autodiff")]
+    pub use burn_core::backend::Autodiff;
+
+    #[cfg(feature = "candle")]
+    pub use burn_core::backend::candle;
+    #[cfg(feature = "candle")]
+    pub use burn_core::backend::Candle;
+
+    #[cfg(feature = "cuda-jit")]
+    pub use burn_core::backend::cuda_jit;
+    #[cfg(feature = "cuda-jit")]
+    pub use burn_core::backend::CudaJit;
+
+    #[cfg(feature = "tch")]
+    pub use burn_core::backend::libtorch;
+    #[cfg(feature = "tch")]
+    pub use burn_core::backend::LibTorch;
+
+    #[cfg(feature = "ndarray")]
+    pub use burn_core::backend::ndarray;
+    #[cfg(feature = "ndarray")]
+    pub use burn_core::backend::NdArray;
+
+    #[cfg(feature = "wgpu")]
+    pub use burn_core::backend::wgpu;
+    #[cfg(feature = "wgpu")]
+    pub use burn_core::backend::Wgpu;
+}
 
 /// Train module
 #[cfg(feature = "train")]
 pub mod train {
-    pub use burn_train::*;
+    pub use burn_train::{
+        checkpoint, logger, train, ApplicationLoggerInstaller, ClassificationOutput,
+        EarlyStoppingStrategy, FileApplicationLoggerInstaller, Learner, LearnerBuilder,
+        LearnerSummary, MetricEarlyStoppingStrategy, MetricEntry, MetricSummary,
+        MultiDevicesTrainStep, MultiLabelClassificationOutput, RegressionOutput, StoppingCondition,
+        SummaryMetrics, TrainEpoch, TrainOutput, TrainStep, TrainingInterrupter, ValidEpoch,
+        ValidStep,
+    };
+
+    /// The metric module.
+    pub mod metrics {
+        pub use burn_train::metric::{
+            format_float, state, store, AccuracyInput, AccuracyMetric, Adaptor, HammingScore,
+            HammingScoreInput, LearningRateMetric, LossInput, LossMetric, Metric, MetricEntry,
+            MetricMetadata, Numeric, NumericEntry,
+        };
+
+        #[cfg(feature = "metrics")]
+        pub use burn_train::metric::{
+            CpuMemory, CpuTemperature, CpuUse, CudaMetric, TopKAccuracyInput, TopKAccuracyMetric,
+        };
+    }
+
+    /// Renderer modules to display metrics and training information.
+    pub mod renderer {
+        pub use burn_train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
+
+        #[cfg(feature = "tui")]
+        pub use burn_train::renderer::SelectedMetricsRenderer;
+    }
 }
