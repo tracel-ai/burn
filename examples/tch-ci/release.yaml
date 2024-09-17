@@ -49,9 +49,14 @@ jobs:
         run: mkdir run && ls dist | grep linux | xargs -I {} sh -c 'cp dist/{} run/$(echo {} | sed s/_linux//g)'
       - name: retrieve dist Windows
         if: ${{ matrix.os == 'windows-latest' }}
-        run:
-          New-Item -Path "run" -ItemType Directory && Get-ChildItem -Path "dist" | Where-Object { $_.Name -match "windows" } | ForEach-Object {
-          $newName = $_.Name -replace "_windows", "" && Copy-Item -Path $_.FullName -Destination (Join-Path -Path "run" -ChildPath $newName)
+        run: $sourceDir = "dist"
+          $destinationDir = "run"
+          New-Item -Path $destinationDir -ItemType Directory
+          $files = Get-ChildItem -Path $sourceDir -Filter '*_windows.ps1'
+          foreach ($file in $files) {
+          $newFileName = $file.Name -replace '_windows', ''
+          $destinationPath = Join-Path -Path $destinationDir -ChildPath $newFileName
+          Rename-Item -Path $file.FullName -NewName $destinationPath
           }
 
       - name: setup cuda
