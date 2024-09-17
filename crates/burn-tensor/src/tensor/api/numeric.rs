@@ -101,12 +101,16 @@ where
 
     /// Create a tensor of the given shape where each element is zero.
     pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::zeros(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
+        Self::new(K::zeros(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
-        Self::new(K::ones(shape.into(), device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
+        Self::new(K::ones(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -115,7 +119,9 @@ where
         fill_value: E,
         device: &B::Device,
     ) -> Self {
-        Self::new(K::full(shape.into(), fill_value, device))
+        let shape = shape.into();
+        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
+        Self::new(K::full(shape, fill_value, device))
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -777,6 +783,32 @@ where
 
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
+    }
+
+    /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
+    pub fn is_nan(&self) -> Tensor<B, D, Bool> {
+        // Check if the input tensor is NaN by comparing it to itself
+        // NaN is the only value that is not equal to itself
+        K::not_equal(self.primitive.clone(), self.primitive.clone())
+    }
+
+    /// Checks if the tensor contains any NaN values.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor with a single element indicating whether the tensor contains any NaN values.
+    pub fn contains_nan(&self) -> Tensor<B, 1, Bool> {
+        // Summing the tensor will result in NaN if the tensor contains any NaN values
+        // This is faster than checking each element individually
+        // because it rolls up the NaN values into a single value
+        let sum = K::sum(self.primitive.clone());
+
+        // Check if the sum is NaN by comparing it to itself
+        K::not_equal(sum.clone(), sum)
     }
 }
 
@@ -2428,58 +2460,128 @@ impl<B: Backend> Numeric<B> for Float {
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        TensorPrimitive::Float(B::float_add(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_add(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_add(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
     fn add_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_add_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_add_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_add_scalar(lhs, rhs.elem()))
+            }
+        }
     }
     fn sub<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        TensorPrimitive::Float(B::float_sub(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_sub(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_sub(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
     fn sub_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_sub_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_sub_scalar(lhs, rhs.elem()))
+            }
+        }
     }
     fn div<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        TensorPrimitive::Float(B::float_div(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_div(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_div(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
     fn div_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_div_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_div_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_div_scalar(lhs, rhs.elem()))
+            }
+        }
     }
     fn remainder_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_remainder_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_remainder_scalar(lhs, rhs.elem()))
+            }
+        }
     }
     fn mul<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> <Float as TensorKind<B>>::Primitive<D> {
-        TensorPrimitive::Float(B::float_mul(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_mul(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_mul(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
     fn mul_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_mul_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_mul_scalar(lhs, rhs.elem()))
+            }
+        }
     }
     fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_neg(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_neg(tensor)),
+        }
     }
     fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
         TensorPrimitive::Float(B::float_zeros(shape, device))
@@ -2497,27 +2599,49 @@ impl<B: Backend> Numeric<B> for Float {
     }
 
     fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        TensorPrimitive::Float(B::float_sum(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum(tensor)),
+        }
     }
 
     fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_sum_dim(tensor.tensor(), dim))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum_dim(tensor, dim)),
+        }
     }
 
     fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        TensorPrimitive::Float(B::float_prod(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_prod(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_prod(tensor)),
+        }
     }
 
     fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_prod_dim(tensor.tensor(), dim))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_prod_dim(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_prod_dim(tensor, dim)),
+        }
     }
 
     fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        TensorPrimitive::Float(B::float_mean(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_mean(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_mean(tensor)),
+        }
     }
 
     fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_mean_dim(tensor.tensor(), dim))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_mean_dim(tensor, dim))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_mean_dim(tensor, dim)),
+        }
     }
 
     fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
@@ -2587,11 +2711,15 @@ impl<B: Backend> Numeric<B> for Float {
         mask: Tensor<B, D, Bool>,
         source: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_mask_where(
-            tensor.tensor(),
-            mask.primitive,
-            source.tensor(),
-        ))
+        match (tensor, source) {
+            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(source)) => {
+                TensorPrimitive::Float(B::float_mask_where(tensor, mask.primitive, source))
+            }
+            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(source)) => {
+                TensorPrimitive::QFloat(B::q_mask_where(tensor, mask.primitive, source))
+            }
+            _ => panic!("Primitive type mismatch for tensor and source"),
+        }
     }
 
     fn mask_fill<const D: usize>(
@@ -2599,7 +2727,14 @@ impl<B: Backend> Numeric<B> for Float {
         mask: Tensor<B, D, Bool>,
         value: Self::Elem,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask.primitive, value))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_mask_fill(tensor, mask.primitive, value))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_mask_fill(tensor, mask.primitive, value))
+            }
+        }
     }
 
     fn select<const D: usize>(
@@ -2607,7 +2742,14 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         indices: Tensor<B, 1, Int>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_select(tensor.tensor(), dim, indices.primitive))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_select(tensor, dim, indices.primitive))
+            }
+        }
     }
 
     fn select_assign<const D: usize>(
@@ -2616,12 +2758,20 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, 1, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_select_assign(
-            tensor.tensor(),
-            dim,
-            indices.primitive,
-            values.tensor(),
-        ))
+        match (tensor, values) {
+            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
+                TensorPrimitive::Float(B::float_select_assign(
+                    tensor,
+                    dim,
+                    indices.primitive,
+                    values,
+                ))
+            }
+            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(values)) => {
+                TensorPrimitive::QFloat(B::q_select_assign(tensor, dim, indices.primitive, values))
+            }
+            _ => panic!("Primitive type mismatch for tensor and values"),
+        }
     }
 
     fn gather<const D: usize>(
@@ -2629,7 +2779,14 @@ impl<B: Backend> Numeric<B> for Float {
         tensor: Self::Primitive<D>,
         indices: Tensor<B, D, Int>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_gather(dim, tensor.tensor(), indices.primitive))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_gather(dim, tensor, indices.primitive))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices.primitive))
+            }
+        }
     }
 
     fn scatter<const D: usize>(
@@ -2638,58 +2795,95 @@ impl<B: Backend> Numeric<B> for Float {
         indices: Tensor<B, D, Int>,
         values: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_scatter(
-            dim,
-            tensor.tensor(),
-            indices.primitive,
-            values.tensor(),
-        ))
+        match (tensor, values) {
+            (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
+                TensorPrimitive::Float(B::float_scatter(dim, tensor, indices.primitive, values))
+            }
+            (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(values)) => {
+                TensorPrimitive::QFloat(B::q_scatter(dim, tensor, indices.primitive, values))
+            }
+            _ => panic!("Primitive type mismatch for tensor and values"),
+        }
     }
 
     fn argmax<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        B::float_argmax(tensor.tensor(), dim)
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_argmax(tensor, dim),
+            TensorPrimitive::QFloat(tensor) => B::q_argmax(tensor, dim),
+        }
     }
 
     fn argmin<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> <B as Backend>::IntTensorPrimitive<D> {
-        B::float_argmin(tensor.tensor(), dim)
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_argmin(tensor, dim),
+            TensorPrimitive::QFloat(tensor) => B::q_argmin(tensor, dim),
+        }
     }
 
     fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        TensorPrimitive::Float(B::float_max(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max(tensor)),
+        }
     }
 
     fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_max_dim(tensor.tensor(), dim))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_dim(tensor, dim)),
+        }
     }
 
     fn max_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        let (tensor, indices) = B::float_max_dim_with_indices(tensor.tensor(), dim);
-        (TensorPrimitive::Float(tensor), indices)
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let (values, indices) = B::float_max_dim_with_indices(tensor, dim);
+                (TensorPrimitive::Float(values), indices)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let (values, indices) = B::q_max_dim_with_indices(tensor, dim);
+                (TensorPrimitive::QFloat(values), indices)
+            }
+        }
     }
 
     fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
-        TensorPrimitive::Float(B::float_min(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min(tensor)),
+        }
     }
 
     fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_min_dim(tensor.tensor(), dim))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min_dim(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min_dim(tensor, dim)),
+        }
     }
 
     fn min_dim_with_indices<const D: usize>(
         tensor: Self::Primitive<D>,
         dim: usize,
     ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
-        let (tensor, indices) = B::float_min_dim_with_indices(tensor.tensor(), dim);
-        (TensorPrimitive::Float(tensor), indices)
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let (values, indices) = B::float_min_dim_with_indices(tensor, dim);
+                (TensorPrimitive::Float(values), indices)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let (values, indices) = B::q_min_dim_with_indices(tensor, dim);
+                (TensorPrimitive::QFloat(values), indices)
+            }
+        }
     }
 
     fn clamp<const D: usize>(
@@ -2697,53 +2891,103 @@ impl<B: Backend> Numeric<B> for Float {
         min: B::FloatElem,
         max: B::FloatElem,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_clamp(tensor.tensor(), min, max))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_clamp(tensor, min, max))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_clamp(tensor, min, max))
+            }
+        }
     }
 
     fn clamp_min<const D: usize>(
         tensor: Self::Primitive<D>,
         min: B::FloatElem,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_clamp_min(tensor.tensor(), min))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_clamp_min(tensor, min))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_clamp_min(tensor, min)),
+        }
     }
 
     fn clamp_max<const D: usize>(
         tensor: Self::Primitive<D>,
         max: B::FloatElem,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_clamp_max(tensor.tensor(), max))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_clamp_max(tensor, max))
+            }
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_clamp_max(tensor, max)),
+        }
     }
 
     fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_abs(tensor.tensor()))
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_abs(tensor)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_abs(tensor)),
+        }
     }
 
     fn powf<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_powf(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_powf(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_powf(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
 
     fn powf_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_powf_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_powf_scalar(lhs, rhs.elem()))
+            }
+        }
     }
 
     fn powi<const D: usize>(
         lhs: Self::Primitive<D>,
         rhs: Self::Primitive<D>,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_powf(lhs.tensor(), rhs.tensor()))
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_powf(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_powf(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
     }
 
     fn powi_scalar<const D: usize, E: ElementConversion>(
         lhs: Self::Primitive<D>,
         rhs: E,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_powf_scalar(lhs.tensor(), rhs.elem()))
+        match lhs {
+            TensorPrimitive::Float(lhs) => {
+                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
+            }
+            TensorPrimitive::QFloat(lhs) => {
+                TensorPrimitive::QFloat(B::q_powf_scalar(lhs, rhs.elem()))
+            }
+        }
     }
 
     fn random<const D: usize>(
@@ -2763,7 +3007,14 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         descending: bool,
     ) -> Self::Primitive<D> {
-        TensorPrimitive::Float(B::float_sort(tensor.tensor(), dim, descending))
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_sort(tensor, dim, descending))
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                TensorPrimitive::QFloat(B::q_sort(tensor, dim, descending))
+            }
+        }
     }
 
     fn sort_with_indices<const D: usize>(
@@ -2771,8 +3022,16 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         descending: bool,
     ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>) {
-        let (tensor, indices) = B::float_sort_with_indices(tensor.tensor(), dim, descending);
-        (TensorPrimitive::Float(tensor), indices)
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let (values, indices) = B::float_sort_with_indices(tensor, dim, descending);
+                (TensorPrimitive::Float(values), indices)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending);
+                (TensorPrimitive::QFloat(values), indices)
+            }
+        }
     }
 
     fn argsort<const D: usize>(
@@ -2780,7 +3039,10 @@ impl<B: Backend> Numeric<B> for Float {
         dim: usize,
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive<D> {
-        B::float_argsort(tensor.tensor(), dim, descending)
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
+            TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
+        }
     }
 }
 

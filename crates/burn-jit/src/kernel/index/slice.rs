@@ -4,7 +4,6 @@ use crate::{
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -111,12 +110,36 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
     indices: [Range<usize>; D2],
 ) -> JitTensor<R, E, D1> {
     let mut dims = tensor.shape.dims;
+    let mut offset_start = 0;
+    let mut offset_end = 0;
+
     for i in 0..D2 {
+        offset_start += tensor.strides[i] * indices[i].start;
+        offset_end += tensor.strides[i] * (dims[i] - indices[i].end);
         dims[i] = indices[i].end - indices[i].start;
     }
-    let shape_output = Shape::new(dims);
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-    slice_on_output(tensor, output, indices)
+
+    let offset_start = offset_start * E::cube_elem().size();
+    let offset_end = offset_end * E::cube_elem().size();
+
+    let memory_offset_alignment = tensor.client.properties().memory_offset_alignment as usize;
+
+    if offset_start % memory_offset_alignment == 0 && offset_end % memory_offset_alignment == 0 {
+        JitTensor::new(
+            tensor.client,
+            tensor
+                .handle
+                .offset_start(offset_start)
+                .offset_end(offset_end),
+            Shape::new(dims),
+            tensor.device,
+            tensor.strides,
+        )
+    } else {
+        let shape_output = Shape::new(dims);
+        let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+        slice_on_output(tensor, output, indices)
+    }
 }
 
 pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
@@ -133,17 +156,9 @@ pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, con
 
     let kernel = SliceEagerKernel::<R, E>::new(D1);
 
-    Execution::start(kernel, tensor.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &tensor.handle,
-            &tensor.strides,
-            &tensor.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, tensor.client.clone())
+        .inputs(&[tensor.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&scalars)
         .execute(CubeCountSettings::Output { pos: 0 });
 

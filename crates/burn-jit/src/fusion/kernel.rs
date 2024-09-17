@@ -70,8 +70,10 @@ pub enum OutputRuntimeInfo {
 impl<R: JitRuntime> ExecutableKernel<R> {
     /// Execute the kernel.
     pub fn execute(self) {
-        self.client
-            .execute(self.kernel, self.cube_count, self.bindings)
+        unsafe {
+            self.client
+                .execute_unchecked(self.kernel, self.cube_count, self.bindings)
+        }
     }
 }
 
@@ -146,7 +148,13 @@ impl<R: JitRuntime> FusionKernel<R> {
         let info_size = (num_tensors * rank * 2) + 1;
 
         let mut num_handles = num_tensors + 1;
-        if running_info.scalars.num_float > 0 {
+        if running_info.scalars.num_f32 > 0 {
+            num_handles += 1;
+        }
+        if running_info.scalars.num_f16 > 0 {
+            num_handles += 1;
+        }
+        if running_info.scalars.num_bf16 > 0 {
             num_handles += 1;
         }
         if running_info.scalars.num_int > 0 {
@@ -214,14 +222,20 @@ impl<R: JitRuntime> FusionKernel<R> {
         bindings.push(client.create(bytemuck::cast_slice(&info)).binding());
 
         // Finally we finish with the named bindings.
-        if running_info.scalars.num_float > 0 {
-            bindings.push(
-                client
-                    .create(bytemuck::cast_slice(
-                        &context.scalar_floats[0..running_info.scalars.num_float],
-                    ))
-                    .binding(),
-            );
+        if running_info.scalars.num_f32 > 0 {
+            let bytes = bytemuck::cast_slice(&context.scalar_f32[0..running_info.scalars.num_f32]);
+            bindings.push(client.create(bytes).binding());
+        }
+
+        if running_info.scalars.num_f16 > 0 {
+            let bytes = bytemuck::cast_slice(&context.scalar_f16[0..running_info.scalars.num_f16]);
+            bindings.push(client.create(bytes).binding());
+        }
+
+        if running_info.scalars.num_bf16 > 0 {
+            let bytes =
+                bytemuck::cast_slice(&context.scalar_bf16[0..running_info.scalars.num_bf16]);
+            bindings.push(client.create(bytes).binding());
         }
 
         if running_info.scalars.num_int > 0 {

@@ -20,7 +20,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-burn = { version = "0.14.0", features = ["train", "wgpu", "vision"] }
+burn = { version = "~0.15", features = ["train", "wgpu", "vision"] }
 ```
 
 Our goal will be to create a basic convolutional neural network used for image classification. We
@@ -221,8 +221,8 @@ impl ModelConfig {
 At a glance, you can view the model configuration by printing the model instance:
 
 ```rust , ignore
+use crate::model::ModelConfig;
 use burn::backend::Wgpu;
-use guide::model::ModelConfig;
 
 fn main() {
     type MyBackend = Wgpu<f32, i32>;

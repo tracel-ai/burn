@@ -334,7 +334,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::exp(input)
             }
-            execute::__expand::<C>(context, input)
+            execute::expand::<C>(context, input)
         })
     }
 
@@ -344,7 +344,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::log(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -354,7 +354,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::log1p(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -367,7 +367,7 @@ where
             fn execute<C: Float>(input: C, scalar: C) -> C {
                 C::powf(input, scalar)
             }
-            execute::__expand::<C>(context, tensor, scalar)
+            execute::expand::<C>(context, tensor, scalar)
         })
     }
 
@@ -377,7 +377,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::sqrt(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -387,7 +387,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::abs(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -397,7 +397,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::cos(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -407,7 +407,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::sin(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -417,7 +417,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::tanh(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -427,7 +427,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::erf(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -463,7 +463,7 @@ where
             fn execute<C: Float>(input: C) -> C {
                 C::recip(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 

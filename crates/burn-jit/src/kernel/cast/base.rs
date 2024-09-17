@@ -1,14 +1,13 @@
-use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, JitElement, JitRuntime};
 use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
-use cubecl::{ir::KernelDefinition, KernelSettings};
 use std::any::TypeId;
 
 #[cube(launch)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
     input: &Tensor<I>,
     output: &mut Tensor<O>,
-    rank: Comptime<Option<UInt>>,
+    #[comptime] rank: Option<u32>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -20,9 +19,9 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
         input,
         output,
         offset_output,
-        UInt::new(0),
-        Comptime::unwrap_or_else(rank, || output.rank()),
-        Comptime::is_some(rank),
+        0,
+        rank.unwrap_or_else(|| output.rank()),
+        rank.is_some(),
     );
 
     output[offset_output] = O::cast_from(input[offset_input]);
@@ -50,26 +49,20 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let client = input.client.clone();
     let handle = client.empty(num_elems * core::mem::size_of::<EO>());
-    let output =
-        JitTensor::new_contiguous(client.clone(), input.device, input.shape.clone(), handle);
+    let output = JitTensor::new_contiguous(
+        client.clone(),
+        input.device.clone(),
+        input.shape.clone(),
+        handle,
+    );
 
-    cast_element::launch::<EI::Primitive, EO::Primitive, R>(
+    cast_element::launch::<EI, EO, R>(
         &client,
         cube_count,
         cube_dim,
-        TensorArg::vectorized(
-            vectorization_factor,
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        ),
-        TensorArg::vectorized(
-            vectorization_factor,
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        ),
-        Some(UInt::new(rank as u32)),
+        input.as_tensor_arg(vectorization_factor),
+        output.as_tensor_arg(vectorization_factor),
+        Some(rank as u32),
     );
 
     output

@@ -103,6 +103,7 @@ macro_rules! testgen_all {
         burn_tensor::testgen_topk!();
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
+        burn_tensor::testgen_nan!();
 
         // test stats
         burn_tensor::testgen_var!();
@@ -115,9 +116,60 @@ macro_rules! testgen_all {
 
         // test padding
         burn_tensor::testgen_padding!();
+    };
+}
 
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! testgen_quantization {
+    () => {
         // test quantization
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
+        burn_tensor::testgen_quantize!();
+
+        // test ops
+        burn_tensor::testgen_q_abs!();
+        burn_tensor::testgen_q_add!();
+        burn_tensor::testgen_q_aggregation!();
+        burn_tensor::testgen_q_all!();
+        burn_tensor::testgen_q_any!();
+        burn_tensor::testgen_q_arg!();
+        burn_tensor::testgen_q_cat!();
+        burn_tensor::testgen_q_chunk!();
+        burn_tensor::testgen_q_clamp!();
+        burn_tensor::testgen_q_cos!();
+        burn_tensor::testgen_q_div!();
+        burn_tensor::testgen_q_erf!();
+        burn_tensor::testgen_q_exp!();
+        burn_tensor::testgen_q_expand!();
+        burn_tensor::testgen_q_flip!();
+        burn_tensor::testgen_q_gather_scatter!();
+        burn_tensor::testgen_q_log!();
+        burn_tensor::testgen_q_log1p!();
+        burn_tensor::testgen_q_map_comparison!();
+        burn_tensor::testgen_q_mask!();
+        burn_tensor::testgen_q_matmul!();
+        burn_tensor::testgen_q_maxmin!();
+        burn_tensor::testgen_q_mul!();
+        burn_tensor::testgen_q_narrow!();
+        burn_tensor::testgen_q_neg!();
+        burn_tensor::testgen_q_permute!();
+        burn_tensor::testgen_q_powf_scalar!();
+        burn_tensor::testgen_q_powf!();
+        burn_tensor::testgen_q_recip!();
+        burn_tensor::testgen_q_remainder!();
+        burn_tensor::testgen_q_repeat_dim!();
+        burn_tensor::testgen_q_reshape!();
+        burn_tensor::testgen_q_select!();
+        burn_tensor::testgen_q_sin!();
+        burn_tensor::testgen_q_slice!();
+        burn_tensor::testgen_q_sort_argsort!();
+        burn_tensor::testgen_q_sqrt!();
+        burn_tensor::testgen_q_stack!();
+        burn_tensor::testgen_q_sub!();
+        burn_tensor::testgen_q_tanh!();
+        burn_tensor::testgen_q_topk!();
+        burn_tensor::testgen_q_transpose!();
     };
 }

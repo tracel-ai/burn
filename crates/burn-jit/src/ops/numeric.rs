@@ -5,8 +5,8 @@ use crate::{element::JitElement, tensor::JitTensor};
 use crate::{FloatElement, JitRuntime};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
+use cubecl::tensor_vectorization_factor;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{tensor_vectorization_factor, Runtime};
 
 pub fn full<R: JitRuntime, E: JitElement, const D: usize>(
     shape: Shape<D>,
@@ -43,16 +43,11 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
-    full_kernel::launch::<E::Primitive, R>(
+    full_kernel::launch::<E, R>(
         &empty.client,
         cube_count,
         cube_dim,
-        TensorArg::vectorized(
-            vectorization_factor,
-            &empty.handle,
-            &empty.strides,
-            &empty.shape.dims,
-        ),
+        empty.as_tensor_arg(vectorization_factor),
         ScalarArg::new(value),
     );
 

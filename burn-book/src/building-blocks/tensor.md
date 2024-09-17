@@ -131,41 +131,41 @@ for the sake of simplicity, we ignore type signatures. For more details, refer t
 
 Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 
-| Burn                                  | PyTorch Equivalent                                                       |
-| ------------------------------------- | ------------------------------------------------------------------------ |
-| `Tensor::cat(tensors, dim)`           | `torch.cat(tensors, dim)`                                                |
-| `Tensor::empty(shape, device)`        | `torch.empty(shape, device=device)`                                      |
-| `Tensor::from_primitive(primitive)`   | N/A                                                                      |
-| `Tensor::stack(tensors, dim)`         | `torch.stack(tensors, dim)`                                              |
-| `tensor.all()`                        | `tensor.all()`                                                           |
-| `tensor.all_dim(dim)`                 | `tensor.all(dim)`                                                        |
-| `tensor.any()`                        | `tensor.any()`                                                           |
-| `tensor.any_dim(dim)`                 | `tensor.any(dim)`                                                        |
-| `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`                                          |
-| `tensor.device()`                     | `tensor.device`                                                          |
-| `tensor.dims()`                       | `tensor.size()`                                                          |
-| `tensor.equal(other)`                 | `x == y`                                                                 |
-| `tensor.expand(shape)`                | `tensor.expand(shape)`                                                   |
-| `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)`                                     |
-| `tensor.flip(axes)`                   | `tensor.flip(axes)`                                                      |
-| `tensor.into_data()`                  | N/A                                                                      |
-| `tensor.into_primitive()`             | N/A                                                                      |
-| `tensor.into_scalar()`                | `tensor.item()`                                                          |
-| `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`                                      |
-| `tensor.not_equal(other)`             | `x != y`                                                                 |
-| `tensor.permute(axes)`                | `tensor.permute(axes)`                                                   |
-| `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`                                               |
-| `tensor.repeat_dim(dim, times)`       | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])`|
-| `tensor.repeat(sizes)`                | `tensor.repeat(sizes)`                                                   |
-| `tensor.reshape(shape)`               | `tensor.view(shape)`                                                     |
-| `tensor.shape()`                      | `tensor.shape`                                                           |
-| `tensor.slice(ranges)`                | `tensor[(*ranges,)]`                                                     |
-| `tensor.slice_assign(ranges, values)` | `tensor[(*ranges,)] = values`                                            |
-| `tensor.squeeze(dim)`                 | `tensor.squeeze(dim)`                                                    |
-| `tensor.to_data()`                    | N/A                                                                      |
-| `tensor.to_device(device)`            | `tensor.to(device)`                                                      |
-| `tensor.unsqueeze()`                  | `tensor.unsqueeze(0)`                                                    |
-| `tensor.unsqueeze_dim(dim)`           | `tensor.unsqueeze(dim)`                                                  |
+| Burn                                  | PyTorch Equivalent                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| `Tensor::cat(tensors, dim)`           | `torch.cat(tensors, dim)`                                                 |
+| `Tensor::empty(shape, device)`        | `torch.empty(shape, device=device)`                                       |
+| `Tensor::from_primitive(primitive)`   | N/A                                                                       |
+| `Tensor::stack(tensors, dim)`         | `torch.stack(tensors, dim)`                                               |
+| `tensor.all()`                        | `tensor.all()`                                                            |
+| `tensor.all_dim(dim)`                 | `tensor.all(dim)`                                                         |
+| `tensor.any()`                        | `tensor.any()`                                                            |
+| `tensor.any_dim(dim)`                 | `tensor.any(dim)`                                                         |
+| `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`                                           |
+| `tensor.device()`                     | `tensor.device`                                                           |
+| `tensor.dims()`                       | `tensor.size()`                                                           |
+| `tensor.equal(other)`                 | `x == y`                                                                  |
+| `tensor.expand(shape)`                | `tensor.expand(shape)`                                                    |
+| `tensor.flatten(start_dim, end_dim)`  | `tensor.flatten(start_dim, end_dim)`                                      |
+| `tensor.flip(axes)`                   | `tensor.flip(axes)`                                                       |
+| `tensor.into_data()`                  | N/A                                                                       |
+| `tensor.into_primitive()`             | N/A                                                                       |
+| `tensor.into_scalar()`                | `tensor.item()`                                                           |
+| `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`                                       |
+| `tensor.not_equal(other)`             | `x != y`                                                                  |
+| `tensor.permute(axes)`                | `tensor.permute(axes)`                                                    |
+| `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`                                                |
+| `tensor.repeat_dim(dim, times)`       | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
+| `tensor.repeat(sizes)`                | `tensor.repeat(sizes)`                                                    |
+| `tensor.reshape(shape)`               | `tensor.view(shape)`                                                      |
+| `tensor.shape()`                      | `tensor.shape`                                                            |
+| `tensor.slice(ranges)`                | `tensor[(*ranges,)]`                                                      |
+| `tensor.slice_assign(ranges, values)` | `tensor[(*ranges,)] = values`                                             |
+| `tensor.squeeze(dim)`                 | `tensor.squeeze(dim)`                                                     |
+| `tensor.to_data()`                    | N/A                                                                       |
+| `tensor.to_device(device)`            | `tensor.to(device)`                                                       |
+| `tensor.unsqueeze()`                  | `tensor.unsqueeze(0)`                                                     |
+| `tensor.unsqueeze_dim(dim)`           | `tensor.unsqueeze(dim)`                                                   |
 
 ### Numeric Operations
 
@@ -190,6 +190,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`        |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
+| `tensor.contains_nan()`                                         | N/A                                            |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
@@ -199,6 +200,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                             |
 | `tensor.greater_equal_elem(scalar)`                             | `tensor.ge(scalar)`                            |
 | `tensor.is_close(other, atol, rtol)`                            | `torch.isclose(tensor, other, atol, rtol)`     |
+| `tensor.is_nan()`                                               | `torch.isnan(tensor)`                          |
 | `tensor.lower(other)`                                           | `tensor.lt(other)`                             |
 | `tensor.lower_elem(scalar)`                                     | `tensor.lt(scalar)`                            |
 | `tensor.lower_equal(other)`                                     | `tensor.le(other)`                             |
@@ -304,18 +306,20 @@ Those operations are only available for `Bool` tensors.
 
 ### Quantization Operations
 
-Those operations are only available for `Float` tensors on backends that implement quantization strategies.
+Those operations are only available for `Float` tensors on backends that implement quantization
+strategies.
 
-| Burn API                             | PyTorch Equivalent              |
-| ------------------------------------ | ------------------------------- |
-| `tensor.quantize(scheme, qparams)`   | N/A                             |
-| `tensor.dequantize()`                | N/A                             |
+| Burn API                           | PyTorch Equivalent |
+| ---------------------------------- | ------------------ |
+| `tensor.quantize(scheme, qparams)` | N/A                |
+| `tensor.dequantize()`              | N/A                |
 
 ## Activation Functions
 
 | Burn API                                         | PyTorch Equivalent                                 |
 | ------------------------------------------------ | -------------------------------------------------- |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::hard_sigmoid(tensor, alpha, beta)   | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
 | `activation::log_sigmoid(tensor)`                | `nn.functional.log_sigmoid(tensor)`                |
 | `activation::log_softmax(tensor, dim)`           | `nn.functional.log_softmax(tensor, dim)`           |
@@ -328,3 +332,125 @@ Those operations are only available for `Float` tensors on backends that impleme
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+
+## Displaying Tensor Details
+
+Burn provides flexible options for displaying tensor information, allowing you to control the level
+of detail and formatting to suit your needs.
+
+### Basic Display
+
+To display a detailed view of a tensor, you can simply use Rust's `println!` or `format!` macros:
+
+```rust
+let tensor = Tensor::<Backend, 2>::full([2, 3], 0.123456789, &Default::default());
+println!("{}", tensor);
+```
+
+This will output:
+
+```
+Tensor {
+  data:
+[[0.12345679, 0.12345679, 0.12345679],
+ [0.12345679, 0.12345679, 0.12345679]],
+  shape:  [2, 3],
+  device:  Cpu,
+  backend:  "ndarray",
+  kind:  "Float",
+  dtype:  "f32",
+}
+```
+
+### Controlling Precision
+
+You can control the number of decimal places displayed using Rust's formatting syntax:
+
+```rust
+println!("{:.2}", tensor);
+```
+
+Output:
+
+```
+Tensor {
+  data:
+[[0.12, 0.12, 0.12],
+ [0.12, 0.12, 0.12]],
+  shape:  [2, 3],
+  device:  Cpu,
+  backend:  "ndarray",
+  kind:  "Float",
+  dtype:  "f32",
+}
+```
+
+### Global Print Options
+
+For more fine-grained control over tensor printing, Burn provides a `PrintOptions` struct and a
+`set_print_options` function:
+
+```rust
+use burn::tensor::{set_print_options, PrintOptions};
+
+let print_options = PrintOptions {
+    precision: Some(2),
+    ..Default::default()
+};
+
+set_print_options(print_options);
+```
+
+Options:
+
+- `precision`: Number of decimal places for floating-point numbers (default: None)
+- `threshold`: Maximum number of elements to display before summarizing (default: 1000)
+- `edge_items`: Number of items to show at the beginning and end of each dimension when summarizing
+  (default: 3)
+
+  ### Checking Tensor Closeness
+
+  Burn provides a utility function `check_closeness` to compare two tensors and assess their
+  similarity. This function is particularly useful for debugging and validating tensor operations,
+  especially when working with floating-point arithmetic where small numerical differences can
+  accumulate. It's also valuable when comparing model outputs during the process of importing models
+  from other frameworks, helping to ensure that the imported model produces results consistent with
+  the original.
+
+  Here's an example of how to use `check_closeness`:
+
+  ```rust
+  use burn::tensor::{check_closeness, Tensor};
+  type B = burn::backend::NdArray;
+
+  let device = Default::default();
+  let tensor1 = Tensor::<B, 1>::from_floats(
+      [1.0, 2.0, 3.0, 4.0, 5.0, 6.001, 7.002, 8.003, 9.004, 10.1],
+      &device,
+  );
+  let tensor2 = Tensor::<B, 1>::from_floats(
+      [1.0, 2.0, 3.0, 4.000, 5.0, 6.0, 7.001, 8.002, 9.003, 10.004],
+      &device,
+  );
+
+  check_closeness(&tensor1, &tensor2);
+  ```
+
+  The `check_closeness` function compares the two input tensors element-wise, checking their
+  absolute differences against a range of epsilon values. It then prints a detailed report showing
+  the percentage of elements that are within each tolerance level.
+
+  The output provides a breakdown for different epsilon values, allowing you to assess the closeness
+  of the tensors at various precision levels. This is particularly helpful when dealing with
+  operations that may introduce small numerical discrepancies.
+
+  The function uses color-coded output to highlight the results:
+
+  - Green [PASS]: All elements are within the specified tolerance.
+  - Yellow [WARN]: Most elements (90% or more) are within tolerance.
+  - Red [FAIL]: Significant differences are detected.
+
+  This utility can be invaluable when implementing or debugging tensor operations, especially those
+  involving complex mathematical computations or when porting algorithms from other frameworks. It's
+  also an essential tool when verifying the accuracy of imported models, ensuring that the Burn
+  implementation produces results that closely match those of the original model.

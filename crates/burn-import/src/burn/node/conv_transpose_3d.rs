@@ -64,12 +64,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConvTranspose3dNode {
         let dilation = self.config.dilation.to_tokens();
         let groups = self.config.groups.to_tokens();
         let padding = self.config.padding.to_tokens();
+        let padding_out = self.config.padding_out.to_tokens();
         let bias = self.config.bias;
 
         let tokens = quote! {
             let #name = ConvTranspose3dConfig::new(#channels, #kernel_size)
                 .with_stride(#stride)
                 .with_padding(#padding)
+                .with_padding_out(#padding_out)
                 .with_dilation(#dilation)
                 .with_groups(#groups)
                 .with_bias(#bias)
@@ -173,6 +175,7 @@ mod tests {
                     let conv_transpose_3d = ConvTranspose3dConfig::new([3, 3], [3, 3, 3])
                         .with_stride([1, 1, 1])
                         .with_padding([0, 0, 0])
+                        .with_padding_out([0, 0, 0])
                         .with_dilation([1, 1, 1])
                         .with_groups(1)
                         .with_bias(true)

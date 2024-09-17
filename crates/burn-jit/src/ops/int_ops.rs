@@ -299,7 +299,7 @@ where
             fn execute<C: Numeric>(input: C) -> C {
                 C::abs(input)
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 

@@ -92,7 +92,7 @@ pub enum AttributeValue {
 pub type Attributes = HashMap<String, AttributeValue>;
 
 /// The type of an element.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ElementType {
     Float32,
     Float64,
@@ -125,6 +125,33 @@ impl Default for ElementType {
 impl Default for ArgType {
     fn default() -> Self {
         Self::Tensor(TensorType::default())
+    }
+}
+
+impl ArgType {
+    pub fn is_scalar(&self) -> bool {
+        matches!(self, Self::Scalar(_))
+    }
+    pub fn is_tensor(&self) -> bool {
+        matches!(self, Self::Tensor(_))
+    }
+
+    /// returns the rank (dimension) of the Arg
+    pub fn rank(&self) -> usize {
+        match self {
+            ArgType::Scalar(_) => 0,
+            ArgType::Shape(_) => 1,
+            ArgType::Tensor(t) => t.dim,
+        }
+    }
+
+    /// returns the element type of the Arg
+    pub fn elem_type(&self) -> &ElementType {
+        match self {
+            ArgType::Scalar(s) => s,
+            ArgType::Shape(_) => panic!("ArgType::Shape has no ElementType"),
+            ArgType::Tensor(t) => &t.elem_type,
+        }
     }
 }
 

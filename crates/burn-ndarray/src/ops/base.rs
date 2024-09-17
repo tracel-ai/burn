@@ -115,6 +115,15 @@ where
         NdArrayTensor::new(array)
     }
 
+    pub fn permute<const D: usize>(
+        tensor: NdArrayTensor<E, D>,
+        axes: [usize; D],
+    ) -> NdArrayTensor<E, D> {
+        let array = tensor.array.permuted_axes(axes.into_dimension());
+
+        NdArrayTensor::new(array)
+    }
+
     /// Broadcasts the tensor to the given shape
     pub(crate) fn expand<const D1: usize, const D2: usize>(
         tensor: NdArrayTensor<E, D1>,
@@ -418,17 +427,16 @@ where
         mask: NdArrayTensor<bool, D>,
         value: E,
     ) -> NdArrayTensor<E, D> {
-        let mask_mul = mask.array.mapv(|x| match x {
-            true => 0.elem(),
-            false => 1.elem(),
-        });
-        let mask_add = mask.array.mapv(|x| match x {
-            true => value,
-            false => 0.elem(),
-        });
-        let array = (tensor.array * mask_mul) + mask_add;
-
-        NdArrayTensor::new(array)
+        let mut output = tensor.array.clone();
+        let broadcast_mask = mask.array.broadcast(output.dim()).unwrap();
+        Zip::from(&mut output)
+            .and(&broadcast_mask)
+            .for_each(|out, &mask_val| {
+                if mask_val {
+                    *out = value;
+                }
+            });
+        NdArrayTensor::new(output.into_shared())
     }
 
     fn gather_batch_size<const D: usize>(
@@ -613,7 +621,7 @@ fn arg<E: NdArrayElement, const D: usize>(
         idx as i64
     });
 
-    let output = output.into_shape(Dim(reshape.as_slice())).unwrap();
+    let output = output.to_shape(Dim(reshape.as_slice())).unwrap();
 
     NdArrayTensor {
         array: output.into_shared(),

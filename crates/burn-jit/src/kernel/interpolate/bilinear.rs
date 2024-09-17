@@ -1,6 +1,5 @@
 use cubecl::{
     cpa,
-    frontend::TensorHandleRef,
     ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
@@ -102,6 +101,7 @@ impl InterpolateBilinearShader {
 
         cpa!(scope, numerator_int = input_shape_2 - 1u32);
         cpa!(scope, denominator_int = output_shape_2 - 1u32);
+        cpa!(scope, denominator_int = max(denominator_int, 1u32));
         cpa!(scope, factor_float = cast(h));
         cpa!(scope, numerator_float = cast(numerator_int));
         cpa!(scope, denominator_float = cast(denominator_int));
@@ -116,6 +116,7 @@ impl InterpolateBilinearShader {
 
         cpa!(scope, numerator_int = input_shape_3 - 1u32);
         cpa!(scope, denominator_int = output_shape_3 - 1u32);
+        cpa!(scope, denominator_int = max(denominator_int, 1u32));
         cpa!(scope, factor_float = cast(w));
         cpa!(scope, numerator_float = cast(numerator_int));
         cpa!(scope, denominator_float = cast(denominator_int));
@@ -224,17 +225,9 @@ pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R, E, 4> {
     let kernel = InterpolateBilinearEagerKernel::<R, E>::new();
 
-    Execution::start(kernel, input.client)
-        .inputs(&[TensorHandleRef::<R>::new(
-            &input.handle,
-            &input.strides,
-            &input.shape.dims,
-        )])
-        .outputs(&[TensorHandleRef::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+    Execution::start(kernel, input.client.clone())
+        .inputs(&[input.as_handle_ref()])
+        .outputs(&[output.as_handle_ref()])
         .execute(CubeCountSettings::Output { pos: 0 });
 
     output

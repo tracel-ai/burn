@@ -34,6 +34,7 @@ mod matmul;
 mod maxmin;
 mod movedim;
 mod mul;
+mod nan;
 mod narrow;
 mod neg;
 mod one_hot;

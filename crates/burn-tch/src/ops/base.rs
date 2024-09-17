@@ -302,7 +302,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn mean<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.mean(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.mean(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -316,7 +317,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn sum<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.sum(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.sum(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -330,7 +332,8 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
     }
 
     pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
-        let tensor = tensor.tensor.prod(E::KIND);
+        // view as 1d tensor
+        let tensor = tensor.tensor.prod(E::KIND).view(1);
         TchTensor::new(tensor)
     }
 
@@ -493,8 +496,9 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         tensor: TchTensor<E, D>,
         shape: Shape<D2>,
     ) -> TchTensor<E, D2> {
-        let tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
-        TchTensor::new(tensor)
+        let storage = tensor.storage.clone();
+        let broadcasted_tensor = tensor.tensor.broadcast_to(shape.dims.map(|x| x as i64));
+        TchTensor::from_existing(broadcasted_tensor, storage)
     }
 
     pub fn sort<const D: usize>(
@@ -503,6 +507,15 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         descending: bool,
     ) -> TchTensor<E, D> {
         TchTensor::new(tensor.tensor.sort(dim as i64, descending).0)
+    }
+
+    pub fn sort_with_indices<const D: usize>(
+        tensor: TchTensor<E, D>,
+        dim: usize,
+        descending: bool,
+    ) -> (TchTensor<E, D>, TchTensor<i64, D>) {
+        let sorted = tensor.tensor.sort(dim as i64, descending);
+        (TchTensor::new(sorted.0), TchTensor::new(sorted.1))
     }
 
     pub fn argsort<const D: usize>(

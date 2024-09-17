@@ -16,13 +16,13 @@ use crate::{
 
 #[derive(CubeLaunch)]
 struct Conv2dArgs {
-    conv_stride_0: UInt,
-    conv_stride_1: UInt,
-    dilation_0: UInt,
-    dilation_1: UInt,
-    padding_0: UInt,
-    padding_1: UInt,
-    groups: UInt,
+    conv_stride_0: u32,
+    conv_stride_1: u32,
+    dilation_0: u32,
+    dilation_1: u32,
+    padding_0: u32,
+    padding_1: u32,
+    groups: u32,
 }
 
 #[cube(launch)]
@@ -32,8 +32,7 @@ fn direct_conv2d_kernel<F: Float>(
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
     args: &Conv2dArgs,
-    kernel_size_0_unroll: Comptime<Option<UInt>>,
-    kernel_size_1_unroll: Comptime<Option<UInt>>,
+    #[comptime] kernel_size_1_unroll: Option<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -41,10 +40,9 @@ fn direct_conv2d_kernel<F: Float>(
 
     let in_channels = weight.shape(1);
 
-    let kernel_size_0 = Comptime::unwrap_or_else(kernel_size_0_unroll, || weight.shape(2));
-    let unroll_0 = Comptime::is_some(kernel_size_0_unroll);
-    let kernel_size_1 = Comptime::unwrap_or_else(kernel_size_1_unroll, || weight.shape(3));
-    let unroll_1 = Comptime::is_some(kernel_size_1_unroll);
+    let kernel_size_0 = weight.shape(2);
+    let kernel_size_1 = kernel_size_1_unroll.unwrap_or_else(|| weight.shape(3));
+    let unroll_1 = kernel_size_1_unroll.is_some();
 
     let b = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let oc = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -77,12 +75,13 @@ fn direct_conv2d_kernel<F: Float>(
     let index_input_0 = b * input.stride(0);
     let index_weight_0 = oc * weight.stride(0);
 
-    for ic in range(ic_start, ic_end, Comptime::new(false)) {
+    for ic in ic_start..ic_end {
         let index_input_1 = ic * input_stride_1;
         let index_weight_1 = (ic - ic_start) * weight_stride_1;
 
-        for kh in range(0, kernel_size_0, unroll_0) {
-            for kw in range(0, kernel_size_1, unroll_1) {
+        for kh in 0..kernel_size_0 {
+            #[unroll(unroll_1)]
+            for kw in 0..kernel_size_1 {
                 let ih = kh * args.dilation_0 + ih_base;
                 let iw = kw * args.dilation_1 + iw_base;
 
@@ -129,6 +128,13 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
 ) -> JitTensor<R, E, 4> {
     let [batch_size, _, in_height, in_width] = input.shape.dims;
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+
+    // Limit loop unrolling factor to 8 or smaller
+    let kernel_1_unroll = if kernel_1 > 8 {
+        None
+    } else {
+        Some(kernel_1 as u32)
+    };
     let out_h = calculate_conv_output_size(
         kernel_h,
         options.stride[0],
@@ -173,10 +179,10 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
         &input.client,
         cube_count,
         cube_dim,
-        TensorArg::new(&input.handle, &input.strides, &input.shape.dims),
-        TensorArg::new(&weight.handle, &weight.strides, &weight.shape.dims),
-        TensorArg::new(&bias.handle, &bias.strides, &bias.shape.dims),
-        TensorArg::new(&output.handle, &output.strides, &output.shape.dims),
+        input.as_tensor_arg(1),
+        weight.as_tensor_arg(1),
+        bias.as_tensor_arg(1),
+        output.as_tensor_arg(1),
         Conv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -186,8 +192,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        Some(kernel_h.into()),
-        Some(kernel_w.into()),
+        kernel_1_unroll,
     );
 
     output

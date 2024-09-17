@@ -4,7 +4,7 @@ use crate::JitRuntime;
 use burn_tensor::Shape;
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::linalg::tensor::{matrix_layout, MatrixLayout, TensorHandle};
+use cubecl::linalg::tensor::TensorHandle;
 use cubecl::prelude::{TensorHandleRef, *};
 use cubecl::server::Handle;
 use std::marker::PhantomData;
@@ -29,9 +29,7 @@ where
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>>
-    for TensorHandle<R, E::Primitive>
-{
+impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for TensorHandle<R, E> {
     fn from(val: JitTensor<R, E, D>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
@@ -137,6 +135,15 @@ where
         }
     }
 
+    /// Return the reference to a tensor argument.
+    pub fn as_tensor_arg<'a>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+        let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
+
+        unsafe {
+            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
+        }
+    }
+
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
         if !self.handle.can_mut() {
             return false;
@@ -162,7 +169,7 @@ where
             fn execute<C: Numeric>(input: C) -> C {
                 input
             }
-            execute::__expand::<C>(context, tensor)
+            execute::expand::<C>(context, tensor)
         })
     }
 
@@ -183,10 +190,66 @@ where
 
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
-        self.matrix_layout() == MatrixLayout::Contiguous
+        is_contiguous(&self.shape.dims, &self.strides)
+    }
+}
+
+pub(crate) fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
+    if shape.is_empty() {
+        return true;
     }
 
-    pub(crate) fn matrix_layout(&self) -> MatrixLayout {
-        matrix_layout(&self.strides)
+    if shape.len() == 1 {
+        return strides[0] == 1;
+    }
+
+    let mut prev_stride = 1;
+    let mut current_num_elems_shape = 1;
+
+    for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
+        if i > 0 {
+            if current_num_elems_shape != *stride {
+                return false;
+            }
+
+            if prev_stride >= *stride {
+                return false;
+            }
+        }
+
+        current_num_elems_shape *= shape;
+        prev_stride = *stride;
+    }
+
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tensor::base::is_contiguous;
+
+    #[test]
+    fn is_contiguous_basic() {
+        assert!(is_contiguous(&[32, 32], &[32, 1]));
+    }
+
+    #[test]
+    fn is_contiguous_permuted() {
+        assert!(!is_contiguous(&[32, 32], &[1, 32]));
+    }
+
+    #[test]
+    fn is_contiguous_slice() {
+        assert!(!is_contiguous(&[32, 1, 64], &[32, 64, 1]));
+    }
+
+    #[test]
+    fn is_contiguous_4d_positive() {
+        assert!(is_contiguous(&[8, 256, 32, 32], &[262144, 1024, 32, 1]));
+    }
+
+    #[test]
+    fn is_contiguous_4d_negative() {
+        assert!(!is_contiguous(&[256, 8, 32, 32], &[1024, 262144, 32, 1]));
     }
 }

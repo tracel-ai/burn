@@ -31,11 +31,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
     let seeds = get_seeds();
 
     Execution::start(kernel, client)
-        .outputs(&[TensorHandleRef::<R>::new(
-            &output.handle,
-            &output.strides,
-            &output.shape.dims,
-        )])
+        .outputs(&[output.as_handle_ref()])
         .with_scalars(&seeds)
         .with_scalars(&prng.args())
         .execute(CubeCountSettings::Custom(prng_cube_count::<R>(

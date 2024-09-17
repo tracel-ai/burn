@@ -209,7 +209,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     });
 
     let output = output
-        .into_shape([batch_size, out_channels, out_height, out_width])
+        .to_shape([batch_size, out_channels, out_height, out_width])
         .unwrap()
         .into_dyn()
         .into_shared();
@@ -437,7 +437,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
     });
 
     let output = output
-        .into_shape([batch_size, out_channels, out_depth, out_height, out_width])
+        .to_shape([batch_size, out_channels, out_depth, out_height, out_width])
         .unwrap()
         .into_dyn()
         .into_shared();

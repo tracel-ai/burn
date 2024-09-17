@@ -115,4 +115,16 @@ mod tests {
         let tensor = TestTensorInt::<1>::from([1, 2, 3]);
         let _expanded_tensor = tensor.expand([-1, 3]);
     }
+
+    /// Regression test for https://github.com/tracel-ai/burn/issues/2091
+    #[test]
+    fn inplace_op_after_expand() {
+        let tensor = TestTensorInt::<1>::from([1, 2, 3]);
+        let mut output = tensor.expand([2, 3]);
+        output = output + 1;
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[2, 3, 4], [2, 3, 4]]), false);
+    }
 }

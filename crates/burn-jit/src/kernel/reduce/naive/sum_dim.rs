@@ -1,29 +1,21 @@
-use crate::{kernel::reduce::SumDim, JitElement};
-use cubecl::{
-    cpa,
-    ir::{Item, Scope, Variable},
-};
-
 use super::base::ReduceDimNaive;
+use crate::kernel::reduce::SumDim;
+use cubecl::cube;
+use cubecl::prelude::{Cast, Numeric, Tensor, ABSOLUTE_POS};
 
-impl<E: JitElement> ReduceDimNaive<E> for SumDim {
-    type Accumulator = Variable;
+#[cube]
+impl<EI: Numeric> ReduceDimNaive<EI> for SumDim {
+    type Accumulator = EI;
 
-    fn initialize_naive(scope: &mut Scope, _input_item: Item, output_item: Item) -> Variable {
-        scope.zero(output_item)
+    fn initialize_naive() -> EI {
+        EI::from_int(0)
     }
 
-    fn inner_loop_naive(scope: &mut Scope, accumulator: Variable, value: Variable, _i: Variable) {
-        cpa!(scope, accumulator += value);
+    fn inner_loop_naive(accumulator: &mut EI, current_value: EI, _i: u32) {
+        *accumulator += current_value;
     }
 
-    fn assign_naive(
-        scope: &mut Scope,
-        output: Variable,
-        accumulator: Variable,
-        _shape_reduce_dim: Variable,
-    ) {
-        let id = Variable::AbsolutePos;
-        cpa!(scope, output[id] = accumulator);
+    fn assign_naive<EO: Numeric>(output: &mut Tensor<EO>, accumulator: EI, _shape_reduce_dim: u32) {
+        output[ABSOLUTE_POS] = EO::cast_from(accumulator);
     }
 }
