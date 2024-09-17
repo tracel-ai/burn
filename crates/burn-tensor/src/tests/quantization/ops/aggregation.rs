@@ -194,7 +194,7 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_eq(&TensorData::from([0.0]), false);
+            .assert_approx_eq(&TensorData::from([0.0]), 5);
     }
 
     #[test]

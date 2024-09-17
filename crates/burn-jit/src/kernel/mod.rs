@@ -25,6 +25,8 @@ pub mod matmul;
 pub mod pool;
 /// Pseudo-random number generator kernels
 pub mod prng;
+/// Quantization operations
+pub mod quantization;
 /// Reduction algorithms
 pub mod reduce;
 

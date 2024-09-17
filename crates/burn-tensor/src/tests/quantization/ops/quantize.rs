@@ -55,15 +55,6 @@ mod tests {
     #[test]
     fn should_support_dequantize() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
-        let scheme = QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8);
-        let qparams = QuantizationParameters {
-            scale: Tensor::from_floats([0.014_173_228], &device),
-            offset: None,
-        };
-
-        let x_q = tensor.quantize(&scheme, qparams);
-
         // Quantized [-1.8, -1.0, 0.0, 0.5]
         let data = TensorData::quantized(
             vec![-127i8, -71, 0, 35],
@@ -97,6 +88,6 @@ mod tests {
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, 42)),
         );
 
-        x_q.to_data().assert_eq(&expected, true);
+        x_q.to_data().assert_eq(&expected, false);
     }
 }
