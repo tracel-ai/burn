@@ -22,7 +22,7 @@ struct Conv2dArgs {
     dilation_1: u32,
     padding_0: u32,
     padding_1: u32,
-    groups: u32,
+    channels_per_group: u32,
 }
 
 #[cube(launch)]
@@ -49,7 +49,7 @@ fn direct_conv2d_kernel<F: Float>(
     let oh = ABSOLUTE_POS / output.stride(2) % output.shape(2);
     let ow = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
-    let g = (weight.shape(0) + oc) % args.groups;
+    let g = oc / args.channels_per_group;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
@@ -128,6 +128,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
 ) -> JitTensor<R, E, 4> {
     let [batch_size, _, in_height, in_width] = input.shape.dims;
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+    let channels_per_group = out_channels / options.groups;
 
     // Limit loop unrolling factor to 8 or smaller
     let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
@@ -187,7 +188,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.dilation[1] as u32),
             ScalarArg::new(options.padding[0] as u32),
             ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(options.groups as u32),
+            ScalarArg::new(channels_per_group as u32),
         ),
         kernel_w_unroll,
     );

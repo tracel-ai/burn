@@ -4,7 +4,6 @@ mod tests {
     use burn_tensor::{module, Distribution, Tensor};
 
     #[test]
-    #[ignore = "Reference implementation doesn't match `libtorch` (see https://github.com/tracel-ai/burn/issues/2286)"]
     fn conv2d_should_match_reference_backend() {
         let test_device = Default::default();
         let input =

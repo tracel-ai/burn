@@ -109,6 +109,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
     let [stride_height, stride_width] = options.stride;
     let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
     let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
+    let channels_per_group = out_channels / options.groups;
 
     let out_height = calculate_conv_output_size(
         kernel_height,
@@ -141,7 +142,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                 |(k, mut output)| {
                     let b = k / out_channels;
                     let oc = k % out_channels;
-                    let g = k % options.groups;
+                    let g = oc / channels_per_group;
 
                     for ic in (in_channels * g)..(in_channels * (g + 1)) {
                         let weight_ic = ic - (g * in_channels);
