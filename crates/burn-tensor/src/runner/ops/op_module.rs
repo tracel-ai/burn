@@ -2,13 +2,13 @@ use crate::ops::{
     IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices,
 };
-use crate::server::Server;
+use crate::runner::Runner;
 use crate::{
     ops::{ConvOptions, ConvTransposeOptions, FloatTensor, ModuleOps},
-    server::ServerBackend,
+    runner::RunnerBackend,
 };
 
-impl<B: ServerBackend> ModuleOps<Self> for Server<B> {
+impl<B: RunnerBackend> ModuleOps<Self> for Runner<B> {
     fn conv1d(
         x: FloatTensor<Self, 3>,
         weight: FloatTensor<Self, 3>,

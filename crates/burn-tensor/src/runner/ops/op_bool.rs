@@ -1,9 +1,11 @@
+use burn_common::stream::StreamId;
+
 use crate::{
     ops::BoolTensorOps,
-    server::{Server, ServerBackend},
+    runner::{Runner, RunnerBackend, RunnerClient, RunnerTensor},
 };
 
-impl<B: ServerBackend> BoolTensorOps<Self> for Server<B> {
+impl<B: RunnerBackend> BoolTensorOps<Self> for Runner<B> {
     fn bool_empty<const D: usize>(
         shape: crate::Shape<D>,
         device: &crate::Device<Self>,
@@ -25,7 +27,15 @@ impl<B: ServerBackend> BoolTensorOps<Self> for Server<B> {
         data: crate::TensorData,
         device: &crate::Device<Self>,
     ) -> crate::ops::BoolTensor<Self, D> {
-        todo!()
+        let client = B::client(&device);
+        let id = StreamId::current();
+        let desc = client.write_tensor(data, id);
+
+        RunnerTensor {
+            desc,
+            client,
+            stream: id,
+        }
     }
 
     fn bool_into_int<const D: usize>(

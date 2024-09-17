@@ -1,11 +1,13 @@
 use core::ops::Range;
 
+use burn_common::stream::StreamId;
+
 use crate::ops::{BoolTensor, FloatTensor, IntElem, IntTensor};
-use crate::server::Server;
-use crate::{ops::IntTensorOps, server::ServerBackend};
+use crate::runner::{Runner, RunnerClient, RunnerTensor};
+use crate::{ops::IntTensorOps, runner::RunnerBackend};
 use crate::{Device, Distribution, Shape, TensorData};
 
-impl<B: ServerBackend> IntTensorOps<Self> for Server<B> {
+impl<B: RunnerBackend> IntTensorOps<Self> for Runner<B> {
     fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
         todo!();
     }
@@ -22,7 +24,15 @@ impl<B: ServerBackend> IntTensorOps<Self> for Server<B> {
         data: TensorData,
         device: &Device<Self>,
     ) -> IntTensor<Self, D> {
-        todo!()
+        let client = B::client(&device);
+        let id = StreamId::current();
+        let desc = client.write_tensor(data, id);
+
+        RunnerTensor {
+            desc,
+            client,
+            stream: id,
+        }
     }
 
     fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {

@@ -5,11 +5,11 @@ use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    server::{Server, ServerBackend},
+    runner::{Runner, RunnerBackend},
     Device, Shape, TensorData,
 };
 
-impl<B: ServerBackend> QTensorOps<Self> for Server<B> {
+impl<B: RunnerBackend> QTensorOps<Self> for Runner<B> {
     fn q_from_data<const D: usize>(
         _data: TensorData,
         _device: &Device<Self>,

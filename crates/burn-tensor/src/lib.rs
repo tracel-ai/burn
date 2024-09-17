@@ -13,7 +13,7 @@ extern crate derive_new;
 extern crate alloc;
 
 /// Server module.
-pub mod server;
+pub mod runner;
 
 mod tensor;
 

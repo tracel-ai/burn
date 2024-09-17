@@ -1,15 +1,26 @@
+use burn_common::stream::StreamId;
+
 use crate::ops::{BoolTensor, FloatElem, FloatTensor, IntTensor};
-use crate::server::Server;
-use crate::{ops::FloatTensorOps, server::ServerBackend};
-use crate::{Device, Distribution, Shape, TensorData};
+use crate::repr::{FloatOperationDescription, OperationDescription, RandomOperationDescription};
+use crate::runner::{Runner, RunnerClient, RunnerTensor};
+use crate::{ops::FloatTensorOps, runner::RunnerBackend};
+use crate::{Device, Distribution, Element, Shape, TensorData};
 use std::ops::Range;
 
-impl<B: ServerBackend> FloatTensorOps<Self> for Server<B> {
+impl<B: RunnerBackend> FloatTensorOps<Self> for Runner<B> {
     fn float_from_data<const D: usize>(
         data: TensorData,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!();
+        let client = B::client(&device);
+        let stream = StreamId::current();
+        let desc = client.write_tensor(data, stream);
+
+        RunnerTensor {
+            desc,
+            client,
+            stream,
+        }
     }
 
     fn float_random<const D: usize>(
@@ -17,7 +28,27 @@ impl<B: ServerBackend> FloatTensorOps<Self> for Server<B> {
         distribution: Distribution,
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
-        todo!()
+        let client = B::client(&device);
+        let stream = StreamId::current();
+        let dtype = FloatElem::<Self>::dtype();
+        let desc = client.empty_tensor(shape.dims.to_vec(), dtype, stream);
+
+        client.register(
+            OperationDescription::Float(
+                dtype,
+                FloatOperationDescription::Random(RandomOperationDescription {
+                    out: desc.clone(),
+                    distribution,
+                }),
+            ),
+            stream,
+        );
+
+        RunnerTensor {
+            desc,
+            client,
+            stream,
+        }
     }
 
     fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
