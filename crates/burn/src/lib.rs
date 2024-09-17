@@ -96,8 +96,7 @@
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
 pub use burn_core::{
-    config, constant, grad_clipping, module, nn, prelude, record, serde,
-    tensor, LearningRate,
+    config, constant, grad_clipping, module, nn, prelude, record, serde, tensor, LearningRate,
 };
 
 #[cfg(feature = "std")]
