@@ -594,11 +594,13 @@ fn float_atomic_add<F: Float>(ptr: &mut AtomicU32, value: F) {
         return;
     }
 
+    let mut v = AtomicU32::load(ptr);
     loop {
-        let v = AtomicU32::load(ptr);
+        let prev = v;
         let v_float = F::bitcast_from(v);
         let new = u32::bitcast_from(v_float + value);
-        if AtomicU32::compare_and_swap(ptr, v, new) == v {
+        v = AtomicU32::compare_and_swap(ptr, v, new);
+        if prev == v {
             break;
         }
     }
