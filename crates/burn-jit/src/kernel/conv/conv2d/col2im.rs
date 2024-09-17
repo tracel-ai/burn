@@ -143,7 +143,7 @@ fn col2im<R: JitRuntime, E: FloatElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        col2im_kernel::launch_unchecked::<E::FloatPrimitive, R>(
+        col2im_kernel::launch_unchecked::<E, R>(
             &columns.client,
             cube_count,
             cube_dim,
@@ -173,23 +173,23 @@ fn col2im<R: JitRuntime, E: FloatElement>(
 
 #[derive(CubeLaunch)]
 struct Col2ImArgs {
-    batch_size: UInt,
-    im_channels: UInt,
-    im_height: UInt,
-    im_width: UInt,
+    batch_size: u32,
+    im_channels: u32,
+    im_height: u32,
+    im_width: u32,
 
-    out_h: UInt,
-    out_w: UInt,
+    out_h: u32,
+    out_w: u32,
 
-    kernel_h: UInt,
-    kernel_w: UInt,
+    kernel_h: u32,
+    kernel_w: u32,
 
-    pad_h: I32,
-    pad_w: I32,
-    dilation_h: UInt,
-    dilation_w: UInt,
-    stride_h: UInt,
-    stride_w: UInt,
+    pad_h: i32,
+    pad_w: i32,
+    dilation_h: u32,
+    dilation_w: u32,
+    stride_h: u32,
+    stride_w: u32,
 }
 
 #[cube(launch_unchecked)]
@@ -198,8 +198,8 @@ fn col2im_kernel<F: Float>(columns: &Tensor<F>, image: &mut Tensor<F>, args: &Co
         return;
     }
 
-    let x_im = ABSOLUTE_POS % args.im_width + UInt::cast_from(args.pad_w);
-    let y_im = ABSOLUTE_POS / args.im_width % args.im_height + UInt::cast_from(args.pad_h);
+    let x_im = ABSOLUTE_POS % args.im_width + args.pad_w as u32;
+    let y_im = ABSOLUTE_POS / args.im_width % args.im_height + args.pad_h as u32;
     let ch_im = ABSOLUTE_POS / (args.im_width * args.im_height) % args.im_channels;
     let batch = ABSOLUTE_POS / (args.im_width * args.im_height * args.im_channels);
 
@@ -208,20 +208,22 @@ fn col2im_kernel<F: Float>(columns: &Tensor<F>, image: &mut Tensor<F>, args: &Co
 
     let mut val = F::new(0.0);
 
-    let mut x_col_start = UInt::new(0);
-    if x_im >= kernel_extent_w {
-        x_col_start = (x_im - kernel_extent_w) / args.stride_w + 1;
-    }
-    let x_col_end = UInt::min(x_im / args.stride_w + 1, args.out_w);
-    let mut y_col_start = UInt::new(0);
-    if y_im >= kernel_extent_h {
-        y_col_start = (y_im - kernel_extent_h) / args.stride_h + 1;
-    }
-    let y_col_end = UInt::min(y_im / args.stride_h + 1, args.out_h);
+    let x_col_start = if x_im >= kernel_extent_w {
+        (x_im - kernel_extent_w) / args.stride_w + 1
+    } else {
+        0u32
+    };
+    let x_col_end = Min::min(x_im / args.stride_w + 1, args.out_w);
+    let y_col_start = if y_im >= kernel_extent_h {
+        (y_im - kernel_extent_h) / args.stride_h + 1
+    } else {
+        0u32
+    };
+    let y_col_end = Min::min(y_im / args.stride_h + 1, args.out_h);
 
-    for col_y in range(y_col_start, y_col_end, Comptime::new(false)) {
+    for col_y in y_col_start..y_col_end {
         let k_y = y_im - col_y * args.stride_h;
-        for col_x in range(x_col_start, x_col_end, Comptime::new(false)) {
+        for col_x in x_col_start..x_col_end {
             let k_x = x_im - col_x * args.stride_w;
 
             if k_y % args.dilation_h == 0 && k_x % args.dilation_w == 0 {

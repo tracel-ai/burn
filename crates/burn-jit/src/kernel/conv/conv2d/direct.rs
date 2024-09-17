@@ -130,11 +130,8 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
 
     // Limit loop unrolling factor to 8 or smaller
-    let kernel_1_unroll = if kernel_1 > 8 {
-        None
-    } else {
-        Some(kernel_1 as u32)
-    };
+    let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
+
     let out_h = calculate_conv_output_size(
         kernel_h,
         options.stride[0],
@@ -175,7 +172,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    direct_conv2d_kernel::launch::<E::FloatPrimitive, R>(
+    direct_conv2d_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -192,7 +189,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.padding[1] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        kernel_1_unroll,
+        kernel_w_unroll,
     );
 
     output

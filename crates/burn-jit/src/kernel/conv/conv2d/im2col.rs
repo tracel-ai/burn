@@ -15,25 +15,25 @@ use super::index;
 
 #[derive(CubeLaunch)]
 struct Im2ColArgs {
-    stride_h: UInt,
-    stride_w: UInt,
-    dilation_h: UInt,
-    dilation_w: UInt,
-    padding_h: I32,
-    padding_w: I32,
+    stride_h: u32,
+    stride_w: u32,
+    dilation_h: u32,
+    dilation_w: u32,
+    padding_h: i32,
+    padding_w: i32,
 
-    kernel_h: UInt,
-    kernel_w: UInt,
-    out_h: UInt,
-    out_w: UInt,
+    kernel_h: u32,
+    kernel_w: u32,
+    out_h: u32,
+    out_w: u32,
 
-    batch_size: UInt,
-    in_channels: UInt,
-    height: UInt,
-    width: UInt,
-    col_size_1: UInt,
+    batch_size: u32,
+    in_channels: u32,
+    height: u32,
+    width: u32,
+    col_size_1: u32,
 
-    num_elements: UInt,
+    num_elements: u32,
 }
 
 #[cube(launch_unchecked)]
@@ -41,8 +41,7 @@ fn im2col_kernel<F: Float>(
     image: &Tensor<F>,
     columns: &mut Tensor<F>,
     args: &Im2ColArgs,
-    kernel_h_unroll: Comptime<Option<UInt>>,
-    kernel_w_unroll: Comptime<Option<UInt>>,
+    #[comptime] kernel_w_unroll: Option<u32>,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -64,42 +63,35 @@ fn im2col_kernel<F: Float>(
     let batch = ABSOLUTE_POS / (out_w * out_h) % batch_size;
     let channel = ABSOLUTE_POS / (out_w * out_h * batch_size) % in_channels;
 
-    let kernel_h = Comptime::unwrap_or_else(kernel_h_unroll, || args.kernel_h);
-    let unroll_h = Comptime::is_some(kernel_h_unroll);
-    let kernel_w = Comptime::unwrap_or_else(kernel_w_unroll, || args.kernel_w);
-    let unroll_w = Comptime::is_some(kernel_w_unroll);
+    let kernel_w = kernel_w_unroll.unwrap_or(args.kernel_w);
+    let unroll_w = kernel_w_unroll.is_some();
 
     let image_idx = batch * in_channels * height * width + channel * height * width;
-    let col_idx = channel * kernel_h * kernel_w * args.col_size_1
+    let col_idx = channel * args.kernel_h * kernel_w * args.col_size_1
         + batch * out_h * out_w
         + out_y * out_w
         + out_x;
-    let i_height = I32::cast_from(height);
-    let i_width = I32::cast_from(width);
 
-    for kernel_y in range(0, kernel_h, unroll_h) {
-        for kernel_x in range(0, kernel_w, unroll_w) {
+    for kernel_y in 0..args.kernel_h {
+        #[unroll(unroll_w)]
+        for kernel_x in 0..kernel_w {
             let kernel_pos = kernel_y * kernel_w + kernel_x;
             let col_pos = col_idx + kernel_pos * args.col_size_1;
 
-            let y =
-                I32::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.padding_h;
-            let x =
-                I32::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.padding_w;
-            if y >= 0 && x >= 0 && y < i_height && x < i_width {
-                let image_y = UInt::cast_from(y);
-                let image_x = UInt::cast_from(x);
-                let image_ptr = image_idx + image_y * width + image_x;
-                let pixel_value = image[image_ptr];
-                columns[col_pos] = pixel_value;
+            let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h;
+            let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w;
+            let pixel_value = if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
+                let image_ptr = image_idx + y as u32 * width + x as u32;
+                image[image_ptr]
             } else {
-                columns[col_pos] = F::new(0.0);
-            }
+                F::new(0.0)
+            };
+            columns[col_pos] = pixel_value;
         }
     }
 }
 
-fn im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
+fn im2col<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R, E, 4>,
     options: ConvOptions<2>,
     kernel_h: usize,
@@ -123,8 +115,10 @@ fn im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
+    let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
+
     unsafe {
-        im2col_kernel::launch_unchecked::<E::FloatPrimitive, R>(
+        im2col_kernel::launch_unchecked::<E, R>(
             &input.client,
             cube_count,
             cube_dim,
@@ -148,8 +142,7 @@ fn im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
                 ScalarArg::new(col_shape_1 as u32),
                 ScalarArg::new(num_elems as u32),
             ),
-            None,
-            None,
+            kernel_w_unroll,
         )
     };
 
@@ -188,7 +181,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         in_width,
     );
 
-    let columns = im2col::<R, E, I>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
+    let columns = im2col(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
     let [col_shape_0, col_shape_1] = columns.shape.dims;
 
     let out = if groups > 1 {
