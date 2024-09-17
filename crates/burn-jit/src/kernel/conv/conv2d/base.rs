@@ -73,13 +73,12 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
 ) -> JitTensor<R, E, 4> {
-    conv2d_im2col::<R, E, I>(input, weight, bias, options)
-    // match strategy {
-    //     Conv2dStrategy::Direct => conv2d_direct(input, weight, bias, options),
-    //     #[cfg(feature = "autotune")]
-    //     Conv2dStrategy::Autotune => conv2d_autotune::<R, E, I>(input, weight, bias, options),
-    //     Conv2dStrategy::Gemm => conv2d_im2col::<R, E, I>(input, weight, bias, options),
-    // }
+    match strategy {
+        Conv2dStrategy::Direct => conv2d_direct(input, weight, bias, options),
+        #[cfg(feature = "autotune")]
+        Conv2dStrategy::Autotune => conv2d_autotune::<R, E, I>(input, weight, bias, options),
+        Conv2dStrategy::Gemm => conv2d_im2col::<R, E, I>(input, weight, bias, options),
+    }
 }
 
 /// Perform a 2D convolution with the given strategy
@@ -97,17 +96,16 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
 ) -> JitTensor<R, E, 4> {
-    conv_transpose2d_col2im::<R, E, I>(input, weight, bias, options)
-    // match strategy {
-    //     ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
-    //     #[cfg(feature = "autotune")]
-    //     ConvTranspose2dStrategy::Autotune => {
-    //         conv_transpose2d_autotune::<R, E, I>(input, weight, bias, options)
-    //     }
-    //     ConvTranspose2dStrategy::Gemm => {
-    //         conv_transpose2d_col2im::<R, E, I>(input, weight, bias, options)
-    //     }
-    // }
+    match strategy {
+        ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
+        #[cfg(feature = "autotune")]
+        ConvTranspose2dStrategy::Autotune => {
+            conv_transpose2d_autotune::<R, E, I>(input, weight, bias, options)
+        }
+        ConvTranspose2dStrategy::Gemm => {
+            conv_transpose2d_col2im::<R, E, I>(input, weight, bias, options)
+        }
+    }
 }
 
 #[allow(unused)]
