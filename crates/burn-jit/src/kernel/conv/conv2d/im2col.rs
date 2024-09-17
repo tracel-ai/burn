@@ -27,12 +27,7 @@ struct Im2ColArgs {
     out_h: u32,
     out_w: u32,
 
-    batch_size: u32,
-    in_channels: u32,
-    height: u32,
-    width: u32,
     col_size_1: u32,
-
     num_elements: u32,
 }
 
@@ -46,10 +41,9 @@ fn im2col_kernel<F: Float>(
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
 
-    let batch_size = args.batch_size;
-    let in_channels = args.in_channels;
-    let height = args.height;
-    let width = args.width;
+    let batch_size = image.shape(0);
+    let height = image.shape(2);
+    let width = image.shape(3);
 
     let out_h = args.out_h;
     let out_w = args.out_w;
@@ -61,12 +55,12 @@ fn im2col_kernel<F: Float>(
     let out_x = ABSOLUTE_POS % out_w;
     let out_y = ABSOLUTE_POS / out_w % out_h;
     let batch = ABSOLUTE_POS / (out_w * out_h) % batch_size;
-    let channel = ABSOLUTE_POS / (out_w * out_h * batch_size) % in_channels;
+    let channel = ABSOLUTE_POS / (out_w * out_h * batch_size) % image.shape(1);
 
     let kernel_w = kernel_w_unroll.unwrap_or(args.kernel_w);
     let unroll_w = kernel_w_unroll.is_some();
 
-    let image_idx = batch * in_channels * height * width + channel * height * width;
+    let image_idx = batch * image.stride(0) + channel * image.stride(1);
     let col_idx = channel * args.kernel_h * kernel_w * args.col_size_1
         + batch * out_h * out_w
         + out_y * out_w
@@ -80,13 +74,12 @@ fn im2col_kernel<F: Float>(
 
             let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h;
             let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w;
-            let pixel_value = if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
+            if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
                 let image_ptr = image_idx + y as u32 * width + x as u32;
-                image[image_ptr]
+                columns[col_pos] = image[image_ptr];
             } else {
-                F::new(0.0)
+                columns[col_pos] = F::new(0.0)
             };
-            columns[col_pos] = pixel_value;
         }
     }
 }
@@ -100,7 +93,7 @@ fn im2col<R: JitRuntime, E: FloatElement>(
     out_w: usize,
 ) -> JitTensor<R, E, 2> {
     let input = into_contiguous(input);
-    let [batch_size, in_channels, height, width] = input.shape.dims;
+    let [batch_size, in_channels, _, _] = input.shape.dims;
 
     let col_shape_0 = in_channels * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
@@ -135,10 +128,6 @@ fn im2col<R: JitRuntime, E: FloatElement>(
                 ScalarArg::new(kernel_w as u32),
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),
-                ScalarArg::new(batch_size as u32),
-                ScalarArg::new(in_channels as u32),
-                ScalarArg::new(height as u32),
-                ScalarArg::new(width as u32),
                 ScalarArg::new(col_shape_1 as u32),
                 ScalarArg::new(num_elems as u32),
             ),

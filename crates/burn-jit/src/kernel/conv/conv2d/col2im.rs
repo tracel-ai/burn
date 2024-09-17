@@ -124,11 +124,11 @@ fn col2im<R: JitRuntime, E: FloatElement>(
     im_shape: Shape<4>,
     kernel_h: usize,
     kernel_w: usize,
-    input_h: usize,
-    input_w: usize,
+    out_h: usize,
+    out_w: usize,
     options: ConvTransposeOptions<2>,
 ) -> JitTensor<R, E, 4> {
-    let [batch_size, out_channels, output_height, output_width] = im_shape.dims;
+    let [_, col_size_1] = columns.shape.dims;
 
     let columns = into_contiguous(columns);
 
@@ -150,12 +150,8 @@ fn col2im<R: JitRuntime, E: FloatElement>(
             columns.as_handle_ref().as_tensor_arg(1),
             out.as_handle_ref().as_tensor_arg(1),
             Col2ImArgsLaunch::new(
-                ScalarArg::new(batch_size as u32),
-                ScalarArg::new(out_channels as u32),
-                ScalarArg::new(output_height as u32),
-                ScalarArg::new(output_width as u32),
-                ScalarArg::new(input_h as u32),
-                ScalarArg::new(input_w as u32),
+                ScalarArg::new(out_h as u32),
+                ScalarArg::new(out_w as u32),
                 ScalarArg::new(kernel_h as u32),
                 ScalarArg::new(kernel_w as u32),
                 ScalarArg::new(options.padding[0] as i32),
@@ -164,6 +160,7 @@ fn col2im<R: JitRuntime, E: FloatElement>(
                 ScalarArg::new(options.dilation[1] as u32),
                 ScalarArg::new(options.stride[0] as u32),
                 ScalarArg::new(options.stride[1] as u32),
+                ScalarArg::new(col_size_1 as u32),
             ),
         )
     };
@@ -173,11 +170,6 @@ fn col2im<R: JitRuntime, E: FloatElement>(
 
 #[derive(CubeLaunch)]
 struct Col2ImArgs {
-    batch_size: u32,
-    im_channels: u32,
-    im_height: u32,
-    im_width: u32,
-
     out_h: u32,
     out_w: u32,
 
@@ -190,6 +182,8 @@ struct Col2ImArgs {
     dilation_w: u32,
     stride_h: u32,
     stride_w: u32,
+
+    col_size_1: u32,
 }
 
 #[cube(launch_unchecked)]
@@ -198,42 +192,41 @@ fn col2im_kernel<F: Float>(columns: &Tensor<F>, image: &mut Tensor<F>, args: &Co
         return;
     }
 
-    let x_im = ABSOLUTE_POS % args.im_width + args.pad_w as u32;
-    let y_im = ABSOLUTE_POS / args.im_width % args.im_height + args.pad_h as u32;
-    let ch_im = ABSOLUTE_POS / (args.im_width * args.im_height) % args.im_channels;
-    let batch = ABSOLUTE_POS / (args.im_width * args.im_height * args.im_channels);
+    let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w as u32;
+    let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h as u32;
+    let ch_im = ABSOLUTE_POS / image.stride(1) % image.shape(1);
+    let batch = ABSOLUTE_POS / image.stride(0);
 
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
 
     let mut val = F::new(0.0);
 
-    let x_col_start = if x_im >= kernel_extent_w {
-        (x_im - kernel_extent_w) / args.stride_w + 1
+    let x_col_start = if im_x >= kernel_extent_w {
+        (im_x - kernel_extent_w) / args.stride_w + 1
     } else {
         0u32
     };
-    let x_col_end = Min::min(x_im / args.stride_w + 1, args.out_w);
-    let y_col_start = if y_im >= kernel_extent_h {
-        (y_im - kernel_extent_h) / args.stride_h + 1
+    let x_col_end = Min::min(im_x / args.stride_w + 1, args.out_w);
+    let y_col_start = if im_y >= kernel_extent_h {
+        (im_y - kernel_extent_h) / args.stride_h + 1
     } else {
         0u32
     };
-    let y_col_end = Min::min(y_im / args.stride_h + 1, args.out_h);
+    let y_col_end = Min::min(im_y / args.stride_h + 1, args.out_h);
 
     for col_y in y_col_start..y_col_end {
-        let k_y = y_im - col_y * args.stride_h;
+        let kernel_y = im_y - col_y * args.stride_h;
         for col_x in x_col_start..x_col_end {
-            let k_x = x_im - col_x * args.stride_w;
+            let kernel_x = im_x - col_x * args.stride_w;
 
-            if k_y % args.dilation_h == 0 && k_x % args.dilation_w == 0 {
-                let kernel_y = k_y / args.dilation_h;
-                let kernel_x = k_x / args.dilation_w;
+            if kernel_y % args.dilation_h == 0 && kernel_x % args.dilation_w == 0 {
+                let kernel_y = kernel_y / args.dilation_h;
+                let kernel_x = kernel_x / args.dilation_w;
 
-                let col_shape_1 = args.batch_size * args.out_h * args.out_w;
-                let col_pos = ch_im * args.kernel_h * args.kernel_w * col_shape_1
-                    + kernel_y * args.kernel_w * col_shape_1
-                    + kernel_x * col_shape_1
+                let col_pos = ch_im * args.kernel_h * args.kernel_w * args.col_size_1
+                    + kernel_y * args.kernel_w * args.col_size_1
+                    + kernel_x * args.col_size_1
                     + batch * args.out_h * args.out_w
                     + col_y * args.out_w
                     + col_x;
