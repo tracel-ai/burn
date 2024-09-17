@@ -146,7 +146,7 @@ pub mod train {
     };
 
     /// The metric module.
-    pub mod metrics {
+    pub mod metric {
         pub use burn_train::metric::{
             format_float, state, store, AccuracyInput, AccuracyMetric, Adaptor, HammingScore,
             HammingScoreInput, LearningRateMetric, LossInput, LossMetric, Metric, MetricEntry,
