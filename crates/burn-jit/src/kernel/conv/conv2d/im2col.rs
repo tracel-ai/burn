@@ -11,8 +11,6 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-use super::index;
-
 #[derive(CubeLaunch)]
 struct Im2ColArgs {
     stride_h: u32,
@@ -110,13 +108,15 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 
     let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
 
+    let vectorization = 1;
+
     unsafe {
         im2col_kernel::launch_unchecked::<E, R>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_handle_ref().as_tensor_arg(1),
-            columns.as_handle_ref().as_tensor_arg(1),
+            input.as_handle_ref().as_tensor_arg(vectorization),
+            columns.as_handle_ref().as_tensor_arg(vectorization),
             Im2ColArgsLaunch::new(
                 ScalarArg::new(options.stride[0] as u32),
                 ScalarArg::new(options.stride[1] as u32),
@@ -172,34 +172,14 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let columns = im2col(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
     let [col_shape_0, col_shape_1] = columns.shape.dims;
+    let col_shape_0 = col_shape_0 / groups;
+    let out_c_per_group = out_channels / groups;
 
-    let out = if groups > 1 {
-        let col_shape_0 = col_shape_0 / groups;
-        let out_c_per_group = out_channels / groups;
+    let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
+    let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-        let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
-        let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
-
-        let shape_out = Shape::new([groups, out_c_per_group, col_shape_1]);
-        let mut out = empty_device(columns.client.clone(), columns.device.clone(), shape_out);
-
-        for group in 0..groups {
-            let weight = index::<R, E, I>(weight.clone(), group);
-            let columns = index::<R, E, I>(columns.clone(), group);
-            let values = JitBackend::<R, E, I>::float_matmul(weight, columns);
-            let values = reshape(values, Shape::new([1, out_c_per_group, col_shape_1]));
-            out = JitBackend::<R, E, I>::float_slice_assign(
-                out,
-                [group..group + 1, 0..out_c_per_group, 0..col_shape_1],
-                values,
-            )
-        }
-        reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]))
-    } else {
-        let weight = reshape(weight, Shape::new([out_channels, col_shape_0]));
-        let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
-        reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]))
-    };
+    let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
+    let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
 
     let mut out = swap_dims(out, 0, 1);
     if let Some(bias) = bias {

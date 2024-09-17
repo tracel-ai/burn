@@ -5,7 +5,7 @@ mod tests {
     use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive};
 
     #[test]
-    fn mask_fill_should_work_with_multiple_invocations() {
+    fn mask_fill_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
@@ -22,7 +22,7 @@ mod tests {
     }
 
     #[test]
-    fn mask_fill_inplace_should_work_with_multiple_invocations() {
+    fn mask_fill_inplace_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
         let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(

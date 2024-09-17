@@ -4,7 +4,8 @@ mod tests {
     use burn_tensor::{module, Distribution, Tensor};
 
     #[test]
-    fn conv2d_should_work_with_multiple_invocations() {
+    #[ignore = "Reference implementation doesn't match `libtorch` (see https://github.com/tracel-ai/burn/issues/2286)"]
+    fn conv2d_should_match_reference_backend() {
         let test_device = Default::default();
         let input =
             Tensor::<TestBackend, 4>::random([6, 16, 32, 32], Distribution::Default, &test_device);

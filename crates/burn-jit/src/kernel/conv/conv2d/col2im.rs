@@ -14,8 +14,6 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-use super::index;
-
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
 ///
 /// * `input` - The input feature map
@@ -65,39 +63,55 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
     let col_shape_1 = batch_size * input_h * input_w;
 
-    let columns = if groups > 1 {
-        let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
-        let mut columns = empty_device(client.clone(), device.clone(), col_shape);
+    //let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
+    //let mut columns = empty_device(client.clone(), device.clone(), col_shape);
 
-        let weight = reshape(
-            weight.clone(),
-            Shape::new([groups, input_ch_per_group, col_shape_0]),
-        );
+    let weight = reshape(
+        weight.clone(),
+        Shape::new([groups, input_ch_per_group, col_shape_0]),
+    );
+    let weight = swap_dims(weight, 1, 2);
 
-        let input = swap_dims(input, 0, 1);
-        let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
-        let input = reshape(input, input_shape);
+    let input = swap_dims(input, 0, 1);
+    let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
+    let input = reshape(input, input_shape);
 
-        for group in 0..groups {
-            let weight = swap_dims(index::<R, E, I>(weight.clone(), group), 0, 1);
-            let input = index::<R, E, I>(input.clone(), group);
-            let values = JitBackend::<R, E, I>::float_matmul(weight, input);
-            let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
-            columns = JitBackend::<R, E, I>::float_slice_assign(
-                columns,
-                [group..group + 1, 0..col_shape_0, 0..col_shape_1],
-                values,
-            );
-        }
-        reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]))
-    } else {
-        let weight = reshape(weight.clone(), Shape::new([input_channels, col_shape_0]));
-        let weight = swap_dims(weight, 0, 1);
-        let input = swap_dims(input, 0, 1);
-        let input_shape = Shape::new([input_channels, col_shape_1]);
-        let input = reshape(input, input_shape);
-        JitBackend::<R, E, I>::float_matmul(weight, input)
-    };
+    let columns = JitBackend::<R, E, I>::float_matmul(weight, input);
+    let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
+
+    // let columns = if groups > 1 {
+    //     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
+    //     let mut columns = empty_device(client.clone(), device.clone(), col_shape);
+
+    //     let weight = reshape(
+    //         weight.clone(),
+    //         Shape::new([groups, input_ch_per_group, col_shape_0]),
+    //     );
+
+    //     let input = swap_dims(input, 0, 1);
+    //     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
+    //     let input = reshape(input, input_shape);
+
+    //     for group in 0..groups {
+    //         let weight = swap_dims(index::<R, E, I>(weight.clone(), group), 0, 1);
+    //         let input = index::<R, E, I>(input.clone(), group);
+    //         let values = JitBackend::<R, E, I>::float_matmul(weight, input);
+    //         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
+    //         columns = JitBackend::<R, E, I>::float_slice_assign(
+    //             columns,
+    //             [group..group + 1, 0..col_shape_0, 0..col_shape_1],
+    //             values,
+    //         );
+    //     }
+    //     reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]))
+    // } else {
+    //     let weight = reshape(weight.clone(), Shape::new([input_channels, col_shape_0]));
+    //     let weight = swap_dims(weight, 0, 1);
+    //     let input = swap_dims(input, 0, 1);
+    //     let input_shape = Shape::new([input_channels, col_shape_1]);
+    //     let input = reshape(input, input_shape);
+    //     JitBackend::<R, E, I>::float_matmul(weight, input)
+    // };
 
     let mut image = col2im(
         columns, im_shape, kernel_h, kernel_w, input_h, input_w, options,
@@ -139,6 +153,7 @@ fn col2im<R: JitRuntime, E: FloatElement>(
         im_shape.clone(),
     );
 
+    let vectorization = 1;
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
@@ -147,8 +162,8 @@ fn col2im<R: JitRuntime, E: FloatElement>(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_handle_ref().as_tensor_arg(1),
-            out.as_handle_ref().as_tensor_arg(1),
+            columns.as_handle_ref().as_tensor_arg(vectorization),
+            out.as_handle_ref().as_tensor_arg(vectorization),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),

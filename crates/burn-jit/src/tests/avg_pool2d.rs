@@ -6,7 +6,7 @@ mod tests {
     };
 
     #[test]
-    fn avg_pool2d_should_work_with_multiple_invocations() {
+    fn avg_pool2d_should_match_reference_backend() {
         let tensor = Tensor::<TestBackend, 4>::random(
             [32, 32, 32, 32],
             Distribution::Default,
@@ -29,7 +29,7 @@ mod tests {
     }
 
     #[test]
-    fn avg_pool2d_backward_should_work_with_multiple_invocations() {
+    fn avg_pool2d_backward_should_match_reference_backend() {
         TestBackend::seed(0);
         ReferenceBackend::seed(0);
         let tensor = Tensor::<TestBackend, 4>::random(

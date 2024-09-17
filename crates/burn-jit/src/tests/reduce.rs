@@ -10,7 +10,7 @@ mod reduction {
     };
 
     #[test]
-    fn reduction_sum_dim_should_work_with_multiple_invocations() {
+    fn reduction_sum_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -33,7 +33,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_prod_dim_should_work_with_multiple_invocations() {
+    fn reduction_prod_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -56,7 +56,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_argmin_dim_should_work_with_multiple_invocations() {
+    fn reduction_argmin_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -75,7 +75,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_argmax_dim_should_work_with_multiple_invocations() {
+    fn reduction_argmax_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -290,7 +290,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_sum_should_work_with_multiple_invocations() {
+    fn reduction_sum_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -306,7 +306,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_prod_should_work_with_multiple_invocations() {
+    fn reduction_prod_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
         let tensor_ref =
