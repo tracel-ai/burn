@@ -18,7 +18,7 @@ impl<B: ServerBackend> BoolTensorOps<Self> for Server<B> {
     fn bool_into_data<const D: usize>(
         tensor: crate::ops::BoolTensor<Self, D>,
     ) -> impl core::future::Future<Output = crate::TensorData> + Send {
-        todo!()
+        async { tensor.into_data().await }
     }
 
     fn bool_from_data<const D: usize>(

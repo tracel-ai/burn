@@ -1,48 +1,33 @@
-use core::marker::PhantomData;
+use core::{future::Future, marker::PhantomData};
+
+use burn_common::stream::StreamId;
 
 use crate::{
     backend::{Backend, BackendBridge, DeviceOps},
     quantization::QTensorPrimitive,
     repr::{OperationDescription, TensorDescription},
+    TensorData,
 };
+
+use super::ServerTensor;
 
 pub struct Server<B: ServerBackend> {
     r: PhantomData<B>,
 }
 
-pub trait ServerBackend: Send + Sync + 'static {
+pub trait ServerBackend: Send + Sync + 'static + Sized {
     type Runtime: ServerRuntime;
+    type Bridge: BackendBridge<Server<Self>> + 'static;
 }
 
 pub trait ServerRuntime {
     type Client: ServerClient;
     type Device: DeviceOps;
-    type Bridge;
-}
-
-pub struct ServerTensor<R: ServerRuntime> {
-    desc: TensorDescription,
-    client: R::Client,
 }
 
 impl<B: ServerBackend> core::fmt::Debug for Server<B> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("server"))
-    }
-}
-
-impl<R: ServerRuntime> core::fmt::Debug for ServerTensor<R> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("tensor"))
-    }
-}
-
-impl<R: ServerRuntime> Clone for ServerTensor<R> {
-    fn clone(&self) -> Self {
-        Self {
-            desc: self.desc.clone(),
-            client: self.client.clone(),
-        }
     }
 }
 
@@ -69,16 +54,20 @@ impl<R: ServerRuntime> QTensorPrimitive for ServerTensor<R> {
 }
 
 pub trait ServerClient: Clone + Send + Sync {
+    /// Execute an operation.
     fn execute(&self, op: OperationDescription);
+    /// Read the values contained by a tensor.
+    fn read_tensor(
+        &self,
+        tensor: TensorDescription,
+        stream: StreamId,
+    ) -> impl Future<Output = TensorData> + Send;
 }
 
-impl<B: ServerBackend> Backend for Server<B>
-where
-    <B::Runtime as ServerRuntime>::Bridge: BackendBridge<Self> + 'static,
-{
+impl<B: ServerBackend> Backend for Server<B> {
     type Device = <B::Runtime as ServerRuntime>::Device;
 
-    type FullPrecisionBridge = <B::Runtime as ServerRuntime>::Bridge;
+    type FullPrecisionBridge = B::Bridge;
 
     type FloatTensorPrimitive<const D: usize> = ServerTensor<B::Runtime>;
 

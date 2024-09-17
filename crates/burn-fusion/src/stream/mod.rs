@@ -8,3 +8,5 @@ mod multi;
 pub use base::*;
 pub use context::*;
 pub use multi::*;
+
+pub use burn_common::stream::StreamId;
