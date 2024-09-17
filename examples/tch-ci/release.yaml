@@ -49,7 +49,8 @@ jobs:
         run: mkdir run && ls dist | grep linux | xargs -I {} sh -c 'cp dist/{} run/$(echo {} | sed s/_linux//g)'
       - name: retrieve dist Windows
         if: ${{ matrix.os == 'windows-latest' }}
-        run: $sourceDir = "dist"
+        run: |
+          $sourceDir = "dist"
           $destinationDir = "run"
           New-Item -Path $destinationDir -ItemType Directory
           $files = Get-ChildItem -Path $sourceDir -Filter '*_windows.ps1'
