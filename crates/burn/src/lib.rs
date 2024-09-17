@@ -96,9 +96,12 @@
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
 pub use burn_core::{
-    config, constant, data, grad_clipping, lr_scheduler, module, nn, optim, prelude, record, serde,
+    config, constant, grad_clipping, module, nn, prelude, record, serde,
     tensor, LearningRate,
 };
+
+#[cfg(feature = "std")]
+pub use burn_core::{data, lr_scheduler, optim};
 
 /// Backend module.
 pub mod backend {
