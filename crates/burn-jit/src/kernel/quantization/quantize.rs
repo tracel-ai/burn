@@ -16,6 +16,7 @@ pub(crate) fn quantize_affine_int8<F: Float>(
     let offset = F::cast_from(offset);
 
     // x_q = clamp(round(x / scale + offset), a, b)
+    // NOTE: we add 256 before casting to unsigned
     u32::cast_from(
         i32::cast_from(F::clamp(
             F::round((value / scale) + offset),
@@ -80,6 +81,7 @@ pub(crate) fn quantize_symmetric_int8<F: Float>(
     range_max: F,
 ) -> u32 {
     // x_q = clamp(round(x / scale), a, b)
+    // NOTE: we add 256 before casting to unsigned
     u32::cast_from(i32::cast_from(F::clamp(F::round(value / scale), range_min, range_max)) + 256)
 }
 
