@@ -8,7 +8,7 @@ use burn_tensor::{
 use crate::{
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, ones_device, zeros_device},
+        numeric::{ones_device, zeros_device},
         reshape, swap_dims,
     },
     tensor::JitTensor,
@@ -259,9 +259,6 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, E, 1>>,
     options: DeformConvOptions<2>,
 ) -> JitTensor<R, E, 4> {
-    let device = JitBackend::<R, E, I>::float_device(&input);
-    let client = input.client.clone();
-
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);
@@ -294,23 +291,9 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 
-    let out_shape = Shape::new([groups, out_c_per_group, col_size_1]);
-    let mut out = empty_device(client.clone(), device.clone(), out_shape);
-
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-
-    for group in 0..groups {
-        let weight = index::<R, E, I>(weight.clone(), group);
-        let columns = index::<R, E, I>(columns.clone(), group);
-        let values = JitBackend::<R, E, I>::float_matmul(weight, columns);
-        let values = reshape(values, Shape::new([1, out_c_per_group, col_size_1]));
-        out = JitBackend::<R, E, I>::float_slice_assign(
-            out,
-            [group..group + 1, 0..out_c_per_group, 0..col_size_1],
-            values,
-        );
-    }
+    let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);

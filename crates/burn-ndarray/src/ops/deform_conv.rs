@@ -2,8 +2,8 @@ use burn_common::{iter_par, run_par};
 use burn_tensor::ops::{conv::calculate_conv_output_size, DeformConvOptions};
 use core::ops::AddAssign;
 use ndarray::{
-    s, Array2, Array3, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis,
-    Dim, Ix4,
+    s, Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim,
+    Ix4,
 };
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
@@ -163,24 +163,17 @@ pub(crate) fn deform_conv2d<F: FloatNdArrayElement>(
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 
-    let mut out = Array3::zeros(Dim([groups, out_c_per_group, col_size_1]));
     let weight = weight
         .to_shape((groups, out_c_per_group, col_size_0))
         .unwrap();
     let columns = columns.to_shape((groups, col_size_0, col_size_1)).unwrap();
-
-    for group in 0..groups {
-        let weight = weight.index_axis(Axis(0), group);
-        let columns = columns.index_axis(Axis(0), group);
-
-        let values = matmul(
-            NdArrayTensor::<_, 2>::new(weight.to_owned().into_dyn().into_shared()),
-            NdArrayTensor::<_, 2>::new(columns.to_owned().into_dyn().into_shared()),
-        );
-        out.index_axis_mut(Axis(0), group).assign(&values.array);
-    }
+    let out = matmul(
+        NdArrayTensor::<_, 3>::new(weight.to_owned().into_dyn().into_shared()),
+        NdArrayTensor::<_, 3>::new(columns.to_owned().into_dyn().into_shared()),
+    );
 
     let mut out = out
+        .array
         .into_shape_with_order((out_channels, batch_size, out_h, out_w))
         .unwrap();
     out.swap_axes(0, 1);
@@ -361,25 +354,16 @@ pub mod backward {
         let (col_size_0, col_size_1) = columns.dim();
         let col_size_0 = col_size_0 / groups;
 
-        let mut grad_weight = Array3::zeros((groups, out_c_per_group, col_size_0));
+        let mut columns = columns.to_shape((groups, col_size_0, col_size_1)).unwrap();
+        columns.swap_axes(1, 2);
 
-        let columns = columns.to_shape((groups, col_size_0, col_size_1)).unwrap();
-
-        for group in 0..groups {
-            let out_grad = out_grad.index_axis(Axis(0), group);
-            let mut columns = columns.index_axis(Axis(0), group);
-            columns.swap_axes(0, 1);
-
-            let values = matmul(
-                NdArrayTensor::<_, 2>::new(out_grad.to_owned().into_dyn().into_shared()),
-                NdArrayTensor::<_, 2>::new(columns.to_owned().into_dyn().into_shared()),
-            );
-            grad_weight
-                .index_axis_mut(Axis(0), group)
-                .assign(&values.array);
-        }
+        let grad_weight = matmul(
+            NdArrayTensor::<_, 3>::new(out_grad.to_owned().into_dyn().into_shared()),
+            NdArrayTensor::<_, 3>::new(columns.to_owned().into_dyn().into_shared()),
+        );
 
         let grad_weight = grad_weight
+            .array
             .into_shape_with_order((out_c_per_group * groups, in_c_per_group, kernel_h, kernel_w))
             .unwrap();
         NdArrayTensor::new(grad_weight.into_dyn().into_shared())
@@ -409,26 +393,19 @@ pub mod backward {
         let out_c_per_group = out_channels / groups;
 
         let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
-        let col_shape_1 = batch_size * out_h * out_w;
-        let mut columns = Array3::zeros((groups, col_shape_0, col_shape_1));
 
-        let weight = weight
+        let mut weight = weight
             .array
             .to_shape((groups, out_c_per_group, col_shape_0))
             .unwrap();
-
-        for group in 0..groups {
-            let mut weight = weight.index_axis(Axis(0), group);
-            weight.swap_axes(0, 1);
-            let out_grad = out_grad.index_axis(Axis(0), group);
-            let values = matmul(
-                NdArrayTensor::<_, 2>::new(weight.to_owned().into_dyn().into_shared()),
-                NdArrayTensor::<_, 2>::new(out_grad.to_owned().into_dyn().into_shared()),
-            );
-            columns.index_axis_mut(Axis(0), group).assign(&values.array);
-        }
+        weight.swap_axes(1, 2);
+        let columns = matmul(
+            NdArrayTensor::<_, 3>::new(weight.to_owned().into_dyn().into_shared()),
+            NdArrayTensor::<_, 3>::new(out_grad.to_owned().into_dyn().into_shared()),
+        );
 
         let columns = columns
+            .array
             .to_shape((in_channels, kernel_h, kernel_w, batch_size, out_h, out_w))
             .unwrap();
 

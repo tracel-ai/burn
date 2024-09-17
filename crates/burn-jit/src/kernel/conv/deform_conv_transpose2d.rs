@@ -80,9 +80,6 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
 ) -> JitTensor<R, E, 4> {
-    let client = out_grad.client.clone();
-    let device = out_grad.device.clone();
-
     let [_, in_channels, _, _] = input.shape.dims;
     let [_, out_channels, _, _] = out_grad.shape.dims;
     let (kernel_h, kernel_w) = kernel_dims;
@@ -95,25 +92,13 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     let [col_size_0, col_size_1] = columns.shape.dims;
     let col_size_0 = col_size_0 / groups;
 
-    let grad_weight_shape = Shape::new([groups, out_c_per_group, col_size_0]);
-    let mut grad_weight = empty_device(client.clone(), device.clone(), grad_weight_shape);
-
     let out_grad = swap_dims(out_grad, 0, 1);
     let out_grad = reshape(out_grad, Shape::new([groups, out_c_per_group, col_size_1]));
+
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
+    let columns = swap_dims(columns, 1, 2);
 
-    for group in 0..groups {
-        let out_grad = index::<R, E, I>(out_grad.clone(), group);
-        let columns = swap_dims(index::<R, E, I>(columns.clone(), group), 0, 1);
-
-        let values = JitBackend::<R, E, I>::float_matmul(out_grad, columns);
-        let values = reshape(values, Shape::new([1, out_c_per_group, col_size_0]));
-        grad_weight = JitBackend::<R, E, I>::float_slice_assign(
-            grad_weight,
-            [group..group + 1, 0..out_c_per_group, 0..col_size_0],
-            values,
-        );
-    }
+    let grad_weight = JitBackend::<R, E, I>::float_matmul(out_grad, columns);
 
     JitBackend::<R, E, I>::float_reshape(
         grad_weight,
