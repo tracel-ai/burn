@@ -95,9 +95,7 @@
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
 
-pub use burn_core::{
-    config, constant, grad_clipping, module, nn, prelude, record, serde, tensor, LearningRate,
-};
+pub use burn_core::*;
 
 #[cfg(feature = "std")]
 pub use burn_core::{data, lr_scheduler, optim};
@@ -105,55 +103,27 @@ pub use burn_core::{data, lr_scheduler, optim};
 /// Backend module.
 pub mod backend {
     #[cfg(feature = "autodiff")]
-    pub use burn_core::backend::autodiff;
-    #[cfg(feature = "autodiff")]
-    pub use burn_core::backend::Autodiff;
-
+    pub use burn_core::backend::{autodiff, Autodiff};
     #[cfg(feature = "candle")]
-    pub use burn_core::backend::candle;
-    #[cfg(feature = "candle")]
-    pub use burn_core::backend::Candle;
-
+    pub use burn_core::backend::{candle, Candle};
     #[cfg(feature = "cuda-jit")]
-    pub use burn_core::backend::cuda_jit;
-    #[cfg(feature = "cuda-jit")]
-    pub use burn_core::backend::CudaJit;
-
+    pub use burn_core::backend::{cuda_jit, CudaJit};
     #[cfg(feature = "tch")]
-    pub use burn_core::backend::libtorch;
-    #[cfg(feature = "tch")]
-    pub use burn_core::backend::LibTorch;
-
+    pub use burn_core::backend::{libtorch, LibTorch};
     #[cfg(feature = "ndarray")]
-    pub use burn_core::backend::ndarray;
-    #[cfg(feature = "ndarray")]
-    pub use burn_core::backend::NdArray;
-
+    pub use burn_core::backend::{ndarray, NdArray};
     #[cfg(feature = "wgpu")]
-    pub use burn_core::backend::wgpu;
-    #[cfg(feature = "wgpu")]
-    pub use burn_core::backend::Wgpu;
+    pub use burn_core::backend::{wgpu, Wgpu};
 }
 
 /// Train module
 #[cfg(feature = "train")]
 pub mod train {
-    pub use burn_train::{
-        checkpoint, logger, train, ApplicationLoggerInstaller, ClassificationOutput,
-        EarlyStoppingStrategy, FileApplicationLoggerInstaller, Learner, LearnerBuilder,
-        LearnerSummary, MetricEarlyStoppingStrategy, MetricEntry, MetricSummary,
-        MultiDevicesTrainStep, MultiLabelClassificationOutput, RegressionOutput, StoppingCondition,
-        SummaryMetrics, TrainEpoch, TrainOutput, TrainStep, TrainingInterrupter, ValidEpoch,
-        ValidStep,
-    };
+    pub use burn_train::*;
 
     /// The metric module.
     pub mod metric {
-        pub use burn_train::metric::{
-            format_float, state, store, AccuracyInput, AccuracyMetric, Adaptor, HammingScore,
-            HammingScoreInput, LearningRateMetric, LossInput, LossMetric, Metric, MetricEntry,
-            MetricMetadata, Numeric, NumericEntry,
-        };
+        pub use burn_train::metric::*;
 
         #[cfg(feature = "metrics")]
         pub use burn_train::metric::{
@@ -163,7 +133,7 @@ pub mod train {
 
     /// Renderer modules to display metrics and training information.
     pub mod renderer {
-        pub use burn_train::renderer::{MetricState, MetricsRenderer, TrainingProgress};
+        pub use burn_train::renderer::*;
 
         #[cfg(feature = "tui")]
         pub use burn_train::renderer::SelectedMetricsRenderer;
