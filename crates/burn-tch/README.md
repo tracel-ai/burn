@@ -261,14 +261,23 @@ For a more complete example using the `tch` backend, take a loot at the
 
 ## Too many environment variables?
 
-Try `.cargo/config.toml` ([cargo book](https://doc.rust-lang.org/cargo/reference/config.html#env)):
+Try `.cargo/config.toml` ([cargo book](https://doc.rust-lang.org/cargo/reference/config.html#env)).
 
-For example, Linux.
+Instead of setting the environments in your shell, you can manually add them to your `.cargo/config.toml`:
+
+```toml
+[env]
+LD_LIBRARY_PATH = "/absolute/path/to/libtorch/lib"
+LIBTORCH = "/absolute/path/to/libtorch/libtorch"
+```
+
+Or use bash commands below:
+
 ```bash
 mkdir .cargo
 cat <<EOF > .cargo/config.toml
 [env]
-LD_LIBRARY_PATH = "$(pwd)/libtorch/lib:$LD_LIBRARY_PATH"
-LIBTORCH = "$(pwd)/libtorch"
+LD_LIBRARY_PATH = "/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH"
+LIBTORCH = "/absolute/path/to/libtorch/libtorch"
 EOF
 ```
