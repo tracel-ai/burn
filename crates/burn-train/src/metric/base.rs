@@ -1,10 +1,11 @@
-use burn_core::prelude::{Backend, Tensor};
+use burn_core::prelude::{Backend, Bool, Tensor};
 use burn_core::tensor::cast::ToElement;
 use burn_core::tensor::Int;
 use burn_core::{data::dataloader::Progress, LearningRate};
+use strum::EnumIter;
 
 ///Aggregation types for Classification metrics
-#[derive(Copy, Clone)]
+#[derive(EnumIter, Copy, Clone, Debug)]
 pub enum AggregationType {
     Micro,
     Macro,
@@ -12,26 +13,39 @@ pub enum AggregationType {
 }
 
 impl AggregationType {
-    pub fn aggregate<B: Backend>(self, cm_mask: Tensor<B, 2, Int>) -> Tensor<B, 1, Int> {
+    pub fn aggregate<B: Backend>(self, cm_mask: Tensor<B, 2, Int>) -> Tensor<B, 1> {
         match self {
-            AggregationType::Macro => cm_mask.sum_dim(0).squeeze(0),
-            AggregationType::Micro => cm_mask.sum(), //MetricAverage::Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+            AggregationType::Macro => cm_mask.sum_dim(0).squeeze(0).float(),
+            AggregationType::Micro => cm_mask.sum().float(), //MetricAverage::Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+        }
+    }
+
+    pub fn aggregate_mean<B: Backend>(self, cm_mask: Tensor<B, 2, Int>) -> Tensor<B, 1> {
+        match self {
+            AggregationType::Macro => cm_mask.float().mean_dim(0).squeeze(0),
+            AggregationType::Micro => cm_mask.float().mean(), //MetricAverage::Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+        }
+    }
+
+    pub fn to_averaged_tensor<B: Backend>(self, mut metrics: Tensor<B, 1>) -> Tensor<B, 1> {
+        match self {
+            AggregationType::Macro => {
+                if metrics.contains_nan().any().into_scalar() {
+                    let nan_mask = metrics.is_nan();
+                    metrics = metrics
+                        .clone()
+                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                }
+                metrics.mean()
+            }
+            AggregationType::Micro => metrics,
+            //MetricAverage::Weighted(weights) =>
         }
     }
 
     pub fn to_averaged_metric<B: Backend>(self, metrics: Tensor<B, 1>) -> f64 {
-        let [n_classes] = metrics.dims();
-        match self {
-            AggregationType::Macro => metrics.sum().into_scalar().to_f64() / n_classes as f64,
-            AggregationType::Micro => metrics.into_scalar().to_f64(), //MetricAverage::Weighted(weights) =>
-        }
+        self.to_averaged_tensor(metrics).into_scalar().to_f64()
     }
-}
-
-pub enum ClassificationType {
-    Binary,
-    Multiclass,
-    Multilabel,
 }
 
 /// Metric metadata that can be used when computing metrics.
@@ -88,6 +102,15 @@ pub trait Metric: Send + Sync {
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
+}
+
+/// The [classification metric](ClassificationMetric) input type.
+#[derive(new, Debug)]
+pub struct ClassificationInput<B: Backend> {
+    /// Sample x Class Non thresholded predictions
+    pub predictions: Tensor<B, 2>,
+    /// Sample x Class target mask
+    pub targets: Tensor<B, 2, Bool>,
 }
 
 /// Adaptor are used to transform types so that they can be used by metrics.
