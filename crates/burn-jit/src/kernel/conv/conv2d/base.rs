@@ -74,7 +74,7 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     strategy: Conv2dStrategy,
 ) -> JitTensor<R, E, 4> {
     match strategy {
-        Conv2dStrategy::Direct => conv2d_direct(input, weight, bias, options),
+        Conv2dStrategy::Direct => conv2d_direct::<R, E, I>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
         Conv2dStrategy::Autotune => conv2d_autotune::<R, E, I>(input, weight, bias, options),
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E, I>(input, weight, bias, options),
@@ -97,7 +97,9 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     strategy: ConvTranspose2dStrategy,
 ) -> JitTensor<R, E, 4> {
     match strategy {
-        ConvTranspose2dStrategy::Direct => conv_transpose2d_direct(input, weight, bias, options),
+        ConvTranspose2dStrategy::Direct => {
+            conv_transpose2d_direct::<R, E, I>(input, weight, bias, options)
+        }
         #[cfg(feature = "autotune")]
         ConvTranspose2dStrategy::Autotune => {
             conv_transpose2d_autotune::<R, E, I>(input, weight, bias, options)

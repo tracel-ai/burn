@@ -14,9 +14,9 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    JitRuntime,
+    IntElement, JitRuntime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
+use burn_tensor::{ops::ConvTransposeOptions, Shape};
 
 #[derive(new)]
 struct Conv2dTransposeEagerKernel<R, E> {
@@ -371,7 +371,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement + Element>(
+#[allow(clippy::extra_unused_type_parameters)]
+pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
     input: JitTensor<R, E, 4>,
     weight: JitTensor<R, E, 4>,
     bias: Option<JitTensor<R, E, 1>>,

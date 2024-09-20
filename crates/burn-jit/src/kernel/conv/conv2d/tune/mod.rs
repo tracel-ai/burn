@@ -1,7 +1,5 @@
-#[cfg(feature = "autotune")]
-mod base;
-mod key;
+mod conv2d;
+mod conv_transpose2d;
 
-#[cfg(feature = "autotune")]
-pub use base::*;
-pub use key::*;
+pub use conv2d::*;
+pub use conv_transpose2d::*;
