@@ -32,6 +32,8 @@ where
 ///
 /// To create a Cuda or Metal device from the index, use the associated methods to create the variant:
 /// ```no_run
+/// use burn_candle::CandleDevice;
+///
 /// // Create a Cuda device from its index
 /// let device = CandleDevice::cuda(0);
 /// // Create a Metal device from its index
