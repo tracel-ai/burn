@@ -18,7 +18,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         data: TensorData,
         device: &Device<Self>,
     ) -> CandleTensor<F, D> {
-        CandleTensor::from_data(data, *device)
+        CandleTensor::from_data(data, device.clone())
     }
 
     fn float_random<const D: usize>(
@@ -27,7 +27,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         device: &Device<Self>,
     ) -> FloatTensor<Self, D> {
         let shape = &shape.dims;
-        let device = &(*device).into();
+        let device = &(device.clone()).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
                 candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)

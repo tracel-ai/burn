@@ -21,7 +21,7 @@ pub fn from_data<E: CandleElement, const D: usize>(
     data: TensorData,
     device: &CandleDevice,
 ) -> CandleTensor<E, D> {
-    CandleTensor::from_data(data, *device)
+    CandleTensor::from_data(data, device.clone())
 }
 pub fn into_data<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> TensorData {
     TensorData::new(
@@ -34,14 +34,16 @@ pub fn to_device<E: CandleElement, const D: usize>(
     tensor: CandleTensor<E, D>,
     device: &CandleDevice,
 ) -> CandleTensor<E, D> {
-    CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
+    CandleTensor::new(tensor.tensor.to_device(&(device.clone()).into()).unwrap())
 }
 
 pub fn empty<E: CandleElement, const D: usize>(
     shape: Shape<D>,
     device: &CandleDevice,
 ) -> CandleTensor<E, D> {
-    CandleTensor::new(candle_core::Tensor::zeros(&shape.dims, E::DTYPE, &(*device).into()).unwrap())
+    CandleTensor::new(
+        candle_core::Tensor::zeros(&shape.dims, E::DTYPE, &(device.clone()).into()).unwrap(),
+    )
 }
 
 pub fn swap_dims<E: CandleElement, const D: usize>(
