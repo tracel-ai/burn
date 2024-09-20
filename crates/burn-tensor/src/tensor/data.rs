@@ -361,22 +361,21 @@ impl TensorData {
             DType::Bool => self.assert_eq_elem::<bool>(other),
             DType::QFloat(q) => {
                 // Strict or not, it doesn't make sense to compare quantized data to not quantized data for equality
-                if let DType::QFloat(q_other) = other.dtype {
-                    assert_eq!(
-                        q, q_other,
-                        "Quantization strategies differ ({:?} != {:?})",
-                        q, q_other
-                    )
+                let q_other = if let DType::QFloat(q_other) = other.dtype {
+                    q_other
                 } else {
                     panic!("Quantized data differs from other not quantized data")
-                }
-                match q {
-                    QuantizationStrategy::PerTensorAffineInt8(_) => {
-                        self.assert_eq_elem::<i8>(other)
-                    }
-                    QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                        self.assert_eq_elem::<i8>(other)
-                    }
+                };
+                match (q, q_other) {
+                    (
+                        QuantizationStrategy::PerTensorAffineInt8(_),
+                        QuantizationStrategy::PerTensorAffineInt8(_),
+                    ) => self.assert_eq_elem::<i8>(other),
+                    (
+                        QuantizationStrategy::PerTensorSymmetricInt8(_),
+                        QuantizationStrategy::PerTensorSymmetricInt8(_),
+                    ) => self.assert_eq_elem::<i8>(other),
+                    _ => panic!("Quantization strategies differ ({:?} != {:?})", q, q_other),
                 }
             }
         }
