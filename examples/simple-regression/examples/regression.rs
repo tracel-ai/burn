@@ -9,7 +9,7 @@ mod ndarray {
         ndarray::{NdArray, NdArrayDevice},
         Autodiff,
     };
-    use regression::training;
+    use simple_regression::training;
 
     pub fn run() {
         let device = NdArrayDevice::Cpu;
@@ -23,7 +23,7 @@ mod tch_gpu {
         libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
     };
-    use regression::training;
+    use simple_regression::training;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -41,7 +41,7 @@ mod wgpu {
         wgpu::{Wgpu, WgpuDevice},
         Autodiff,
     };
-    use regression::training;
+    use simple_regression::training;
 
     pub fn run() {
         let device = WgpuDevice::default();
@@ -55,7 +55,7 @@ mod tch_cpu {
         libtorch::{LibTorch, LibTorchDevice},
         Autodiff,
     };
-    use regression::training;
+    use simple_regression::training;
     pub fn run() {
         let device = LibTorchDevice::Cpu;
         training::run::<Autodiff<LibTorch>>(device);

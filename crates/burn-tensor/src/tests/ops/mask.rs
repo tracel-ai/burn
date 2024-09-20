@@ -23,6 +23,40 @@ mod tests {
     }
 
     #[test]
+    fn should_handle_mask_where_nans() {
+        let device = Default::default();
+        let tensor = TestTensor::from_data(
+            [
+                [f32::NAN, f32::NAN, f32::NAN],
+                [f32::NAN, f32::NAN, f32::NAN],
+                [f32::NAN, f32::NAN, f32::NAN],
+            ],
+            &device,
+        );
+        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+            TensorData::from([
+                [true, true, true],
+                [true, true, false],
+                [false, false, false],
+            ]),
+            &device,
+        );
+        let value = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.9, 0.8, 0.7], [0.6, 0.5, 0.4], [0.3, 0.2, 0.1]]),
+            &device,
+        );
+
+        let output = tensor.mask_where(mask, value);
+        let expected = TensorData::from([
+            [0.9, 0.8, 0.7],
+            [0.6, 0.5, f32::NAN],
+            [f32::NAN, f32::NAN, f32::NAN],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_support_mask_fill_ops() {
         let device = Default::default();
         let tensor = TestTensor::from_data([[1.0, 7.0], [2.0, 3.0]], &device);

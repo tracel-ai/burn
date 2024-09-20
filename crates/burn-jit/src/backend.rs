@@ -34,7 +34,8 @@ where
     type FloatTensorPrimitive<const D: usize> = JitTensor<R, Self::FloatElem, D>;
     type IntTensorPrimitive<const D: usize> = JitTensor<R, Self::IntElem, D>;
     type BoolTensorPrimitive<const D: usize> = JitTensor<R, u32, D>;
-    type QuantizedTensorPrimitive<const D: usize> = QJitTensor<R, D>;
+    type QuantizedTensorPrimitive<const D: usize> =
+        QJitTensor<R, Self::FloatElem, Self::IntElem, D>;
 
     fn name() -> String {
         format!("jit<{}>", R::name())
