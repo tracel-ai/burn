@@ -281,3 +281,4 @@ LD_LIBRARY_PATH = "/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH"
 LIBTORCH = "/absolute/path/to/libtorch/libtorch"
 EOF
 ```
+This will automatically include the old `LD_LIBRARY_PATH` value in the new one.
