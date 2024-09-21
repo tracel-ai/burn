@@ -299,6 +299,7 @@ dependencies = [
  "derive-new",
  "dirs 5.0.1",
  "github-device-flow",
+ "half",
  "indicatif",
  "os_info",
  "percent-encoding",
@@ -1433,7 +1434,6 @@ dependencies = [
  "half",
  "log",
  "num-traits",
- "paste",
  "paste",
  "serde",
 ]

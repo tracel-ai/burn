@@ -11,12 +11,9 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-jit"
 version.workspace = true
 
 [features]
-default = ["autotune", "std", "fusion", "cubecl/default"]
-std = ["cubecl/std"]
-doc = ["default"]
 autotune = []
-template = []
-fusion = ["burn-fusion"]
+default = ["autotune", "std", "fusion", "cubecl/default"]
+doc = ["default"]
 export_tests = [
   "burn-tensor-testgen",
   "serial_test",
@@ -25,32 +22,37 @@ export_tests = [
   "burn-ndarray",
   "fusion",
 ]
+fusion = ["burn-fusion"]
+std = ["cubecl/std"]
+template = []
 
 [dependencies]
-cubecl = { workspace = true, features = ["linalg"] }
 burn-common = { path = "../burn-common", version = "0.15.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = ["cubecl"] }
 burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
+burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
+  "cubecl",
+] }
+cubecl = { workspace = true, features = ["linalg"] }
 
 bytemuck = { workspace = true }
 derive-new = { workspace = true }
+half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
 num-traits = { workspace = true }
 rand = { workspace = true }
 spin = { workspace = true }
-half = { workspace = true,  features = ["bytemuck"] }
 
 # Template
 serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
-hashbrown = { workspace = true }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.15.0", optional = true }
+hashbrown = { workspace = true }
 
 # When exporting tests
-serial_test = { workspace = true, optional = true }
 burn-autodiff = { path = "../burn-autodiff", version = "0.15.0", default-features = false, optional = true }
 burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", optional = true }
+serial_test = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

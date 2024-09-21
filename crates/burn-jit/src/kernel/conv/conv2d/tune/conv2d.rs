@@ -1,4 +1,7 @@
-use burn_tensor::{ops::ConvOptions, ElementConversion, Shape};
+use burn_tensor::{
+    ops::{conv::calculate_conv_output_size, ConvOptions},
+    ElementConversion, Shape,
+};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
@@ -8,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::{
-        conv::{conv2d_direct, conv2d_im2col},
+        conv::{can_do_implicit_gemm, conv2d_direct, conv2d_im2col, conv2d_implicit_gemm},
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -56,7 +59,11 @@ pub struct Conv2dAutotuneKey {
     pub has_bias: bool,
 }
 
-#[tune(operations(conv2d_direct, conv2d_im2col), create_key = create_key)]
+#[tune(
+    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm),
+    create_key = create_key,
+    should_run = should_run
+)]
 pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     key: JitAutotuneKey,
     input: JitTensor<R, E, 4>,
@@ -83,6 +90,36 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
         .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
 
     tune_with!(input, weights, bias, options)
+}
+
+fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
+    op: &Conv2dOperations<R, F, I>,
+    _key: &JitAutotuneKey,
+    index: usize,
+) -> bool {
+    match index {
+        2 => {
+            let [_, _, height, width] = op.input.shape.dims;
+            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims;
+            let o = &op.options;
+            let out_h = calculate_conv_output_size(
+                kernel_h,
+                o.stride[0],
+                o.padding[0],
+                o.dilation[0],
+                height,
+            );
+            let out_w = calculate_conv_output_size(
+                kernel_w,
+                o.stride[1],
+                o.padding[1],
+                o.dilation[1],
+                width,
+            );
+            can_do_implicit_gemm(&op.input, &op.weights, out_h, out_w)
+        }
+        _ => true,
+    }
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
