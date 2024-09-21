@@ -1,13 +1,10 @@
 use super::{AggregationType, ClassificationInput};
-use burn_core::prelude::{Backend, Bool, Tensor};
+use burn_core::prelude::{Backend, Int, Tensor};
 use std::fmt::{self, Debug};
 
 #[derive(Clone)]
 pub struct ConfusionMatrix<B: Backend> {
-    true_positive_mask: Tensor<B, 2, Bool>,
-    false_positive_mask: Tensor<B, 2, Bool>,
-    true_negative_mask: Tensor<B, 2, Bool>,
-    false_negative_mask: Tensor<B, 2, Bool>,
+    confusion_matrix_map: Tensor<B, 2, Int>,
     aggregation_type: AggregationType,
 }
 
@@ -39,35 +36,31 @@ impl<B: Backend> ConfusionMatrix<B> {
         threshold: f64,
         aggregation_type: AggregationType,
     ) -> Self {
-        let predictions = input.predictions.clone().greater_elem(threshold);
-        let confusion_matrix = predictions.int() + input.targets.clone().int() * 2;
+        let thresholded_predictions = input.predictions.clone().greater_elem(threshold);
         Self {
-            true_positive_mask: confusion_matrix.clone().equal_elem(3),
-            false_negative_mask: confusion_matrix.clone().equal_elem(2),
-            false_positive_mask: confusion_matrix.clone().equal_elem(1),
-            true_negative_mask: confusion_matrix.equal_elem(0),
+            confusion_matrix_map: thresholded_predictions.int() + input.targets.clone().int() * 2,
             aggregation_type,
         }
     }
 
     pub fn true_positive(self) -> Tensor<B, 1> {
         self.aggregation_type
-            .aggregate(self.true_positive_mask.int())
+            .aggregate(self.confusion_matrix_map.equal_elem(3).int())
     }
 
     pub fn true_negative(self) -> Tensor<B, 1> {
         self.aggregation_type
-            .aggregate(self.true_negative_mask.int())
+            .aggregate(self.confusion_matrix_map.equal_elem(0).int())
     }
 
     pub fn false_positive(self) -> Tensor<B, 1> {
         self.aggregation_type
-            .aggregate(self.false_positive_mask.int())
+            .aggregate(self.confusion_matrix_map.equal_elem(1).int())
     }
 
     pub fn false_negative(self) -> Tensor<B, 1> {
         self.aggregation_type
-            .aggregate(self.false_negative_mask.int())
+            .aggregate(self.confusion_matrix_map.equal_elem(2).int())
     }
 
     pub fn positive(self) -> Tensor<B, 1> {
@@ -94,24 +87,9 @@ impl<B: Backend> ConfusionMatrix<B> {
 #[cfg(test)]
 mod tests {
     use super::{AggregationType, ConfusionMatrix};
-    use crate::metric::test::{dummy_classification_input, THRESHOLD, ClassificationType};
+    use crate::metric::test::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
     use strum::IntoEnumIterator;
-
-    #[test]
-    fn test_inner_representation() {
-        for agg_type in AggregationType::iter() {
-            for classification_type in ClassificationType::iter() {
-                let (input, _) = dummy_classification_input(&classification_type);
-                let conf_mat = ConfusionMatrix::from(&input, THRESHOLD, agg_type);
-                let cm_mask = conf_mat.true_positive_mask.float()
-                    + conf_mat.false_positive_mask.float()
-                    + conf_mat.true_negative_mask.float()
-                    + conf_mat.false_negative_mask.float();
-                TensorData::assert_eq(&cm_mask.to_data(), &cm_mask.ones_like().to_data(), true);
-            }
-        }
-    }
 
     #[test]
     fn test_confusion_matrix() {
@@ -140,6 +118,37 @@ mod tests {
                         .to_data(),
                     true,
                 )
+            }
+        }
+    }
+
+    #[test]
+    fn test_confusion_matrix_methods() {
+        for agg_type in AggregationType::iter() {
+            for classification_type in ClassificationType::iter() {
+                let (input, target_diff) = dummy_classification_input(&classification_type);
+                let conf_mat = ConfusionMatrix::from(&input, THRESHOLD, agg_type);
+                TensorData::assert_eq(
+                    &conf_mat.clone().positive().to_data(),
+                    &agg_type.aggregate(input.targets.clone().int()).to_data(),
+                    true,
+                );
+
+                TensorData::assert_eq(
+                    &conf_mat.clone().negative().to_data(),
+                    &agg_type
+                        .aggregate(input.targets.clone().bool_not().int())
+                        .to_data(),
+                    true,
+                );
+
+                TensorData::assert_eq(
+                    &conf_mat.clone().predicted_positive().to_data(),
+                    &agg_type
+                        .aggregate(input.targets.clone().int().sub(target_diff.int()))
+                        .to_data(),
+                    true,
+                );
             }
         }
     }

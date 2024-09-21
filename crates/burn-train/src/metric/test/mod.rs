@@ -52,13 +52,16 @@ pub fn dummy_classification_input(
         let change_idx = Tensor::from_floats(
             (0..N_SAMPLES)
                 .into_iter()
-                .choose_multiple(&mut rng, (N_SAMPLES as f32 * ERROR_PER_SAMPLE_RATE) as usize)
+                .choose_multiple(
+                    &mut rng,
+                    (N_SAMPLES as f32 * ERROR_PER_SAMPLE_RATE) as usize,
+                )
                 .as_slice(),
             device,
         );
-        let mut mask: Tensor<TestBackend, 1> = Tensor::zeros(Shape::new([N_SAMPLES]), device);
         let values = change_idx.ones_like();
-        mask = mask.scatter(0, change_idx.int(), values);
+        let mask =
+            Tensor::zeros(Shape::new([N_SAMPLES]), device).scatter(0, change_idx.int(), values);
         mask.unsqueeze_dim(1).bool()
     };
 
@@ -71,17 +74,20 @@ pub fn dummy_classification_input(
             )
             .bool();
 
-            let changed_targets = Tensor::equal(targets.clone(), error_mask).bool_not();
+            let changed_targets = targets.clone().not_equal(error_mask);
             (targets, changed_targets.float())
         }
         ClassificationType::Multiclass => {
-            let mut classes_changes = (Tensor::<TestBackend, 2>::random(
-                [N_SAMPLES, 2],
-                Distribution::Default,
-                device,
-            ) * 4).int().float().chunk(2, 1);
+            let mut classes_changes =
+                Tensor::<TestBackend, 2>::random([N_SAMPLES, 2], Distribution::Default, device)
+                    .mul_scalar(4)
+                    .int()
+                    .float()
+                    .chunk(2, 1);
             let (classes, changes) = (classes_changes.remove(0), classes_changes.remove(0));
-            let changed_classes = (classes.clone() + changes.clamp(1, 2) * error_mask.clone().float()) % N_CLASSES as f32;
+            let changed_classes = (classes.clone()
+                + changes.clamp(1, 2) * error_mask.clone().float())
+                % N_CLASSES as f32;
             (
                 one_hot_encode(classes, N_CLASSES).bool(),
                 one_hot_encode(changed_classes, N_CLASSES),
@@ -98,9 +104,10 @@ pub fn dummy_classification_input(
             (targets.clone(), (targets.float() + error_mask.float()) % 2)
         }
     };
-    let predictions = (changed_targets.random_like(Distribution::Uniform(0.0, THRESHOLD - 0.1))
-        - changed_targets.clone())
-    .abs();
+    let predictions = changed_targets
+        .random_like(Distribution::Uniform(0.0, THRESHOLD - 0.1))
+        .sub(changed_targets.clone())
+        .abs();
 
     (
         ClassificationInput::new(predictions, targets.clone()),
@@ -111,9 +118,9 @@ pub fn dummy_classification_input(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_core::tensor::cast::ToElement;
     use burn_core::tensor::TensorData;
     use strum::IntoEnumIterator;
-    use burn_core::tensor::cast::ToElement;
 
     #[test]
     fn test_predictions_targets_match() {
@@ -132,11 +139,15 @@ mod tests {
     fn test_error_rate() {
         for classification_type in ClassificationType::iter() {
             let (_, target_diff) = dummy_classification_input(&classification_type);
-            let mean_difference_targets = target_diff.abs().bool().any_dim(1).float().mean().into_scalar().to_f32();
-            assert_eq!(
-                mean_difference_targets,
-                ERROR_PER_SAMPLE_RATE,
-            );
+            let mean_difference_targets = target_diff
+                .abs()
+                .bool()
+                .any_dim(1)
+                .float()
+                .mean()
+                .into_scalar()
+                .to_f32();
+            assert_eq!(mean_difference_targets, ERROR_PER_SAMPLE_RATE,);
         }
     }
 }

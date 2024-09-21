@@ -74,10 +74,10 @@ impl<B: Backend> Numeric for PrecisionMetric<B> {
 
 #[cfg(test)]
 mod tests {
-    use approx::assert_relative_eq;
     use super::{AggregationType, Metric, MetricMetadata, Numeric, PrecisionMetric};
-    use crate::metric::test::{dummy_classification_input, THRESHOLD, ClassificationType};
+    use crate::metric::test::{dummy_classification_input, ClassificationType, THRESHOLD};
     use crate::TestBackend;
+    use approx::assert_relative_eq;
     use strum::IntoEnumIterator;
 
     #[test]
@@ -104,7 +104,11 @@ mod tests {
                 let test_precision = agg_type.to_averaged_metric(
                     -agg_false_positive_rate * (agg_pred_negative / agg_pred_positive + 1.0) + 1.0,
                 );
-                assert_relative_eq!(metric_precision, test_precision * 100.0,  max_relative = 1e-3);
+                assert_relative_eq!(
+                    metric_precision,
+                    test_precision * 100.0,
+                    max_relative = 1e-3
+                );
             }
         }
     }
