@@ -37,11 +37,11 @@ crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 strum = { workspace = true }
+rand.workspace = true
 
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
-rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
 approx = "0.5.1"
 
 [package.metadata.docs.rs]

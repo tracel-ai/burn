@@ -1,11 +1,11 @@
-use super::{AggregationType, ClassificationInput};
+use super::{ClassificationAverage, ClassificationInput};
 use burn_core::prelude::{Backend, Int, Tensor};
 use std::fmt::{self, Debug};
 
 #[derive(Clone)]
 pub struct ConfusionMatrix<B: Backend> {
     confusion_matrix_map: Tensor<B, 2, Int>,
-    aggregation_type: AggregationType,
+    classification_average: ClassificationAverage,
 }
 
 impl<B: Backend> Debug for ConfusionMatrix<B> {
@@ -31,36 +31,36 @@ impl<B: Backend> Debug for ConfusionMatrix<B> {
 }
 
 impl<B: Backend> ConfusionMatrix<B> {
-    pub fn from(
+    pub fn new(
         input: &ClassificationInput<B>,
         threshold: f64,
-        aggregation_type: AggregationType,
+        classification_average: ClassificationAverage,
     ) -> Self {
         let thresholded_predictions = input.predictions.clone().greater_elem(threshold);
         Self {
             confusion_matrix_map: thresholded_predictions.int() + input.targets.clone().int() * 2,
-            aggregation_type,
+            classification_average,
         }
     }
 
     pub fn true_positive(self) -> Tensor<B, 1> {
-        self.aggregation_type
-            .aggregate(self.confusion_matrix_map.equal_elem(3).int())
+        self.classification_average
+            .aggregate_sum(self.confusion_matrix_map.equal_elem(3))
     }
 
     pub fn true_negative(self) -> Tensor<B, 1> {
-        self.aggregation_type
-            .aggregate(self.confusion_matrix_map.equal_elem(0).int())
+        self.classification_average
+            .aggregate_sum(self.confusion_matrix_map.equal_elem(0))
     }
 
     pub fn false_positive(self) -> Tensor<B, 1> {
-        self.aggregation_type
-            .aggregate(self.confusion_matrix_map.equal_elem(1).int())
+        self.classification_average
+            .aggregate_sum(self.confusion_matrix_map.equal_elem(1))
     }
 
     pub fn false_negative(self) -> Tensor<B, 1> {
-        self.aggregation_type
-            .aggregate(self.confusion_matrix_map.equal_elem(2).int())
+        self.classification_average
+            .aggregate_sum(self.confusion_matrix_map.equal_elem(2))
     }
 
     pub fn positive(self) -> Tensor<B, 1> {
@@ -86,35 +86,41 @@ impl<B: Backend> ConfusionMatrix<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AggregationType, ConfusionMatrix};
-    use crate::metric::test::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use super::{ClassificationAverage, ConfusionMatrix};
+    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
     use strum::IntoEnumIterator;
 
     #[test]
     fn test_confusion_matrix() {
-        for agg_type in AggregationType::iter() {
+        for agg_type in ClassificationAverage::iter() {
             for classification_type in ClassificationType::iter() {
                 let (input, target_diff) = dummy_classification_input(&classification_type);
-                let conf_mat = ConfusionMatrix::from(&input, THRESHOLD, agg_type);
+                let conf_mat = ConfusionMatrix::new(&input, THRESHOLD, agg_type);
                 TensorData::assert_eq(
                     &conf_mat.clone().false_negative().to_data(),
                     &agg_type
-                        .aggregate(target_diff.clone().equal_elem(1.0).int())
+                        .aggregate_sum(target_diff.clone().equal_elem(1.0))
                         .to_data(),
                     true,
                 );
                 TensorData::assert_eq(
                     &conf_mat.clone().false_positive().to_data(),
                     &agg_type
-                        .aggregate(target_diff.clone().equal_elem(-1.0).int())
+                        .aggregate_sum(target_diff.clone().equal_elem(-1.0))
                         .to_data(),
                     true,
                 );
                 TensorData::assert_eq(
                     &conf_mat.clone().true_positive().to_data(),
                     &agg_type
-                        .aggregate(target_diff.equal_elem(0).int() * input.targets.int())
+                        .aggregate_sum(
+                            target_diff
+                                .equal_elem(0)
+                                .int()
+                                .mul(input.targets.int())
+                                .bool(),
+                        )
                         .to_data(),
                     true,
                 )
@@ -124,28 +130,30 @@ mod tests {
 
     #[test]
     fn test_confusion_matrix_methods() {
-        for agg_type in AggregationType::iter() {
+        for class_avg_type in ClassificationAverage::iter() {
             for classification_type in ClassificationType::iter() {
                 let (input, target_diff) = dummy_classification_input(&classification_type);
-                let conf_mat = ConfusionMatrix::from(&input, THRESHOLD, agg_type);
+                let conf_mat = ConfusionMatrix::new(&input, THRESHOLD, class_avg_type);
                 TensorData::assert_eq(
                     &conf_mat.clone().positive().to_data(),
-                    &agg_type.aggregate(input.targets.clone().int()).to_data(),
+                    &class_avg_type
+                        .aggregate_sum(input.targets.clone())
+                        .to_data(),
                     true,
                 );
 
                 TensorData::assert_eq(
                     &conf_mat.clone().negative().to_data(),
-                    &agg_type
-                        .aggregate(input.targets.clone().bool_not().int())
+                    &class_avg_type
+                        .aggregate_sum(input.targets.clone().bool_not())
                         .to_data(),
                     true,
                 );
 
                 TensorData::assert_eq(
                     &conf_mat.clone().predicted_positive().to_data(),
-                    &agg_type
-                        .aggregate(input.targets.clone().int().sub(target_diff.int()))
+                    &class_avg_type
+                        .aggregate_sum(input.targets.clone().int().sub(target_diff.int()).bool())
                         .to_data(),
                     true,
                 );
