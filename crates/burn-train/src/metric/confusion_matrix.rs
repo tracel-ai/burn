@@ -10,22 +10,20 @@ pub struct ConfusionMatrix<B: Backend> {
 
 impl<B: Backend> Debug for ConfusionMatrix<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ratio_of_support_vec = |metric: Tensor<B, 1>| {
-            self.clone()
-                .ratio_of_support(metric)
+        let to_vec = |tensor_data: Tensor<B, 1>| {
+            tensor_data
                 .to_data()
                 .to_vec::<f32>()
-                .unwrap()
+                .expect("A vector representation of the input Tensor is expected")
         };
+        let ratio_of_support_vec =
+            |metric: Tensor<B, 1>| to_vec(self.clone().ratio_of_support(metric));
         f.debug_struct("ConfusionMatrix")
             .field("tp", &ratio_of_support_vec(self.clone().true_positive()))
             .field("fp", &ratio_of_support_vec(self.clone().false_positive()))
             .field("tn", &ratio_of_support_vec(self.clone().true_negative()))
             .field("fn", &ratio_of_support_vec(self.clone().false_negative()))
-            .field(
-                "support",
-                &self.clone().support().to_data().to_vec::<f32>().unwrap(),
-            )
+            .field("support", &to_vec(self.clone().support()))
             .finish()
     }
 }
