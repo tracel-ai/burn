@@ -41,7 +41,7 @@ mod tests {
         let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
         let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
-        let options = burn_tensor::ops::ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+        let options = burn_tensor::ops::ConvOptions::new([1, 1], [2, 2], [1, 1], 1);
 
         let output = module::conv2d(input, weight, Some(bias), options.clone());
         let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
