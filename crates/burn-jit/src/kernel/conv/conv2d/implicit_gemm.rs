@@ -67,13 +67,14 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         width,
     );
 
-    if !can_do_implicit_gemm(&input, &weight, out_h, out_w) {
+    if !can_do_implicit_gemm(&input, &weight, &options, out_h, out_w) {
         panic!(
             "Requirements for implicit GEMM not met:
 - CMMA must be available
-- batch_size * out_h * out_w must be divisible by 16
-- out_channels must be divisible by 16
-- in_channels * kernel_h * kernel_w must be divisible by 16
+- `batch_size * out_h * out_w` must be divisible by 16
+- `out_channels` must be divisible by 16
+- `in_channels * kernel_h * kernel_w` must be divisible by 16
+- `groups` must be 1
         "
         );
     }
@@ -311,6 +312,7 @@ fn implicit_gemm_kernel<F: Float>(
 pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     input: &JitTensor<R, E, 4>,
     weight: &JitTensor<R, E, 4>,
+    options: &ConvOptions<2>,
     out_h: usize,
     out_w: usize,
 ) -> bool {
@@ -329,6 +331,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
         && gemm_m % 16 == 0
         && gemm_n % 16 == 0
         && gemm_k % 16 == 0
+        && options.groups == 1
 }
 
 fn cmma_available<R: JitRuntime>(device: &R::JitDevice) -> bool {
