@@ -174,6 +174,11 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims;
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
 
+    if kernel_h == 1 && kernel_w == 1 && options.padding == [0, 0] {
+        // Special case for 1x1 kernels (sometimes used to scale the image by a set of weights)
+        return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
+    }
+
     let out_h = calculate_conv_output_size(
         kernel_h,
         options.stride[0],
@@ -230,6 +235,33 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         out = JitBackend::<R, E, I>::float_add(out, bias)
     }
     out
+}
+
+fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
+    input: JitTensor<R, E, 4>,
+    weight: JitTensor<R, E, 4>,
+    bias: Option<JitTensor<R, E, 1>>,
+    options: ConvOptions<2>,
+) -> JitTensor<R, E, 4> {
+    let [batch_size, _, height, width] = input.shape.dims;
+    let [out_channels, in_c_per_grp, _, _] = weight.shape.dims;
+    let groups = options.groups;
+    let out_c_per_grp = out_channels / groups;
+
+    let input = swap_dims(input, 0, 1); // [CNHW]
+
+    let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
+    let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
+    let input = reshape(input, in_shape);
+    let out = JitBackend::<R, E, I>::float_matmul(weight, input);
+    let mut out = reshape(out, Shape::new([out_channels, batch_size, height, width]));
+
+    if let Some(bias) = bias {
+        let bias = reshape(bias, Shape::new([out_channels, 1, 1, 1]));
+        out = JitBackend::<R, E, I>::float_add(out, bias)
+    }
+
+    swap_dims(out, 0, 1)
 }
 
 fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(

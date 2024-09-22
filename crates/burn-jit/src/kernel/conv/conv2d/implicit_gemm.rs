@@ -12,7 +12,6 @@ use cubecl::{
 use half::f16;
 
 use crate::{
-    kernel::into_contiguous,
     ops::{numeric::empty_device, permute, reshape},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
@@ -49,8 +48,6 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 ) -> JitTensor<R, F, 4> {
     let [batch_size, in_channels, height, width] = input.shape.dims;
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
-
-    let input = into_contiguous(input);
 
     let out_h = calculate_conv_output_size(
         kernel_h,
