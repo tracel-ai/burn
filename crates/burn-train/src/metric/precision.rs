@@ -112,28 +112,4 @@ mod tests {
             }
         }
     }
-
-    /*#[test]
-    fn test_precision_with_padding() {
-        let device = Default::default();
-        let mut metric = PrecisionMetric::<TestBackend>::new().with_pad_token(3);
-        let input = PrecisionInput::n(
-            Tensor::from_data(
-                [
-                    [0.0, 0.2, 0.8, 0.0], // 2
-                    [1.0, 2.0, 0.5, 0.0], // 1
-                    [0.4, 0.1, 0.2, 0.0], // 0
-                    [0.6, 0.7, 0.2, 0.0], // 1
-                    [0.0, 0.1, 0.2, 5.0], // Predicted padding should not count
-                    [0.0, 0.1, 0.2, 0.0], // Error on padding should not count
-                    [0.6, 0.0, 0.2, 0.0], // Error on padding should not count
-                ],
-                &device,
-            ),
-            Tensor::from_data([2, 2, 1, 1, 3, 3, 3], &device),
-        );
-
-        let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(todo!(), metric.value());
-    }*/
 }
