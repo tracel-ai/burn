@@ -38,11 +38,11 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
         let [sample_size, _] = input.predictions.dims();
 
         let conf_mat = ConfusionMatrix::new(input, self.threshold, self.average);
-        let agg_precision = conf_mat.clone().true_positive() / conf_mat.predicted_positive();
-        let precision = self.average.to_averaged_metric(agg_precision);
+        let agg_metric = conf_mat.clone().true_positive() / conf_mat.predicted_positive();
+        let metric = self.average.to_averaged_metric(agg_metric);
 
         self.state.update(
-            100.0 * precision,
+            100.0 * metric,
             sample_size,
             FormatOptions::new(Self::NAME).unit("%").precision(2),
         )
@@ -85,27 +85,25 @@ mod tests {
         for class_avg_type in ClassificationAverage::iter() {
             for classification_type in ClassificationType::iter() {
                 let (input, target_diff) = dummy_classification_input(&classification_type);
+                //tp/(tp+fp) = 1 - fp/(tp+fp)
                 let mut metric = PrecisionMetric::<TestBackend>::default()
                     .with_threshold(THRESHOLD)
                     .with_average(class_avg_type);
                 let _entry = metric.update(&input, &MetricMetadata::fake());
 
-                //tp/(tp+fp) = 1 - fp/(tp+fp)
-                let metric_precision = metric.value();
-
-                //fp/(tp+fp+tn+fn) = fp/(tp+fp)(1 + negative/positive)
+                //fp/(tp+fp+tn+fn) = fp/(tp+fp)(1 + pn/pp)
                 let agg_false_positive_rate =
                     class_avg_type.aggregate_mean(target_diff.clone().equal_elem(-1));
                 let pred_positive = input.targets.clone().int() - target_diff.clone().int();
                 let agg_pred_negative =
                     class_avg_type.aggregate_sum(pred_positive.clone().bool().bool_not());
                 let agg_pred_positive = class_avg_type.aggregate_sum(pred_positive.bool());
-                //1 - fp(1 + negative/positive)/(tp+fp+tn+fn) = 1 - fp/(tp+fp) = tp/(tp+fp)
+                //1 - fp(1 + pn/pp)/(tp+fp+tn+fn) = 1 - fp/(tp+fp) = tp/(tp+fp)
                 let test_precision = class_avg_type.to_averaged_metric(
                     -agg_false_positive_rate * (agg_pred_negative / agg_pred_positive + 1.0) + 1.0,
                 );
                 assert_relative_eq!(
-                    metric_precision,
+                    metric.value(),
                     test_precision * 100.0,
                     max_relative = 1e-3
                 );
