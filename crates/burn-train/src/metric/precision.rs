@@ -102,11 +102,7 @@ mod tests {
                 let test_precision = class_avg_type.to_averaged_metric(
                     -agg_false_positive_rate * (agg_pred_negative / agg_pred_positive + 1.0) + 1.0,
                 );
-                assert_relative_eq!(
-                    metric.value(),
-                    test_precision * 100.0,
-                    max_relative = 1e-3
-                );
+                assert_relative_eq!(metric.value(), test_precision * 100.0, max_relative = 1e-3);
             }
         }
     }
