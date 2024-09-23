@@ -16,7 +16,7 @@ pub enum MatmulStrategy {
         grid_y: usize,
     },
     #[cfg(feature = "autotune")]
-    /// Using autotune to chose the best kernel based on runtime information.
+    /// Using autotune to choose the best kernel based on runtime information.
     Autotune,
     /// Cube implementation of matmul.
     Cube,

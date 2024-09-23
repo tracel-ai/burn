@@ -17,7 +17,7 @@ pub enum Conv2dStrategy {
     /// A simple direct convolution.
     Direct,
     #[cfg(feature = "autotune")]
-    /// Using autotune to chose the best kernel based on runtime information.
+    /// Using autotune to choose the best kernel based on runtime information.
     Autotune,
     /// GEMM (im2col) based implementation of convolution. Significantly increased memory usage.
     Gemm,
@@ -43,7 +43,7 @@ pub enum ConvTranspose2dStrategy {
     /// A simple direct convolution.
     Direct,
     #[cfg(feature = "autotune")]
-    /// Using autotune to chose the best kernel based on runtime information.
+    /// Using autotune to choose the best kernel based on runtime information.
     Autotune,
     /// GEMM (im2col) based implementation of convolution. Significantly increased memory usage.
     Gemm,
