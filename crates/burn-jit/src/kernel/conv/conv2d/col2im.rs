@@ -6,10 +6,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::into_contiguous,
-    ops::{
-        numeric::{empty_device, ones_device},
-        reshape, swap_dims,
-    },
+    ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
@@ -29,8 +26,6 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, E, 1>>,
     options: ConvTransposeOptions<2>,
 ) -> JitTensor<R, E, 4> {
-    let client = input.client.clone();
-    let device: <R as JitRuntime>::JitDevice = input.device.clone();
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims;
     let [batch_size, _, input_h, input_w] = input.shape.dims;
     let groups = options.groups;
@@ -70,7 +65,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     );
     let weight = into_contiguous(swap_dims(weight, 1, 2));
 
-    let mut image = if batches_per_run != batch_size {
+    if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
@@ -121,9 +116,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
             kernel_h,
             kernel_w,
         )
-    };
-
-    image
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -159,6 +152,7 @@ fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn col2im<R: JitRuntime, E: FloatElement>(
     columns: JitTensor<R, E, 2>,
     bias: Option<JitTensor<R, E, 1>>,
@@ -252,8 +246,8 @@ fn col2im_kernel<F: Float>(
 
     let _ = bias[0]; // Keep in bind group
 
-    let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w as u32;
-    let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h as u32;
+    let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w;
+    let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h;
     let ch_im = ABSOLUTE_POS / image.stride(1) % image.shape(1);
     let batch = ABSOLUTE_POS / image.stride(0);
 
