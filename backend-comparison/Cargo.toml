@@ -11,11 +11,12 @@ version.workspace = true
 
 [features]
 # we depend on wgpu and autotune by default because we use the burn-wgpu crate to get system information
-default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
+candle-accelerate = ["burn/candle", "burn/accelerate"]
 candle-cpu = ["burn/candle"]
 candle-cuda = ["burn/candle-cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
-candle-accelerate = ["burn/candle", "burn/accelerate"]
+cuda-jit = ["burn/cuda-jit"]
+default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
@@ -24,7 +25,6 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu", "burn/autotune"]
 wgpu-fusion = ["wgpu", "burn/fusion"]
-cuda-jit = ["burn/cuda-jit"]
 
 [dependencies]
 arboard = { workspace = true }
@@ -33,11 +33,13 @@ burn-common = { path = "../crates/burn-common", version = "0.15.0" }
 burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.15.0", optional = true }
 clap = { workspace = true }
 colored = { workspace = true }
+cubecl = { workspace = true, features = ["wgpu"] }
 derive-new = { workspace = true }
 dirs = { workspace = true }
 github-device-flow = { workspace = true }
-os_info = { workspace = true }
+half = { workspace = true }
 indicatif = { workspace = true }
+os_info = { workspace = true }
 percent-encoding = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true, features = ["blocking", "json"] }
@@ -48,69 +50,68 @@ strum_macros = { workspace = true }
 sysinfo = { workspace = true, features = ["serde"] }
 wgpu = { workspace = true }
 wsl = { workspace = true }
-cubecl = { workspace = true, features = ["wgpu"] }
 
 [dev-dependencies]
 rstest = { workspace = true }
 serial_test = { workspace = true }
 
 [[bench]]
+harness = false
 name = "unary"
-harness = false
 
 [[bench]]
+harness = false
 name = "binary"
-harness = false
 
 [[bench]]
+harness = false
 name = "max-pool2d"
 path = "benches/max_pool2d.rs"
-harness = false
 
 [[bench]]
+harness = false
 name = "conv-transpose2d"
 path = "benches/conv_transpose2d.rs"
-harness = false
 
 [[bench]]
+harness = false
 name = "conv-transpose3d"
 path = "benches/conv_transpose3d.rs"
-harness = false
 
 [[bench]]
+harness = false
 name = "conv2d"
-harness = false
 
 [[bench]]
+harness = false
 name = "conv3d"
-harness = false
 
 [[bench]]
+harness = false
 name = "matmul"
-harness = false
 
 [[bench]]
+harness = false
 name = "data"
-harness = false
 
 [[bench]]
-name = "load-record"
 harness = false
+name = "load-record"
 path = "benches/load_record.rs"
 
 [[bench]]
+harness = false
 name = "custom-gelu"
 path = "benches/custom_gelu.rs"
-harness = false
 
 [[bench]]
+harness = false
 name = "resnet50"
 path = "benches/resnet.rs"
-harness = false
 
 [[bench]]
-name = "autodiff"
 harness = false
+name = "autodiff"
 
 [[bin]]
 name = "burnbench"

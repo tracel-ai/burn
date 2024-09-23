@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{module, ops::ModuleOps, Distribution, Tensor, TensorPrimitive};
 
     #[test]
-    pub fn max_pool2d_with_indices_backward_should_work_with_multiple_invocations() {
+    pub fn max_pool2d_with_indices_backward_should_match_reference_backend() {
         let test_device = Default::default();
         let tensor =
             Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &test_device);

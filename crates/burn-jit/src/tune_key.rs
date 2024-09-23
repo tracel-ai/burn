@@ -1,4 +1,8 @@
-use crate::kernel::{matmul::MatmulAutotuneKey, reduce::ReduceAutotuneKey};
+use crate::kernel::{
+    conv::{Conv2dAutotuneKey, ConvTranspose2dAutotuneKey},
+    matmul::MatmulAutotuneKey,
+    reduce::ReduceAutotuneKey,
+};
 use cubecl::tune::AutotuneKey;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -13,6 +17,10 @@ pub enum JitAutotuneKey {
     Matmul(MatmulAutotuneKey),
     /// Key for reduce dim operations
     ReduceDim(ReduceAutotuneKey),
+    /// Key for convolution operations
+    Conv2d(Conv2dAutotuneKey),
+    /// Key for transpose convolution operations
+    ConvTranspose2d(ConvTranspose2dAutotuneKey),
     #[cfg(any(feature = "fusion", test))]
     /// Key for fused element wise operations.
     FusionElemWise(FusionElemWiseAutotuneKey),
@@ -25,6 +33,8 @@ impl Display for JitAutotuneKey {
             JitAutotuneKey::ReduceDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             #[cfg(any(feature = "fusion", test))]
             JitAutotuneKey::FusionElemWise(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            JitAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
+            JitAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
         }
     }
 }
