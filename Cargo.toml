@@ -83,7 +83,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.77", features = ["full", "extra-traits"] }
 tempfile = "3.12.0"
-thiserror = "1.0.61"
+thiserror = "1.0.64"
 tokio = { version = "1.40.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.32"
