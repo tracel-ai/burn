@@ -331,6 +331,15 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
+    pub fn cumsum<const D: usize>(tensor: TchTensor<E, D>, dim: usize) -> TchTensor<E, D> {
+        TchTensor::from_existing(
+            tensor
+                .tensor
+                .cumsum(dim as i64, E::KIND),
+            tensor.storage,
+        )
+    }
+
     pub fn prod<const D: usize>(tensor: TchTensor<E, D>) -> TchTensor<E, 1> {
         // view as 1d tensor
         let tensor = tensor.tensor.prod(E::KIND).view(1);

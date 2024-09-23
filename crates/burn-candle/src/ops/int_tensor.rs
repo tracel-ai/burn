@@ -321,6 +321,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
+    fn int_cumsum<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+        CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
+    }
+
     fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
         todo!("prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
     }

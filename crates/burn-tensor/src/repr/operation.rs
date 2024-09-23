@@ -321,6 +321,11 @@ pub enum NumericOperationDescription<E> {
     /// Float => [sum dim](crate::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](crate::ops::IntTensorOps::int_sum_dim).
     SumDim(ScalarOperationDescription<usize>),
+    /// Operation corresponding to:
+    ///
+    /// Float => [cumsum](crate::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](crate::ops::IntTensorOps::int_cumsum).
+    CumSum(ScalarOperationDescription<usize>),
 
     /// Operation corresponding to:
     ///

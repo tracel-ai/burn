@@ -832,6 +832,18 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the sum of all elements in `tensor` along `dim`.
     fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
 
+    /// Computes the cumulative sum of all elements in a tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the cumulative sum of all elements in `tensor` along `dim`.
+    fn float_cumsum<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
+
     /// Product of all elements in a tensor.
     ///
     /// # Arguments
