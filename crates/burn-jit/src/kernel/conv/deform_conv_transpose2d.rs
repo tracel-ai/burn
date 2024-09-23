@@ -549,6 +549,7 @@ fn deform_col2img_kernel<F: Float>(
         f32::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for dy in -1..=1 {
+        #[unroll]
         for dx in -1..=1 {
             let yp = f32::floor(y) + dy as f32;
             let xp = f32::floor(x) + dx as f32;
@@ -575,18 +576,16 @@ fn deform_col2img_kernel<F: Float>(
 
 #[cube]
 fn float_atomic_add<F: Float>(ptr: &mut AtomicU32, value: F) {
-    if value == F::new(0.0) {
-        return;
-    }
-
-    let mut v = AtomicU32::load(ptr);
-    loop {
-        let prev = v;
-        let v_float = F::bitcast_from(v);
-        let new = u32::bitcast_from(v_float + value);
-        v = AtomicU32::compare_and_swap(ptr, v, new);
-        if prev == v {
-            break;
+    if value != F::new(0.0) {
+        let mut v = AtomicU32::load(ptr);
+        loop {
+            let prev = v;
+            let v_float = F::bitcast_from(v);
+            let new = u32::bitcast_from(v_float + value);
+            v = AtomicU32::compare_and_swap(ptr, v, new);
+            if prev == v {
+                break;
+            }
         }
     }
 }

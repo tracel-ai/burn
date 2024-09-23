@@ -314,10 +314,3 @@ pub(crate) fn index<R: JitRuntime, E: FloatElement, I: IntElement>(
     let tensor = JitBackend::<R, E, I>::float_narrow(tensor, 0, index, 1);
     reshape(tensor, Shape::new([shape_0, shape_1]))
 }
-
-// fn debug_data<R: JitRuntime, E: crate::JitElement, const D: usize>(
-//     tensor: JitTensor<R, E, D>,
-// ) -> burn_tensor::TensorData {
-//     let bytes = tensor.client.read(tensor.handle.binding());
-//     burn_tensor::TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
-// }
