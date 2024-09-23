@@ -108,18 +108,22 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let cube_count = CubeCount::Static(cube_count_x, cube_count_y, 1);
 
     unsafe {
-        implicit_gemm_kernel::launch_unchecked::<F, R>(
+        implicit_gemm_kernel::launch_unchecked::<F, f16, R>(
             &input.client,
             cube_count,
             cube_dim,
             input.as_tensor_arg(1),
             weight.as_tensor_arg(1),
             out.as_tensor_arg(1),
-            ScalarArg::new(gemm_m),
-            ScalarArg::new(gemm_n),
-            ScalarArg::new(gemm_k as u32),
-            ScalarArg::new(slice_size as u32),
-            KernelArgsLaunch::new(
+            DimensionsLaunch::new(
+                ScalarArg::new(gemm_m),
+                ScalarArg::new(gemm_n),
+                ScalarArg::new(gemm_k as u32),
+                ScalarArg::new(slice_size as u32),
+                ScalarArg::new(out_h as u32),
+                ScalarArg::new(out_w as u32),
+            ),
+            ConvArgsLaunch::new(
                 ScalarArg::new(options.stride[0] as u32),
                 ScalarArg::new(options.stride[1] as u32),
                 ScalarArg::new(options.padding[0] as i32),
@@ -146,7 +150,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 }
 
 #[derive(CubeLaunch)]
-struct KernelArgs {
+struct ConvArgs {
     stride_h: u32,
     stride_w: u32,
     pad_h: i32,
@@ -155,7 +159,18 @@ struct KernelArgs {
     dilation_w: u32,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(CubeLaunch)]
+struct Dimensions {
+    gemm_m: u32,
+    gemm_n: u32,
+    gemm_k: u32,
+    slice_size: u32,
+
+    out_h: u32,
+    out_w: u32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct GemmSettings {
     cmma_m: u32,
     cmma_n: u32,
@@ -167,7 +182,7 @@ struct GemmSettings {
     cube_dim_x: u32,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct KernelSettings {
     kernel_h: u32,
     kernel_w: u32,
@@ -175,17 +190,30 @@ struct KernelSettings {
     aligned: bool,
 }
 
+#[derive(Clone, Copy, CubeType)]
+struct Positions {
+    global_m: u32,
+    global_n: u32,
+
+    intra_warp_unit_idx: u32,
+    cube_linear_warp_idx: u32,
+}
+
+#[derive(CubeType)]
+struct Matrices<F: Float, FAcc: Float> {
+    a: Matrix<F>,
+    b: Matrix<F>,
+    acc: Matrix<FAcc>,
+}
+
 #[allow(clippy::collapsible_else_if)]
 #[cube(launch_unchecked)]
-fn implicit_gemm_kernel<F: Float>(
+fn implicit_gemm_kernel<F: Float, FMat: Float>(
     input: &Tensor<F>,
     weight: &Tensor<F>,
     out: &mut Tensor<F>,
-    gemm_m: u32,
-    gemm_n: u32,
-    gemm_k: u32,
-    slice_size: u32,
-    args: &KernelArgs,
+    dims: &Dimensions,
+    args: &ConvArgs,
     #[comptime] gemm_settings: GemmSettings,
     #[comptime] kernel_settings: KernelSettings,
 ) {
@@ -193,34 +221,72 @@ fn implicit_gemm_kernel<F: Float>(
         cmma_m,
         cmma_n,
         cmma_k,
-        warp_size,
         warps_per_cube,
-        cube_dim_x,
+        ..
     } = gemm_settings;
 
-    let KernelSettings {
-        kernel_h,
-        kernel_w,
-        has_padding,
-        aligned,
-    } = kernel_settings;
-
-    let kernel_size = kernel_h * kernel_w;
+    let cmma_out_tile_size = cmma_m * cmma_n;
     let cmma_input_tile_size = cmma_m * cmma_k;
     let cmma_filter_tile_size = cmma_k * cmma_n;
-    let cmma_out_tile_size = cmma_m * cmma_n;
 
-    let height = input.shape(2);
-    let width = input.shape(3);
-    let h = height as i32;
-    let w = width as i32;
-    let out_h = out.shape(1);
-    let out_w = out.shape(2);
+    let pos = calculate_positions(gemm_settings);
 
-    // Row strides in the implicit GEMM matrix
-    let batch_stride = out_h * out_w;
-    let y_stride = out_w;
-    let x_stride = 1;
+    // Shared memory tiles, currently only holds enough data for
+    // each warp to have its own tile for a single MMA op (8 * 16 * 16 elements)
+    // conceptually a WARPS_PER_CUBE x (CMMA_M * CMMA_K) matrix
+    let mut smem_input_tile = SharedMemory::<FMat>::new(cmma_input_tile_size * warps_per_cube);
+    let mut smem_weight_tile = SharedMemory::<FMat>::new(cmma_filter_tile_size * warps_per_cube);
+
+    let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
+    let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
+    let input_tile =
+        smem_input_tile.slice_mut(input_tile_start, input_tile_start + cmma_input_tile_size);
+    let weight_tile =
+        smem_weight_tile.slice_mut(weight_tile_start, weight_tile_start + cmma_filter_tile_size);
+
+    let out_pos = pos.global_n + pos.global_m * dims.gemm_n;
+    let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
+
+    if kernel_settings.aligned {
+        execute_gemm(
+            input,
+            weight,
+            out,
+            input_tile,
+            weight_tile,
+            dims,
+            &pos,
+            args,
+            gemm_settings,
+            kernel_settings,
+        );
+    } else {
+        if pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
+            execute_gemm(
+                input,
+                weight,
+                out,
+                input_tile,
+                weight_tile,
+                dims,
+                &pos,
+                args,
+                gemm_settings,
+                kernel_settings,
+            );
+        }
+    }
+}
+
+#[cube]
+fn calculate_positions(#[comptime] gemm_settings: GemmSettings) -> Positions {
+    let GemmSettings {
+        cmma_m,
+        cmma_n,
+        warp_size,
+        cube_dim_x,
+        ..
+    } = gemm_settings;
 
     // Tile using a 2D grid (over the output), each threadblock
     // is (128, 2) -> (4,2) = 8 warps -> 32x64 output
@@ -232,154 +298,226 @@ fn implicit_gemm_kernel<F: Float>(
     let intra_warp_unit_idx = UNIT_POS_X % warp_size; // Thread idx within warp (0 to 31)
     let cube_linear_warp_idx = (cube_warp_n * num_warps_m) + cube_warp_m; // Warp idx within a block (0 to WARPS_PER_BLOCK - 1)
 
-    // Shared memory tiles, currently only holds enough data for
-    // each warp to have its own tile for a single MMA op (8 * 16 * 16 elements)
-    // conceptually a WARPS_PER_CUBE x (CMMA_M * CMMA_K) matrix
-    let mut smem_input_tile = SharedMemory::<f16>::new(cmma_input_tile_size * warps_per_cube);
-    let mut smem_weight_tile = SharedMemory::<f16>::new(cmma_filter_tile_size * warps_per_cube);
+    Positions {
+        global_m: global_warp_m * cmma_m,
+        global_n: global_warp_n * cmma_n,
+        intra_warp_unit_idx,
+        cube_linear_warp_idx,
+    }
+}
 
-    let matrix_a = Matrix::<f16>::new(
-        MatrixIdent::A,
+#[cube]
+fn make_matrices<F: Float, FAcc: Float>(
+    #[comptime] gemm_settings: GemmSettings,
+) -> Matrices<F, FAcc> {
+    let GemmSettings {
         cmma_m,
         cmma_n,
         cmma_k,
-        MatrixLayout::RowMajor,
-    );
-    let matrix_b = Matrix::<f16>::new(
-        MatrixIdent::B,
-        cmma_m,
-        cmma_n,
-        cmma_k,
-        MatrixLayout::RowMajor,
-    );
-    let matrix_acc = Matrix::<F>::new(
-        MatrixIdent::Accumulator,
-        cmma_m,
-        cmma_n,
-        cmma_k,
-        MatrixLayout::Undefined,
-    );
-    cmma::fill(&matrix_acc, F::new(0.0));
+        ..
+    } = gemm_settings;
 
-    let input_tile_start = cube_linear_warp_idx * cmma_input_tile_size;
-    let weight_tile_start = cube_linear_warp_idx * cmma_filter_tile_size;
-    let input_tile =
-        smem_input_tile.slice_mut(input_tile_start, input_tile_start + cmma_input_tile_size);
-    let weight_tile =
-        smem_weight_tile.slice_mut(weight_tile_start, weight_tile_start + cmma_filter_tile_size);
+    let matrices = Matrices::<F, FAcc> {
+        a: Matrix::<F>::new(
+            MatrixIdent::A,
+            cmma_m,
+            cmma_n,
+            cmma_k,
+            MatrixLayout::RowMajor,
+        ),
+        b: Matrix::<F>::new(
+            MatrixIdent::B,
+            cmma_m,
+            cmma_n,
+            cmma_k,
+            MatrixLayout::RowMajor,
+        ),
+        acc: Matrix::<FAcc>::new(
+            MatrixIdent::Accumulator,
+            cmma_m,
+            cmma_n,
+            cmma_k,
+            MatrixLayout::Undefined,
+        ),
+    };
 
-    let a_row = global_warp_m * cmma_m;
-    let b_col = global_warp_n * cmma_n;
+    cmma::fill(&matrices.acc, FAcc::new(0.0));
+
+    matrices
+}
+
+#[cube]
+fn execute_gemm<F: Float, FMat: Float>(
+    input: &Tensor<F>,
+    weight: &Tensor<F>,
+    out: &mut SliceMut<F>,
+    input_tile: &mut SliceMut<FMat>,
+    weight_tile: &mut SliceMut<FMat>,
+    dims: &Dimensions,
+    pos: &Positions,
+    args: &ConvArgs,
+    #[comptime] g_settings: GemmSettings,
+    #[comptime] k_settings: KernelSettings,
+) {
+    let GemmSettings { cmma_n, cmma_k, .. } = g_settings;
+
+    let matrices = make_matrices::<FMat, F>(g_settings);
 
     // Loop over the K-dimension
-    for k in range_stepped(0, gemm_k, cmma_k) {
+    for k in range_stepped(0, dims.gemm_k, cmma_k) {
         // Load into smem...
         // Each warp should load the 16x16 tile it's responsible for
         // i.e. each thread needs to load 8 elements of input and 8 elements of weight
 
-        // Start index within a slice (0 to `kernel_size * channels - 1`) that a half warp (16 units) is responsible for
-        let slice_start_idx = k % slice_size;
+        load_input_tile(
+            input, args, input_tile, dims, pos, k, g_settings, k_settings,
+        );
 
-        /**************************** Loading Input Tile ************************************/
-        for m in range_stepped(intra_warp_unit_idx, cmma_input_tile_size, warp_size) {
-            // Compute where in the slice we are starting
+        load_weight_tile(weight, weight_tile, pos, k, g_settings, k_settings);
 
-            // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
-            // we are and also which row the slice is in relative to the start of the CMMA matrix
+        // Run CMMA
+        cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
+        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_n);
 
-            let rel_slice_row = m / cmma_k; // Relative row (0 - 15)
-            let abs_slice_row = a_row + rel_slice_row; // Row of the matrix the slice is on
-
-            // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
-            let my_slice_idx = (slice_start_idx + (m % cmma_k)) % slice_size;
-
-            // Given the row of the matrix that the slice is in, and the index of the thread
-            // within a slice, want to compute what input element to load...
-            // first compute coordinates in output space (center of the kernel in MxK matrix A)
-            let batch = abs_slice_row / batch_stride;
-            let out_y = (abs_slice_row % batch_stride) / y_stride;
-            let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
-
-            let channel = my_slice_idx / kernel_size;
-
-            let kernel_y = (my_slice_idx / kernel_w) % kernel_h;
-            let kernel_x = my_slice_idx % kernel_w;
-
-            if has_padding {
-                let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.pad_h;
-                let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.pad_w;
-
-                if x >= 0 && x < w && y >= 0 && y < h {
-                    input_tile[m] = f16::cast_from(
-                        input[batch * input.stride(0)
-                            + y as u32 * input.stride(2)
-                            + x as u32 * input.stride(3)
-                            + channel * input.stride(1)],
-                    );
-                } else {
-                    input_tile[m] = f16::new(0.0);
-                }
-            } else {
-                let y = out_y * args.stride_h + kernel_y * args.dilation_h;
-                let x = out_x * args.stride_w + kernel_x * args.dilation_w;
-
-                input_tile[m] = f16::cast_from(
-                    input[batch * input.stride(0)
-                        + y * input.stride(2)
-                        + x * input.stride(3)
-                        + channel * input.stride(1)],
-                );
-            }
-        }
-
-        /**************************** Loading Weight Tile ***********************************/
-        for n in range_stepped(intra_warp_unit_idx, cmma_filter_tile_size, warp_size) {
-            // Compute where in the slice we are starting
-            let rel_slice_row = n / cmma_k; // Relative row (0 - 15)
-            let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
-            let abs_slice_col = b_col + (n % 16); // Row of the matrix the slice is on
-
-            // Given the row of the matrix that the slice is in, and the index of the unit
-            // within a slice, want to compute what weight element to load...
-            let out_channel = abs_slice_col;
-            let in_channel = abs_slice_row / kernel_size;
-            let kernel_y = (abs_slice_row % kernel_size) / kernel_h;
-            let kernel_x = abs_slice_row % kernel_w;
-
-            weight_tile[n] = f16::cast_from(
-                weight[out_channel * weight.stride(0)
-                    + in_channel * weight.stride(1)
-                    + kernel_y * weight.stride(2)
-                    + kernel_x * weight.stride(3)],
-            );
-        }
-
-        /**************************** Bounds Check + CMMA Op*********************************/
-        if aligned {
-            cmma::load(&matrix_a, input_tile.as_slice(), cmma_k);
-            cmma::load(&matrix_b, weight_tile.as_slice(), cmma_n);
-
-            cmma::execute::<f16, f16, F, F>(&matrix_a, &matrix_b, &matrix_acc, &matrix_acc);
-        } else {
-            if a_row < gemm_m && b_col < gemm_n {
-                cmma::load(&matrix_a, input_tile.as_slice(), cmma_k);
-                cmma::load(&matrix_b, weight_tile.as_slice(), cmma_n);
-
-                cmma::execute::<f16, f16, F, F>(&matrix_a, &matrix_b, &matrix_acc, &matrix_acc);
-            }
-        }
+        cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
     }
 
-    if aligned {
-        let out_pos = b_col + a_row * gemm_n;
-        let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
-        cmma::store(out, &matrix_acc, gemm_n, MatrixLayout::RowMajor);
-    } else {
-        if a_row < gemm_m && b_col < gemm_n {
-            let out_pos = b_col + a_row * gemm_n;
-            let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
-            cmma::store(out, &matrix_acc, gemm_n, MatrixLayout::RowMajor);
+    cmma::store(out, &matrices.acc, dims.gemm_n, MatrixLayout::RowMajor);
+}
+
+#[cube]
+fn load_input_tile<F: Float, FMat: Float>(
+    input: &Tensor<F>,
+    args: &ConvArgs,
+    tile: &mut SliceMut<FMat>,
+    dims: &Dimensions,
+    pos: &Positions,
+    k: u32,
+    #[comptime] gemm_settings: GemmSettings,
+    #[comptime] kernel_settings: KernelSettings,
+) {
+    let GemmSettings {
+        cmma_m,
+        cmma_k,
+        warp_size,
+        ..
+    } = gemm_settings;
+
+    let KernelSettings {
+        kernel_h,
+        kernel_w,
+        has_padding,
+        ..
+    } = kernel_settings;
+
+    let kernel_size = kernel_h * kernel_w;
+    let cmma_input_tile_size = cmma_m * cmma_k;
+
+    let height = input.shape(2) as i32;
+    let width = input.shape(3) as i32;
+
+    // Row strides in the implicit GEMM matrix
+    let batch_stride = dims.out_h * dims.out_w;
+    let y_stride = dims.out_w;
+    let x_stride = 1;
+
+    // Start index within a slice (0 to `kernel_size * channels - 1`) that a half warp (16 units) is responsible for
+    let slice_start_idx = k % dims.slice_size;
+
+    for m in range_stepped(pos.intra_warp_unit_idx, cmma_input_tile_size, warp_size) {
+        // Compute where in the slice we are starting
+
+        // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
+        // we are and also which row the slice is in relative to the start of the CMMA matrix
+
+        let rel_slice_row = m / cmma_k; // Relative row (0 - 15)
+        let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
+
+        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
+        let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
+
+        // Given the row of the matrix that the slice is in, and the index of the thread
+        // within a slice, want to compute what input element to load...
+        // first compute coordinates in output space (center of the kernel in MxK matrix A)
+        let batch = abs_slice_row / batch_stride;
+        let out_y = (abs_slice_row % batch_stride) / y_stride;
+        let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
+
+        let channel = my_slice_idx / kernel_size;
+
+        let kernel_y = (my_slice_idx / kernel_w) % kernel_h;
+        let kernel_x = my_slice_idx % kernel_w;
+
+        if has_padding {
+            let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.pad_h;
+            let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.pad_w;
+
+            if x >= 0 && x < width && y >= 0 && y < height {
+                tile[m] = FMat::cast_from(
+                    input[batch * input.stride(0)
+                        + y as u32 * input.stride(2)
+                        + x as u32 * input.stride(3)
+                        + channel * input.stride(1)],
+                );
+            } else {
+                tile[m] = FMat::new(0.0);
+            }
+        } else {
+            let y = out_y * args.stride_h + kernel_y * args.dilation_h;
+            let x = out_x * args.stride_w + kernel_x * args.dilation_w;
+
+            tile[m] = FMat::cast_from(
+                input[batch * input.stride(0)
+                    + y * input.stride(2)
+                    + x * input.stride(3)
+                    + channel * input.stride(1)],
+            );
         }
+    }
+}
+
+#[cube]
+fn load_weight_tile<F: Float, FMat: Float>(
+    weight: &Tensor<F>,
+    tile: &mut SliceMut<FMat>,
+    pos: &Positions,
+    k: u32,
+    #[comptime] gemm_settings: GemmSettings,
+    #[comptime] kernel_settings: KernelSettings,
+) {
+    let GemmSettings {
+        cmma_n,
+        cmma_k,
+        warp_size,
+        ..
+    } = gemm_settings;
+
+    let KernelSettings {
+        kernel_h, kernel_w, ..
+    } = kernel_settings;
+
+    let kernel_size = kernel_h * kernel_w;
+    let cmma_filter_tile_size = cmma_k * cmma_n;
+
+    for n in range_stepped(pos.intra_warp_unit_idx, cmma_filter_tile_size, warp_size) {
+        // Compute where in the slice we are starting
+        let rel_slice_row = n / cmma_k; // Relative row (0 - 15)
+        let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
+        let abs_slice_col = pos.global_n + (n % 16); // Row of the matrix the slice is on
+
+        // Given the row of the matrix that the slice is in, and the index of the unit
+        // within a slice, want to compute what weight element to load...
+        let out_channel = abs_slice_col;
+        let in_channel = abs_slice_row / kernel_size;
+        let kernel_y = (abs_slice_row % kernel_size) / kernel_h;
+        let kernel_x = abs_slice_row % kernel_w;
+
+        tile[n] = FMat::cast_from(
+            weight[out_channel * weight.stride(0)
+                + in_channel * weight.stride(1)
+                + kernel_y * weight.stride(2)
+                + kernel_x * weight.stride(3)],
+        );
     }
 }
 
