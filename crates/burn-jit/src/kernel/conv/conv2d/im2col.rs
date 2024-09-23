@@ -17,8 +17,8 @@ struct Im2ColArgs {
     stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    padding_h: i32,
-    padding_w: i32,
+    padding_h: u32,
+    padding_w: u32,
 
     kernel_h: u32,
     kernel_w: u32,
@@ -72,10 +72,10 @@ fn im2col_kernel<F: Float>(
             let col_pos = col_idx + kernel_pos * args.col_size_1;
 
             if has_padding {
-                let y =
-                    (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h;
-                let x =
-                    (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w;
+                let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32
+                    - args.padding_h as i32;
+                let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32
+                    - args.padding_w as i32;
                 if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
                     let image_ptr = image_idx + y as u32 * width + x as u32;
                     columns[col_pos] = image[image_ptr];
@@ -152,8 +152,8 @@ fn im2col<R: JitRuntime, E: FloatElement>(
                 ScalarArg::new(options.stride[1] as u32),
                 ScalarArg::new(options.dilation[0] as u32),
                 ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(options.padding[0] as i32),
-                ScalarArg::new(options.padding[1] as i32),
+                ScalarArg::new(options.padding[0] as u32),
+                ScalarArg::new(options.padding[1] as u32),
                 ScalarArg::new(kernel_h as u32),
                 ScalarArg::new(kernel_w as u32),
                 ScalarArg::new(out_h as u32),
