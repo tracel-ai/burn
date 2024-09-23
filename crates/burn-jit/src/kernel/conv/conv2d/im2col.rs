@@ -35,6 +35,7 @@ fn im2col_kernel<F: Float>(
     columns: &mut Tensor<F>,
     args: &Im2ColArgs,
     #[comptime] kernel_w_unroll: Option<u32>,
+    #[comptime] has_padding: bool,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
     // columns shape: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -70,14 +71,23 @@ fn im2col_kernel<F: Float>(
             let kernel_pos = kernel_y * kernel_w + kernel_x;
             let col_pos = col_idx + kernel_pos * args.col_size_1;
 
-            let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h;
-            let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w;
-            if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
-                let image_ptr = image_idx + y as u32 * width + x as u32;
-                columns[col_pos] = image[image_ptr];
+            if has_padding {
+                let y =
+                    (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.padding_h;
+                let x =
+                    (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.padding_w;
+                if y >= 0 && x >= 0 && y < height as i32 && x < width as i32 {
+                    let image_ptr = image_idx + y as u32 * width + x as u32;
+                    columns[col_pos] = image[image_ptr];
+                } else {
+                    columns[col_pos] = F::new(0.0)
+                };
             } else {
-                columns[col_pos] = F::new(0.0)
-            };
+                let y = out_y * args.stride_h + kernel_y * args.dilation_h;
+                let x = out_x * args.stride_w + kernel_x * args.dilation_w;
+                let image_ptr = image_idx + y * image.stride(2) + x * image.stride(3);
+                columns[col_pos] = image[image_ptr];
+            }
         }
     }
 }
@@ -152,6 +162,7 @@ fn im2col<R: JitRuntime, E: FloatElement>(
                 ScalarArg::new(num_elems as u32),
             ),
             kernel_w_unroll,
+            options.padding != [0, 0],
         )
     };
 
