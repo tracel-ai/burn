@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{module, Distribution, Tensor};
 
     #[test]
-    fn conv3d_should_work_with_multiple_invocations() {
+    fn conv3d_should_match_reference_backend() {
         let test_device = Default::default();
         let input = Tensor::<TestBackend, 5>::random(
             [6, 16, 32, 32, 32],

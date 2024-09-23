@@ -1,7 +1,13 @@
-use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{
+    kernel::{
+        self,
+        conv::{Conv2dStrategy, ConvTranspose2dStrategy},
+    },
+    FloatElement, IntElement, JitBackend, JitRuntime,
+};
 use burn_tensor::ops::{
-    ConvOptions, ConvTransposeOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-    ModuleOps,
+    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
@@ -17,7 +23,30 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv2d(x, weight, bias, options)
+        kernel::conv::conv2d::<R, F, I>(x, weight, bias, options, Conv2dStrategy::default())
+    }
+
+    fn deform_conv2d(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        options: DeformConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        kernel::conv::deform_conv2d::<R, F, I>(x, offset, weight, mask, bias, options)
+    }
+
+    fn deform_conv2d_backward(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        output_grad: FloatTensor<Self>,
+        options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<Self> {
+        kernel::conv::deform_conv2d_backward(x, offset, weight, mask, bias, output_grad, options)
     }
 
     fn conv3d(
@@ -35,7 +64,13 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_transpose2d(x, weight, bias, options)
+        kernel::conv::conv_transpose2d::<R, F, I>(
+            x,
+            weight,
+            bias,
+            options,
+            ConvTranspose2dStrategy::default(),
+        )
     }
 
     fn conv_transpose3d(

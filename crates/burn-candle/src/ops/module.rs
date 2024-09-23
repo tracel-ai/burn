@@ -1,7 +1,8 @@
 use burn_tensor::{
     ops::{
-        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateMode,
-        InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
+        IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+        ModuleOps, UnfoldOptions,
     },
     Shape,
 };
@@ -75,6 +76,29 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
                 .unwrap(),
             None => conv,
         })
+    }
+
+    fn deform_conv2d(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        options: DeformConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        unimplemented!("Candle does not support deformable convolutions")
+    }
+
+    fn deform_conv2d_backward(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        output_grad: FloatTensor<Self>,
+        options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<Self> {
+        unimplemented!("Candle does not support deformable convolutions")
     }
 
     fn conv3d(

@@ -12,6 +12,7 @@ version.workspace = true
 
 [features]
 default = ["std"]
+doc = ["default"]
 std = [
     "burn-autodiff",
     "burn-common/std",
@@ -24,7 +25,6 @@ std = [
     "rand/std",
     "num-traits/std",
 ]
-doc = ["default"]
 
 blas-accelerate = [
     "blas-src/accelerate", # Accelerate framework (macOS only)
@@ -46,10 +46,11 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.15.0", optional = true
 burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false }
 
-matrixmultiply = { workspace = true, default-features = false }
+atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
 derive-new = { workspace = true }
 libm = { workspace = true }
+matrixmultiply = { workspace = true, default-features = false }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }

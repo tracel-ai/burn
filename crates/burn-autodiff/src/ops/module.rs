@@ -438,6 +438,343 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         }
     }
 
+    fn deform_conv2d(
+        x: AutodiffTensor<B>,
+        offset: AutodiffTensor<B>,
+        weight: AutodiffTensor<B>,
+        mask: Option<AutodiffTensor<B>>,
+        bias: Option<AutodiffTensor<B>>,
+        options: DeformConvOptions<2>,
+    ) -> AutodiffTensor<B> {
+        #[derive(Debug)]
+        struct DeformConv2DWithMaskWithBias;
+        #[derive(Debug)]
+        struct DeformConv2DWithMaskNoBias;
+        #[derive(Debug)]
+        struct DeformConv2DNoMaskWithBias;
+        #[derive(Debug)]
+        struct DeformConv2DNoMaskNoBias;
+
+        impl<B: Backend> Backward<B, 5> for DeformConv2DWithMaskWithBias {
+            type State = (NodeID, NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 5>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_offset, node_weight, node_mask, node_bias] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, offset_state, weight_state, mask_state, bias_state, options) =
+                    ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let offset = checkpointer.retrieve_node_output(offset_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let mask = Some(checkpointer.retrieve_node_output(mask_state));
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward =
+                    B::deform_conv2d_backward(x, offset, weight, mask, bias, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad)
+                }
+                if let Some(node) = node_offset {
+                    grads.register::<B>(node.id, backward.offset_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B>(node.id, backward.weight_grad)
+                }
+                if let Some(node) = node_mask {
+                    grads.register::<B>(node.id, backward.mask_grad.unwrap())
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B>(node.id, backward.bias_grad.unwrap())
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 4> for DeformConv2DWithMaskNoBias {
+            type State = (NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 4>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_offset, node_weight, node_mask] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, offset_state, weight_state, mask_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let offset = checkpointer.retrieve_node_output(offset_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let mask = Some(checkpointer.retrieve_node_output(mask_state));
+
+                let backward =
+                    B::deform_conv2d_backward(x, offset, weight, mask, None, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad)
+                }
+                if let Some(node) = node_offset {
+                    grads.register::<B>(node.id, backward.offset_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B>(node.id, backward.weight_grad)
+                }
+                if let Some(node) = node_mask {
+                    grads.register::<B>(node.id, backward.mask_grad.unwrap())
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 4> for DeformConv2DNoMaskWithBias {
+            type State = (NodeID, NodeID, NodeID, NodeID, DeformConvOptions<2>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 4>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_offset, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, offset_state, weight_state, bias_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let offset = checkpointer.retrieve_node_output(offset_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+                let bias = Some(checkpointer.retrieve_node_output(bias_state));
+
+                let backward =
+                    B::deform_conv2d_backward(x, offset, weight, None, bias, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad)
+                }
+                if let Some(node) = node_offset {
+                    grads.register::<B>(node.id, backward.offset_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B>(node.id, backward.weight_grad)
+                }
+                if let Some(node) = node_bias {
+                    grads.register::<B>(node.id, backward.bias_grad.unwrap())
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 3> for DeformConv2DNoMaskNoBias {
+            type State = (NodeID, NodeID, NodeID, DeformConvOptions<2>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_offset, node_weight] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, offset_state, weight_state, options) = ops.state;
+                let x = checkpointer.retrieve_node_output(x_state);
+                let offset = checkpointer.retrieve_node_output(offset_state);
+                let weight = checkpointer.retrieve_node_output(weight_state);
+
+                let backward =
+                    B::deform_conv2d_backward(x, offset, weight, None, None, grad, options);
+
+                if let Some(node) = node_x {
+                    grads.register::<B>(node.id, backward.x_grad)
+                }
+                if let Some(node) = node_offset {
+                    grads.register::<B>(node.id, backward.offset_grad)
+                }
+                if let Some(node) = node_weight {
+                    grads.register::<B>(node.id, backward.weight_grad)
+                }
+            }
+        }
+
+        match (mask, bias) {
+            (Some(mask), Some(bias)) => match DeformConv2DWithMaskWithBias
+                .prepare::<C>([
+                    x.node.clone(),
+                    offset.node.clone(),
+                    weight.node.clone(),
+                    mask.node.clone(),
+                    bias.node.clone(),
+                ])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let offset_state = prep.checkpoint(&offset);
+                    let weight_state = prep.checkpoint(&weight);
+                    let mask_state = prep.checkpoint(&mask);
+                    let bias_state = prep.checkpoint(&bias);
+                    prep.finish(
+                        (
+                            x_state,
+                            offset_state,
+                            weight_state,
+                            mask_state,
+                            bias_state,
+                            options.clone(),
+                        ),
+                        B::deform_conv2d(
+                            x.primitive,
+                            offset.primitive,
+                            weight.primitive,
+                            Some(mask.primitive),
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::deform_conv2d(
+                    x.primitive,
+                    offset.primitive,
+                    weight.primitive,
+                    Some(mask.primitive),
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            (Some(mask), None) => match DeformConv2DWithMaskNoBias
+                .prepare::<C>([
+                    x.node.clone(),
+                    offset.node.clone(),
+                    weight.node.clone(),
+                    mask.node.clone(),
+                ])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let offset_state = prep.checkpoint(&offset);
+                    let weight_state = prep.checkpoint(&weight);
+                    let mask_state = prep.checkpoint(&mask);
+                    prep.finish(
+                        (
+                            x_state,
+                            offset_state,
+                            weight_state,
+                            mask_state,
+                            options.clone(),
+                        ),
+                        B::deform_conv2d(
+                            x.primitive,
+                            offset.primitive,
+                            weight.primitive,
+                            Some(mask.primitive),
+                            None,
+                            options,
+                        ),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::deform_conv2d(
+                    x.primitive,
+                    offset.primitive,
+                    weight.primitive,
+                    Some(mask.primitive),
+                    None,
+                    options,
+                )),
+            },
+            (None, Some(bias)) => match DeformConv2DNoMaskWithBias
+                .prepare::<C>([
+                    x.node.clone(),
+                    offset.node.clone(),
+                    weight.node.clone(),
+                    bias.node.clone(),
+                ])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let offset_state = prep.checkpoint(&offset);
+                    let weight_state = prep.checkpoint(&weight);
+                    let bias_state = prep.checkpoint(&bias);
+                    prep.finish(
+                        (
+                            x_state,
+                            offset_state,
+                            weight_state,
+                            bias_state,
+                            options.clone(),
+                        ),
+                        B::deform_conv2d(
+                            x.primitive,
+                            offset.primitive,
+                            weight.primitive,
+                            None,
+                            Some(bias.primitive),
+                            options,
+                        ),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::deform_conv2d(
+                    x.primitive,
+                    offset.primitive,
+                    weight.primitive,
+                    None,
+                    Some(bias.primitive),
+                    options,
+                )),
+            },
+            (None, None) => match DeformConv2DNoMaskNoBias
+                .prepare::<C>([x.node.clone(), offset.node.clone(), weight.node.clone()])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let offset_state = prep.checkpoint(&offset);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, offset_state, weight_state, options.clone()),
+                        B::deform_conv2d(
+                            x.primitive,
+                            offset.primitive,
+                            weight.primitive,
+                            None,
+                            None,
+                            options,
+                        ),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::deform_conv2d(
+                    x.primitive,
+                    offset.primitive,
+                    weight.primitive,
+                    None,
+                    None,
+                    options,
+                )),
+            },
+        }
+    }
+
+    fn deform_conv2d_backward(
+        _x: AutodiffTensor<B>,
+        _offset: AutodiffTensor<B>,
+        _weight: AutodiffTensor<B>,
+        _mask: Option<AutodiffTensor<B>>,
+        _bias: Option<AutodiffTensor<B>>,
+        _output_grad: AutodiffTensor<B>,
+        _options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<Self> {
+        panic!("Can't differentiate deform conv 2d backward.");
+    }
+
     fn conv_transpose2d(
         x: AutodiffTensor<B>,
         weight: AutodiffTensor<B>,

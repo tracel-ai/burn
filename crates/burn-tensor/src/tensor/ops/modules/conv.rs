@@ -43,7 +43,7 @@ pub fn calculate_conv_transpose_output_size(
     dilation: usize,
     size_in: usize,
 ) -> usize {
-    (size_in - 1) * stride + dilation * (kernel_size - 1) + padding_out - 2 * padding + 1
+    (size_in - 1) * stride + (dilation * (kernel_size - 1) + 1) + padding_out - 2 * padding
 }
 
 /// Calculate the expected output size when doing a pooling operation.
