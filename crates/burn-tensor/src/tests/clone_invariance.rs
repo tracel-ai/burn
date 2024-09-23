@@ -39,9 +39,13 @@ mod tests {
                     type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
-                        TestTensor::random([32, 32], Distribution::Default, &Default::default())
-                            .into_data()
-                            .convert::<f32>()
+                        TestTensor::<2>::random(
+                            [32, 32],
+                            Distribution::Default,
+                            &Default::default(),
+                        )
+                        .into_data()
+                        .convert::<f32>()
                     }
 
                     fn run(&self, args: &Self::Args, inplace: bool) -> TensorData {
@@ -73,11 +77,11 @@ mod tests {
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
                         (
-                            TestTensor::ones([32, 32], &device)
+                            TestTensor::<2>::ones([32, 32], &device)
                                 .into_data()
                                 .convert::<f32>(),
                             // Avoid div by zero.
-                            TestTensor::ones([32, 32], &device)
+                            TestTensor::<2>::ones([32, 32], &device)
                                 .into_data()
                                 .convert::<f32>(),
                         )
@@ -115,7 +119,7 @@ mod tests {
                     type Args = TensorData;
 
                     fn args(&self) -> Self::Args {
-                        TestTensor::random(
+                        TestTensor::<2>::random(
                             [32, 32],
                             Distribution::Uniform(0.0, 50.0),
                             &Default::default(),
@@ -153,13 +157,21 @@ mod tests {
                     fn args(&self) -> Self::Args {
                         let device = Default::default();
                         (
-                            TestTensor::random([32, 32], Distribution::Uniform(0., 50.), &device)
-                                .into_data()
-                                .convert::<i32>(),
+                            TestTensor::<2>::random(
+                                [32, 32],
+                                Distribution::Uniform(0., 50.),
+                                &device,
+                            )
+                            .into_data()
+                            .convert::<i32>(),
                             // Avoid div by zero.
-                            TestTensor::random([32, 32], Distribution::Uniform(1., 51.), &device)
-                                .into_data()
-                                .convert::<i32>(),
+                            TestTensor::<2>::random(
+                                [32, 32],
+                                Distribution::Uniform(1., 51.),
+                                &device,
+                            )
+                            .into_data()
+                            .convert::<i32>(),
                         )
                     }
 

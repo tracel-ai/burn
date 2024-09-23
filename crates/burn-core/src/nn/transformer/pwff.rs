@@ -56,7 +56,7 @@ impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_model, dff] = self.linear_inner.weight.shape().dims;
+        let [d_model, dff] = self.linear_inner.weight.shape().dims();
 
         content
             .add("d_model", &d_model)

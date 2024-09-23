@@ -4,16 +4,15 @@ mod forward;
 use burn::tensor::{activation, Tensor, TensorPrimitive};
 
 /// We use a type alias for better readability.
-pub type FloatTensor<B, const D: usize> =
-    <B as burn::tensor::backend::Backend>::FloatTensorPrimitive<D>;
+pub type FloatTensor<B> = <B as burn::tensor::backend::Backend>::FloatTensorPrimitive;
 
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D>;
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self>;
 }
 
 /// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.

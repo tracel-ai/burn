@@ -47,6 +47,7 @@ mod tests {
         let expected = TensorData::from([[0.0, -15.0], [-3.0, -3.0]]);
         grad_2.to_data().assert_approx_eq(&expected, 3);
 
-        assert_eq!(grad_2.contains_nan().into_scalar(), false);
+        let contains_nan = grad_2.contains_nan();
+        assert_eq!(contains_nan.into_scalar(), false);
     }
 }

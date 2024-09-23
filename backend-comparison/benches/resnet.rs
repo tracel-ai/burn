@@ -14,7 +14,7 @@ mod model {
 }
 
 pub struct ResNetBenchmark<B: Backend> {
-    shape: Shape<4>,
+    shape: Shape,
     device: B::Device,
 }
 
@@ -26,7 +26,7 @@ impl<B: Backend> Benchmark for ResNetBenchmark<B> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape.dims.into()]
+        vec![self.shape.dims.clone()]
     }
 
     fn execute(&self, (model, input): Self::Args) {

@@ -25,11 +25,12 @@ impl Display for ReduceAutotuneKey {
 
 impl ReduceAutotuneKey {
     /// Create a reduce autotune key from the input shape and reduce dim
-    pub fn new<const D: usize>(shape: &Shape<D>, strides: &[usize; D], reduce_dim: usize) -> Self {
+    pub fn new(shape: &Shape, strides: &[usize], reduce_dim: usize) -> Self {
+        let ndims = strides.len();
         let reduce_dim_length = shape.dims[reduce_dim];
         let reduce_dim_stride = strides[reduce_dim];
         let mut others_product = 1;
-        for d in 0..D {
+        for d in 0..ndims {
             if d != reduce_dim {
                 others_product *= shape.dims[d]
             }

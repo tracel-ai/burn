@@ -5,7 +5,7 @@ use crate::{
 impl<const D: usize, B: AutodiffBackend> Tensor<B, D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> B::Gradients {
-        B::backward::<D>(self.primitive.clone().tensor())
+        B::backward(self.primitive.clone().tensor())
     }
 
     /// Get the gradients of a tensor if it exist.
@@ -77,18 +77,18 @@ impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> Tensor<B, D, K>
 impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
     type InnerKind = Float;
 
-    fn inner<const D: usize>(
-        tensor: <Self as TensorKind<B>>::Primitive<D>,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D> {
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::inner(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_inner(tensor)),
         }
     }
 
-    fn from_inner<const D: usize>(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D>,
-    ) -> <Self as TensorKind<B>>::Primitive<D> {
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
         match inner {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::from_inner(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_from_inner(tensor)),
@@ -99,15 +99,15 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Float {
 impl<B: AutodiffBackend> BasicAutodiffOps<B> for Int {
     type InnerKind = Int;
 
-    fn inner<const D: usize>(
-        tensor: <Self as TensorKind<B>>::Primitive<D>,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D> {
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
         B::int_inner(tensor)
     }
 
-    fn from_inner<const D: usize>(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D>,
-    ) -> <Self as TensorKind<B>>::Primitive<D> {
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
         B::int_from_inner(inner)
     }
 }
@@ -115,15 +115,15 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Int {
 impl<B: AutodiffBackend> BasicAutodiffOps<B> for Bool {
     type InnerKind = Bool;
 
-    fn inner<const D: usize>(
-        tensor: <Self as TensorKind<B>>::Primitive<D>,
-    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D> {
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive {
         B::bool_inner(tensor)
     }
 
-    fn from_inner<const D: usize>(
-        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive<D>,
-    ) -> <Self as TensorKind<B>>::Primitive<D> {
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<<B as AutodiffBackend>::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive {
         B::bool_from_inner(inner)
     }
 }
@@ -147,9 +147,9 @@ pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerB
     ///
     /// Users should prefer the [Tensor::inner](Tensor::inner) function,
     /// which is more high-level and designed for public use.
-    fn inner<const D: usize>(
-        tensor: <Self as TensorKind<B>>::Primitive<D>,
-    ) -> <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive<D>;
+    fn inner(
+        tensor: <Self as TensorKind<B>>::Primitive,
+    ) -> <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive;
 
     /// Convert a tensor to the autodiff backend.
     ///
@@ -161,7 +161,7 @@ pub trait BasicAutodiffOps<B: AutodiffBackend>: BasicOps<B> + BasicOps<B::InnerB
     ///
     /// Users should prefer the [Tensor::from_inner](Tensor::from_inner) function,
     /// which is more high-level and designed for public use.
-    fn from_inner<const D: usize>(
-        inner: <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive<D>,
-    ) -> <Self as TensorKind<B>>::Primitive<D>;
+    fn from_inner(
+        inner: <Self::InnerKind as TensorKind<B::InnerBackend>>::Primitive,
+    ) -> <Self as TensorKind<B>>::Primitive;
 }

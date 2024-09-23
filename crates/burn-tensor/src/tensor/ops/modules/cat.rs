@@ -1,36 +1,32 @@
-use crate::{backend::Backend, BasicOps, Tensor, TensorKind};
+use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
-pub(crate) fn cat_with_slice_assign<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensors: Vec<Tensor<B, D, K>>,
+pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
+    tensors: Vec<K::Primitive>,
     dim: usize,
-) -> Tensor<B, D, K> {
+) -> K::Primitive {
     let first_tensor = tensors.first().expect("Tensors should not be empty");
-    let mut shape = first_tensor.shape();
-    let device = first_tensor.device();
+    let mut shape = K::shape(first_tensor);
+    let device = K::device(first_tensor);
 
     let output_dim_length: usize = tensors
         .iter()
-        .map(|tensor: &Tensor<B, D, K>| tensor.shape().dims[dim])
+        .map(|tensor| K::shape(tensor).dims[dim])
         .sum();
     shape.dims[dim] = output_dim_length;
 
-    let mut tensor_output = Tensor::empty(shape.clone(), &device);
+    let mut tensor_output = K::empty(shape.clone(), &device);
 
-    let mut i = 0;
-    let indices_select_all = [0; D].map(|_| {
-        i += 1;
-        0..shape.dims[i - 1]
-    });
+    let indices_select_all = shape.dims.iter().map(|d| 0..*d).collect::<Vec<_>>();
 
     let mut output_index = 0;
     for tensor in tensors {
         let mut indices = indices_select_all.clone();
-        let tensor_dim_length = tensor.shape().dims[dim];
+        let tensor_dim_length = K::shape(&tensor).dims[dim];
         indices[dim] = output_index..output_index + tensor_dim_length;
         output_index += tensor_dim_length;
 
-        tensor_output = tensor_output.slice_assign(indices, tensor);
+        tensor_output = K::slice_assign(tensor_output, &indices, tensor);
     }
 
     tensor_output

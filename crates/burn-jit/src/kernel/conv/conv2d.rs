@@ -115,15 +115,15 @@ fn conv2d_kernel<F: Float>(
 }
 
 pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
-    let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_0, kernel_1] = weight.shape.dims;
+    let [batch_size, _, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_0, kernel_1] = weight.shape.dims();
 
     // Limit loop unrolling factor to 8 or smaller
     let kernel_1_unroll = if kernel_1 > 8 {

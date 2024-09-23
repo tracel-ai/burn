@@ -389,13 +389,13 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
 }
 
 pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
-    grad: JitTensor<R, E, 4>,
+    x: JitTensor<R, E>,
+    grad: JitTensor<R, E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let grad = kernel::into_contiguous(grad);
     let dilation = 1;
 

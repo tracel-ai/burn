@@ -28,17 +28,17 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
-    type QuantizedTensorPrimitive<const D: usize> = QFusionTensor<B::FusionRuntime>;
+    type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -159,10 +159,7 @@ pub trait FusionBackend:
     type FusionRuntime: FusionRuntime;
 
     /// Cast a float tensor and returns the resulting handle.
-    fn cast_float<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dtype: burn_tensor::DType,
-    ) -> Self::Handle;
+    fn cast_float(tensor: FloatTensor<Self>, dtype: burn_tensor::DType) -> Self::Handle;
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;

@@ -65,12 +65,13 @@ fn scatter_kernel<T: Numeric>(
     }
 }
 
-pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement>(
     dim: usize,
-    tensor: JitTensor<R, E, D>,
-    indices: JitTensor<R, I, D>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+    tensor: JitTensor<R, E>,
+    indices: JitTensor<R, I>,
+    value: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    let ndims = tensor.shape.num_dims();
     let mut indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -80,7 +81,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
         false => tensor.copy(),
     };
 
-    let mut strides = [0; D];
+    let mut strides = vec![0; ndims];
     let mut current = 1;
     let mut num_elems = 1;
 

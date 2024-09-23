@@ -69,7 +69,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             stream,
         }
     }
-    pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
+    pub(crate) fn shape(&self) -> Shape {
         Shape::from(self.shape.clone())
     }
 
@@ -109,36 +109,36 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_float::<B, D>(self.into_description(), id)
+            .read_tensor_float::<B>(self.into_description(), id)
             .await
     }
 
-    pub(crate) async fn int_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn int_into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_int::<B, D>(self.into_description(), id)
+            .read_tensor_int::<B>(self.into_description(), id)
             .await
     }
 
-    pub(crate) async fn bool_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn bool_into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_bool::<B, D>(self.into_description(), id)
+            .read_tensor_bool::<B>(self.into_description(), id)
             .await
     }
 }

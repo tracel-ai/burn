@@ -35,17 +35,11 @@ pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI>, EI: Numeri
 }
 
 /// Executes the naive kernel for reduce dim
-pub fn reduce_dim_naive<
-    RD: ReduceDimNaive<EI>,
-    R: JitRuntime,
-    EI: JitElement,
-    EO: JitElement,
-    const D: usize,
->(
-    input: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
+pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
+    input: JitTensor<R, EI>,
+    output: JitTensor<R, EO>,
     dim: usize,
-) -> JitTensor<R, EO, D> {
+) -> JitTensor<R, EO> {
     let cube_dim = CubeDim::default();
     let cube_count =
         calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);

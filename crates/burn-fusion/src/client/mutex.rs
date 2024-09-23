@@ -78,7 +78,7 @@ where
         FusionTensor::new(id, shape, dtype, self.clone(), stream)
     }
 
-    async fn read_tensor_float<B, const D: usize>(
+    async fn read_tensor_float<B>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
@@ -86,10 +86,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_float::<B, D>(tensor, stream).await
+        self.server.lock().read_float::<B>(tensor, stream).await
     }
 
-    async fn read_tensor_int<B, const D: usize>(
+    async fn read_tensor_int<B>(
         &self,
         tensor: TensorDescription,
         id: StreamId,
@@ -97,10 +97,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_int::<B, D>(tensor, id).await
+        self.server.lock().read_int::<B>(tensor, id).await
     }
 
-    async fn read_tensor_bool<B, const D: usize>(
+    async fn read_tensor_bool<B>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
@@ -108,10 +108,10 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_bool::<B, D>(tensor, stream).await
+        self.server.lock().read_bool::<B>(tensor, stream).await
     }
 
-    fn change_client_float<B, const D: usize>(
+    fn change_client_float<B>(
         &self,
         tensor: TensorDescription,
         client: Self,
@@ -125,7 +125,7 @@ where
         server_current.drain_stream(stream);
 
         let id =
-            server_current.change_server_float::<B, D>(&tensor, &client.device, &mut server_other);
+            server_current.change_server_float::<B>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -133,7 +133,7 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_int<B, const D: usize>(
+    fn change_client_int<B>(
         &self,
         tensor: TensorDescription,
         client: Self,
@@ -146,8 +146,7 @@ where
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id =
-            server_current.change_server_int::<B, D>(&tensor, &client.device, &mut server_other);
+        let id = server_current.change_server_int::<B>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -155,7 +154,7 @@ where
         FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
-    fn change_client_bool<B, const D: usize>(
+    fn change_client_bool<B>(
         &self,
         tensor: TensorDescription,
         client: Self,
@@ -168,8 +167,7 @@ where
         let mut server_current = self.server.lock();
         server_current.drain_stream(stream);
 
-        let id =
-            server_current.change_server_bool::<B, D>(&tensor, &client.device, &mut server_other);
+        let id = server_current.change_server_bool::<B>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);

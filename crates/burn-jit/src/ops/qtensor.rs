@@ -32,11 +32,11 @@ fn pack_i8s_to_u32s(data: &TensorData) -> Vec<u32> {
 }
 
 /// Create a quantized tensor with packed values (u32).
-fn packed_tensor<R: JitRuntime, S: Into<Shape<D>>, const D: usize>(
+fn packed_tensor<R: JitRuntime, S: Into<Shape>>(
     data: Vec<u32>,
     shape: S,
     device: &R::Device,
-) -> JitTensor<R, u32, D> {
+) -> JitTensor<R, u32> {
     let client = R::client(device);
     let buffer = client.create(u32::as_bytes(&data));
 
@@ -49,10 +49,7 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn q_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> QuantizedTensor<Self, D> {
+    fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(strategy) => match strategy {
                 QuantizationStrategy::PerTensorAffineInt8(q) => {
@@ -83,39 +80,33 @@ where
         }
     }
 
-    fn quantize<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn quantize(
+        tensor: FloatTensor<Self>,
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         kernel::quantization::quantize(tensor, scheme, qparams.into())
     }
 
-    fn dequantize<const D: usize>(tensor: QuantizedTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         kernel::quantization::dequantize(tensor)
     }
 
-    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
+    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
         tensor.qtensor.shape.clone()
     }
 
-    fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Device<Self> {
+    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
         tensor.qtensor.device.clone()
     }
 
-    fn q_to_device<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> QuantizedTensor<Self, D> {
+    fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = super::to_device(tensor.qtensor, device);
         tensor
     }
 
-    fn q_reshape<const D1: usize, const D2: usize>(
-        tensor: QuantizedTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> QuantizedTensor<Self, D2> {
+    fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         QJitTensor {
             qtensor: super::reshape(tensor.qtensor, shape),
             scheme: tensor.scheme,
@@ -123,7 +114,7 @@ where
         }
     }
 
-    async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
         let strategy = tensor.strategy();
         let numel = tensor.qtensor.shape.num_elements();
         let qtensor = kernel::into_contiguous(tensor.qtensor);
@@ -158,55 +149,43 @@ where
         }
     }
 
-    fn q_swap_dims<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
+    fn q_swap_dims(
+        _tensor: QuantizedTensor<Self>,
         _dim1: usize,
         _dim2: usize,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_permute<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _axes: [usize; D],
-    ) -> QuantizedTensor<Self, D> {
+    fn q_permute(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_flip<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
-        _axes: &[usize],
-    ) -> QuantizedTensor<Self, D> {
+    fn q_flip(_tensor: QuantizedTensor<Self>, _axes: &[usize]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_gather<const D: usize>(
+    fn q_gather(
         _dim: usize,
-        _tensor: QuantizedTensor<Self, D>,
-        _indices: IntTensor<Self, D>,
-    ) -> QuantizedTensor<Self, D> {
+        _tensor: QuantizedTensor<Self>,
+        _indices: IntTensor<Self>,
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_select<const D: usize>(
-        _tensor: QuantizedTensor<Self, D>,
+    fn q_select(
+        _tensor: QuantizedTensor<Self>,
         _dim: usize,
-        _indices: IntTensor<Self, 1>,
-    ) -> QuantizedTensor<Self, D> {
+        _indices: IntTensor<Self>,
+    ) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_slice<const D1: usize, const D2: usize>(
-        _tensor: QuantizedTensor<Self, D1>,
-        _ranges: [Range<usize>; D2],
-    ) -> QuantizedTensor<Self, D1> {
+    fn q_slice(_tensor: QuantizedTensor<Self>, _ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 
-    fn q_expand<const D1: usize, const D2: usize>(
-        _tensor: QuantizedTensor<Self, D1>,
-        _shape: Shape<D2>,
-    ) -> QuantizedTensor<Self, D2> {
+    fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
         unimplemented!()
     }
 }

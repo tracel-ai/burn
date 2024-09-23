@@ -12,74 +12,74 @@ where
     I: IntElement,
 {
     fn conv2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::conv::conv2d(x, weight, bias, options)
     }
 
     fn conv3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         kernel::conv::conv3d(x, weight, bias, options)
     }
 
     fn conv_transpose2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::conv::conv_transpose2d(x, weight, bias, options)
     }
 
     fn conv_transpose3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         kernel::conv::conv_transpose3d(x, weight, bias, options)
     }
 
     fn avg_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::pool::avg_pool2d(x, kernel_size, stride, padding, count_include_pad)
     }
 
     fn avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::pool::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad)
     }
 
     fn max_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::pool::max_pool2d(x, kernel_size, stride, padding, dilation)
     }
 
     fn max_pool2d_with_indices(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -92,13 +92,13 @@ where
     }
 
     fn max_pool2d_with_indices_backward(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        output_grad: FloatTensor<Self, 4>,
-        indices: IntTensor<Self, 4>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
         MaxPool2dBackward::new(kernel::pool::max_pool2d_with_indices_backward(
             x,
@@ -111,34 +111,31 @@ where
         ))
     }
 
-    fn adaptive_avg_pool2d(
-        x: FloatTensor<Self, 4>,
-        output_size: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
         kernel::pool::adaptive_avg_pool2d(x, output_size)
     }
 
     fn adaptive_avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
-    ) -> FloatTensor<Self, 4> {
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::pool::adaptive_avg_pool2d_backward(x, grad)
     }
 
     fn interpolate(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::interpolate::interpolate(x, output_size, options)
     }
 
     fn interpolate_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         kernel::interpolate::interpolate_backward(x, grad, output_size, options)
     }
 }

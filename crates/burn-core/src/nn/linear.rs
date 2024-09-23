@@ -92,7 +92,7 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, d_output] = self.weight.shape().dims;
+        let [d_input, d_output] = self.weight.shape().dims();
         content
             .add("d_input", &d_input)
             .add("d_output", &d_output)

@@ -44,15 +44,15 @@ impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
     type Device = NdArrayDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive<const D: usize> = NdArrayTensor<E, D>;
+    type FloatTensorPrimitive = NdArrayTensor<E>;
     type FloatElem = E;
 
-    type IntTensorPrimitive<const D: usize> = NdArrayTensor<i64, D>;
+    type IntTensorPrimitive = NdArrayTensor<i64>;
     type IntElem = i64;
 
-    type BoolTensorPrimitive<const D: usize> = NdArrayTensor<bool, D>;
+    type BoolTensorPrimitive = NdArrayTensor<bool>;
 
-    type QuantizedTensorPrimitive<const D: usize> = NdArrayQTensor<Q, D>;
+    type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
 
     fn ad_enabled() -> bool {
         false

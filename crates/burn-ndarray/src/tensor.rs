@@ -9,13 +9,13 @@ use crate::element::QuantElement;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 #[derive(new, Debug, Clone)]
-pub struct NdArrayTensor<E, const D: usize> {
+pub struct NdArrayTensor<E> {
     /// Dynamic array that contains the data of type E.
     pub array: ArcArray<E, IxDyn>,
 }
 
-impl<E, const D: usize> NdArrayTensor<E, D> {
-    pub(crate) fn shape(&self) -> Shape<D> {
+impl<E> NdArrayTensor<E> {
+    pub(crate) fn shape(&self) -> Shape {
         Shape::from(self.array.shape().to_vec())
     }
 }
@@ -25,7 +25,7 @@ mod utils {
     use super::*;
     use crate::element::FloatNdArrayElement;
 
-    impl<E, const D: usize> NdArrayTensor<E, D>
+    impl<E> NdArrayTensor<E>
     where
         E: Default + Clone,
     {
@@ -97,37 +97,38 @@ macro_rules! reshape {
     }};
 }
 
-impl<E, const D: usize> NdArrayTensor<E, D>
+impl<E> NdArrayTensor<E>
 where
     E: Element,
 {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(data: TensorData) -> NdArrayTensor<E, D> {
-        let shape: Shape<D> = data.shape.clone().into();
+    pub fn from_data(data: TensorData) -> NdArrayTensor<E> {
+        let shape: Shape = data.shape.clone().into();
         let to_array = |data: TensorData| Array::from_iter(data.iter()).into_shared();
         let array = to_array(data);
+        let ndims = shape.num_dims();
 
         reshape!(
             ty E,
             shape shape,
             array array,
-            d D
+            d ndims
         )
     }
 }
 
 /// A quantized tensor for the ndarray backend.
 #[derive(Clone, Debug)]
-pub struct NdArrayQTensor<Q: QuantElement, const D: usize> {
+pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantized tensor.
-    pub qtensor: NdArrayTensor<Q, D>,
+    pub qtensor: NdArrayTensor<Q>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization strategy.
     pub strategy: QuantizationStrategy,
 }
 
-impl<Q: QuantElement, const D: usize> QTensorPrimitive for NdArrayQTensor<Q, D> {
+impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
@@ -156,7 +157,7 @@ mod tests {
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::<f32, 1>::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -170,7 +171,7 @@ mod tests {
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::<f32, 2>::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -184,7 +185,7 @@ mod tests {
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::<f32, 3>::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -198,7 +199,7 @@ mod tests {
             Distribution::Default,
             &mut get_seeded_rng(),
         );
-        let tensor = NdArrayTensor::<f32, 4>::from_data(data_expected.clone());
+        let tensor = NdArrayTensor::<f32>::from_data(data_expected.clone());
 
         let data_actual = tensor.into_data();
 
@@ -207,13 +208,13 @@ mod tests {
 
     #[test]
     fn should_support_qtensor_strategy() {
-        let tensor = NdArrayTensor::<f32, 1>::from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]));
+        let tensor = NdArrayTensor::<f32>::from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]));
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
             scale: NdArrayTensor::from_data(TensorData::from([0.009_019_608])),
             offset: Some(NdArrayTensor::from_data(TensorData::from([72]))),
         };
-        let qtensor: NdArrayQTensor<i8, 1> = NdArray::quantize(tensor, &scheme, qparams);
+        let qtensor: NdArrayQTensor<i8> = NdArray::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(

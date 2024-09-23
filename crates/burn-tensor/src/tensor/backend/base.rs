@@ -74,24 +74,20 @@ pub trait Backend:
     type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+    type IntTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive<const D: usize>: Clone + Send + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive<const D: usize>: QTensorPrimitive
-        + Clone
-        + Send
-        + 'static
-        + core::fmt::Debug;
+    type QuantizedTensorPrimitive: QTensorPrimitive + Clone + Send + 'static + core::fmt::Debug;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {
@@ -129,7 +125,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The gradients.
-    fn backward<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Gradients;
+    fn backward(tensor: FloatTensor<Self>) -> Self::Gradients;
 
     /// Returns the gradients of a tensor.
     ///
@@ -140,10 +136,10 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// An optional tensor containing the gradient.
-    fn grad<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
+    fn grad(
+        tensor: &FloatTensor<Self>,
         grads: &Self::Gradients,
-    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
+    ) -> Option<FloatTensor<Self::InnerBackend>>;
 
     /// Pops the gradients of a tensor and returns them.
     ///
@@ -155,10 +151,10 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// An optional tensor containing the given gradients.
-    fn grad_remove<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
+    fn grad_remove(
+        tensor: &FloatTensor<Self>,
         grads: &mut Self::Gradients,
-    ) -> Option<FloatTensor<Self::InnerBackend, D>>;
+    ) -> Option<FloatTensor<Self::InnerBackend>>;
 
     /// Replace the gradients of a tensor with the one provided.
     ///
@@ -169,10 +165,10 @@ pub trait AutodiffBackend: Backend {
     /// * `tensor` - The tensor to pop the gradients from.
     /// * `grads` - The gradients.
     /// * `grad` - The updated grad tensor.
-    fn grad_replace<const D: usize>(
-        tensor: &FloatTensor<Self, D>,
+    fn grad_replace(
+        tensor: &FloatTensor<Self>,
         grads: &mut Self::Gradients,
-        grad: FloatTensor<Self::InnerBackend, D>,
+        grad: FloatTensor<Self::InnerBackend>,
     );
 
     /// Returns the tensor with inner backend type.
@@ -184,7 +180,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The inner backend tensor.
-    fn inner<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self::InnerBackend, D>;
+    fn inner(tensor: FloatTensor<Self>) -> FloatTensor<Self::InnerBackend>;
 
     /// Returns the tensor with inner backend type.
     ///
@@ -195,7 +191,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The inner backend tensor.
-    fn int_inner<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self::InnerBackend, D>;
+    fn int_inner(tensor: IntTensor<Self>) -> IntTensor<Self::InnerBackend>;
 
     /// Returns the tensor with inner backend type.
     ///
@@ -206,8 +202,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The inner backend tensor.
-    fn bool_inner<const D: usize>(tensor: BoolTensor<Self, D>)
-        -> BoolTensor<Self::InnerBackend, D>;
+    fn bool_inner(tensor: BoolTensor<Self>) -> BoolTensor<Self::InnerBackend>;
 
     /// Returns the tensor with inner backend type.
     ///
@@ -218,9 +213,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The inner backend tensor.
-    fn q_inner<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-    ) -> QuantizedTensor<Self::InnerBackend, D>;
+    fn q_inner(tensor: QuantizedTensor<Self>) -> QuantizedTensor<Self::InnerBackend>;
 
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
@@ -232,9 +225,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The autodiff backend tensor.
-    fn from_inner<const D: usize>(
-        tensor: FloatTensor<Self::InnerBackend, D>,
-    ) -> FloatTensor<Self, D>;
+    fn from_inner(tensor: FloatTensor<Self::InnerBackend>) -> FloatTensor<Self>;
 
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
@@ -246,9 +237,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The autodiff backend tensor.
-    fn int_from_inner<const D: usize>(
-        tensor: IntTensor<Self::InnerBackend, D>,
-    ) -> IntTensor<Self, D>;
+    fn int_from_inner(tensor: IntTensor<Self::InnerBackend>) -> IntTensor<Self>;
 
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
@@ -260,9 +249,7 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The autodiff backend tensor.
-    fn bool_from_inner<const D: usize>(
-        tensor: BoolTensor<Self::InnerBackend, D>,
-    ) -> BoolTensor<Self, D>;
+    fn bool_from_inner(tensor: BoolTensor<Self::InnerBackend>) -> BoolTensor<Self>;
 
     /// Converts the inner backend tensor to the autodiff backend tensor.
     ///
@@ -274,7 +261,5 @@ pub trait AutodiffBackend: Backend {
     /// # Returns
     ///
     /// The autodiff backend tensor.
-    fn q_from_inner<const D: usize>(
-        tensor: QuantizedTensor<Self::InnerBackend, D>,
-    ) -> QuantizedTensor<Self, D>;
+    fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
 }

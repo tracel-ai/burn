@@ -68,10 +68,10 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
 }
 
 /// Pseudo-random generator with bernoulli distribution
-pub fn random_bernoulli<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+pub fn random_bernoulli<R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
     probability: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     random(shape, device, Bernoulli { probability })
 }

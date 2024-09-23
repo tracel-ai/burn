@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 ///
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
 #[derive(new)]
-pub struct OpsPrep<Backward, B, S, C, const D: usize, const N: usize, Mode = Init> {
+pub struct OpsPrep<Backward, B, S, C, const N: usize, Mode = Init> {
     nodes: [NodeRef; N],
     requirement: Requirement,
     backward: Backward,
@@ -42,14 +42,14 @@ pub struct Tracked;
 /// Untracked operation tag.
 pub struct UnTracked;
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Init>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, Init>
 where
     B: Backend,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
 {
     /// Indicates that the operation is compute bound, meaning its computation
     /// is heavy and should not be recomputed
-    pub fn compute_bound(self) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone> {
+    pub fn compute_bound(self) -> OpsPrep<BO, B, S, C, N, ComputePropertyDone> {
         OpsPrep::new(
             self.nodes,
             self.requirement,
@@ -61,7 +61,7 @@ where
 
     /// Indicates that the operation is memory bound, meaning its computation
     /// is light and can be recomputed
-    pub fn memory_bound(self) -> OpsPrep<BO, B, S, C, D, N, MemoryBound> {
+    pub fn memory_bound(self) -> OpsPrep<BO, B, S, C, N, MemoryBound> {
         OpsPrep::new(
             self.nodes,
             self.requirement,
@@ -72,17 +72,17 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, MemoryBound>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, MemoryBound>
 where
     B: Backend,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
     C: CheckpointStrategy,
 {
     /// Registers the retro forward, if needed
     pub fn retro_forward<R: RetroForward>(
         self,
         retro_forward: R,
-    ) -> OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward> {
+    ) -> OpsPrep<BO, B, S, C, N, MemoryBoundRetroForward> {
         OpsPrep::new(
             self.nodes,
             self.requirement,
@@ -93,21 +93,17 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize>
-    OpsPrep<BO, B, S, C, D, N, MemoryBoundRetroForward>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, MemoryBoundRetroForward>
 where
     B: Backend,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
     C: CheckpointStrategy,
 {
     /// Checkpoints the parents, if needed
-    pub fn parents<'a, B2, const D2: usize, A>(
-        mut self,
-        parents: A,
-    ) -> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
+    pub fn parents<'a, B2, A>(mut self, parents: A) -> OpsPrep<BO, B, S, C, N, ComputePropertyDone>
     where
         B2: Backend,
-        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
+        A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
         C::checkpoint_parents(parents, &mut self.checkpointer_builder);
 
@@ -121,16 +117,13 @@ where
     }
 }
 
-impl<BO, B, C, const D: usize, const N: usize> OpsPrep<BO, B, (), C, D, N, ComputePropertyDone>
+impl<BO, B, C, const N: usize> OpsPrep<BO, B, (), C, N, ComputePropertyDone>
 where
     B: Backend,
-    BO: Backward<B, D, N, State = ()>,
+    BO: Backward<B, N, State = ()>,
 {
     /// Prepare a stateless operation.
-    pub fn stateless(
-        self,
-        output: <B as Backend>::FloatTensorPrimitive<D>,
-    ) -> AutodiffTensor<B, D> {
+    pub fn stateless(self, output: <B as Backend>::FloatTensorPrimitive) -> AutodiffTensor<B> {
         match self.stateful() {
             OpsKind::Tracked(prep) => prep.finish((), output),
             OpsKind::UnTracked(prep) => prep.finish(output),
@@ -138,14 +131,14 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, ComputePropertyDone>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, ComputePropertyDone>
 where
     B: Backend,
     S: Clone + Send + std::fmt::Debug + 'static,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
 {
     /// Prepare an operation that requires a state during the backward pass.
-    pub fn stateful(self) -> OpsKind<BO, B, S, C, D, N> {
+    pub fn stateful(self) -> OpsKind<BO, B, S, C, N> {
         match self.requirement.is_none() {
             false => OpsKind::Tracked(OpsPrep::new(
                 self.nodes,
@@ -165,14 +158,14 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, UnTracked>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, UnTracked>
 where
     B: Backend,
     S: Clone + Send + std::fmt::Debug + 'static,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
-    pub fn finish(self, output: <B as Backend>::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    pub fn finish(self, output: <B as Backend>::FloatTensorPrimitive) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
@@ -188,18 +181,18 @@ where
     }
 }
 
-impl<BO, B, S, C, const D: usize, const N: usize> OpsPrep<BO, B, S, C, D, N, Tracked>
+impl<BO, B, S, C, const N: usize> OpsPrep<BO, B, S, C, N, Tracked>
 where
     B: Backend,
     S: Clone + Send + std::fmt::Debug + 'static,
-    BO: Backward<B, D, N, State = S>,
+    BO: Backward<B, N, State = S>,
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
     pub fn finish(
         self,
         state: S,
-        output: <B as Backend>::FloatTensorPrimitive<D>,
-    ) -> AutodiffTensor<B, D> {
+        output: <B as Backend>::FloatTensorPrimitive,
+    ) -> AutodiffTensor<B> {
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
@@ -213,7 +206,7 @@ where
     }
 
     /// Checkpoints the tensor
-    pub fn checkpoint<const D2: usize>(&mut self, tensor: &AutodiffTensor<B, D2>) -> NodeID {
+    pub fn checkpoint(&mut self, tensor: &AutodiffTensor<B>) -> NodeID {
         self.checkpointer_builder
             .checkpoint(tensor, ActionType::Explicit);
 
@@ -222,11 +215,11 @@ where
 }
 
 /// Enum used before finishing tracked and untracked operations.
-pub enum OpsKind<BO, B, S, C, const D: usize, const N: usize> {
+pub enum OpsKind<BO, B, S, C, const N: usize> {
     /// Tracked operation preparation.
-    Tracked(OpsPrep<BO, B, S, C, D, N, Tracked>),
+    Tracked(OpsPrep<BO, B, S, C, N, Tracked>),
     /// Untracked operation preparation.
-    UnTracked(OpsPrep<BO, B, S, C, D, N, UnTracked>),
+    UnTracked(OpsPrep<BO, B, S, C, N, UnTracked>),
 }
 
 /// Operation containing its parent nodes, its own node and the backward step state.
@@ -242,10 +235,10 @@ pub struct Ops<S, const N: usize> {
 
 /// Operation implementing backward [step](Step) with type erasing.
 #[derive(new, Debug)]
-struct OpsStep<B, T, SB, const D: usize, const N: usize>
+struct OpsStep<B, T, SB, const N: usize>
 where
     B: Backend,
-    T: Backward<B, D, N, State = SB>,
+    T: Backward<B, N, State = SB>,
     SB: Clone + Send + std::fmt::Debug + 'static,
 {
     ops: Ops<SB, N>,
@@ -253,10 +246,10 @@ where
     phantom: PhantomData<B>,
 }
 
-impl<B, T, SB, const D: usize, const N: usize> Step for OpsStep<B, T, SB, D, N>
+impl<B, T, SB, const N: usize> Step for OpsStep<B, T, SB, N>
 where
     B: Backend,
-    T: Backward<B, D, N, State = SB>,
+    T: Backward<B, N, State = SB>,
     SB: Clone + Send + std::fmt::Debug + 'static,
 {
     fn step(self: Box<Self>, grads: &mut Gradients, checkpointer: &mut Checkpointer) {
@@ -302,13 +295,14 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
 ///
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
-pub fn broadcast_shape<B: Backend, const D: usize>(
-    mut grad: B::FloatTensorPrimitive<D>,
-    shape: &Shape<D>,
-) -> B::FloatTensorPrimitive<D> {
+pub fn broadcast_shape<B: Backend>(
+    mut grad: B::FloatTensorPrimitive,
+    shape: &Shape,
+) -> B::FloatTensorPrimitive {
     let shape_grad = B::float_shape(&grad);
+    let ndims = shape_grad.num_dims();
 
-    for i in 0..D {
+    for i in 0..ndims {
         if shape_grad.dims[i] != shape.dims[i] {
             if shape.dims[i] != 1 {
                 panic!(

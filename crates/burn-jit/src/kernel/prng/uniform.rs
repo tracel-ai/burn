@@ -79,12 +79,12 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
 }
 
 /// Pseudo-random generator with uniform distribution
-pub fn random_uniform<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+pub fn random_uniform<R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
     lower_bound: E,
     upper_bound: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     random(
         shape,
         device,
@@ -96,11 +96,11 @@ pub fn random_uniform<R: JitRuntime, E: JitElement, const D: usize>(
 }
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
-pub fn random_like_uniform<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: &JitTensor<R, E, D>,
+pub fn random_like_uniform<R: JitRuntime, E: JitElement>(
+    tensor: &JitTensor<R, E>,
     lower_bound: E,
     upper_bound: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     random_uniform(
         tensor.shape.clone(),
         &tensor.device,

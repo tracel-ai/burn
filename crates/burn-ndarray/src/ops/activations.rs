@@ -6,7 +6,7 @@ use crate::{
 use burn_tensor::{ops::ActivationOps, ElementConversion};
 
 impl<E: FloatNdArrayElement, Q: QuantElement> ActivationOps<Self> for NdArray<E, Q> {
-    fn relu<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    fn relu(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let zero = 0.elem();
         let array = tensor
             .array

@@ -51,7 +51,7 @@ impl<B: Backend> ModuleDisplay for Gru<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self.update_gate.input_transform.weight.shape().dims;
+        let [d_input, _] = self.update_gate.input_transform.weight.shape().dims();
         let bias = self.update_gate.input_transform.bias.is_some();
 
         content
@@ -112,7 +112,7 @@ impl<B: Backend> Gru<B> {
         batched_input: Tensor<B, 3>,
         state: Option<Tensor<B, 3>>,
     ) -> Tensor<B, 3> {
-        let [batch_size, seq_length, _] = batched_input.shape().dims;
+        let [batch_size, seq_length, _] = batched_input.shape().dims();
 
         let mut hidden_state = match state {
             Some(state) => state,

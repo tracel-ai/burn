@@ -116,11 +116,11 @@ impl<E: JitElement> Prng<E> for Normal<E> {
 }
 
 /// Pseudo-random generator with uniform distribution
-pub fn random_normal<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+pub fn random_normal<R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
     mean: E,
     std: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     random(shape, device, Normal { mean, std })
 }

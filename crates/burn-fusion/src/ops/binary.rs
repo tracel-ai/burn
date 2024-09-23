@@ -6,18 +6,18 @@ macro_rules! binary_float_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<B: FusionBackend, const D: usize> {
+        struct $name<B: FusionBackend> {
             desc: BinaryOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
-                let rhs = handles.get_float_tensor::<B, D>(&self.desc.rhs);
+                let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_float_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
     };
@@ -31,18 +31,18 @@ macro_rules! binary_float_cmp_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<B: FusionBackend, const D: usize> {
+        struct $name<B: FusionBackend> {
             desc: BinaryOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = handles.get_float_tensor::<B, D>(&self.desc.lhs);
-                let rhs = handles.get_float_tensor::<B, D>(&self.desc.rhs);
+                let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_float_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
         }
     };
@@ -56,18 +56,18 @@ macro_rules! binary_int_cmp_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<B: FusionBackend, const D: usize> {
+        struct $name<B: FusionBackend> {
             desc: BinaryOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
-                let rhs = handles.get_int_tensor::<B, D>(&self.desc.rhs);
+                let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_bool_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
         }
     };
@@ -91,18 +91,18 @@ macro_rules! binary_int_ops {
         $ops:expr
     ) => {
         #[derive(new)]
-        struct $name<B: FusionBackend, const D: usize> {
+        struct $name<B: FusionBackend> {
             desc: BinaryOperationDescription,
             _b: PhantomData<B>,
         }
 
-        impl<const D: usize, B: FusionBackend> Operation<B::FusionRuntime> for $name<B, D> {
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let lhs = handles.get_int_tensor::<B, D>(&self.desc.lhs);
-                let rhs = handles.get_int_tensor::<B, D>(&self.desc.rhs);
+                let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_int_tensor::<B>(&self.desc.rhs);
                 let output = $ops(lhs, rhs);
 
-                handles.register_int_tensor::<B, D>(&self.desc.out.id, output);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
     };

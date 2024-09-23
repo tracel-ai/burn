@@ -30,7 +30,10 @@ mod tests {
 
     #[test]
     fn mask_where_broadcast() {
-        test_ops_broadcast_backward(|x, y| x.mask_where(y.clone().equal_elem(4), y));
+        test_ops_broadcast_backward(|x, y| {
+            let cond = y.clone().equal_elem(4);
+            x.mask_where(cond, y)
+        });
     }
 
     fn test_ops_broadcast_backward<F>(func: F)
