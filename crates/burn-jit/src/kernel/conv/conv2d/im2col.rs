@@ -174,11 +174,6 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims;
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
 
-    if kernel_h == 1 && kernel_w == 1 && options.padding == [0, 0] {
-        // Special case for 1x1 kernels (sometimes used to scale the image by a set of weights)
-        return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
-    }
-
     let out_h = calculate_conv_output_size(
         kernel_h,
         options.stride[0],
@@ -193,6 +188,11 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         options.dilation[1],
         in_width,
     );
+
+    if kernel_h == 1 && kernel_w == 1 && in_height == out_h && in_width == out_w {
+        // Special case for 1x1 kernels (sometimes used to scale the image by a set of weights)
+        return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
+    }
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w);
 
