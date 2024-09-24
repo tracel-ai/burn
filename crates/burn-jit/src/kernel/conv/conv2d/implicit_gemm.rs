@@ -75,7 +75,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let slice_size = kernel_h * kernel_w * in_channels;
 
     let cube_dim_x = 128;
-    let cube_dim_y = 2;
+    let cube_dim_y = Ord::min(gemm_n.div_ceil(16), 2);
 
     let cmma_m = 16;
     let cmma_n = 16;
