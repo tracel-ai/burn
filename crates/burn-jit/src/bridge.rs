@@ -26,15 +26,14 @@ where
 {
     type Target = JitBackend<R, FTarget, ITarget>;
 
-    fn into_target<const D: usize>(
-        tensor: FloatTensor<JitBackend<R, FOrigin, IOrigin>, D>,
+    fn into_target(
+        tensor: FloatTensor<JitBackend<R, FOrigin, IOrigin>>,
         device: Option<burn_tensor::Device<Self::Target>>,
-    ) -> FloatTensor<Self::Target, D> {
+    ) -> FloatTensor<Self::Target> {
         let tensor = kernel::cast::<
             R,
             FloatElem<JitBackend<R, FOrigin, IOrigin>>,
             FloatElem<JitBackend<R, FTarget, ITarget>>,
-            D,
         >(tensor);
 
         // The line below does the backend type cast.
@@ -48,15 +47,14 @@ where
         }
     }
 
-    fn from_target<const D: usize>(
-        tensor: FloatTensor<Self::Target, D>,
+    fn from_target(
+        tensor: FloatTensor<Self::Target>,
         device: Option<burn_tensor::Device<JitBackend<R, FOrigin, IOrigin>>>,
-    ) -> FloatTensor<JitBackend<R, FOrigin, IOrigin>, D> {
+    ) -> FloatTensor<JitBackend<R, FOrigin, IOrigin>> {
         let tensor = kernel::cast::<
             R,
             FloatElem<JitBackend<R, FTarget, ITarget>>,
             FloatElem<JitBackend<R, FOrigin, IOrigin>>,
-            D,
         >(tensor);
         // The line below does the backend type cast.
         let tensor =

@@ -49,7 +49,7 @@ impl<B: Backend> ModuleDisplay for SwiGlu<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, d_output] = self.linear_inner.weight.shape().dims;
+        let [d_input, d_output] = self.linear_inner.weight.shape().dims();
         content
             .add("d_input", &d_input)
             .add("d_output", &d_output)

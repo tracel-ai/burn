@@ -19,17 +19,17 @@ where
 {
     type Target = Candle<TElem, IntElem>;
 
-    fn into_target<const D: usize>(
-        tensor: FloatTensor<Candle<OElem, IntElem>, D>,
+    fn into_target(
+        tensor: FloatTensor<Candle<OElem, IntElem>>,
         device: Option<Device<Self::Target>>,
-    ) -> FloatTensor<Self::Target, D> {
+    ) -> FloatTensor<Self::Target> {
         CandleTensor::new(tensor.tensor.to_dtype(TElem::DTYPE).unwrap())
     }
 
-    fn from_target<const D: usize>(
-        tensor: FloatTensor<Self::Target, D>,
+    fn from_target(
+        tensor: FloatTensor<Self::Target>,
         device: Option<Device<Candle<OElem, IntElem>>>,
-    ) -> FloatTensor<Candle<OElem, IntElem>, D> {
+    ) -> FloatTensor<Candle<OElem, IntElem>> {
         CandleTensor::new(tensor.tensor.to_dtype(OElem::DTYPE).unwrap())
     }
 }

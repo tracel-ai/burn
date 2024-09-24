@@ -7,7 +7,7 @@ use hashbrown::HashMap;
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 
-use crate::{backend::Backend, Tensor, TensorPrimitive};
+use crate::{backend::Backend, TensorPrimitive};
 
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
@@ -36,18 +36,18 @@ where
     }
 
     /// Get a tensor with the given ID.
-    pub fn get<B, const D: usize>(&self, id: &ID) -> Option<Tensor<B, D>>
+    pub fn get<B>(&self, id: &ID) -> Option<TensorPrimitive<B>>
     where
         B: Backend,
     {
         let grad = self.tensors.get(id)?;
 
         let tensor = grad
-            .downcast_ref::<TensorPrimitive<B, D>>()
-            .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
+            .downcast_ref::<TensorPrimitive<B>>()
+            // .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
             .unwrap();
 
-        Some(tensor)
+        Some(tensor.clone())
     }
 
     /// Register a new tensor for the given ID.
@@ -55,22 +55,22 @@ where
     /// # Notes
     ///
     /// If a tensor is already registered for the given ID, it will be replaced.
-    pub fn register<B, const D: usize>(&mut self, id: ID, value: Tensor<B, D>)
+    pub fn register<B>(&mut self, id: ID, value: TensorPrimitive<B>)
     where
         B: Backend,
     {
-        self.tensors.insert(id, Box::new(value.into_primitive()));
+        self.tensors.insert(id, Box::new(value));
     }
 
     /// Remove a tensor for the given ID and returns it.
-    pub fn remove<B, const D: usize>(&mut self, id: &ID) -> Option<Tensor<B, D>>
+    pub fn remove<B>(&mut self, id: &ID) -> Option<TensorPrimitive<B>>
     where
         B: Backend,
     {
         self.tensors
             .remove(id)
-            .map(|item| item.downcast::<TensorPrimitive<B, D>>().unwrap())
-            .map(|primitive| Tensor::from_primitive(*primitive))
+            .map(|item| *item.downcast::<TensorPrimitive<B>>().unwrap())
+        // .map(|primitive| Tensor::from_primitive(*primitive))
     }
 
     /// The number of tensors registered.

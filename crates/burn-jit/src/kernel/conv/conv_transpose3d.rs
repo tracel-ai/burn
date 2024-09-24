@@ -442,15 +442,15 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv3dTransposeEagerKernel<R, E> {
 }
 
 pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
-    input: JitTensor<R, E, 5>,
-    weight: JitTensor<R, E, 5>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvTransposeOptions<3>,
-) -> JitTensor<R, E, 5> {
+) -> JitTensor<R, E> {
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
-    let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims;
-    let [_, out_channels, kernel_0, kernel_1, kernel_2] = weight.shape.dims;
+    let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();
+    let [_, out_channels, kernel_0, kernel_1, kernel_2] = weight.shape.dims();
 
     let out_0 = (in_depth - 1) * options.stride[0]
         + options.dilation[0] * (kernel_0 - 1)

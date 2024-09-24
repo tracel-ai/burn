@@ -21,13 +21,13 @@ use super::batches_per_run;
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims;
-    let [batch_size, _, input_h, input_w] = input.shape.dims;
+) -> JitTensor<R, E> {
+    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, _, input_h, input_w] = input.shape.dims();
     let groups = options.groups;
     let input_ch_per_group = input_channels / groups;
     let ConvTransposeOptions {
@@ -93,7 +93,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
             let image_run = reshape(image_run, im_shape_run.clone());
             image = JitBackend::<R, E, I>::float_slice_assign(
                 image,
-                [
+                &[
                     run..run + 1,
                     0..batches_per_run,
                     0..im_channels,
@@ -121,18 +121,18 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 #[allow(clippy::too_many_arguments)]
 fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 3>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvTransposeOptions<2>,
     im_ch_per_group: usize,
     im_h: usize,
     im_w: usize,
     kernel_h: usize,
     kernel_w: usize,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, _, input_h, input_w] = input.shape.dims;
-    let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, _, input_h, input_w] = input.shape.dims();
+    let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
 
     let im_channels = im_ch_per_group * groups;
 
@@ -154,16 +154,16 @@ fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 #[allow(clippy::too_many_arguments)]
 fn col2im<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R, E, 2>,
-    bias: Option<JitTensor<R, E, 1>>,
-    im_shape: Shape<4>,
+    columns: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
+    im_shape: Shape,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,
     out_w: usize,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let [_, col_size_1] = columns.shape.dims;
+) -> JitTensor<R, E> {
+    let [_, col_size_1] = columns.shape.dims();
 
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();

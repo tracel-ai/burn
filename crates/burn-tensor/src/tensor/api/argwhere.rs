@@ -9,8 +9,8 @@ use alloc::vec::Vec;
 ///
 /// # Returns
 ///
-/// A vector of tensors, one for each dimension of the given tensor, containing the indices of
-/// the non-zero elements in that dimension.
+/// A 2D tensor containing the indices of all non-zero elements of the given tensor.
+/// Each row contains the indices of a non-zero element.
 ///
 /// # Remarks
 ///
@@ -18,11 +18,9 @@ use alloc::vec::Vec;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-pub fn argwhere_data<B: Backend, const D: usize>(
-    data: TensorData,
-    device: &Device<B>,
-) -> IntTensor<B, 2> {
+pub fn argwhere_data<B: Backend>(data: TensorData, device: &Device<B>) -> IntTensor<B> {
     let dims = &data.shape;
+    let ndims = dims.len();
     let count_nonzero = data.iter::<bool>().filter(|&v| v).count();
 
     /// Converts a flat index into a vector of indices for the specified tensor shape
@@ -50,7 +48,7 @@ pub fn argwhere_data<B: Backend, const D: usize>(
         .concat();
 
     B::int_from_data(
-        TensorData::new(indices, Shape::new([count_nonzero, D])),
+        TensorData::new(indices, Shape::new([count_nonzero, ndims])),
         device,
     )
 }

@@ -12,19 +12,17 @@ use super::JitTensor;
 
 /// A quantized tensor primitive.
 #[derive(Debug)]
-pub struct QJitTensor<R: JitRuntime, F: FloatElement, I: IntElement, const D: usize> {
+pub struct QJitTensor<R: JitRuntime, F: FloatElement, I: IntElement> {
     /// The quantized tensor.
     /// Values are stored as multiple packed quantized values in u32.
-    pub qtensor: JitTensor<R, u32, D>,
+    pub qtensor: JitTensor<R, u32>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization parameters.
     pub qparams: JitQuantizationParameters<R, F, I>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, const D: usize> QTensorPrimitive
-    for QJitTensor<R, F, I, D>
-{
+impl<R: JitRuntime, F: FloatElement, I: IntElement> QTensorPrimitive for QJitTensor<R, F, I> {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
@@ -59,9 +57,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, const D: usize> QTensorPrimi
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, const D: usize> Clone
-    for QJitTensor<R, F, I, D>
-{
+impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for QJitTensor<R, F, I> {
     fn clone(&self) -> Self {
         Self {
             qtensor: self.qtensor.clone(),
@@ -75,9 +71,9 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, const D: usize> Clone
 #[derive(Debug)]
 pub struct JitQuantizationParameters<R: JitRuntime, F: FloatElement, I: IntElement> {
     /// The scaling factor.
-    pub scale: JitTensor<R, F, 1>,
+    pub scale: JitTensor<R, F>,
     /// The zero-point offset.
-    pub offset: Option<JitTensor<R, I, 1>>,
+    pub offset: Option<JitTensor<R, I>>,
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for JitQuantizationParameters<R, F, I> {

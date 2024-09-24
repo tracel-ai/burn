@@ -87,7 +87,7 @@ impl<B: Backend> ModuleDisplay for RmsNorm<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_model] = self.gamma.shape().dims;
+        let [d_model] = self.gamma.shape().dims();
         content
             .add("d_model", &d_model)
             .add("epsilon", &self.epsilon)

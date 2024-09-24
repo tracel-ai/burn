@@ -76,7 +76,7 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    pub fn init<B: Backend, const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
         device: &B::Device,
@@ -89,7 +89,7 @@ impl Initializer {
     /// # Params
     ///
     /// - shape: Shape of the initiated tensor.
-    pub fn init_with<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    pub fn init_with<B: Backend, const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
@@ -97,7 +97,7 @@ impl Initializer {
         device: &B::Device,
     ) -> Param<Tensor<B, D>> {
         let device = device.clone();
-        let shape: Shape<D> = shape.into();
+        let shape: Shape = shape.into();
         let config = self.clone();
 
         Param::uninitialized(
@@ -116,7 +116,7 @@ impl Initializer {
         )
     }
 
-    fn init_tensor<B: Backend, const D: usize, S: Into<Shape<D>>>(
+    fn init_tensor<B: Backend, const D: usize, S: Into<Shape>>(
         &self,
         shape: S,
         fan_in: Option<usize>,
@@ -176,7 +176,7 @@ impl Initializer {
     }
 }
 
-fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
+fn uniform_draw<B: Backend, const D: usize, S: Into<Shape>>(
     shape: S,
     low: f64,
     high: f64,
@@ -186,7 +186,7 @@ fn uniform_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
     Tensor::<B, D>::random(shape, distribution, device)
 }
 
-fn normal_draw<B: Backend, const D: usize, S: Into<Shape<D>>>(
+fn normal_draw<B: Backend, const D: usize, S: Into<Shape>>(
     shape: S,
     mean: f64,
     std: f64,

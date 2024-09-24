@@ -11,67 +11,55 @@ use crate::{
 use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
-    fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+    fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         super::base::empty(shape, device)
     }
 
-    fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
+    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
         super::base::shape(tensor)
     }
 
-    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+    async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         super::base::into_data(tensor)
     }
 
-    fn int_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         super::base::from_data(data, device)
     }
 
-    fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
+    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
         super::base::device(tensor)
     }
 
-    fn int_to_device<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         super::base::to_device(tensor, device)
     }
 
-    fn int_reshape<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> IntTensor<Self, D2> {
+    fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         super::base::reshape(tensor, shape)
     }
 
-    fn int_slice<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        indices: [std::ops::Range<usize>; D2],
-    ) -> IntTensor<Self, D1> {
+    fn int_slice(tensor: IntTensor<Self>, indices: &[std::ops::Range<usize>]) -> IntTensor<Self> {
         super::base::slice(tensor, indices)
     }
 
-    fn int_slice_assign<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        indices: [std::ops::Range<usize>; D2],
-        value: IntTensor<Self, D1>,
-    ) -> IntTensor<Self, D1> {
+    fn int_slice_assign(
+        tensor: IntTensor<Self>,
+        indices: &[std::ops::Range<usize>],
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         super::base::slice_assign(tensor, indices, value)
     }
 
-    fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
     }
 
-    fn int_mask_where<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
-        source: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_mask_where(
+        tensor: IntTensor<Self>,
+        mask: BoolTensor<Self>,
+        source: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         CandleTensor::new(
             mask.tensor
                 .where_cond(&source.tensor, &tensor.tensor)
@@ -79,35 +67,35 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_mask_fill<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
+    fn int_mask_fill(
+        tensor: IntTensor<Self>,
+        mask: BoolTensor<Self>,
         value: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         CandleTensor::new(
             mask.tensor
                 .where_cond(
-                    &super::candle_utils::fill_like::<I, D>(value, &tensor.tensor),
+                    &super::candle_utils::fill_like::<I>(value, &tensor.tensor),
                     &tensor.tensor,
                 )
                 .unwrap(),
         )
     }
 
-    fn int_gather<const D: usize>(
+    fn int_gather(
         dim: usize,
-        tensor: IntTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.gather(&indices.tensor, dim).unwrap())
     }
 
-    fn int_scatter<const D: usize>(
+    fn int_scatter(
         dim: usize,
-        tensor: IntTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-        value: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
@@ -116,20 +104,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_select<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_select(
+        tensor: IntTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-    ) -> IntTensor<Self, D> {
+        indices: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn int_select_assign<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-        value: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
@@ -138,178 +126,121 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
+    fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
         super::base::cat(tensors, dim)
     }
 
-    fn int_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
     }
 
-    fn int_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .eq(&super::candle_utils::fill_like::<I, D>(rhs, &lhs.tensor))
+                .eq(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
 
-    fn int_greater<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.gt(&rhs.tensor).unwrap())
     }
 
-    fn int_greater_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .gt(&super::candle_utils::fill_like::<I, D>(rhs, &lhs.tensor))
+                .gt(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
 
-    fn int_greater_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.ge(&rhs.tensor).unwrap())
     }
 
-    fn int_greater_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .ge(&super::candle_utils::fill_like::<I, D>(rhs, &lhs.tensor))
+                .ge(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
 
-    fn int_lower<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.lt(&rhs.tensor).unwrap())
     }
 
-    fn int_lower_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .lt(&super::candle_utils::fill_like::<I, D>(rhs, &lhs.tensor))
+                .lt(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
 
-    fn int_lower_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.le(&rhs.tensor).unwrap())
     }
 
-    fn int_lower_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .le(&super::candle_utils::fill_like::<I, D>(rhs, &lhs.tensor))
+                .le(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
                 .unwrap(),
         )
     }
 
-    fn int_add<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_add(&rhs.tensor).unwrap())
     }
 
-    fn int_add_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor + rhs.elem::<f64>()).unwrap())
     }
 
-    fn int_sub<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_sub(&rhs.tensor).unwrap())
     }
 
-    fn int_sub_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor - rhs.elem::<f64>()).unwrap())
     }
 
-    fn int_mul<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_mul(&rhs.tensor).unwrap())
     }
 
-    fn int_mul_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor * rhs.elem::<f64>()).unwrap())
     }
 
-    fn int_div<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(lhs.tensor.broadcast_div(&rhs.tensor).unwrap())
     }
 
-    fn int_div_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
         panic!("Not supported by Candle")
     }
 
-    fn int_remainder_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         // Same problem as int_div_scalar.
         panic!("Not supported by Candle")
     }
 
-    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::zeros(&shape.dims, I::DTYPE, &(*device).into()).unwrap(),
+            candle_core::Tensor::zeros(shape.dims, I::DTYPE, &(*device).into()).unwrap(),
         )
     }
 
-    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::ones(&shape.dims, I::DTYPE, &(*device).into()).unwrap(),
+            candle_core::Tensor::ones(shape.dims, I::DTYPE, &(*device).into()).unwrap(),
         )
     }
 
-    fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<I>().unwrap();
         CandleTensor::from_data(
             TensorData::new([sum].into(), [1]),
@@ -317,24 +248,24 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.sum_keepdim(dim).unwrap())
     }
 
-    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!("prod is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
     }
 
-    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!("prod_int is not implemented for Candle IntTensor (see https://github.com/tracel-ai/burn/issues/1454)")
     }
 
-    fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
         panic!("Not supported by Candle")
     }
 
-    fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
@@ -345,7 +276,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
@@ -356,7 +287,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+    fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         // Ugly type conversion here as Candle does not support unary ops on ints
         CandleTensor::new(
             tensor
@@ -370,37 +301,29 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_swap_dims<const D: usize>(
-        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::IntTensorPrimitive<D> {
+    fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_narrow<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_narrow(
+        tensor: IntTensor<Self>,
         dim: usize,
         start: usize,
         length: usize,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         super::base::narrow(tensor, dim, start, length)
     }
 
-    fn int_chunk<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<IntTensor<Self, D>> {
+    fn int_chunk(tensor: IntTensor<Self>, chunks: usize, dim: usize) -> Vec<IntTensor<Self>> {
         super::base::chunk(tensor, chunks, dim)
     }
 
-    fn int_random<const D: usize>(
-        shape: Shape<D>,
+    fn int_random(
+        shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
-        let shape = &shape.dims;
+    ) -> IntTensor<Self> {
+        let shape = shape.dims;
         let device = &(*device).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
@@ -410,7 +333,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
                     .unwrap(),
             ),
             Distribution::Bernoulli(prob) => CandleTensor::new(
-                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
+                candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape.clone(), device)
                     .unwrap()
                     .to_dtype(I::DTYPE)
                     .unwrap()
@@ -429,25 +352,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         }
     }
 
-    fn int_permute<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        axes: [usize; D],
-    ) -> IntTensor<Self, D> {
+    fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         super::base::permute(tensor, axes)
     }
 
-    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+    fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         super::base::flip(tensor, axes)
     }
 
-    fn int_expand<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> IntTensor<Self, D2> {
+    fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         expand(tensor, shape)
     }
 
-    fn int_sign<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+    fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
     }
 }

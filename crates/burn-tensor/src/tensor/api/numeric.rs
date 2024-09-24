@@ -27,7 +27,7 @@ where
     ///
     /// `y = x + s`
     pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::add_scalar(self.primitive, other))
+        Self::new(K::add_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise subtraction operation.
@@ -43,7 +43,7 @@ where
     ///
     /// `y = x - s`
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::sub_scalar(self.primitive, other))
+        Self::new(K::sub_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise division operation.
@@ -59,7 +59,7 @@ where
     ///
     /// `y = x / s`
     pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::div_scalar(self.primitive, other))
+        Self::new(K::div_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise the remainder operation with a scalar.
@@ -67,7 +67,7 @@ where
     /// `y = x2 % x1`
     #[allow(clippy::should_implement_trait)]
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::remainder_scalar(self.primitive, other))
+        Self::new(K::remainder_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise multiplication operation.
@@ -83,7 +83,7 @@ where
     ///
     /// `y = x * s`
     pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::mul_scalar(self.primitive, other))
+        Self::new(K::mul_scalar::<E>(self.primitive, other))
     }
 
     /// Switch sign of each element in the tensor.
@@ -100,21 +100,21 @@ where
     }
 
     /// Create a tensor of the given shape where each element is zero.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
         Self::new(K::zeros(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is one.
-    pub fn ones<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
         Self::new(K::ones(shape, device))
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
-    pub fn full<S: Into<Shape<D>>, E: ElementConversion>(
+    pub fn full<S: Into<Shape>, E: ElementConversion>(
         shape: S,
         fill_value: E,
         device: &B::Device,
@@ -163,12 +163,12 @@ where
 
     /// Applies element wise equal comparison and returns a boolean tensor.
     pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
-        K::equal_elem::<D>(self.primitive, other.elem())
+        Tensor::new(K::equal_elem(self.primitive, other.elem()))
     }
 
     /// Applies element wise non-equality comparison and returns a boolean tensor.
     pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
-        K::not_equal_elem::<D>(self.primitive, other.elem())
+        Tensor::new(K::not_equal_elem(self.primitive, other.elem()))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
@@ -178,7 +178,7 @@ where
     /// If the two tensors don't have the same shape.
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Greater", &self, &other));
-        K::greater(self.primitive, other.primitive)
+        Tensor::new(K::greater(self.primitive, other.primitive))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
@@ -188,7 +188,7 @@ where
     /// If the two tensors don't have the same shape.
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Greater_equal", &self, &other));
-        K::greater_equal(self.primitive, other.primitive)
+        Tensor::new(K::greater_equal(self.primitive, other.primitive))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
@@ -198,7 +198,7 @@ where
     /// If the two tensors don't have the same shape.
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Lower", &self, &other));
-        K::lower(self.primitive, other.primitive)
+        Tensor::new(K::lower(self.primitive, other.primitive))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
@@ -208,27 +208,27 @@ where
     /// If the two tensors don't have the same shape.
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Lower_equal", &self, &other));
-        K::lower_equal(self.primitive, other.primitive)
+        Tensor::new(K::lower_equal(self.primitive, other.primitive))
     }
 
     /// Applies element wise greater comparison and returns a boolean tensor.
     pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        K::greater_elem(self.primitive, other.elem())
+        Tensor::new(K::greater_elem(self.primitive, other.elem()))
     }
 
     /// Applies element wise greater-equal comparison and returns a boolean tensor.
     pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        K::greater_equal_elem(self.primitive, other.elem())
+        Tensor::new(K::greater_equal_elem(self.primitive, other.elem()))
     }
 
     /// Applies element wise lower comparison and returns a boolean tensor.
     pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        K::lower_elem(self.primitive, other.elem())
+        Tensor::new(K::lower_elem(self.primitive, other.elem()))
     }
 
     /// Applies element wise lower-equal comparison and returns a boolean tensor.
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        K::lower_equal_elem(self.primitive, other.elem())
+        Tensor::new(K::lower_equal_elem(self.primitive, other.elem()))
     }
 
     /// Update the given tensor with the value tensor where the mask is true.
@@ -236,7 +236,11 @@ where
     /// This is similar to [mask_fill](Tensor::mask_fill), however the value is a tensor instead of
     /// a scalar.
     pub fn mask_where(self, mask: Tensor<B, D, Bool>, value: Self) -> Self {
-        Self::new(K::mask_where(self.primitive, mask, value.primitive))
+        Self::new(K::mask_where(
+            self.primitive,
+            mask.primitive,
+            value.primitive,
+        ))
     }
 
     /// Update the given tensor with the value where the mask is true.
@@ -244,7 +248,7 @@ where
     /// This is similar to [mask_where](Tensor::mask_where), however the value is a scalar instead of
     /// a tensor.
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(K::mask_fill(self.primitive, mask, value.elem()))
+        Self::new(K::mask_fill(self.primitive, mask.primitive, value.elem()))
     }
 
     /// Gather tensor elements corresponding to the given indices from the specified dim.
@@ -266,7 +270,7 @@ where
             &indices.shape()
         ));
 
-        Self::new(K::gather(dim, self.primitive, indices))
+        Self::new(K::gather(dim, self.primitive, indices.primitive))
     }
 
     /// Assign the gathered elements corresponding to the given indices along the specified dimension
@@ -292,7 +296,12 @@ where
             &values.shape()
         ));
 
-        Self::new(K::scatter(dim, self.primitive, indices, values.primitive))
+        Self::new(K::scatter(
+            dim,
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+        ))
     }
 
     /// Select the tensor elements along the given dimension corresponding to the given indices.
@@ -582,7 +591,7 @@ where
 
     /// Applies element wise power operation with a float scalar
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powf_scalar(self.primitive, other))
+        Self::new(K::powf_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise power operation with a integer Tensor
@@ -592,7 +601,7 @@ where
 
     /// Applies element wise power operation with a integer scalar
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powi_scalar(self.primitive, other))
+        Self::new(K::powi_scalar::<E>(self.primitive, other))
     }
 
     /// Checks element wise if the tensor is close to another tensor.
@@ -619,10 +628,10 @@ where
         let rtol = rtol.unwrap_or(1e-5);
         let atol = atol.unwrap_or(1e-8);
 
-        K::lower_equal(
+        Tensor::new(K::lower_equal(
             K::abs(K::sub(self.primitive, other.primitive.clone())),
             K::add_scalar(K::mul_scalar(K::abs(other.primitive), rtol), atol),
-        )
+        ))
     }
 
     /// Checks if all elements are close to another tensor.
@@ -659,12 +668,12 @@ where
     ///
     /// A boolean tensor with the same shape as the input tensor.
     pub fn bool(self) -> Tensor<B, D, Bool> {
-        K::not_equal_elem::<D>(self.primitive, 0.elem())
+        Tensor::new(K::not_equal_elem(self.primitive, 0.elem()))
     }
 
     /// Create a random tensor of the given shape on the given device where each element is
     /// sampled from the given distribution.
-    pub fn random<S: Into<Shape<D>>>(
+    pub fn random<S: Into<Shape>>(
         shape: S,
         distribution: Distribution,
         device: &B::Device,
@@ -793,7 +802,7 @@ where
     pub fn is_nan(&self) -> Tensor<B, D, Bool> {
         // Check if the input tensor is NaN by comparing it to itself
         // NaN is the only value that is not equal to itself
-        K::not_equal(self.primitive.clone(), self.primitive.clone())
+        Tensor::new(K::not_equal(self.primitive.clone(), self.primitive.clone()))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -808,7 +817,7 @@ where
         let sum = K::sum(self.primitive.clone());
 
         // Check if the sum is NaN by comparing it to itself
-        K::not_equal(sum.clone(), sum)
+        Tensor::new(K::not_equal(sum.clone(), sum))
     }
 }
 
@@ -824,10 +833,10 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn eye(size: usize, device: &B::Device) -> Self {
-        let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze();
+        let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
-        Self::new(K::scatter(0, zeros, indices, ones))
+        Self::new(K::scatter(0, zeros, indices.primitive, ones))
     }
 }
 
@@ -859,7 +868,7 @@ where
     ///
     /// For adding tensors, users should prefer the [Tensor::add](Tensor::add) function,
     /// which is more high-level and designed for public use.
-    fn add<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Adds a scalar to a tensor element-wise.
     ///
@@ -880,10 +889,7 @@ where
     ///
     /// For adding a scalar to a tensor, users should prefer the [Tensor::add_scalar](Tensor::add_scalar) function,
     /// which is more high-level and designed for public use.
-    fn add_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Subtracts two tensors.
     ///
@@ -904,7 +910,7 @@ where
     ///
     /// For subtracting tensors, users should prefer the [Tensor::sub](Tensor::sub) function,
     /// which is more high-level and designed for public use.
-    fn sub<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Subtracts a scalar from a tensor element-wise.
     ///
@@ -925,10 +931,7 @@ where
     ///
     /// For subtracting a scalar from a tensor, users should prefer the [Tensor::sub_scalar](Tensor::sub_scalar) function,
     /// which is more high-level and designed for public use.
-    fn sub_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Divides two tensors.
     ///
@@ -949,7 +952,7 @@ where
     ///
     /// For dividing tensors, users should prefer the [Tensor::div](Tensor::div) function,
     /// which is more high-level and designed for public use.
-    fn div<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Divides a tensor by a scalar element-wise.
     ///
@@ -970,10 +973,7 @@ where
     ///
     /// For dividing a tensor by a scalar, users should prefer the [Tensor::div_scalar](Tensor::div_scalar) function,
     /// which is more high-level and designed for public use.
-    fn div_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
     /// less than that of the divisor.
@@ -995,10 +995,7 @@ where
     ///
     /// For performing the modulus operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
     /// which is more high-level and designed for public use.
-    fn remainder_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Multiplies two tensors.
     ///
@@ -1019,7 +1016,7 @@ where
     ///
     /// For multiplying tensors, users should prefer the [Tensor::mul](Tensor::mul) function,
     /// which is more high-level and designed for public use.
-    fn mul<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Multiplies a tensor by a scalar element-wise.
     ///
@@ -1040,10 +1037,7 @@ where
     ///
     /// For multiplying a tensor by a scalar, users should prefer the [Tensor::mul_scalar](Tensor::mul_scalar) function,
     /// which is more high-level and designed for public use.
-    fn mul_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Negates a tensor.
     ///
@@ -1063,7 +1057,7 @@ where
     ///
     /// For negating a tensor, users should prefer the [Tensor::neg](Tensor::neg) function,
     /// which is more high-level and designed for public use.
-    fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn neg(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Returns the signs of the elements of a tensor.
     ///
@@ -1083,7 +1077,7 @@ where
     ///
     /// For getting the signs of the elements of a tensor, users should prefer the [Tensor::sign](Tensor::sign) function,
     /// which is more high-level and designed for public use.
-    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn sign(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Creates a tensor filled with zeros.
     ///
@@ -1104,7 +1098,7 @@ where
     ///
     /// For creating a tensor filled with zeros, users should prefer the [Tensor::zeros](Tensor::zeros) function,
     /// which is more high-level and designed for public use.
-    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive;
 
     /// Creates a tensor filled with ones.
     ///
@@ -1125,7 +1119,7 @@ where
     ///
     /// For creating a tensor filled with ones, users should prefer the [Tensor::ones](Tensor::ones) function,
     /// which is more high-level and designed for public use.
-    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive;
 
     /// Creates a tensor filled with elements equal to the given value.
     ///
@@ -1147,11 +1141,11 @@ where
     ///
     /// For creating a tensor filled with a specific value, users should prefer the [Tensor::full](Tensor::full) function,
     /// which is more high-level and designed for public use.
-    fn full<const D: usize, E: ElementConversion>(
-        shape: Shape<D>,
+    fn full<E: ElementConversion>(
+        shape: Shape,
         fill_value: E,
         device: &B::Device,
-    ) -> Self::Primitive<D>;
+    ) -> Self::Primitive;
 
     /// Sums all the elements of the tensor.
     ///
@@ -1171,7 +1165,7 @@ where
     ///
     /// For summing all the elements of a tensor, users should prefer the [Tensor::sum](Tensor::sum) function,
     /// which is more high-level and designed for public use.
-    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn sum(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Sums all the elements of the tensor along a dimension.
     ///
@@ -1192,7 +1186,7 @@ where
     ///
     /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::sum_dim](Tensor::sum_dim) function,
     /// which is more high-level and designed for public use.
-    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the product of all the elements of the tensor.
     ///
@@ -1213,7 +1207,7 @@ where
     /// For computing the product of all the elements of a tensor, users should prefer the
     /// [Tensor::prod](Tensor::prod) function,
     /// which is more high-level and designed for public use.
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn prod(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Computes the product of all the elements of the tensor along a dimension.
     ///
@@ -1237,7 +1231,7 @@ where
     /// which is more high-level and designed for public use.
     ///
     ///
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Computes the mean of all the elements of the tensor.
     ///
@@ -1257,7 +1251,7 @@ where
     ///
     /// For computing the mean of all the elements of a tensor, users should prefer the [Tensor::mean](Tensor::mean) function,
     /// which is more high-level and designed for public use.
-    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn mean(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Computes the mean of all the elements of the tensor along a dimension.
     ///
@@ -1278,7 +1272,7 @@ where
     ///
     /// For computing the mean of all the elements of a tensor along a dimension, users should prefer
     /// the [Tensor::mean_dim](Tensor::mean_dim) function, which is more high-level and designed for public use.
-    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Element-wise equality between two tensors.
     ///
@@ -1300,7 +1294,7 @@ where
     ///
     /// For element-wise equality between two tensors, users should prefer the [Tensor::equal_elem](Tensor::equal_elem)
     /// function, which is more high-level and designed for public use.
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise non-equality between two tensors.
     ///
@@ -1322,10 +1316,7 @@ where
     ///
     /// For element-wise non-equality between two tensors, users should prefer the [Tensor::not_equal_elem](Tensor::not_equal_elem)
     /// function, which is more high-level and designed for public use.
-    fn not_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool>;
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than comparison between two tensors.
     ///
@@ -1348,10 +1339,7 @@ where
     ///
     /// For element-wise greater than comparison between two tensors, users should prefer the [Tensor::greater](Tensor::greater) function,
     /// which is more high-level and designed for public use.
-    fn greater<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than comparison between a tensor and a scalar.
     ///
@@ -1374,8 +1362,7 @@ where
     ///
     /// For element-wise greater than comparison between a tensor and a scalar, users should prefer
     /// the [Tensor::greater_elem](Tensor::greater_elem) function, which is more high-level and designed for public use.
-    fn greater_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem)
-        -> Tensor<B, D, Bool>;
+    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -1398,10 +1385,7 @@ where
     ///
     /// For element-wise greater than or equal comparison between two tensors, users should prefer
     /// the [Tensor::greater_equal](Tensor::greater_equal) function, which is more high-level and designed for public use.
-    fn greater_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between a tensor and a scalar.
     ///
@@ -1424,10 +1408,7 @@ where
     ///
     /// For element-wise greater than or equal comparison between a tensor and a scalar, users should prefer
     /// the [Tensor::greater_equal_elem](Tensor::greater_equal_elem) function, which is more high-level and designed for public use.
-    fn greater_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool>;
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -1450,10 +1431,7 @@ where
     ///
     /// For element-wise less than comparison between two tensors, users should prefer the [Tensor::lower](Tensor::lower) function,
     /// which is more high-level and designed for public use.
-    fn lower<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between a tensor and a scalar.
     ///
@@ -1476,7 +1454,7 @@ where
     ///
     /// For element-wise less than comparison between a tensor and a scalar, users should prefer
     /// the [Tensor::lower_elem](Tensor::lower_elem) function, which is more high-level and designed for public use.
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool>;
+    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -1499,10 +1477,7 @@ where
     ///
     /// For element-wise less than or equal comparison between two tensors, users should prefer
     /// the [Tensor::lower_equal](Tensor::lower_equal) function, which is more high-level and designed for public use.
-    fn lower_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between a tensor and a scalar.
     ///
@@ -1525,10 +1500,7 @@ where
     ///
     /// For element-wise less than or equal comparison between a tensor and a scalar, users should prefer
     /// the [Tensor::lower_equal_elem](Tensor::lower_equal_elem) function, which is more high-level and designed for public use.
-    fn lower_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool>;
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
 
     /// Selects elements from a tensor based on a boolean mask.
     ///
@@ -1552,11 +1524,11 @@ where
     ///
     /// For selecting elements from a tensor based on a boolean mask, users should prefer the
     /// [Tensor::mask_where](Tensor::mask_where) function, which is more high-level and designed for public use.
-    fn mask_where<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
-        source: Self::Primitive<D>,
-    ) -> Self::Primitive<D>;
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive;
 
     /// Fills elements of a tensor based on a boolean mask.
     ///
@@ -1581,11 +1553,11 @@ where
     ///
     /// For filling elements of a tensor based on a boolean mask, users should prefer the
     /// [Tensor::mask_fill](Tensor::mask_fill) function, which is more high-level and designed for public use.
-    fn mask_fill<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
         value: Self::Elem,
-    ) -> Self::Primitive<D>;
+    ) -> Self::Primitive;
 
     /// Gathers elements from a tensor along an axis.
     ///
@@ -1608,11 +1580,11 @@ where
     ///
     /// For gathering elements from a tensor along an axis, users should prefer the
     /// [Tensor::gather](Tensor::gather) function, which is more high-level and designed for public use.
-    fn gather<const D: usize>(
+    fn gather(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-    ) -> Self::Primitive<D>;
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive;
 
     /// Scatters elements into a tensor along an axis.
     ///
@@ -1638,12 +1610,12 @@ where
     ///
     /// For scattering elements into a tensor along an axis, users should prefer the [Tensor::scatter](Tensor::scatter) function,
     /// which is more high-level and designed for public use.
-    fn scatter<const D: usize>(
+    fn scatter(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D>;
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+    ) -> Self::Primitive;
 
     /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
@@ -1666,11 +1638,7 @@ where
     ///
     /// For selecting elements from a tensor along an axis, users should prefer the
     /// [Tensor::select](Tensor::select) function, which is more high-level and designed for public use.
-    fn select<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-    ) -> Self::Primitive<D>;
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive;
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
     /// from the value tensor.
@@ -1697,12 +1665,12 @@ where
     ///
     /// For assigning elements to a tensor along an axis, users should prefer the
     /// [Tensor::select_assign](Tensor::select_assign) function, which is more high-level and designed for public use.
-    fn select_assign<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn select_assign(
+        tensor: Self::Primitive,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D>;
+        values: Self::Primitive,
+    ) -> Self::Primitive;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -1724,7 +1692,7 @@ where
     ///
     /// For getting the indices of the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::argmax](Tensor::argmax) function, which is more high-level and designed for public use.
-    fn argmax<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+    fn argmax(tensor: Self::Primitive, dim: usize) -> B::IntTensorPrimitive;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
@@ -1746,7 +1714,7 @@ where
     ///
     /// For getting the indices of the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::argmin](Tensor::argmin) function, which is more high-level and designed for public use.
-    fn argmin<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> B::IntTensorPrimitive<D>;
+    fn argmin(tensor: Self::Primitive, dim: usize) -> B::IntTensorPrimitive;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -1766,7 +1734,7 @@ where
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::max](Tensor::max) function, which is more high-level and designed for public use.
-    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn max(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -1787,7 +1755,7 @@ where
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::max_dim](Tensor::max_dim) function, which is more high-level and designed for public use.
-    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the maximum elements of a tensor along an axis.
     ///
@@ -1810,10 +1778,10 @@ where
     ///
     /// For getting the maximum elements of a tensor along an axis, users should prefer the
     /// [Tensor::max_dim_with_indices](Tensor::max_dim_with_indices) function, which is more high-level and designed for public use.
-    fn max_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn max_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+    ) -> (Self::Primitive, B::IntTensorPrimitive);
 
     /// Gets the minimum elements of a tensor along an axis.
     ///
@@ -1833,7 +1801,7 @@ where
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::min](Tensor::min) function, which is more high-level and designed for public use.
-    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1>;
+    fn min(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Gets the minimum elements of a tensor along an axis.
     ///
@@ -1855,7 +1823,7 @@ where
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::min_dim](Tensor::min_dim) function, which is more high-level and designed for public use.
-    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D>;
+    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
 
     /// Gets the minimum elements and indices of a tensor along an axis.
     ///
@@ -1877,10 +1845,10 @@ where
     ///
     /// For getting the minimum elements of a tensor along an axis, users should prefer the
     /// [Tensor::min_dim_with_indices](Tensor::min_dim_with_indices) function, which is more high-level and designed for public use.
-    fn min_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn min_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, B::IntTensorPrimitive<D>);
+    ) -> (Self::Primitive, B::IntTensorPrimitive);
 
     /// Clamp the tensor between the given min and max values.
     ///
@@ -1900,11 +1868,7 @@ where
     ///
     /// For clamping a tensor between the given min and max values, users should prefer the
     /// [Tensor::clamp](Tensor::clamp) function, which is more high-level and designed for public use.
-    fn clamp<const D: usize>(
-        tensor: Self::Primitive<D>,
-        min: Self::Elem,
-        max: Self::Elem,
-    ) -> Self::Primitive<D>;
+    fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -1924,8 +1888,7 @@ where
     ///
     /// For clamping a tensor under a minimum value, users should prefer the
     /// [Tensor::clamp_min](Tensor::clamp_min) function, which is more high-level and designed for public use.
-    fn clamp_min<const D: usize>(tensor: Self::Primitive<D>, min: Self::Elem)
-        -> Self::Primitive<D>;
+    fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive;
 
     /// Clamps a tensor over a maximum value.
     ///
@@ -1945,8 +1908,7 @@ where
     ///
     /// For clamping a tensor over a maximum value, users should prefer the
     /// [Tensor::clamp_max](Tensor::clamp_max) function, which is more high-level and designed for public use.
-    fn clamp_max<const D: usize>(tensor: Self::Primitive<D>, max: Self::Elem)
-        -> Self::Primitive<D>;
+    fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive;
 
     /// Calculate absolute value on all elements of a tensor
     ///
@@ -1966,43 +1928,35 @@ where
     ///
     /// For calculating abs of the elements of a tensor, users should prefer the [Tensor::abs](Tensor::abs) function,
     /// which is more high-level and designed for public use.
-    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn abs(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a float tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powf<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
-        -> Self::Primitive<D>;
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Primitive<D>)
-        -> Self::Primitive<D>;
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a scalar float
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powf_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D>;
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
     /// Create a random tensor.
     ///
@@ -2024,11 +1978,7 @@ where
     ///
     /// Users should prefer the [Tensor::random](Tensor::random) function,
     /// which is more high-level and designed for public use.
-    fn random<const D: usize>(
-        shape: Shape<D>,
-        distribution: Distribution,
-        device: &B::Device,
-    ) -> Self::Primitive<D>;
+    fn random(shape: Shape, distribution: Distribution, device: &B::Device) -> Self::Primitive;
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -2051,11 +2001,7 @@ where
     ///
     /// Users should prefer the [Tensor::sort](Tensor::sort) function,
     /// which is more high-level and designed for public use.
-    fn sort<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
-    ) -> Self::Primitive<D>;
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive;
 
     /// Sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -2080,11 +2026,11 @@ where
     /// For sorting the elements of a tensor, users should prefer the
     /// [Tensor::sort_with_indices](Tensor::sort_with_indices) function, which is more high-level
     /// and designed for public use.
-    fn sort_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn sort_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>);
+    ) -> (Self::Primitive, <Int as TensorKind<B>>::Primitive);
 
     /// Returns the indices that sort the elements of the input `tensor` by value along a given dimension.
     ///
@@ -2107,359 +2053,272 @@ where
     ///
     /// Users should prefer the [Tensor::argsort](Tensor::argsort) function,
     /// which is more high-level and designed for public use.
-    fn argsort<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn argsort(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> <Int as TensorKind<B>>::Primitive<D>;
+    ) -> <Int as TensorKind<B>>::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
-    fn add<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> <Int as TensorKind<B>>::Primitive {
         B::int_add(lhs, rhs)
     }
-    fn add_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_add_scalar(lhs, rhs.elem())
     }
-    fn sub<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> <Int as TensorKind<B>>::Primitive {
         B::int_sub(lhs, rhs)
     }
-    fn sub_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_sub_scalar(lhs, rhs.elem())
     }
-    fn div<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> <Int as TensorKind<B>>::Primitive {
         B::int_div(lhs, rhs)
     }
-    fn div_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_div_scalar(lhs, rhs.elem())
     }
-    fn remainder_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_remainder_scalar(lhs, rhs.elem())
     }
-    fn mul<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> <Int as TensorKind<B>>::Primitive {
         B::int_mul(lhs, rhs)
     }
-    fn mul_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_mul_scalar(lhs, rhs.elem())
     }
-    fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
     }
-    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_zeros(shape, device)
     }
-    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_ones(shape, device)
     }
-    fn full<const D: usize, E: ElementConversion>(
-        shape: Shape<D>,
+    fn full<E: ElementConversion>(
+        shape: Shape,
         fill_value: E,
         device: &B::Device,
-    ) -> Self::Primitive<D> {
+    ) -> Self::Primitive {
         B::int_full(shape, fill_value.elem(), device)
     }
 
-    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn sum(tensor: Self::Primitive) -> Self::Primitive {
         B::int_sum(tensor)
     }
 
-    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_sum_dim(tensor, dim)
     }
 
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn prod(tensor: Self::Primitive) -> Self::Primitive {
         B::int_prod(tensor)
     }
 
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_prod_dim(tensor, dim)
     }
 
-    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn mean(tensor: Self::Primitive) -> Self::Primitive {
         B::int_mean(tensor)
     }
-    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_mean_dim(tensor, dim)
     }
 
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_equal_elem(lhs, rhs))
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_equal_elem(lhs, rhs)
     }
-    fn not_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_not_equal_elem(lhs, rhs))
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_not_equal_elem(lhs, rhs)
     }
-    fn greater<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_greater(lhs, rhs))
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_greater(lhs, rhs)
     }
 
-    fn greater_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_greater_elem(lhs, rhs))
+    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_greater_elem(lhs, rhs)
     }
 
-    fn greater_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_greater_equal(lhs, rhs))
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_greater_equal(lhs, rhs)
     }
 
-    fn greater_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_greater_equal_elem(lhs, rhs))
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_greater_equal_elem(lhs, rhs)
     }
 
-    fn lower<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_lower(lhs, rhs))
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_lower(lhs, rhs)
     }
 
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_lower_elem(lhs, rhs))
+    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_lower_elem(lhs, rhs)
     }
 
-    fn lower_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_lower_equal(lhs, rhs))
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_lower_equal(lhs, rhs)
     }
 
-    fn lower_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_lower_equal_elem(lhs, rhs))
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::int_lower_equal_elem(lhs, rhs)
     }
 
-    fn mask_where<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
-        source: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
-        B::int_mask_where(tensor, mask.primitive, source)
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        B::int_mask_where(tensor, mask, source)
     }
 
-    fn mask_fill<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
         value: Self::Elem,
-    ) -> Self::Primitive<D> {
-        B::int_mask_fill(tensor, mask.primitive, value)
+    ) -> Self::Primitive {
+        B::int_mask_fill(tensor, mask, value)
     }
 
-    fn select<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-    ) -> Self::Primitive<D> {
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
         B::int_select(tensor, dim, indices.primitive)
     }
 
-    fn select_assign<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn select_assign(
+        tensor: Self::Primitive,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+        values: Self::Primitive,
+    ) -> Self::Primitive {
         B::int_select_assign(tensor, dim, indices.primitive, values)
     }
-    fn gather<const D: usize>(
+    fn gather(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-    ) -> Self::Primitive<D> {
-        B::int_gather(dim, tensor, indices.primitive)
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
+        B::int_gather(dim, tensor, indices)
     }
 
-    fn scatter<const D: usize>(
+    fn scatter(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
-        B::int_scatter(dim, tensor, indices.primitive, values)
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        B::int_scatter(dim, tensor, indices, values)
     }
 
-    fn argmax<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-    ) -> <B as Backend>::IntTensorPrimitive<D> {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
         B::int_argmax(tensor, dim)
     }
 
-    fn argmin<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-    ) -> <B as Backend>::IntTensorPrimitive<D> {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
         B::int_argmin(tensor, dim)
     }
 
-    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn max(tensor: Self::Primitive) -> Self::Primitive {
         B::int_max(tensor)
     }
 
-    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_max_dim(tensor, dim)
     }
 
-    fn max_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn max_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
         B::int_max_dim_with_indices(tensor, dim)
     }
 
-    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn min(tensor: Self::Primitive) -> Self::Primitive {
         B::int_min(tensor)
     }
 
-    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_min_dim(tensor, dim)
     }
 
-    fn min_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn min_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
         B::int_min_dim_with_indices(tensor, dim)
     }
 
-    fn clamp<const D: usize>(
-        tensor: Self::Primitive<D>,
-        min: B::IntElem,
-        max: B::IntElem,
-    ) -> Self::Primitive<D> {
+    fn clamp(tensor: Self::Primitive, min: B::IntElem, max: B::IntElem) -> Self::Primitive {
         B::int_clamp(tensor, min, max)
     }
 
-    fn clamp_min<const D: usize>(
-        tensor: Self::Primitive<D>,
-        min: B::IntElem,
-    ) -> Self::Primitive<D> {
+    fn clamp_min(tensor: Self::Primitive, min: B::IntElem) -> Self::Primitive {
         B::int_clamp_min(tensor, min)
     }
 
-    fn clamp_max<const D: usize>(
-        tensor: Self::Primitive<D>,
-        max: B::IntElem,
-    ) -> Self::Primitive<D> {
+    fn clamp_max(tensor: Self::Primitive, max: B::IntElem) -> Self::Primitive {
         B::int_clamp_max(tensor, max)
     }
 
-    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
         B::int_abs(tensor)
     }
 
-    fn powf<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_powf(lhs, B::int_into_float(rhs))
     }
 
-    fn powf_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
+    fn powf_scalar<E: ElementConversion>(
+        lhs: Self::Primitive,
         rhs: E,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    ) -> <Int as TensorKind<B>>::Primitive {
         B::int_powf_scalar(lhs, rhs.elem())
     }
 
-    fn powi<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_powi(lhs, rhs)
     }
 
-    fn powi_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_powf_scalar(lhs, rhs.elem())
     }
 
-    fn random<const D: usize>(
-        shape: Shape<D>,
+    fn random(
+        shape: Shape,
         distribution: Distribution,
         device: &<B as Backend>::Device,
-    ) -> Self::Primitive<D> {
+    ) -> Self::Primitive {
         B::int_random(shape, distribution, device)
     }
 
-    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
         B::int_sign(tensor)
     }
 
-    fn sort<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
-    ) -> Self::Primitive<D> {
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
         B::int_sort(tensor, dim, descending)
     }
 
-    fn sort_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn sort_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>) {
+    ) -> (Self::Primitive, <Int as TensorKind<B>>::Primitive) {
         B::int_sort_with_indices(tensor, dim, descending)
     }
 
-    fn argsort<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn argsort(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    ) -> <Int as TensorKind<B>>::Primitive {
         B::int_argsort(tensor, dim, descending)
     }
 }
 
 impl<B: Backend> Numeric<B> for Float {
-    fn add<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Float as TensorKind<B>>::Primitive<D> {
+    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_add(lhs, rhs))
@@ -2470,10 +2329,7 @@ impl<B: Backend> Numeric<B> for Float {
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
-    fn add_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_add_scalar(lhs, rhs.elem()))
@@ -2483,10 +2339,7 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
-    fn sub<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Float as TensorKind<B>>::Primitive<D> {
+    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_sub(lhs, rhs))
@@ -2497,10 +2350,7 @@ impl<B: Backend> Numeric<B> for Float {
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
-    fn sub_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs.elem()))
@@ -2510,10 +2360,7 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
-    fn div<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Float as TensorKind<B>>::Primitive<D> {
+    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_div(lhs, rhs))
@@ -2524,10 +2371,7 @@ impl<B: Backend> Numeric<B> for Float {
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
-    fn div_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_div_scalar(lhs, rhs.elem()))
@@ -2537,10 +2381,7 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
-    fn remainder_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_remainder_scalar(lhs, rhs.elem()))
@@ -2550,10 +2391,7 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
-    fn mul<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> <Float as TensorKind<B>>::Primitive<D> {
+    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> <Float as TensorKind<B>>::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_mul(lhs, rhs))
@@ -2564,10 +2402,7 @@ impl<B: Backend> Numeric<B> for Float {
             _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
-    fn mul_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs.elem()))
@@ -2577,49 +2412,49 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
-    fn neg<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn neg(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_neg(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_neg(tensor)),
         }
     }
-    fn zeros<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
         TensorPrimitive::Float(B::float_zeros(shape, device))
     }
-    fn ones<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
         TensorPrimitive::Float(B::float_ones(shape, device))
     }
 
-    fn full<const D: usize, E: ElementConversion>(
-        shape: Shape<D>,
+    fn full<E: ElementConversion>(
+        shape: Shape,
         fill_value: E,
         device: &B::Device,
-    ) -> Self::Primitive<D> {
+    ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_full(shape, fill_value.elem(), device))
     }
 
-    fn sum<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn sum(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum(tensor)),
         }
     }
 
-    fn sum_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_sum_dim(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_sum_dim(tensor, dim)),
         }
     }
 
-    fn prod<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn prod(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_prod(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_prod(tensor)),
         }
     }
 
-    fn prod_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_prod_dim(tensor, dim))
@@ -2628,14 +2463,14 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn mean<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn mean(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_mean(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_mean(tensor)),
         }
     }
 
-    fn mean_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_mean_dim(tensor, dim))
@@ -2644,104 +2479,76 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn equal_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_equal_elem(lhs.tensor(), rhs))
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_equal_elem(lhs.tensor(), rhs)
     }
-    fn not_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_not_equal_elem(lhs.tensor(), rhs))
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_not_equal_elem(lhs.tensor(), rhs)
     }
-    fn greater<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_greater(lhs.tensor(), rhs.tensor()))
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_greater(lhs.tensor(), rhs.tensor())
     }
 
-    fn greater_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_greater_elem(lhs.tensor(), rhs))
+    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_greater_elem(lhs.tensor(), rhs)
     }
 
-    fn greater_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_greater_equal(lhs.tensor(), rhs.tensor()))
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_greater_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn greater_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_greater_equal_elem(lhs.tensor(), rhs))
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_greater_equal_elem(lhs.tensor(), rhs)
     }
 
-    fn lower<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_lower(lhs.tensor(), rhs.tensor()))
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_lower(lhs.tensor(), rhs.tensor())
     }
 
-    fn lower_elem<const D: usize>(lhs: Self::Primitive<D>, rhs: Self::Elem) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_lower_elem(lhs.tensor(), rhs))
+    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_lower_elem(lhs.tensor(), rhs)
     }
 
-    fn lower_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_lower_equal(lhs.tensor(), rhs.tensor()))
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_lower_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn lower_equal_elem<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Elem,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_lower_equal_elem(lhs.tensor(), rhs))
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::float_lower_equal_elem(lhs.tensor(), rhs)
     }
 
-    fn mask_where<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
-        source: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
         match (tensor, source) {
             (TensorPrimitive::Float(tensor), TensorPrimitive::Float(source)) => {
-                TensorPrimitive::Float(B::float_mask_where(tensor, mask.primitive, source))
+                TensorPrimitive::Float(B::float_mask_where(tensor, mask, source))
             }
             (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(source)) => {
-                TensorPrimitive::QFloat(B::q_mask_where(tensor, mask.primitive, source))
+                TensorPrimitive::QFloat(B::q_mask_where(tensor, mask, source))
             }
             _ => panic!("Primitive type mismatch for tensor and source"),
         }
     }
 
-    fn mask_fill<const D: usize>(
-        tensor: Self::Primitive<D>,
-        mask: Tensor<B, D, Bool>,
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
         value: Self::Elem,
-    ) -> Self::Primitive<D> {
+    ) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_mask_fill(tensor, mask.primitive, value))
+                TensorPrimitive::Float(B::float_mask_fill(tensor, mask, value))
             }
             TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_mask_fill(tensor, mask.primitive, value))
+                TensorPrimitive::QFloat(B::q_mask_fill(tensor, mask, value))
             }
         }
     }
 
-    fn select<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        indices: Tensor<B, 1, Int>,
-    ) -> Self::Primitive<D> {
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_select(tensor, dim, indices.primitive))
@@ -2752,12 +2559,12 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn select_assign<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn select_assign(
+        tensor: Self::Primitive,
         dim: usize,
         indices: Tensor<B, 1, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+        values: Self::Primitive,
+    ) -> Self::Primitive {
         match (tensor, values) {
             (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
                 TensorPrimitive::Float(B::float_select_assign(
@@ -2774,76 +2581,70 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn gather<const D: usize>(
+    fn gather(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-    ) -> Self::Primitive<D> {
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_gather(dim, tensor, indices.primitive))
+                TensorPrimitive::Float(B::float_gather(dim, tensor, indices))
             }
             TensorPrimitive::QFloat(tensor) => {
-                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices.primitive))
+                TensorPrimitive::QFloat(B::q_gather(dim, tensor, indices))
             }
         }
     }
 
-    fn scatter<const D: usize>(
+    fn scatter(
         dim: usize,
-        tensor: Self::Primitive<D>,
-        indices: Tensor<B, D, Int>,
-        values: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
         match (tensor, values) {
             (TensorPrimitive::Float(tensor), TensorPrimitive::Float(values)) => {
-                TensorPrimitive::Float(B::float_scatter(dim, tensor, indices.primitive, values))
+                TensorPrimitive::Float(B::float_scatter(dim, tensor, indices, values))
             }
             (TensorPrimitive::QFloat(tensor), TensorPrimitive::QFloat(values)) => {
-                TensorPrimitive::QFloat(B::q_scatter(dim, tensor, indices.primitive, values))
+                TensorPrimitive::QFloat(B::q_scatter(dim, tensor, indices, values))
             }
             _ => panic!("Primitive type mismatch for tensor and values"),
         }
     }
 
-    fn argmax<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-    ) -> <B as Backend>::IntTensorPrimitive<D> {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmax(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmax(tensor, dim),
         }
     }
 
-    fn argmin<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-    ) -> <B as Backend>::IntTensorPrimitive<D> {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmin(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmin(tensor, dim),
         }
     }
 
-    fn max<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn max(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max(tensor)),
         }
     }
 
-    fn max_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_max_dim(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_max_dim(tensor, dim)),
         }
     }
 
-    fn max_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn max_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_max_dim_with_indices(tensor, dim);
@@ -2856,24 +2657,24 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn min<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<1> {
+    fn min(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min(tensor)),
         }
     }
 
-    fn min_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Self::Primitive<D> {
+    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_min_dim(tensor, dim)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_min_dim(tensor, dim)),
         }
     }
 
-    fn min_dim_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn min_dim_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive<D>, <B as Backend>::IntTensorPrimitive<D>) {
+    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_min_dim_with_indices(tensor, dim);
@@ -2886,11 +2687,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp<const D: usize>(
-        tensor: Self::Primitive<D>,
-        min: B::FloatElem,
-        max: B::FloatElem,
-    ) -> Self::Primitive<D> {
+    fn clamp(tensor: Self::Primitive, min: B::FloatElem, max: B::FloatElem) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp(tensor, min, max))
@@ -2901,10 +2698,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp_min<const D: usize>(
-        tensor: Self::Primitive<D>,
-        min: B::FloatElem,
-    ) -> Self::Primitive<D> {
+    fn clamp_min(tensor: Self::Primitive, min: B::FloatElem) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_min(tensor, min))
@@ -2913,10 +2707,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp_max<const D: usize>(
-        tensor: Self::Primitive<D>,
-        max: B::FloatElem,
-    ) -> Self::Primitive<D> {
+    fn clamp_max(tensor: Self::Primitive, max: B::FloatElem) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_max(tensor, max))
@@ -2925,17 +2716,14 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn abs<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_abs(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_abs(tensor)),
         }
     }
 
-    fn powf<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_powf(lhs, rhs))
@@ -2947,10 +2735,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powf_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
@@ -2961,10 +2746,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powi<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Self::Primitive<D> {
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         match (lhs, rhs) {
             (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
                 TensorPrimitive::Float(B::float_powf(lhs, rhs))
@@ -2976,10 +2758,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powi_scalar<const D: usize, E: ElementConversion>(
-        lhs: Self::Primitive<D>,
-        rhs: E,
-    ) -> Self::Primitive<D> {
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
                 TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
@@ -2990,23 +2769,19 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn random<const D: usize>(
-        shape: Shape<D>,
+    fn random(
+        shape: Shape,
         distribution: Distribution,
         device: &<B as Backend>::Device,
-    ) -> Self::Primitive<D> {
+    ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_random(shape, distribution, device))
     }
 
-    fn sign<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
         TensorPrimitive::Float(B::float_sign(tensor.tensor()))
     }
 
-    fn sort<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        descending: bool,
-    ) -> Self::Primitive<D> {
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_sort(tensor, dim, descending))
@@ -3017,11 +2792,11 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn sort_with_indices<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn sort_with_indices(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> (Self::Primitive<D>, <Int as TensorKind<B>>::Primitive<D>) {
+    ) -> (Self::Primitive, <Int as TensorKind<B>>::Primitive) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_sort_with_indices(tensor, dim, descending);
@@ -3034,11 +2809,11 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn argsort<const D: usize>(
-        tensor: Self::Primitive<D>,
+    fn argsort(
+        tensor: Self::Primitive,
         dim: usize,
         descending: bool,
-    ) -> <Int as TensorKind<B>>::Primitive<D> {
+    ) -> <Int as TensorKind<B>>::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
             TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),

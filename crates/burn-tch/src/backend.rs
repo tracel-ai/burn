@@ -95,15 +95,15 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type Device = LibTorchDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive<const D: usize> = TchTensor<E, D>;
+    type FloatTensorPrimitive = TchTensor<E>;
     type FloatElem = E;
 
-    type IntTensorPrimitive<const D: usize> = TchTensor<i64, D>;
+    type IntTensorPrimitive = TchTensor<i64>;
     type IntElem = i64;
 
-    type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
+    type BoolTensorPrimitive = TchTensor<bool>;
 
-    type QuantizedTensorPrimitive<const D: usize> = TchQTensor<Q, D>;
+    type QuantizedTensorPrimitive = TchQTensor<Q>;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);

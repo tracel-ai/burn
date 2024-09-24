@@ -1,9 +1,7 @@
 use crate::{tensor::JitTensor, JitElement, JitRuntime};
 
 /// Make a jit tensor contiguous.
-pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+pub fn into_contiguous<R: JitRuntime, E: JitElement>(tensor: JitTensor<R, E>) -> JitTensor<R, E> {
     if tensor.is_contiguous() {
         return tensor;
     }
@@ -16,6 +14,6 @@ pub fn into_contiguous<R: JitRuntime, E: JitElement, const D: usize>(
         output.handle,
         output.shape.into(),
         tensor.device,
-        output.strides.try_into().unwrap(),
+        output.strides,
     )
 }

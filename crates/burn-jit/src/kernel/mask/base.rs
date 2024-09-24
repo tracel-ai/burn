@@ -2,11 +2,11 @@ use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
+pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    mask: JitTensor<R, u32>,
     value: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     let strategy = if tensor.can_mut() {
         MaskFillStrategy::Inplace
     } else {
@@ -17,11 +17,11 @@ pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement, const D: usize>(
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    mask: JitTensor<R, u32>,
+    value: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let strategy = if tensor.can_mut_broadcast(&value) {
         MaskWhereStrategy::InplaceLhs
     } else if value.can_mut_broadcast(&tensor) {

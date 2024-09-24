@@ -35,7 +35,7 @@ where
         dtype: DType,
     ) -> FusionTensor<R>;
     /// Read the values contained by a float tensor.
-    fn read_tensor_float<B, const D: usize>(
+    fn read_tensor_float<B>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
@@ -43,7 +43,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
-    fn read_tensor_int<B, const D: usize>(
+    fn read_tensor_int<B>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
@@ -51,7 +51,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
-    fn read_tensor_bool<B, const D: usize>(
+    fn read_tensor_bool<B>(
         &self,
         tensor: TensorDescription,
         stream: StreamId,
@@ -59,7 +59,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.
-    fn change_client_float<B, const D: usize>(
+    fn change_client_float<B>(
         &self,
         tensor: TensorDescription,
         client: Self,
@@ -68,7 +68,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given int tensor.
-    fn change_client_int<B, const D: usize>(
+    fn change_client_int<B>(
         &self,
         tensor: TensorDescription,
         client: Self,
@@ -77,7 +77,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given bool tensor.
-    fn change_client_bool<B, const D: usize>(
+    fn change_client_bool<B>(
         &self,
         tensor: TensorDescription,
         client: Self,

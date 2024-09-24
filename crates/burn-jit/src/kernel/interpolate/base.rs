@@ -16,12 +16,12 @@ use super::{
 ///
 /// Supports nearest, bilinear and bicubic modes
 pub fn interpolate<R: JitRuntime, E: JitElement + Element>(
-    input: JitTensor<R, E, 4>,
+    input: JitTensor<R, E>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let input = into_contiguous(input);
-    let [batch_size, channels, _, _] = input.shape.dims;
+    let [batch_size, channels, _, _] = input.shape.dims();
     let [out_height, out_width] = output_size;
 
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
@@ -38,11 +38,11 @@ pub fn interpolate<R: JitRuntime, E: JitElement + Element>(
 ///
 /// Note: only nearest mode is supported
 pub fn interpolate_backward<R: JitRuntime, E: JitElement + Element>(
-    input: JitTensor<R, E, 4>,
-    out_grad: JitTensor<R, E, 4>,
+    input: JitTensor<R, E>,
+    out_grad: JitTensor<R, E>,
     _output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let out_grad = into_contiguous(out_grad);
     let output_shape = input.shape.clone();
     let num_elems = input.shape.num_elements();

@@ -56,23 +56,24 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
+pub fn mask_fill<R: JitRuntime, E: JitElement>(
+    input: JitTensor<R, E>,
+    mask: JitTensor<R, u32>,
     value: E,
     strategy: MaskFillStrategy,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     match strategy {
         MaskFillStrategy::Readonly => mask_fill_readonly(input, mask, value),
         MaskFillStrategy::Inplace => mask_fill_inplace(input, mask, value),
     }
 }
 
-fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    mask: JitTensor<R, EM, D>,
+fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
+    input: JitTensor<R, EI>,
+    mask: JitTensor<R, EM>,
     value: EI,
-) -> JitTensor<R, EI, D> {
+) -> JitTensor<R, EI> {
+    let ndims = input.shape.num_dims();
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
@@ -90,17 +91,18 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
         mask.as_tensor_arg(1),
         output.as_tensor_arg(1),
         ScalarArg::new(value),
-        D as u32,
+        ndims as u32,
     );
 
     output
 }
 
-fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    mask: JitTensor<R, EM, D>,
+fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
+    input: JitTensor<R, EI>,
+    mask: JitTensor<R, EM>,
     value: EI,
-) -> JitTensor<R, EI, D> {
+) -> JitTensor<R, EI> {
+    let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
 
@@ -111,7 +113,7 @@ fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usi
         input.as_tensor_arg(1),
         mask.as_tensor_arg(1),
         ScalarArg::new(value),
-        D as u32,
+        ndims as u32,
     );
 
     input

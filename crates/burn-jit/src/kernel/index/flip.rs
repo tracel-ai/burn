@@ -109,10 +109,10 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn flip<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn flip<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
     indices: &[usize],
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     let output = empty_device(
         tensor.client.clone(),
         tensor.device.clone(),
@@ -121,18 +121,19 @@ pub(crate) fn flip<R: JitRuntime, E: JitElement, const D: usize>(
     flip_on_output(tensor, output, indices)
 }
 
-pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-    output: JitTensor<R, E, D>,
+pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    output: JitTensor<R, E>,
     indices: &[usize],
-) -> JitTensor<R, E, D> {
-    let mut scalars: Vec<u32> = Vec::with_capacity(D);
+) -> JitTensor<R, E> {
+    let ndims = tensor.shape.num_dims();
+    let mut scalars: Vec<u32> = Vec::with_capacity(ndims);
 
-    for i in 0..D {
+    for i in 0..ndims {
         scalars.push((indices.contains(&i) as u32).elem());
     }
 
-    let kernel = FlipEagerKernel::<R, E>::new(D);
+    let kernel = FlipEagerKernel::<R, E>::new(ndims);
 
     Execution::start(kernel, tensor.client.clone())
         .inputs(&[tensor.as_handle_ref()])

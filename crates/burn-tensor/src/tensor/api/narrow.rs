@@ -17,25 +17,26 @@ use alloc::vec::Vec;
 /// # Returns
 ///
 /// A new tensor with the given dimension narrowed to the given range.
-pub fn narrow<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive<D>,
+pub fn narrow<B: Backend, K: TensorKind<B> + BasicOps<B>>(
+    tensor: K::Primitive,
     dim: usize,
     start: usize,
     length: usize,
-) -> K::Primitive<D> {
+) -> K::Primitive {
     let shape = K::shape(&tensor);
 
-    let ranges: Vec<_> = (0..D)
-        .map(|i| {
+    let ranges: Vec<_> = shape
+        .dims
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
             if i == dim {
                 start..(start + length)
             } else {
-                0..shape.dims[i]
+                0..*d
             }
         })
         .collect();
 
-    let ranges_array: [_; D] = ranges.try_into().unwrap();
-
-    K::slice(tensor, ranges_array)
+    K::slice(tensor, &ranges)
 }

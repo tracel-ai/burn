@@ -16,18 +16,15 @@ where
     F: FloatElement,
     I: IntElement,
 {
-    fn float_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         super::from_data(data, device)
     }
 
-    fn float_random<const D: usize>(
-        shape: Shape<D>,
+    fn float_random(
+        shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
-    ) -> FloatTensor<Self, D> {
+    ) -> FloatTensor<Self> {
         match distribution {
             Distribution::Default => random_uniform(shape, device, 0.elem(), 1.elem()),
             Distribution::Uniform(low, high) => {
@@ -40,295 +37,213 @@ where
         }
     }
 
-    fn float_shape<const D: usize>(tensor: &FloatTensor<Self, D>) -> Shape<D> {
+    fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
         tensor.shape.clone()
     }
 
-    async fn float_into_data<const D: usize>(tensor: FloatTensor<Self, D>) -> TensorData {
+    async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
         super::into_data(tensor).await
     }
 
-    fn float_device<const D: usize>(tensor: &FloatTensor<Self, D>) -> Device<Self> {
+    fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
         tensor.device.clone()
     }
 
-    fn float_to_device<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         super::to_device(tensor, device)
     }
 
-    fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+    fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
         super::empty(shape, device)
     }
 
-    fn float_add<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         numeric::add(lhs, rhs)
     }
 
-    fn float_add_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::add_scalar(lhs, rhs)
     }
 
-    fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+    fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
         numeric::zeros(shape, device)
     }
 
-    fn float_full<const D: usize>(
-        shape: Shape<D>,
+    fn float_full(
+        shape: Shape,
         fill_value: FloatElem<Self>,
         device: &R::Device,
-    ) -> FloatTensor<Self, D> {
+    ) -> FloatTensor<Self> {
         numeric::full(shape, device, fill_value)
     }
 
-    fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> FloatTensor<Self, D> {
+    fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
         numeric::ones(shape, device)
     }
 
-    fn float_sub<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         numeric::sub(lhs, rhs)
     }
 
-    fn float_sub_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::sub_scalar(lhs, rhs)
     }
 
-    fn float_mul<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         numeric::mul(lhs, rhs)
     }
 
-    fn float_mul_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::mul_scalar(lhs, rhs)
     }
 
-    fn float_div<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         numeric::div(lhs, rhs)
     }
 
-    fn float_div_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::div_scalar(lhs, rhs)
     }
 
-    fn float_remainder_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::remainder_scalar(lhs, rhs)
     }
 
-    fn float_matmul<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         matmul(lhs, rhs, MatmulStrategy::default())
     }
 
-    fn float_swap_dims<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> FloatTensor<Self, D> {
+    fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
         super::swap_dims(tensor, dim1, dim2)
     }
 
-    fn float_reshape<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> FloatTensor<Self, D2> {
+    fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         super::reshape(tensor, shape)
     }
 
-    fn float_gather<const D: usize>(
+    fn float_gather(
         dim: usize,
-        tensor: FloatTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::gather(dim, tensor, indices)
     }
 
-    fn float_scatter<const D: usize>(
+    fn float_scatter(
         dim: usize,
-        tensor: FloatTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-        value: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+        tensor: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::scatter(dim, tensor, indices, value)
     }
 
-    fn float_select<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn float_select(
+        tensor: FloatTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-    ) -> FloatTensor<Self, D> {
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::select(tensor, dim, indices)
     }
 
-    fn float_select_assign<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn float_select_assign(
+        tensor: FloatTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-        value: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+        indices: IntTensor<Self>,
+        value: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::select_assign(tensor, dim, indices, value)
     }
 
-    fn float_slice<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> FloatTensor<Self, D1> {
+    fn float_slice(tensor: FloatTensor<Self>, ranges: &[Range<usize>]) -> FloatTensor<Self> {
         kernel::slice(tensor, ranges)
     }
 
-    fn float_slice_assign<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-        value: FloatTensor<Self, D1>,
-    ) -> FloatTensor<Self, D1> {
+    fn float_slice_assign(
+        tensor: FloatTensor<Self>,
+        ranges: &[Range<usize>],
+        value: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::slice_assign(tensor, ranges, value)
     }
 
-    fn float_mask_where<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
-        value: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_mask_where(
+        tensor: FloatTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         kernel::mask_where_auto(tensor, mask, value)
     }
 
-    fn float_mask_fill<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
+    fn float_mask_fill(
+        tensor: FloatTensor<Self>,
+        mask: BoolTensor<Self>,
         value: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    ) -> FloatTensor<Self> {
         kernel::mask_fill_auto(tensor, mask, value)
     }
 
-    fn float_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::equal(lhs, rhs)
     }
 
-    fn float_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         kernel::equal_elem(lhs, rhs)
     }
 
-    fn float_greater<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::greater(lhs, rhs)
     }
 
-    fn float_greater_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         kernel::greater_elem(lhs, rhs)
     }
 
-    fn float_greater_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::greater_equal(lhs, rhs)
     }
 
-    fn float_greater_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         kernel::greater_equal_elem(lhs, rhs)
     }
 
-    fn float_lower<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::lower(lhs, rhs)
     }
 
-    fn float_lower_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         kernel::lower_elem(lhs, rhs)
     }
 
-    fn float_lower_equal<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::lower_equal(lhs, rhs)
     }
 
-    fn float_lower_equal_elem<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> BoolTensor<Self> {
         kernel::lower_equal_elem(lhs, rhs)
     }
 
-    fn float_sum<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+    fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         reduce::sum(tensor, Default::default())
     }
 
-    fn float_sum_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
+    fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::sum_dim(tensor, dim, Default::default())
     }
 
-    fn float_mean_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
+    fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::mean_dim(tensor, dim, Default::default())
     }
 
-    fn float_prod<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, 1> {
+    fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         reduce::prod(tensor, Default::default())
     }
 
-    fn float_prod_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> FloatTensor<Self, D> {
+    fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         reduce::prod_dim(tensor, dim, Default::default())
     }
 
-    fn float_exp<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, input| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -338,7 +253,7 @@ where
         })
     }
 
-    fn float_log<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -348,7 +263,7 @@ where
         })
     }
 
-    fn float_log1p<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -358,10 +273,7 @@ where
         })
     }
 
-    fn float_powf_scalar<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: f32,
-    ) -> FloatTensor<Self, D> {
+    fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         unary_op!(float(lhs, rhs.elem::<F>()) => |context, tensor, scalar| {
             #[cube]
             fn execute<C: Float>(input: C, scalar: C) -> C {
@@ -371,7 +283,7 @@ where
         })
     }
 
-    fn float_sqrt<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -381,7 +293,7 @@ where
         })
     }
 
-    fn float_abs<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -391,7 +303,7 @@ where
         })
     }
 
-    fn float_cos<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -401,7 +313,7 @@ where
         })
     }
 
-    fn float_sin<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -411,7 +323,7 @@ where
         })
     }
 
-    fn float_tanh<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -421,7 +333,7 @@ where
         })
     }
 
-    fn float_erf<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -431,33 +343,27 @@ where
         })
     }
 
-    fn float_argmax<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> IntTensor<Self, D> {
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::argmax(tensor, dim, Default::default())
     }
 
-    fn float_argmin<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-    ) -> IntTensor<Self, D> {
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce::argmin(tensor, dim, Default::default())
     }
 
-    fn float_into_int<const D: usize>(tensor: FloatTensor<Self, D>) -> IntTensor<Self, D> {
+    fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
         kernel::cast(tensor)
     }
 
-    fn float_clamp<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn float_clamp(
+        tensor: FloatTensor<Self>,
         min: FloatElem<Self>,
         max: FloatElem<Self>,
-    ) -> FloatTensor<Self, D> {
+    ) -> FloatTensor<Self> {
         kernel::clamp(tensor, min, max)
     }
 
-    fn float_recip<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
             fn execute<C: Float>(input: C) -> C {
@@ -467,39 +373,23 @@ where
         })
     }
 
-    fn float_repeat_dim<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dim: usize,
-        times: usize,
-    ) -> FloatTensor<Self, D> {
+    fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         kernel::repeat_dim(tensor, dim, times)
     }
 
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         numeric::pow(lhs, rhs)
     }
 
-    fn float_permute<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        axes: [usize; D],
-    ) -> FloatTensor<Self, D> {
+    fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         permute(tensor, axes)
     }
 
-    fn float_expand<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> FloatTensor<Self, D2> {
+    fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
         expand(tensor, shape)
     }
 
-    fn float_flip<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        axes: &[usize],
-    ) -> FloatTensor<Self, D> {
+    fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         kernel::flip(tensor, axes)
     }
 }

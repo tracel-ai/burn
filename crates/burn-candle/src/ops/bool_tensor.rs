@@ -11,131 +11,96 @@ use crate::{
 use super::base::{expand, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
-    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
+    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         super::base::empty(shape, device)
     }
 
-    fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
+    fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
         super::base::shape(tensor)
     }
 
-    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
         let x: Vec<u8> = tensor.tensor.flatten_all().unwrap().to_vec1().unwrap();
         let y = x.iter().map(|b| !matches!(b, 0)).collect();
         TensorData::new(y, tensor.shape())
     }
 
-    fn bool_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let data: TensorData = TensorData::new(data.iter::<bool>().collect(), data.shape);
         super::base::from_data(data, device)
     }
 
-    fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
+    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
-    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
     }
 
-    fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
+    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
         super::base::device(tensor)
     }
 
-    fn bool_to_device<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         super::base::to_device(tensor, device)
     }
 
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> BoolTensor<Self, D2> {
+    fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         super::base::reshape(tensor, shape)
     }
 
-    fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        ranges: [std::ops::Range<usize>; D2],
-    ) -> BoolTensor<Self, D1> {
+    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[std::ops::Range<usize>]) -> BoolTensor<Self> {
         super::base::slice(tensor, ranges)
     }
 
-    fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        ranges: [std::ops::Range<usize>; D2],
-        value: BoolTensor<Self, D1>,
-    ) -> BoolTensor<Self, D1> {
+    fn bool_slice_assign(
+        tensor: BoolTensor<Self>,
+        ranges: &[std::ops::Range<usize>],
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         super::base::slice_assign(tensor, ranges, value)
     }
 
-    fn bool_cat<const D: usize>(
-        tensors: Vec<BoolTensor<Self, D>>,
-        dim: usize,
-    ) -> BoolTensor<Self, D> {
+    fn bool_cat(tensors: Vec<BoolTensor<Self>>, dim: usize) -> BoolTensor<Self> {
         super::base::cat(tensors, dim)
     }
 
-    fn bool_equal<const D: usize>(
-        lhs: BoolTensor<Self, D>,
-        rhs: BoolTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.eq(&rhs.tensor).unwrap())
     }
 
-    fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
+    fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let x = (candle_core::Tensor::zeros_like(&tensor.tensor).unwrap());
         CandleTensor::new(tensor.tensor.eq(&x).unwrap())
     }
 
-    fn bool_swap_dims<const D: usize>(
-        tensor: <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> <Candle<F, I> as burn_tensor::backend::Backend>::BoolTensorPrimitive<D> {
+    fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
 
-    fn bool_narrow<const D: usize>(
-        tensor: BoolTensor<Self, D>,
+    fn bool_narrow(
+        tensor: BoolTensor<Self>,
         dim: usize,
         start: usize,
         length: usize,
-    ) -> BoolTensor<Self, D> {
+    ) -> BoolTensor<Self> {
         super::base::narrow(tensor, dim, start, length)
     }
 
-    fn bool_chunk<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<BoolTensor<Self, D>> {
+    fn bool_chunk(tensor: BoolTensor<Self>, chunks: usize, dim: usize) -> Vec<BoolTensor<Self>> {
         super::base::chunk(tensor, chunks, dim)
     }
 
-    fn bool_permute<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        axes: [usize; D],
-    ) -> BoolTensor<Self, D> {
+    fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         super::base::permute(tensor, axes)
     }
 
-    fn bool_flip<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        axes: &[usize],
-    ) -> BoolTensor<Self, D> {
+    fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         super::base::flip(tensor, axes)
     }
 
-    fn bool_expand<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> BoolTensor<Self, D2> {
+    fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         expand(tensor, shape)
     }
 }

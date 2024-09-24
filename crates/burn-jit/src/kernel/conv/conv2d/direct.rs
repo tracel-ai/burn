@@ -122,13 +122,13 @@ fn direct_conv2d_kernel<F: Float>(
 ///
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_direct<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, _, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let channels_per_group = out_channels / options.groups;
 
     // Limit loop unrolling factor to 8 or smaller

@@ -391,7 +391,7 @@ mod tests {
             let device = Default::default();
             let weight = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
-                    .reshape(shape_weight.clone())
+                    .reshape::<4, _>(shape_weight.clone())
                     .into_data(),
             )
             .div_scalar(shape_weight.num_elements() as f32);
@@ -401,19 +401,19 @@ mod tests {
             .div_scalar(self.channels_out as f32);
             let x = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x.clone())
+                    .reshape::<4, _>(shape_x.clone())
                     .into_data(),
             )
             .div_scalar(shape_x.num_elements() as f32);
             let offset = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_offset.num_elements() as i64, &device)
-                    .reshape(shape_offset.clone())
+                    .reshape::<4, _>(shape_offset.clone())
                     .into_data(),
             )
             .div_scalar(shape_offset.num_elements() as f32);
             let mask = Tensor::<TestBackend, 4>::from(
                 TestTensorInt::arange(0..shape_mask.num_elements() as i64, &device)
-                    .reshape(shape_mask.clone())
+                    .reshape::<4, _>(shape_mask.clone())
                     .into_data(),
             )
             .div_scalar(shape_mask.num_elements() as f32);

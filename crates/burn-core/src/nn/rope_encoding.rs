@@ -142,7 +142,7 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [_, _, d_model] = self.freq_complex.shape().dims;
+        let [_, _, d_model] = self.freq_complex.shape().dims();
         content
             .add("d_model", &d_model)
             .add("max_sequence_length", &self.max_sequence_length)
@@ -263,7 +263,7 @@ mod tests {
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
 
         // Use a tensor of exact zeros as input. The output rotary embedding should be zeros as well
-        let input = Tensor::zeros([1, 2, 2, 4], &device);
+        let input = Tensor::<TestBackend, 4>::zeros([1, 2, 2, 4], &device);
 
         let output = rotary_encoding.forward(input);
         let expected_output = Tensor::<TestBackend, 3>::from_floats(
@@ -294,7 +294,7 @@ mod tests {
         let d_model = 15;
         let device = Default::default();
         let pe = RotaryEncodingConfig::new(10, d_model).init::<TestBackend>(&device);
-        let input = Tensor::zeros([1, 5, d_model], &device);
+        let input = Tensor::<TestBackend, 3>::zeros([1, 5, d_model], &device);
         let _output = pe.forward(input);
     }
 

@@ -8,8 +8,8 @@ use derive_new::new;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, const D: usize> {
-    shape_lhs: Shape<D>,
-    shape_rhs: Shape<D>,
+    shape_lhs: Shape,
+    shape_rhs: Shape,
     device: B::Device,
 }
 
@@ -21,7 +21,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape_lhs.dims.into(), self.shape_rhs.dims.into()]
+        vec![self.shape_lhs.dims.clone(), self.shape_rhs.dims.clone()]
     }
 
     fn num_samples(&self) -> usize {

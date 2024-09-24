@@ -66,7 +66,7 @@ impl<B: Backend> ModuleDisplay for Lstm<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims;
+        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims();
         let bias = self.input_gate.input_transform.bias.is_some();
 
         content
@@ -235,7 +235,13 @@ impl<B: Backend> ModuleDisplay for BiLstm<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self.forward.input_gate.input_transform.weight.shape().dims;
+        let [d_input, _] = self
+            .forward
+            .input_gate
+            .input_transform
+            .weight
+            .shape()
+            .dims();
         let bias = self.forward.input_gate.input_transform.bias.is_some();
 
         content
@@ -281,7 +287,7 @@ impl<B: Backend> BiLstm<B> {
         state: Option<LstmState<B, 3>>,
     ) -> (Tensor<B, 3>, LstmState<B, 3>) {
         let device = batched_input.clone().device();
-        let [batch_size, seq_length, _] = batched_input.shape().dims;
+        let [batch_size, seq_length, _] = batched_input.shape().dims();
 
         let [init_state_forward, init_state_reverse] = match state {
             Some(state) => {
@@ -504,7 +510,7 @@ mod tests {
         use crate::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
-        let shape: Shape<3> = [8, 10, 64].into();
+        let shape: Shape = [8, 10, 64].into();
         let batched_input =
             Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
 

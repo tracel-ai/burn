@@ -83,32 +83,33 @@ fn matmul_kernel<F: Float>(
 }
 
 /// Matrix multiplication using memory coalescing algorithm with cube dimensions of size 16
-pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-    out: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    matmul_simple::<R, E, D>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
+pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+    out: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    matmul_simple::<R, E>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom cube dimensions
-pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-    out: JitTensor<R, E, D>,
+pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+    out: JitTensor<R, E>,
     cube_dim_x: usize,
     cube_dim_y: usize,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     lhs.assert_is_on_same_device(&rhs);
+    let ndims = lhs.shape.num_dims();
     let lhs = into_contiguous(lhs);
 
     let rhs_original_shape = rhs.shape.clone();
     // we swap the dimensions to achieve memory-coalescing:
     // consecutive elements of a column in the original rhs tensor will now be stored
     // consecutively in memory, which allows to fetch them with fewer memory instructions
-    let rhs = into_contiguous(swap_dims(rhs, D - 1, D - 2));
+    let rhs = into_contiguous(swap_dims(rhs, ndims - 1, ndims - 2));
 
-    let cube_count = simple_cube_count::<R, D>(
+    let cube_count = simple_cube_count::<R>(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,
@@ -116,7 +117,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
         cube_dim_y,
     );
 
-    let vectorization_factor = match lhs.shape.dims[D - 1] % 4 == 0 {
+    let vectorization_factor = match lhs.shape.dims[ndims - 1] % 4 == 0 {
         true => 4,
         false => 1,
     };
@@ -134,7 +135,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement, const D: usize>(
                 vectorization_factor,
             ),
             out.as_tensor_arg(1),
-            Some(D as u32 - 2),
+            Some(ndims as u32 - 2),
         );
     };
 

@@ -25,39 +25,36 @@ where
 {
     type Target = Fusion<BTarget>;
 
-    fn into_target<const D: usize>(
-        tensor: FloatTensor<Fusion<BInput>, D>,
+    fn into_target(
+        tensor: FloatTensor<Fusion<BInput>>,
         _device: Option<burn_tensor::Device<Self::Target>>,
-    ) -> FloatTensor<Self::Target, D> {
-        cast::<R, BInput, BTarget, D>(tensor)
+    ) -> FloatTensor<Self::Target> {
+        cast::<R, BInput, BTarget>(tensor)
     }
 
-    fn from_target<const D: usize>(
-        tensor: FloatTensor<Self::Target, D>,
+    fn from_target(
+        tensor: FloatTensor<Self::Target>,
         _device: Option<burn_tensor::Device<Fusion<BInput>>>,
-    ) -> FloatTensor<Fusion<BInput>, D> {
-        cast::<R, BTarget, BInput, D>(tensor)
+    ) -> FloatTensor<Fusion<BInput>> {
+        cast::<R, BTarget, BInput>(tensor)
     }
 }
 
-fn cast<R, BInput, BTarget, const D: usize>(
-    input: FloatTensor<Fusion<BInput>, D>,
-) -> FloatTensor<Fusion<BTarget>, D>
+fn cast<R, BInput, BTarget>(input: FloatTensor<Fusion<BInput>>) -> FloatTensor<Fusion<BTarget>>
 where
     BInput: FusionBackend<FusionRuntime = R>,
     BTarget: FusionBackend<FusionRuntime = R>,
     R: FusionRuntime + 'static,
 {
     #[derive(new)]
-    struct Cast<R: FusionRuntime, BInput: FusionBackend, BTarget: FusionBackend, const D: usize> {
+    struct Cast<R: FusionRuntime, BInput: FusionBackend, BTarget: FusionBackend> {
         desc: UnaryOperationDescription,
         _bi: PhantomData<BInput>,
         _bt: PhantomData<BTarget>,
         _runtime: PhantomData<R>,
     }
 
-    impl<const D: usize, R, BInput, BTarget> Operation<BTarget::FusionRuntime>
-        for Cast<R, BInput, BTarget, D>
+    impl<R, BInput, BTarget> Operation<BTarget::FusionRuntime> for Cast<R, BInput, BTarget>
     where
         BInput: FusionBackend<FusionRuntime = R>,
         BTarget: FusionBackend<FusionRuntime = R>,
@@ -67,7 +64,7 @@ where
             self: Box<Self>,
             handles: &mut HandleContainer<<BTarget::FusionRuntime as FusionRuntime>::FusionHandle>,
         ) {
-            let input = handles.get_float_tensor::<BInput, D>(&self.desc.input);
+            let input = handles.get_float_tensor::<BInput>(&self.desc.input);
             let output = BInput::cast_float(input, BTarget::FloatElem::dtype());
 
             handles.register_handle(self.desc.out.id, output);
@@ -87,7 +84,7 @@ where
     out.client.register(
         vec![stream],
         OperationDescription::BaseFloat(BaseOperationDescription::Cast(desc.clone())),
-        Cast::<R, BInput, BTarget, D>::new(desc),
+        Cast::<R, BInput, BTarget>::new(desc),
     );
 
     out

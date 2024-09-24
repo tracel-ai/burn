@@ -14,14 +14,14 @@ use super::key::MatmulAutotuneKey;
 
 /// Set of matmul implementations available for autotune
 /// Autotune key is given by concatenating the closest upper power of 2 of m, k and n
-pub struct MatmulAutotuneOperationSet<R: JitRuntime, E: FloatElement, const D: usize> {
+pub struct MatmulAutotuneOperationSet<R: JitRuntime, E: FloatElement> {
     key: JitAutotuneKey,
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-    out: JitTensor<R, E, D>,
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+    out: JitTensor<R, E>,
 }
-impl<R: JitRuntime, E: FloatElement, const D: usize> MatmulAutotuneOperationSet<R, E, D> {
-    fn new(lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>) -> Self {
+impl<R: JitRuntime, E: FloatElement> MatmulAutotuneOperationSet<R, E> {
+    fn new(lhs: JitTensor<R, E>, rhs: JitTensor<R, E>, out: JitTensor<R, E>) -> Self {
         Self {
             key: JitAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
             lhs,
@@ -31,8 +31,8 @@ impl<R: JitRuntime, E: FloatElement, const D: usize> MatmulAutotuneOperationSet<
     }
 }
 
-impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperationSet<JitAutotuneKey>
-    for MatmulAutotuneOperationSet<R, E, D>
+impl<R: JitRuntime, E: FloatElement> AutotuneOperationSet<JitAutotuneKey>
+    for MatmulAutotuneOperationSet<R, E>
 {
     fn key(&self) -> JitAutotuneKey {
         self.key.clone()
@@ -71,10 +71,10 @@ impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperationSet<JitAut
 }
 
 /// Executes autotune on matmul operations
-pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let client = lhs.client.clone();
 
     let output = init_matmul_output(&lhs, &rhs);
@@ -93,13 +93,13 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element, const D: usize>
 macro_rules! matmul_tune_ops {
     ($name:ident, $func:expr) => {
         #[derive(new)]
-        pub(crate) struct $name<R: JitRuntime, E: FloatElement, const D: usize> {
-            lhs: JitTensor<R, E, D>,
-            rhs: JitTensor<R, E, D>,
-            out: JitTensor<R, E, D>,
+        pub(crate) struct $name<R: JitRuntime, E: FloatElement> {
+            lhs: JitTensor<R, E>,
+            rhs: JitTensor<R, E>,
+            out: JitTensor<R, E>,
         }
 
-        impl<R: JitRuntime, E: FloatElement, const D: usize> AutotuneOperation for $name<R, E, D> {
+        impl<R: JitRuntime, E: FloatElement> AutotuneOperation for $name<R, E> {
             fn execute(self: Box<Self>) {
                 #[allow(clippy::redundant_closure_call)]
                 $func(self.lhs, self.rhs, self.out);
@@ -130,7 +130,7 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 // Probably the fastest in the general case, without loop unrolling
 matmul_tune_ops!(
     MatmulCube,
-    |lhs: JitTensor<R, E, D>, rhs: JitTensor<R, E, D>, out: JitTensor<R, E, D>| {
+    |lhs: JitTensor<R, E>, rhs: JitTensor<R, E>, out: JitTensor<R, E>| {
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &lhs.client,
             lhs.as_handle_ref(),

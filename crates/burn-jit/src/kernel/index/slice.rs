@@ -105,15 +105,15 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
-    tensor: JitTensor<R, E, D1>,
-    indices: [Range<usize>; D2],
-) -> JitTensor<R, E, D1> {
-    let mut dims = tensor.shape.dims;
+pub(crate) fn slice<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    indices: &[Range<usize>],
+) -> JitTensor<R, E> {
+    let mut dims = tensor.shape.dims.clone();
     let mut offset_start = 0;
     let mut offset_end = 0;
 
-    for i in 0..D2 {
+    for i in 0..indices.len() {
         offset_start += tensor.strides[i] * indices[i].start;
         offset_end += tensor.strides[i] * (dims[i] - indices[i].end);
         dims[i] = indices[i].end - indices[i].start;
@@ -131,30 +131,31 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement, const D1: usize, const D2: usi
                 .handle
                 .offset_start(offset_start)
                 .offset_end(offset_end),
-            Shape::new(dims),
+            Shape::from(dims),
             tensor.device,
             tensor.strides,
         )
     } else {
-        let shape_output = Shape::new(dims);
+        let shape_output = Shape::from(dims);
         let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
         slice_on_output(tensor, output, indices)
     }
 }
 
-pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
-    tensor: JitTensor<R, E, D1>,
-    output: JitTensor<R, E, D1>,
-    indices: [Range<usize>; D2],
-) -> JitTensor<R, E, D1> {
-    let mut scalars: Vec<i32> = Vec::with_capacity(D1);
+pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    output: JitTensor<R, E>,
+    indices: &[Range<usize>],
+) -> JitTensor<R, E> {
+    let ndims = tensor.shape.num_dims();
+    let mut scalars: Vec<i32> = Vec::with_capacity(ndims);
 
-    for i in 0..D1 {
+    for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
         scalars.push((start as i32).elem());
     }
 
-    let kernel = SliceEagerKernel::<R, E>::new(D1);
+    let kernel = SliceEagerKernel::<R, E>::new(ndims);
 
     Execution::start(kernel, tensor.client.clone())
         .inputs(&[tensor.as_handle_ref()])

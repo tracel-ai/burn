@@ -3,9 +3,9 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
+use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
-use crate::{Tensor, TensorPrimitive};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -24,7 +24,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn float_from_data<const D: usize>(data: TensorData, device: &Device<B>) -> FloatTensor<B, D>;
+    fn float_from_data(data: TensorData, device: &Device<B>) -> FloatTensor<B>;
 
     /// Creates a new tensor with random values.
     ///
@@ -37,11 +37,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given shape and random values.
-    fn float_random<const D: usize>(
-        shape: Shape<D>,
-        distribution: Distribution,
-        device: &Device<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_random(shape: Shape, distribution: Distribution, device: &Device<B>)
+        -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
     ///
@@ -53,7 +50,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given shape and zeros.
-    fn float_zeros<const D: usize>(shape: Shape<D>, device: &Device<B>) -> FloatTensor<B, D> {
+    fn float_zeros(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
         Self::float_from_data(TensorData::zeros::<FloatElem<B>, _>(shape), device)
     }
 
@@ -67,7 +64,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given shape and ones.
-    fn float_ones<const D: usize>(shape: Shape<D>, device: &Device<B>) -> FloatTensor<B, D> {
+    fn float_ones(shape: Shape, device: &Device<B>) -> FloatTensor<B> {
         Self::float_from_data(TensorData::ones::<FloatElem<B>, _>(shape), device)
     }
 
@@ -82,11 +79,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor filled with given value
-    fn float_full<const D: usize>(
-        shape: Shape<D>,
-        fill_value: FloatElem<B>,
-        device: &Device<B>,
-    ) -> FloatTensor<B, D> {
+    fn float_full(shape: Shape, fill_value: FloatElem<B>, device: &Device<B>) -> FloatTensor<B> {
         Self::float_add_scalar(Self::float_zeros(shape, device), fill_value)
     }
 
@@ -99,7 +92,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The shape of the tensor.
-    fn float_shape<const D: usize>(tensor: &FloatTensor<B, D>) -> Shape<D>;
+    fn float_shape(tensor: &FloatTensor<B>) -> Shape;
 
     /// Converts the tensor to a data structure.
     ///
@@ -110,9 +103,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data<const D: usize>(
-        tensor: FloatTensor<B, D>,
-    ) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -123,7 +114,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The device of the tensor.
-    fn float_device<const D: usize>(tensor: &FloatTensor<B, D>) -> Device<B>;
+    fn float_device(tensor: &FloatTensor<B>) -> Device<B>;
 
     /// Moves the tensor to the given device.
     ///
@@ -135,10 +126,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor on the given device.
-    fn float_to_device<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        device: &Device<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_to_device(tensor: FloatTensor<B>, device: &Device<B>) -> FloatTensor<B>;
 
     /// Converts float tensor to int tensor.
     ///
@@ -149,7 +137,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The int tensor with the same data as the float tensor.
-    fn float_into_int<const D: usize>(tensor: FloatTensor<B, D>) -> IntTensor<B, D>;
+    fn float_into_int(tensor: FloatTensor<B>) -> IntTensor<B>;
 
     /// Creates an empty tensor with the given shape.
     ///
@@ -161,7 +149,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The empty tensor with the given shape.
-    fn float_empty<const D: usize>(shape: Shape<D>, device: &Device<B>) -> FloatTensor<B, D>;
+    fn float_empty(shape: Shape, device: &Device<B>) -> FloatTensor<B>;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -174,18 +162,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated.
-    fn float_repeat_dim<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        dim: usize,
-        times: usize,
-    ) -> FloatTensor<B, D> {
-        repeat_with_slice_assign::<B, D, Float>(
-            Tensor::<B, D>::from_primitive(TensorPrimitive::Float(tensor)),
-            dim,
-            times,
-        )
-        .into_primitive()
-        .tensor()
+    fn float_repeat_dim(tensor: FloatTensor<B>, dim: usize, times: usize) -> FloatTensor<B> {
+        repeat_with_slice_assign::<B, Float>(TensorPrimitive::Float(tensor), dim, times).tensor()
     }
 
     /// Adds two tensors together.
@@ -198,10 +176,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of adding the two tensors together.
-    fn float_add<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_add(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Adds a scalar to a tensor.
     ///
@@ -213,10 +188,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of adding the scalar to the tensor.
-    fn float_add_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_add_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -228,10 +200,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp_min<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        min: FloatElem<B>,
-    ) -> FloatTensor<B, D> {
+    fn float_clamp_min(tensor: FloatTensor<B>, min: FloatElem<B>) -> FloatTensor<B> {
         // Default implementation
         let mask = Self::float_lower_elem(tensor.clone(), min);
         B::float_mask_fill(tensor, mask, min)
@@ -247,10 +216,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp_max<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        max: FloatElem<B>,
-    ) -> FloatTensor<B, D> {
+    fn float_clamp_max(tensor: FloatTensor<B>, max: FloatElem<B>) -> FloatTensor<B> {
         // Default implementation
         let mask = Self::float_greater_elem(tensor.clone(), max);
         B::float_mask_fill(tensor, mask, max)
@@ -267,11 +233,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        min: FloatElem<B>,
-        max: FloatElem<B>,
-    ) -> FloatTensor<B, D> {
+    fn float_clamp(tensor: FloatTensor<B>, min: FloatElem<B>, max: FloatElem<B>) -> FloatTensor<B> {
         // Default implementation
         Self::float_clamp_min(Self::float_clamp_max(tensor, max), min)
     }
@@ -286,10 +248,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of subtracting the two tensors.
-    fn float_sub<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_sub(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Subtracts a scalar from a tensor.
     ///
@@ -301,16 +260,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of subtracting the scalar from the tensor.
-    fn float_sub_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_sub_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
 
     /// Multiplies two tensors together element-wise.
-    fn float_mul<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_mul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Multiplies a tensor by a scalar.
     ///
@@ -322,10 +275,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the tensor by the scalar.
-    fn float_mul_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_mul_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
 
     /// Divides two tensors element-wise.
     ///
@@ -337,10 +287,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of dividing the two tensors.
-    fn float_div<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_div(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Divides a tensor by a scalar.
     ///
@@ -352,10 +299,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of dividing the tensor by the scalar.
-    fn float_div_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_div_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
 
     /// Computes the modulus of a tensor given a scalar.
     ///
@@ -366,10 +310,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of applying the modulus of the scalar to the tensor.
-    fn float_remainder_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
     ///
@@ -381,18 +322,15 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
-    fn float_matmul<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_matmul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Negates a tensor element-wise.
-    fn float_neg<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
         Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
     }
 
     /// Calculates the reciprocals element-wise
-    fn float_recip<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_recip(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Transposes a tensor.
     ///
@@ -403,8 +341,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn float_transpose<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
-        Self::float_swap_dims(tensor, D - 2, D - 1)
+    fn float_transpose(tensor: FloatTensor<B>) -> FloatTensor<B> {
+        let ndims = Self::float_shape(&tensor).num_dims();
+        Self::float_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
     /// Swaps two dimensions of a tensor.
@@ -418,11 +357,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    fn float_swap_dims<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> FloatTensor<B, D>;
+    fn float_swap_dims(tensor: FloatTensor<B>, dim1: usize, dim2: usize) -> FloatTensor<B>;
 
     /// Permutes the dimensions of a tensor.
     ///
@@ -433,10 +368,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    fn float_permute<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        axes: [usize; D],
-    ) -> FloatTensor<B, D>;
+    fn float_permute(tensor: FloatTensor<B>, axes: &[usize]) -> FloatTensor<B>;
 
     /// Reverse the order of elements in a tensor along the given axes.
     ///
@@ -446,7 +378,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `axes` - The axes to reverse.
     ///
     /// The tensor with the elements reversed.
-    fn float_flip<const D: usize>(tensor: FloatTensor<B, D>, axes: &[usize]) -> FloatTensor<B, D>;
+    fn float_flip(tensor: FloatTensor<B>, axes: &[usize]) -> FloatTensor<B>;
 
     /// Reshapes a tensor.
     ///
@@ -458,10 +390,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the new shape.
-    fn float_reshape<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<B, D1>,
-        shape: Shape<D2>,
-    ) -> FloatTensor<B, D2>;
+    fn float_reshape(tensor: FloatTensor<B>, shape: Shape) -> FloatTensor<B>;
 
     /// Gather elements from a tensor.
     ///
@@ -474,11 +403,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The gathered elements.
-    fn float_gather<const D: usize>(
-        dim: usize,
-        tensor: FloatTensor<B, D>,
-        indices: IntTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_gather(dim: usize, tensor: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B>;
 
     /// Scatter elements into a tensor.
     ///
@@ -492,12 +417,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the scattered elements.
-    fn float_scatter<const D: usize>(
+    fn float_scatter(
         dim: usize,
-        tensor: FloatTensor<B, D>,
-        indices: IntTensor<B, D>,
-        value: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+        tensor: FloatTensor<B>,
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
 
     /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
@@ -510,11 +435,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements.
-    fn float_select<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        dim: usize,
-        indices: IntTensor<B, 1>,
-    ) -> FloatTensor<B, D>;
+    fn float_select(tensor: FloatTensor<B>, dim: usize, indices: IntTensor<B>) -> FloatTensor<B>;
 
     /// Assign the selected elements along the given dimension corresponding for the given indices
     /// to the given value.
@@ -529,12 +450,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn float_select_assign<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn float_select_assign(
+        tensor: FloatTensor<B>,
         dim: usize,
-        indices: IntTensor<B, 1>,
-        value: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+        indices: IntTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
 
     /// Select tensor elements corresponding for the given ranges.
     ///
@@ -546,10 +467,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The selected elements in a new tensor.
-    fn float_slice<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<B, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> FloatTensor<B, D1>;
+    fn float_slice(tensor: FloatTensor<B>, ranges: &[Range<usize>]) -> FloatTensor<B>;
 
     /// Assign the selected elements corresponding for the given ranges to the given value.
     ///
@@ -562,11 +480,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn float_slice_assign<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<B, D1>,
-        ranges: [Range<usize>; D2],
-        value: FloatTensor<B, D1>,
-    ) -> FloatTensor<B, D1>;
+    fn float_slice_assign(
+        tensor: FloatTensor<B>,
+        ranges: &[Range<usize>],
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
 
     /// Update the given tensor with the value tensor where the mask is true.
     ///
@@ -579,11 +497,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn float_mask_where<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        mask: BoolTensor<B, D>,
-        value: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_mask_where(
+        tensor: FloatTensor<B>,
+        mask: BoolTensor<B>,
+        value: FloatTensor<B>,
+    ) -> FloatTensor<B>;
 
     /// Update the given tensor with the value where the mask is true.
     ///
@@ -596,11 +514,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the selected elements assigned to the given value.
-    fn float_mask_fill<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        mask: BoolTensor<B, D>,
+    fn float_mask_fill(
+        tensor: FloatTensor<B>,
+        mask: BoolTensor<B>,
         value: FloatElem<B>,
-    ) -> FloatTensor<B, D>;
+    ) -> FloatTensor<B>;
 
     /// Equal comparison of two tensors.
     ///
@@ -612,10 +530,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_equal<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D>;
+    fn float_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison.
     ///
@@ -627,10 +542,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_not_equal<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D> {
+    fn float_not_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B> {
         let equal_tensor = B::float_equal(lhs, rhs);
         B::bool_not(equal_tensor)
     }
@@ -645,10 +557,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_equal_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D>;
+    fn float_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -660,10 +569,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_not_equal_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D> {
+    fn float_not_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B> {
         let equal_tensor = B::float_equal_elem(lhs, rhs);
         B::bool_not(equal_tensor)
     }
@@ -678,10 +584,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D>;
+    fn float_greater(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
 
     /// Greater than comparison of a tensor and a scalar.
     ///
@@ -693,10 +596,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D>;
+    fn float_greater_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
 
     /// Greater than or equal comparison of two tensors.
     ///
@@ -708,10 +608,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_equal<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D>;
+    fn float_greater_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
 
     /// Greater than or equal comparison of a tensor and a scalar.
     ///
@@ -723,10 +620,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_equal_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D>;
+    fn float_greater_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
 
     /// Less than comparison of two tensors.
     ///
@@ -738,10 +632,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D>;
+    fn float_lower(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
 
     /// Less than comparison of a tensor and a scalar.
     ///
@@ -753,10 +644,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D>;
+    fn float_lower_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
 
     /// Less than or equal comparison of two tensors.
     ///
@@ -768,10 +656,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_equal<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> BoolTensor<B, D>;
+    fn float_lower_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
 
     /// Less than or equal comparison of a tensor and a scalar.
     ///
@@ -783,28 +668,22 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_equal_elem<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatElem<B>,
-    ) -> BoolTensor<B, D>;
+    fn float_lower_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
 
     /// Detaches a tensor from the computation graph.
-    fn float_detach<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn float_detach(tensor: FloatTensor<B>) -> FloatTensor<B> {
         // Should only be overridden by autodiff backends.
         tensor
     }
 
     /// Sets the `require_grad` flag of a tensor.
-    fn float_set_require_grad<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        _require_grad: bool,
-    ) -> FloatTensor<B, D> {
+    fn float_set_require_grad(tensor: FloatTensor<B>, _require_grad: bool) -> FloatTensor<B> {
         // Should only be overridden by autodiff backends.
         tensor
     }
 
     /// Returns the `require_grad` flag of a tensor.
-    fn float_is_require_grad<const D: usize>(_tensor: &FloatTensor<B, D>) -> bool {
+    fn float_is_require_grad(_tensor: &FloatTensor<B>) -> bool {
         // Should only be overridden by autodiff backends.
         false
     }
@@ -818,7 +697,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A scalar tensor with the sum of all elements in `tensor`.
-    fn float_sum<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1>;
+    fn float_sum(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Sum of all elements in a tensor along a dimension.
     ///
@@ -830,7 +709,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the sum of all elements in `tensor` along `dim`.
-    fn float_sum_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
+    fn float_sum_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
     /// Product of all elements in a tensor.
     ///
@@ -841,7 +720,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A scalar tensor with the product of all elements in `tensor`.
-    fn float_prod<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+    fn float_prod(tensor: FloatTensor<B>) -> FloatTensor<B> {
         // Product of all elements in a tensor
         B::float_exp(B::float_sum(B::float_log(tensor)))
     }
@@ -855,7 +734,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the product of all elements in `tensor` along `dim`.
-    fn float_prod_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+    fn float_prod_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
         // Product of all elements in a tensor along a dimension
         B::float_exp(B::float_sum_dim(B::float_log(tensor), dim))
     }
@@ -869,7 +748,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A scalar tensor with the mean of all elements in `tensor`.
-    fn float_mean<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+    fn float_mean(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let num_elems = B::float_shape(&tensor).num_elements();
         B::float_div_scalar(B::float_sum(tensor), (num_elems as i64).elem())
     }
@@ -884,7 +763,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the mean of all elements in `tensor` along `dim`.
-    fn float_mean_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D>;
+    fn float_mean_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
     /// Converts a tensor to full precision.
     ///
@@ -895,9 +774,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same values as `tensor` but with full precision.
-    fn float_into_full_precision<const D: usize>(
-        tensor: FloatTensor<B, D>,
-    ) -> FloatTensor<FullPrecisionBackend<B>, D> {
+    fn float_into_full_precision(tensor: FloatTensor<B>) -> FloatTensor<FullPrecisionBackend<B>> {
         <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
     }
 
@@ -910,9 +787,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same values as `tensor` but with the precision of the backend.
-    fn float_from_full_precision<const D: usize>(
-        tensor: FloatTensor<FullPrecisionBackend<B>, D>,
-    ) -> FloatTensor<B, D> {
+    fn float_from_full_precision(tensor: FloatTensor<FullPrecisionBackend<B>>) -> FloatTensor<B> {
         <B::FullPrecisionBridge as BackendBridge<B>>::from_target(tensor, None)
     }
 
@@ -925,7 +800,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with exponential values.
-    fn float_exp<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_exp(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with natural logarithm values.
     ///
@@ -936,7 +811,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with natural logarithm values.
-    fn float_log<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_log(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with logarithm values of (1 + Xi).
     ///
@@ -947,7 +822,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with logarithm values of (1 + Xi).
-    fn float_log1p<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_log1p(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Element-wise power with a FloatTensor.
     ///
@@ -959,10 +834,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
-    fn float_powf<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D>;
+    fn float_powf(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Element-wise power with an IntTensor.
     ///
@@ -974,11 +846,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn float_powi<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: IntTensor<B, D>,
-    ) -> FloatTensor<B, D> {
-        Self::float_powf(lhs, B::int_into_float::<D>(rhs))
+    fn float_powi(lhs: FloatTensor<B>, rhs: IntTensor<B>) -> FloatTensor<B> {
+        Self::float_powf(lhs, B::int_into_float(rhs))
     }
 
     /// raises a tensor to the power of an int scalar.
@@ -991,10 +860,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn float_powi_scalar<const D: usize>(
-        lhs: FloatTensor<B, D>,
-        rhs: IntElem<B>,
-    ) -> FloatTensor<B, D> {
+    fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
         Self::float_powf_scalar(lhs, rhs.to_f32())
     }
 
@@ -1008,10 +874,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn float_powf_scalar<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        value: f32,
-    ) -> FloatTensor<B, D>;
+    fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
 
     /// Returns a new tensor with square root values.
     ///
@@ -1022,7 +885,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with square root values.
-    fn float_sqrt<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_sqrt(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with absolute values.
     ///
@@ -1033,7 +896,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with absolute values.
-    fn float_abs<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_abs(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with cosine values.
     ///
@@ -1044,7 +907,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with cosine values.
-    fn float_cos<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_cos(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with sine values.
     ///
@@ -1055,7 +918,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with sine values.
-    fn float_sin<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_sin(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with tangent values.
     ///
@@ -1066,7 +929,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
-    fn float_tanh<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with the error function values.
     ///
@@ -1077,7 +940,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with error function values.
-    fn float_erf<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D>;
+    fn float_erf(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Concatenates tensors along a dimension.
     ///
@@ -1089,16 +952,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the concatenated tensors along `dim`.
-    fn float_cat<const D: usize>(tensors: Vec<FloatTensor<B, D>>, dim: usize) -> FloatTensor<B, D> {
-        cat_with_slice_assign::<B, D, Float>(
-            tensors
-                .into_iter()
-                .map(TensorPrimitive::Float)
-                .map(Tensor::<B, D>::from_primitive)
-                .collect(),
+    fn float_cat(tensors: Vec<FloatTensor<B>>, dim: usize) -> FloatTensor<B> {
+        cat_with_slice_assign::<B, Float>(
+            tensors.into_iter().map(TensorPrimitive::Float).collect(),
             dim,
         )
-        .into_primitive()
         .tensor()
     }
 
@@ -1112,7 +970,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
-    fn float_argmax<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+    fn float_argmax(tensor: FloatTensor<B>, dim: usize) -> IntTensor<B>;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
@@ -1124,7 +982,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
-    fn float_argmin<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> IntTensor<B, D>;
+    fn float_argmin(tensor: FloatTensor<B>, dim: usize) -> IntTensor<B>;
 
     /// Gets the maximum element of a tensor.
     ///
@@ -1135,7 +993,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the maximum element of `tensor`.
-    fn float_max<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+    fn float_max(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let shape = B::float_shape(&tensor);
         let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
 
@@ -1152,7 +1010,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
-    fn float_max_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+    fn float_max_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
         let index = B::float_argmax(tensor.clone(), dim);
 
         B::float_gather(dim, tensor, index)
@@ -1168,10 +1026,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tuple with the maximum elements of `tensor` along `dim` and their indices.
-    fn float_max_dim_with_indices<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn float_max_dim_with_indices(
+        tensor: FloatTensor<B>,
         dim: usize,
-    ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
+    ) -> (FloatTensor<B>, IntTensor<B>) {
         let index = B::float_argmax(tensor.clone(), dim);
         let values = B::float_gather(dim, tensor, index.clone());
 
@@ -1187,7 +1045,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the minimum element of `tensor`.
-    fn float_min<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, 1> {
+    fn float_min(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let shape = B::float_shape(&tensor);
         let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
 
@@ -1204,7 +1062,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
-    fn float_min_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> FloatTensor<B, D> {
+    fn float_min_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
         let index = B::float_argmin(tensor.clone(), dim);
 
         B::float_gather(dim, tensor, index)
@@ -1220,10 +1078,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tuple with the minimum elements of `tensor` along `dim` and their indices.
-    fn float_min_dim_with_indices<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn float_min_dim_with_indices(
+        tensor: FloatTensor<B>,
         dim: usize,
-    ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
+    ) -> (FloatTensor<B>, IntTensor<B>) {
         let index = B::float_argmin(tensor.clone(), dim);
         let values = B::float_gather(dim, tensor, index.clone());
 
@@ -1245,13 +1103,13 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A new tensor with the given dimension narrowed to the given range.
-    fn float_narrow<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn float_narrow(
+        tensor: FloatTensor<B>,
         dim: usize,
         start: usize,
         length: usize,
-    ) -> FloatTensor<B, D> {
-        narrow::<B, D, Float>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
+    ) -> FloatTensor<B> {
+        narrow::<B, Float>(TensorPrimitive::Float(tensor), dim, start, length).tensor()
     }
 
     /// Split the tensor along the given dimension into chunks.
@@ -1265,12 +1123,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A vector of tensors
-    fn float_chunk<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<FloatTensor<B, D>> {
-        chunk::<B, D, Float>(TensorPrimitive::Float(tensor), chunks, dim)
+    fn float_chunk(tensor: FloatTensor<B>, chunks: usize, dim: usize) -> Vec<FloatTensor<B>> {
+        chunk::<B, Float>(TensorPrimitive::Float(tensor), chunks, dim)
             .into_iter()
             .map(|t| t.tensor())
             .collect()
@@ -1285,7 +1139,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
-    fn float_any<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
+    fn float_any(tensor: FloatTensor<B>) -> BoolTensor<B> {
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
@@ -1304,7 +1158,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
-    fn float_any_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+    fn float_any_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
@@ -1321,7 +1175,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    fn float_all<const D: usize>(tensor: FloatTensor<B, D>) -> BoolTensor<B, 1> {
+    fn float_all(tensor: FloatTensor<B>) -> BoolTensor<B> {
         let num_elems = B::float_shape(&tensor).num_elements();
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
@@ -1341,7 +1195,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    fn float_all_dim<const D: usize>(tensor: FloatTensor<B, D>, dim: usize) -> BoolTensor<B, D> {
+    fn float_all_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
         let num_elems = B::float_shape(&tensor).dims[dim];
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
@@ -1358,7 +1212,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
-    fn float_sign<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let zeros = B::float_zeros(B::float_shape(&tensor), &B::float_device(&tensor));
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
@@ -1369,10 +1223,7 @@ pub trait FloatTensorOps<B: Backend> {
     }
 
     /// Broadcasts the float `tensor` to the given `shape`.
-    fn float_expand<const D1: usize, const D2: usize>(
-        tensor: FloatTensor<B, D1>,
-        shape: Shape<D2>,
-    ) -> FloatTensor<B, D2>;
+    fn float_expand(tensor: FloatTensor<B>, shape: Shape) -> FloatTensor<B>;
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
     ///
@@ -1387,12 +1238,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor, where the elements are sorted by value.
-    fn float_sort<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        dim: usize,
-        descending: bool,
-    ) -> FloatTensor<B, D> {
-        sort::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending).tensor()
+    fn float_sort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> FloatTensor<B> {
+        sort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending).tensor()
     }
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
@@ -1409,13 +1256,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor and corresponding indices, where
     /// the elements are sorted by value and the indices map back to the original input tensor.
-    fn float_sort_with_indices<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn float_sort_with_indices(
+        tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
-    ) -> (FloatTensor<B, D>, IntTensor<B, D>) {
+    ) -> (FloatTensor<B>, IntTensor<B>) {
         let (values, indices) =
-            sort_with_indices::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending);
+            sort_with_indices::<B, Float>(TensorPrimitive::Float(tensor), dim, descending);
         (values.tensor(), indices)
     }
 
@@ -1432,11 +1279,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    fn float_argsort<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        dim: usize,
-        descending: bool,
-    ) -> IntTensor<B, D> {
-        argsort::<B, D, Float>(TensorPrimitive::Float(tensor), dim, descending)
+    fn float_argsort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
+        argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending)
     }
 }
