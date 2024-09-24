@@ -66,15 +66,20 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     // Implicit GEMM matrix size
     let gemm_m = (batch_size * out_h * out_w) as u32;
     let gemm_n = out_channels as u32;
-    let gemm_k = in_channels * kernel_h * kernel_w;
+    let gemm_k = (in_channels * kernel_h * kernel_w) as u32;
     let slice_size = kernel_h * kernel_w * in_channels;
 
     let cmma_m = 16;
     let cmma_n = 16;
     let cmma_k = 16;
+    let weight_tile_size = cmma_k * cmma_n;
 
     let warp_size = 32;
     let warps_per_cube = 8;
+
+    let max_vectorization = u8::MAX; // TODO: Fetch this based on backend
+    let weight_elems_per_thread = weight_tile_size / warp_size;
+    let weight_vectorization = u8::min(weight_elems_per_thread as u8, max_vectorization);
 
     let cube_dim_x = 128;
     let cube_dim_y = 2;
@@ -113,12 +118,12 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             cube_count,
             cube_dim,
             input.as_tensor_arg(1),
-            weight.as_tensor_arg(4),
+            weight.as_tensor_arg(weight_vectorization),
             out.as_tensor_arg(1),
             DimensionsLaunch::new(
                 ScalarArg::new(gemm_m),
                 ScalarArg::new(gemm_n),
-                ScalarArg::new(gemm_k as u32),
+                ScalarArg::new(gemm_k),
                 ScalarArg::new(slice_size as u32),
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),
@@ -412,6 +417,7 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     let kernel_size = kernel_h * kernel_w;
     let cmma_input_tile_size = cmma_m * cmma_k;
+    let elems_per_thread = cmma_input_tile_size / warp_size;
 
     let height = input.shape(2) as i32;
     let width = input.shape(3) as i32;
@@ -423,8 +429,9 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     // Start index within a slice (0 to `kernel_size * channels - 1`) that a half warp (16 units) is responsible for
     let slice_start_idx = k % dims.slice_size;
+    let start = pos.intra_warp_unit_idx * elems_per_thread;
 
-    for m in range_stepped(pos.intra_warp_unit_idx, cmma_input_tile_size, warp_size) {
+    for m in start..start + elems_per_thread {
         // Compute where in the slice we are starting
 
         // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
@@ -453,26 +460,24 @@ fn load_input_tile<F: Float, FMat: Float>(
             let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.pad_w;
 
             if x >= 0 && x < width && y >= 0 && y < height {
-                tile[m] = FMat::cast_from(
-                    input[batch * input.stride(0)
-                        + y as u32 * input.stride(2)
-                        + x as u32 * input.stride(3)
-                        + channel * input.stride(1)],
-                );
+                let idx = batch * input.stride(0)
+                    + channel * input.stride(1)
+                    + y as u32 * input.stride(2)
+                    + x as u32 * input.stride(3);
+                tile[m] = FMat::cast_from(input[idx]);
             } else {
                 tile[m] = FMat::new(0.0);
             }
         } else {
             let y = out_y * args.stride_h + kernel_y * args.dilation_h;
             let x = out_x * args.stride_w + kernel_x * args.dilation_w;
+            let idx = batch * input.stride(0)
+                + channel * input.stride(1)
+                + y * input.stride(2)
+                + x * input.stride(3);
 
-            tile[m] = FMat::cast_from(
-                input[batch * input.stride(0)
-                    + y * input.stride(2)
-                    + x * input.stride(3)
-                    + channel * input.stride(1)],
-            );
-        }
+            tile[m] = FMat::cast_from(input[idx]);
+        };
     }
 }
 
