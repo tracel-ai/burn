@@ -5,7 +5,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
 use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
+    repr::{OperationDescription, QuantizedTensorDescription, TensorDescription, TensorId},
     DType, TensorData,
 };
 
@@ -55,6 +55,14 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
+    ) -> impl Future<Output = TensorData> + Send
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Read the values contained by a quantized tensor.
+    fn read_tensor_quantized<B>(
+        &self,
+        tensor: QuantizedTensorDescription,
+        streams: Vec<StreamId>,
     ) -> impl Future<Output = TensorData> + Send
     where
         B: FusionBackend<FusionRuntime = R>;

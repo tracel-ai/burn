@@ -2,7 +2,9 @@ use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
 };
-use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription, TensorId};
+use burn_tensor::repr::{
+    HandleContainer, OperationDescription, QuantizedTensorDescription, TensorDescription, TensorId,
+};
 use std::sync::Arc;
 
 pub struct FusionServer<R: FusionRuntime> {
@@ -85,6 +87,24 @@ where
 
         let tensor = self.handles.get_bool_tensor::<B>(&tensor);
         B::bool_into_data(tensor).await
+    }
+
+    pub async fn read_quantized<B>(
+        &mut self,
+        tensor: QuantizedTensorDescription,
+        ids: Vec<StreamId>,
+    ) -> burn_tensor::TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        // Make sure all registered operations are executed.
+        // The underlying backend can still be async.
+        for id in ids {
+            self.drain_stream(id);
+        }
+
+        let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
+        B::q_into_data(tensor).await
     }
 
     pub fn change_server_float<B>(

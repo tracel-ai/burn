@@ -111,6 +111,20 @@ where
         self.server.lock().read_bool::<B>(tensor, stream).await
     }
 
+    async fn read_tensor_quantized<B>(
+        &self,
+        tensor: QuantizedTensorDescription,
+        streams: Vec<StreamId>,
+    ) -> burn_tensor::TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.server
+            .lock()
+            .read_quantized::<B>(tensor, streams)
+            .await
+    }
+
     fn change_client_float<B>(
         &self,
         tensor: TensorDescription,

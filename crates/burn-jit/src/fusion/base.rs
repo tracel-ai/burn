@@ -1,10 +1,12 @@
 use super::{ElementWise, ElementWiseState};
-use crate::tensor::is_contiguous;
+use crate::tensor::{is_contiguous, JitQuantizationParameters, QJitTensor};
 use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
     IntElement, JitBackend, JitRuntime,
 };
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
+use burn_tensor::quantization::QuantizationScheme;
+use burn_tensor::repr::TensorHandle;
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
@@ -63,16 +65,54 @@ where
 impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
     type Handle = JitFusionHandle<R>;
 
-    fn float_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::FloatTensor<Self> {
-        handle.into_tensor(shape)
+    fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
+        handle.handle.into_tensor(handle.shape)
     }
 
-    fn int_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::IntTensor<Self> {
-        handle.into_tensor(shape)
+    fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::IntTensor<Self> {
+        handle.handle.into_tensor(handle.shape)
     }
 
-    fn bool_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::BoolTensor<Self> {
-        handle.into_tensor(shape)
+    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::BoolTensor<Self> {
+        handle.handle.into_tensor(handle.shape)
+    }
+
+    fn quantized_tensor(
+        handles: Vec<TensorHandle<Self::Handle>>,
+        scheme: QuantizationScheme,
+    ) -> burn_tensor::ops::QuantizedTensor<Self> {
+        match handles.len() {
+            3 => {
+                let mut handles = handles;
+                let offset = handles.pop().unwrap();
+                let scale = handles.pop().unwrap();
+                let qtensor = handles.pop().unwrap();
+                QJitTensor {
+                    qtensor: qtensor.handle.into_tensor(qtensor.shape),
+                    scheme,
+                    qparams: JitQuantizationParameters {
+                        scale: scale.handle.into_tensor(scale.shape),
+                        offset: Some(offset.handle.into_tensor(offset.shape)),
+                    },
+                }
+            }
+            2 => {
+                let mut handles = handles;
+                let scale = handles.pop().unwrap();
+                let qtensor = handles.pop().unwrap();
+                QJitTensor {
+                    qtensor: qtensor.handle.into_tensor(qtensor.shape),
+                    scheme,
+                    qparams: JitQuantizationParameters {
+                        scale: scale.handle.into_tensor(scale.shape),
+                        offset: None,
+                    },
+                }
+            }
+            _ => {
+                panic!("Expected handles for the quantized tensor and its quantization parameters.")
+            }
+        }
     }
 
     fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
@@ -85,6 +125,19 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
 
     fn bool_tensor_handle(tensor: burn_tensor::ops::BoolTensor<Self>) -> Self::Handle {
         tensor.into()
+    }
+
+    fn quantized_tensor_handle(
+        tensor: burn_tensor::ops::QuantizedTensor<Self>,
+    ) -> Vec<Self::Handle> {
+        let qtensor: JitFusionHandle<R> = tensor.qtensor.into();
+        let scale: JitFusionHandle<R> = tensor.qparams.scale.into();
+        if let Some(offset) = tensor.qparams.offset {
+            let offset: JitFusionHandle<R> = offset.into();
+            vec![qtensor, scale, offset]
+        } else {
+            vec![qtensor, scale]
+        }
     }
 }
 
