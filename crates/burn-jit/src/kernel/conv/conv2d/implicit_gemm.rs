@@ -113,7 +113,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             cube_count,
             cube_dim,
             input.as_tensor_arg(1),
-            weight.as_tensor_arg(1),
+            weight.as_tensor_arg(4),
             out.as_tensor_arg(1),
             DimensionsLaunch::new(
                 ScalarArg::new(gemm_m),
@@ -330,7 +330,7 @@ fn make_matrices<F: Float, FAcc: Float>(
             cmma_m,
             cmma_n,
             cmma_k,
-            MatrixLayout::RowMajor,
+            MatrixLayout::ColMajor,
         ),
         acc: Matrix::<FAcc>::new(
             MatrixIdent::Accumulator,
@@ -373,7 +373,7 @@ fn execute_gemm<F: Float, FMat: Float>(
             input, args, input_tile, dims, pos, k, g_settings, k_settings,
         );
 
-        load_weight_tile(weight, weight_tile, pos, k, g_settings, k_settings);
+        load_weight_tile(weight, weight_tile, pos, k, g_settings);
 
         // Run CMMA
         cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
@@ -483,7 +483,6 @@ fn load_weight_tile<F: Float, FMat: Float>(
     pos: &Positions,
     k: u32,
     #[comptime] gemm_settings: GemmSettings,
-    #[comptime] kernel_settings: KernelSettings,
 ) {
     let GemmSettings {
         cmma_n,
@@ -492,32 +491,25 @@ fn load_weight_tile<F: Float, FMat: Float>(
         ..
     } = gemm_settings;
 
-    let KernelSettings {
-        kernel_h, kernel_w, ..
-    } = kernel_settings;
-
-    let kernel_size = kernel_h * kernel_w;
+    let vec = vectorization_of(weight);
     let cmma_filter_tile_size = cmma_k * cmma_n;
+    let elems_per_thread = cmma_filter_tile_size / warp_size;
+    let start = pos.intra_warp_unit_idx * elems_per_thread;
 
-    for n in range_stepped(pos.intra_warp_unit_idx, cmma_filter_tile_size, warp_size) {
+    #[unroll]
+    for n in range_stepped(0, elems_per_thread, vec) {
+        let n = n + start;
         // Compute where in the slice we are starting
-        let rel_slice_row = n / cmma_k; // Relative row (0 - 15)
+        let rel_slice_row = n % cmma_k; // Relative row (0 - 15)
         let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
-        let abs_slice_col = pos.global_n + (n % 16); // Row of the matrix the slice is on
+        let abs_slice_col = pos.global_n + (n / cmma_k); // Row of the matrix the slice is on
+        let idx = abs_slice_col * weight.stride(0) + abs_slice_row;
+        let value = FMat::cast_from(weight[idx / vec]);
 
-        // Given the row of the matrix that the slice is in, and the index of the unit
-        // within a slice, want to compute what weight element to load...
-        let out_channel = abs_slice_col;
-        let in_channel = abs_slice_row / kernel_size;
-        let kernel_y = (abs_slice_row % kernel_size) / kernel_h;
-        let kernel_x = abs_slice_row % kernel_w;
-
-        tile[n] = FMat::cast_from(
-            weight[out_channel * weight.stride(0)
-                + in_channel * weight.stride(1)
-                + kernel_y * weight.stride(2)
-                + kernel_x * weight.stride(3)],
-        );
+        #[unroll]
+        for i in 0..vec {
+            tile[n + i] = value[i];
+        }
     }
 }
 
