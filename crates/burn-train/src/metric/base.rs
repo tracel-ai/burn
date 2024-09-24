@@ -86,7 +86,7 @@ pub enum ClassificationAverage {
     /// over class aggregation
     Macro,
     // /// over class aggregation, weighted average
-    //Weighted(Box<[f64]>), todo!()
+    //Weighted(Rc<[f64]>), todo!()
 }
 
 impl ClassificationAverage {

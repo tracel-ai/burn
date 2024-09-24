@@ -37,7 +37,7 @@ crossterm = { workspace = true, optional = true }
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 strum = { workspace = true }
-rand.workspace = true
+yare = "3.0.0"
 
 
 [dev-dependencies]

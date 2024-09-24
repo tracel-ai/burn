@@ -73,37 +73,39 @@ impl<B: Backend> ClassificationMetric<B> for PrecisionMetric<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClassificationAverage, Metric, MetricMetadata, Numeric, PrecisionMetric};
-    use crate::metric::ClassificationMetric;
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use super::{
+        ClassificationAverage::{self, *},
+        Metric, MetricMetadata, Numeric, PrecisionMetric,
+    };
     use crate::TestBackend;
+    use crate::{
+        metric::ClassificationMetric,
+        tests::{
+            dummy_classification_input,
+            ClassificationType::{self, *},
+            THRESHOLD,
+        },
+    };
     use approx::assert_relative_eq;
-    use strum::IntoEnumIterator;
+    use yare::parameterized;
 
-    #[test]
-    fn test_precision() {
-        for class_avg_type in ClassificationAverage::iter() {
-            for classification_type in ClassificationType::iter() {
-                let (input, target_diff) = dummy_classification_input(&classification_type);
-                //tp/(tp+fp) = 1 - fp/(tp+fp)
-                let mut metric = PrecisionMetric::<TestBackend>::default()
-                    .with_threshold(THRESHOLD)
-                    .with_average(class_avg_type);
-                let _entry = metric.update(&input, &MetricMetadata::fake());
-
-                //fp/(tp+fp+tn+fn) = fp/(tp+fp)(1 + pn/pp)
-                let agg_false_positive_rate =
-                    class_avg_type.aggregate_mean(target_diff.clone().equal_elem(-1));
-                let pred_positive = input.targets.clone().int() - target_diff.clone().int();
-                let agg_pred_negative =
-                    class_avg_type.aggregate_sum(pred_positive.clone().bool().bool_not());
-                let agg_pred_positive = class_avg_type.aggregate_sum(pred_positive.bool());
-                //1 - fp(1 + pn/pp)/(tp+fp+tn+fn) = 1 - fp/(tp+fp) = tp/(tp+fp)
-                let test_precision = class_avg_type.to_averaged_metric(
-                    -agg_false_positive_rate * (agg_pred_negative / agg_pred_positive + 1.0) + 1.0,
-                );
-                assert_relative_eq!(metric.value(), test_precision * 100.0, max_relative = 1e-3);
-            }
-        }
+    #[parameterized(
+    binary_micro = {Binary, Micro, 0.5},
+    binary_macro = {Binary, Macro, 0.5},
+    multiclass_micro = {Multiclass, Micro, 3.0/5.0},
+    multiclass_macro = {Multiclass, Macro, (0.5 + 0.5 + 1.0)/3.0},
+    multilabel_micro = {Multilabel, Micro, 5.0/8.0},
+    multilabel_macro = {Multilabel, Macro, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0})]
+    fn test_presision(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: f64,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let mut metric = PrecisionMetric::<TestBackend>::default()
+            .with_threshold(THRESHOLD)
+            .with_average(avg_type);
+        let _entry = metric.update(&input, &MetricMetadata::fake());
+        assert_relative_eq!(metric.value(), expected * 100.0, max_relative = 1e-3)
     }
 }

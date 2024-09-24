@@ -84,78 +84,172 @@ impl<B: Backend> ConfusionMatrix<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClassificationAverage, ConfusionMatrix};
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
-    use burn_core::tensor::TensorData;
-    use strum::IntoEnumIterator;
+    use super::{
+        ClassificationAverage::{self, *},
+        ConfusionMatrix,
+    };
+    use crate::{
+        tests::{
+            dummy_classification_input,
+            ClassificationType::{self, *},
+            THRESHOLD,
+        },
+        TestBackend, TestDevice,
+    };
+    use burn_core::prelude::{Tensor, TensorData};
+    use yare::parameterized;
 
-    #[test]
-    fn test_confusion_matrix() {
-        for agg_type in ClassificationAverage::iter() {
-            for classification_type in ClassificationType::iter() {
-                let (input, target_diff) = dummy_classification_input(&classification_type);
-                let conf_mat = ConfusionMatrix::new(&input, THRESHOLD, agg_type);
-                TensorData::assert_eq(
-                    &conf_mat.clone().false_negative().to_data(),
-                    &agg_type
-                        .aggregate_sum(target_diff.clone().equal_elem(1.0))
-                        .to_data(),
-                    true,
-                );
-                TensorData::assert_eq(
-                    &conf_mat.clone().false_positive().to_data(),
-                    &agg_type
-                        .aggregate_sum(target_diff.clone().equal_elem(-1.0))
-                        .to_data(),
-                    true,
-                );
-                TensorData::assert_eq(
-                    &conf_mat.clone().true_positive().to_data(),
-                    &agg_type
-                        .aggregate_sum(
-                            target_diff
-                                .equal_elem(0)
-                                .int()
-                                .mul(input.targets.int())
-                                .bool(),
-                        )
-                        .to_data(),
-                    true,
-                )
-            }
-        }
+    #[parameterized(
+    binary_micro = {Binary, Micro, [1].into()},
+    binary_macro = {Binary, Macro, [1].into()},
+    multiclass_micro = {Multiclass, Micro, [3].into()},
+    multiclass_macro = {Multiclass, Macro, [1, 1, 1].into()},
+    multilabel_micro = {Multilabel, Micro, [5].into()},
+    multilabel_macro = {Multilabel, Macro, [2, 2, 1].into()})]
+    fn test_true_positive(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .true_positive()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data()
+        )
     }
 
-    #[test]
-    fn test_confusion_matrix_methods() {
-        for class_avg_type in ClassificationAverage::iter() {
-            for classification_type in ClassificationType::iter() {
-                let (input, target_diff) = dummy_classification_input(&classification_type);
-                let conf_mat = ConfusionMatrix::new(&input, THRESHOLD, class_avg_type);
-                TensorData::assert_eq(
-                    &conf_mat.clone().positive().to_data(),
-                    &class_avg_type
-                        .aggregate_sum(input.targets.clone())
-                        .to_data(),
-                    true,
-                );
+    #[parameterized(
+    binary_micro = {Binary, Micro, [2].into()},
+    binary_macro = {Binary, Macro, [2].into()},
+    multiclass_micro = {Multiclass, Micro, [8].into()},
+    multiclass_macro = {Multiclass, Macro, [2, 3, 3].into()},
+    multilabel_micro = {Multilabel, Micro, [3].into()},
+    multilabel_macro = {Multilabel, Macro, [0, 2, 1].into()})]
+    fn test_true_negative(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .true_negative()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data()
+        )
+    }
 
-                TensorData::assert_eq(
-                    &conf_mat.clone().negative().to_data(),
-                    &class_avg_type
-                        .aggregate_sum(input.targets.clone().bool_not())
-                        .to_data(),
-                    true,
-                );
+    #[parameterized(
+    binary_micro = {Binary, Micro, [1].into()},
+    binary_macro = {Binary, Macro, [1].into()},
+    multiclass_micro = {Multiclass, Micro, [2].into()},
+    multiclass_macro = {Multiclass, Macro, [1, 1, 0].into()},
+    multilabel_micro = {Multilabel, Micro, [3].into()},
+    multilabel_macro = {Multilabel, Macro, [1, 1, 1].into()})]
+    fn test_false_positive(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .false_positive()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
+        )
+    }
 
-                TensorData::assert_eq(
-                    &conf_mat.clone().predicted_positive().to_data(),
-                    &class_avg_type
-                        .aggregate_sum(input.targets.clone().int().sub(target_diff.int()).bool())
-                        .to_data(),
-                    true,
-                );
-            }
-        }
+    #[parameterized(
+    binary_micro = {Binary, Micro, [1].into()},
+    binary_macro = {Binary, Macro, [1].into()},
+    multiclass_micro = {Multiclass, Micro, [2].into()},
+    multiclass_macro = {Multiclass, Macro, [1, 0, 1].into()},
+    multilabel_micro = {Multilabel, Micro, [4].into()},
+    multilabel_macro = {Multilabel, Macro, [2, 0, 2].into()})]
+    fn test_false_negatives(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .false_negative()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
+        )
+    }
+
+    #[parameterized(
+    binary_micro = {Binary, Micro, [2].into()},
+    binary_macro = {Binary, Macro, [2].into()},
+    multiclass_micro = {Multiclass, Micro, [5].into()},
+    multiclass_macro = {Multiclass, Macro, [2, 1, 2].into()},
+    multilabel_micro = {Multilabel, Micro, [9].into()},
+    multilabel_macro = {Multilabel, Macro, [4, 2, 3].into()})]
+    fn test_positive(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .positive()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
+        )
+    }
+
+    #[parameterized(
+    binary_micro = {Binary, Micro, [3].into()},
+    binary_macro = {Binary, Macro, [3].into()},
+    multiclass_micro = {Multiclass, Micro, [10].into()},
+    multiclass_macro = {Multiclass, Macro, [3, 4, 3].into()},
+    multilabel_micro = {Multilabel, Micro, [6].into()},
+    multilabel_macro = {Multilabel, Macro, [1, 3, 2].into()})]
+    fn test_negative(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .negative()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
+        )
+    }
+
+    #[parameterized(
+    binary_micro = {Binary, Micro, [2].into()},
+    binary_macro = {Binary, Macro, [2].into()},
+    multiclass_micro = {Multiclass, Micro, [5].into()},
+    multiclass_macro = {Multiclass, Macro, [2, 2, 1].into()},
+    multilabel_micro = {Multilabel, Micro, [8].into()},
+    multilabel_macro = {Multilabel, Macro, [3, 3, 2].into()})]
+    fn test_predicted_positive(
+        class_type: ClassificationType,
+        avg_type: ClassificationAverage,
+        expected: TensorData,
+    ) {
+        let input = dummy_classification_input(&class_type);
+        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+            .predicted_positive()
+            .into_data();
+        assert_eq!(
+            test_value,
+            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
+        )
     }
 }
