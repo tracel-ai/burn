@@ -74,12 +74,12 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let gemm_k = (in_channels * kernel_h * kernel_w) as u32;
     let slice_size = kernel_h * kernel_w * in_channels;
 
+    let (cmma_m, cmma_n, cmma_k) =
+        find_cmma_size::<R, f16, F>(&input.device, gemm_m, gemm_k, gemm_n).unwrap();
+
     let cube_dim_x = 128;
     let cube_dim_y = Ord::min(gemm_n.div_ceil(16), 2);
 
-    let cmma_m = 16;
-    let cmma_n = 16;
-    let cmma_k = 16;
     let input_tile_size = cmma_m * cmma_k;
     let weight_tile_size = cmma_k * cmma_n;
 
@@ -566,22 +566,45 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_k = in_channels * kernel_h * kernel_w;
 
     let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
+    let size =
+        find_cmma_size::<R, f16, E>(&input.device, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
-    cmma_available::<R>(&input.device)
+    size.is_some()
         && <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size
-        && gemm_m % 16 == 0
-        && gemm_n % 16 == 0
-        && gemm_k % 16 == 0
         && options.groups == 1
 }
 
-fn cmma_available<R: JitRuntime>(device: &R::JitDevice) -> bool {
-    R::client(device).features().enabled(Feature::Cmma {
-        a: Elem::Float(FloatKind::F16),
-        b: Elem::Float(FloatKind::F16),
-        c: Elem::Float(FloatKind::F32),
-        m: 16,
-        k: 16,
-        n: 16,
-    })
+fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
+    device: &R::JitDevice,
+    gemm_m: u32,
+    gemm_k: u32,
+    gemm_n: u32,
+) -> Option<(u32, u32, u32)> {
+    supported_cmma_sizes::<R, F, FAcc>(device)
+        .into_iter()
+        .find(|(m, k, n)| {
+            gemm_m % *m as u32 == 0 && gemm_k % *k as u32 == 0 && gemm_n % *n as u32 == 0
+        })
+        .map(|(m, k, n)| (m as u32, n as u32, k as u32))
+}
+
+fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
+    device: &R::JitDevice,
+) -> Vec<(u8, u8, u8)> {
+    let requested_sizes = [(16, 16, 16), (32, 16, 8), (8, 16, 32)];
+
+    requested_sizes
+        .iter()
+        .copied()
+        .filter(|(m, k, n)| {
+            R::client(device).features().enabled(Feature::Cmma {
+                a: F::as_elem(),
+                b: F::as_elem(),
+                c: FAcc::as_elem(),
+                m: *m,
+                k: *k,
+                n: *n,
+            })
+        })
+        .collect()
 }
