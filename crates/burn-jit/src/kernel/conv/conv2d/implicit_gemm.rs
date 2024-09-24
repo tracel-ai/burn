@@ -25,13 +25,13 @@ use crate::{
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
-    input: JitTensor<R, F, 4>,
-    weight: JitTensor<R, F, 4>,
-    bias: Option<JitTensor<R, F, 1>>,
+    input: JitTensor<R, F>,
+    weight: JitTensor<R, F>,
+    bias: Option<JitTensor<R, F>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, F, 4> {
-    let [batch_size, in_channels, height, width] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+) -> JitTensor<R, F> {
+    let [batch_size, in_channels, height, width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -146,7 +146,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         out = JitBackend::<R, F, I>::float_add(out, bias);
     }
 
-    permute(out, [0, 3, 1, 2])
+    permute(out, &[0, 3, 1, 2])
 }
 
 #[derive(CubeLaunch)]
@@ -522,14 +522,14 @@ fn load_weight_tile<F: Float, FMat: Float>(
 }
 
 pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R, E, 4>,
-    weight: &JitTensor<R, E, 4>,
+    input: &JitTensor<R, E>,
+    weight: &JitTensor<R, E>,
     options: &ConvOptions<2>,
     out_h: usize,
     out_w: usize,
 ) -> bool {
-    let [batch_size, in_channels, _, _] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+    let [batch_size, in_channels, _, _] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let cmma_m = 16;
     let cmma_n = 16;

@@ -20,11 +20,11 @@ use crate::{
 
 /// Executes autotune on conv2d operations
 pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weights: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weights: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
@@ -66,11 +66,11 @@ pub struct Conv2dAutotuneKey {
 )]
 pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     key: JitAutotuneKey,
-    input: JitTensor<R, E, 4>,
-    weights: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weights: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let device = &input.device;
     let key = match key {
         JitAutotuneKey::Conv2d(key) => key,
@@ -99,8 +99,8 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
 ) -> bool {
     match index {
         2 => {
-            let [_, _, height, width] = op.input.shape.dims;
-            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims;
+            let [_, _, height, width] = op.input.shape.dims();
+            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
             let o = &op.options;
             let out_h = calculate_conv_output_size(
                 kernel_h,
@@ -123,13 +123,13 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R, E, 4>,
-    weights: &JitTensor<R, E, 4>,
-    bias: &Option<JitTensor<R, E, 1>>,
+    input: &JitTensor<R, E>,
+    weights: &JitTensor<R, E>,
+    bias: &Option<JitTensor<R, E>>,
     options: &ConvOptions<2>,
 ) -> JitAutotuneKey {
-    let [batch_size, in_channels, height, width] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims;
+    let [batch_size, in_channels, height, width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
     let ConvOptions {
         stride,
         padding,
