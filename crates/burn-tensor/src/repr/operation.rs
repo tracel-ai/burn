@@ -850,7 +850,6 @@ pub struct QuantizeOperationDescription {
 #[allow(missing_docs)]
 pub struct DequantizeOperationDescription {
     pub qtensor: QuantizedTensorDescription,
-    // pub scheme: QuantizationScheme,
     pub out: TensorDescription,
 }
 
