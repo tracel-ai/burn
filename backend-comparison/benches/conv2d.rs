@@ -80,8 +80,8 @@ fn bench<B: Backend>(
     let benchmark = Conv2dBenchmark::<B> {
         input_shape: [batch_size, channels_in, height_in, width_in].into(),
         weight_shape: [
-            channels_in,
-            channels_out / groups,
+            channels_out,
+            channels_in / groups,
             kernel_size_0,
             kernel_size_1,
         ]
