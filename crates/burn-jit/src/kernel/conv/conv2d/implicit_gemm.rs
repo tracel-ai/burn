@@ -12,6 +12,7 @@ use cubecl::{
 use half::f16;
 
 use crate::{
+    kernel::into_contiguous,
     ops::{numeric::empty_device, permute, reshape},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
@@ -60,6 +61,9 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         );
     }
 
+    let weight = into_contiguous(permute(weight, [0, 2, 3, 1]));
+    let input = into_contiguous(permute(input, [0, 2, 3, 1]));
+
     let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
     let mut out = empty_device(input.client.clone(), input.device.clone(), out_shape);
 
@@ -69,22 +73,28 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let gemm_k = (in_channels * kernel_h * kernel_w) as u32;
     let slice_size = kernel_h * kernel_w * in_channels;
 
-    let cmma_m = 16;
-    let cmma_n = 16;
-    let cmma_k = 16;
-    let weight_tile_size = cmma_k * cmma_n;
-
-    let warp_size = 32;
-    let warps_per_cube = 8;
-
-    let max_vectorization = u8::MAX; // TODO: Fetch this based on backend
-    let weight_elems_per_thread = weight_tile_size / warp_size;
-    let weight_vectorization = u8::min(weight_elems_per_thread as u8, max_vectorization);
-
     let cube_dim_x = 128;
     let cube_dim_y = 2;
 
-    assert!(cube_dim_y * cube_dim_x / warp_size == warps_per_cube);
+    let cmma_m = 16;
+    let cmma_n = 16;
+    let cmma_k = 16;
+    let input_tile_size = cmma_m * cmma_k;
+    let weight_tile_size = cmma_k * cmma_n;
+
+    let warp_size = 32;
+    let warps_per_cube = (cube_dim_y * cube_dim_x) / warp_size;
+
+    let max_vectorization = u8::MAX; // TODO: Fetch this based on backend
+
+    let input_elems_per_thread = input_tile_size / warp_size;
+    let input_vectorization = u8::min(
+        find_common_vec(in_channels, input_elems_per_thread),
+        max_vectorization,
+    );
+
+    let weight_elems_per_thread = weight_tile_size / warp_size;
+    let weight_vectorization = u8::min(weight_elems_per_thread as u8, max_vectorization);
 
     let settings = GemmSettings {
         cmma_m,
@@ -117,7 +127,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(1),
+            input.as_tensor_arg(input_vectorization),
             weight.as_tensor_arg(weight_vectorization),
             out.as_tensor_arg(1),
             DimensionsLaunch::new(
@@ -152,6 +162,16 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     }
 
     permute(out, [0, 3, 1, 2])
+}
+
+fn find_common_vec(channels: usize, elems_per_thread: u32) -> u8 {
+    let channels = channels as u8;
+    let elems_per_thread = elems_per_thread as u8;
+    let smaller = u8::min(channels, elems_per_thread);
+    (1..=smaller)
+        .rev()
+        .find(|vec| channels % *vec == 0 && elems_per_thread % *vec == 0)
+        .unwrap()
 }
 
 #[derive(CubeLaunch)]
@@ -409,18 +429,18 @@ fn load_input_tile<F: Float, FMat: Float>(
     } = gemm_settings;
 
     let KernelSettings {
-        kernel_h,
         kernel_w,
         has_padding,
         ..
     } = kernel_settings;
 
-    let kernel_size = kernel_h * kernel_w;
     let cmma_input_tile_size = cmma_m * cmma_k;
     let elems_per_thread = cmma_input_tile_size / warp_size;
+    let vec = vectorization_of(input);
 
-    let height = input.shape(2) as i32;
-    let width = input.shape(3) as i32;
+    let height = input.shape(1) as i32;
+    let width = input.shape(2) as i32;
+    let channels = input.shape(3);
 
     // Row strides in the implicit GEMM matrix
     let batch_stride = dims.out_h * dims.out_w;
@@ -431,7 +451,9 @@ fn load_input_tile<F: Float, FMat: Float>(
     let slice_start_idx = k % dims.slice_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
 
-    for m in start..start + elems_per_thread {
+    #[unroll]
+    for m in range_stepped(0, elems_per_thread, vec) {
+        let m = m + start;
         // Compute where in the slice we are starting
 
         // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
@@ -450,34 +472,39 @@ fn load_input_tile<F: Float, FMat: Float>(
         let out_y = (abs_slice_row % batch_stride) / y_stride;
         let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
 
-        let channel = my_slice_idx / kernel_size;
+        let channel = my_slice_idx % channels;
 
-        let kernel_y = (my_slice_idx / kernel_w) % kernel_h;
-        let kernel_x = my_slice_idx % kernel_w;
+        let kernel_x = (my_slice_idx / channels) % kernel_w;
+        let kernel_y = my_slice_idx / (channels * kernel_w);
 
-        if has_padding {
+        let value = if has_padding {
             let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.pad_h;
             let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.pad_w;
 
             if x >= 0 && x < width && y >= 0 && y < height {
                 let idx = batch * input.stride(0)
-                    + channel * input.stride(1)
-                    + y as u32 * input.stride(2)
-                    + x as u32 * input.stride(3);
-                tile[m] = FMat::cast_from(input[idx]);
+                    + channel * input.stride(3)
+                    + y as u32 * input.stride(1)
+                    + x as u32 * input.stride(2);
+                FMat::cast_from(input[idx / vec])
             } else {
-                tile[m] = FMat::new(0.0);
+                FMat::vectorized(0.0, vec)
             }
         } else {
             let y = out_y * args.stride_h + kernel_y * args.dilation_h;
             let x = out_x * args.stride_w + kernel_x * args.dilation_w;
             let idx = batch * input.stride(0)
-                + channel * input.stride(1)
-                + y * input.stride(2)
-                + x * input.stride(3);
+                + channel * input.stride(3)
+                + y * input.stride(1)
+                + x * input.stride(2);
 
-            tile[m] = FMat::cast_from(input[idx]);
+            FMat::cast_from(input[idx / vec])
         };
+
+        #[unroll]
+        for i in 0..vec {
+            tile[m + i] = value[i];
+        }
     }
 }
 
