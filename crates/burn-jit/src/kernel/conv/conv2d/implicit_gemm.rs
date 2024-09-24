@@ -3,12 +3,7 @@ use burn_tensor::{
     Shape,
 };
 use cmma::{Matrix, MatrixIdent, MatrixLayout};
-use cubecl::{
-    cube,
-    ir::{Elem, FloatKind},
-    prelude::*,
-    Compiler, CubeCount, CubeDim, Feature,
-};
+use cubecl::{cube, prelude::*, Compiler, CubeCount, CubeDim, Feature};
 use half::f16;
 
 use crate::{
@@ -556,22 +551,22 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let [batch_size, in_channels, _, _] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
-    let cmma_m = 16;
-    let cmma_n = 16;
-    let cmma_k = 16;
-    let warps_per_cube = 8;
-
     let gemm_m = batch_size * out_h * out_w;
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
     let size =
         find_cmma_size::<R, f16, E>(&input.device, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
-    size.is_some()
-        && <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size
-        && options.groups == 1
+    if let Some((cmma_m, cmma_k, cmma_n)) = size {
+        let warps_per_cube = 8;
+
+        let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
+
+        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && options.groups == 1
+    } else {
+        false
+    }
 }
 
 fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
