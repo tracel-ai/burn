@@ -82,6 +82,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
         scheme: QuantizationScheme,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
         match handles.len() {
+            // NOTE: the order of the handles is known [qtensor, scale, <offset>]
             3 => {
                 let mut handles = handles;
                 let offset = handles.pop().unwrap();

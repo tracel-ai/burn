@@ -211,7 +211,7 @@ where
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        // Expected order [qtensor, scale, <offset>]
+        // NOTE: the expected order is known [qtensor, scale, <offset>]
         let offset = tensor.qparams.offset.map(|desc| {
             FusionTensor::new(
                 ids.pop().unwrap(),
