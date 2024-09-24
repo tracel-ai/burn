@@ -217,11 +217,30 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         tensor.qtensor.client.device().clone()
     }
 
-    fn q_to_device(
-        _tensor: QuantizedTensor<Self>,
-        _device: &Device<Self>,
-    ) -> QuantizedTensor<Self> {
-        unimplemented!()
+    fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
+        // Quantization parameters are on the same device as the qtensor
+        let device_original: &B::Device = tensor.qtensor.client.device();
+        let device_target: B::Device = device.clone();
+
+        if device_original == &device_target {
+            return tensor;
+        }
+        println!("q_to_device {:?} {:?}", device_original, device_target);
+
+        let client_target = get_client::<B>(&device_target);
+        let client_original = tensor.qtensor.client.clone();
+
+        let ids = if let Some(offset) = &tensor.qparams.offset {
+            vec![
+                tensor.qtensor.stream,
+                tensor.qparams.scale.stream,
+                offset.stream,
+            ]
+        } else {
+            vec![tensor.qtensor.stream, tensor.qparams.scale.stream]
+        };
+
+        client_original.change_client_quantized::<B>(tensor.into_description(), client_target, ids)
     }
 
     fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {

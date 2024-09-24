@@ -167,6 +167,39 @@ where
         id
     }
 
+    pub fn change_server_quantized<B>(
+        &mut self,
+        desc: &QuantizedTensorDescription,
+        device: &R::FusionDevice,
+        server_device: &mut Self,
+    ) -> Vec<Arc<TensorId>>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let tensor = self.handles.get_quantized_tensor::<B>(desc);
+        let tensor = B::q_to_device(tensor, device);
+        if let Some(_) = &desc.qparams.offset {
+            let tensor_id = server_device.create_empty_handle();
+            let scale_id = server_device.create_empty_handle();
+            let offset_id = server_device.create_empty_handle();
+
+            server_device
+                .handles
+                .register_quantized_tensor::<B>(&[&tensor_id, &scale_id, &offset_id], tensor);
+
+            vec![tensor_id, scale_id, offset_id]
+        } else {
+            let tensor_id = server_device.create_empty_handle();
+            let scale_id = server_device.create_empty_handle();
+
+            server_device
+                .handles
+                .register_quantized_tensor::<B>(&[&tensor_id, &scale_id], tensor);
+
+            vec![tensor_id, scale_id]
+        }
+    }
+
     pub fn drop_tensor_handle(&mut self, id: TensorId) {
         self.handles.handles_orphan.push(id);
     }
