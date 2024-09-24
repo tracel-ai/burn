@@ -113,15 +113,15 @@ pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> 
 }
 
 fn im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E, 4>,
+    input: JitTensor<R, E>,
     options: ConvOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,
     out_w: usize,
-) -> JitTensor<R, E, 2> {
+) -> JitTensor<R, E> {
     let input = into_contiguous(input);
-    let [batch_size, in_channels, _, _] = input.shape.dims;
+    let [batch_size, in_channels, _, _] = input.shape.dims();
 
     let col_shape_0 = in_channels * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
@@ -177,13 +177,13 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, in_channels, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -223,7 +223,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
             let run_out = reshape(run_out, out_shape_run.clone());
             out = JitBackend::<R, E, I>::float_slice_assign(
                 out,
-                [
+                &[
                     run..run + 1,
                     0..out_channels,
                     0..batches_per_run,
@@ -249,13 +249,13 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, _, height, width] = input.shape.dims;
-    let [out_channels, in_c_per_grp, _, _] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, _, height, width] = input.shape.dims();
+    let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
     let groups = options.groups;
     let out_c_per_grp = out_channels / groups;
 
@@ -276,17 +276,17 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
     options: ConvOptions<2>,
     out_h: usize,
     out_w: usize,
-) -> JitTensor<R, E, 3> {
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
 
     let columns = im2col(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
-    let [col_shape_0, col_shape_1] = columns.shape.dims;
+    let [col_shape_0, col_shape_1] = columns.shape.dims();
     let col_shape_0 = col_shape_0 / groups;
     let out_c_per_group = out_channels / groups;
 

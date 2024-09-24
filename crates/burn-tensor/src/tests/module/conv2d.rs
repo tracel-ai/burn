@@ -176,7 +176,7 @@ mod tests {
             let device = Default::default();
             let weight = TestTensor::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
-                    .reshape(shape_weight)
+                    .reshape::<4, _>(shape_weight)
                     .into_data(),
             );
             let bias = TestTensor::from(
@@ -184,7 +184,7 @@ mod tests {
             );
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
             let output = conv2d(

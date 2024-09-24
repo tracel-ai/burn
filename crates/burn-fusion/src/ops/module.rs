@@ -33,23 +33,23 @@ macro_rules! make_ops {
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     fn conv1d(
-        x: FloatTensor<Self, 3>,
-        weight: FloatTensor<Self, 3>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             Conv1dOps,
             Conv1dDescription,
             |desc: Conv1dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&desc.x);
-                let weight = handles.get_float_tensor::<B, 3>(&desc.weight);
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
                 let bias = desc
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
                 let output = B::conv1d(x, weight, bias, desc.options.into());
-                handles.register_float_tensor::<B, 3>(&desc.out.id, output);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
             }
         );
 
@@ -89,25 +89,25 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn conv2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             Conv2dOps,
             Conv2dDescription,
             |args: Conv2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output = B::conv2d(x, weight, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -154,33 +154,33 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn deform_conv2d(
-        x: FloatTensor<Self, 4>,
-        offset: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        mask: Option<FloatTensor<Self, 4>>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
         options: DeformConvOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             DeformConv2dOps,
             DeformConv2dDescription,
             |args: DeformConv2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let offset = handles.get_float_tensor::<B, 4>(&args.offset);
-                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let offset = handles.get_float_tensor::<B>(&args.offset);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let mask = args
                     .mask
                     .as_ref()
-                    .map(|mask| handles.get_float_tensor::<B, 4>(mask));
+                    .map(|mask| handles.get_float_tensor::<B>(mask));
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output =
                     B::deform_conv2d(x, offset, weight, mask, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -241,30 +241,30 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn deform_conv2d_backward(
-        x: FloatTensor<Self, 4>,
-        offset: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        mask: Option<FloatTensor<Self, 4>>,
-        bias: Option<FloatTensor<Self, 1>>,
-        output_grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        output_grad: FloatTensor<Self>,
         options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
         make_ops!(
             DeformConv2dBackwardOps,
             DeformConv2dBackwardDescription,
             |args: DeformConv2dBackwardDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let offset = handles.get_float_tensor::<B, 4>(&args.offset);
-                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let offset = handles.get_float_tensor::<B>(&args.offset);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let mask = args
                     .mask
                     .as_ref()
-                    .map(|mask| handles.get_float_tensor::<B, 4>(mask));
+                    .map(|mask| handles.get_float_tensor::<B>(mask));
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
-                let output_grad = handles.get_float_tensor::<B, 4>(&args.out_grad);
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
+                let output_grad = handles.get_float_tensor::<B>(&args.out_grad);
 
                 let output = B::deform_conv2d_backward(
                     x,
@@ -276,14 +276,14 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.options.clone().into(),
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.input_grad.id, output.x_grad);
-                handles.register_float_tensor::<B, 4>(&args.offset_grad.id, output.offset_grad);
-                handles.register_float_tensor::<B, 4>(&args.weight_grad.id, output.weight_grad);
+                handles.register_float_tensor::<B>(&args.input_grad.id, output.x_grad);
+                handles.register_float_tensor::<B>(&args.offset_grad.id, output.offset_grad);
+                handles.register_float_tensor::<B>(&args.weight_grad.id, output.weight_grad);
                 if let Some((mask_grad, field)) = output.mask_grad.zip(args.mask_grad.as_ref()) {
-                    handles.register_float_tensor::<B, 4>(&field.id, mask_grad);
+                    handles.register_float_tensor::<B>(&field.id, mask_grad);
                 }
                 if let Some((bias_grad, field)) = output.bias_grad.zip(args.bias_grad.as_ref()) {
-                    handles.register_float_tensor::<B, 1>(&field.id, bias_grad);
+                    handles.register_float_tensor::<B>(&field.id, bias_grad);
                 }
             }
         );
@@ -359,25 +359,25 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn conv3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             Conv3dOps,
             Conv3dDescription,
             |args: Conv3dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 5>(&args.x);
-                let weight = handles.get_float_tensor::<B, 5>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output = B::conv3d(x, weight, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 5>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -431,25 +431,25 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn conv_transpose1d(
-        x: FloatTensor<Self, 3>,
-        weight: FloatTensor<Self, 3>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<1>,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             ConvTranspose1dOps,
             ConvTranspose1dDescription,
             |args: ConvTranspose1dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
-                let weight = handles.get_float_tensor::<B, 3>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output = B::conv_transpose1d(x, weight, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -490,25 +490,25 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn conv_transpose2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             ConvTranspose2dOps,
             ConvTranspose2dDescription,
             |args: ConvTranspose2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let weight = handles.get_float_tensor::<B, 4>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output = B::conv_transpose2d(x, weight, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -557,25 +557,25 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn conv_transpose3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             ConvTranspose3dOps,
             ConvTranspose3dDescription,
             |args: ConvTranspose3dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 5>(&args.x);
-                let weight = handles.get_float_tensor::<B, 5>(&args.weight);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let weight = handles.get_float_tensor::<B>(&args.weight);
                 let bias = args
                     .bias
                     .as_ref()
-                    .map(|bias| handles.get_float_tensor::<B, 1>(bias));
+                    .map(|bias| handles.get_float_tensor::<B>(bias));
 
                 let output = B::conv_transpose3d(x, weight, bias, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 5>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -638,17 +638,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn avg_pool1d(
-        x: FloatTensor<Self, 3>,
+        x: FloatTensor<Self>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dOps,
             AvgPool1dDescription,
             |args: AvgPool1dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::avg_pool1d(
                     x,
                     args.kernel_size,
@@ -657,7 +657,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.count_include_pad,
                 );
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -684,17 +684,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn avg_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dOps,
             AvgPool2dDescription,
             |args: AvgPool2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::avg_pool2d(
                     x,
                     args.kernel_size,
@@ -703,7 +703,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.count_include_pad,
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -734,19 +734,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn avg_pool1d_backward(
-        x: FloatTensor<Self, 3>,
-        grad: FloatTensor<Self, 3>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dBackwardOps,
             AvgPool1dBackwardDescription,
             |args: AvgPool1dBackwardDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
-                let grad = handles.get_float_tensor::<B, 3>(&args.grad);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::avg_pool1d_backward(
                     x,
                     grad,
@@ -756,7 +756,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.count_include_pad,
                 );
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -787,19 +787,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dBackwardOps,
             AvgPool2dBackwardDescription,
             |args: AvgPool2dBackwardDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let grad = handles.get_float_tensor::<B, 4>(&args.grad);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::avg_pool2d_backward(
                     x,
                     grad,
@@ -809,7 +809,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.count_include_pad,
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -840,17 +840,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool1d(
-        x: FloatTensor<Self, 3>,
+        x: FloatTensor<Self>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool1dOps,
             MaxPool1dDescription,
             |args: MaxPool1dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool1d(
                     x,
                     args.kernel_size,
@@ -859,7 +859,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.dilation,
                 );
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -887,17 +887,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool2dOps,
             MaxPool2dDescription,
             |args: MaxPool2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool2d(
                     x,
                     args.kernel_size,
@@ -906,7 +906,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.dilation,
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -947,7 +947,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool1d_with_indices(
-        x: FloatTensor<Self, 3>,
+        x: FloatTensor<Self>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
@@ -957,7 +957,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             MaxPool1dWithIndicesOps,
             MaxPool1dWithIndicesDescription,
             |args: MaxPool1dWithIndicesDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool1d_with_indices(
                     x,
                     args.kernel_size,
@@ -966,8 +966,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.dilation,
                 );
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output.output);
-                handles.register_int_tensor::<B, 3>(&args.out_indices.id, output.indices);
+                handles.register_float_tensor::<B>(&args.out.id, output.output);
+                handles.register_int_tensor::<B>(&args.out_indices.id, output.indices);
             }
         );
 
@@ -1000,7 +1000,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool2d_with_indices(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -1010,7 +1010,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             MaxPool2dWithIndicesOps,
             MaxPool2dWithIndicesDescription,
             |args: MaxPool2dWithIndicesDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::max_pool2d_with_indices(
                     x,
                     args.kernel_size,
@@ -1019,8 +1019,8 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.dilation,
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output.output);
-                handles.register_int_tensor::<B, 4>(&args.out_indices.id, output.indices);
+                handles.register_float_tensor::<B>(&args.out.id, output.output);
+                handles.register_int_tensor::<B>(&args.out_indices.id, output.indices);
             }
         );
 
@@ -1067,22 +1067,22 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool1d_with_indices_backward(
-        x: FloatTensor<Self, 3>,
+        x: FloatTensor<Self>,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         dilation: usize,
-        output_grad: FloatTensor<Self, 3>,
-        indices: IntTensor<Self, 3>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
     ) -> MaxPool1dBackward<Self> {
         make_ops!(
             MaxPool1dWithIndicesBackwardOps,
             MaxPool1dWithIndicesBackwardDescription,
             |args: MaxPool1dWithIndicesBackwardDescription,
              handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
-                let grad = handles.get_float_tensor::<B, 3>(&args.grad);
-                let indices = handles.get_int_tensor::<B, 3>(&args.indices);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
+                let indices = handles.get_int_tensor::<B>(&args.indices);
                 let output = B::max_pool1d_with_indices_backward(
                     x,
                     args.kernel_size,
@@ -1093,7 +1093,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     indices,
                 );
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output.x_grad);
+                handles.register_float_tensor::<B>(&args.out.id, output.x_grad);
             }
         );
 
@@ -1126,22 +1126,22 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn max_pool2d_with_indices_backward(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        output_grad: FloatTensor<Self, 4>,
-        indices: IntTensor<Self, 4>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
         make_ops!(
             MaxPool2dWithIndicesBackwardOps,
             MaxPool2dWithIndicesBackwardDescription,
             |args: MaxPool2dWithIndicesBackwardDescription,
              handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let grad = handles.get_float_tensor::<B, 4>(&args.grad);
-                let indices = handles.get_int_tensor::<B, 4>(&args.indices);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
+                let indices = handles.get_int_tensor::<B>(&args.indices);
                 let output = B::max_pool2d_with_indices_backward(
                     x,
                     args.kernel_size,
@@ -1152,7 +1152,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     indices,
                 );
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output.x_grad);
+                handles.register_float_tensor::<B>(&args.out.id, output.x_grad);
             }
         );
 
@@ -1184,15 +1184,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         MaxPool2dBackward::new(out)
     }
 
-    fn adaptive_avg_pool1d(x: FloatTensor<Self, 3>, output_size: usize) -> FloatTensor<Self, 3> {
+    fn adaptive_avg_pool1d(x: FloatTensor<Self>, output_size: usize) -> FloatTensor<Self> {
         make_ops!(
             AdaptiveAvgPool1dOps,
             AdaptiveAvgPool1dDescription,
             |args: AdaptiveAvgPool1dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::adaptive_avg_pool1d(x, args.output_size);
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -1216,18 +1216,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         out
     }
 
-    fn adaptive_avg_pool2d(
-        x: FloatTensor<Self, 4>,
-        output_size: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
         make_ops!(
             AdaptiveAvgPool2dOps,
             AdaptiveAvgPool2dDescription,
             |args: AdaptiveAvgPool2dDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::adaptive_avg_pool2d(x, args.output_size);
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -1252,19 +1249,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn adaptive_avg_pool1d_backward(
-        x: FloatTensor<Self, 3>,
-        grad: FloatTensor<Self, 3>,
-    ) -> FloatTensor<Self, 3> {
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         make_ops!(
             AdaptiveAvgPool1dBackwardOps,
             AdaptiveAvgPool1dBackwardDescription,
             |args: AdaptiveAvgPool1dBackwardDescription,
              handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 3>(&args.x);
-                let grad = handles.get_float_tensor::<B, 3>(&args.grad);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::adaptive_avg_pool1d_backward(x, grad);
 
-                handles.register_float_tensor::<B, 3>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -1291,19 +1288,19 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn adaptive_avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
-    ) -> FloatTensor<Self, 4> {
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         make_ops!(
             AdaptiveAvgPool2dBackwardOps,
             AdaptiveAvgPool2dBackwardDescription,
             |args: AdaptiveAvgPool2dBackwardDescription,
              handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let grad = handles.get_float_tensor::<B, 4>(&args.grad);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output = B::adaptive_avg_pool2d_backward(x, grad);
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -1330,17 +1327,17 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn interpolate(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             InterpolateOps,
             InterpolateDescription,
             |args: InterpolateDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
+                let x = handles.get_float_tensor::<B>(&args.x);
                 let output = B::interpolate(x, args.output_size, args.options.clone().into());
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 
@@ -1365,21 +1362,21 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn interpolate_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         make_ops!(
             InterpolateBackwardOps,
             InterpolateBackwardDescription,
             |args: InterpolateBackwardDescription, handles: &mut HandleContainer<B::Handle>| {
-                let x = handles.get_float_tensor::<B, 4>(&args.x);
-                let grad = handles.get_float_tensor::<B, 4>(&args.grad);
+                let x = handles.get_float_tensor::<B>(&args.x);
+                let grad = handles.get_float_tensor::<B>(&args.grad);
                 let output =
                     B::interpolate_backward(x, grad, args.output_size, args.options.clone().into());
 
-                handles.register_float_tensor::<B, 4>(&args.out.id, output);
+                handles.register_float_tensor::<B>(&args.out.id, output);
             }
         );
 

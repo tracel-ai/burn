@@ -17,51 +17,33 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 use super::NdArrayOps;
 
 impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E, Q> {
-    fn bool_from_data<const D: usize>(
-        data: TensorData,
-        _device: &NdArrayDevice,
-    ) -> NdArrayTensor<bool, D> {
+    fn bool_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
         NdArrayTensor::from_data(data)
     }
 
-    fn bool_shape<const D: usize>(
-        tensor: &<NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> Shape<D> {
+    fn bool_shape(tensor: &NdArrayTensor<bool>) -> Shape {
         tensor.shape()
     }
 
-    async fn bool_into_data<const D: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> TensorData {
+    async fn bool_into_data(tensor: NdArrayTensor<bool>) -> TensorData {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
         TensorData::new(values, shape)
     }
 
-    fn bool_to_device<const D: usize>(
-        tensor: NdArrayTensor<bool, D>,
-        _device: &NdArrayDevice,
-    ) -> NdArrayTensor<bool, D> {
+    fn bool_to_device(tensor: NdArrayTensor<bool>, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
         tensor
     }
 
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<bool, D1>,
-        shape: Shape<D2>,
-    ) -> NdArrayTensor<bool, D2> {
+    fn bool_reshape(tensor: NdArrayTensor<bool>, shape: Shape) -> NdArrayTensor<bool> {
         NdArrayOps::reshape(tensor, shape)
     }
 
-    fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<bool, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> NdArrayTensor<bool, D1> {
+    fn bool_slice(tensor: NdArrayTensor<bool>, ranges: &[Range<usize>]) -> NdArrayTensor<bool> {
         NdArrayOps::slice(tensor, ranges)
     }
 
-    fn bool_into_int<const D: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> NdArrayTensor<i64, D> {
+    fn bool_into_int(tensor: NdArrayTensor<bool>) -> NdArrayTensor<i64> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
         NdArray::<E>::int_from_data(
@@ -70,39 +52,28 @@ impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E,
         )
     }
 
-    fn bool_device<const D: usize>(
-        _tensor: &<NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::Device {
+    fn bool_device(_tensor: &NdArrayTensor<bool>) -> <NdArray<E> as Backend>::Device {
         NdArrayDevice::Cpu
     }
 
-    fn bool_empty<const D: usize>(
-        shape: Shape<D>,
-        _device: &<NdArray<E> as Backend>::Device,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    fn bool_empty(shape: Shape, _device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<bool> {
         let values = vec![false; shape.num_elements()];
         NdArrayTensor::from_data(TensorData::new(values, shape))
     }
 
-    fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D1>,
-        ranges: [Range<usize>; D2],
-        value: <NdArray<E> as Backend>::BoolTensorPrimitive<D1>,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D1> {
+    fn bool_slice_assign(
+        tensor: NdArrayTensor<bool>,
+        ranges: &[Range<usize>],
+        value: NdArrayTensor<bool>,
+    ) -> NdArrayTensor<bool> {
         NdArrayOps::slice_assign(tensor, ranges, value)
     }
 
-    fn bool_cat<const D: usize>(
-        tensors: Vec<<NdArray<E> as Backend>::BoolTensorPrimitive<D>>,
-        dim: usize,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    fn bool_cat(tensors: Vec<NdArrayTensor<bool>>, dim: usize) -> NdArrayTensor<bool> {
         NdArrayOps::cat(tensors, dim)
     }
 
-    fn bool_equal<const D: usize>(
-        lhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-        rhs: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    fn bool_equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let output = Zip::from(&lhs.array)
             .and(&rhs.array)
             .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
@@ -110,47 +81,36 @@ impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E,
         NdArrayTensor::new(output)
     }
 
-    fn bool_not<const D: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    fn bool_not(tensor: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let array = tensor.array.mapv(|a| !a).into_shared();
         NdArrayTensor { array }
     }
 
-    fn bool_into_float<const D: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
-    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive<D> {
+    fn bool_into_float(
+        tensor: NdArrayTensor<bool>,
+    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive {
         let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
         NdArrayTensor { array }
     }
 
-    fn bool_swap_dims<const D: usize>(
-        tensor: <NdArray<E> as Backend>::BoolTensorPrimitive<D>,
+    fn bool_swap_dims(
+        tensor: NdArrayTensor<bool>,
         dim1: usize,
         dim2: usize,
-    ) -> <NdArray<E> as Backend>::BoolTensorPrimitive<D> {
+    ) -> NdArrayTensor<bool> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn bool_permute<const D: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self, D>,
-        axes: [usize; D],
-    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+    fn bool_permute(tensor: NdArrayTensor<bool>, axes: &[usize]) -> NdArrayTensor<bool> {
         let array = tensor.array.permuted_axes(axes.into_dimension());
         NdArrayTensor { array }
     }
 
-    fn bool_expand<const D1: usize, const D2: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> burn_tensor::ops::BoolTensor<Self, D2> {
+    fn bool_expand(tensor: NdArrayTensor<bool>, shape: Shape) -> NdArrayTensor<bool> {
         NdArrayOps::expand(tensor, shape)
     }
 
-    fn bool_flip<const D: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self, D>,
-        axes: &[usize],
-    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+    fn bool_flip(tensor: NdArrayTensor<bool>, axes: &[usize]) -> NdArrayTensor<bool> {
         NdArrayOps::flip(tensor, axes)
     }
 }

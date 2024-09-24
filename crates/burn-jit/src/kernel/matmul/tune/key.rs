@@ -34,16 +34,17 @@ impl Display for MatmulAutotuneKey {
 
 impl MatmulAutotuneKey {
     /// Create a matmul autotune key from the input shapes
-    pub fn new<const D: usize>(lhs_shape: &Shape<D>, rhs_shape: &Shape<D>) -> Self {
-        let m = lhs_shape.dims[D - 2];
-        let k = lhs_shape.dims[D - 1];
-        let n = rhs_shape.dims[D - 1];
+    pub fn new(lhs_shape: &Shape, rhs_shape: &Shape) -> Self {
+        let ndims = lhs_shape.num_dims();
+        let m = lhs_shape.dims[ndims - 2];
+        let k = lhs_shape.dims[ndims - 1];
+        let n = rhs_shape.dims[ndims - 1];
 
         let mut broadcast = false;
         let mut batch_product_lhs = 1;
         let mut batch_product_rhs = 1;
 
-        for b in 0..D - 2 {
+        for b in 0..ndims - 2 {
             batch_product_lhs *= lhs_shape.dims[b];
             batch_product_rhs *= rhs_shape.dims[b];
             if lhs_shape.dims[b] != rhs_shape.dims[b] {
@@ -71,8 +72,8 @@ mod tests {
 
     #[test]
     fn matmul_autotune_key_all_same_and_round() {
-        let lhs_shape: Shape<3> = [4, 512, 512].into();
-        let rhs_shape: Shape<3> = [4, 512, 512].into();
+        let lhs_shape: Shape = [4, 512, 512].into();
+        let rhs_shape: Shape = [4, 512, 512].into();
         let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
 
         assert!(key.round);
@@ -84,8 +85,8 @@ mod tests {
 
     #[test]
     fn matmul_autotune_key_all_different() {
-        let lhs_shape: Shape<4> = [2, 3, 511, 512].into();
-        let rhs_shape: Shape<4> = [3, 2, 512, 513].into();
+        let lhs_shape: Shape = [2, 3, 511, 512].into();
+        let rhs_shape: Shape = [3, 2, 512, 513].into();
         let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
 
         assert!(!key.round);
@@ -98,8 +99,8 @@ mod tests {
 
     #[test]
     fn matmul_autotune_key_large_batch() {
-        let lhs_shape: Shape<4> = [128, 512, 511, 512].into();
-        let rhs_shape: Shape<4> = [200, 400, 512, 513].into();
+        let lhs_shape: Shape = [128, 512, 511, 512].into();
+        let rhs_shape: Shape = [200, 400, 512, 513].into();
         let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
 
         assert!(key.anchored_batch == 256);

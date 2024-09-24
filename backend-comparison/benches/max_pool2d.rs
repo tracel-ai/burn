@@ -6,7 +6,7 @@ use burn_common::{
 };
 
 pub struct MaxPool2dBenchmark<B: Backend> {
-    shape: Shape<4>,
+    shape: Shape,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
@@ -22,7 +22,7 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape.dims.into()]
+        vec![self.shape.dims.clone()]
     }
 
     fn execute(&self, x: Self::Args) {

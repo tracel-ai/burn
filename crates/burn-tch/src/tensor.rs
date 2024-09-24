@@ -62,7 +62,7 @@ impl Storage {
 
 /// A tensor using the tch backend.
 #[derive(Debug, PartialEq)]
-pub struct TchTensor<E: tch::kind::Element, const D: usize> {
+pub struct TchTensor<E: tch::kind::Element> {
     /// Handle to the tensor. Call methods on this field.
     pub tensor: tch::Tensor,
 
@@ -73,7 +73,7 @@ pub struct TchTensor<E: tch::kind::Element, const D: usize> {
     phantom: PhantomData<E>,
 }
 
-impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
+impl<E: tch::kind::Element> TchTensor<E> {
     /// Create a new tensor.
     ///
     /// Note that if the tensor was created from an operation that may reuse the same tensor
@@ -148,8 +148,8 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
     }
 }
 
-impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
-    pub(crate) fn shape(&self) -> Shape<D> {
+impl<E: tch::kind::Element> TchTensor<E> {
+    pub(crate) fn shape(&self) -> Shape {
         Shape::from(self.tensor.size())
     }
 }
@@ -157,10 +157,10 @@ impl<E: tch::kind::Element, const D: usize> TchTensor<E, D> {
 // This is safe since we don't use autodiff from LibTorch.
 // Also, atomic reference counting is used to know if the tensor's data can be reused.
 // If there are multiple reference on the same tensor, it becomes read only.
-unsafe impl<E: tch::kind::Element, const D: usize> Send for TchTensor<E, D> {}
-unsafe impl<E: tch::kind::Element, const D: usize> Sync for TchTensor<E, D> {}
+unsafe impl<E: tch::kind::Element> Send for TchTensor<E> {}
+unsafe impl<E: tch::kind::Element> Sync for TchTensor<E> {}
 
-impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
+impl<P: tch::kind::Element> TchTensor<P> {
     /// Checks if the tensor can be mutated in-place.
     ///
     /// Returns `true` if the tensor's stride does not contain zero (no broadcasting)
@@ -172,14 +172,10 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     }
 
     /// Executes an operation on a tensor if the data can be reused.
-    pub fn mut_ops<
-        F: Fn(&mut tch::Tensor) -> tch::Tensor,
-        EOut: tch::kind::Element,
-        const D_OUT: usize,
-    >(
+    pub fn mut_ops<F: Fn(&mut tch::Tensor) -> tch::Tensor, EOut: tch::kind::Element>(
         &mut self,
         func: F,
-    ) -> Option<TchTensor<EOut, D_OUT>> {
+    ) -> Option<TchTensor<EOut>> {
         if !self.can_mut() {
             return None;
         }
@@ -189,11 +185,11 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     }
 
     /// Executes a unary operation, reusing the tensor data if possible.
-    pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
+    pub fn unary_ops<FOwn, FRef, EOut: tch::kind::Element>(
         self,
         fown: FOwn,
         fref: FRef,
-    ) -> TchTensor<EOut, D_OUT>
+    ) -> TchTensor<EOut>
     where
         FOwn: Fn(tch::Tensor) -> tch::Tensor,
         FRef: Fn(&tch::Tensor) -> tch::Tensor,
@@ -206,13 +202,13 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     }
 
     /// Executes a binary operation, reusing the tensor data if possible.
-    pub fn binary_ops_tensor<FLMut, FRMut, FRef, EOut: tch::kind::Element, const D_OUT: usize>(
+    pub fn binary_ops_tensor<FLMut, FRMut, FRef, EOut: tch::kind::Element>(
         mut lhs: Self,
         mut rhs: Self,
         flmut: FLMut,
         frmut: FRMut,
         fref: FRef,
-    ) -> TchTensor<EOut, D_OUT>
+    ) -> TchTensor<EOut>
     where
         FLMut: Fn(&mut tch::Tensor, &tch::Tensor) -> tch::Tensor,
         FRMut: Fn(&tch::Tensor, &mut tch::Tensor) -> tch::Tensor,
@@ -220,9 +216,12 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     {
         let lhs_shape = lhs.shape();
         let rhs_shape = rhs.shape();
-        let mut out_shape = Shape::new([1; D_OUT]);
 
-        for i in 0..D_OUT {
+        // Both lhs and rhs are expected to have the same rank
+        let d_out = lhs_shape.num_dims();
+        let mut out_shape = Shape::from(vec![1usize; d_out]);
+
+        for i in 0..d_out {
             out_shape.dims[i] = usize::max(lhs_shape.dims[i], rhs_shape.dims[i]);
         }
 
@@ -249,7 +248,7 @@ impl<P: tch::kind::Element, const D: usize> TchTensor<P, D> {
     }
 }
 
-impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
+impl<P: tch::kind::Element> Clone for TchTensor<P> {
     fn clone(&self) -> Self {
         Self {
             tensor: self.tensor.shallow_clone(),
@@ -261,32 +260,28 @@ impl<P: tch::kind::Element, const D: usize> Clone for TchTensor<P, D> {
 
 /// A shape that can be used by LibTorch.
 #[derive(Debug)]
-pub struct TchShape<const D: usize> {
+pub struct TchShape {
     /// The shape's dimensions.
-    pub dims: [i64; D],
+    pub dims: Vec<i64>,
 }
 
-impl<const D: usize> From<Shape<D>> for TchShape<D> {
-    fn from(shape: Shape<D>) -> Self {
-        let mut dims = [0; D];
-        for (i, dim) in dims.iter_mut().enumerate().take(D) {
-            *dim = shape.dims[i] as i64;
+impl From<Shape> for TchShape {
+    fn from(shape: Shape) -> Self {
+        TchShape {
+            dims: shape.dims.into_iter().map(|d| d as i64).collect(),
         }
-        TchShape { dims }
     }
 }
 
-impl<const D: usize> From<&[usize]> for TchShape<D> {
+impl From<&[usize]> for TchShape {
     fn from(shape: &[usize]) -> Self {
-        let mut dims = [0; D];
-        for (i, dim) in dims.iter_mut().enumerate().take(D) {
-            *dim = shape[i] as i64;
+        TchShape {
+            dims: shape.iter().map(|d| *d as i64).collect(),
         }
-        TchShape { dims }
     }
 }
 
-impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> {
+impl<E: tch::kind::Element + Default + Element> TchTensor<E> {
     /// Creates a new tensor from a shape and a device.
     ///
     /// # Arguments
@@ -298,7 +293,7 @@ impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> 
     ///
     /// A new tensor.
     pub fn from_data(data: TensorData, device: tch::Device) -> Self {
-        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+        let shape_tch = TchShape::from(data.shape.as_slice());
         let tensor =
             tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
@@ -307,7 +302,7 @@ impl<E: tch::kind::Element + Default + Element, const D: usize> TchTensor<E, D> 
     }
 }
 
-impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> TchTensor<E, D> {
+impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug> TchTensor<E> {
     /// Creates an empty tensor from a shape and a device.
     ///
     /// # Arguments
@@ -318,7 +313,7 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty(shape: Shape<D>, device: LibTorchDevice) -> Self {
+    pub fn empty(shape: Shape, device: LibTorchDevice) -> Self {
         let shape_tch = TchShape::from(shape);
         let tensor = tch::Tensor::empty(shape_tch.dims, (E::KIND, device.into()));
 
@@ -328,14 +323,14 @@ impl<E: tch::kind::Element + Default + Copy + std::fmt::Debug, const D: usize> T
 
 /// A quantized tensor for the tch backend.
 #[derive(Clone, Debug)]
-pub struct TchQTensor<Q: QuantElement, const D: usize> {
+pub struct TchQTensor<Q: QuantElement> {
     /// The quantized tensor.
-    pub qtensor: TchTensor<Q, D>,
+    pub qtensor: TchTensor<Q>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
 }
 
-impl<Q: QuantElement, const D: usize> QTensorPrimitive for TchQTensor<Q, D> {
+impl<Q: QuantElement> QTensorPrimitive for TchQTensor<Q> {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
@@ -382,7 +377,7 @@ mod tests {
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::<f32, 1>::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32>::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual =
             Tensor::<LibTorch<f32>, 1>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
@@ -397,7 +392,7 @@ mod tests {
             Distribution::Default,
             &mut StdRng::from_entropy(),
         );
-        let tensor = TchTensor::<f32, 2>::from_data(data_expected.clone(), tch::Device::Cpu);
+        let tensor = TchTensor::<f32>::from_data(data_expected.clone(), tch::Device::Cpu);
 
         let data_actual =
             Tensor::<LibTorch<f32>, 2>::from_primitive(TensorPrimitive::Float(tensor)).into_data();
@@ -433,10 +428,8 @@ mod tests {
 
     #[test]
     fn should_support_qtensor_strategy() {
-        let tensor = TchTensor::<f32, 1>::from_data(
-            TensorData::from([-1.8, -1.0, 0.0, 0.5]),
-            tch::Device::Cpu,
-        );
+        let tensor =
+            TchTensor::<f32>::from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
             scale: TchTensor::from_data(TensorData::from([0.009_019_608]), tch::Device::Cpu),
@@ -445,7 +438,7 @@ mod tests {
                 tch::Device::Cpu,
             )),
         };
-        let qtensor: TchQTensor<i8, 1> = LibTorch::quantize(tensor, &scheme, qparams);
+        let qtensor: TchQTensor<i8> = LibTorch::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(

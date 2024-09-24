@@ -69,13 +69,13 @@ impl PoolStrategy for AvgPool {
 }
 
 pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R, E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, channels, _, _] = x.shape.dims();
     let dilation = 1;
 
     let size_0 = calculate_pool_output_size(

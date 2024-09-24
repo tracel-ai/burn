@@ -127,7 +127,7 @@ mod tests {
     fn should_unsqueeze_dims_support_dim_inference() {
         let input_tensor =
             Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
-        let output_tensor = input_tensor.unsqueeze_dims(&[1, -2]);
+        let output_tensor = input_tensor.unsqueeze_dims::<5>(&[1, -2]);
         let expected_shape = Shape::new([3, 1, 4, 1, 5]);
         assert_eq!(output_tensor.shape(), expected_shape);
     }
@@ -136,7 +136,7 @@ mod tests {
     fn should_unsqueeze_dims_handle_first_last() {
         let input_tensor =
             Tensor::<TestBackend, 3>::ones(Shape::new([3, 4, 5]), &Default::default());
-        let output_tensor = input_tensor.unsqueeze_dims(&[0, 4]);
+        let output_tensor = input_tensor.unsqueeze_dims::<5>(&[0, 4]);
         let expected_shape = Shape::new([1, 3, 4, 5, 1]);
         assert_eq!(output_tensor.shape(), expected_shape);
     }

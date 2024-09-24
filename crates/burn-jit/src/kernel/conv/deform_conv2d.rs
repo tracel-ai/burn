@@ -183,17 +183,17 @@ pub(crate) fn bilinear_interpolate<F: Float>(
 }
 
 pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E, 4>,
-    offset: JitTensor<R, E, 4>,
-    mask: Option<JitTensor<R, E, 4>>,
+    input: JitTensor<R, E>,
+    offset: JitTensor<R, E>,
+    mask: Option<JitTensor<R, E>>,
     options: DeformConvOptions<2>,
     out_dims: (usize, usize),
     kernel_dims: (usize, usize),
-) -> JitTensor<R, E, 2> {
+) -> JitTensor<R, E> {
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let [batch_size, in_channels, _, _] = input.shape.dims;
+    let [batch_size, in_channels, _, _] = input.shape.dims();
     let (out_height, out_width) = out_dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
@@ -252,21 +252,21 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
 }
 
 pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E, 4>,
-    offset: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    mask: Option<JitTensor<R, E, 4>>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    offset: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    mask: Option<JitTensor<R, E>>,
+    bias: Option<JitTensor<R, E>>,
     options: DeformConvOptions<2>,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);
     let mask = mask.map(|it| into_contiguous(it));
     let bias = bias.map(|it| into_contiguous(it));
 
-    let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims;
+    let [batch_size, _, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.weight_groups;
 
     let out_h = calculate_conv_output_size(
@@ -287,7 +287,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
 
-    let [col_size_0, col_size_1] = columns.shape.dims;
+    let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 
@@ -307,10 +307,10 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 pub(crate) fn index<R: JitRuntime, E: FloatElement, I: IntElement>(
-    tensor: JitTensor<R, E, 3>,
+    tensor: JitTensor<R, E>,
     index: usize,
-) -> JitTensor<R, E, 2> {
-    let [_, shape_0, shape_1] = tensor.shape.dims;
+) -> JitTensor<R, E> {
+    let [_, shape_0, shape_1] = tensor.shape.dims();
     let tensor = JitBackend::<R, E, I>::float_narrow(tensor, 0, index, 1);
     reshape(tensor, Shape::new([shape_0, shape_1]))
 }

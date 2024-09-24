@@ -117,18 +117,19 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
     out[offset_out] = O::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    let ndims = lhs.shape.num_dims();
     let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
 
     let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
-    let mut shape_out = [0; D];
+    let mut shape_out = vec![0; ndims];
     lhs.shape
         .dims
         .iter()
@@ -138,7 +139,7 @@ pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: Bina
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
         });
 
-    let shape_out = Shape::new(shape_out);
+    let shape_out = Shape::from(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
@@ -197,13 +198,14 @@ pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: Bina
     }
 }
 
-pub(crate) fn launch_scalar_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
+    tensor: JitTensor<R, E>,
     scalar: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     // Vectorization is only enabled when the last dimension is contiguous.
+    let ndims = tensor.shape.num_dims();
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, ndims - 1);
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
@@ -229,7 +231,7 @@ pub(crate) fn launch_scalar_binop<const D: usize, R: JitRuntime, E: JitElement, 
             buffer,
             tensor.shape.clone(),
             tensor.device.clone(),
-            tensor.strides,
+            tensor.strides.clone(),
         );
 
         kernel_scalar_binop::launch::<E, O, R>(

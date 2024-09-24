@@ -15,7 +15,7 @@ mod tests {
     #[serial]
     fn number_of_1_proportional_to_prob() {
         TestBackend::seed(0);
-        let shape: Shape<2> = [40, 40].into();
+        let shape: Shape = [40, 40].into();
         let device = Default::default();
         let prob = 0.7;
 

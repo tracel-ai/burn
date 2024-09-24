@@ -12,10 +12,7 @@ pub(crate) fn fill<E: CandleElement, S: Into<Shape>>(
     values.expand(shape).unwrap()
 }
 
-pub(crate) fn fill_like<E: CandleElement, const D: usize>(
-    value: E,
-    reference_tensor: &Tensor,
-) -> Tensor {
+pub(crate) fn fill_like<E: CandleElement>(value: E, reference_tensor: &Tensor) -> Tensor {
     fill(
         value,
         reference_tensor.shape(),
