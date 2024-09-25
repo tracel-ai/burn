@@ -5,7 +5,6 @@ use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-// We omit the sorted option because the burn topk impls already come with the topk sorted
 #[derive(Config, Debug)]
 pub struct TopKConfig {
     pub axis: i64,
