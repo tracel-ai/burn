@@ -11,7 +11,7 @@ pub trait AutodiffClient: Send + Clone {
     /// Register a new step.
     fn register(&self, node_id: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder);
     /// Call backpropagation from the given tensor.
-    fn backward<B: Backend, const D: usize>(&self, tensor: AutodiffTensor<B, D>) -> Gradients;
+    fn backward<B: Backend>(&self, tensor: AutodiffTensor<B>) -> Gradients;
 }
 
 /// Client implementation in used.

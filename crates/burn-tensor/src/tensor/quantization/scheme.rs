@@ -69,8 +69,8 @@ impl QuantizationScheme {
     /// Compute the quantization parameters.
     pub(crate) fn compute_q_params_primitive<B: Backend>(
         &self,
-        min: B::FloatTensorPrimitive<1>,
-        max: B::FloatTensorPrimitive<1>,
+        min: B::FloatTensorPrimitive,
+        max: B::FloatTensorPrimitive,
     ) -> QuantizationParametersPrimitive<B> {
         let range = CalibrationRange {
             min: Tensor::from_primitive(TensorPrimitive::Float(min)),

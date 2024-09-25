@@ -8,7 +8,7 @@ use derive_new::new;
 
 #[derive(new)]
 struct ToDataBenchmark<B: Backend, const D: usize> {
-    shape: Shape<D>,
+    shape: Shape,
     device: B::Device,
 }
 
@@ -20,7 +20,7 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape.dims.into()]
+        vec![self.shape.dims.clone()]
     }
 
     fn execute(&self, args: Self::Args) {
@@ -38,7 +38,7 @@ impl<B: Backend, const D: usize> Benchmark for ToDataBenchmark<B, D> {
 
 #[derive(new)]
 struct FromDataBenchmark<B: Backend, const D: usize> {
-    shape: Shape<D>,
+    shape: Shape,
     device: B::Device,
 }
 
@@ -50,7 +50,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape.dims.into()]
+        vec![self.shape.dims.clone()]
     }
 
     fn execute(&self, (data, device): Self::Args) {
@@ -81,7 +81,7 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     const D: usize = 3;
-    let shape: Shape<D> = [32, 512, 1024].into();
+    let shape: Shape = [32, 512, 1024].into();
 
     let to_benchmark = ToDataBenchmark::<B, D>::new(shape.clone(), device.clone());
     let from_benchmark = FromDataBenchmark::<B, D>::new(shape, device.clone());

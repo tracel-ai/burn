@@ -163,15 +163,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
+    type FloatTensorPrimitive = CandleTensor<Self::FloatElem>;
     type FloatElem = F;
 
-    type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
+    type IntTensorPrimitive = CandleTensor<Self::IntElem>;
     type IntElem = I;
 
-    type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+    type BoolTensorPrimitive = CandleTensor<u8>;
 
-    type QuantizedTensorPrimitive<const D: usize> = CandleQTensor<D>;
+    type QuantizedTensorPrimitive = CandleQTensor;
 
     fn ad_enabled() -> bool {
         false

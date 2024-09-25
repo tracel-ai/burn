@@ -27,7 +27,7 @@ impl<B: Backend> ModuleDisplay for PRelu<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [num_parameters] = self.alpha.shape().dims;
+        let [num_parameters] = self.alpha.shape().dims();
 
         content
             .add("num_parameters", &num_parameters)

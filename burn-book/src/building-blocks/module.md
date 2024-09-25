@@ -190,6 +190,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `ConvTranspose1d` | `nn.ConvTranspose1d` |
 | `ConvTranspose2d` | `nn.ConvTranspose2d` |
 | `ConvTranspose3d` | `nn.ConvTranspose3d` |
+| `DeformConv2d`    | `torchvision.ops.DeformConv2d` |
 
 ### Pooling
 

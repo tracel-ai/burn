@@ -131,7 +131,7 @@ macro_rules! bench_on_backend {
         {
             use burn::backend::cuda_jit::{Cuda, CudaDevice};
 
-            bench::<Cuda>(&CudaDevice::default(), feature_name, url, token);
+            bench::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
         }
     };
 }

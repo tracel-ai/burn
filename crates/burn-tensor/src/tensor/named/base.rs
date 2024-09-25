@@ -49,7 +49,7 @@ where
 
     /// Create a random named tensor of the given shape where each element is sampled from
     /// the given distribution.
-    pub fn random<S: Into<Shape<D>>>(
+    pub fn random<S: Into<Shape>>(
         shape: S,
         distribution: Distribution,
         device: &B::Device,
@@ -58,7 +58,7 @@ where
     }
 
     /// Returns the shape of the current tensor.
-    pub fn shape(&self) -> Shape<D> {
+    pub fn shape(&self) -> Shape {
         self.tensor.shape()
     }
 
@@ -77,7 +77,7 @@ where
     /// If the tensor can not be reshape to the given shape.
     pub fn reshape<const D2: usize, S, ND2>(self, shape: S, _: ND2) -> NamedTensor<B, ND2>
     where
-        S: Into<Shape<D2>>,
+        S: Into<Shape>,
         ND2: NamedDims<B, Tensor = Tensor<B, D2>>,
     {
         NamedTensor::from_tensor(self.tensor.reshape(shape.into()))

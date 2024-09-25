@@ -234,17 +234,11 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
 }
 
 /// Executes the shared memory kernel for reduce dim
-pub fn reduce_dim_shared<
-    RD: ReduceDimShared<EI>,
-    R: JitRuntime,
-    EI: JitElement,
-    EO: JitElement,
-    const D: usize,
->(
-    input: JitTensor<R, EI, D>,
-    output: JitTensor<R, EO, D>,
+pub fn reduce_dim_shared<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
+    input: JitTensor<R, EI>,
+    output: JitTensor<R, EO>,
     dim: usize,
-) -> JitTensor<R, EO, D> {
+) -> JitTensor<R, EO> {
     let num_elems_output = output.shape.num_elements();
     let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let cube_count_y = f32::ceil(num_elems_output as f32 / cube_count_x);

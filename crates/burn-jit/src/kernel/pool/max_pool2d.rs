@@ -127,13 +127,13 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
 }
 
 pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R, E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
@@ -172,13 +172,13 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
 }
 
 pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R, E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (JitTensor<R, E, 4>, JitTensor<R, I, 4>) {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> (JitTensor<R, E>, JitTensor<R, I>) {
+    let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],

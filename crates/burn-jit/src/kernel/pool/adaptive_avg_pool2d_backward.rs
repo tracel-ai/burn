@@ -244,9 +244,9 @@ impl<R: JitRuntime, E: JitElement> Kernel for AdaptiveAvgPool2dBackwardEagerKern
 }
 
 pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
-    out_grad: JitTensor<R, E, 4>,
-) -> JitTensor<R, E, 4> {
+    x: JitTensor<R, E>,
+    out_grad: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());

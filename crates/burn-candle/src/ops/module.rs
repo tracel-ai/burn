@@ -1,7 +1,8 @@
 use burn_tensor::{
     ops::{
-        ConvOptions, ConvTransposeOptions, FloatTensor, IntTensor, InterpolateMode,
-        InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
+        IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
+        ModuleOps, UnfoldOptions,
     },
     Shape,
 };
@@ -15,11 +16,11 @@ use crate::{
 
 impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I> {
     fn conv1d(
-        x: FloatTensor<Self, 3>,
-        weight: FloatTensor<Self, 3>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<1>,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         let conv = x
             .tensor
             .conv1d(
@@ -39,11 +40,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn conv2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         assert!(
             options.dilation[0] == options.dilation[1]
                 && options.padding[0] == options.padding[1]
@@ -77,21 +78,44 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         })
     }
 
+    fn deform_conv2d(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        options: DeformConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        unimplemented!("Candle does not support deformable convolutions")
+    }
+
+    fn deform_conv2d_backward(
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        output_grad: FloatTensor<Self>,
+        options: DeformConvOptions<2>,
+    ) -> DeformConv2dBackward<Self> {
+        unimplemented!("Candle does not support deformable convolutions")
+    }
+
     fn conv3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         panic!("Candle does not support 3D convolutions");
     }
 
     fn conv_transpose1d(
-        x: FloatTensor<Self, 3>,
-        weight: FloatTensor<Self, 3>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<1>,
-    ) -> FloatTensor<Self, 3> {
+    ) -> FloatTensor<Self> {
         let conv_transpose = x
             .tensor
             .conv_transpose1d(
@@ -112,11 +136,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn conv_transpose2d(
-        x: FloatTensor<Self, 4>,
-        weight: FloatTensor<Self, 4>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         assert!(
             options.dilation[0] == options.dilation[1]
                 && options.padding[0] == options.padding[1]
@@ -156,21 +180,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn conv_transpose3d(
-        x: FloatTensor<Self, 5>,
-        weight: FloatTensor<Self, 5>,
-        bias: Option<FloatTensor<Self, 1>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
-    ) -> FloatTensor<Self, 5> {
+    ) -> FloatTensor<Self> {
         panic!("Candle does not support 3D transposed convolutions");
     }
 
     fn avg_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
             "Candle does not support padding in pooling"
@@ -187,23 +211,23 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         panic!("avg_pool2d_backward is not supported by Candle")
     }
 
     fn max_pool2d(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
             "Candle does not support padding in pooling"
@@ -220,7 +244,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn max_pool2d_with_indices(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
@@ -230,36 +254,33 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn max_pool2d_with_indices_backward(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        output_grad: FloatTensor<Self, 4>,
-        indices: IntTensor<Self, 4>,
+        output_grad: FloatTensor<Self>,
+        indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Candle<F, I>> {
         panic!("max_pool2d_with_indices_backward is not supported by Candle")
     }
 
-    fn adaptive_avg_pool2d(
-        x: FloatTensor<Self, 4>,
-        output_size: [usize; 2],
-    ) -> FloatTensor<Self, 4> {
+    fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
         panic!("adaptive_avg_pool2 is not supported by Candle")
     }
 
     fn adaptive_avg_pool2d_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
-    ) -> FloatTensor<Self, 4> {
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         panic!("adaptive_avg_pool2d_backward is not supported by Candle")
     }
 
     fn interpolate(
-        x: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         let tensor = match options.mode {
             InterpolateMode::Nearest => x
                 .tensor
@@ -277,11 +298,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     }
 
     fn interpolate_backward(
-        x: FloatTensor<Self, 4>,
-        grad: FloatTensor<Self, 4>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> FloatTensor<Self, 4> {
+    ) -> FloatTensor<Self> {
         panic!("interpolate_backward is not supported by Candle")
     }
 }

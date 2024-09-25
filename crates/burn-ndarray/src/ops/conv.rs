@@ -99,16 +99,17 @@ fn conv3d_mad_inner<E: FloatNdArrayElement>(
 }
 
 pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
-    x: NdArrayTensor<E, 4>,
-    weight: NdArrayTensor<E, 4>,
-    bias: Option<NdArrayTensor<E, 1>>,
+    x: NdArrayTensor<E>,
+    weight: NdArrayTensor<E>,
+    bias: Option<NdArrayTensor<E>>,
     options: ConvOptions<2>,
-) -> NdArrayTensor<E, 4> {
+) -> NdArrayTensor<E> {
     let [dilation_height, dilation_width] = options.dilation;
     let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
-    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims;
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
+    let [out_channels, in_channels, kernel_height, kernel_width] = weight.shape().dims();
+    let channels_per_group = out_channels / options.groups;
 
     let out_height = calculate_conv_output_size(
         kernel_height,
@@ -141,7 +142,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
                 |(k, mut output)| {
                     let b = k / out_channels;
                     let oc = k % out_channels;
-                    let g = k % options.groups;
+                    let g = oc / channels_per_group;
 
                     for ic in (in_channels * g)..(in_channels * (g + 1)) {
                         let weight_ic = ic - (g * in_channels);
@@ -218,17 +219,17 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
 }
 
 pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
-    weight: NdArrayTensor<E, 4>,
-    bias: Option<NdArrayTensor<E, 1>>,
+    x: NdArrayTensor<E>,
+    weight: NdArrayTensor<E>,
+    bias: Option<NdArrayTensor<E>>,
     options: ConvTransposeOptions<2>,
-) -> NdArrayTensor<E, 4> {
+) -> NdArrayTensor<E> {
     let [dilation_height, dilation_width] = options.dilation;
     let [padding_height, padding_width] = options.padding;
     let [stride_height, stride_width] = options.stride;
     let [out_padding_height, out_padding_width] = options.padding_out;
-    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims;
-    let [in_channels, out_channels, kernel_height, kernel_width] = weight.shape().dims;
+    let [batch_size, _in_channels, in_height, in_width] = x.shape().dims();
+    let [in_channels, out_channels, kernel_height, kernel_width] = weight.shape().dims();
 
     let out_height = calculate_conv_transpose_output_size(
         kernel_height,
@@ -310,17 +311,17 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
 }
 
 pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
-    x: NdArrayTensor<E, 5>,
-    weight: NdArrayTensor<E, 5>,
-    bias: Option<NdArrayTensor<E, 1>>,
+    x: NdArrayTensor<E>,
+    weight: NdArrayTensor<E>,
+    bias: Option<NdArrayTensor<E>>,
     options: ConvOptions<3>,
-) -> NdArrayTensor<E, 5> {
+) -> NdArrayTensor<E> {
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
-    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims;
+    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
     let [out_channels, in_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims;
+        weight.shape().dims();
 
     let out_depth = calculate_conv_output_size(
         kernel_depth,
@@ -446,18 +447,18 @@ pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
 }
 
 pub(crate) fn conv_transpose3d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 5>,
-    weight: NdArrayTensor<E, 5>,
-    bias: Option<NdArrayTensor<E, 1>>,
+    x: NdArrayTensor<E>,
+    weight: NdArrayTensor<E>,
+    bias: Option<NdArrayTensor<E>>,
     options: ConvTransposeOptions<3>,
-) -> NdArrayTensor<E, 5> {
+) -> NdArrayTensor<E> {
     let [dilation_depth, dilation_height, dilation_width] = options.dilation;
     let [padding_depth, padding_height, padding_width] = options.padding;
     let [stride_depth, stride_height, stride_width] = options.stride;
     let [out_padding_depth, out_padding_height, out_padding_width] = options.padding_out;
-    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims;
+    let [batch_size, _in_channels, in_depth, in_height, in_width] = x.shape().dims();
     let [in_channels, out_channels, kernel_depth, kernel_height, kernel_width] =
-        weight.shape().dims;
+        weight.shape().dims();
 
     let out_depth = calculate_conv_transpose_output_size(
         kernel_depth,

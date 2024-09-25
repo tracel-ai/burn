@@ -219,9 +219,9 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
-    out_grad: JitTensor<R, E, 4>,
-    output: JitTensor<R, E, 4>,
-) -> JitTensor<R, E, 4> {
+    out_grad: JitTensor<R, E>,
+    output: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
 
     Execution::start(kernel, out_grad.client.clone())

@@ -16,7 +16,7 @@ pub enum MatmulStrategy {
         grid_y: usize,
     },
     #[cfg(feature = "autotune")]
-    /// Using autotune to chose the best kernel based on runtime information.
+    /// Using autotune to choose the best kernel based on runtime information.
     Autotune,
     /// Cube implementation of matmul.
     Cube,
@@ -34,18 +34,18 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
+pub fn matmul<R: JitRuntime, E: FloatElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
     strategy: MatmulStrategy,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     match strategy {
         MatmulStrategy::Simple { grid_x, grid_y } => {
             let out = init_matmul_output(&lhs, &rhs);
             matmul_simple(lhs, rhs, out, grid_x, grid_y)
         }
         MatmulStrategy::Cube => {
-            let out = init_matmul_output::<R, E, D>(&lhs, &rhs);
+            let out = init_matmul_output::<R, E>(&lhs, &rhs);
             let client = &lhs.client;
             cubecl::linalg::matmul::launch_ref::<R, E>(
                 client,
@@ -60,20 +60,21 @@ pub fn matmul<R: JitRuntime, E: FloatElement, const D: usize>(
     }
 }
 
-pub(crate) fn simple_cube_count<R: JitRuntime, const D: usize>(
-    lhs_shape: &Shape<D>,
-    rhs_shape: &Shape<D>,
-    output_shape: &Shape<D>,
+pub(crate) fn simple_cube_count<R: JitRuntime>(
+    lhs_shape: &Shape,
+    rhs_shape: &Shape,
+    output_shape: &Shape,
     cube_dim_x: usize,
     cube_dim_y: usize,
 ) -> CubeCount<R::Server> {
-    let num_rows = lhs_shape.dims[D - 2];
-    let num_cols = rhs_shape.dims[D - 1];
+    let ndims = lhs_shape.num_dims();
+    let num_rows = lhs_shape.dims[ndims - 2];
+    let num_cols = rhs_shape.dims[ndims - 1];
 
     let cubes_x = f32::ceil(num_rows as f32 / cube_dim_x as f32) as u32;
     let cubes_y = f32::ceil(num_cols as f32 / cube_dim_y as f32) as u32;
     let mut num_iter = 1;
-    for i in 0..D - 2 {
+    for i in 0..ndims - 2 {
         num_iter *= output_shape.dims[i];
     }
 

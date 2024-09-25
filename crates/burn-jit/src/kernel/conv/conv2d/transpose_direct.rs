@@ -14,9 +14,9 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    JitRuntime,
+    IntElement, JitRuntime,
 };
-use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
+use burn_tensor::{ops::ConvTransposeOptions, Shape};
 
 #[derive(new)]
 struct Conv2dTransposeEagerKernel<R, E> {
@@ -364,16 +364,24 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv2dTransposeEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn conv_transpose2d<R: JitRuntime, E: JitElement + Element>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+/// Perform a 2D convolution transposition using the direct algorithm.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+#[allow(clippy::extra_unused_type_parameters)]
+pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let input = kernel::into_contiguous(input);
     let weight = kernel::into_contiguous(weight);
-    let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims;
+    let [batch_size, _, in_height, in_width] = input.shape.dims();
+    let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims();
 
     let out_0 = (in_height - 1) * options.stride[0]
         + options.dilation[0] * (kernel_0 - 1)

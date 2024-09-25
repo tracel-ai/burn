@@ -1,4 +1,6 @@
-use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData, TensorPrimitive};
+use crate::{
+    backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+};
 
 use core::ops::Range;
 
@@ -91,10 +93,10 @@ where
     ///        println!("{}", result);
     ///    }
     /// ```
-    pub fn cartesian_grid<S: Into<Shape<D>>, const D2: usize>(
+    pub fn cartesian_grid<S: Into<Shape>, const D2: usize>(
         shape: S,
         device: &B::Device,
     ) -> Tensor<B, D2, Int> {
-        Tensor::new(B::int_cartesian_grid::<S, D, D2>(shape, device))
+        cartesian_grid::<B, S, D, D2>(shape, device)
     }
 }

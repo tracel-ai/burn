@@ -27,9 +27,10 @@ readme = "README.md"
 version = "0.15.0"
 
 [workspace.dependencies]
+atomic_float = "1"
 bytemuck = "1.18.0"
 candle-core = { version = "0.6.0" }
-clap = { version = "4.5.17", features = ["derive"] }
+clap = { version = "4.5.18", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.0"
@@ -83,7 +84,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.77", features = ["full", "extra-traits"] }
 tempfile = "3.12.0"
-thiserror = "1.0.61"
+thiserror = "1.0.64"
 tokio = { version = "1.40.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.32"
@@ -151,8 +152,8 @@ tch = "0.15.0"
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0c494b6d6ec3cc28635e0c6d7a4935008c3c8b8b" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0c494b6d6ec3cc28635e0c6d7a4935008c3c8b8b" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "447968efed59e8659c255f1d84d82039b533b464" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "447968efed59e8659c255f1d84d82039b533b464" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl" }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common" }

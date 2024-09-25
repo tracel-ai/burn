@@ -9,9 +9,9 @@ use burn_common::{
 };
 
 pub struct ConvTranspose2dBenchmark<B: Backend> {
-    input_shape: Shape<4>,
-    weight_shape: Shape<4>,
-    bias_shape: Shape<1>,
+    input_shape: Shape,
+    weight_shape: Shape,
+    bias_shape: Shape,
     options: ConvTransposeOptions<2>,
     device: B::Device,
 }
@@ -25,9 +25,9 @@ impl<B: Backend> Benchmark for ConvTranspose2dBenchmark<B> {
 
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![
-            self.input_shape.dims.into(),
-            self.weight_shape.dims.into(),
-            self.bias_shape.dims.into(),
+            self.input_shape.dims.clone(),
+            self.weight_shape.dims.clone(),
+            self.bias_shape.dims.clone(),
         ]
     }
 

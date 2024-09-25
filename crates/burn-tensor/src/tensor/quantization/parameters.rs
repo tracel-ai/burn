@@ -20,9 +20,9 @@ pub struct QuantizationParameters<B: Backend> {
 /// Users should prefer the [QuantizationParameters] struct, which is designed for public use.
 pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The scaling factor.
-    pub scale: B::FloatTensorPrimitive<1>,
+    pub scale: B::FloatTensorPrimitive,
     /// The zero-point offset.
-    pub offset: Option<B::IntTensorPrimitive<1>>,
+    pub offset: Option<B::IntTensorPrimitive>,
 }
 
 impl<B: Backend> From<QuantizationParameters<B>> for QuantizationParametersPrimitive<B> {

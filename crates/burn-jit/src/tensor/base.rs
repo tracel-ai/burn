@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 #[derive(new)]
-pub struct JitTensor<R, E, const D: usize>
+pub struct JitTensor<R, E>
 where
     R: JitRuntime,
     E: JitElement,
@@ -21,21 +21,21 @@ where
     /// The buffer where the data are stored.
     pub handle: Handle<R::Server>,
     /// The shape of the tensor.
-    pub shape: Shape<D>,
+    pub shape: Shape,
     /// The device of the tensor.
     pub device: R::Device,
     /// The strides of the tensor.
-    pub strides: [usize; D],
+    pub strides: Vec<usize>,
     pub(crate) elem: PhantomData<E>,
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for TensorHandle<R, E> {
-    fn from(val: JitTensor<R, E, D>) -> Self {
+impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for TensorHandle<R, E> {
+    fn from(val: JitTensor<R, E>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
 }
 
-impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
+impl<R, E> core::fmt::Debug for JitTensor<R, E>
 where
     R: JitRuntime,
     E: JitElement,
@@ -52,7 +52,7 @@ where
     }
 }
 
-impl<R, E, const D: usize> Clone for JitTensor<R, E, D>
+impl<R, E> Clone for JitTensor<R, E>
 where
     R: JitRuntime,
     E: JitElement,
@@ -63,13 +63,13 @@ where
             handle: self.handle.clone(),
             shape: self.shape.clone(),
             device: self.device.clone(),
-            strides: self.strides,
+            strides: self.strides.clone(),
             elem: PhantomData,
         }
     }
 }
 
-impl<R, E, const D: usize> JitTensor<R, E, D>
+impl<R, E> JitTensor<R, E>
 where
     R: JitRuntime,
     E: JitElement,
@@ -78,10 +78,11 @@ where
     pub fn new_contiguous(
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
-        shape: Shape<D>,
+        shape: Shape,
         handle: Handle<R::Server>,
     ) -> Self {
-        let mut strides = [0; D];
+        let ndims = shape.num_dims();
+        let mut strides = vec![0; ndims];
 
         let mut current = 1;
         shape
@@ -120,7 +121,7 @@ where
             client,
             handle,
             shape: self.shape.clone(),
-            strides: self.strides,
+            strides: self.strides.clone(),
             device,
             elem: PhantomData,
         }
@@ -148,8 +149,9 @@ where
         if !self.handle.can_mut() {
             return false;
         }
+        let ndims = self.shape.num_dims();
 
-        for i in 0..D {
+        for i in 0..ndims {
             let shape_lhs = self.shape.dims[i];
             let shape_rhs = rhs.shape.dims[i];
 

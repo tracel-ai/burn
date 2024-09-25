@@ -26,7 +26,7 @@ where
     B: Backend,
     K: TensorKind<B>,
 {
-    pub(crate) primitive: K::Primitive<D>,
+    pub(crate) primitive: K::Primitive,
 }
 
 impl<B, const D: usize, K, T> From<T> for Tensor<B, D, K>
@@ -46,17 +46,17 @@ where
     K: BasicOps<B>,
 {
     /// Converts the tensor into a primitive tensor.
-    pub fn into_primitive(self) -> K::Primitive<D> {
+    pub fn into_primitive(self) -> K::Primitive {
         self.primitive
     }
 
     /// Converts from a primitive tensor into a tensor.
-    pub fn from_primitive(tensor: K::Primitive<D>) -> Self {
+    pub fn from_primitive(tensor: K::Primitive) -> Self {
         Self::new(tensor)
     }
 
     /// Create an empty tensor of the given shape.
-    pub fn empty<S: Into<Shape<D>>>(shape: S, device: &B::Device) -> Self {
+    pub fn empty<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
         Self::new(K::empty(shape, device))
@@ -66,11 +66,11 @@ where
     ///
     /// Equivalent to `tensor.shape().dims`.
     pub fn dims(&self) -> [usize; D] {
-        Self::shape(self).dims
+        Self::shape(self).dims()
     }
 
     /// Returns the shape of the current tensor.
-    pub fn shape(&self) -> Shape<D> {
+    pub fn shape(&self) -> Shape {
         K::shape(&self.primitive)
     }
 
@@ -110,7 +110,7 @@ where
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
         // Convert reshape args to shape
         let shape = shape.into_shape(&self);
-        Tensor::new(K::reshape::<D, D2>(self.primitive, shape))
+        Tensor::new(K::reshape(self.primitive, shape))
     }
 
     /// Transpose the tensor.
@@ -138,6 +138,7 @@ where
     ///
     /// The tensor with the dimensions swapped.
     pub fn swap_dims(self, dim1: usize, dim2: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
         Tensor::new(K::swap_dims(self.primitive, dim1, dim2))
     }
 
@@ -167,7 +168,7 @@ where
         // Check if the axes are valid after the transformation
         check!(TensorCheck::permute(transformed_axes));
 
-        Tensor::new(K::permute(self.primitive, transformed_axes))
+        Tensor::new(K::permute(self.primitive, &transformed_axes))
     }
 
     /// Moves the dimension(s) of input at the position(s) in source to the position(s) in destination.
@@ -303,7 +304,7 @@ where
         new_dims[start_dim] = flatten_dims;
         new_dims[start_dim + 1..].copy_from_slice(&current_dims[end_dim + 1..]);
 
-        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+        Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
     /// Squeeze the tensor along the given dimension, removing the specified dimension
@@ -348,7 +349,7 @@ where
         new_dims[..dim].copy_from_slice(&current_dims[..dim]);
         new_dims[dim..].copy_from_slice(&current_dims[dim + 1..]);
 
-        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+        Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
     /// Removes specified dimensions of size 1 from a tensor's shape. This function takes a tensor and
@@ -437,7 +438,7 @@ where
         // Check that after squeezing, we still respect the D2 size
         check!(TensorCheck::squeeze_dims_len::<D2>(new_dims.len()));
 
-        Tensor::new(K::reshape::<D, D2>(self.primitive, new_dims.into()))
+        Tensor::new(K::reshape(self.primitive, new_dims.into()))
     }
 
     /// Unsqueeze the current tensor. Create new dimensions to fit the given size.
@@ -639,8 +640,8 @@ where
     pub fn slice<const D2: usize, R: RangesArg<D2>>(self, ranges: R) -> Self {
         let ranges = ranges.into_ranges(self.shape());
 
-        check!(TensorCheck::slice(&self.shape(), &ranges));
-        Self::new(K::slice(self.primitive, ranges))
+        check!(TensorCheck::slice::<D, D2>(&self.shape(), &ranges));
+        Self::new(K::slice(self.primitive, &ranges))
     }
 
     /// Returns a copy of the current tensor with the selected elements changed to the new ones at
@@ -670,12 +671,12 @@ where
         ranges: [core::ops::Range<usize>; D2],
         values: Self,
     ) -> Self {
-        check!(TensorCheck::slice_assign(
+        check!(TensorCheck::slice_assign::<D, D2>(
             &self.shape(),
             &values.shape(),
             &ranges
         ));
-        Self::new(K::slice_assign(self.primitive, ranges, values.primitive))
+        Self::new(K::slice_assign(self.primitive, &ranges, values.primitive))
     }
 
     /// Returns the device of the current tensor.
@@ -750,7 +751,7 @@ where
     /// If the two tensors don't have the same shape.
     pub fn equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("Equal", &self, &other));
-        K::equal(self.primitive, other.primitive)
+        Tensor::new(K::equal(self.primitive, other.primitive))
     }
 
     /// Applies element-wise non-equality comparison and returns a boolean tensor.
@@ -760,7 +761,7 @@ where
     /// If the two tensors don't have the same shape.
     pub fn not_equal(self, other: Self) -> Tensor<B, D, Bool> {
         check!(TensorCheck::binary_ops_ew("NotEqual", &self, &other));
-        K::not_equal(self.primitive, other.primitive)
+        Tensor::new(K::not_equal(self.primitive, other.primitive))
     }
 
     /// Concatenates all tensors into a new one along the given dimension.
@@ -816,7 +817,7 @@ where
     pub fn narrow(self, dim: usize, start: usize, length: usize) -> Self {
         check!(TensorCheck::dim_ops::<D>("narrow", dim));
         check!(TensorCheck::narrow(&self, dim, start, length));
-        Self::new(narrow::<B, D, K>(self.primitive, dim, start, length))
+        Self::new(narrow::<B, K>(self.primitive, dim, start, length))
     }
 
     /// Attempts to split the tensor along the given dimension into chunks.
@@ -850,7 +851,7 @@ where
     /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
     pub fn any(self) -> Tensor<B, 1, Bool> {
-        K::any(self.primitive)
+        Tensor::new(K::any(self.primitive))
     }
 
     /// Tests if any element in the `tensor` evaluates to True along a given dimension `dim`.
@@ -866,7 +867,7 @@ where
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     pub fn any_dim(self, dim: usize) -> Tensor<B, D, Bool> {
-        K::any_dim(self.primitive, dim)
+        Tensor::new(K::any_dim(self.primitive, dim))
     }
 
     /// Tests if all elements in the `tensor` evaluate to True.
@@ -880,7 +881,7 @@ where
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     pub fn all(self) -> Tensor<B, 1, Bool> {
-        K::all(self.primitive)
+        Tensor::new(K::all(self.primitive))
     }
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
@@ -896,7 +897,7 @@ where
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     pub fn all_dim(self, dim: usize) -> Tensor<B, D, Bool> {
-        K::all_dim(self.primitive, dim)
+        Tensor::new(K::all_dim(self.primitive, dim))
     }
 
     /// Convert the tensor into a scalar.
@@ -918,7 +919,7 @@ where
     ///
     /// If the tensor doesn't have one element.
     pub async fn into_scalar_async(self) -> K::Elem {
-        check!(TensorCheck::into_scalar(&self.shape()));
+        check!(TensorCheck::into_scalar::<D>(&self.shape()));
         let x = self.into_data_async().await.iter().next().unwrap();
         x
     }
@@ -941,7 +942,11 @@ where
     /// A new tensor with the given shape.
     pub fn expand<const D2: usize, S: BroadcastArgs<D, D2>>(self, shape: S) -> Tensor<B, D2, K> {
         let shape = shape.into_shape(&self.shape());
-        check!(TensorCheck::expand("expand", &self.shape(), &shape,));
+        check!(TensorCheck::expand::<D, D2>(
+            "expand",
+            &self.shape(),
+            &shape,
+        ));
 
         Tensor::<B, D2, K>::new(K::expand(self.primitive, shape))
     }
@@ -1305,7 +1310,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
     /// which is more high-level and designed for public use.
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D>;
+    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
 
     /// Returns the shape of the tensor.
     ///
@@ -1325,7 +1330,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For getting the shape of a tensor, users should prefer the [Tensor::shape](Tensor::shape) function,
     /// which is more high-level and designed for public use.
-    fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D>;
+    fn shape(tensor: &Self::Primitive) -> Shape;
 
     /// Reshapes the tensor.
     ///
@@ -1346,10 +1351,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For reshaping a tensor, users should prefer the [Tensor::reshape](Tensor::reshape) function,
     /// which is more high-level and designed for public use.
-    fn reshape<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2>;
+    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
 
     /// Transposes a tensor.
     ///
@@ -1360,7 +1362,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D>;
+    fn transpose(tensor: Self::Primitive) -> Self::Primitive;
 
     /// Swaps two dimensions of a tensor.
     ///
@@ -1373,11 +1375,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    fn swap_dims<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> Self::Primitive<D>;
+    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive;
 
     /// Permutes the dimensions of a tensor.
     ///
@@ -1389,7 +1387,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D>;
+    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
 
     /// Flips the tensor along the given axes.
     ///
@@ -1401,7 +1399,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Returns
     ///
     /// The tensor with the axes flipped.
-    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D>;
+    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive;
 
     ///  Select tensor elements corresponding for the given ranges.
     ///
@@ -1422,10 +1420,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For selecting elements of a tensor, users should prefer the [Tensor::slice](Tensor::slice) function,
     /// which is more high-level and designed for public use.
-    fn slice<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        range: [Range<usize>; D2],
-    ) -> Self::Primitive<D1>;
+    fn slice(tensor: Self::Primitive, range: &[Range<usize>]) -> Self::Primitive;
 
     ///  Assigns the given value to the tensor elements corresponding for the given ranges.
     ///
@@ -1447,11 +1442,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For assigning values to elements of a tensor, users should prefer the [Tensor::slice_assign](Tensor::slice_assign) function,
     /// which is more high-level and designed for public use.
-    fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-        value: Self::Primitive<D1>,
-    ) -> Self::Primitive<D1>;
+    fn slice_assign(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Primitive,
+    ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.
     ///
@@ -1471,7 +1466,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For getting the device of a tensor, users should prefer the [Tensor::device](Tensor::device) function,
     /// which is more high-level and designed for public use.
-    fn device<const D: usize>(tensor: &Self::Primitive<D>) -> B::Device;
+    fn device(tensor: &Self::Primitive) -> B::Device;
 
     /// Moves the tensor to the given device.
     ///
@@ -1492,10 +1487,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For moving a tensor to a device, users should prefer the [Tensor::to_device](Tensor::to_device) function,
     /// which is more high-level and designed for public use.
-    fn to_device<const D: usize>(
-        tensor: Self::Primitive<D>,
-        device: &B::Device,
-    ) -> Self::Primitive<D>;
+    fn to_device(tensor: Self::Primitive, device: &B::Device) -> Self::Primitive;
 
     /// Extracts the data from the tensor asynchronously.
     ///
@@ -1515,9 +1507,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data_async<const D: usize>(
-        tensor: Self::Primitive<D>,
-    ) -> impl Future<Output = TensorData> + Send;
+    fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
 
     /// Creates a tensor from the given data.
     ///
@@ -1538,7 +1528,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
-    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D>;
+    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -1560,11 +1550,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For repeating a tensor, users should prefer the [Tensor::repeat_dim](Tensor::repeat_dim) function,
     /// which is more high-level and designed for public use.
-    fn repeat_dim<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> Self::Primitive<D>;
+    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive;
 
     /// Concatenates the given tensors along the given dimension.
     ///
@@ -1585,7 +1571,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For concatenating tensors, users should prefer the [Tensor::cat](Tensor::cat) function,
     /// which is more high-level and designed for public use.
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D>;
+    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive;
 
     /// Attempts to split the tensor along the given dimension into chunks.
     /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
@@ -1608,11 +1594,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// To split a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
     /// which is more high-level and designed for public use.
-    fn chunk<const D: usize>(
-        tensor: Self::Primitive<D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<Self::Primitive<D>>;
+    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive>;
 
     /// Equates the given tensors.
     ///
@@ -1633,10 +1615,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For equating tensors, users should prefer the [Tensor::equal](Tensor::equal) function,
     /// which is more high-level and designed for public use.
-    fn equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Applies element-wise non-equality comparison between the given tensors.
     ///
@@ -1657,10 +1636,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For non-equality comparison of tensors, users should prefer the [Tensor::not_equal](Tensor::not_equal)
     /// function, which is more high-level and designed for public use.
-    fn not_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool>;
+    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
@@ -1683,7 +1659,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::any](Tensor::any) function
     /// which is more high-level and designed for public use.
-    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Tests if any element in the tensor evaluates to True along a given dimension dim.
     ///
@@ -1703,7 +1679,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::any_dim](Tensor::any_dim) function,
     /// which is more high-level and designed for public use.
-    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
 
     /// Tests if all elements in the `tensor` evaluate to True.
     ///
@@ -1721,7 +1697,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all](Tensor::all) function,
     /// which is more high-level and designed for public use.
-    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool>;
+    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive;
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
     ///
@@ -1740,7 +1716,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly. Users should prefer the [Tensor::all_dim](Tensor::all_dim) function,
     /// which is more high-level and designed for public use.
-    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool>;
+    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive;
 
     /// Broadcasts the given tensor to the specified shape.
     ///
@@ -1752,30 +1728,24 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Returns
     ///
     /// The broadcasted tensor.
-    fn expand<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2>;
+    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive;
 }
 
 impl<B: Backend> BasicOps<B> for Float {
     type Elem = B::FloatElem;
 
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
-    fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
+    fn shape(tensor: &Self::Primitive) -> Shape {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
             TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
         }
     }
 
-    fn reshape<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_reshape(tensor, shape))
@@ -1784,19 +1754,14 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_transpose(tensor)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_transpose(tensor)),
         }
     }
 
-    fn swap_dims<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> Self::Primitive<D> {
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_swap_dims(tensor, dim1, dim2))
@@ -1807,10 +1772,7 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn slice<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-    ) -> Self::Primitive<D1> {
+    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_slice(tensor, ranges))
@@ -1819,11 +1781,11 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-        value: Self::Primitive<D1>,
-    ) -> Self::Primitive<D1> {
+    fn slice_assign(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Primitive,
+    ) -> Self::Primitive {
         match (tensor, value) {
             (TensorPrimitive::Float(tensor), TensorPrimitive::Float(value)) => {
                 TensorPrimitive::Float(B::float_slice_assign(tensor, ranges, value))
@@ -1835,17 +1797,14 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
             TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
-    fn to_device<const D: usize>(
-        tensor: Self::Primitive<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive<D> {
+    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_to_device(tensor, device))
@@ -1856,25 +1815,21 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_into_data(tensor).await,
             TensorPrimitive::QFloat(tensor) => B::q_into_data(tensor).await,
         }
     }
 
-    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
             DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data, device)),
         }
     }
 
-    fn repeat_dim<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> Self::Primitive<D> {
+    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_repeat_dim(tensor, dim, times))
@@ -1885,7 +1840,7 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
         match vectors.first().unwrap() {
             TensorPrimitive::Float(_) => TensorPrimitive::Float(B::float_cat(
                 vectors.into_iter().map(|tensor| tensor.tensor()).collect(),
@@ -1907,37 +1862,31 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_equal(lhs.tensor(), rhs.tensor()))
+    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn not_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_not_equal(lhs.tensor(), rhs.tensor()))
+    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_not_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::float_any(tensor.tensor()))
+    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_any(tensor.tensor())
     }
 
-    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_any_dim(tensor.tensor(), dim))
+    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::float_any_dim(tensor.tensor(), dim)
     }
 
-    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::float_all(tensor.tensor()))
+    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::float_all(tensor.tensor())
     }
 
-    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_all_dim(tensor.tensor(), dim))
+    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::float_all_dim(tensor.tensor(), dim)
     }
 
-    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_permute(tensor, axes))
@@ -1946,25 +1895,18 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn expand<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         TensorPrimitive::Float(B::float_expand(tensor.tensor(), shape))
     }
 
-    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_flip(tensor, axes)),
             TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_flip(tensor, axes)),
         }
     }
 
-    fn chunk<const D: usize>(
-        tensor: Self::Primitive<D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<Self::Primitive<D>> {
+    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_chunk(tensor, chunks, dim)
                 .into_iter()
@@ -1981,129 +1923,98 @@ impl<B: Backend> BasicOps<B> for Float {
 impl<B: Backend> BasicOps<B> for Int {
     type Elem = B::IntElem;
 
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_empty(shape, device)
     }
-    fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
+    fn shape(tensor: &Self::Primitive) -> Shape {
         B::int_shape(tensor)
     }
 
-    fn reshape<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::int_reshape(tensor, shape)
     }
 
-    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
         B::int_transpose(tensor)
     }
 
-    fn swap_dims<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> Self::Primitive<D> {
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
         B::int_swap_dims(tensor, dim1, dim2)
     }
 
-    fn slice<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-    ) -> Self::Primitive<D1> {
+    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
         B::int_slice(tensor, ranges)
     }
 
-    fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-        value: Self::Primitive<D1>,
-    ) -> Self::Primitive<D1> {
+    fn slice_assign(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Primitive,
+    ) -> Self::Primitive {
         B::int_slice_assign(tensor, ranges, value)
     }
 
-    fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
         B::int_device(tensor)
     }
 
-    fn to_device<const D: usize>(
-        tensor: Self::Primitive<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive<D> {
+    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
         B::int_to_device(tensor, device)
     }
 
-    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
         B::int_into_data(tensor).await
     }
 
-    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         B::int_from_data(data, device)
     }
 
-    fn repeat_dim<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> Self::Primitive<D> {
+    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
         B::int_repeat_dim(tensor, dim, times)
     }
 
-    fn equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_equal(lhs, rhs))
+    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_equal(lhs, rhs)
     }
 
-    fn not_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_not_equal(lhs, rhs))
+    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_not_equal(lhs, rhs)
     }
 
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
         B::int_cat(vectors, dim)
     }
 
-    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::int_any(tensor))
+    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_any(tensor)
     }
 
-    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_any_dim(tensor, dim))
+    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::int_any_dim(tensor, dim)
     }
 
-    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::int_all(tensor))
+    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::int_all(tensor)
     }
 
-    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::int_all_dim(tensor, dim))
+    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::int_all_dim(tensor, dim)
     }
 
-    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::int_permute(tensor, axes)
     }
 
-    fn expand<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::int_expand(tensor, shape)
     }
 
-    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::int_flip(tensor, axes)
     }
 
-    fn chunk<const D: usize>(
-        tensor: Self::Primitive<D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<Self::Primitive<D>> {
+    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::int_chunk(tensor, chunks, dim)
     }
 }
@@ -2111,129 +2022,98 @@ impl<B: Backend> BasicOps<B> for Int {
 impl<B: Backend> BasicOps<B> for Bool {
     type Elem = bool;
 
-    fn empty<const D: usize>(shape: Shape<D>, device: &B::Device) -> Self::Primitive<D> {
+    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
     }
-    fn shape<const D: usize>(tensor: &Self::Primitive<D>) -> Shape<D> {
+    fn shape(tensor: &Self::Primitive) -> Shape {
         B::bool_shape(tensor)
     }
 
-    fn reshape<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::bool_reshape(tensor, shape)
     }
 
-    fn transpose<const D: usize>(tensor: Self::Primitive<D>) -> Self::Primitive<D> {
+    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
         B::bool_transpose(tensor)
     }
 
-    fn swap_dims<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> Self::Primitive<D> {
-        check!(TensorCheck::swap_dims::<D>(dim1, dim2));
+    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
         B::bool_swap_dims(tensor, dim1, dim2)
     }
 
-    fn slice<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-    ) -> Self::Primitive<D1> {
+    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
         B::bool_slice(tensor, ranges)
     }
 
-    fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        ranges: [Range<usize>; D2],
-        value: Self::Primitive<D1>,
-    ) -> Self::Primitive<D1> {
+    fn slice_assign(
+        tensor: Self::Primitive,
+        ranges: &[Range<usize>],
+        value: Self::Primitive,
+    ) -> Self::Primitive {
         B::bool_slice_assign(tensor, ranges, value)
     }
 
-    fn device<const D: usize>(tensor: &Self::Primitive<D>) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
         B::bool_device(tensor)
     }
 
-    fn to_device<const D: usize>(
-        tensor: Self::Primitive<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive<D> {
+    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
         B::bool_to_device(tensor, device)
     }
 
-    async fn into_data_async<const D: usize>(tensor: Self::Primitive<D>) -> TensorData {
+    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
         B::bool_into_data(tensor).await
     }
 
-    fn from_data<const D: usize>(data: TensorData, device: &B::Device) -> Self::Primitive<D> {
+    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         B::bool_from_data(data, device)
     }
 
-    fn repeat_dim<const D: usize>(
-        tensor: Self::Primitive<D>,
-        dim: usize,
-        times: usize,
-    ) -> Self::Primitive<D> {
+    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
         B::bool_repeat_dim(tensor, dim, times)
     }
 
-    fn equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_equal(lhs, rhs))
+    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::bool_equal(lhs, rhs)
     }
 
-    fn not_equal<const D: usize>(
-        lhs: Self::Primitive<D>,
-        rhs: Self::Primitive<D>,
-    ) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_not_equal(lhs, rhs))
+    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::bool_not_equal(lhs, rhs)
     }
 
-    fn cat<const D: usize>(vectors: Vec<Self::Primitive<D>>, dim: usize) -> Self::Primitive<D> {
+    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
         B::bool_cat(vectors, dim)
     }
 
-    fn any<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::bool_any(tensor))
+    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::bool_any(tensor)
     }
 
-    fn any_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_any_dim(tensor, dim))
+    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::bool_any_dim(tensor, dim)
     }
 
-    fn all<const D: usize>(tensor: Self::Primitive<D>) -> Tensor<B, 1, Bool> {
-        Tensor::new(B::bool_all(tensor))
+    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::bool_all(tensor)
     }
 
-    fn all_dim<const D: usize>(tensor: Self::Primitive<D>, dim: usize) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_all_dim(tensor, dim))
+    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
+        B::bool_all_dim(tensor, dim)
     }
 
-    fn permute<const D: usize>(tensor: Self::Primitive<D>, axes: [usize; D]) -> Self::Primitive<D> {
+    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::bool_permute(tensor, axes)
     }
 
-    fn expand<const D1: usize, const D2: usize>(
-        tensor: Self::Primitive<D1>,
-        shape: Shape<D2>,
-    ) -> Self::Primitive<D2> {
+    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::bool_expand(tensor, shape)
     }
 
-    fn flip<const D: usize>(tensor: Self::Primitive<D>, axes: &[usize]) -> Self::Primitive<D> {
+    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
         B::bool_flip(tensor, axes)
     }
 
-    fn chunk<const D: usize>(
-        tensor: Self::Primitive<D>,
-        chunks: usize,
-        dim: usize,
-    ) -> Vec<Self::Primitive<D>> {
+    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::bool_chunk(tensor, chunks, dim)
     }
 }
@@ -2302,7 +2182,7 @@ impl MovedimArgs for i32 {
 /// Trait used for slice arguments
 pub trait RangesArg<const D2: usize> {
     /// Converts into a set of ranges to `[core::ops::Range<usize>; D2]` for the `tensor.slice()` function
-    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2];
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2];
 
     /// Handles negative index values
     fn handle_negative_index(start: i64, end: i64, dim: usize) -> (usize, usize) {
@@ -2328,7 +2208,7 @@ pub trait RangesArg<const D2: usize> {
 }
 
 impl<const D2: usize> RangesArg<D2> for [core::ops::Range<usize>; D2] {
-    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
         // clamp the ranges to the shape dimensions
         let ranges = self
             .iter()
@@ -2343,7 +2223,7 @@ impl<const D2: usize> RangesArg<D2> for [core::ops::Range<usize>; D2] {
 }
 
 impl<const D2: usize> RangesArg<D2> for [Option<(i64, i64)>; D2] {
-    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
         let ranges = self
             .iter()
             .enumerate()
@@ -2362,7 +2242,7 @@ impl<const D2: usize> RangesArg<D2> for [Option<(i64, i64)>; D2] {
 }
 
 impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
-    fn into_ranges<const D: usize>(self, shape: Shape<D>) -> [core::ops::Range<usize>; D2] {
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; D2] {
         let ranges = self
             .iter()
             .enumerate()
@@ -2383,15 +2263,18 @@ pub trait ReshapeArgs<const D2: usize> {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2>;
+    ) -> Shape;
 }
 
-impl<const D2: usize> ReshapeArgs<D2> for Shape<D2> {
+impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
-        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &self));
+    ) -> Shape {
+        check!(TensorCheck::reshape_args_usize::<D, D2>(
+            &tensor.shape(),
+            &self
+        ));
 
         self
     }
@@ -2400,10 +2283,13 @@ impl<const D2: usize> ReshapeArgs<D2> for [usize; D2] {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
+    ) -> Shape {
         let shape = Shape::from(self);
 
-        check!(TensorCheck::reshape_args_usize(&tensor.shape(), &shape));
+        check!(TensorCheck::reshape_args_usize::<D, D2>(
+            &tensor.shape(),
+            &shape
+        ));
 
         shape
     }
@@ -2413,7 +2299,7 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
     fn into_shape<B: Backend, const D: usize, K: BasicOps<B>>(
         self,
         tensor: &Tensor<B, D, K>,
-    ) -> Shape<D2> {
+    ) -> Shape {
         // Validate the reshape arguments
         check!(TensorCheck::reshape_args_i32(&self));
 
@@ -2466,24 +2352,24 @@ impl<const D2: usize> ReshapeArgs<D2> for [i32; D2] {
 /// Trait used for broadcast arguments.
 pub trait BroadcastArgs<const D1: usize, const D2: usize> {
     /// Converts to a shape.
-    fn into_shape(self, shape: &Shape<D1>) -> Shape<D2>;
+    fn into_shape(self, shape: &Shape) -> Shape;
 }
 
-impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape<D2> {
-    fn into_shape(self, _shape: &Shape<D1>) -> Shape<D2> {
+impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for Shape {
+    fn into_shape(self, _shape: &Shape) -> Shape {
         self
     }
 }
 impl<const D1: usize, const D2: usize> BroadcastArgs<D1, D2> for [usize; D2] {
-    fn into_shape(self, _shape: &Shape<D1>) -> Shape<D2> {
+    fn into_shape(self, _shape: &Shape) -> Shape {
         Shape::from(self)
     }
 }
 
 impl<const D1: usize, const D2: usize, E: Element> BroadcastArgs<D1, D2> for [E; D2] {
     // Passing -1 as the size for a dimension means not changing the size of that dimension.
-    fn into_shape(self, shape: &Shape<D1>) -> Shape<D2> {
-        if self.len() < shape.dims.len() {
+    fn into_shape(self, shape: &Shape) -> Shape {
+        if self.len() < shape.num_dims() {
             panic!("Broadcast arguments must be greater than the number of dimensions");
         }
 

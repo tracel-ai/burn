@@ -97,7 +97,7 @@ mod tests {
         let data_3 = TensorData::from([[14.0, 97.0, 100.0, 9.0], [2.0, 3.0, 15.0, 7.0]]);
 
         let device = Default::default();
-        let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
+        let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
         let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
         let tensor_3 = TestAutodiffTensor::from_data(data_3, &device);
 

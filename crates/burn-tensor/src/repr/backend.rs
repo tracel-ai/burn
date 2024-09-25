@@ -11,16 +11,16 @@ pub trait ReprBackend: Backend {
     type Handle: Sync + Send + Clone;
 
     /// Convert a [handle](ReprBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
-    fn float_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> FloatTensor<Self, D>;
+    fn float_tensor(handle: Self::Handle, shape: Shape) -> FloatTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
-    fn int_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> IntTensor<Self, D>;
+    fn int_tensor(handle: Self::Handle, shape: Shape) -> IntTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
-    fn bool_tensor<const D: usize>(handle: Self::Handle, shape: Shape<D>) -> BoolTensor<Self, D>;
+    fn bool_tensor(handle: Self::Handle, shape: Shape) -> BoolTensor<Self>;
 
     /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](ReprBackend::Handle).
-    fn float_tensor_handle<const D: usize>(tensor: FloatTensor<Self, D>) -> Self::Handle;
+    fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle;
     /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](ReprBackend::Handle).
-    fn int_tensor_handle<const D: usize>(tensor: IntTensor<Self, D>) -> Self::Handle;
+    fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle;
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](ReprBackend::Handle).
-    fn bool_tensor_handle<const D: usize>(tensor: BoolTensor<Self, D>) -> Self::Handle;
+    fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
 }

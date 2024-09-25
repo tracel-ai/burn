@@ -18,11 +18,11 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
     prng: P,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     let client = R::client(device);
     let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
     let num_elems = shape.num_elements();

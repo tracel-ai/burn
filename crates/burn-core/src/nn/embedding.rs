@@ -42,7 +42,7 @@ impl<B: Backend> ModuleDisplay for Embedding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [n_embedding, d_model] = self.weight.shape().dims;
+        let [n_embedding, d_model] = self.weight.shape().dims();
         content
             .add("n_embedding", &n_embedding)
             .add("d_model", &d_model)

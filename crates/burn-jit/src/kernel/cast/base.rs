@@ -30,15 +30,15 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-) -> JitTensor<R, EO, D> {
+pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement>(
+    input: JitTensor<R, EI>,
+) -> JitTensor<R, EO> {
     if TypeId::of::<EI>() == TypeId::of::<EO>() {
         return JitTensor::new_contiguous(input.client, input.device, input.shape, input.handle);
     }
 
     // Vectorization is only enabled when the last dimension is contiguous.
-    let rank = D;
+    let rank = input.shape.num_dims();
     let vectorization_factor =
         tensor_vectorization_factor(&[4, 2], &input.shape.dims, &input.strides, rank - 1);
 

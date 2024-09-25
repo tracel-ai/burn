@@ -1,9 +1,8 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
-
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::into_contiguous,
@@ -12,7 +11,7 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    FloatElement, JitRuntime,
+    FloatElement, IntElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -23,11 +22,11 @@ struct Conv2dArgs {
     dilation_1: u32,
     padding_0: u32,
     padding_1: u32,
-    groups: u32,
+    channels_per_group: u32,
 }
 
 #[cube(launch)]
-fn conv2d_kernel<F: Float>(
+fn direct_conv2d_kernel<F: Float>(
     input: &Tensor<F>,
     weight: &Tensor<F>,
     bias: &Tensor<F>,
@@ -50,7 +49,7 @@ fn conv2d_kernel<F: Float>(
     let oh = ABSOLUTE_POS / output.stride(2) % output.shape(2);
     let ow = ABSOLUTE_POS / output.stride(3) % output.shape(3);
 
-    let g = (weight.shape(0) + oc) % args.groups;
+    let g = oc / args.channels_per_group;
     let ic_start = in_channels * g;
     let ic_end = ic_start + in_channels;
     let mut sum = bias[oc];
@@ -114,41 +113,46 @@ fn conv2d_kernel<F: Float>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E, 4>,
-    weight: JitTensor<R, E, 4>,
-    bias: Option<JitTensor<R, E, 1>>,
+/// Perform a 2D convolution using the direct convolution algorithm.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+#[allow(clippy::extra_unused_type_parameters)]
+pub fn conv2d_direct<R: JitRuntime, E: FloatElement, I: IntElement>(
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E, 4> {
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
-    let [batch_size, _, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_0, kernel_1] = weight.shape.dims;
+) -> JitTensor<R, E> {
+    let [batch_size, _, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let channels_per_group = out_channels / options.groups;
 
     // Limit loop unrolling factor to 8 or smaller
-    let kernel_1_unroll = if kernel_1 > 8 {
-        None
-    } else {
-        Some(kernel_1 as u32)
-    };
+    let kernel_w_unroll = (kernel_w <= 8).then_some(kernel_w as u32);
 
-    let out_0 = calculate_conv_output_size(
-        kernel_0,
+    let out_h = calculate_conv_output_size(
+        kernel_h,
         options.stride[0],
         options.padding[0],
         options.dilation[0],
         in_height,
     );
-    let out_1 = calculate_conv_output_size(
-        kernel_1,
+    let out_w = calculate_conv_output_size(
+        kernel_w,
         options.stride[1],
         options.padding[1],
         options.dilation[1],
         in_width,
     );
 
-    let shape_out = Shape::new([batch_size, out_channels, out_0, out_1]);
+    let input = into_contiguous(input);
+    let weight = into_contiguous(weight);
 
+    let shape_out = Shape::new([batch_size, out_channels, out_h, out_w]);
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
@@ -170,7 +174,7 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems_output, cube_dim);
 
-    conv2d_kernel::launch::<E, R>(
+    direct_conv2d_kernel::launch::<E, R>(
         &input.client,
         cube_count,
         cube_dim,
@@ -185,9 +189,9 @@ pub(crate) fn conv2d<R: JitRuntime, E: FloatElement>(
             ScalarArg::new(options.dilation[1] as u32),
             ScalarArg::new(options.padding[0] as u32),
             ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(options.groups as u32),
+            ScalarArg::new(channels_per_group as u32),
         ),
-        kernel_1_unroll,
+        kernel_w_unroll,
     );
 
     output

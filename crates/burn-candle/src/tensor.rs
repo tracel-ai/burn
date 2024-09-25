@@ -9,12 +9,12 @@ use crate::{element::CandleElement, CandleDevice};
 
 /// A tensor that uses the candle backend.
 #[derive(Debug, Clone)]
-pub struct CandleTensor<E: CandleElement, const D: usize> {
+pub struct CandleTensor<E: CandleElement> {
     pub(crate) tensor: candle_core::Tensor,
     phantom: PhantomData<E>,
 }
 
-impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
+impl<E: CandleElement> CandleTensor<E> {
     /// Create a new tensor.
     pub fn new(tensor: candle_core::Tensor) -> Self {
         Self {
@@ -43,23 +43,22 @@ impl<E: CandleElement, const D: usize> CandleTensor<E, D> {
         Self::new(tensor.unwrap())
     }
 
-    pub(crate) fn shape(&self) -> Shape<D> {
-        let x: [usize; D] = self.tensor.dims().try_into().unwrap();
-        Shape::from(x)
+    pub(crate) fn shape(&self) -> Shape {
+        Shape::from(self.tensor.dims().to_vec())
     }
 }
 
 /// A quantized tensor for the candle backend.
 #[derive(Clone, Debug)]
-pub struct CandleQTensor<const D: usize> {
+pub struct CandleQTensor {
     /// The quantized tensor.
     // NOTE: candle  does not implement `WithDType` for i8
-    pub qtensor: CandleTensor<u8, D>,
+    pub qtensor: CandleTensor<u8>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
 }
 
-impl<const D: usize> QTensorPrimitive for CandleQTensor<D> {
+impl QTensorPrimitive for CandleQTensor {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }

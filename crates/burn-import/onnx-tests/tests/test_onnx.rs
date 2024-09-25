@@ -352,7 +352,7 @@ mod tests {
         let output = model.forward(input);
 
         // test the output shape
-        let expected_shape: Shape<3> = Shape::from([6, 2, 7]);
+        let expected_shape: Shape = Shape::from([6, 2, 7]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv1d node
@@ -1441,9 +1441,9 @@ mod tests {
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
         // test the output shape
-        let expected_shape1: Shape<2> = Shape::from([4, 4]);
-        let expected_shape2: Shape<2> = Shape::from([2, 6]);
-        let expected_shape3: Shape<3> = Shape::from([3, 2, 8]);
+        let expected_shape1: Shape = Shape::from([4, 4]);
+        let expected_shape2: Shape = Shape::from([2, 6]);
+        let expected_shape3: Shape = Shape::from([3, 2, 8]);
         assert_eq!(output1.shape(), expected_shape1);
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);

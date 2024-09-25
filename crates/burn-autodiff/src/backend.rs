@@ -6,7 +6,10 @@ use crate::{
     AutodiffBridge,
 };
 use burn_common::sync_type::SyncType;
-use burn_tensor::backend::{AutodiffBackend, Backend};
+use burn_tensor::{
+    backend::{AutodiffBackend, Backend},
+    ops::{BoolTensor, IntTensor, QuantizedTensor},
+};
 use core::marker::PhantomData;
 
 /// Enable auto-differentiation on a backend.
@@ -24,15 +27,15 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     type FullPrecisionBridge = AutodiffBridge<B::FullPrecisionBridge>;
 
-    type FloatTensorPrimitive<const D: usize> = AutodiffTensor<B, D>;
+    type FloatTensorPrimitive = AutodiffTensor<B>;
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = B::IntTensorPrimitive<D>;
+    type IntTensorPrimitive = B::IntTensorPrimitive;
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = B::BoolTensorPrimitive<D>;
+    type BoolTensorPrimitive = B::BoolTensorPrimitive;
 
-    type QuantizedTensorPrimitive<const D: usize> = B::QuantizedTensorPrimitive<D>;
+    type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
     fn ad_enabled() -> bool {
         true
@@ -55,75 +58,60 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type InnerBackend = B;
     type Gradients = Gradients;
 
-    fn backward<const D: usize>(tensor: AutodiffTensor<B, D>) -> Gradients {
+    fn backward(tensor: AutodiffTensor<B>) -> Gradients {
         let client = tensor.node.client.clone();
 
-        AutodiffClient::backward(&client, tensor)
+        AutodiffClient::backward::<B>(&client, tensor)
     }
 
-    fn grad<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
-        grads: &Gradients,
-    ) -> Option<B::FloatTensorPrimitive<D>> {
-        grads.get(tensor)
+    fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
+        grads.get::<B>(tensor)
     }
 
-    fn grad_remove<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
+    fn grad_remove(
+        tensor: &AutodiffTensor<B>,
         grads: &mut Gradients,
-    ) -> Option<B::FloatTensorPrimitive<D>> {
-        grads.remove(tensor)
+    ) -> Option<B::FloatTensorPrimitive> {
+        grads.remove::<B>(tensor)
     }
-    fn inner<const D: usize>(tensor: AutodiffTensor<B, D>) -> B::FloatTensorPrimitive<D> {
+    fn inner(tensor: AutodiffTensor<B>) -> B::FloatTensorPrimitive {
         tensor.primitive
     }
 
-    fn from_inner<const D: usize>(tensor: B::FloatTensorPrimitive<D>) -> AutodiffTensor<B, D> {
+    fn from_inner(tensor: B::FloatTensorPrimitive) -> AutodiffTensor<B> {
         AutodiffTensor::new(tensor)
     }
 
-    fn grad_replace<const D: usize>(
-        tensor: &AutodiffTensor<B, D>,
+    fn grad_replace(
+        tensor: &AutodiffTensor<B>,
         grads: &mut Self::Gradients,
-        grad: B::FloatTensorPrimitive<D>,
+        grad: B::FloatTensorPrimitive,
     ) {
-        grads.remove(tensor);
-        grads.register::<B, D>(tensor.node.id, grad);
+        grads.remove::<B>(tensor);
+        grads.register::<B>(tensor.node.id, grad);
     }
 
-    fn int_inner<const D: usize>(
-        tensor: burn_tensor::ops::IntTensor<Self, D>,
-    ) -> burn_tensor::ops::IntTensor<Self::InnerBackend, D> {
+    fn int_inner(tensor: IntTensor<Self>) -> IntTensor<Self::InnerBackend> {
         tensor
     }
 
-    fn bool_inner<const D: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self, D>,
-    ) -> burn_tensor::ops::BoolTensor<Self::InnerBackend, D> {
+    fn bool_inner(tensor: BoolTensor<Self>) -> BoolTensor<Self::InnerBackend> {
         tensor
     }
 
-    fn int_from_inner<const D: usize>(
-        tensor: burn_tensor::ops::IntTensor<Self::InnerBackend, D>,
-    ) -> burn_tensor::ops::IntTensor<Self, D> {
+    fn int_from_inner(tensor: IntTensor<Self::InnerBackend>) -> IntTensor<Self> {
         tensor
     }
 
-    fn bool_from_inner<const D: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self::InnerBackend, D>,
-    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+    fn bool_from_inner(tensor: BoolTensor<Self::InnerBackend>) -> BoolTensor<Self> {
         tensor
     }
 
-    fn q_inner<const D: usize>(
-        tensor: burn_tensor::ops::QuantizedTensor<Self, D>,
-    ) -> burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D> {
+    fn q_inner(tensor: QuantizedTensor<Self>) -> QuantizedTensor<Self::InnerBackend> {
         tensor
     }
 
-    fn q_from_inner<const D: usize>(
-        tensor: burn_tensor::ops::QuantizedTensor<Self::InnerBackend, D>,
-    ) -> burn_tensor::ops::QuantizedTensor<Self, D> {
+    fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self> {
         tensor
     }
 }

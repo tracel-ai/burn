@@ -70,6 +70,49 @@ mod tests {
     }
 
     #[test]
+    fn test_conv2d_groups_multiple_channels() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 4,
+            channels_out: 4,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 2,
+            height: 5,
+            width: 5,
+        };
+
+        test.assert_output(TestTensor::from([[
+            [
+                [4035., 4188., 4341.],
+                [4800., 4953., 5106.],
+                [5565., 5718., 5871.],
+            ],
+            [
+                [10030., 10507., 10984.],
+                [12415., 12892., 13369.],
+                [14800., 15277., 15754.],
+            ],
+            [
+                [56075., 56876., 57677.],
+                [60080., 60881., 61682.],
+                [64085., 64886., 65687.],
+            ],
+            [
+                [78270., 79395., 80520.],
+                [83895., 85020., 86145.],
+                [89520., 90645., 91770.],
+            ],
+        ]]));
+    }
+
+    #[test]
     fn test_conv2d_complex() {
         let test = Conv2dTestCase {
             batch_size: 2,
@@ -133,7 +176,7 @@ mod tests {
             let device = Default::default();
             let weight = TestTensor::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
-                    .reshape(shape_weight)
+                    .reshape::<4, _>(shape_weight)
                     .into_data(),
             );
             let bias = TestTensor::from(
@@ -141,7 +184,7 @@ mod tests {
             );
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
             let output = conv2d(

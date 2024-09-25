@@ -39,7 +39,7 @@ where
         self.handles.create_tensor_uninit()
     }
 
-    pub async fn read_float<B, const D: usize>(
+    pub async fn read_float<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
@@ -51,11 +51,11 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_float_tensor::<B, D>(&tensor);
+        let tensor = self.handles.get_float_tensor::<B>(&tensor);
         B::float_into_data(tensor).await
     }
 
-    pub async fn read_int<B, const D: usize>(
+    pub async fn read_int<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
@@ -67,11 +67,11 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_int_tensor::<B, D>(&tensor);
+        let tensor = self.handles.get_int_tensor::<B>(&tensor);
         B::int_into_data(tensor).await
     }
 
-    pub async fn read_bool<B, const D: usize>(
+    pub async fn read_bool<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
@@ -83,11 +83,11 @@ where
         // The underlying backend can still be async.
         self.drain_stream(id);
 
-        let tensor = self.handles.get_bool_tensor::<B, D>(&tensor);
+        let tensor = self.handles.get_bool_tensor::<B>(&tensor);
         B::bool_into_data(tensor).await
     }
 
-    pub fn change_server_float<B, const D: usize>(
+    pub fn change_server_float<B>(
         &mut self,
         tensor: &TensorDescription,
         device: &R::FusionDevice,
@@ -96,18 +96,18 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_float_tensor::<B, D>(tensor);
+        let tensor = self.handles.get_float_tensor::<B>(tensor);
         let tensor = B::float_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_float_tensor::<B, D>(&id, tensor.clone());
+            .register_float_tensor::<B>(&id, tensor.clone());
 
         id
     }
 
-    pub fn change_server_int<B, const D: usize>(
+    pub fn change_server_int<B>(
         &mut self,
         tensor: &TensorDescription,
         device: &R::FusionDevice,
@@ -116,18 +116,18 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_int_tensor::<B, D>(tensor);
+        let tensor = self.handles.get_int_tensor::<B>(tensor);
         let tensor = B::int_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_int_tensor::<B, D>(&id, tensor.clone());
+            .register_int_tensor::<B>(&id, tensor.clone());
 
         id
     }
 
-    pub fn change_server_bool<B, const D: usize>(
+    pub fn change_server_bool<B>(
         &mut self,
         tensor: &TensorDescription,
         device: &R::FusionDevice,
@@ -136,13 +136,13 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_bool_tensor::<B, D>(tensor);
+        let tensor = self.handles.get_bool_tensor::<B>(tensor);
         let tensor = B::bool_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 
         server_device
             .handles
-            .register_bool_tensor::<B, D>(&id, tensor.clone());
+            .register_bool_tensor::<B>(&id, tensor.clone());
 
         id
     }

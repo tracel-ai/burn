@@ -68,14 +68,11 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Get the [float tensor](crate::backend::Backend::FloatTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_float_tensor<B, const D: usize>(
-        &mut self,
-        tensor: &TensorDescription,
-    ) -> B::FloatTensorPrimitive<D>
+    pub fn get_float_tensor<B>(&mut self, tensor: &TensorDescription) -> B::FloatTensorPrimitive
     where
         B: ReprBackend<Handle = H>,
     {
-        B::float_tensor::<D>(
+        B::float_tensor(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
@@ -83,14 +80,11 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Get the [int tensor](crate::backend::Backend::IntTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_int_tensor<B, const D: usize>(
-        &mut self,
-        tensor: &TensorDescription,
-    ) -> B::IntTensorPrimitive<D>
+    pub fn get_int_tensor<B>(&mut self, tensor: &TensorDescription) -> B::IntTensorPrimitive
     where
         B: ReprBackend<Handle = H>,
     {
-        B::int_tensor::<D>(
+        B::int_tensor(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
@@ -98,52 +92,40 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Get the [bool tensor](crate::backend::Backend::BoolTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
-    pub fn get_bool_tensor<B, const D: usize>(
-        &mut self,
-        tensor: &TensorDescription,
-    ) -> B::BoolTensorPrimitive<D>
+    pub fn get_bool_tensor<B>(&mut self, tensor: &TensorDescription) -> B::BoolTensorPrimitive
     where
         B: ReprBackend<Handle = H>,
     {
-        B::bool_tensor::<D>(
+        B::bool_tensor(
             self.get_handle(&tensor.id, &tensor.status),
             Shape::from(&tensor.shape),
         )
     }
 
     /// Register a new [float tensor](crate::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_float_tensor<B, const D: usize>(
-        &mut self,
-        id: &TensorId,
-        tensor: B::FloatTensorPrimitive<D>,
-    ) where
+    pub fn register_float_tensor<B>(&mut self, id: &TensorId, tensor: B::FloatTensorPrimitive)
+    where
         B: ReprBackend<Handle = H>,
     {
-        let handle = B::float_tensor_handle::<D>(tensor);
+        let handle = B::float_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
     /// Register a new [int tensor](crate::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_int_tensor<B, const D: usize>(
-        &mut self,
-        id: &TensorId,
-        tensor: B::IntTensorPrimitive<D>,
-    ) where
+    pub fn register_int_tensor<B>(&mut self, id: &TensorId, tensor: B::IntTensorPrimitive)
+    where
         B: ReprBackend<Handle = H>,
     {
-        let handle = B::int_tensor_handle::<D>(tensor);
+        let handle = B::int_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
     /// Register a new [bool tensor](crate::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
-    pub fn register_bool_tensor<B, const D: usize>(
-        &mut self,
-        id: &TensorId,
-        tensor: B::BoolTensorPrimitive<D>,
-    ) where
+    pub fn register_bool_tensor<B>(&mut self, id: &TensorId, tensor: B::BoolTensorPrimitive)
+    where
         B: ReprBackend<Handle = H>,
     {
-        let handle = B::bool_tensor_handle::<D>(tensor);
+        let handle = B::bool_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 

@@ -94,12 +94,13 @@ impl<R: JitRuntime, E: JitElement> Kernel for RepeatEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement, const D1: usize>(
-    input: JitTensor<R, E, D1>,
+pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement>(
+    input: JitTensor<R, E>,
     dim: usize,
     times: usize,
-) -> JitTensor<R, E, D1> {
+) -> JitTensor<R, E> {
     let mut shape = input.shape.clone();
+    let ndims = shape.num_dims();
 
     // Create output handle
     shape.dims[dim] *= times;
@@ -114,7 +115,7 @@ pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement, const D1: usize>(
         handle,
     );
 
-    let kernel = RepeatEagerKernel::<R, E>::new(dim, D1);
+    let kernel = RepeatEagerKernel::<R, E>::new(dim, ndims);
 
     Execution::start(kernel, input.client.clone())
         .inputs(&[input.as_handle_ref()])

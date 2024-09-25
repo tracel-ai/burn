@@ -20,11 +20,11 @@ pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>:
 
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D>;
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self>;
 }
 
 /// We create our own AutodiffBackend trait that extends the Burn autodiff backend trait.
@@ -45,12 +45,12 @@ pub fn matmul_add_relu_custom<B: Backend>(
     bias: Tensor<B, 3>,
 ) -> Tensor<B, 3> {
     let output = B::fused_matmul_add_relu(
-        lhs.into_primitive(),
-        rhs.into_primitive(),
-        bias.into_primitive(),
+        lhs.into_primitive().tensor(),
+        rhs.into_primitive().tensor(),
+        bias.into_primitive().tensor(),
     );
 
-    Tensor::from_primitive(output)
+    Tensor::from_primitive(TensorPrimitive::Float(output))
 }
 
 /// We define a reference implementation using basic tensor operations.
@@ -83,15 +83,15 @@ thread to the data it is responsible of, with support for batches.
 ```wgsl, ignore
 @group(0)
 @binding(0)
-var<storage, read> lhs: array<{{ elem }}>;
+var<storage, read_write> lhs: array<{{ elem }}>;
 
 @group(0)
 @binding(1)
-var<storage, read> rhs: array<{{ elem }}>;
+var<storage, read_write> rhs: array<{{ elem }}>;
 
 @group(0)
 @binding(2)
-var<storage, read> bias: array<{{ elem }}>;
+var<storage, read_write> bias: array<{{ elem }}>;
 
 @group(0)
 @binding(3)
@@ -99,7 +99,7 @@ var<storage, read_write> output: array<{{ elem }}>;
 
 @group(0)
 @binding(4)
-var<storage, read> info: array<u32>;
+var<storage, read_write> info: array<u32>;
 
 const BLOCK_SIZE = {{ workgroup_size_x }}u;
 
@@ -180,7 +180,7 @@ struct FusedMatmulAddRelu<E: FloatElement> {
 // Implement the dynamic kernel trait for our kernel type.
 impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
     fn source(&self) -> SourceTemplate {
-        // Extend our raw kernel with workgroup size information using the
+        // Extend our raw kernel with cube size information using the
         // `SourceTemplate` trait.
         FusedMatmulAddReluRaw::new()
             .source()
@@ -188,6 +188,10 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
             .register("workgroup_size_y", self.cube_dim.y.to_string())
             .register("elem", E::type_name())
             .register("int", "i32")
+    }
+
+    fn id(&self) -> cubecl::KernelId {
+        cubecl::KernelId::new::<Self>().info(self.cube_dim)
     }
 }
 ```
@@ -199,11 +203,11 @@ the raw `WgpuBackend` type.
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         // Define cube dim, hardcoded for simplicity.
         let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
 
@@ -216,19 +220,20 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         let bias = into_contiguous(bias);
 
         // Get the matmul relevant shapes.
-        let num_rows = lhs.shape.dims[D - 2];
-        let num_cols = rhs.shape.dims[D - 1];
+        let ndims = lhs.shape.num_dims();
+        let num_rows = lhs.shape.dims[ndims - 2];
+        let num_cols = rhs.shape.dims[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
-        let mut shape_out = [0; D];
-        for i in shape_out.into_iter().take(D - 2) {
+        let mut shape_out = vec![0; ndims];
+        for i in shape_out.clone().into_iter().take(ndims - 2) {
             shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
             num_batches *= shape_out[i];
         }
-        shape_out[D - 2] = num_rows;
-        shape_out[D - 1] = num_cols;
-        let shape_out = Shape::new(shape_out);
+        shape_out[ndims - 2] = num_rows;
+        shape_out[ndims - 1] = num_cols;
+        let shape_out = Shape::from(shape_out);
 
         // Create a buffer for the output tensor.
         let buffer = lhs
@@ -236,7 +241,8 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output =
+            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
@@ -245,10 +251,11 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         let info = build_info(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
-        // Declare the wgsl workgroup with the number of blocks in x, y and z.
+        // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
         let cubes_needed_in_y = f32::ceil(num_cols as f32 / cube_dim.y as f32) as u32;
-        let cube_count = CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
+        let cube_count =
+            CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
         lhs.client.execute(
@@ -294,24 +301,24 @@ operations.
 // also implements our own API. This would allow us to call any function only implemented for Wgpu
 // and potentially call a custom kernel crafted only for this task.
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         // Create our zero-sized type that will implement the Backward trait.
         #[derive(Debug)]
-        struct FusedMatmulAddReluBackward<const D: usize>;
+        struct FusedMatmulAddReluBackward;
 
-        // Implement the backward trait for the given backend B, the node gradient being of rank D
+        // Implement the backward trait for the given backend B, the node gradient
         // with three other gradients to calculate (lhs, rhs, and bias).
-        impl<B: Backend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
+        impl<B: Backend> Backward<B, 3> for FusedMatmulAddReluBackward {
             // Our state that we must build during the forward pass to compute the backward pass.
             //
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B, D>, Shape<D>);
+            type State = (NodeID, NodeID, FloatTensor<B>, Shape);
 
             fn backward(
                 self,
@@ -322,7 +329,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // Get the nodes of each variable.
                 let [node_lhs, node_rhs, node_bias] = ops.parents;
                 // Fetch the gradient for the current node.
-                let grad = grads.consume::<B, D>(&ops.node);
+                let grad = grads.consume::<B>(&ops.node);
 
                 // Set our state.
                 let (lhs_state, rhs_state, output, shape_bias) = ops.state;
@@ -339,30 +346,30 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
                 // Compute the lhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
-                let grad_lhs = broadcast_shape::<B, D>(
+                let grad_lhs = broadcast_shape::<B>(
                     B::float_matmul(grad_output.clone(), B::float_transpose(rhs)),
                     &shape_lhs,
                 );
                 // Compute the rhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
-                let grad_rhs = broadcast_shape::<B, D>(
+                let grad_rhs = broadcast_shape::<B>(
                     B::float_matmul(B::float_transpose(lhs), grad_output.clone()),
                     &shape_rhs,
                 );
                 // The add derivative is only 1, so we just need to support broadcasting to
                 // compute the bias gradient.
-                let grad_bias = broadcast_shape::<B, D>(grad_output, &shape_bias);
+                let grad_bias = broadcast_shape::<B>(grad_output, &shape_bias);
 
                 // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
-                    grads.register::<B, D>(node, grad_bias);
+                    grads.register::<B>(node.id, grad_bias);
                 }
                 if let Some(node) = node_lhs {
-                    grads.register::<B, D>(node, grad_lhs);
+                    grads.register::<B>(node.id, grad_lhs);
                 }
                 if let Some(node) = node_rhs {
-                    grads.register::<B, D>(node, grad_rhs);
+                    grads.register::<B>(node.id, grad_rhs);
                 }
             }
         }
@@ -371,10 +378,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         //
         // Each node can be fetched with `ops.parents` in the same order as defined here.
         match FusedMatmulAddReluBackward
-            .prepare::<C>(
-                [lhs.node.clone(), rhs.node.clone(), bias.node.clone()],
-                [lhs.graph.clone(), rhs.graph.clone(), bias.graph.clone()],
-            )
+            .prepare::<C>([lhs.node.clone(), rhs.node.clone(), bias.node.clone()])
             // Marks the operation as compute bound, meaning it will save its
             // state instead of recomputing itself during checkpointing
             .compute_bound()

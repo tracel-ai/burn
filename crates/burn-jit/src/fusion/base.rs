@@ -63,42 +63,27 @@ where
 impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
     type Handle = JitFusionHandle<R>;
 
-    fn float_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> burn_tensor::ops::FloatTensor<Self, D> {
+    fn float_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::FloatTensor<Self> {
         handle.into_tensor(shape)
     }
 
-    fn int_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> burn_tensor::ops::IntTensor<Self, D> {
+    fn int_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::IntTensor<Self> {
         handle.into_tensor(shape)
     }
 
-    fn bool_tensor<const D: usize>(
-        handle: Self::Handle,
-        shape: Shape<D>,
-    ) -> burn_tensor::ops::BoolTensor<Self, D> {
+    fn bool_tensor(handle: Self::Handle, shape: Shape) -> burn_tensor::ops::BoolTensor<Self> {
         handle.into_tensor(shape)
     }
 
-    fn float_tensor_handle<const D: usize>(
-        tensor: burn_tensor::ops::FloatTensor<Self, D>,
-    ) -> Self::Handle {
+    fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
-    fn int_tensor_handle<const D: usize>(
-        tensor: burn_tensor::ops::IntTensor<Self, D>,
-    ) -> Self::Handle {
+    fn int_tensor_handle(tensor: burn_tensor::ops::IntTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
-    fn bool_tensor_handle<const D: usize>(
-        tensor: burn_tensor::ops::BoolTensor<Self, D>,
-    ) -> Self::Handle {
+    fn bool_tensor_handle(tensor: burn_tensor::ops::BoolTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 }
@@ -127,20 +112,20 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend
 
     type FullPrecisionBackend = JitBackend<R, f32, i32>;
 
-    fn cast_float<const D: usize>(
-        tensor: burn_tensor::ops::FloatTensor<Self, D>,
+    fn cast_float(
+        tensor: burn_tensor::ops::FloatTensor<Self>,
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
-        fn cast<const D: usize, R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: JitTensor<R, F, D>,
+        fn cast<R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
+            tensor: JitTensor<R, F>,
         ) -> JitFusionHandle<R> {
-            JitFusionHandle::from(kernel::cast::<R, F, FTarget, D>(tensor))
+            JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
 
         match dtype {
-            burn_tensor::DType::F32 => cast::<D, R, F, f32>(tensor),
-            burn_tensor::DType::F16 => cast::<D, R, F, f16>(tensor),
-            burn_tensor::DType::BF16 => cast::<D, R, F, bf16>(tensor),
+            burn_tensor::DType::F32 => cast::<R, F, f32>(tensor),
+            burn_tensor::DType::F16 => cast::<R, F, f16>(tensor),
+            burn_tensor::DType::BF16 => cast::<R, F, bf16>(tensor),
             _ => panic!("Casting error: {dtype:?} unsupported."),
         }
     }
@@ -194,28 +179,25 @@ unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
 unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
 
 impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor<const D: usize, E: JitElement>(
-        self,
-        shape: Shape<D>,
-    ) -> JitTensor<R, E, D> {
+    pub(crate) fn into_tensor<E: JitElement>(self, shape: Shape) -> JitTensor<R, E> {
         JitTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
             shape,
-            strides: self.strides.try_into().expect("Wrong dimension"),
+            strides: self.strides,
             elem: PhantomData,
         }
     }
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for JitFusionHandle<R> {
-    fn from(value: JitTensor<R, E, D>) -> Self {
+impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for JitFusionHandle<R> {
+    fn from(value: JitTensor<R, E>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,
             device: value.device,
-            strides: value.strides.into(),
+            strides: value.strides,
         }
     }
 }

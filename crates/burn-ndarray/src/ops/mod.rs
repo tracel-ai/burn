@@ -9,6 +9,7 @@ mod tensor;
 pub(crate) mod adaptive_avgpool;
 pub(crate) mod avgpool;
 pub(crate) mod conv;
+pub(crate) mod deform_conv;
 pub(crate) mod interpolate;
 pub(crate) mod macros;
 pub(crate) mod matmul;
