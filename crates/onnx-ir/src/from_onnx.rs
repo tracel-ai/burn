@@ -151,7 +151,7 @@ impl GraphData {
         for output in node.outputs.iter_mut() {
             self.input_name_map.insert(
                 output.name.clone(),
-                IOEntry::Node(self.processed_nodes.len(), 0),
+                IOEntry::Node(self.processed_nodes.len(), out_count - 1),
             );
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
@@ -202,11 +202,14 @@ impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
+        println!("here are the proto graph inputs: {:#?}", &model_proto.graph.input);
+        println!("here are the proto graph outputs: {:#?}", &model_proto.graph.output);
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
+        println!("here are the proto graph outputs created: {:#?}", &graph_data.outputs);
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
@@ -236,22 +239,13 @@ impl OnnxGraphBuilder {
             keep
         });
 
-        let mut processed_nodes_inputs : Vec<Argument> = Vec::new();
-        let mut processed_nodes_outputs : Vec<Argument> = Vec::new();
-        for processed_node in processed_nodes.iter() {
-            processed_nodes_inputs.extend(processed_node.inputs.clone());
-            processed_nodes_outputs.extend(processed_node.outputs.clone());
-        }
-
-        println!("The from onnx processed in/outputs are: {:#?}", (&processed_nodes_inputs, &processed_nodes_outputs));
-        println!("The from onnx regular in/outputs are: {:#?}", (&inputs, &outputs));
-
-        // TODO: ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
-
+        // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
+        // This is necessary for the graph to be valid
+        // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
         OnnxGraph {
             nodes: processed_nodes,
-            inputs: processed_nodes_inputs,
-            outputs: processed_nodes_outputs
+            inputs,
+            outputs
         }
     }
 
