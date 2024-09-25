@@ -236,14 +236,22 @@ impl OnnxGraphBuilder {
             keep
         });
 
-        // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
-        // This is necessary for the graph to be valid
-        // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
+        let mut processed_nodes_inputs : Vec<Argument> = Vec::new();
+        let mut processed_nodes_outputs : Vec<Argument> = Vec::new();
+        for processed_node in processed_nodes.iter() {
+            processed_nodes_inputs.extend(processed_node.inputs.clone());
+            processed_nodes_outputs.extend(processed_node.outputs.clone());
+        }
+
+        println!("The from onnx processed in/outputs are: {:#?}", (&processed_nodes_inputs, &processed_nodes_outputs));
+        println!("The from onnx regular in/outputs are: {:#?}", (&inputs, &outputs));
+
+        // TODO: ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
 
         OnnxGraph {
             nodes: processed_nodes,
-            inputs,
-            outputs,
+            inputs: processed_nodes_inputs,
+            outputs: processed_nodes_outputs
         }
     }
 
@@ -370,6 +378,7 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let builder = OnnxGraphBuilder::default();
     let graph = builder.build(&onnx_model);
 
+    log::info!("Onnx graph: {:#?}", graph);
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     graph

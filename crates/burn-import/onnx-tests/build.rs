@@ -107,6 +107,7 @@ fn main() {
         .input("tests/sum/sum_int.onnx")
         .input("tests/tanh/tanh.onnx")
         .input("tests/tile/tile.onnx")
+        .input("tests/top_k/top_k.onnx")
         .input("tests/transpose/transpose.onnx")
         .input("tests/unsqueeze/unsqueeze.onnx")
         .input("tests/unsqueeze/unsqueeze_opset11.onnx")

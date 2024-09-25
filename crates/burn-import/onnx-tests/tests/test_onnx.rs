@@ -116,6 +116,7 @@ include_models!(
     sum_int,
     tanh,
     tile,
+    top_k,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
@@ -2124,5 +2125,19 @@ mod tests {
         assert!(f_output.equal(f_expected).all().into_scalar());
         assert!(i_output.equal(i_expected).all().into_scalar());
         assert!(b_output.equal(b_expected).all().into_scalar());
+    }
+
+    #[test]
+    fn top_k() {
+        // Initialize the model
+        let device = Default::default();
+        let model = top_k::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3., 4.]], &device);
+        let output = model.forward(input);
+        // data from pyTorch
+        let expected = TensorData::from([[1., 2., 3., 4.]]);
+        assert!(&expected, output);
     }
 }

@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig};
+use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -793,6 +793,22 @@ pub fn tile_config(node: &Node) -> TileConfig {
         })
         .unwrap_or_default();
     TileConfig::new(repeat)
+}
+
+fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
+    let value = node.attrs
+        .get(key)
+        .unwrap()
+        .clone()
+        .into_i64();
+    value
+}
+/// Create a TopKConfig from the attributes of the node. We don't extract sorted from the TopK node as our topk impl already returns in sorted order.
+pub fn top_k_config(node: &Node) -> TopKConfig {
+    let axis:i64  = extract_attr_value_i64(node, "axis");
+    let k: i64 = extract_attr_value_i64(node, "k");
+    
+    TopKConfig::new(axis, k)
 }
 
 /// Create a PadConfig from the attributes of the node

@@ -51,6 +51,7 @@ use crate::{
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
+            top_k::TopKNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -67,8 +68,8 @@ use super::op_configuration::{
     hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
     max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
     reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
-    shape_config, slice_config, softmax_config, squeeze_config, tile_config, transpose_config,
-    unsqueeze_config,
+    shape_config, slice_config, softmax_config, squeeze_config, tile_config, top_k_config,
+    transpose_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -338,6 +339,7 @@ impl ParsedOnnxGraph {
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
+                NodeType::TopK => graph.register(Self::top_k_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
@@ -1183,6 +1185,17 @@ impl ParsedOnnxGraph {
         let config = tile_config(&node);
 
         TileNode::new(input, output, config)
+    }
+
+    fn top_k_conversion(node: Node) -> TopKNode {
+        // Inputs
+        let input = TensorType::from(node.inputs.first().unwrap());
+
+        // Outputs
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = top_k_config(&node);
+
+        TopKNode::new(input, outputs, config)
     }
 }
 
