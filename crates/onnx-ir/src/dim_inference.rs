@@ -573,10 +573,6 @@ fn flatten_update_outputs(node: &mut Node) {
 }
 
 /// Calculates the output shape of a convolution operator
-///
-/// Inputs:
-/// * `x_shape` - input tensor shape (`X` in onnx parlance)
-/// * `w_shape` - weights tensor shape (`W` in onnx)
 fn calculate_conv_output_shape(
     x_shape: &Shape,
     w_shape: &Shape,
@@ -637,7 +633,7 @@ fn calculate_conv_output_shape(
     Some(out_shape)
 }
 
-/// Infers the shape of a Conv1d node and replaces the shape of the output tensor.
+/// Infers the shape of a Conv1d or Conv2d node and replaces the shape of the output tensor.
 fn conv_update_outputs(node: &mut Node) {
     let input_ty = node.inputs[0].ty.get_tensor_type();
     let weights_ty = node.inputs[1].ty.get_tensor_type();
