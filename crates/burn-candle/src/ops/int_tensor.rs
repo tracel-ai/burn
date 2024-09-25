@@ -230,13 +230,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::zeros(shape.dims, I::DTYPE, &(*device).into()).unwrap(),
+            candle_core::Tensor::zeros(shape.dims, I::DTYPE, &(device.clone()).into()).unwrap(),
         )
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         CandleTensor::new(
-            candle_core::Tensor::ones(shape.dims, I::DTYPE, &(*device).into()).unwrap(),
+            candle_core::Tensor::ones(shape.dims, I::DTYPE, &(device.clone()).into()).unwrap(),
         )
     }
 
@@ -324,7 +324,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         device: &Device<Self>,
     ) -> IntTensor<Self> {
         let shape = shape.dims;
-        let device = &(*device).into();
+        let device = &(device.clone()).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
                 candle_core::Tensor::rand(0.elem::<F>(), 255.elem::<F>(), shape, device)
