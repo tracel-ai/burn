@@ -7,8 +7,11 @@ use cubecl::{cube, prelude::*, Compiler, CubeCount, CubeDim, Feature};
 use half::f16;
 
 use crate::{
-    kernel::into_contiguous,
-    ops::{numeric::empty_device, permute, reshape},
+    kernel::{into_contiguous, slice_assign},
+    ops::{
+        numeric::{empty_device, zeros_device},
+        permute, reshape,
+    },
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
@@ -26,8 +29,9 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, F>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R, F> {
-    let [batch_size, in_channels, height, width] = input.shape.dims();
+    let [batch_size, mut in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let padded_channels = padded_in_channels(in_channels, kernel_h, kernel_w);
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -56,9 +60,28 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         );
     }
 
-    // channel last is more efficient even with the extra into_contiguous kernel
-    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
-    let weight = into_contiguous(permute(weight, &[0, 2, 3, 1]));
+    let (input, weight) = if padded_channels != in_channels {
+        let input = permute(input, &[0, 2, 3, 1]);
+        let weight = permute(weight, &[0, 2, 3, 1]);
+
+        let in_shape = Shape::new([batch_size, height, width, padded_channels]);
+        let in_slice = &[0..batch_size, 0..height, 0..width, 0..in_channels];
+        let new_input = zeros_device(input.client.clone(), input.device.clone(), in_shape);
+        let new_input = slice_assign(new_input, in_slice, input);
+
+        let weight_shape = Shape::new([out_channels, kernel_h, kernel_w, padded_channels]);
+        let weight_slice = &[0..out_channels, 0..kernel_h, 0..kernel_w, 0..in_channels];
+        let new_weight = zeros_device(weight.client.clone(), weight.device.clone(), weight_shape);
+        let new_weight = slice_assign(new_weight, weight_slice, weight);
+
+        in_channels = padded_channels;
+        (new_input, new_weight)
+    } else {
+        // channel last is more efficient even with the extra into_contiguous kernel
+        let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
+        let weight = into_contiguous(permute(weight, &[0, 2, 3, 1]));
+        (input, weight)
+    };
 
     let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
     let mut out = empty_device(input.client.clone(), input.device.clone(), out_shape);
@@ -156,7 +179,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
         out = JitBackend::<R, F, I>::float_add(out, bias);
     }
-
+    // Reset to NCHW
     permute(out, &[0, 3, 1, 2])
 }
 
@@ -550,6 +573,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
 ) -> bool {
     let [batch_size, in_channels, _, _] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let in_channels = padded_in_channels(in_channels, kernel_h, kernel_w);
 
     let gemm_m = batch_size * out_h * out_w;
     let gemm_n = out_channels;
@@ -566,6 +590,21 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
         <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && options.groups == 1
     } else {
         false
+    }
+}
+
+fn padded_in_channels(in_channels: usize, kernel_h: usize, kernel_w: usize) -> usize {
+    let kernel_size = kernel_h * kernel_w;
+    let target = if kernel_size % 2 == 0 {
+        (16usize).div_ceil(kernel_size)
+    } else {
+        16
+    };
+    if in_channels % target != 0 {
+        let tiles = in_channels.div_ceil(target);
+        tiles * target
+    } else {
+        in_channels
     }
 }
 
