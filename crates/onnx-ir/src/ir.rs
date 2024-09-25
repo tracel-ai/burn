@@ -135,6 +135,9 @@ impl ArgType {
     pub fn is_tensor(&self) -> bool {
         matches!(self, Self::Tensor(_))
     }
+    pub fn is_shape(&self) -> bool {
+        matches!(self, Self::Shape(_))
+    }
 
     /// returns the rank (dimension) of the Arg
     pub fn rank(&self) -> usize {
@@ -151,6 +154,15 @@ impl ArgType {
             ArgType::Scalar(s) => s,
             ArgType::Shape(_) => panic!("ArgType::Shape has no ElementType"),
             ArgType::Tensor(t) => &t.elem_type,
+        }
+    }
+
+    /// returns the contained [`TensorType`] if this `ArgType` is a `Tensor`, else panics
+    pub fn get_tensor_type(&self) -> &TensorType {
+        if let Self::Tensor(tensor) = &self {
+            tensor
+        } else {
+            panic!("ArgType is no Tensor!");
         }
     }
 }
