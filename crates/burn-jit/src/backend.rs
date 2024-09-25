@@ -35,6 +35,7 @@ where
     type IntTensorPrimitive = JitTensor<R, Self::IntElem>;
     type BoolTensorPrimitive = JitTensor<R, u32>;
     type QuantizedTensorPrimitive = QJitTensor<R, Self::FloatElem, Self::IntElem>;
+    type QuantizedEncoding = u32;
 
     fn name() -> String {
         format!("jit<{}>", R::name())

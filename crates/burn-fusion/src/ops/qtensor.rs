@@ -68,14 +68,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                         }
                     }
                 };
-                // TODO: B::QuantizedElem::dtype()?
-                // Right now we know that the dtype is u32 for jit backends, but we could possibly
-                // make this more flexible in the future
                 let qtensor = client.register_tensor(
                     handles.pop().unwrap(),
                     shape.dims,
                     StreamId::current(),
-                    u32::dtype(),
+                    B::QuantizedEncoding::dtype(),
                 );
                 QFusionTensor {
                     qtensor,
@@ -129,10 +126,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
-        // TODO: B::QuantizedElem::dtype()?
-        // Right now we know that the dtype is u32 for jit backends, but we could possibly
-        // make this more flexible in the future
-        let out = tensor.client.tensor_uninitialized(shape, u32::dtype());
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape, B::QuantizedEncoding::dtype());
 
         let streams = if let Some(offset) = &qparams.offset {
             vec![tensor.stream, qparams.scale.stream, offset.stream]
