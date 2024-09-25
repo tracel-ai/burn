@@ -178,7 +178,7 @@ where
     {
         let tensor = self.handles.get_quantized_tensor::<B>(desc);
         let tensor = B::q_to_device(tensor, device);
-        if let Some(_) = &desc.qparams.offset {
+        if desc.qparams.offset.is_some() {
             let tensor_id = server_device.create_empty_handle();
             let scale_id = server_device.create_empty_handle();
             let offset_id = server_device.create_empty_handle();

@@ -19,7 +19,7 @@ use crate::{
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        match data.dtype.clone() {
+        match data.dtype {
             DType::QFloat(strategy) => {
                 let client = get_client::<B>(device);
                 let tensor = B::q_from_data(data, device);
@@ -105,10 +105,12 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scale = handles.get_float_tensor::<B>(&self.desc.qparams.scale);
-                let offset = match &self.desc.qparams.offset {
-                    Some(offset) => Some(handles.get_int_tensor::<B>(offset)),
-                    None => None,
-                };
+                let offset = self
+                    .desc
+                    .qparams
+                    .offset
+                    .as_ref()
+                    .map(|x| handles.get_int_tensor::<B>(x));
 
                 let qparams = QuantizationParametersPrimitive { scale, offset };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
