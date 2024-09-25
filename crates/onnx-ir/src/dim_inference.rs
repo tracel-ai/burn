@@ -495,13 +495,13 @@ fn top_k_update_output(node: &mut Node) {
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        dim: dim,
+        dim,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_values_elem,
     });
 
     node.outputs[1].ty = ArgType::Tensor(TensorType {
-        dim: dim,
+        dim,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_indices_elem,
     });

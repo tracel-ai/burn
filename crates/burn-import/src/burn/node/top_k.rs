@@ -12,7 +12,6 @@ pub struct TopKConfig {
     pub k: i64,
 }
 
-
 #[derive(Debug, Clone, new)]
 pub struct TopKNode {
     pub input: TensorType,
@@ -57,7 +56,7 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{top_k::TopKNode, test::assert_tokens},
+        node::{test::assert_tokens, top_k::TopKNode},
         TensorType,
     };
 
@@ -75,7 +74,10 @@ mod tests {
             config,
         ));
 
-        graph.register_input_output(vec!["input_tensor".to_string()], vec!["values_tensor".to_string(), "indices_tensor".to_string()]);
+        graph.register_input_output(
+            vec!["input_tensor".to_string()],
+            vec!["values_tensor".to_string(), "indices_tensor".to_string()],
+        );
 
         let expected = quote! {
             use burn::tensor::Int;

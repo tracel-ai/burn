@@ -796,18 +796,14 @@ pub fn tile_config(node: &Node) -> TileConfig {
 }
 
 fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
-    let value = node.attrs
-        .get(key)
-        .unwrap()
-        .clone()
-        .into_i64();
+    let value = node.attrs.get(key).unwrap().clone().into_i64();
     value
 }
+
 /// Create a TopKConfig from the attributes of the node. We don't extract sorted from the TopK node as our topk impl already returns in sorted order.
 pub fn top_k_config(node: &Node) -> TopKConfig {
-    let axis:i64  = extract_attr_value_i64(node, "axis");
+    let axis: i64 = extract_attr_value_i64(node, "axis");
     let k: i64 = extract_attr_value_i64(node, "k");
-    
     TopKConfig::new(axis, k)
 }
 

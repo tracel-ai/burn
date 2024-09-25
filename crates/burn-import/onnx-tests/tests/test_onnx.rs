@@ -2134,7 +2134,10 @@ mod tests {
         let model = top_k::Model::<Backend>::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]], &device);
+        let input = Tensor::<Backend, 2>::from_floats(
+            [[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]],
+            &device,
+        );
         let (values_tensor, _indices_tensor) = model.forward(input);
         // data from pyTorch
         let expected = TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);

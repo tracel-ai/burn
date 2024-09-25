@@ -202,14 +202,11 @@ impl OnnxGraphBuilder {
     pub(crate) fn build(mut self, model_proto: &ModelProto) -> OnnxGraph {
         self.constants_types = LIFT_CONSTANTS_FOR_NODE_TYPES.into_iter().collect();
 
-        println!("here are the proto graph inputs: {:#?}", &model_proto.graph.input);
-        println!("here are the proto graph outputs: {:#?}", &model_proto.graph.output);
         let mut graph_data = GraphData::new(
             &model_proto.graph.input,
             &model_proto.graph.output,
             &model_proto.graph.initializer,
         );
-        println!("here are the proto graph outputs created: {:#?}", &graph_data.outputs);
 
         let mut node_iter = model_proto.graph.node.iter().peekable();
 
@@ -245,7 +242,7 @@ impl OnnxGraphBuilder {
         OnnxGraph {
             nodes: processed_nodes,
             inputs,
-            outputs
+            outputs,
         }
     }
 
