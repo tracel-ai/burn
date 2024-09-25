@@ -519,6 +519,7 @@ impl TraceBuilder {
                     Operator::AtomicCompareAndSwap(_op) => {
                         // Nothing to do.
                     }
+                    Operator::Dot(_) => todo!(),
                 },
                 Operation::Procedure(proc) => {
                     match proc {

@@ -227,8 +227,8 @@ where
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         unary_op!(int(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Numeric>(input: C) -> C {
-                C::abs(input)
+            fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
+                Line::abs(input)
             }
             execute::expand::<C>(context, tensor)
         })

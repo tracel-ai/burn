@@ -6,9 +6,9 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
 fn gather_kernel<T: Numeric, I: Numeric>(
-    input: &Tensor<T>,
-    indices: &Tensor<I>,
-    output: &mut Tensor<T>,
+    input: &Tensor<Line<T>>,
+    indices: &Tensor<Line<I>>,
+    output: &mut Tensor<Line<T>>,
     dim: &u32,
 ) {
     if ABSOLUTE_POS >= indices.len() {
