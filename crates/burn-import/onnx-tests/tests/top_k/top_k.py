@@ -10,7 +10,7 @@ X = np.array([[0, 1, 2, 3],
 # Define the value of K
 k = 3
 K = np.array([k], dtype=np.int64)
-axis = -1
+axis = 1
 new_dims = [X.shape[0], k]
 
 input_tensors = [

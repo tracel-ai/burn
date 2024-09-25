@@ -549,7 +549,6 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
             }
         }
 
-        println!("The node input types are {:#?}", &inputs);
         // Get the input and output types of the graph using passed in names
         input_names.iter().for_each(|input| {
             self.graph_input_types.push(

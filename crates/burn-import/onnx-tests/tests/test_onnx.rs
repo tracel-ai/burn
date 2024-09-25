@@ -129,7 +129,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
 
     use float_cmp::ApproxEq;
 
@@ -2134,10 +2134,10 @@ mod tests {
         let model = top_k::Model::<Backend>::new(&device);
 
         // Run the model
-        let input = Tensor::<Backend, 2>::from_floats([[1., 2., 3., 4.]], &device);
-        let output = model.forward(input);
+        let input = Tensor::<Backend, 2>::from_floats([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]], &device);
+        let (values_tensor, _indices_tensor) = model.forward(input);
         // data from pyTorch
-        let expected = TensorData::from([[1., 2., 3., 4.]]);
-        assert!(&expected, output);
+        let expected = TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
+        values_tensor.to_data().assert_eq(&expected, true);
     }
 }
