@@ -800,7 +800,7 @@ fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
     value
 }
 
-/// Create a TopKConfig from the attributes of the node. We don't extract sorted from the TopK node as our topk impl already returns in sorted order.
+/// Create a TopKConfig from the attributes of the node.
 pub fn top_k_config(node: &Node) -> TopKConfig {
     let axis: i64 = extract_attr_value_i64(node, "axis");
     let k: i64 = extract_attr_value_i64(node, "k");
