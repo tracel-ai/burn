@@ -17,10 +17,10 @@ impl MetricsRenderer for CliMetricsRenderer {
     fn update_valid(&mut self, _state: MetricState) {}
 
     fn render_train(&mut self, item: TrainingProgress) {
-        dbg!(item);
+        println!("{:?}", item);
     }
 
     fn render_valid(&mut self, item: TrainingProgress) {
-        dbg!(item);
+        println!("{:?}", item);
     }
 }
