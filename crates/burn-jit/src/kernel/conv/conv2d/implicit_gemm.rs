@@ -141,39 +141,38 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 
     let cube_count = CubeCount::Static(cube_count_x, cube_count_y, 1);
 
-    unsafe {
-        implicit_gemm_kernel::launch_unchecked::<F, f16, R>(
-            &input.client,
-            cube_count,
-            cube_dim,
-            input.as_tensor_arg(input_vectorization),
-            weight.as_tensor_arg(weight_vectorization),
-            out.as_tensor_arg(1),
-            DimensionsLaunch::new(
-                ScalarArg::new(gemm_m),
-                ScalarArg::new(gemm_n),
-                ScalarArg::new(gemm_k),
-                ScalarArg::new(slice_size as u32),
-                ScalarArg::new(out_h as u32),
-                ScalarArg::new(out_w as u32),
-            ),
-            ConvArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.padding[0] as i32),
-                ScalarArg::new(options.padding[1] as i32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
-            ),
-            settings,
-            KernelSettings {
-                kernel_h: kernel_h as u32,
-                kernel_w: kernel_w as u32,
-                has_padding: options.padding != [0, 0],
-                aligned,
-            },
-        )
-    };
+    implicit_gemm_kernel::launch::<F, f16, R>(
+        &input.client,
+        cube_count,
+        cube_dim,
+        input.as_tensor_arg(input_vectorization),
+        weight.as_tensor_arg(weight_vectorization),
+        out.as_tensor_arg(1),
+        DimensionsLaunch::new(
+            ScalarArg::new(gemm_m),
+            ScalarArg::new(gemm_n),
+            ScalarArg::new(gemm_k),
+            ScalarArg::new(slice_size as u32),
+            ScalarArg::new(out_h as u32),
+            ScalarArg::new(out_w as u32),
+        ),
+        ConvArgsLaunch::new(
+            ScalarArg::new(options.stride[0] as u32),
+            ScalarArg::new(options.stride[1] as u32),
+            ScalarArg::new(options.padding[0] as i32),
+            ScalarArg::new(options.padding[1] as i32),
+            ScalarArg::new(options.dilation[0] as u32),
+            ScalarArg::new(options.dilation[1] as u32),
+        ),
+        settings,
+        KernelSettings {
+            kernel_h: kernel_h as u32,
+            kernel_w: kernel_w as u32,
+            padding_h: options.padding[0] as i32,
+            padding_w: options.padding[1] as i32,
+            aligned,
+        },
+    );
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
@@ -230,7 +229,8 @@ struct GemmSettings {
 struct KernelSettings {
     kernel_h: u32,
     kernel_w: u32,
-    has_padding: bool,
+    padding_h: i32,
+    padding_w: i32,
     aligned: bool,
 }
 
@@ -251,10 +251,10 @@ struct Matrices<F: Float, FAcc: Float> {
 }
 
 #[allow(clippy::collapsible_else_if)]
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, launch)]
 fn implicit_gemm_kernel<F: Float, FMat: Float>(
-    input: &Tensor<F>,
-    weight: &Tensor<F>,
+    input: &Tensor<Line<F>>,
+    weight: &Tensor<Line<F>>,
     out: &mut Tensor<F>,
     dims: &Dimensions,
     args: &ConvArgs,
@@ -291,7 +291,7 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
     let out_pos = pos.global_n + pos.global_m * dims.gemm_n;
     let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
-    if kernel_settings.aligned {
+    if kernel_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
         execute_gemm(
             input,
             weight,
@@ -304,21 +304,6 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
             gemm_settings,
             kernel_settings,
         );
-    } else {
-        if pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
-            execute_gemm(
-                input,
-                weight,
-                out,
-                input_tile,
-                weight_tile,
-                dims,
-                &pos,
-                args,
-                gemm_settings,
-                kernel_settings,
-            );
-        }
     }
 }
 
@@ -392,8 +377,8 @@ fn make_matrices<F: Float, FAcc: Float>(
 
 #[cube]
 fn execute_gemm<F: Float, FMat: Float>(
-    input: &Tensor<F>,
-    weight: &Tensor<F>,
+    input: &Tensor<Line<F>>,
+    weight: &Tensor<Line<F>>,
     out: &mut SliceMut<F>,
     input_tile: &mut SliceMut<FMat>,
     weight_tile: &mut SliceMut<FMat>,
@@ -431,7 +416,7 @@ fn execute_gemm<F: Float, FMat: Float>(
 
 #[cube]
 fn load_input_tile<F: Float, FMat: Float>(
-    input: &Tensor<F>,
+    input: &Tensor<Line<F>>,
     args: &ConvArgs,
     tile: &mut SliceMut<FMat>,
     dims: &Dimensions,
@@ -449,7 +434,8 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     let KernelSettings {
         kernel_w,
-        has_padding,
+        padding_h,
+        padding_w,
         ..
     } = kernel_settings;
 
@@ -496,26 +482,19 @@ fn load_input_tile<F: Float, FMat: Float>(
         let kernel_x = (my_slice_idx / channels) % kernel_w;
         let kernel_y = my_slice_idx / (channels * kernel_w);
 
-        let value = if has_padding {
-            let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - args.pad_h;
-            let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - args.pad_w;
-
-            if x >= 0 && x < width && y >= 0 && y < height {
-                let idx = batch * input.stride(0)
-                    + y as u32 * input.stride(1)
-                    + x as u32 * input.stride(2)
-                    + channel;
-                FMat::cast_from(input[idx / vec])
-            } else {
-                FMat::vectorized(0.0, vec)
-            }
-        } else {
-            let y = out_y * args.stride_h + kernel_y * args.dilation_h;
-            let x = out_x * args.stride_w + kernel_x * args.dilation_w;
-            let idx = batch * input.stride(0) + y * input.stride(1) + x * input.stride(2) + channel;
-
-            FMat::cast_from(input[idx / vec])
-        };
+        let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - padding_h;
+        let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - padding_w;
+        let in_bounds =
+            (padding_h == 0 && padding_w == 0) || (x >= 0 && x < width && y >= 0 && y < height);
+        let idx = batch * input.stride(0)
+            + y as u32 * input.stride(1)
+            + x as u32 * input.stride(2)
+            + channel;
+        let value = select(
+            in_bounds,
+            FMat::cast_from(input[idx / vec]),
+            FMat::vectorized(0.0, vec),
+        );
 
         #[unroll]
         for i in 0..vec {
@@ -526,7 +505,7 @@ fn load_input_tile<F: Float, FMat: Float>(
 
 #[cube]
 fn load_weight_tile<F: Float, FMat: Float>(
-    weight: &Tensor<F>,
+    weight: &Tensor<Line<F>>,
     tile: &mut SliceMut<FMat>,
     pos: &Positions,
     k: u32,
