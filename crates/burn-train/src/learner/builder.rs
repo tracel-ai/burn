@@ -316,9 +316,9 @@ where
                 log::warn!("Failed to install the experiment logger: {}", e);
             }
         }
-        let renderer = self.renderer.unwrap_or_else(|| {
-            Box::new(default_renderer(self.interrupter.clone(), self.checkpoint))
-        });
+        let renderer = self
+            .renderer
+            .unwrap_or_else(|| default_renderer(self.interrupter.clone(), self.checkpoint));
 
         if self.num_loggers == 0 {
             self.event_store
