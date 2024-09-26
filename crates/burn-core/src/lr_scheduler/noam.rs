@@ -39,8 +39,8 @@ impl NoamLrSchedulerConfig {
     }
 }
 
-impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
-    type Record = usize;
+impl LrScheduler for NoamLrScheduler {
+    type Record<B: Backend> = usize;
 
     fn step(&mut self) -> LearningRate {
         self.step += 1.0;
@@ -51,11 +51,11 @@ impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
         self.init_lr * self.embedding_size.powf(-0.5) * f64::min(arg1, arg2)
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         self.step as usize
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         self.step = record as f64;
         self
     }

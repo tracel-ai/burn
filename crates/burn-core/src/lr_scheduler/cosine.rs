@@ -60,8 +60,8 @@ pub struct CosineAnnealingLrScheduler {
     current_iter: usize,
 }
 
-impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
-    type Record = (LearningRate, LearningRate, LearningRate, usize, usize);
+impl LrScheduler for CosineAnnealingLrScheduler {
+    type Record<B: Backend> = (LearningRate, LearningRate, LearningRate, usize, usize);
 
     fn step(&mut self) -> LearningRate {
         if self.current_iter < self.num_iters {
@@ -78,7 +78,7 @@ impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         (
             self.previous_lr,
             self.min_lr,
@@ -88,7 +88,7 @@ impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
         )
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         (
             self.previous_lr,
             self.min_lr,

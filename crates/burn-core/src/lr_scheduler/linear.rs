@@ -54,8 +54,8 @@ pub struct LinearLrScheduler {
     remaining_iters: usize,
 }
 
-impl<B: Backend> LrScheduler<B> for LinearLrScheduler {
-    type Record = (LearningRate, f64, usize);
+impl LrScheduler for LinearLrScheduler {
+    type Record<B: Backend> = (LearningRate, f64, usize);
 
     fn step(&mut self) -> LearningRate {
         if self.remaining_iters > 0 {
@@ -65,11 +65,11 @@ impl<B: Backend> LrScheduler<B> for LinearLrScheduler {
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         (self.previous_lr, self.step_size, self.remaining_iters)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         (self.previous_lr, self.step_size, self.remaining_iters) = record;
         self
     }

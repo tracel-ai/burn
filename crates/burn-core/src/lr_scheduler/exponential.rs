@@ -48,19 +48,19 @@ pub struct ExponentialLrScheduler {
     gamma: f64,
 }
 
-impl<B: Backend> LrScheduler<B> for ExponentialLrScheduler {
-    type Record = (LearningRate, f64);
+impl LrScheduler for ExponentialLrScheduler {
+    type Record<B: Backend> = (LearningRate, f64);
 
     fn step(&mut self) -> LearningRate {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         (self.previous_lr, self.gamma)
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         (self.previous_lr, self.gamma) = record;
         self
     }
