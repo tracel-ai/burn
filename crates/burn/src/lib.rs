@@ -1,6 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! # Burn
 //!
@@ -97,45 +96,8 @@
 
 pub use burn_core::*;
 
-#[cfg(feature = "std")]
-pub use burn_core::{data, lr_scheduler, optim};
-
-/// Backend module.
-pub mod backend {
-    #[cfg(feature = "autodiff")]
-    pub use burn_core::backend::{autodiff, Autodiff};
-    #[cfg(feature = "candle")]
-    pub use burn_core::backend::{candle, Candle};
-    #[cfg(feature = "cuda-jit")]
-    pub use burn_core::backend::{cuda_jit, CudaJit};
-    #[cfg(feature = "tch")]
-    pub use burn_core::backend::{libtorch, LibTorch};
-    #[cfg(feature = "ndarray")]
-    pub use burn_core::backend::{ndarray, NdArray};
-    #[cfg(feature = "wgpu")]
-    pub use burn_core::backend::{wgpu, Wgpu};
-}
-
 /// Train module
 #[cfg(feature = "train")]
 pub mod train {
     pub use burn_train::*;
-
-    /// The metric module.
-    pub mod metric {
-        pub use burn_train::metric::*;
-
-        #[cfg(feature = "metrics")]
-        pub use burn_train::metric::{
-            CpuMemory, CpuTemperature, CpuUse, CudaMetric, TopKAccuracyInput, TopKAccuracyMetric,
-        };
-    }
-
-    /// Renderer modules to display metrics and training information.
-    pub mod renderer {
-        pub use burn_train::renderer::*;
-
-        #[cfg(feature = "tui")]
-        pub use burn_train::renderer::SelectedMetricsRenderer;
-    }
 }

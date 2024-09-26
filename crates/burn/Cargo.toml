@@ -15,20 +15,7 @@ rust-version = "1.80"
 [features]
 default = ["burn-core/default", "burn-train?/default", "std"]
 std = ["burn-core/std"]
-doc = [
-    "default",
-    "train",
-    "burn-core/doc",
-    "burn-train/doc",
-    "ndarray",
-    "autodiff",
-    "wgpu",
-    "cuda-jit",
-    "candle",
-    "tch",
-    "metrics",
-    "tui",
-]
+doc = ["default", "train", "burn-core/doc", "burn-train/doc"]
 
 # Training with full features
 train = ["burn-train", "autodiff", "dataset"]
@@ -83,7 +70,3 @@ record-backward-compat = ["burn-core/record-backward-compat"]
 
 burn-core = { path = "../burn-core", version = "0.15.0", default-features = false }
 burn-train = { path = "../burn-train", version = "0.15.0", optional = true, default-features = false }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
