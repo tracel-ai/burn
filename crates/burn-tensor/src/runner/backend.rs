@@ -118,6 +118,7 @@ impl<R: MultiBackendRuntime> Backend for BackendRouter<R> {
 
     type FloatTensorPrimitive = RouterTensor<R::Client>;
 
+    // TODO: how to set elem types?
     type FloatElem = f32;
 
     type IntTensorPrimitive = RouterTensor<R::Client>;
@@ -127,6 +128,8 @@ impl<R: MultiBackendRuntime> Backend for BackendRouter<R> {
     type BoolTensorPrimitive = RouterTensor<R::Client>;
 
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
+
+    type QuantizedEncoding = u32;
 
     fn name() -> String {
         todo!()
@@ -176,6 +179,8 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     todo!() // B::float_random(shape, distribution, device)
                 }
                 crate::repr::FloatOperationDescription::Recip(_) => todo!(),
+                crate::repr::FloatOperationDescription::Quantize(_) => todo!(),
+                crate::repr::FloatOperationDescription::Dequantize(_) => todo!(),
             },
             OperationDescription::Module(_) => todo!(),
         }
