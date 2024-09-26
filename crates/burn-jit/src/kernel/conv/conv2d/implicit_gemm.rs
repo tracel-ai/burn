@@ -504,7 +504,7 @@ fn load_input_tile<F: Float, FMat: Float>(
                 let idx = batch * input.stride(0)
                     + y as u32 * input.stride(1)
                     + x as u32 * input.stride(2)
-                    + channel * input.stride(3);
+                    + channel;
                 FMat::cast_from(input[idx / vec])
             } else {
                 FMat::vectorized(0.0, vec)
@@ -512,10 +512,7 @@ fn load_input_tile<F: Float, FMat: Float>(
         } else {
             let y = out_y * args.stride_h + kernel_y * args.dilation_h;
             let x = out_x * args.stride_w + kernel_x * args.dilation_w;
-            let idx = batch * input.stride(0)
-                + y * input.stride(1)
-                + x * input.stride(2)
-                + channel * input.stride(3);
+            let idx = batch * input.stride(0) + y * input.stride(1) + x * input.stride(2) + channel;
 
             FMat::cast_from(input[idx / vec])
         };
