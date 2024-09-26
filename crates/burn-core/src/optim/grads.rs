@@ -59,18 +59,6 @@ impl GradientsParams {
         grads_params
     }
 
-    /// Segment a module into multiple different GradientParams.
-    pub fn from_segments<B: AutodiffBackend, M: AutodiffModule<B>>(
-        grads: &mut B::Gradients,
-        module: &M,
-        segments: &[&[&ParamId]],
-    ) -> Vec<Self> {
-        segments
-            .iter()
-            .map(|p| Self::from_params(grads, module, p))
-            .collect()
-    }
-
     /// Get the gradients for the given [parameter id](ParamId).
     ///
     /// # Notes
