@@ -63,8 +63,6 @@ impl LrScheduler for NoamLrScheduler {
 
 #[cfg(test)]
 mod tests {
-    use crate::TestBackend;
-
     use super::*;
 
     #[test]
@@ -76,7 +74,7 @@ mod tests {
         let mut lr_current = 0.0;
 
         for _ in 0..warmup_steps {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr > lr_current,
                 "Learning rate should increase before the warmup_steps is reached."
@@ -85,7 +83,7 @@ mod tests {
         }
 
         for _ in 0..warmup_steps {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr < lr_current,
                 "Learning rate should decrease after the warmup_steps is reached."

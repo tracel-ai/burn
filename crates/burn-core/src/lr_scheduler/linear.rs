@@ -78,7 +78,6 @@ impl LrScheduler for LinearLrScheduler {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
@@ -114,7 +113,7 @@ mod test {
         let mut previous_lr = INITIAL_LR;
 
         for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr < previous_lr,
                 "Learning rate should decrease with each iteration before reaching the final learning rate"
@@ -123,7 +122,7 @@ mod test {
         }
 
         for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert_eq!(
                 previous_lr, lr,
                 "Learning rate should remain constant after reaching the final learning rate"
