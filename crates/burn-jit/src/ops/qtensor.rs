@@ -103,6 +103,9 @@ where
     fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = super::to_device(tensor.qtensor, device);
+        tensor.qparams.scale = super::to_device(tensor.qparams.scale, device);
+        tensor.qparams.offset = tensor.qparams.offset.map(|x| super::to_device(x, device));
+
         tensor
     }
 
