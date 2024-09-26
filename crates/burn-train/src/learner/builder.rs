@@ -33,7 +33,7 @@ where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
-    S: LrScheduler<B>,
+    S: LrScheduler,
 {
     // Not that complex and very convenient when the traits are
     // already constrained correctly. Extracting in another type
@@ -42,7 +42,7 @@ where
     checkpointers: Option<(
         AsyncCheckpointer<M::Record, B>,
         AsyncCheckpointer<O::Record, B>,
-        AsyncCheckpointer<S::Record, B>,
+        AsyncCheckpointer<S::Record<B>, B>,
     )>,
     num_epochs: usize,
     checkpoint: Option<usize>,
@@ -68,7 +68,7 @@ where
     V: Send + 'static,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
-    S: LrScheduler<B>,
+    S: LrScheduler,
 {
     /// Creates a new learner builder.
     ///
@@ -257,7 +257,7 @@ where
         FR: FileRecorder<B::InnerBackend> + 'static,
         O::Record: 'static,
         M::Record: 'static,
-        S::Record: 'static,
+        S::Record<B>: 'static,
     {
         let checkpoint_dir = self.directory.join("checkpoint");
         let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
@@ -301,7 +301,7 @@ where
             O,
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
-            AsyncCheckpointer<S::Record, B>,
+            AsyncCheckpointer<S::Record<B>, B>,
             FullEventProcessor<T, V>,
             Box<dyn CheckpointingStrategy>,
         >,
@@ -309,7 +309,7 @@ where
     where
         M::Record: 'static,
         O::Record: 'static,
-        S::Record: 'static,
+        S::Record<B>: 'static,
     {
         if self.tracing_logger.is_some() {
             if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {

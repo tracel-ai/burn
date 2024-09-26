@@ -60,8 +60,8 @@ pub struct CosineAnnealingLrScheduler {
     current_iter: usize,
 }
 
-impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
-    type Record = (LearningRate, LearningRate, LearningRate, usize, usize);
+impl LrScheduler for CosineAnnealingLrScheduler {
+    type Record<B: Backend> = (LearningRate, LearningRate, LearningRate, usize, usize);
 
     fn step(&mut self) -> LearningRate {
         if self.current_iter < self.num_iters {
@@ -78,7 +78,7 @@ impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         (
             self.previous_lr,
             self.min_lr,
@@ -88,7 +88,7 @@ impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
         )
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         (
             self.previous_lr,
             self.min_lr,
@@ -103,7 +103,6 @@ impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
@@ -152,7 +151,7 @@ mod test {
         let mut previous_lr = INITIAL_LR;
 
         for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr < previous_lr,
                 "Learning rate should decrease with each iteration before reaching the specified number of iterations"
@@ -166,7 +165,7 @@ mod test {
         );
 
         assert_eq!(
-            LrScheduler::<TestBackend>::step(&mut scheduler),
+            scheduler.step(),
             INITIAL_LR,
             "Learning rate should be reset after the specified number of iterations"
         );
