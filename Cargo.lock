@@ -515,7 +515,6 @@ version = "0.15.0"
 dependencies = [
  "cubecl-common",
  "dashmap",
- "data-encoding",
  "getrandom",
  "indicatif",
  "rayon",
@@ -539,6 +538,7 @@ dependencies = [
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
+ "data-encoding",
  "derive-new",
  "flate2",
  "half",
