@@ -7,22 +7,27 @@ use burn_common::stub::Mutex;
 use crate::{
     backend::Backend,
     repr::{HandleContainer, ReprBackend},
-    runner::RunnerClient,
+    runner::{Runner, RunnerBackend, RunnerClient},
 };
 
+// In-memory runner client.
 #[derive(Clone)]
-pub struct InMemory<B: ReprBackend> {
+pub struct InMemory<B: RunnerBackend> {
     _b: PhantomData<B>,
-    handles: Arc<Mutex<HandleContainer<B::Handle>>>,
+    // TODO: replace with `Runner`
+    // handles: Arc<Mutex<HandleContainer<B::Handle>>>,
+    runner: Runner<B>,
 }
 
-impl<B: ReprBackend> RunnerClient for InMemory<B> {
+impl<B: RunnerBackend> RunnerClient for InMemory<B> {
     fn register(
         &self,
         op: crate::repr::OperationDescription,
         stream: burn_common::stream::StreamId,
     ) {
-        todo!()
+        // TODO: call runner.execute(op, stream)
+        self.runner.execute(op, stream)
+        // todo!()
     }
 
     fn read_tensor(
@@ -50,6 +55,8 @@ impl<B: ReprBackend> RunnerClient for InMemory<B> {
             // Await the future
             future.await
         }
+
+        // TODO: should call runner x_into_data?
     }
 
     fn write_tensor(

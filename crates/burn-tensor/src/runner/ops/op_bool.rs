@@ -1,129 +1,94 @@
 use burn_common::stream::StreamId;
 
 use crate::{
-    ops::BoolTensorOps,
-    runner::{Runner, RunnerBackend, RunnerClient, RunnerTensor},
+    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+    runner::{BackendRouter, MultiBackendRuntime, RouterTensor, RunnerClient},
+    Device, Shape,
 };
 
-impl<B: RunnerBackend> BoolTensorOps<Self> for Runner<B> {
-    fn bool_empty<const D: usize>(
-        shape: crate::Shape<D>,
-        device: &crate::Device<Self>,
-    ) -> crate::ops::BoolTensor<Self, D> {
+impl<R: MultiBackendRuntime> BoolTensorOps<Self> for BackendRouter<R> {
+    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_shape<const D: usize>(tensor: &crate::ops::BoolTensor<Self, D>) -> crate::Shape<D> {
+    fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
         todo!()
     }
 
-    fn bool_into_data<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
+    fn bool_into_data(
+        tensor: BoolTensor<Self>,
     ) -> impl core::future::Future<Output = crate::TensorData> + Send {
         async { tensor.into_data().await }
     }
 
-    fn bool_from_data<const D: usize>(
-        data: crate::TensorData,
-        device: &crate::Device<Self>,
-    ) -> crate::ops::BoolTensor<Self, D> {
-        let client = B::client(&device);
+    fn bool_from_data(data: crate::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
+        let client = R::client(&device);
         let id = StreamId::current();
         let desc = client.write_tensor(data, id);
 
-        RunnerTensor {
+        RouterTensor {
             desc,
             client,
             stream: id,
         }
     }
 
-    fn bool_into_int<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-    ) -> crate::ops::IntTensor<Self, D> {
+    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn bool_into_float<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-    ) -> crate::ops::FloatTensor<Self, D> {
+    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
         todo!()
     }
 
-    fn bool_device<const D: usize>(
-        tensor: &crate::ops::BoolTensor<Self, D>,
-    ) -> crate::Device<Self> {
+    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
         todo!()
     }
 
-    fn bool_to_device<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-        device: &crate::Device<Self>,
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: crate::ops::BoolTensor<Self, D1>,
-        shape: crate::Shape<D2>,
-    ) -> crate::ops::BoolTensor<Self, D2> {
+    fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: crate::ops::BoolTensor<Self, D1>,
-        ranges: [core::ops::Range<usize>; D2],
-    ) -> crate::ops::BoolTensor<Self, D1> {
+    fn bool_slice(
+        tensor: BoolTensor<Self>,
+        ranges: &[core::ops::Range<usize>],
+    ) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: crate::ops::BoolTensor<Self, D1>,
-        ranges: [core::ops::Range<usize>; D2],
-        value: crate::ops::BoolTensor<Self, D1>,
-    ) -> crate::ops::BoolTensor<Self, D1> {
+    fn bool_slice_assign(
+        tensor: BoolTensor<Self>,
+        ranges: &[core::ops::Range<usize>],
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_equal<const D: usize>(
-        lhs: crate::ops::BoolTensor<Self, D>,
-        rhs: crate::ops::BoolTensor<Self, D>,
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_not<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_swap_dims<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_permute<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-        axes: [usize; D],
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_flip<const D: usize>(
-        tensor: crate::ops::BoolTensor<Self, D>,
-        axes: &[usize],
-    ) -> crate::ops::BoolTensor<Self, D> {
+    fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn bool_expand<const D1: usize, const D2: usize>(
-        tensor: crate::ops::BoolTensor<Self, D1>,
-        shape: crate::Shape<D2>,
-    ) -> crate::ops::BoolTensor<Self, D2> {
+    fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         todo!()
     }
 }

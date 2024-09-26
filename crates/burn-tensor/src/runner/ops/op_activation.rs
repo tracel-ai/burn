@@ -1,4 +1,4 @@
-use crate::runner::Runner;
-use crate::{ops::ActivationOps, runner::RunnerBackend};
+use crate::ops::ActivationOps;
+use crate::runner::{BackendRouter, MultiBackendRuntime};
 
-impl<B: RunnerBackend> ActivationOps<Self> for Runner<B> {}
+impl<R: MultiBackendRuntime> ActivationOps<Self> for BackendRouter<R> {}

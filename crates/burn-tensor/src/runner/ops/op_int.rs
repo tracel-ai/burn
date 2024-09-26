@@ -2,384 +2,301 @@ use core::ops::Range;
 
 use burn_common::stream::StreamId;
 
+use crate::ops::IntTensorOps;
 use crate::ops::{BoolTensor, FloatTensor, IntElem, IntTensor};
-use crate::runner::{Runner, RunnerClient, RunnerTensor};
-use crate::{ops::IntTensorOps, runner::RunnerBackend};
+use crate::runner::{BackendRouter, MultiBackendRuntime, RouterTensor, RunnerClient};
 use crate::{Device, Distribution, Shape, TensorData};
 
-impl<B: RunnerBackend> IntTensorOps<Self> for Runner<B> {
-    fn int_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+impl<R: MultiBackendRuntime> IntTensorOps<Self> for BackendRouter<R> {
+    fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         todo!();
     }
 
-    fn int_shape<const D: usize>(tensor: &IntTensor<Self, D>) -> Shape<D> {
+    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
         todo!();
     }
 
-    async fn int_into_data<const D: usize>(tensor: IntTensor<Self, D>) -> TensorData {
+    async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         tensor.into_data().await
     }
 
-    fn int_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
-        let client = B::client(&device);
+    fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
+        let client = R::client(&device);
         let id = StreamId::current();
         let desc = client.write_tensor(data, id);
 
-        RunnerTensor {
+        RouterTensor {
             desc,
             client,
             stream: id,
         }
     }
 
-    fn int_device<const D: usize>(tensor: &IntTensor<Self, D>) -> Device<Self> {
+    fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
         todo!()
     }
 
-    fn int_to_device<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_reshape<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> IntTensor<Self, D2> {
+    fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_slice<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> IntTensor<Self, D1> {
+    fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_slice_assign<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-        value: IntTensor<Self, D1>,
-    ) -> IntTensor<Self, D1> {
+    fn int_slice_assign(
+        tensor: IntTensor<Self>,
+        ranges: &[Range<usize>],
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mask_where<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
-        value: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_mask_where(
+        tensor: IntTensor<Self>,
+        mask: BoolTensor<Self>,
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mask_fill<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        mask: BoolTensor<Self, D>,
+    fn int_mask_fill(
+        tensor: IntTensor<Self>,
+        mask: BoolTensor<Self>,
         value: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_gather<const D: usize>(
+    fn int_gather(
         dim: usize,
-        tensor: IntTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_scatter<const D: usize>(
+    fn int_scatter(
         dim: usize,
-        tensor: IntTensor<Self, D>,
-        indices: IntTensor<Self, D>,
-        value: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        tensor: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_select<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_select(
+        tensor: IntTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-    ) -> IntTensor<Self, D> {
+        indices: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_select_assign<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_select_assign(
+        tensor: IntTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-        value: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+        indices: IntTensor<Self>,
+        value: IntTensor<Self>,
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<Self, D>>, dim: usize) -> IntTensor<Self, D> {
+    fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_greater<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_greater_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_greater_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_greater_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_lower<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_lower_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_lower_equal<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_lower_equal_elem<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
         todo!()
     }
 
-    fn int_add<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_add_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_sub<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_sub_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mul<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mul_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_div<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntTensor<Self, D>,
-    ) -> IntTensor<Self, D> {
+    fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_div_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_remainder_scalar<const D: usize>(
-        lhs: IntTensor<Self, D>,
-        rhs: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<Self, D> {
+    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_sum<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_sum_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mean<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_mean(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_mean_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_argmax<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_argmin<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_clamp<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_clamp(
+        tensor: IntTensor<Self>,
         min: IntElem<Self>,
         max: IntElem<Self>,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_abs<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+    fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_into_float<const D: usize>(tensor: IntTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         todo!()
     }
 
-    fn int_swap_dims<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> IntTensor<Self, D> {
+    fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_max<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_max_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_max_dim_with_indices<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_max_dim_with_indices(
+        tensor: IntTensor<Self>,
         dim: usize,
-    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
         todo!()
     }
 
-    fn int_min<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_min_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_min_dim_with_indices<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_min_dim_with_indices(
+        tensor: IntTensor<Self>,
         dim: usize,
-    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
         todo!()
     }
 
-    fn int_random<const D: usize>(
-        shape: Shape<D>,
+    fn int_random(
+        shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_permute<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        axes: [usize; D],
-    ) -> IntTensor<Self, D> {
+    fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_expand<const D1: usize, const D2: usize>(
-        tensor: IntTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> IntTensor<Self, D2> {
+    fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+    fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         todo!()
     }
 
-    fn int_repeat_dim<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        dim: usize,
-        times: usize,
-    ) -> IntTensor<Self, D> {
+    fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
         todo!()
     }
 }
