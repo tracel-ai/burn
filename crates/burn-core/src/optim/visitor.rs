@@ -4,9 +4,9 @@ use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, 'b, M: AutodiffModule<B>, B: AutodiffBackend> {
+pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
     grads: &'a mut B::Gradients,
-    grads_params: &'b mut GradientsParams,
+    grads_params: &'a mut GradientsParams,
     phatom: PhantomData<M>,
     filter: Option<Vec<ParamId>>,
 }
@@ -18,7 +18,7 @@ pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBack
     phatom: PhantomData<M>,
 }
 
-impl<'a, 'b, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, 'b, M, B>
+impl<'a, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, M, B>
 where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
