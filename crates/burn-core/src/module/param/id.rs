@@ -1,22 +1,14 @@
-use alloc::string::{String, ToString};
+use alloc::string::ToString;
 use burn_common::id::IdGenerator;
 
 /// Parameter ID.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ParamId {
-    value: String,
+    value: u64,
 }
 
-impl From<&str> for ParamId {
-    fn from(val: &str) -> Self {
-        Self {
-            value: val.to_string(),
-        }
-    }
-}
-
-impl From<String> for ParamId {
-    fn from(value: String) -> Self {
+impl From<u64> for ParamId {
+    fn from(value: u64) -> Self {
         Self { value }
     }
 }
@@ -35,14 +27,14 @@ impl ParamId {
         }
     }
 
-    /// Convert the parameter ID into a string.
-    pub fn into_string(self) -> String {
+    /// Gets the internal value of the id.
+    pub fn val(&self) -> u64 {
         self.value
     }
 }
 
 impl core::fmt::Display for ParamId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(self.value.as_str())
+        f.write_str(&self.value.to_string())
     }
 }

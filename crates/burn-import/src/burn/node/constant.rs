@@ -157,7 +157,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
     fn field_serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if let ConstantValue::Tensor(_, data) = &self.value {
             let data = data.clone().convert::<PS::FloatElem>();
-            let data = ParamSerde::new(ParamId::new().into_string(), data);
+            let data = ParamSerde::new(ParamId::new().val(), data);
             return data.serialize(serializer);
         }
 

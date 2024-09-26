@@ -116,13 +116,13 @@ where
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    fn map_float<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         let grad = self.grads.remove(id);
 
         if let Some(grad) = grad {
             let device = grad.device();
             let is_require_grad = tensor.is_require_grad();
-            let (key, record) = self.records.remove_entry(id).unzip();
+            let (key, record) = self.records.remove_entry(&id).unzip();
 
             let clipped_grad = if let Some(g_clipping) = self.grad_clipping {
                 g_clipping.clip_gradient(grad)
@@ -138,10 +138,8 @@ where
             );
 
             if let Some(state) = state {
-                self.records.insert(
-                    key.unwrap_or_else(|| id.clone()),
-                    AdaptorRecord::from_state(state),
-                );
+                self.records
+                    .insert(key.unwrap_or(id), AdaptorRecord::from_state(state));
             }
 
             let mut tensor = Tensor::from_inner(tensor);

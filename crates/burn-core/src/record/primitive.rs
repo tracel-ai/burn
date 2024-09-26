@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::vec::Vec;
 use core::{fmt, marker::PhantomData};
 
 use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
@@ -128,12 +124,12 @@ where
     T: Record<B>,
     B: Backend,
 {
-    type Item<S: PrecisionSettings> = HashMap<String, T::Item<S>>;
+    type Item<S: PrecisionSettings> = HashMap<u64, T::Item<S>>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let mut items = HashMap::with_capacity(self.len());
         self.into_iter().for_each(|(id, record)| {
-            items.insert(id.to_string(), record.into_item());
+            items.insert(id.val(), record.into_item());
         });
         items
     }
@@ -167,7 +163,7 @@ where
 /// (De)serialize parameters into a clean format.
 #[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct ParamSerde<T> {
-    id: String,
+    id: u64,
     param: T,
 }
 
@@ -179,7 +175,7 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.into_string(), tensor.into_item())
+        ParamSerde::new(id.val(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
@@ -199,7 +195,7 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.into_string(), tensor.into_item())
+        ParamSerde::new(id.val(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
@@ -218,7 +214,7 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.into_string(), tensor.into_item::<S>())
+        ParamSerde::new(id.val(), tensor.into_item::<S>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {

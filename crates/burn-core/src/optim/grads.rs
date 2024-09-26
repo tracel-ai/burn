@@ -47,14 +47,11 @@ impl GradientsParams {
     pub fn from_params<B: AutodiffBackend, M: AutodiffModule<B>>(
         grads: &mut B::Gradients,
         module: &M,
-        params: &[&ParamId],
+        params: &[ParamId],
     ) -> Self {
         let mut grads_params = GradientsParams::new();
-        let mut visitor = GradientsParamsConverter::<M, B>::new(
-            grads,
-            &mut grads_params,
-            Some(params.iter().copied().cloned().collect()),
-        );
+        let mut visitor =
+            GradientsParamsConverter::<M, B>::new(grads, &mut grads_params, Some(params.to_vec()));
         module.visit(&mut visitor);
         grads_params
     }
@@ -65,19 +62,19 @@ impl GradientsParams {
     ///
     /// You should use [remove](GradientsParams::remove) if you want to get the gradients
     /// only one time.
-    pub fn get<B, const D: usize>(&self, id: &ParamId) -> Option<Tensor<B, D>>
+    pub fn get<B, const D: usize>(&self, id: ParamId) -> Option<Tensor<B, D>>
     where
         B: Backend,
     {
-        self.container.get(id).map(Tensor::from_primitive)
+        self.container.get(&id).map(Tensor::from_primitive)
     }
 
     /// Remove the gradients for the given [parameter id](ParamId).
-    pub fn remove<B, const D: usize>(&mut self, id: &ParamId) -> Option<Tensor<B, D>>
+    pub fn remove<B, const D: usize>(&mut self, id: ParamId) -> Option<Tensor<B, D>>
     where
         B: Backend,
     {
-        self.container.remove(id).map(Tensor::from_primitive)
+        self.container.remove(&id).map(Tensor::from_primitive)
     }
 
     /// Register a gradients tensor for the given [parameter id](ParamId).
