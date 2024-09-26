@@ -75,7 +75,7 @@ macro_rules! bench_on_backend {
             let device = LibTorchDevice::Cuda(0);
             #[cfg(target_os = "macos")]
             let device = LibTorchDevice::Mps;
-            bench::<LibTorch>(&device, feature_name, url, token);
+            bench::<LibTorch<half::f16>>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "tch-cpu")]
