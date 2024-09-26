@@ -16,6 +16,8 @@ use serde::{
     Deserialize, Serialize,
 };
 
+use data_encoding::BASE32_DNSSEC;
+
 impl<B> Record<B> for ()
 where
     B: Backend,
@@ -163,45 +165,28 @@ where
 /// (De)serialize parameters into a clean format.
 #[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct ParamSerde<T> {
-    #[serde(deserialize_with = "compat_param_id")]
+    #[serde(
+        serialize_with = "ser_base32_param",
+        deserialize_with = "de_base32_param"
+    )]
     id: u64,
     param: T,
 }
 
-use data_encoding::BASE32_DNSSEC;
+fn ser_base32_param<S: serde::Serializer>(id: &u64, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(&BASE32_DNSSEC.encode(&id.to_le_bytes()))
+}
 
-// Deserialize a param id from either a u64 or from a BASE32_DNSSEC encoded string (old format).
-fn compat_param_id<'de, D>(deserializer: D) -> Result<u64, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    struct ParamIdVisitor;
-
-    impl<'de> Visitor<'de> for ParamIdVisitor {
-        type Value = u64;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a u64 or a base32 string")
-        }
-
-        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
-            Ok(value)
-        }
-
-        fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-            // Old format encoded only 6 bytes.
-            BASE32_DNSSEC
-                .decode(value.as_bytes())
-                .map_err(serde::de::Error::custom)
-                .map(|bytes| {
-                    u64::from_le_bytes([
-                        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], 0, 0,
-                    ])
-                })
-        }
-    }
-
-    deserializer.deserialize_any(ParamIdVisitor)
+fn de_base32_param<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    let encoded: String = String::deserialize(deserializer)?;
+    BASE32_DNSSEC
+        .decode(encoded.as_bytes())
+        .map_err(|_| D::Error::custom("Invalid base32 encoding"))
+        .map(|bytes| {
+            let mut buffer = [0u8; 8];
+            buffer[..bytes.len()].copy_from_slice(&bytes);
+            u64::from_le_bytes(buffer)
+        })
 }
 
 impl<B, const D: usize> Record<B> for Param<Tensor<B, D>>
