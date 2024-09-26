@@ -21,12 +21,16 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
 
         fn __expand_execute(
             context: &mut CubeContext,
-            input: C::ExpandType,
+            input: <Line<C> as CubeType>::ExpandType,
             options: OptionsExpand<C>,
-        ) -> C::ExpandType {
+        ) -> <Line<C> as CubeType>::ExpandType {
             #[cube]
-            fn execute<C: Numeric>(input: C, options: &Options<C>) -> C {
-                C::clamp(input, options.min_value, options.max_value)
+            fn execute<C: Numeric>(input: Line<C>, options: &Options<C>) -> Line<C> {
+                Line::clamp(
+                    input,
+                    Line::new(options.min_value),
+                    Line::new(options.max_value),
+                )
             }
 
             execute::expand(context, input, options)

@@ -4,24 +4,20 @@ use cubecl::{
     tensor_vectorization_factor, unexpanded,
 };
 
+#[cube]
 pub(crate) trait UnaryOp<C: CubePrimitive>: 'static + Send + Sync {
     type Options: LaunchArg;
 
     /// Execute a unary operation.
-    fn execute(_input: C, _options: &Self::Options) -> C {
+    fn execute(_input: Line<C>, _options: &Self::Options) -> Line<C> {
         unexpanded!();
     }
-    fn __expand_execute(
-        context: &mut CubeContext,
-        input: C::ExpandType,
-        options: <Self::Options as CubeType>::ExpandType,
-    ) -> C::ExpandType;
 }
 
 #[cube(launch)]
 pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
-    input: &Tensor<C>,
-    output: &mut Tensor<C>,
+    input: &Tensor<Line<C>>,
+    output: &mut Tensor<Line<C>>,
     options: &O::Options,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous: bool,
@@ -116,9 +112,9 @@ macro_rules! unary_op {
             #[allow(clippy::redundant_closure_call)]
             fn __expand_execute(
                 context: &mut CubeContext,
-                input: C::ExpandType,
+                input: <Line<C> as CubeType>::ExpandType,
                 _options: <Self::Options as CubeType>::ExpandType,
-            ) -> C::ExpandType {
+            ) -> <Line<C> as CubeType>::ExpandType {
                 $expand(context, input)
             }
         }
@@ -132,9 +128,9 @@ macro_rules! unary_op {
             #[allow(clippy::redundant_closure_call)]
             fn __expand_execute(
                 context: &mut CubeContext,
-                input: C::ExpandType,
+                input: <Line<C> as CubeType>::ExpandType,
                 scalar: C::ExpandType,
-            ) -> C::ExpandType {
+            ) -> <Line<C> as CubeType>::ExpandType {
                 $expand(context, input, scalar)
             }
         }

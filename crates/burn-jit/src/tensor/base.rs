@@ -168,7 +168,7 @@ where
     pub fn copy(&self) -> Self {
         unary_op!(numeric(self.clone()) => |context, tensor| {
             #[cube]
-            fn execute<C: Numeric>(input: C) -> C {
+            fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
                 input
             }
             execute::expand::<C>(context, tensor)

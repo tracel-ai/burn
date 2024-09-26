@@ -4,9 +4,9 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 
 #[cube(launch)]
 fn mask_fill_readonly_kernel<T: Numeric>(
-    input: &Tensor<T>,
-    mask: &Tensor<u32>,
-    output: &mut Tensor<T>,
+    input: &Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
+    output: &mut Tensor<Line<T>>,
     value: T,
     #[comptime] rank: u32,
 ) {
@@ -17,8 +17,8 @@ fn mask_fill_readonly_kernel<T: Numeric>(
     let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
     let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= 1 {
-        output[ABSOLUTE_POS] = value;
+    if mask[index_mask] >= Line::new(1) {
+        output[ABSOLUTE_POS] = Line::new(value);
     } else {
         output[ABSOLUTE_POS] = input[index_input];
     }
@@ -26,8 +26,8 @@ fn mask_fill_readonly_kernel<T: Numeric>(
 
 #[cube(launch)]
 fn mask_fill_inplace_kernel<T: Numeric>(
-    input: &mut Tensor<T>,
-    mask: &Tensor<u32>,
+    input: &mut Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
     value: T,
     #[comptime] rank: u32,
 ) {
@@ -37,8 +37,8 @@ fn mask_fill_inplace_kernel<T: Numeric>(
 
     let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= 1 {
-        input[ABSOLUTE_POS] = value;
+    if mask[index_mask] >= Line::new(1) {
+        input[ABSOLUTE_POS] = Line::new(value);
     }
 }
 
