@@ -4,10 +4,11 @@ use burn_tensor::{backend::AutodiffBackend, Tensor};
 use core::marker::PhantomData;
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
-    grads: B::Gradients,
-    grads_params: &'a mut GradientsParams,
+pub struct GradientsParamsConverter<'a, 'b, M: AutodiffModule<B>, B: AutodiffBackend> {
+    grads: &'a mut B::Gradients,
+    grads_params: &'b mut GradientsParams,
     phatom: PhantomData<M>,
+    filter: Option<Vec<ParamId>>,
 }
 
 #[derive(new)]
@@ -17,16 +18,23 @@ pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBack
     phatom: PhantomData<M>,
 }
 
-impl<'a, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, M, B>
+impl<'a, 'b, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, 'b, M, B>
 where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
 {
     fn visit_float<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>) {
-        if let Some(grad) = tensor.grad_remove(&mut self.grads) {
-            self.grads_params
-                .register::<B::InnerBackend, D>(id.clone(), grad);
+        if let Some(filter) = self.filter.as_ref() {
+            if !filter.contains(id) {
+                return;
+            }
         }
+        let Some(grad) = tensor.grad_remove(self.grads) else {
+            return;
+        };
+
+        self.grads_params
+            .register::<B::InnerBackend, D>(id.clone(), grad);
     }
 }
 
@@ -36,9 +44,11 @@ where
     M: AutodiffModule<B>,
 {
     fn visit_float<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        if let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) {
-            self.grads
-                .register::<B::InnerBackend, D>(id.clone(), grad.to_device(self.device));
-        }
+        let Some(grad) = self.grads.remove::<B::InnerBackend, D>(id) else {
+            return;
+        };
+
+        self.grads
+            .register::<B::InnerBackend, D>(id.clone(), grad.to_device(self.device));
     }
 }

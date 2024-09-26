@@ -9,7 +9,7 @@ use crate::module::{AutodiffModule, ParamId};
 use super::visitor::{GradientsParamsChangeDevice, GradientsParamsConverter};
 
 /// Data type that contains gradients for parameters.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct GradientsParams {
     container: TensorContainer<ParamId>,
 }
@@ -18,6 +18,57 @@ impl GradientsParams {
     /// Creates a new [GradientsParams](GradientsParams).
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Extract each tensor gradients for the given [module](AutodiffModule).
+    ///
+    /// Note: This consumes the gradients. See ['from_module'] to extract gradients only for
+    ///  a specific module.
+    pub fn from_grads<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: B::Gradients,
+        module: &M,
+    ) -> Self {
+        let mut grads = grads;
+        Self::from_module(&mut grads, module)
+    }
+
+    /// Extract each tensor gradients for the given [module](AutodiffModule).
+    pub fn from_module<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: &mut B::Gradients,
+        module: &M,
+    ) -> Self {
+        let mut grads_params = GradientsParams::new();
+        let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params, None);
+        module.visit(&mut visitor);
+        grads_params
+    }
+
+    /// Extract tensor gradients for the given [module](AutodiffModule) and given parameters.
+    pub fn from_params<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: &mut B::Gradients,
+        module: &M,
+        params: &[&ParamId],
+    ) -> Self {
+        let mut grads_params = GradientsParams::new();
+        let mut visitor = GradientsParamsConverter::<M, B>::new(
+            grads,
+            &mut grads_params,
+            Some(params.iter().copied().cloned().collect()),
+        );
+        module.visit(&mut visitor);
+        grads_params
+    }
+
+    /// Segment a module into multiple different GradientParams.
+    pub fn from_segments<B: AutodiffBackend, M: AutodiffModule<B>>(
+        grads: &mut B::Gradients,
+        module: &M,
+        segments: &[&[&ParamId]],
+    ) -> Vec<Self> {
+        segments
+            .iter()
+            .map(|p| Self::from_params(grads, module, p))
+            .collect()
     }
 
     /// Get the gradients for the given [parameter id](ParamId).
@@ -72,18 +123,6 @@ impl GradientsParams {
         let mut visitor = GradientsParamsChangeDevice::<M, B>::new(device, &mut self);
         module.visit(&mut visitor);
         self
-    }
-
-    /// Extract each tensor gradients for the given [module](AutodiffModule).
-    pub fn from_grads<B: AutodiffBackend, M: AutodiffModule<B>>(
-        grads: B::Gradients,
-        module: &M,
-    ) -> Self {
-        let mut grads_params = GradientsParams::new();
-        let mut visitor = GradientsParamsConverter::<M, B>::new(grads, &mut grads_params);
-
-        module.visit(&mut visitor);
-        grads_params
     }
 }
 
