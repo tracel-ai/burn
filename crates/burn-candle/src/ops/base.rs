@@ -15,7 +15,7 @@ pub fn cat<E: CandleElement>(tensors: Vec<CandleTensor<E>>, dim: usize) -> Candl
 }
 
 pub fn from_data<E: CandleElement>(data: TensorData, device: &CandleDevice) -> CandleTensor<E> {
-    CandleTensor::from_data(data, *device)
+    CandleTensor::from_data(data, device.clone())
 }
 pub fn into_data<E: CandleElement>(tensor: CandleTensor<E>) -> TensorData {
     TensorData::new(
@@ -28,11 +28,13 @@ pub fn to_device<E: CandleElement>(
     tensor: CandleTensor<E>,
     device: &CandleDevice,
 ) -> CandleTensor<E> {
-    CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
+    CandleTensor::new(tensor.tensor.to_device(&(device.clone()).into()).unwrap())
 }
 
 pub fn empty<E: CandleElement>(shape: Shape, device: &CandleDevice) -> CandleTensor<E> {
-    CandleTensor::new(candle_core::Tensor::zeros(shape.dims, E::DTYPE, &(*device).into()).unwrap())
+    CandleTensor::new(
+        candle_core::Tensor::zeros(shape.dims, E::DTYPE, &(device.clone()).into()).unwrap(),
+    )
 }
 
 pub fn swap_dims<E: CandleElement>(

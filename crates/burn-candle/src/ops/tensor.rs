@@ -15,7 +15,7 @@ use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor<F> {
-        CandleTensor::from_data(data, *device)
+        CandleTensor::from_data(data, device.clone())
     }
 
     fn float_random(
@@ -24,7 +24,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
         let shape = shape.dims;
-        let device = &(*device).into();
+        let device = &(device.clone()).into();
         match distribution {
             Distribution::Default => CandleTensor::new(
                 candle_core::Tensor::rand(0.elem::<F>(), 1.elem::<F>(), shape, device)
