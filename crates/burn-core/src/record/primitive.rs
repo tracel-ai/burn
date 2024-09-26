@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{fmt, marker::PhantomData};
 
 use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
