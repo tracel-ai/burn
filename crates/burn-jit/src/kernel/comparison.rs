@@ -8,7 +8,7 @@ use cubecl::{
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a comparison operation.
-    fn execute(lhs: C, rhs: C) -> bool;
+    fn execute(lhs: Line<C>, rhs: Line<C>) -> bool;
 }
 
 struct EqualOp;
@@ -19,44 +19,44 @@ struct LowerOp;
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for EqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs == rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for GreaterEqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs >= rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for LowerEqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs <= rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for GreaterOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs > rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for LowerOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs < rhs
     }
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_scalar_cmp<C: Numeric, O: ComparisonOp<C>>(
-    input: &Tensor<C>,
+    input: &Tensor<Line<C>>,
     scalar: C,
-    output: &mut Tensor<u32>,
+    output: &mut Tensor<Line<u32>>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -64,14 +64,14 @@ pub(crate) fn kernel_scalar_cmp<C: Numeric, O: ComparisonOp<C>>(
         return;
     }
 
-    output[ABSOLUTE_POS] = u32::cast_from(O::execute(input[ABSOLUTE_POS], scalar));
+    output[ABSOLUTE_POS] = Line::cast_from(O::execute(input[ABSOLUTE_POS], Line::new(scalar)));
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_cmp<C: Numeric, O: ComparisonOp<C>>(
-    lhs: &Tensor<C>,
-    rhs: &Tensor<C>,
-    out: &mut Tensor<u32>,
+    lhs: &Tensor<Line<C>>,
+    rhs: &Tensor<Line<C>>,
+    out: &mut Tensor<Line<u32>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -106,7 +106,7 @@ pub(crate) fn kernel_cmp<C: Numeric, O: ComparisonOp<C>>(
         );
     }
 
-    out[offset_out] = u32::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
+    out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
 pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(

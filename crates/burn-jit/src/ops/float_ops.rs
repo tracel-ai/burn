@@ -244,20 +244,20 @@ where
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        unary_op!(float(tensor) => |context, input| {
+        unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::exp(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::exp(input)
             }
-            execute::expand::<C>(context, input)
+            execute::expand::<C>(context, tensor)
         })
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::log(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::log(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -266,8 +266,8 @@ where
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::log1p(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::log1p(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -276,8 +276,8 @@ where
     fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
         unary_op!(float(lhs, rhs.elem::<F>()) => |context, tensor, scalar| {
             #[cube]
-            fn execute<C: Float>(input: C, scalar: C) -> C {
-                C::powf(input, scalar)
+            fn execute<C: Float>(input: Line<C>, scalar: C) -> Line<C> {
+                Line::powf(input, Line::new(scalar))
             }
             execute::expand::<C>(context, tensor, scalar)
         })
@@ -286,8 +286,8 @@ where
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::sqrt(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::sqrt(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -296,8 +296,8 @@ where
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::abs(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::abs(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -306,8 +306,8 @@ where
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::cos(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::cos(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -316,8 +316,8 @@ where
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::sin(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::sin(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -326,8 +326,8 @@ where
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::tanh(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::tanh(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -336,8 +336,8 @@ where
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::erf(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::erf(input)
             }
             execute::expand::<C>(context, tensor)
         })
@@ -366,8 +366,8 @@ where
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Float>(input: C) -> C {
-                C::recip(input)
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::recip(input)
             }
             execute::expand::<C>(context, tensor)
         })

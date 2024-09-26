@@ -5,8 +5,8 @@ use std::any::TypeId;
 
 #[cube(launch)]
 pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
-    input: &Tensor<I>,
-    output: &mut Tensor<O>,
+    input: &Tensor<Line<I>>,
+    output: &mut Tensor<Line<O>>,
     #[comptime] rank: Option<u32>,
 ) {
     let offset_output = ABSOLUTE_POS;
@@ -24,7 +24,7 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
         rank.is_some(),
     );
 
-    output[offset_output] = O::cast_from(input[offset_input]);
+    output[offset_output] = Line::cast_from(input[offset_input]);
 }
 
 /// Cast a tensor to the given element type.

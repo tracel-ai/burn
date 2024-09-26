@@ -8,7 +8,7 @@ use cubecl::{
 #[cube]
 pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: C, rhs: C) -> C;
+    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
 }
 
 pub(crate) struct AddOp;
@@ -20,51 +20,51 @@ pub(crate) struct PowOp;
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs + rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for SubOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs - rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for MulOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs * rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for DivOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs / rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for RemainderOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        N::rem(lhs, rhs)
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::rem(lhs, rhs)
     }
 }
 
 #[cube]
 impl<N: Float> BinaryOp<N> for PowOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        N::powf(lhs, rhs)
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::powf(lhs, rhs)
     }
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
-    input: &Tensor<C>,
+    input: &Tensor<Line<C>>,
     scalar: C,
-    output: &mut Tensor<C>,
+    output: &mut Tensor<Line<C>>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -72,14 +72,14 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
         return;
     }
 
-    output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], scalar);
+    output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], Line::new(scalar));
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
-    lhs: &Tensor<C>,
-    rhs: &Tensor<C>,
-    out: &mut Tensor<C>,
+    lhs: &Tensor<Line<C>>,
+    rhs: &Tensor<Line<C>>,
+    out: &mut Tensor<Line<C>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,

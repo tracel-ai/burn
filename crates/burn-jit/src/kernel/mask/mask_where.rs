@@ -4,10 +4,10 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 
 #[cube(launch)]
 fn mask_where_readonly_kernel<T: CubePrimitive>(
-    input: &Tensor<T>,
-    mask: &Tensor<u32>,
-    value: &Tensor<T>,
-    output: &mut Tensor<T>,
+    input: &Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
+    value: &Tensor<Line<T>>,
+    output: &mut Tensor<Line<T>>,
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -18,7 +18,7 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
     let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
     let index_value = index_offset_with_layout(value, output, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= 1 {
+    if mask[index_mask] >= Line::new(1) {
         output[ABSOLUTE_POS] = value[index_value];
     } else {
         output[ABSOLUTE_POS] = input[index_input];
@@ -27,9 +27,9 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
 
 #[cube(launch)]
 fn mask_where_inplace_kernel<T: CubePrimitive>(
-    input: &mut Tensor<T>,
-    mask: &Tensor<u32>,
-    value: &Tensor<T>,
+    input: &mut Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
+    value: &Tensor<Line<T>>,
     reverse: u32,
     #[comptime] rank: u32,
 ) {
@@ -40,7 +40,7 @@ fn mask_where_inplace_kernel<T: CubePrimitive>(
     let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
     let index_value = index_offset_with_layout(value, input, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] != reverse {
+    if mask[index_mask] != Line::new(reverse) {
         input[ABSOLUTE_POS] = value[index_value];
     }
 }
