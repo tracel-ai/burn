@@ -40,6 +40,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
 
+    type QuantizedEncoding = B::QuantizedEncoding;
+
     fn name() -> String {
         format!("fusion<{}>", B::name())
     }

@@ -172,6 +172,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type BoolTensorPrimitive = CandleTensor<u8>;
 
     type QuantizedTensorPrimitive = CandleQTensor;
+    type QuantizedEncoding = u8;
 
     fn ad_enabled() -> bool {
         false

@@ -133,5 +133,13 @@ macro_rules! testgen_jit_fusion {
 
         burn_tensor::testgen_all!();
         burn_autodiff::testgen_all!();
+
+        // Not all ops are implemented for quantization yet, notably missing:
+        // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
+        // burn_tensor::testgen_quantization!();
+        // test quantization
+        burn_tensor::testgen_calibration!();
+        burn_tensor::testgen_scheme!();
+        burn_tensor::testgen_quantize!();
     };
 }

@@ -104,6 +104,7 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type BoolTensorPrimitive = TchTensor<bool>;
 
     type QuantizedTensorPrimitive = TchQTensor<Q>;
+    type QuantizedEncoding = Q;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);

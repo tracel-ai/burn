@@ -5,9 +5,12 @@ use crate::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
+    quantization::QuantizationScheme,
     repr::tensor::TensorDescription,
     DType, Distribution, Element,
 };
+
+use super::{QuantizationParametersDescription, QuantizedTensorDescription};
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -61,6 +64,10 @@ pub enum FloatOperationDescription {
     Random(RandomOperationDescription),
     /// Operation corresponding to [recip](crate::ops::FloatTensorOps::float_recip).
     Recip(UnaryOperationDescription),
+    /// Operation corresponding to [quantize](crate::ops::QTensorOps::quantize).
+    Quantize(QuantizeOperationDescription),
+    /// Operation corresponding to [dequantize](crate::ops::QTensorOps::dequantize).
+    Dequantize(DequantizeOperationDescription),
 }
 
 /// Operation description specific to module.
@@ -830,6 +837,22 @@ pub struct ConvTranspose3dOptionsDescription {
     pub groups: usize,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct QuantizeOperationDescription {
+    pub tensor: TensorDescription,
+    pub qparams: QuantizationParametersDescription,
+    pub scheme: QuantizationScheme,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct DequantizeOperationDescription {
+    pub qtensor: QuantizedTensorDescription,
+    pub out: TensorDescription,
+}
+
 impl From<ConvOptions<1>> for Conv1dOptionsDescription {
     fn from(value: ConvOptions<1>) -> Self {
         Self {
@@ -1421,6 +1444,25 @@ impl FloatOperationDescription {
             FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Tanh(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Quantize(desc) => {
+                if let Some(offset) = &desc.qparams.offset {
+                    vec![&desc.tensor, &desc.qparams.scale, &offset, &desc.out]
+                } else {
+                    vec![&desc.tensor, &desc.qparams.scale, &desc.out]
+                }
+            }
+            FloatOperationDescription::Dequantize(desc) => {
+                if let Some(offset) = &desc.qtensor.qparams.offset {
+                    vec![
+                        &desc.qtensor.tensor,
+                        &desc.qtensor.qparams.scale,
+                        &offset,
+                        &desc.out,
+                    ]
+                } else {
+                    vec![&desc.qtensor.tensor, &desc.qtensor.qparams.scale, &desc.out]
+                }
+            }
         }
     }
 }
