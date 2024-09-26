@@ -519,7 +519,11 @@ impl TraceBuilder {
                     Operator::AtomicCompareAndSwap(_op) => {
                         // Nothing to do.
                     }
-                    Operator::Dot(_) => todo!(),
+                    Operator::Dot(op) => mark_binary(
+                        op,
+                        &mut local_tensor_ids_input,
+                        &mut local_tensor_ids_output,
+                    ),
                 },
                 Operation::Procedure(proc) => {
                     match proc {
