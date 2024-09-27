@@ -1,3 +1,4 @@
+use alloc::string::String;
 use burn_common::id::IdGenerator;
 use data_encoding::BASE32_DNSSEC;
 
