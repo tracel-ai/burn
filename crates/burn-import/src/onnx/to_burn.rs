@@ -360,9 +360,6 @@ impl ParsedOnnxGraph {
             .map(|input| input.name.clone())
             .collect::<Vec<_>>();
 
-        println!("The registered graph input types are: {:#?}", self
-            .0
-            .inputs.clone());
         let output_names = self
             .0
             .outputs
