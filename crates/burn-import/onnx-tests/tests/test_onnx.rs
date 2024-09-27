@@ -116,7 +116,7 @@ include_models!(
     sum_int,
     tanh,
     tile,
-    top_k,
+    top_k_opset_1,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
@@ -2128,19 +2128,23 @@ mod tests {
     }
 
     #[test]
-    fn top_k() {
+    fn top_k_opset_1() {
         // Initialize the model
         let device = Default::default();
-        let model = top_k::Model::<Backend>::new(&device);
+        let model = top_k_opset1::Model::<Backend>::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats(
             [[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]],
             &device,
         );
-        let (values_tensor, _indices_tensor) = model.forward(input);
-        // data from pyTorch
-        let expected = TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
-        values_tensor.to_data().assert_eq(&expected, true);
+        let (values_tensor, indices_tensor) = model.forward(input);
+
+        // expected results
+        let expected_values_tensor = TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
+        let expected_indices_tensor = TensorData::from([[3, 2, 1], [3, 2, 1]]);
+
+        values_tensor.to_data().assert_eq(&expected_values_tensor, true);
+        indices_tensor.to_data().assert_eq(&expected_indices_tensor, true);
     }
 }

@@ -369,7 +369,6 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
     let builder = OnnxGraphBuilder::default();
     let graph = builder.build(&onnx_model);
 
-    log::info!("Onnx graph: {:#?}", graph);
     log::info!("Finished parsing ONNX file: {}", onnx_path.display());
 
     graph

@@ -10,6 +10,12 @@ use burn::nn::{
 use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
+/// Extract and convert a given attribute to i64
+fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
+    let value = node.attrs.get(key).expect("Expected the following attribute key: {:?}").clone().into_i64();
+    value
+}
+
 /// Create a Conv1dConfig from the attributes of the node
 pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
     let mut kernel_shape = Vec::new(); // TODO default inferred from weight tensor per spec
@@ -795,16 +801,34 @@ pub fn tile_config(node: &Node) -> TileConfig {
     TileConfig::new(repeat)
 }
 
-fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
-    let value = node.attrs.get(key).unwrap().clone().into_i64();
-    value
-}
-
 /// Create a TopKConfig from the attributes of the node.
 pub fn top_k_config(node: &Node) -> TopKConfig {
-    let axis: i64 = extract_attr_value_i64(node, "axis");
-    let k: i64 = extract_attr_value_i64(node, "k");
-    TopKConfig::new(axis, k)
+    // extract the shape of the input data tensor
+    let data_tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let k = match node.inputs.get(1) {
+        Some(k_tensor) => {
+            k_tensor.clone().value.expect("Expecting K tensor to have a value.").into_i64s()[0]
+        }
+        _ => extract_attr_value_i64(node, "k")
+    };
+
+    let mut axis: i64 = extract_attr_value_i64(node, "axis");
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += data_tensor.dim as i64;
+    }
+
+    let largest = match node.attrs.get("largest") {
+        Some(val) => val.clone().into_i64(),
+        _ => 1
+    };
+
+    TopKConfig::new(axis, k, largest)
 }
 
 /// Create a PadConfig from the attributes of the node
