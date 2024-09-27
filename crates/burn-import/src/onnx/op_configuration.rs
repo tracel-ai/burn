@@ -828,7 +828,7 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
         _ => 1
     };
 
-    TopKConfig::new(axis, k, largest)
+    TopKConfig::new(axis as usize, k as usize, largest)
 }
 
 /// Create a PadConfig from the attributes of the node
