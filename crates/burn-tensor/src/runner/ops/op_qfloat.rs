@@ -3,11 +3,11 @@ use core::ops::Range;
 use crate::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    runner::{BackendRouter, MultiBackendRuntime},
+    runner::{BackendRouter, RunnerChannel},
     Device, Shape, TensorData,
 };
 
-impl<R: MultiBackendRuntime> QTensorOps<Self> for BackendRouter<R> {
+impl<C: RunnerChannel> QTensorOps<Self> for BackendRouter<C> {
     fn q_from_data(_data: TensorData, _device: &Device<Self>) -> QuantizedTensor<Self> {
         unimplemented!()
     }

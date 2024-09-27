@@ -3,13 +3,13 @@ use burn_common::stream::StreamId;
 use crate::ops::FloatTensorOps;
 use crate::ops::{BoolTensor, FloatElem, FloatTensor, IntTensor};
 use crate::repr::{FloatOperationDescription, OperationDescription, RandomOperationDescription};
-use crate::runner::{BackendRouter, MultiBackendRuntime, RouterTensor, RunnerClient};
+use crate::runner::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
 use crate::{Device, Distribution, Element, Shape, TensorData};
 use std::ops::Range;
 
-impl<R: MultiBackendRuntime> FloatTensorOps<Self> for BackendRouter<R> {
+impl<C: RunnerChannel> FloatTensorOps<Self> for BackendRouter<C> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        let client = R::client(&device);
+        let client = get_client(device);
         let stream = StreamId::current();
         let desc = client.write_tensor(data, stream);
 
@@ -17,7 +17,6 @@ impl<R: MultiBackendRuntime> FloatTensorOps<Self> for BackendRouter<R> {
             desc,
             client,
             stream,
-            runner_id,
         }
     }
 
@@ -27,7 +26,7 @@ impl<R: MultiBackendRuntime> FloatTensorOps<Self> for BackendRouter<R> {
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
-        let client = R::client(&device);
+        let client = get_client(device);
         let stream = StreamId::current();
         let dtype = FloatElem::<Self>::dtype();
         let desc = client.empty_tensor(shape.dims.to_vec(), dtype, stream);
@@ -80,6 +79,7 @@ impl<R: MultiBackendRuntime> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         todo!()
+        // TODO: check if tensor device runner == device runner -> use backend bridge to switch device
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
