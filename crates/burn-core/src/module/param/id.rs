@@ -1,5 +1,5 @@
-use alloc::string::ToString;
 use burn_common::id::IdGenerator;
+use data_encoding::BASE32_DNSSEC;
 
 /// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -31,10 +31,15 @@ impl ParamId {
     pub fn val(&self) -> u64 {
         self.value
     }
+
+    /// Convert the parameter ID into a string.
+    pub fn encode(self) -> String {
+        BASE32_DNSSEC.encode(&self.value.to_le_bytes())
+    }
 }
 
 impl core::fmt::Display for ParamId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.value.to_string())
+        f.write_str(&self.encode())
     }
 }
