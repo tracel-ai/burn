@@ -772,17 +772,6 @@ where
         }
     }
 
-    /// Returns the `k` smallest elements of the given input tensor along a given dimension.
-    /// Also returns the indices.
-    pub fn topk_smallest_with_indices(self, k: usize, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        let (values, indices) = self.sort_with_indices(dim);
-        (
-            values.select(dim, k_indices.clone()),
-            indices.select(dim, k_indices),
-        )
-    }
-
     /// Pad the tensor of rank two or higher with the given value on the last two dimensions.
     ///
     /// # Arguments

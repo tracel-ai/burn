@@ -9,7 +9,7 @@ use quote::{quote, ToTokens};
 pub struct TopKConfig {
     pub axis: usize,
     pub k: usize,
-    pub largest: i64,
+    pub largest: usize,
 }
 
 #[derive(Debug, Clone, new)]
@@ -41,8 +41,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
         let indices_output = &self.outputs[1].name;
 
         quote! {
-            #input.topk_with_indices(#k, #axis, #largest)
-        };
+            let (#values_output, #indices_output) = #input.topk_with_indices(#k, #axis, #largest);
+        }
     }
 
     fn into_node(self) -> Node<PS> {
@@ -103,7 +103,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input_tensor: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4, Int>) {
-                    (values_tensor, indices_tensor) = input_tensor.topk_with_indices(3i64, 1i64, 1i64)
+                    let (values_tensor, indices_tensor) = input_tensor.topk_with_indices(3usize, 1usize, 1usize);
                     (values_tensor, indices_tensor)
                 }
             }
