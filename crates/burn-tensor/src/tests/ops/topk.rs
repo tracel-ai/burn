@@ -30,7 +30,6 @@ mod tests {
         let expected = TensorData::from([5., 4., 3.]);
 
         values.into_data().assert_approx_eq(&expected, 5);
-        
         // Float
         // smallest
         let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
@@ -72,7 +71,7 @@ mod tests {
 
         // smallest
         let tensor =
-        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
 
         let values = tensor.topk(2, /*dim*/ 2, /*largest*/ Some(0));
         let expected = TensorData::from([[[1, 4], [2, 5]], [[0, 3], [2, 8]]]);
@@ -84,7 +83,8 @@ mod tests {
         // largest
         let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
-        let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(1));
+        let (values, indices) =
+            tensor.topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(1));
 
         let values_expected = TensorData::from([5, 4, 3]);
         values.into_data().assert_eq(&values_expected, false);
@@ -95,7 +95,8 @@ mod tests {
         // smallest
         let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
-        let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(0));
+        let (values, indices) =
+            tensor.topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(0));
 
         let values_expected = TensorData::from([1, 2, 3]);
         values.into_data().assert_eq(&values_expected, false);
@@ -108,7 +109,8 @@ mod tests {
         let tensor =
             TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 
-        let (values, indices) = tensor.topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(1));
+        let (values, indices) =
+            tensor.topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(1));
 
         let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
@@ -120,9 +122,10 @@ mod tests {
 
         // smallest
         let tensor =
-        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
+            TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 
-        let (values, indices) = tensor.topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(0));
+        let (values, indices) =
+            tensor.topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(0));
 
         let values_expected = TensorData::from([[[1., 4.], [2., 5.]], [[0., 3.], [2., 7.]]]);
 
@@ -131,6 +134,5 @@ mod tests {
         let indices_expected = TensorData::from([[[0, 1], [0, 1]], [[1, 0], [1, 2]]]);
 
         indices.into_data().assert_eq(&indices_expected, false);
-
     }
 }

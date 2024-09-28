@@ -2141,10 +2141,15 @@ mod tests {
         let (values_tensor, indices_tensor) = model.forward(input);
 
         // expected results
-        let expected_values_tensor = TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
+        let expected_values_tensor =
+            TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
         let expected_indices_tensor = TensorData::from([[3, 2, 1], [3, 2, 1]]);
 
-        values_tensor.to_data().assert_eq(&expected_values_tensor, true);
-        indices_tensor.to_data().assert_eq(&expected_indices_tensor, true);
+        values_tensor
+            .to_data()
+            .assert_eq(&expected_values_tensor, true);
+        indices_tensor
+            .to_data()
+            .assert_eq(&expected_indices_tensor, true);
     }
 }

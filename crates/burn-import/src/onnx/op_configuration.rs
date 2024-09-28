@@ -811,10 +811,12 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
     };
 
     let k = match node.inputs.get(1) {
-        Some(k_tensor) => {
-            k_tensor.clone().value.expect("Expecting K tensor to have a value.").into_i64s()[0]
-        }
-        _ => extract_attr_value_i64(node, "k")
+        Some(k_tensor) => k_tensor
+            .clone()
+            .value
+            .expect("Expecting K tensor to have a value.")
+            .into_i64s()[0],
+        _ => extract_attr_value_i64(node, "k"),
     };
 
     let mut axis: i64 = extract_attr_value_i64(node, "axis");
@@ -826,7 +828,7 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
 
     let largest = match node.attrs.get("largest") {
         Some(val) => val.clone().into_i64(),
-        _ => 1
+        _ => 1,
     };
 
     TopKConfig::new(axis as usize, k as usize, largest as usize)
