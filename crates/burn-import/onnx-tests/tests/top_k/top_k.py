@@ -67,7 +67,7 @@ def create_model(op_set_version: int):
     
 def main():
     # Unconmment when initializers are supported.
-    for op_set_version in [1]: #, 10, 11]:
+    for op_set_version in [1, 10, 11]:
         create_model(op_set_version)
 
 

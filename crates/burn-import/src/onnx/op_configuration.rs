@@ -12,7 +12,8 @@ use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Extract and convert a given attribute to i64
 fn extract_attr_value_i64(node: &Node, key: &str) -> i64 {
-    let value = node.attrs.get(key).expect("Expected the following attribute key: {:?}").clone().into_i64();
+    let error_msg = format!("Expected the following attribute key: {:?}", key);
+    let value = node.attrs.get(key).expect(&error_msg).clone().into_i64();
     value
 }
 
