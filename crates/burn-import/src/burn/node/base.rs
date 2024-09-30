@@ -220,6 +220,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Tile(_) => "tile",
+            Node::Trilu(_) => "trilu",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
             Node::Where(_) => "where",

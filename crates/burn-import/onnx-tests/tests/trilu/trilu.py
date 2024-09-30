@@ -5,17 +5,17 @@ import torch.nn as nn
 
 
 class TriluModel(nn.Module):
-    def __init__(self, upper=True, k=0):
+    def __init__(self, upper=True, diagonal=0):
         super(TriluModel, self).__init__()
         self.upper = upper  # Determines upper or lower triangular
-        self.k = k  # Diagonal offset
+        self.diagonal = diagonal  # Diagonal offset
 
     def forward(self, x):
         # torch.tril or torch.triu based on 'upper' attribute
         if self.upper:
-            return torch.triu(x, diagonal=self.k)
+            return torch.triu(x, diagonal=self.diagonal)
         else:
-            return torch.tril(x, diagonal=self.k)
+            return torch.tril(x, diagonal=self.diagonal)
 
 
 def main():
@@ -27,8 +27,8 @@ def main():
                            
     # Export to onnx
     upper = True  # Change to False for lower triangular matrix
-    k = 0         # Change k to adjust the diagonal
-    model = TriluModel(upper=upper, k=k)
+    diagonal = 1         # Change k to adjust the diagonal
+    model = TriluModel(upper=upper, diagonal=diagonal)
     model.eval()
     device = torch.device("cpu")
 

@@ -7,7 +7,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig};
+use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -793,6 +793,27 @@ pub fn tile_config(node: &Node) -> TileConfig {
         })
         .unwrap_or_default();
     TileConfig::new(repeat)
+}
+
+pub fn trilu_config(node: &Node) -> TriluConfig {
+    let mut upper = true;
+    for (key, value) in node.attrs.iter() {
+        println!("################ {key} {:?}", value);
+        match key.as_str() {
+            "upper" => upper = value.clone().into_i64() != 0,
+            _ => {}
+        }
+    }
+    let diagonal = node.inputs.get(1).map(|input| {
+        if let Some(data) = &input.value {
+            data.clone()
+                .into_i64()
+        } else {
+            0
+        }
+    }).unwrap_or(0);
+    println!("################ diagonal {diagonal}");
+    TriluConfig::new(upper, 0)
 }
 
 /// Create a PadConfig from the attributes of the node
