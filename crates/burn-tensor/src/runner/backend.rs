@@ -8,7 +8,7 @@ use crate::{
     ops::FloatTensor,
     quantization::QTensorPrimitive,
     repr::{HandleContainer, OperationDescription, ReprBackend, TensorDescription},
-    DType, Device, TensorData,
+    DType, TensorData,
 };
 
 use super::RouterTensor;
@@ -299,7 +299,9 @@ pub enum Handle2<B1: Backend, B2: Backend> {
 
 pub trait MultiBackendBridge: Send + Sync + 'static {
     type TensorType;
-    fn move_from(&self, tensor: Self::TensorType) -> Self::TensorType;
+    type Device;
+    /// Move `tensor` to the target backend specified `device`.
+    fn to_backend(&self, tensor: Self::TensorType, device: Self::Device) -> Self::TensorType;
 }
 
 #[derive(Clone)]
@@ -333,23 +335,32 @@ pub struct ByteBridge<Backends> {
     backends: PhantomData<Backends>,
 }
 
-// impl< ByteBridge<()>
 impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)> {
     type TensorType = Handle2<B1, B2>;
+    type Device = MultiDevice2<B1, B2>;
 
-    fn move_from(&self, tensor: Self::TensorType) -> Self::TensorType {
+    fn to_backend(&self, tensor: Self::TensorType, device: Self::Device) -> Self::TensorType {
+        let msg = "Failed to read tensor data synchronously.
+This can happen on platforms that don't support blocking futures like WASM.";
         match tensor {
             Handle2::FloatHandle1(tensor) => {
-                let data = crate::try_read_sync(B1::float_into_data(tensor)).expect(
-                    "Failed to read tensor data synchronously.
-                This can happen on platforms that don't support blocking futures like WASM.
-                If possible, try using into_data_async instead.",
-                );
-
-                // TODO: use `B2::float_tensor(handle)`?
-                Handle2::FloatHandle2(B2::float_from_data(data, device))
+                match device {
+                    MultiDevice2::Device1(device) => B1::float_to_device(tensor, device), // same backend
+                    MultiDevice2::Device2(device) => {
+                        let data = crate::try_read_sync(B1::float_into_data(tensor)).expect(msg);
+                        Handle2::FloatHandle2(B2::float_from_data(data, device))
+                    }
+                }
             }
-            Handle2::FloatHandle2(tensor) => todo!(),
+            Handle2::FloatHandle2(tensor) => {
+                match device {
+                    MultiDevice2::Device1(device) => {
+                        let data = crate::try_read_sync(B2::float_into_data(tensor)).expect(msg);
+                        Handle2::FloatHandle1(B1::float_from_data(data, device))
+                    }
+                    MultiDevice2::Device2(device) => B2::float_to_device(tensor, device), // same backend
+                }
+            }
             Handle2::IntHandle1(tensor) => todo!(),
             Handle2::IntHandle2(tensor) => todo!(),
         }
