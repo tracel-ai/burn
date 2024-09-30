@@ -65,14 +65,15 @@ mod tests {
     #[test]
     fn param_serde_deserialize() {
         let val = ParamId::from(123456u64);
-        let deserialized = deserialize_param_id(val.serialize());
+        let deserialized = ParamId::deserialize(&val.serialize());
         assert_eq!(val, deserialized);
     }
 
     #[test]
     fn param_serde_deserialize_legacy() {
-        let legacy_val = BASE32_DNSSEC.encode(&[45u8; 6]);
-        let param_id = ParamId::deserialize(&legacy_val);
-        assert_eq!(param_id.serialize(), legacy_val);
+        let legacy_val = [45u8; 6];
+        let param_id = ParamId::deserialize(&BASE32_DNSSEC.encode(&legacy_val));
+        assert_eq!(param_id.val().to_le_bytes()[0..6], legacy_val);
+        assert_eq!(param_id.val().to_le_bytes()[6..], [0, 0]);
     }
 }
