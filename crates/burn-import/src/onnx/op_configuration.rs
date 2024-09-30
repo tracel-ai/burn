@@ -795,25 +795,25 @@ pub fn tile_config(node: &Node) -> TileConfig {
     TileConfig::new(repeat)
 }
 
+/// Create a TriluConfig from the attributes of the node
 pub fn trilu_config(node: &Node) -> TriluConfig {
     let mut upper = true;
+    let mut diagonal = 0;
     for (key, value) in node.attrs.iter() {
-        println!("################ {key} {:?}", value);
         match key.as_str() {
             "upper" => upper = value.clone().into_i64() != 0,
             _ => {}
         }
     }
-    let diagonal = node.inputs.get(1).map(|input| {
-        if let Some(data) = &input.value {
-            data.clone()
-                .into_i64()
-        } else {
-            0
+    // The second input of the Trilu node is the diagonal value, coming from a constant node
+    if let Some(diagonal_arg) = node.inputs.get(1) {
+        if let Some(data) = &diagonal_arg.value {
+            if let Data::Int64(diagonal_val) = data {
+                diagonal = *diagonal_val; 
+            }
         }
-    }).unwrap_or(0);
-    println!("################ diagonal {diagonal}");
-    TriluConfig::new(upper, 0)
+    }
+    TriluConfig::new(upper, diagonal)
 }
 
 /// Create a PadConfig from the attributes of the node
