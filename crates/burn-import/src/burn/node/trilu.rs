@@ -39,10 +39,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
                 let #output = #input.tril(#diagonal);
             }
         }
-        // #(#var)* — no separators
-        // #(#var),* — the character before the asterisk is used as a separator
-        // #( struct #var; )* — the repetition can contain other tokens
-        // #( #k => println!("{}", #v), )* — even multiple interpolations
     }
     fn into_node(self) -> super::Node<PS> {
         Node::Trilu(self)
