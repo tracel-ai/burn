@@ -163,6 +163,7 @@ macro_rules! match_all {
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tile(node) => $func(node),
+            Node::Trilu(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
             Node::Where(node) => $func(node),

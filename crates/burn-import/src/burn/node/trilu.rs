@@ -56,28 +56,34 @@ mod tests {
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
-        node::{trilu::TriluConfig, trilu::TriluNode, test::assert_tokens},
+        node::{test::assert_tokens, trilu::TriluConfig, trilu::TriluNode},
         TensorType,
     };
+
     #[test]
-    fn test_codegen_nodes() {
+    fn test_codegen_triu() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        graph.register(
-            TriluNode::new(TensorType::new_int("input", 2), TensorType::new_int("output", 2), TriluConfig { upper: true, diagonal: 1 })
-        );        
+        let config = TriluConfig::new(true, 0);  // Upper triangular, diagonal offset 0
+        graph.register(TriluNode::new(
+            TensorType::new_float("input", 2),   // Example input tensor type
+            TensorType::new_float("output", 2),  // Example output tensor type
+            config,
+        ));
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
         let expected = quote! {
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
             };
+
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
 
-            impl<B: Backend> Model <B> {
+            impl<B: Backend> Model<B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
                     Self {
@@ -86,13 +92,54 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.trilu(1);
-                    tensor2
+                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let output = input.triu(0);  // Example of upper triangular
+                    output
                 }
             }
         };
 
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_tril() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        let config = TriluConfig::new(false, 0);  // Lower triangular, diagonal offset 0
+        graph.register(TriluNode::new(
+            TensorType::new_float("input", 2),   // Example input tensor type
+            TensorType::new_float("output", 2),  // Example output tensor type
+            config,
+        ));
+        graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model<B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+                    let output = input.tril(0);  // Example of upper triangular
+                    output
+                }
+            }
+        };
         assert_tokens(graph.codegen(), expected);
     }
 }
