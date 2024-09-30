@@ -1,6 +1,5 @@
 use alloc::{string::String, vec, vec::Vec};
 use core::{fmt, marker::PhantomData};
-use data_encoding::BASE32_DNSSEC;
 
 use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
@@ -120,15 +119,6 @@ impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7][0, 1, 2, 3, 4, 5, 6, 7]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8][0, 1, 2, 3, 4, 5, 6, 7, 8]);
 impl_record_tuple!([R0, R1, R2, R3, R4, R5, R6, R7, R8, R9][0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-fn deserialize_param_id(encoded: &str) -> ParamId {
-    let bytes = BASE32_DNSSEC
-        .decode(encoded.as_bytes())
-        .expect("Invalid id");
-    let mut buffer = [0u8; 8];
-    buffer[..bytes.len()].copy_from_slice(&bytes);
-    ParamId::from(u64::from_le_bytes(buffer))
-}
-
 impl<T, B> Record<B> for HashMap<ParamId, T>
 where
     T: Record<B>,
@@ -139,7 +129,7 @@ where
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let mut items = HashMap::with_capacity(self.len());
         self.into_iter().for_each(|(id, record)| {
-            items.insert(id.encode(), record.into_item());
+            items.insert(id.serialize(), record.into_item());
         });
         items
     }
@@ -147,7 +137,7 @@ where
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         let mut record = HashMap::with_capacity(item.len());
         item.into_iter().for_each(|(id, item)| {
-            record.insert(deserialize_param_id(&id), T::from_item(item, device));
+            record.insert(ParamId::deserialize(&id), T::from_item(item, device));
         });
         record
     }
@@ -185,12 +175,12 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.encode(), tensor.into_item())
+        ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         Param::initialized(
-            deserialize_param_id(&item.id),
+            ParamId::deserialize(&item.id),
             Tensor::from_item(item.param, device).require_grad(), // Same behavior as when we create a new
                                                                   // Param from a tensor.
         )
@@ -205,12 +195,12 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.encode(), tensor.into_item())
+        ParamSerde::new(id.serialize(), tensor.into_item())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         Param::initialized(
-            deserialize_param_id(&item.id),
+            ParamId::deserialize(&item.id),
             Tensor::from_item(item.param, device),
         )
     }
@@ -224,12 +214,12 @@ where
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         let (id, tensor) = self.consume();
-        ParamSerde::new(id.encode(), tensor.into_item::<S>())
+        ParamSerde::new(id.serialize(), tensor.into_item::<S>())
     }
 
     fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
         Param::initialized(
-            deserialize_param_id(&item.id),
+            ParamId::deserialize(&item.id),
             Tensor::from_item::<S>(item.param, device),
         )
     }

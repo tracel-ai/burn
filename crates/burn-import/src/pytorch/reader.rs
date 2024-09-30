@@ -157,7 +157,7 @@ where
     tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
 
     let mut param: HashMap<String, NestedValue> = HashMap::new();
-    param.insert("id".into(), NestedValue::String(param_id.encode()));
+    param.insert("id".into(), NestedValue::String(param_id.serialize()));
     param.insert("param".into(), NestedValue::Map(tensor_data));
 
     Ok(NestedValue::Map(param))

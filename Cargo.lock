@@ -515,7 +515,6 @@ version = "0.15.0"
 dependencies = [
  "cubecl-common",
  "dashmap",
- "data-encoding",
  "getrandom",
  "indicatif",
  "rayon",
