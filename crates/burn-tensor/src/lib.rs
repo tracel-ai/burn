@@ -12,8 +12,8 @@ extern crate derive_new;
 
 extern crate alloc;
 
-/// Server module.
-pub mod runner;
+/// Backend router module.
+pub mod router;
 
 mod tensor;
 

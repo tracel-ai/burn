@@ -4,10 +4,10 @@ use burn_common::stream::StreamId;
 
 use crate::ops::IntTensorOps;
 use crate::ops::{BoolTensor, FloatTensor, IntElem, IntTensor};
-use crate::runner::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
+use crate::router::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
 use crate::{Device, Distribution, Shape, TensorData};
 
-impl<C: RunnerChannel> IntTensorOps<Self> for BackendRouter<C> {
+impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         todo!();
     }
@@ -21,7 +21,7 @@ impl<C: RunnerChannel> IntTensorOps<Self> for BackendRouter<C> {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client(&device);
+        let client = get_client::<R>(&device);
         let id = StreamId::current();
         let desc = client.write_tensor(data, id);
 

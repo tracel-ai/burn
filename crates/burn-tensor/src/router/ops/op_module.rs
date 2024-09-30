@@ -3,9 +3,9 @@ use crate::ops::{
     IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices,
 };
-use crate::runner::{BackendRouter, RunnerChannel};
+use crate::router::{BackendRouter, RunnerChannel};
 
-impl<C: RunnerChannel> ModuleOps<Self> for BackendRouter<C> {
+impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

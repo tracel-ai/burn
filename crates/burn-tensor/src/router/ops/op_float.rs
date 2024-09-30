@@ -3,13 +3,13 @@ use burn_common::stream::StreamId;
 use crate::ops::FloatTensorOps;
 use crate::ops::{BoolTensor, FloatElem, FloatTensor, IntTensor};
 use crate::repr::{FloatOperationDescription, OperationDescription, RandomOperationDescription};
-use crate::runner::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
+use crate::router::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
 use crate::{Device, Distribution, Element, Shape, TensorData};
 use std::ops::Range;
 
-impl<C: RunnerChannel> FloatTensorOps<Self> for BackendRouter<C> {
+impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        let client = get_client(device);
+        let client = get_client::<R>(device);
         let stream = StreamId::current();
         let desc = client.write_tensor(data, stream);
 
@@ -26,7 +26,7 @@ impl<C: RunnerChannel> FloatTensorOps<Self> for BackendRouter<C> {
         device: &Device<Self>,
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
-        let client = get_client(device);
+        let client = get_client::<R>(device);
         let stream = StreamId::current();
         let dtype = FloatElem::<Self>::dtype();
         let desc = client.empty_tensor(shape.dims.to_vec(), dtype, stream);
