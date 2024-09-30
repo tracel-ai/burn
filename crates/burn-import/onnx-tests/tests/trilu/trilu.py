@@ -1,63 +1,53 @@
 #!/usr/bin/env python3
 
-import onnx
-import onnx.helper
-import onnx.checker
+import torch
+import torch.nn as nn
 
-def build_model():
-    # Define the input tensor as a graph input
-    input_tensor = onnx.helper.make_tensor_value_info(
-        name="input_tensor",
-        elem_type=onnx.TensorProto.FLOAT,
-        shape=[2, 2]  # Change this as needed for your use case
-    )
 
-    output_tensor = onnx.helper.make_tensor_value_info(
-        name="output_tensor",
-        elem_type=onnx.TensorProto.FLOAT,
-        shape=[2, 2]  # Change this as needed for your output shape
-    )
+class TriluModel(nn.Module):
+    def __init__(self, upper=True, k=0):
+        super(TriluModel, self).__init__()
+        self.upper = upper  # Determines upper or lower triangular
+        self.k = k  # Diagonal offset
 
-    # Create the Trilu node
-    # The attributes specify upper (True) and the diagonal k (0)
-    trilu_node = onnx.helper.make_node(
-        "Trilu",  # or "Triu" for upper triangular
-        inputs=["input_tensor"],
-        outputs=["output_tensor"],
-        name="trilu_node",
-        **{
-            "upper": True,  # Set to False for lower triangular
-            "k": 0  # Modify k based on your requirements
-        }
-    )
+    def forward(self, x):
+        # torch.tril or torch.triu based on 'upper' attribute
+        if self.upper:
+            return torch.triu(x, diagonal=self.k)
+        else:
+            return torch.tril(x, diagonal=self.k)
 
-    # Build the graph
-    graph = onnx.helper.make_graph(
-        nodes=[trilu_node],
-        name="main_graph",
-        inputs=[input_tensor],
-        outputs=[output_tensor]
-    )
-
-    # Build the model
-    model = onnx.helper.make_model(
-        graph,
-        ir_version=8,
-        opset_imports=[onnx.helper.make_operatorsetid("", 16)]  # Ensure the opset version supports Trilu
-    )
-
-    return model
 
 def main():
-    onnx_model = build_model()
+    # Set seed for reproducibility
+    torch.manual_seed(42)
 
-    # Perform shape inference
-    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+    # Set print options for better precision output
+    torch.set_printoptions(precision=8)
+                           
+    # Export to onnx
+    upper = True  # Change to False for lower triangular matrix
+    k = 0         # Change k to adjust the diagonal
+    model = TriluModel(upper=upper, k=k)
+    model.eval()
+    device = torch.device("cpu")
 
+    # Generate test input: a 2D matrix or batch of 2D matrices
     file_name = "trilu.onnx"
-    onnx.save(onnx_model, file_name)
-    # onnx.checker.check_model(onnx_model)
-    print(f"ONNX model saved as {file_name}")
+    test_input = torch.randn(2, 4, 4, device=device)  # 2 batches of 4x4 matrices
+    torch.onnx.export(model, test_input, file_name,
+                      verbose=False, opset_version=16)
 
-if __name__ == "__main__":
+    print("Finished exporting model to {}".format(file_name))
+
+    # Output some test data for use in the test
+    print("Test input data: {}".format(test_input))
+    print("Test input data shape: {}".format(test_input.shape))
+    output = model.forward(test_input)
+    print("Test output data shape: {}".format(output.shape))
+
+    print("Test output: {}".format(output))
+
+
+if __name__ == '__main__':
     main()

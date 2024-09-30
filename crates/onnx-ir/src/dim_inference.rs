@@ -83,6 +83,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Sum => same_as_input_broadcast(node),
         NodeType::Tanh => same_as_input(node),
         NodeType::Transpose => same_as_input(node),
+        NodeType::Trilu => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
