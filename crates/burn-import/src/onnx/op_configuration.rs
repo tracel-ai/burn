@@ -7,7 +7,9 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig};
+use crate::burn::node::{
+    expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig,
+};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -807,10 +809,8 @@ pub fn trilu_config(node: &Node) -> TriluConfig {
     }
     // The second input of the Trilu node is the diagonal value, coming from a constant node
     if let Some(diagonal_arg) = node.inputs.get(1) {
-        if let Some(data) = &diagonal_arg.value {
-            if let Data::Int64(diagonal_val) = data {
-                diagonal = *diagonal_val; 
-            }
+        if let Some(Data::Int64(diagonal_val)) = &diagonal_arg.value {
+            diagonal = *diagonal_val;
         }
     }
     TriluConfig::new(upper, diagonal)

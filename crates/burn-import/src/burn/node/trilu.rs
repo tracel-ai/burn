@@ -5,7 +5,6 @@ use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
 
-
 #[derive(Config, Debug)]
 pub struct TriluConfig {
     pub upper: bool,
@@ -45,24 +44,23 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TriluNode {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
     use super::*;
     use crate::burn::{
         graph::BurnGraph,
         node::{test::assert_tokens, trilu::TriluConfig, trilu::TriluNode},
         TensorType,
     };
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_codegen_triu() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TriluConfig::new(true, 0);  // Upper triangular, diagonal offset 0
+        let config = TriluConfig::new(true, 0);
         graph.register(TriluNode::new(
-            TensorType::new_float("input", 2),   // Example input tensor type
-            TensorType::new_float("output", 2),  // Example output tensor type
+            TensorType::new_float("input", 2),
+            TensorType::new_float("output", 2),
             config,
         ));
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -89,7 +87,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.triu(0);  // Example of upper triangular
+                    let output = input.triu(0);
                     output
                 }
             }
@@ -101,10 +99,10 @@ mod tests {
     #[test]
     fn test_codegen_tril() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TriluConfig::new(false, 0);  // Lower triangular, diagonal offset 0
+        let config = TriluConfig::new(false, 0);
         graph.register(TriluNode::new(
-            TensorType::new_float("input", 2),   // Example input tensor type
-            TensorType::new_float("output", 2),  // Example output tensor type
+            TensorType::new_float("input", 2),
+            TensorType::new_float("output", 2),
             config,
         ));
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
@@ -131,7 +129,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.tril(0);  // Example of upper triangular
+                    let output = input.tril(0);
                     output
                 }
             }

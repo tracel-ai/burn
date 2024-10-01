@@ -11,7 +11,8 @@ use super::{
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
     range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
-    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode, unary::UnaryNode,
+    unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
