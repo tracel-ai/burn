@@ -1,7 +1,10 @@
 use core::marker::PhantomData;
 
-use super::{base::MultiBackendBridge, Handle2, MultiDevice2};
-use crate::{backend::Backend, repr::ReprBackend};
+use super::{base::MultiBackendBridge, Handle2, IntoMultiDevice2, MultiDevice2};
+use crate::{
+    repr::ReprBackend,
+    router::{DirectChannel, RunnerChannel},
+};
 
 pub struct ByteBridge<Backends> {
     backends: PhantomData<Backends>,

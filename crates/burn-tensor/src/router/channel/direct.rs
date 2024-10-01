@@ -2,7 +2,9 @@ use core::marker::PhantomData;
 
 use crate::{
     repr::ReprBackend,
-    router::{Handle2, MultiBackendBridge, MultiDevice2, MultiRunnerClient2, Runner},
+    router::{
+        Handle2, IntoMultiDevice2, MultiBackendBridge, MultiDevice2, MultiRunnerClient2, Runner,
+    },
 };
 
 use super::RunnerChannel;

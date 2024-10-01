@@ -10,13 +10,13 @@ use std::ops::Range;
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        let stream = StreamId::current();
-        let desc = client.write_tensor(data, stream);
+        // let stream = StreamId::current();
+        let desc = client.write_tensor(data);
 
         RouterTensor {
             desc,
             client,
-            stream,
+            // stream,
         }
     }
 
@@ -27,26 +27,19 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let stream = StreamId::current();
+        // let stream = StreamId::current();
         let dtype = FloatElem::<Self>::dtype();
-        let desc = client.empty_tensor(shape.dims.to_vec(), dtype, stream);
+        let out = client.empty_tensor(shape.dims.to_vec(), dtype);
 
-        client.register(
-            OperationDescription::Float(
-                dtype,
-                FloatOperationDescription::Random(RandomOperationDescription {
-                    out: desc.clone(),
-                    distribution,
-                }),
-            ),
-            stream,
-        );
+        client.register(OperationDescription::Float(
+            dtype,
+            FloatOperationDescription::Random(RandomOperationDescription {
+                out: out.to_description(),
+                distribution,
+            }),
+        ));
 
-        RouterTensor {
-            desc,
-            client,
-            stream,
-        }
+        out
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {

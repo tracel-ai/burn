@@ -22,13 +22,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(&device);
-        let id = StreamId::current();
-        let desc = client.write_tensor(data, id);
+        // let id = StreamId::current();
+        let desc = client.write_tensor(data);
 
         RouterTensor {
             desc,
             client,
-            stream: id,
+            // stream: id,
         }
     }
 

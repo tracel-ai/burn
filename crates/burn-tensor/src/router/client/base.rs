@@ -7,7 +7,7 @@ use spin::Mutex;
 use crate::{
     backend::{DeviceId, DeviceOps},
     repr::{OperationDescription, TensorDescription},
-    router::RunnerChannel,
+    router::{RouterTensor, RunnerChannel},
     DType, TensorData,
 };
 
@@ -19,15 +19,11 @@ type Key = (core::any::TypeId, DeviceId);
 /// Define how to interact with the runner server.
 pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Register a new tensor operation to be executed by the (runner) server.
-    fn register(&self, op: OperationDescription, stream: StreamId);
+    fn register(&self, op: OperationDescription);
     /// Read the values contained by a tensor.
-    fn read_tensor(
-        &self,
-        tensor: TensorDescription,
-        stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send;
-    fn write_tensor(&self, data: TensorData, stream: StreamId) -> TensorDescription;
-    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType, stream: StreamId) -> TensorDescription;
+    fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send;
+    fn write_tensor(&self, data: TensorData) -> TensorDescription;
+    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
 }
 
 pub(crate) struct RunnerClientLocator {

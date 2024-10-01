@@ -3,7 +3,7 @@ use burn_common::stream::StreamId;
 use crate::{
     backend::{Backend, DeviceOps},
     repr::{OperationDescription, ReprBackend, TensorDescription},
-    router::{Runner, RunnerClient},
+    router::{RouterTensor, Runner, RunnerChannel, RunnerClient},
     DType, TensorData,
 };
 
@@ -58,6 +58,12 @@ impl<B1: Backend, B2: Backend> DeviceOps for MultiDevice2<B1, B2> {
     }
 }
 
+/// Trait to implement to distinguish between devices.
+pub trait IntoMultiDevice2<B1: Backend, B2: Backend> {
+    fn from_device1(device: B1::Device) -> MultiDevice2<B1, B2>;
+    fn from_device2(device: B2::Device) -> MultiDevice2<B1, B2>;
+}
+
 /// [`MultiBackendBridge`] client for two backends.
 #[derive(Clone)]
 pub enum MultiRunnerClient2<B1: ReprBackend, B2: ReprBackend> {
@@ -66,22 +72,22 @@ pub enum MultiRunnerClient2<B1: ReprBackend, B2: ReprBackend> {
 }
 
 impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B2> {
-    fn register(&self, op: OperationDescription, stream: StreamId) {
+    fn register(&self, op: OperationDescription) {
         match self {
-            MultiRunnerClient2::RunnerClient1(runner) => runner.register(op, stream),
-            MultiRunnerClient2::RunnerClient2(runner) => runner.register(op, stream),
+            MultiRunnerClient2::RunnerClient1(runner) => runner.register(op),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.register(op),
         }
     }
 
-    async fn read_tensor(&self, tensor: TensorDescription, stream: StreamId) -> TensorData {
+    async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
         todo!()
     }
 
-    fn write_tensor(&self, data: TensorData, stream: StreamId) -> TensorDescription {
+    fn write_tensor(&self, data: TensorData) -> TensorDescription {
         todo!()
     }
 
-    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType, stream: StreamId) -> TensorDescription {
+    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
         todo!()
     }
 }

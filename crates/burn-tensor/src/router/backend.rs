@@ -6,7 +6,7 @@ use crate::{
     quantization::QTensorPrimitive,
 };
 
-use super::{RouterTensor, RunnerChannel};
+use super::{RouterTensor, RunnerChannel, RunnerClient};
 
 pub struct BackendRouter<R: RunnerChannel> {
     r: PhantomData<R>,
@@ -30,7 +30,7 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
     }
 }
 
-impl<R: RunnerChannel> QTensorPrimitive for RouterTensor<R> {
+impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
     fn scheme(&self) -> &crate::quantization::QuantizationScheme {
         todo!()
     }
@@ -63,23 +63,23 @@ impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
     }
 }
 
-impl<C: RunnerChannel> Backend for BackendRouter<C> {
-    type Device = C::Device;
+impl<R: RunnerChannel> Backend for BackendRouter<R> {
+    type Device = R::Device;
 
     type FullPrecisionBridge = PrecisionBridge;
 
-    type FloatTensorPrimitive = RouterTensor<C>;
+    type FloatTensorPrimitive = RouterTensor<R::Client>;
 
     // TODO: how to set elem types?
     type FloatElem = f32;
 
-    type IntTensorPrimitive = RouterTensor<C>;
+    type IntTensorPrimitive = RouterTensor<R::Client>;
 
     type IntElem = i32;
 
-    type BoolTensorPrimitive = RouterTensor<C>;
+    type BoolTensorPrimitive = RouterTensor<R::Client>;
 
-    type QuantizedTensorPrimitive = RouterTensor<C>;
+    type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 
     type QuantizedEncoding = u32;
 
