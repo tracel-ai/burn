@@ -21,10 +21,13 @@ impl<Backends, Bridge> Clone for DirectChannel<Backends, Bridge> {
     }
 }
 
-impl<B1: ReprBackend, B2: ReprBackend, Br: MultiBackendBridge<TensorType = Handle2<B1, B2>>>
-    RunnerChannel for DirectChannel<(B1, B2), Br>
+impl<
+        B1: ReprBackend,
+        B2: ReprBackend,
+        Br: MultiBackendBridge<TensorType = Handle2<B1, B2>, Device = MultiDevice2<B1, B2>>,
+    > RunnerChannel for DirectChannel<(B1, B2), Br>
 {
-    type Device = MultiDevice2<B1, B2>;
+    type Device = Br::Device;
 
     type Bridge = Br;
 

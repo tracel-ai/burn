@@ -205,22 +205,3 @@ impl<H: Clone> HandleContainer<H> {
         self.handles_orphan = handles_orphan;
     }
 }
-
-impl<H: Clone> Clone for HandleContainer<H> {
-    fn clone(&self) -> Self {
-        Self {
-            handles: self.handles.clone(),
-            counter: self.counter.clone(),
-            handles_orphan: self.handles_orphan.clone(),
-        }
-    }
-}
-
-impl<H: Clone> Clone for Handle<H> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::NotInit => Self::NotInit,
-            Self::Existing(arg0) => Self::Existing(arg0.clone()),
-        }
-    }
-}

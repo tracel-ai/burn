@@ -6,7 +6,7 @@ use crate::{
 // Defines associated types config for a setup with multiple backend runners.
 pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type Device: DeviceOps;
-    type Bridge: MultiBackendBridge;
+    type Bridge: MultiBackendBridge<Device = Self::Device>;
     type Client: RunnerClient;
 
     /// Initialize a new client for the given device.
@@ -16,8 +16,8 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     fn change_runner(
         self,
         tensor: <Self::Bridge as MultiBackendBridge>::TensorType,
+        device: &Self::Device, // target device
     ) -> <Self::Bridge as MultiBackendBridge>::TensorType {
-        // TODO: specify device?
-        Self::Bridge::to_backend(&self, tensor)
+        Self::Bridge::to_backend(tensor, device)
     }
 }

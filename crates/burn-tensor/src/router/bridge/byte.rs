@@ -1,18 +1,23 @@
 use core::marker::PhantomData;
 
 use super::{base::MultiBackendBridge, Handle2, MultiDevice2};
-use crate::repr::ReprBackend;
+use crate::{backend::Backend, repr::ReprBackend};
 
 pub struct ByteBridge<Backends> {
     backends: PhantomData<Backends>,
 }
+
+// TODO: refactor w/ visitor?
+// pub trait BackendSwitchVisitor<B1: Backend> {
+//     fn from_backend<B2: Backend>(handle: B2::FloatTensorPrimitive) -> B1::FloatTensorPrimitive;
+// }
 
 // Concrete implementation for bridge between two backends.
 impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)> {
     type TensorType = Handle2<B1, B2>;
     type Device = MultiDevice2<B1, B2>;
 
-    fn to_backend(&self, tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType {
+    fn to_backend(tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType {
         let msg = "Failed to read tensor data synchronously.
 This can happen on platforms that don't support blocking futures like WASM.";
         match tensor {

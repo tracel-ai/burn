@@ -1,4 +1,6 @@
+use alloc::sync::Arc;
 use burn_common::stream::StreamId;
+use spin::Mutex;
 
 use crate::{
     repr::{HandleContainer, OperationDescription, ReprBackend, TensorDescription},
@@ -12,29 +14,21 @@ pub struct RunnerContext<B: ReprBackend> {
     device: B::Device,
 }
 
-impl<B: ReprBackend> Clone for RunnerContext<B> {
-    fn clone(&self) -> Self {
-        Self {
-            handles: self.handles.clone(),
-            device: self.device.clone(),
-        }
-    }
-}
-
 // Runners are used by the channels (e.g., DirectChannel, HttpChannel, etc.)
 // Responsible for executing the tensor operations.
 #[derive(Clone)]
 pub struct Runner<B: ReprBackend> {
-    context: RunnerContext<B>, // this was behind Mutex<RunnerContext<B>> before.. why?
+    // Mutex for the mutable handles
+    context: Arc<Mutex<RunnerContext<B>>>,
 }
 
 impl<B: ReprBackend> Runner<B> {
     pub(crate) fn new(device: B::Device) -> Self {
         Self {
-            context: RunnerContext {
+            context: Arc::new(Mutex::new(RunnerContext {
                 handles: HandleContainer::new(),
                 device,
-            },
+            })),
         }
     }
 }

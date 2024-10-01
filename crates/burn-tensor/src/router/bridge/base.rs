@@ -11,10 +11,10 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
     type TensorType;
     type Device;
     /// Move `tensor` to the target backend specified `device`.
-    fn to_backend(&self, tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType;
+    fn to_backend(tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType;
 }
 
-// TODO: generate this for different number of backends (up to 6?)
+// TODO: generate this for different number of backends (up to 4?)
 
 /// [`MultiBackendBridge`] tensor type for two backends.
 pub enum Handle2<B1: Backend, B2: Backend> {
@@ -40,6 +40,7 @@ impl<B1: Backend, B2: Backend> PartialEq for MultiDevice2<B1, B2> {
         }
     }
 }
+
 impl<B1: Backend, B2: Backend> Eq for MultiDevice2<B1, B2> {}
 
 impl<B1: Backend, B2: Backend> Default for MultiDevice2<B1, B2> {
