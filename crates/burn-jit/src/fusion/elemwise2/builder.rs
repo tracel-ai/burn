@@ -10,6 +10,7 @@ use burn_tensor::{
     DType, Element,
 };
 use cubecl::ir::Elem;
+use cubecl::prelude::Sequence;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWise2Builder<R: JitRuntime> {
@@ -382,11 +383,31 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
     }
 }
 
-pub struct Tracel2Builder {}
+pub struct Tracel2Builder {
+    pub ops: Sequence<ElemwiseOp>,
+    pub t_f32: usize,
+    pub t_f16: usize,
+    pub t_i32: usize,
+    pub t_u32: usize,
+    pub s_f32: usize,
+    pub s_f16: usize,
+    pub s_i32: usize,
+    pub s_u32: usize,
+}
 
 impl Tracel2Builder {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            t_f32: todo!(),
+            t_f16: todo!(),
+            t_i32: todo!(),
+            t_u32: todo!(),
+            s_f32: todo!(),
+            s_f16: todo!(),
+            s_i32: todo!(),
+            s_u32: todo!(),
+            ops: Sequence::new(),
+        }
     }
 
     pub fn register_operation(&mut self, op: ElemwiseOp) {}
