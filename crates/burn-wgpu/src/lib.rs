@@ -44,7 +44,8 @@ pub use cubecl::wgpu::*;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I>>;
+pub type Wgpu<F = f32, I = i32> =
+    burn_fusion::Fusion<JitBackend<cubecl::wgpu_spirv::WgpuSpirvRuntime, F, I>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -78,12 +79,12 @@ pub type Wgpu<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<cubecl::wgpu::W
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuRuntime, F, I>;
+pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuSpirvRuntime, F, I>;
 
 #[cfg(test)]
 mod tests {
     use burn_jit::JitBackend;
-    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
+    pub type TestRuntime = cubecl::wgpu_spirv::WgpuSpirvRuntime;
 
     burn_jit::testgen_all!();
 }

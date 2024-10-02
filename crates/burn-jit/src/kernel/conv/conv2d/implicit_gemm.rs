@@ -347,26 +347,31 @@ fn make_matrices<F: Float, FAcc: Float>(
     } = gemm_settings;
 
     let matrices = Matrices::<F, FAcc> {
-        a: Matrix::<F>::new(
-            MatrixIdent::A,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::RowMajor,
-        ),
-        b: Matrix::<F>::new(
-            MatrixIdent::B,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::ColMajor,
-        ),
-        acc: Matrix::<FAcc>::new(
+        a: unsafe {
+            Matrix::<F>::uninitialized(
+                MatrixIdent::A,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::RowMajor,
+            )
+        },
+        b: unsafe {
+            Matrix::<F>::uninitialized(
+                MatrixIdent::B,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::ColMajor,
+            )
+        },
+        acc: Matrix::<FAcc>::from_value(
             MatrixIdent::Accumulator,
             cmma_m,
             cmma_n,
             cmma_k,
             MatrixLayout::Undefined,
+            FAcc::new(0.0),
         ),
     };
 

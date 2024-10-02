@@ -1405,18 +1405,17 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
  "cubecl-linalg",
  "cubecl-wgpu",
+ "cubecl-wgpu-spirv",
 ]
 
 [[package]]
 name = "cubecl-common"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "derive-new",
  "getrandom",
@@ -1431,7 +1430,6 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1448,7 +1446,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1463,7 +1460,6 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1474,7 +1470,6 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1489,7 +1484,6 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "async-channel",
  "cfg_aliases 0.2.1",
@@ -1507,9 +1501,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cubecl-spirv"
+version = "0.2.0"
+dependencies = [
+ "cubecl-common",
+ "cubecl-core",
+ "cubecl-runtime",
+ "hashbrown 0.14.5",
+ "rspirv",
+]
+
+[[package]]
 name = "cubecl-wgpu"
 version = "0.2.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934#0a98d09102e306de5a9dcf7c4e7d2fa3cfc6d934"
 dependencies = [
  "async-channel",
  "bytemuck",
@@ -1517,6 +1521,25 @@ dependencies = [
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
+ "derive-new",
+ "hashbrown 0.14.5",
+ "log",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "cubecl-wgpu-spirv"
+version = "0.2.0"
+dependencies = [
+ "async-channel",
+ "bytemuck",
+ "cfg_aliases 0.2.1",
+ "cubecl-common",
+ "cubecl-core",
+ "cubecl-runtime",
+ "cubecl-spirv",
+ "cubecl-wgpu",
  "derive-new",
  "hashbrown 0.14.5",
  "log",
@@ -2042,6 +2065,12 @@ dependencies = [
  "libredox",
  "windows-sys 0.59.0",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -3648,6 +3677,7 @@ dependencies = [
  "hexf-parse",
  "indexmap 2.4.0",
  "log",
+ "petgraph",
  "rustc-hash",
  "spirv",
  "termcolor",
@@ -4319,6 +4349,16 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
+
+[[package]]
+name = "petgraph"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+dependencies = [
+ "fixedbitset",
+ "indexmap 2.4.0",
+]
 
 [[package]]
 name = "phf"
@@ -5493,6 +5533,16 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
+]
+
+[[package]]
+name = "rspirv"
+version = "0.12.0+sdk-1.3.268.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69cf3a93856b6e5946537278df0d3075596371b1950ccff012f02b0f7eafec8d"
+dependencies = [
+ "rustc-hash",
+ "spirv",
 ]
 
 [[package]]
@@ -7152,6 +7202,7 @@ dependencies = [
  "arrayvec",
  "bit-vec",
  "bitflags 2.6.0",
+ "bytemuck",
  "cfg_aliases 0.1.1",
  "document-features",
  "indexmap 2.4.0",

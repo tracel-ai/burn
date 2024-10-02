@@ -21,7 +21,7 @@ pub mod element;
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{
     compute::{CubeCount, CubeTask},
-    FeatureSet, Properties, Runtime,
+    Compiler, FeatureSet, Properties, Runtime,
 };
 pub use element::{FloatElement, IntElement, JitElement};
 
@@ -53,7 +53,7 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     type JitDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [JitAutotuneKey].
     type JitServer: cubecl::server::ComputeServer<
-        Kernel = Box<dyn CubeTask>,
+        Kernel = Box<dyn CubeTask<<Self::Compiler as Compiler>::Representation>>,
         DispatchOptions = CubeCount<Self::JitServer>,
         Properties = Properties,
         FeatureSet = FeatureSet,
