@@ -1,3 +1,5 @@
+use super::ir::{Arg, BinaryElemwiseOp, ElemwiseOp, UnaryElemwiseOp};
+use crate::{fusion::JitOptimization, JitRuntime};
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     repr::{
@@ -7,14 +9,7 @@ use burn_tensor::{
     },
     DType, Element,
 };
-use cubecl::ir::{
-    BinaryOperator, ConditionalAssign, ConstantScalarValue, Elem, Operator, Procedure,
-    UnaryOperator, Variable,
-};
-
-use crate::{fusion::JitOptimization, JitRuntime};
-
-use super::ir::Arg;
+use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWise2Builder<R: JitRuntime> {
@@ -115,10 +110,10 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
         match ops {
             BaseOperationDescription::Equal(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Equal(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Equal(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             BaseOperationDescription::Cast(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Assign(UnaryOperator { input, out })
+                ElemwiseOp::Assign(UnaryElemwiseOp { input, out })
             }),
             _ => false,
         }
@@ -127,34 +122,34 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
     fn register_float(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
             FloatOperationDescription::Exp(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Exp(UnaryOperator { input, out })
+                ElemwiseOp::Exp(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::Log(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Log(UnaryOperator { input, out })
+                ElemwiseOp::Log(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::Log1p(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    Operator::Log1p(UnaryOperator { input, out })
+                    ElemwiseOp::Log1p(UnaryElemwiseOp { input, out })
                 }),
             FloatOperationDescription::Cos(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Cos(UnaryOperator { input, out })
+                ElemwiseOp::Cos(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::Sin(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Sin(UnaryOperator { input, out })
+                ElemwiseOp::Sin(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::PowfScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Powf(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Powf(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             FloatOperationDescription::Tanh(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Tanh(UnaryOperator { input, out })
+                ElemwiseOp::Tanh(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::Erf(desc) => self.register_unary_ops(desc, |input, out| {
-                Operator::Erf(UnaryOperator { input, out })
+                ElemwiseOp::Erf(UnaryElemwiseOp { input, out })
             }),
             FloatOperationDescription::Recip(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    Operator::Recip(UnaryOperator { input, out })
+                    ElemwiseOp::Recip(UnaryElemwiseOp { input, out })
                 }),
             _ => false,
         }
@@ -164,75 +159,75 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
         match ops {
             NumericOperationDescription::Add(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Add(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Add(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::AddScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Add(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Add(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::Sub(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Sub(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Sub(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::SubScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Sub(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Sub(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::Mul(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Mul(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Mul(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::MulScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Mul(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Mul(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::Div(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Div(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Div(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::DivScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Div(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Div(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::Abs(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    Operator::Abs(UnaryOperator { input, out })
+                    ElemwiseOp::Abs(UnaryElemwiseOp { input, out })
                 }),
             NumericOperationDescription::Lower(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Lower(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Lower(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Lower(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Lower(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::Greater(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::Greater(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Greater(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Greater(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Greater(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerEqual(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::LowerEqual(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::LowerEqual(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerEqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::LowerEqual(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::LowerEqual(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterEqual(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    Operator::GreaterEqual(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::GreaterEqual(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterEqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::GreaterEqual(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::GreaterEqual(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::EqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    Operator::Equal(BinaryOperator { lhs, rhs, out })
+                    ElemwiseOp::Equal(BinaryElemwiseOp { lhs, rhs, out })
                 }),
             NumericOperationDescription::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
@@ -245,12 +240,12 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
                 let out = self.builder.output(&desc.out);
 
                 self.builder
-                    .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
+                    .register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    }));
+                    });
 
                 true
             }
@@ -265,12 +260,12 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
                 let out = self.builder.output(&desc.out);
 
                 self.builder
-                    .register_operation(Procedure::ConditionalAssign(ConditionalAssign {
+                    .register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    }));
+                    });
 
                 true
             }
@@ -280,19 +275,12 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
                 }
 
                 let elem: Elem = desc.dtype.into();
-                let input = match elem {
-                    Elem::Float(kind) => ConstantScalarValue::Float(1.0, kind),
-                    Elem::Int(kind) => ConstantScalarValue::Int(1, kind),
-                    Elem::UInt => ConstantScalarValue::UInt(1),
-                    Elem::Bool => ConstantScalarValue::Bool(true),
-                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(1, kind),
-                    Elem::AtomicUInt => ConstantScalarValue::UInt(1),
-                };
-                let input = Variable::ConstantScalar(input);
+                let precision = elem.into();
+                let input = Arg::Literal(1, precision);
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
                 true
             }
@@ -302,19 +290,12 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
                 }
 
                 let elem: Elem = desc.dtype.into();
-                let input = match elem {
-                    Elem::Float(kind) => ConstantScalarValue::Float(0.0, kind),
-                    Elem::Int(kind) => ConstantScalarValue::Int(0, kind),
-                    Elem::UInt => ConstantScalarValue::UInt(0),
-                    Elem::Bool => ConstantScalarValue::Bool(false),
-                    Elem::AtomicInt(kind) => ConstantScalarValue::Int(0, kind),
-                    Elem::AtomicUInt => ConstantScalarValue::UInt(0),
-                };
-                let input = Variable::ConstantScalar(input);
+                let precision = elem.into();
+                let input = Arg::Literal(0, precision);
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
                 true
             }
@@ -327,7 +308,7 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(Operator::Assign(UnaryOperator { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
                 true
             }
@@ -337,7 +318,7 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
 
     fn register_binary_ops<Func>(&mut self, desc: &BinaryOperationDescription, func: Func) -> bool
     where
-        Func: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Arg, Arg, Arg) -> ElemwiseOp,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -354,7 +335,7 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
 
     fn register_unary_ops<Func>(&mut self, desc: &UnaryOperationDescription, func: Func) -> bool
     where
-        Func: Fn(Variable, Variable) -> Operator,
+        Func: Fn(Arg, Arg) -> ElemwiseOp,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -374,7 +355,7 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
         func: Func,
     ) -> bool
     where
-        Func: Fn(Variable, Variable, Variable) -> Operator,
+        Func: Fn(Arg, Arg, Arg) -> ElemwiseOp,
     {
         if !self.output_is_compatible(&desc.out) {
             return false;
@@ -382,6 +363,8 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
 
         let elem = desc.lhs.dtype.into();
         let lhs = self.builder.input(&desc.lhs);
+        let rhs = self.builder.scalar(&desc.rhs, elem);
+        let out = self.builder.output(&desc.out);
 
         self.builder.register_operation(func(lhs, rhs, out));
 
@@ -406,13 +389,15 @@ impl Tracel2Builder {
         Self {}
     }
 
-    pub fn input(&mut self, _tensor: &TensorDescription) -> Arg {
-        Arg::Input(0)
+    pub fn register_operation(&mut self, op: ElemwiseOp) {}
+
+    pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
+        Arg::Input(0, tensor.dtype.into())
     }
-    pub fn output(&mut self, _tensor: &TensorDescription) -> Arg {
-        Arg::Output(0)
+    pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
+        Arg::Input(0, tensor.dtype.into())
     }
-    pub fn scalar<E: Element>(&mut self, _tensor: &E, dtype: DType) -> Arg {
-        Arg::Output(0)
+    pub fn scalar<E: Element>(&mut self, tensor: &E, dtype: DType) -> Arg {
+        Arg::Input(0, dtype.into())
     }
 }

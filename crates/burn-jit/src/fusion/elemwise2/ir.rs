@@ -1,63 +1,97 @@
+use super::io::*;
 use burn_tensor::DType;
-use cubecl::linalg::tensor::index_offset_with_layout;
 pub use cubecl::prelude::*;
-use half::f16;
+use cubecl::{ir::Elem, linalg::tensor::index_offset_with_layout};
+use half::{bf16, f16};
 
-#[derive(CubeType, Clone, Copy)]
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Arg {
-    Input(u32),
-    Local(u32),
-    Output(u32),
-    Scalar(u32),
+    Input(u32, OpPrecision),
+    Local(u32, OpPrecision),
+    Output(u32, OpPrecision),
+    Scalar(u32, OpPrecision),
+    /// Only constant that can be encoded into an u32 can be used as literal.
+    Literal(u32, OpPrecision),
 }
 
-#[derive(CubeType)]
+impl Arg {
+    pub fn precision(&self) -> OpPrecision {
+        *match self {
+            Arg::Input(_, p) => p,
+            Arg::Local(_, p) => p,
+            Arg::Output(_, p) => p,
+            Arg::Scalar(_, p) => p,
+            Arg::Literal(_, p) => p,
+        }
+    }
+}
+
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ElemwiseOp {
     Add(BinaryElemwiseOp),
     Sub(BinaryElemwiseOp),
     Mul(BinaryElemwiseOp),
-    Pow(UnaryElemwiseOp),
+    Div(BinaryElemwiseOp),
+    Powf(BinaryElemwiseOp),
+    Abs(UnaryElemwiseOp),
+    Exp(UnaryElemwiseOp),
+    Log(UnaryElemwiseOp),
+    Log1p(UnaryElemwiseOp),
+    Cos(UnaryElemwiseOp),
+    Sin(UnaryElemwiseOp),
+    Tanh(UnaryElemwiseOp),
+    Erf(UnaryElemwiseOp),
+    Recip(UnaryElemwiseOp),
     Assign(UnaryElemwiseOp),
     ToLayout(UnaryElemwiseOp),
+    ConditionalAssign {
+        cond: Arg,
+        lhs: Arg,
+        rhs: Arg,
+        out: Arg,
+    },
+    Equal(BinaryElemwiseOp),
+    Lower(BinaryElemwiseOp),
+    Greater(BinaryElemwiseOp),
+    LowerEqual(BinaryElemwiseOp),
+    GreaterEqual(BinaryElemwiseOp),
 }
 
 #[derive(CubeLaunch)]
 pub struct FusionArgs {
-    t_f32: Sequence<Tensor<Line<f32>>>,
-    t_f16: Sequence<Tensor<Line<f16>>>,
-    t_i32: Sequence<Tensor<Line<i32>>>,
-    t_u32: Sequence<Tensor<Line<u32>>>,
-    s_f32: Sequence<f32>,
-    s_f16: Sequence<f16>,
-    s_i32: Sequence<i32>,
-    s_u32: Sequence<u32>,
+    pub t_f32: Sequence<Tensor<Line<f32>>>,
+    pub t_f16: Sequence<Tensor<Line<f16>>>,
+    pub t_i32: Sequence<Tensor<Line<i32>>>,
+    pub t_u32: Sequence<Tensor<Line<u32>>>,
+    pub s_f32: Sequence<f32>,
+    pub s_f16: Sequence<f16>,
+    pub s_i32: Sequence<i32>,
+    pub s_u32: Sequence<u32>,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone)]
 pub struct FusionLocals {
-    l_f32: Sequence<Line<f32>>,
-    l_f16: Sequence<Line<f16>>,
-    l_i32: Sequence<Line<i32>>,
-    l_u32: Sequence<Line<u32>>,
-    l_bool: Sequence<Line<bool>>,
+    pub l_f32: Sequence<Line<f32>>,
+    pub l_f16: Sequence<Line<f16>>,
+    pub l_i32: Sequence<Line<i32>>,
+    pub l_u32: Sequence<Line<u32>>,
+    pub l_bool: Sequence<Line<bool>>,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct UnaryElemwiseOp {
     pub input: Arg,
     pub out: Arg,
-    pub precision: OpPrecision,
 }
 
-#[derive(CubeType)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct BinaryElemwiseOp {
     pub lhs: Arg,
     pub rhs: Arg,
     pub out: Arg,
-    pub precision: OpPrecision,
 }
 
-#[derive(CubeType, Clone, Copy)]
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum OpPrecision {
     F32,
     F16,
@@ -68,6 +102,26 @@ pub enum OpPrecision {
     U32,
     U8,
     Bool,
+}
+
+impl From<Elem> for OpPrecision {
+    fn from(value: Elem) -> Self {
+        match value {
+            Elem::Float(kind) => match kind {
+                cubecl::ir::FloatKind::F16 => Self::F16,
+                cubecl::ir::FloatKind::BF16 => Self::BF16,
+                cubecl::ir::FloatKind::F32 => Self::F32,
+                _ => panic!("Unsupported precision for fusion: {value}"),
+            },
+            Elem::Int(kind) => match kind {
+                cubecl::ir::IntKind::I32 => Self::I32,
+                _ => panic!("Unsupported precision for fusion: {value}"),
+            },
+            Elem::UInt => Self::U32,
+            Elem::Bool => Self::Bool,
+            _ => panic!("Unsupported precision for fusion: {value}"),
+        }
+    }
 }
 
 impl From<DType> for OpPrecision {
@@ -102,91 +156,26 @@ pub enum ReadPosition {
     Unspecified,
 }
 
-#[derive(CubeType, Clone, Copy)]
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct RefLayout {
-    pub precision: OpPrecision,
     pub arg: Arg,
 }
 
-#[cube]
-pub fn get_offset<C: CubePrimitive>(
-    inputs: &FusionArgs,
-    outputs: &FusionArgs,
-    tensor: &Tensor<Line<C>>,
-    pos: u32,
-    #[comptime] rank: u32,
-    #[comptime] ref_layout: RefLayout,
-) -> u32 {
-    match comptime![ref_layout.precision] {
-        OpPrecision::F32 => match comptime![ref_layout.arg] {
-            Arg::Input(index) => {
-                let layout = inputs.t_f32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, rank, true)
-            }
-            Arg::Output(index) => {
-                let layout = outputs.t_f32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, rank, true)
-            }
-            _ => todo!(),
-        },
-        _ => todo!(),
-    }
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+pub struct FusionConfig {
+    pub rank: u32,
+    pub ref_layout: RefLayout,
+    pub ops: Sequence<ElemwiseOp>,
 }
 
 #[cube]
-pub fn read_f16(
-    inputs: &FusionArgs,
-    outputs: &FusionArgs,
-    locals: &FusionLocals,
-    ref_pos: u32,
-    #[comptime] ref_layout: RefLayout,
-    #[comptime] arg: Arg,
-    #[comptime] rank: u32,
-) -> Line<f16> {
-    match arg {
-        Arg::Input(index) => {
-            let tensor = inputs.t_f16.index(index);
-            let offset = get_offset(inputs, outputs, tensor, ref_pos, rank, ref_layout);
-            tensor[offset]
-        }
-        Arg::Local(index) => *locals.l_f16.index(index),
-        _ => comptime![panic!("Invalid")],
-    }
-}
-
-#[cube]
-pub fn write_f16(
+fn fuse_on_write<E: CubePrimitive>(
     inputs: &FusionArgs,
     outputs: &mut FusionArgs,
-    locals: &FusionLocals,
-    ref_pos: u32,
-    #[comptime] ref_layout: RefLayout,
-    #[comptime] arg: Arg,
-    #[comptime] rank: u32,
-    value: Line<f16>,
-) {
-    match arg {
-        Arg::Input(index) => {
-            let offset = {
-                let tensor = outputs.t_f16.index(index);
-                get_offset(inputs, outputs, tensor, ref_pos, rank, ref_layout)
-            };
-
-            let output = outputs.t_f16.index_mut(index);
-            output[offset] = value;
-        }
-        _ => comptime![panic!("Invalid")],
-    }
-}
-
-#[cube]
-fn fuse(
-    inputs: &FusionArgs,
-    outputs: &mut FusionArgs,
-    ref_pos: u32,
-    #[comptime] ref_layout: RefLayout,
-    #[comptime] ops: Sequence<ElemwiseOp>,
-    #[comptime] rank: u32,
+    write_pos: u32,
+    write_value: Line<E>,
+    #[comptime] write_arg: Option<Arg>,
+    #[comptime] config: &FusionConfig,
 ) {
     let mut locals = FusionLocals {
         l_f32: Sequence::new(),
@@ -196,26 +185,64 @@ fn fuse(
         l_bool: Sequence::new(),
     };
 
+    // Initialize the write value.
+    match write_arg {
+        Some(val) => {
+            write::<E>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                write_value,
+                val,
+                config,
+            );
+        }
+        None => {}
+    };
+
     #[unroll]
-    for index in 0..ops.len() {
-        let op = comptime! { ops.index(index).clone() };
+    for index in 0..config.ops.len() {
+        let op = comptime! { config.ops.index(index).clone() };
 
         match op {
-            ElemwiseOp::Add(op) => match op.precision {
-                OpPrecision::F16 => {
-                    let lhs = read_f16(inputs, outputs, &locals, ref_pos, ref_layout, op.lhs, rank);
-                    let rhs = read_f16(inputs, outputs, &locals, ref_pos, ref_layout, op.rhs, rank);
-                    let result = lhs + rhs;
-
-                    write_f16(inputs, outputs, &locals, ref_pos, ref_layout, op.rhs, rank, result);
+            ElemwiseOp::Add(op) => match op.out.precision() {
+                OpPrecision::F32 => add::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::F16 => add::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::BF16 => {
+                    add::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                OpPrecision::I32 => add::<i32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::U32 => add::<u32>(inputs, outputs, &mut locals, write_pos, op, config),
                 _ => unsupported(None),
             },
             ElemwiseOp::Sub(_) => todo!(),
             ElemwiseOp::Mul(_) => todo!(),
-            ElemwiseOp::Pow(_) => todo!(),
+            ElemwiseOp::Powf(_) => todo!(),
             ElemwiseOp::Assign(_) => todo!(),
             ElemwiseOp::ToLayout(_) => todo!(),
+            _ => todo!(),
         }
     }
+}
+
+#[cube]
+fn add<C: Numeric>(
+    inputs: &FusionArgs,
+    outputs: &mut FusionArgs,
+    locals: &mut FusionLocals,
+    write_pos: u32,
+    #[comptime] op: BinaryElemwiseOp,
+    #[comptime] config: &FusionConfig,
+) {
+    let lhs = read::<C>(inputs, outputs, &locals, write_pos, op.lhs, config);
+    let rhs = read::<C>(inputs, outputs, &locals, write_pos, op.rhs, config);
+    let result = lhs + rhs;
+
+    write::<C>(inputs, outputs, locals, write_pos, result, op.rhs, config);
+}
+
+#[cube(launch_unchecked)]
+fn elemwise_fuse(inputs: &FusionArgs, outputs: &mut FusionArgs, #[comptime] config: &FusionConfig) {
+    fuse_on_write::<f32>(inputs, outputs, ABSOLUTE_POS, Line::empty(1), None, config)
 }
