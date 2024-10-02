@@ -1,16 +1,33 @@
-use super::ir::{Arg, BinaryElemwiseOp, ElemwiseOp, UnaryElemwiseOp};
-use crate::{fusion::JitOptimization, JitRuntime};
-use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
+use std::{borrow::Borrow, collections::BTreeMap};
+
+use super::{
+    ir::{
+        Arg, BinaryElemwiseOp, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision,
+        UnaryElemwiseOp,
+    },
+    kernel::elemwise_fuse,
+};
+use crate::{
+    fusion::{JitFusionHandle, JitOptimization},
+    JitRuntime,
+};
+use burn_fusion::{
+    stream::Context, OptimizationBuilder, OptimizationProperties, OptimizationStatus,
+};
 use burn_tensor::{
     repr::{
         BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
         NumericOperationDescription, OperationDescription, ScalarOperationDescription,
-        TensorDescription, UnaryOperationDescription,
+        TensorDescription, TensorId, TensorStatus, UnaryOperationDescription,
     },
     DType, Element,
 };
-use cubecl::ir::Elem;
-use cubecl::prelude::Sequence;
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::{Sequence, SequenceArg},
+    CubeDim,
+};
+use cubecl::{client::ComputeClient, ir::Elem};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWise2Builder<R: JitRuntime> {
@@ -384,41 +401,201 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
 }
 
 pub struct Tracel2Builder {
+    pub locals: Tensor2Index,
+    pub outputs: Index2Tensor,
+    pub inputs: Index2Tensor,
     pub ops: Sequence<ElemwiseOp>,
-    pub t_f32: usize,
-    pub t_f16: usize,
-    pub t_i32: usize,
-    pub t_u32: usize,
-    pub s_f32: usize,
-    pub s_f16: usize,
-    pub s_i32: usize,
-    pub s_u32: usize,
+}
+
+pub type LocalIndex = u32;
+
+#[derive(Default)]
+pub struct Tensor2Index {
+    pub t_f32: BTreeMap<TensorId, u32>,
+    pub t_f16: BTreeMap<TensorId, u32>,
+    pub t_bf16: BTreeMap<TensorId, u32>,
+    pub t_i32: BTreeMap<TensorId, u32>,
+    pub t_u32: BTreeMap<TensorId, u32>,
+}
+
+#[derive(Default)]
+pub struct Index2Tensor {
+    pub t_f32: BTreeMap<u32, TensorId>,
+    pub t_f16: BTreeMap<u32, TensorId>,
+    pub t_bf16: BTreeMap<u32, TensorId>,
+    pub t_i32: BTreeMap<u32, TensorId>,
+    pub t_u32: BTreeMap<u32, TensorId>,
 }
 
 impl Tracel2Builder {
     pub fn new() -> Self {
         Self {
-            t_f32: todo!(),
-            t_f16: todo!(),
-            t_i32: todo!(),
-            t_u32: todo!(),
-            s_f32: todo!(),
-            s_f16: todo!(),
-            s_i32: todo!(),
-            s_u32: todo!(),
+            locals: Tensor2Index::default(),
+            outputs: Index2Tensor::default(),
+            inputs: Index2Tensor::default(),
             ops: Sequence::new(),
         }
     }
 
-    pub fn register_operation(&mut self, op: ElemwiseOp) {}
+    pub fn register_operation(&mut self, op: ElemwiseOp) {
+        self.ops.push(op);
+    }
 
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
-        Arg::Input(0, tensor.dtype.into())
+        let precision = tensor.dtype.into();
+
+        match precision {
+            OpPrecision::F32 => match self.locals.t_f32.get(&tensor.id) {
+                Some(val) => Arg::Local(*val, precision),
+                None => {
+                    let new_input = self.inputs.t_f32.len() as u32;
+                    let new_local = self.locals.t_f32.len() as u32;
+
+                    let input = Arg::Input(new_input, precision);
+                    let out = Arg::Local(new_local, precision);
+
+                    self.ops
+                        .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
+
+                    self.inputs.t_f32.insert(new_input, tensor.id);
+                    self.locals.t_f32.insert(tensor.id, new_local);
+
+                    out
+                }
+            },
+            OpPrecision::F16 => todo!(),
+            OpPrecision::BF16 => todo!(),
+            OpPrecision::I32 => todo!(),
+            OpPrecision::I8 => todo!(),
+            OpPrecision::U32 => todo!(),
+            OpPrecision::U8 => todo!(),
+            OpPrecision::Bool => todo!(),
+        }
     }
+
     pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
-        Arg::Input(0, tensor.dtype.into())
+        let precision = tensor.dtype.into();
+
+        match precision {
+            OpPrecision::F32 => match self.locals.t_f32.get(&tensor.id) {
+                Some(val) => Arg::Local(*val, precision),
+                None => {
+                    let new_local = self.locals.t_f32.len() as u32;
+                    let out = Arg::Local(new_local, precision);
+
+                    self.locals.t_f32.insert(tensor.id, new_local);
+                    self.outputs.t_f32.insert(new_local, tensor.id);
+
+                    out
+                }
+            },
+            OpPrecision::F16 => todo!(),
+            OpPrecision::BF16 => todo!(),
+            OpPrecision::I32 => todo!(),
+            OpPrecision::I8 => todo!(),
+            OpPrecision::U32 => todo!(),
+            OpPrecision::U8 => todo!(),
+            OpPrecision::Bool => todo!(),
+        }
     }
+
     pub fn scalar<E: Element>(&mut self, tensor: &E, dtype: DType) -> Arg {
-        Arg::Input(0, dtype.into())
+        Arg::Scalar(0, dtype.into())
     }
+
+    pub fn run<'a, R: JitRuntime, L: Launch>(
+        &self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        launch: L,
+        vectorization: u8,
+        context: &mut Context<'a, JitFusionHandle<R>>,
+    ) {
+        let mut handles = Vec::new();
+        let mut inputs = FusionArgsLaunch::new(
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+        );
+        let mut outputs = FusionArgsLaunch::new(
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+        );
+
+        for (_index, tensor_id) in self.inputs.t_f32.iter() {
+            let desc = context.tensors.get(tensor_id).unwrap();
+            let handle = context
+                .handles
+                .get_handle(&tensor_id, &TensorStatus::ReadOnly);
+
+            handles.push(InputHandles::F32(handle, desc.shape.clone()));
+        }
+
+        let config = FusionConfig {
+            rank: 6,
+            ref_layout: super::ir::RefLayout {
+                arg: Arg::Output(0, OpPrecision::F32),
+            },
+            ops: self.ops.clone(),
+        };
+
+        // Register everything
+        for item in handles.iter() {
+            match item {
+                InputHandles::F32(handle, shape) => {
+                    let arg = handle.as_tensor_arg(shape, vectorization);
+
+                    inputs.t_f32.push(arg);
+                }
+            }
+        }
+
+        launch.run(client, inputs, outputs, config)
+    }
+}
+
+pub trait Launch {
+    fn run<'a, R: JitRuntime>(
+        self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        inputs: FusionArgsLaunch<'a, R>,
+        outputs: FusionArgsLaunch<'a, R>,
+        config: FusionConfig,
+    );
+}
+
+struct ElemwiseKernel {
+    shape_max: Vec<usize>,
+}
+
+impl Launch for ElemwiseKernel {
+    fn run<'a, R: JitRuntime>(
+        self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        inputs: FusionArgsLaunch<'a, R>,
+        outputs: FusionArgsLaunch<'a, R>,
+        config: FusionConfig,
+    ) {
+        let total_elem = self.shape_max.iter().product();
+        let cube_dim = CubeDim::default();
+        let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+
+        unsafe {
+            elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config)
+        }
+    }
+}
+
+pub enum InputHandles<R: JitRuntime> {
+    F32(JitFusionHandle<R>, Vec<usize>),
 }

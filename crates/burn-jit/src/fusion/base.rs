@@ -10,6 +10,7 @@ use burn_tensor::repr::TensorHandle;
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
+use cubecl::prelude::{TensorArg, TensorHandleRef};
 use cubecl::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
@@ -241,6 +242,22 @@ impl<R: JitRuntime> JitFusionHandle<R> {
             shape,
             strides: self.strides,
             elem: PhantomData,
+        }
+    }
+    /// Return the reference to a tensor handle.
+    pub fn as_handle_ref<'a>(&'a self, shape: &'a [usize]) -> TensorHandleRef<'a, R> {
+        TensorHandleRef {
+            handle: &self.handle,
+            strides: &self.strides,
+            shape,
+        }
+    }
+    /// Return the reference to a tensor argument.
+    pub fn as_tensor_arg<'a>(&'a self, shape: &'a [usize], vectorisation: u8) -> TensorArg<'a, R> {
+        let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
+
+        unsafe {
+            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
         }
     }
 }

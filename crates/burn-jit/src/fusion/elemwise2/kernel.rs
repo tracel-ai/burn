@@ -249,6 +249,10 @@ unary_func!(recip, Line::<C>::recip, Float);
 unary_func!(abs, Line::<C>::abs, Float);
 
 #[cube(launch_unchecked)]
-fn elemwise_fuse(inputs: &FusionArgs, outputs: &mut FusionArgs, #[comptime] config: &FusionConfig) {
+pub fn elemwise_fuse(
+    inputs: &FusionArgs,
+    outputs: &mut FusionArgs,
+    #[comptime] config: &FusionConfig,
+) {
     fuse_on_write::<f32>(inputs, outputs, ABSOLUTE_POS, Line::empty(1), None, config)
 }
