@@ -554,6 +554,7 @@ dependencies = [
  "spin",
  "tempfile",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]

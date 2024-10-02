@@ -1,6 +1,9 @@
+use core::hash::{BuildHasher, Hasher};
+
 use alloc::string::String;
 use burn_common::id::IdGenerator;
 use data_encoding::BASE32_DNSSEC;
+use hashbrown::hash_map::DefaultHashBuilder;
 
 /// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -40,15 +43,29 @@ impl ParamId {
 
     /// Deserialize a param id.
     ///
-    /// Nb: The format used to be 6 bytes, so this
-    /// code supports both.
+    /// Preserves compatibility with previous formats (6 bytes, 16-byte uuid).
     pub fn deserialize(encoded: &str) -> ParamId {
-        let bytes = BASE32_DNSSEC
-            .decode(encoded.as_bytes())
-            .expect("Invalid id");
-        let mut buffer = [0u8; 8];
-        buffer[..bytes.len()].copy_from_slice(&bytes);
-        ParamId::from(u64::from_le_bytes(buffer))
+        let u64_id = match BASE32_DNSSEC.decode(encoded.as_bytes()) {
+            Ok(bytes) => {
+                let mut buffer = [0u8; 8];
+                buffer[..bytes.len()].copy_from_slice(&bytes);
+                u64::from_le_bytes(buffer)
+            }
+            Err(err) => match uuid::Uuid::try_parse(encoded) {
+                // Backward compatibility with uuid parameter identifiers
+                Ok(id) => {
+                    // Hash the 128-bit uuid to 64-bit
+                    // Though not *theoretically* unique, the probability of a collision should be extremly low
+                    let mut hasher = DefaultHashBuilder::default().build_hasher();
+                    // let mut hasher = DefaultHasher::new();
+                    hasher.write(id.as_bytes());
+                    hasher.finish()
+                }
+                Err(_) => panic!("Invalid id. {err}"),
+            },
+        };
+
+        ParamId::from(u64_id)
     }
 }
 
@@ -75,5 +92,21 @@ mod tests {
         let param_id = ParamId::deserialize(&BASE32_DNSSEC.encode(&legacy_val));
         assert_eq!(param_id.val().to_le_bytes()[0..6], legacy_val);
         assert_eq!(param_id.val().to_le_bytes()[6..], [0, 0]);
+    }
+
+    #[test]
+    fn param_serde_deserialize_legacy_uuid() {
+        // Ensure support for legacy uuid deserialization and make sure it results in the same output
+        let legacy_id = "30b82c23-788d-4d63-a743-ada258d5f13c";
+        let param_id1 = ParamId::deserialize(legacy_id);
+        let param_id2 = ParamId::deserialize(legacy_id);
+        assert_eq!(param_id1, param_id2);
+    }
+
+    #[test]
+    #[should_panic = "Invalid id."]
+    fn param_serde_deserialize_invalid_id() {
+        let invalid_uuid = "30b82c23-788d-4d63-ada258d5f13c";
+        let _ = ParamId::deserialize(invalid_uuid);
     }
 }
