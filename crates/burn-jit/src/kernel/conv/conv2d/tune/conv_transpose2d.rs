@@ -2,9 +2,7 @@ use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
-    AutotuneKey,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::{
@@ -15,27 +13,7 @@ use crate::{
     FloatElement, IntElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of matmul versions
-pub struct ConvTranspose2dAutotuneKey {
-    pub kernel_size: [usize; 2],
-    pub stride: [usize; 2],
-    pub padding: [usize; 2],
-    pub padding_out: [usize; 2],
-    pub dilation: [usize; 2],
-    pub groups: usize,
-    #[autotune(anchor)]
-    pub in_channels: usize,
-    #[autotune(anchor)]
-    pub out_channels: usize,
-    #[autotune(anchor)]
-    pub height: usize,
-    #[autotune(anchor)]
-    pub width: usize,
-    #[autotune(anchor)]
-    pub batch_size: usize,
-    pub has_bias: bool,
-}
+use super::ConvTranspose2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv_transpose2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
