@@ -406,14 +406,24 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn unsqueeze_dim<const D: usize>(dim: usize) -> Self {
+    pub(crate) fn unsqueeze_dim<const D1: usize, const D2: usize>(dim: usize) -> Self {
         let mut check = Self::Ok;
-        if dim > D {
+        if dim > D1 {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
                     "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
-                    dim, D
+                    dim, D1
+                )),
+            );
+        }
+
+        if dim >= D2 {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "Can't unsqueeze at dimension {}, exceeds output tensor dimensions (D2={})",
+                    dim, D2
                 )),
             );
         }
@@ -556,20 +566,31 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn stack<B: Backend, const D: usize, K: BasicOps<B>>(
-        tensors: &[Tensor<B, D, K>],
+    pub(crate) fn stack<B: Backend, const D1: usize, K: BasicOps<B>, const D2: usize>(
+        tensors: &[Tensor<B, D1, K>],
         dim: usize,
     ) -> Self {
         let mut check = Self::Ok;
 
-        if dim > D {
+        if dim > D1 {
             check = check.register(
                 "Stack",
                 TensorError::new(
                     "Can't stack tensors on a dim that exceeds the tensors dimension (inclusive)",
                 )
                 .details(format!(
-                    "Trying to concatenate tensors with {D} dimensions on axis {dim}."
+                    "Trying to concatenate tensors with {D1} dimensions on axis {dim}."
+                )),
+            );
+        }
+
+        if D1 == D2 {
+            check = check.register(
+                "Stack",
+                TensorError::new(format!(
+                    "Can't stack tensors on existing dimension {}, the input and output ranks are the same (D={}; D2={}).\
+                    If you want to concatenate the tensors along the specified dimension ({}), use `Tensor::cat` instead.",
+                    dim, D1, D2, dim
                 )),
             );
         }
