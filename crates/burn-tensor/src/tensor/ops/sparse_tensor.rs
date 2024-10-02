@@ -17,6 +17,10 @@ where
     (B, Bool, Sparse<B, SR>): TensorRepr,
     (B, Int, Sparse<B, SR>): TensorRepr,
 {
+    fn float_values<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Float, Dense, 1>>;
+
     fn float_coordinates<const D: usize>(
         sparse: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
@@ -389,6 +393,10 @@ where
 }
 
 pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
+    fn bool_values<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Bool, Dense, 1>>;
+
     fn bool_coordinates<const D: usize>(
         sparse: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
@@ -487,6 +495,10 @@ pub trait SparseBoolOps<SR: SparseStorage<B>, B: Backend> {
 }
 
 pub trait SparseIntOps<SR: SparseStorage<B>, B: Backend> {
+    fn int_values<const D: usize>(
+        tensor: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 1>>;
+
     fn int_coordinates<const D: usize>(
         sparse: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;

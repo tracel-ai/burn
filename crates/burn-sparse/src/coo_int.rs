@@ -166,4 +166,10 @@ impl<B: Backend> SparseIntOps<COO, B> for COO {
     ) -> <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Int, D> {
         todo!()
     }
+
+    fn int_values<const D: usize>(
+        tensor: ReprPrimitive<B, Int, burn_tensor::Sparse<B, COO>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 1>> {
+        tensor.values.map(|v| v.into_primitive())
+    }
 }

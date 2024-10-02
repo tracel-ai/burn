@@ -22,6 +22,10 @@ where
     fn coordinates<const D: usize>(
         tensor: ReprPrimitive<B, K, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>>;
+
+    fn values<const D: usize>(
+        tensor: ReprPrimitive<B, K, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, K, Dense, 1>>;
 }
 
 impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Float, SR> for SR
@@ -44,6 +48,12 @@ where
         tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
         SR::float_coordinates(tensor)
+    }
+
+    fn values<const D: usize>(
+        tensor: ReprPrimitive<B, Float, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Float, Dense, 1>> {
+        SR::float_values(tensor)
     }
 }
 
@@ -68,6 +78,12 @@ where
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
         SR::int_coordinates(tensor)
     }
+
+    fn values<const D: usize>(
+        tensor: ReprPrimitive<B, Int, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Int, Dense, 1>> {
+        SR::int_values(tensor)
+    }
 }
 
 impl<B: Backend, SR: SparseStorage<B>> BasicSparseOps<B, Bool, SR> for SR
@@ -90,6 +106,12 @@ where
         tensor: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
         SR::bool_coordinates(tensor)
+    }
+
+    fn values<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, Sparse<B, SR>, D>,
+    ) -> Option<ReprPrimitive<B, Bool, Dense, 1>> {
+        SR::bool_values(tensor)
     }
 }
 

@@ -154,4 +154,10 @@ impl<B: Backend> SparseBoolOps<COO, B> for COO {
     ) -> B::BoolTensorPrimitive<D> {
         todo!()
     }
+
+    fn bool_values<const D: usize>(
+        tensor: ReprPrimitive<B, Bool, burn_tensor::Sparse<B, COO>, D>,
+    ) -> Option<ReprPrimitive<B, Bool, Dense, 1>> {
+        tensor.values.map(|v| v.into_primitive())
+    }
 }

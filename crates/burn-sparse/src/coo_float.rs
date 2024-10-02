@@ -1003,4 +1003,10 @@ impl<B: Backend> SparseFloatOps<COO, B> for COO {
     ) -> Option<ReprPrimitive<B, Int, Dense, 2>> {
         tensor.coordinates.map(|c| c.into_primitive())
     }
+
+    fn float_values<const D: usize>(
+        mut tensor: <COO as SparseStorage<B>>::SparsePrimitive<burn_tensor::Float, D>,
+    ) -> Option<ReprPrimitive<B, Float, Dense, 1>> {
+        tensor.values.map(|v| v.into_primitive())
+    }
 }

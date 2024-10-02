@@ -35,4 +35,10 @@ where
             self.into_primitive(),
         )?))
     }
+
+    pub fn values(self) -> Option<Tensor<B, 1, K, Dense>> {
+        Some(Tensor::<B, 1, K, Dense>::from_primitive(SR::values(
+            self.into_primitive(),
+        )?))
+    }
 }
