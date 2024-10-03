@@ -1,12 +1,13 @@
 use crate::fusion::on_write::kernel::fuse_on_write;
 use crate::{fusion::JitFusionHandle, JitRuntime};
 use burn_fusion::stream::Context;
+use burn_tensor::repr::TensorDescription;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
 use crate::fusion::on_write::{
     ir::{Arg, FusionArgs, FusionArgsLaunch, FusionConfig, OpPrecision},
-    trace::{FuseOnWriteTrace, Launch},
+    trace::{FuseOnWriteTrace, RunTrace},
 };
 
 #[derive(new)]
@@ -25,10 +26,8 @@ pub struct ElemwiseKernelState {
 
 impl<R: JitRuntime> ElemwiseKernel<R> {
     pub fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        let vectorization = 4;
-
         self.trace
-            .run::<R, Self>(&self.client, &self.device, vectorization, context)
+            .run::<R, Self>(&self.client, &self.device, context)
     }
 
     pub fn len(&self) -> usize {
@@ -51,7 +50,7 @@ impl<R: JitRuntime> ElemwiseKernel<R> {
     }
 }
 
-impl<R: JitRuntime> Launch<R> for ElemwiseKernel<R> {
+impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
     fn run<'a>(
         client: &ComputeClient<R::Server, R::Channel>,
         inputs: FusionArgsLaunch<'a, R>,
@@ -90,6 +89,57 @@ impl<R: JitRuntime> Launch<R> for ElemwiseKernel<R> {
         unsafe {
             elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config)
         }
+    }
+
+    fn vectorization<'a>(
+        handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
+        inputs: impl Iterator<Item = &'a TensorDescription>,
+        outputs: impl Iterator<Item = &'a TensorDescription>,
+    ) -> u8 {
+        let factors = R::supported_line_sizes();
+
+        let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+            let rank = handle.strides.len();
+
+            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+            if handle.strides[rank - 1] != 1 {
+                return 1;
+            }
+
+            for s in factors {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % *s as usize != 0 {
+                    return *s;
+                }
+            }
+
+            1
+        };
+
+        let vectorization_output = |desc: &TensorDescription| {
+            let rank = desc.shape.len();
+
+            for s in factors {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % *s as usize != 0 {
+                    return *s;
+                }
+            }
+
+            1
+        };
+
+        let mut output = u8::MAX;
+
+        for (handle, tensor) in handles_inputs.zip(inputs) {
+            output = u8::min(vectorization_input(handle, tensor), output);
+        }
+
+        for tensor in outputs {
+            output = u8::min(vectorization_output(tensor), output);
+        }
+
+        output
     }
 }
 

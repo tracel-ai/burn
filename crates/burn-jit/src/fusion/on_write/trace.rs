@@ -3,31 +3,17 @@ use crate::{
     JitRuntime,
 };
 
-use super::ir::{
-    Arg, BinaryElemwiseOp, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision, UnaryElemwiseOp,
-};
+use super::ir::{Arg, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision, RefLayout};
 use burn_fusion::stream::Context;
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Element,
-};
+use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
 use cubecl::{ir::Elem, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone)]
-pub struct Tracel2Builder {
-    pub locals: Tensor2Index,
-    pub outputs: Index2Tensor,
-    pub inputs: Index2Tensor,
-    pub scalars: BTreeMap<OpPrecision, u32>,
-    pub ops: Sequence<ElemwiseOp>,
-}
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FuseOnWriteTrace {
-    pub outputs: Index2Tensor,
-    pub inputs: Index2Tensor,
+    pub outputs: RegisteredTensors,
+    pub inputs: RegisteredTensors,
     pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
 }
@@ -38,11 +24,11 @@ pub struct Tensor2Index {
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct Index2Tensor {
+pub struct RegisteredTensors {
     tensors: BTreeMap<OpPrecision, Vec<TensorDescription>>,
 }
 
-impl Index2Tensor {
+impl RegisteredTensors {
     pub fn iter(&self) -> impl Iterator<Item = (OpPrecision, &TensorDescription)> {
         self.tensors
             .iter()
@@ -74,11 +60,25 @@ impl Index2Tensor {
             .iter()
             .find(|desc| desc.id == tensor_id)
     }
-    pub fn insert(&mut self, precision: OpPrecision, tensor: TensorDescription) {
+
+    pub fn insert(&mut self, precision: OpPrecision, tensor: TensorDescription) -> u32 {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
+            let position = tensors.len() as u32;
             tensors.push(tensor);
+            position
         } else {
             self.tensors.insert(precision, vec![tensor]);
+            0
+        }
+    }
+    pub fn update_status(&mut self, precision: OpPrecision, tensor: &TensorDescription) {
+        if let Some(tensors) = self.tensors.get_mut(&precision) {
+            if let Some(tensor_old) = tensors
+                .iter_mut()
+                .find(|tensor_old| tensor_old.id == tensor.id)
+            {
+                tensor_old.status = tensor.status.clone();
+            }
         }
     }
 }
@@ -119,299 +119,40 @@ impl Tensor2Index {
     }
 }
 
-impl Tracel2Builder {
-    pub fn new() -> Self {
-        Self {
-            locals: Tensor2Index::default(),
-            outputs: Index2Tensor::default(),
-            inputs: Index2Tensor::default(),
-            scalars: BTreeMap::default(),
-            ops: Sequence::new(),
-        }
-    }
-
-    pub fn register_operation(&mut self, op: ElemwiseOp) {
-        self.ops.push(op);
-    }
-
-    pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
-        let precision = tensor.dtype.into();
-
-        match self.locals.get(precision, tensor.id) {
-            Some(val) => {
-                // Update since the status can change for inplace.
-                Arg::Local(val, precision)
-            }
-            None => {
-                let new_input = self
-                    .inputs
-                    .tensors
-                    .get(&precision)
-                    .map(|val| val.len() as u32)
-                    .unwrap_or(0);
-
-                let new_local = self.locals.new_index(precision, tensor.id);
-                let input = Arg::Input(new_input, precision);
-                let out = Arg::Local(new_local, precision);
-
-                self.ops
-                    .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
-
-                self.inputs.insert(precision, tensor.clone());
-
-                out
-            }
-        }
-    }
-
-    pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
-        let precision = tensor.dtype.into();
-
-        match self.locals.get(precision, tensor.id) {
-            Some(val) => Arg::Local(val, precision),
-            None => {
-                let new_local = self.locals.new_index(precision, tensor.id);
-                let out = Arg::Local(new_local, precision);
-
-                self.outputs.insert(precision, tensor.clone());
-
-                out
-            }
-        }
-    }
-
-    pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
-        let precision = dtype.into();
-        let new_index = self.scalars.get(&precision).map(|a| *a + 1).unwrap_or(0);
-        self.scalars.insert(precision, new_index);
-        Arg::Scalar(new_index, precision)
-    }
-
-    pub fn build(&self) -> FuseOnWriteTrace {
-        let outputs = self.output_tensors();
-        let mut ops = self.ops.clone();
-
-        for (precision, tensor) in outputs.iter() {
-            let local_index = self.locals.get(precision, tensor.id).unwrap();
-            let out_index = outputs.get_index(precision, tensor.id).unwrap();
-
-            ops.push(ElemwiseOp::Assign(UnaryElemwiseOp {
-                input: Arg::Local(local_index, precision),
-                out: Arg::Output(out_index as u32, precision),
-            }))
-        }
-
-        FuseOnWriteTrace {
-            outputs,
-            inputs: self.inputs.clone(),
-            scalars: self.scalars.clone(),
-            ops,
-        }
-    }
-
-    fn output_tensors(&self) -> Index2Tensor {
-        let mut result = Index2Tensor::default();
-
-        let mut local_tensor_ids_input = Vec::new();
-        let mut local_tensor_ids_output = Vec::new();
-
-        // Mark a variable to the provided list of tensor ids using the variable list.
-        //
-        // Only local variables can become outputs.
-        let mark = |var: &Arg, list: &mut Vec<(TensorId, OpPrecision)>| {
-            if let Arg::Local(index, precision) = var {
-                if let Some(tensor_id) = self.locals.find(*precision, *index) {
-                    let entry = (tensor_id, *precision);
-                    if !list.contains(&entry) {
-                        list.push(entry);
-                    }
-                }
-            }
-        };
-
-        let mark_binary = |op: &BinaryElemwiseOp,
-                           inputs: &mut Vec<(TensorId, OpPrecision)>,
-                           outputs: &mut Vec<(TensorId, OpPrecision)>| {
-            mark(&op.lhs, inputs);
-            mark(&op.rhs, inputs);
-            mark(&op.out, outputs);
-        };
-        let mark_unary = |op: &UnaryElemwiseOp,
-                          inputs: &mut Vec<(TensorId, OpPrecision)>,
-                          outputs: &mut Vec<(TensorId, OpPrecision)>| {
-            mark(&op.input, inputs);
-            mark(&op.out, outputs);
-        };
-
-        // For all operators, mark their local tensor id in the proper set.
-        for index in 0..self.ops.len() {
-            let op = self.ops.index(index);
-
-            match op {
-                ElemwiseOp::Add(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Sub(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Mul(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Div(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Powf(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Abs(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Exp(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Log(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Log1p(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Cos(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Sin(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Tanh(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Erf(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Recip(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Assign(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::ToLayout(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::ConditionalAssign {
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                } => {
-                    mark(&cond, &mut local_tensor_ids_input);
-                    mark(&lhs, &mut local_tensor_ids_input);
-                    mark(&rhs, &mut local_tensor_ids_input);
-                    mark(&out, &mut local_tensor_ids_output);
-                }
-                ElemwiseOp::Equal(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Lower(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Greater(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::LowerEqual(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::GreaterEqual(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-            }
-        }
-
-        // All output tensors that are never read by a following operation should be written to
-        // since they are essentially the "logical" output of the shader.
-        for entry in local_tensor_ids_output {
-            let is_read = local_tensor_ids_input.contains(&entry);
-
-            if !is_read {
-                let (tensor_id, precision) = entry;
-                let tensor = self.outputs.get(precision, tensor_id).unwrap();
-                result.insert(precision, tensor.clone());
-            }
-        }
-
-        // All tensors where their latest description is read only should be written to since they
-        // are going to be used after the fused kernel by other operations.
-        for (precision, tensor) in self.outputs.iter() {
-            if let TensorStatus::ReadOnly = tensor.status {
-                if self.locals.get(precision, tensor.id).is_some() {
-                    result.insert(precision, tensor.clone());
-                }
-            }
-        }
-
-        result
-    }
-}
-
-pub trait Launch<R: JitRuntime> {
+pub trait RunTrace<R: JitRuntime> {
     fn run<'a>(
         client: &ComputeClient<R::Server, R::Channel>,
         inputs: FusionArgsLaunch<'a, R>,
         outputs: FusionArgsLaunch<'a, R>,
         config: FusionConfig,
     );
+    /// The vectorization factor for all inputs and outputs.
+    fn vectorization<'a>(
+        handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
+        inputs: impl Iterator<Item = &'a TensorDescription>,
+        outputs: impl Iterator<Item = &'a TensorDescription>,
+    ) -> u8;
 }
 
 impl FuseOnWriteTrace {
-    pub fn run<'a, R: JitRuntime, L: Launch<R>>(
+    pub fn run<'a, R: JitRuntime, L: RunTrace<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        vectorization: u8,
         context: &mut Context<'a, JitFusionHandle<R>>,
     ) {
+        enum HandleOutput<R: JitRuntime> {
+            Alias(usize, OpPrecision),
+            Owned(OpPrecision, JitFusionHandle<R>, Vec<usize>),
+        }
         let mut handles_inputs = Vec::new();
         let mut handles_outputs = Vec::new();
+
+        let mut inputs_desc = Vec::new();
+        let mut outputs_desc = Vec::new();
+        let mut potential_inplaces = Vec::new();
+
+        let mut ref_layout = None;
         let mut rank = 1;
 
         let mut inputs = FusionArgsLaunch::new(
@@ -439,27 +180,69 @@ impl FuseOnWriteTrace {
             SequenceArg::new(),
         );
 
-        for (precision, tensor) in self.inputs.iter() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
+        for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
+            let tensor = context.tensors.get(&tensor_relative.id).unwrap();
             let handle = context.handles.get_handle(&tensor.id, &tensor.status);
 
+            if tensor.status == TensorStatus::ReadWrite {
+                potential_inplaces.push((tensor_relative, handle.strides.clone(), i));
+            }
+
+            inputs_desc.push(tensor);
             rank = usize::max(tensor.shape.len(), rank);
             handles_inputs.push((precision, handle, tensor.shape.clone()));
         }
 
-        for (precision, tensor) in self.outputs.iter() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
-            let size = tensor.shape.iter().product::<usize>() * Elem::from(tensor.dtype).size();
-            let handle = JitFusionHandle {
-                client: client.clone(),
-                handle: client.empty(size),
-                device: device.clone(),
-                strides: strides_dyn_rank(&tensor.shape),
-            };
+        for (precision, tensor_relative) in self.outputs.iter() {
+            let tensor = context.tensors.get(&tensor_relative.id).unwrap();
+            let strides = strides_dyn_rank(&tensor.shape);
+            outputs_desc.push(tensor);
 
-            rank = usize::max(tensor.shape.len(), rank);
-            context.handles.register_handle(tensor.id, handle.clone());
-            handles_outputs.push((precision, handle, tensor.shape.clone()));
+            if let Some(index) = potential_inplaces
+                .iter()
+                .enumerate()
+                .find(|(_pos, (input_relative, input_strides, _))| {
+                    input_relative.dtype == tensor.dtype
+                        && input_relative.shape == tensor_relative.shape
+                        && input_strides == &strides
+                })
+                .map(|(pos, _)| pos)
+            {
+                let (tensor_relative_input, _strides, handle_index) =
+                    potential_inplaces.remove(index);
+                let (_, handle, _) = handles_inputs.get(handle_index).unwrap();
+
+                if ref_layout.is_none() {
+                    let index_input = self
+                        .inputs
+                        .get_index(precision, tensor_relative_input.id)
+                        .unwrap();
+                    ref_layout = Some(RefLayout {
+                        arg: Arg::Input(index_input as u32, precision),
+                    });
+                }
+
+                context.handles.register_handle(tensor.id, handle.clone());
+                handles_outputs.push(HandleOutput::Alias(handle_index, precision));
+            } else {
+                if ref_layout.is_none() {
+                    ref_layout = Some(RefLayout {
+                        arg: Arg::Output(0, precision),
+                    });
+                }
+
+                let size = tensor.shape.iter().product::<usize>() * Elem::from(tensor.dtype).size();
+                let handle = JitFusionHandle {
+                    client: client.clone(),
+                    handle: client.empty(size),
+                    device: device.clone(),
+                    strides,
+                };
+
+                rank = usize::max(tensor.shape.len(), rank);
+                context.handles.register_handle(tensor.id, handle.clone());
+                handles_outputs.push(HandleOutput::Owned(precision, handle, tensor.shape.clone()));
+            }
         }
 
         for (precision, count) in self.scalars.iter() {
@@ -474,11 +257,15 @@ impl FuseOnWriteTrace {
             }
         }
 
+        let vectorization = L::vectorization(
+            handles_inputs.iter().map(|(_, handle, _)| handle),
+            inputs_desc.iter().map(|desc| *desc),
+            outputs_desc.iter().map(|desc| *desc),
+        );
+
         let config = FusionConfig {
             rank: rank as u32,
-            ref_layout: super::ir::RefLayout {
-                arg: Arg::Output(0, OpPrecision::F32),
-            },
+            ref_layout: ref_layout.expect("An output should exist for the fused kernel"),
             ops: self.ops.clone(),
         };
 
@@ -494,60 +281,29 @@ impl FuseOnWriteTrace {
                 _ => todo!(),
             };
         }
-        for (precision, handle, shape) in handles_outputs.iter() {
-            let arg = handle.as_tensor_arg(shape, vectorization);
+        for item in handles_outputs.iter() {
+            match item {
+                HandleOutput::Alias(index, precision) => match precision {
+                    OpPrecision::F32 => outputs.t_f32.push(TensorArg::alias(*index)),
+                    OpPrecision::F16 => outputs.t_f16.push(TensorArg::alias(*index)),
+                    OpPrecision::I32 => outputs.t_i32.push(TensorArg::alias(*index)),
+                    OpPrecision::U32 => outputs.t_u32.push(TensorArg::alias(*index)),
+                    _ => todo!(),
+                },
+                HandleOutput::Owned(precision, handle, shape) => {
+                    let arg = handle.as_tensor_arg(shape, vectorization);
 
-            match precision {
-                OpPrecision::F32 => outputs.t_f32.push(arg),
-                OpPrecision::F16 => outputs.t_f16.push(arg),
-                OpPrecision::I32 => outputs.t_i32.push(arg),
-                OpPrecision::U32 => outputs.t_u32.push(arg),
-                _ => todo!(),
-            };
+                    match precision {
+                        OpPrecision::F32 => outputs.t_f32.push(arg),
+                        OpPrecision::F16 => outputs.t_f16.push(arg),
+                        OpPrecision::I32 => outputs.t_i32.push(arg),
+                        OpPrecision::U32 => outputs.t_u32.push(arg),
+                        _ => todo!(),
+                    };
+                }
+            }
         }
 
         L::run(client, inputs, outputs, config)
     }
-}
-
-fn can_vectorize<R: JitRuntime>(
-    handles_inputs: &[JitFusionHandle<R>],
-    inputs: &[&TensorDescription],
-    outputs: &[&TensorDescription],
-    factor: usize,
-) -> bool {
-    let is_unavailable_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
-        let rank = handle.strides.len();
-
-        // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-        if handle.strides[rank - 1] != 1 {
-            return true;
-        }
-
-        // The last dimension should be a multiple of the vector size.
-        desc.shape[rank - 1] % factor != 0
-    };
-    let is_unavailable_output = |desc: &TensorDescription| {
-        let rank = desc.shape.len();
-
-        // The last dimension should be a multiple of the vector size.
-        desc.shape[rank - 1] % factor != 0
-    };
-
-    for (handle, tensor) in handles_inputs.iter().zip(inputs.iter()) {
-        if is_unavailable_input(handle, tensor) {
-            return false;
-        }
-    }
-
-    // Only need to check when there is no input.
-    if handles_inputs.is_empty() {
-        for tensor in outputs.iter() {
-            if is_unavailable_output(tensor) {
-                return false;
-            }
-        }
-    }
-
-    true
 }

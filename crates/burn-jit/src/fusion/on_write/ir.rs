@@ -144,13 +144,6 @@ impl From<DType> for OpPrecision {
     }
 }
 
-#[derive(CubeType)]
-pub enum ReadPosition {
-    ToLayout { ref_pos: u32, ref_layout: RefLayout },
-    Plain { pos: u32 },
-    Unspecified,
-}
-
 #[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct RefLayout {
     pub arg: Arg,

@@ -1,8 +1,8 @@
 use super::{
     ir::{Arg, BinaryElemwiseOp, ElemwiseOp, UnaryElemwiseOp},
-    trace::{FuseOnWriteTrace, Tracel2Builder},
+    trace::FuseOnWriteTrace,
+    trace_builder::FuseOnWriteTraceBuilder,
 };
-use crate::JitRuntime;
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     repr::{
@@ -16,7 +16,7 @@ use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FuseOnWriteBuilder {
-    builder: Tracel2Builder,
+    builder: FuseOnWriteTraceBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     num_added: usize,
@@ -100,7 +100,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
 impl FuseOnWriteBuilder {
     pub fn new() -> Self {
         Self {
-            builder: Tracel2Builder::new(),
+            builder: FuseOnWriteTraceBuilder::new(),
             num_added: 0,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
