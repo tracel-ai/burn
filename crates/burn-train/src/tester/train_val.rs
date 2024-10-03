@@ -1,9 +1,8 @@
 use super::Learner;
 use crate::components::LearnerComponents;
-use crate::metric_test::processor::EventProcessor;
-use crate::{TrainEpoch, ValidEpoch};
+use crate::metric_test::processor::{Event, EventProcessor, LearnerItem};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::module::{AutodiffModule, Module};
+use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
@@ -99,20 +98,18 @@ pub trait ValidStep<VI, VO> {
 }
 
 impl<LC: LearnerComponents> Learner<LC> {
-    /// Fits the model.
+    /// Tests the model.
     ///
     /// # Arguments
     ///
-    /// * `dataloader_train` - The training dataloader.
-    /// * `dataloader_valid` - The validation dataloader.
+    /// * `dataloader` - The testing dataloader.
     ///
     /// # Returns
     ///
-    /// The fitted model.
-    pub fn fit<InputTrain, InputValid, OutputTrain, OutputValid>(
+    /// The tested model.
+    pub fn test<InputTrain, InputValid, OutputTrain, OutputValid>(
         mut self,
-        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
+        dataloader: Arc<dyn DataLoader<InputTrain>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -123,96 +120,27 @@ impl<LC: LearnerComponents> Learner<LC> {
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        log::info!("Fitting the model:\n {}", self.model.to_string());
-        // The reference model is always on the first device provided.
-        if let Some(device) = self.devices.first() {
-            self.model = self.model.fork(device);
+        let model = self.model;
+        let mut processor = self.event_processor;
+
+        log::info!("Executing testing");
+
+        let mut iterator = dataloader.iter();
+        let mut iteration = 0;
+
+        while let Some(item) = iterator.next() {
+            iteration += 1;
+            log::info!("Iteration {}", iteration);
+
+            let progress = iterator.progress();
+
+            // TODO hmm
+            let item = model.step(item);
+            let item = LearnerItem::new(item.item, progress, 0, 0, iteration, None);
+
+            processor.process(Event::ProcessedItem(item));
         }
-
-        let starting_epoch = match self.checkpoint {
-            Some(checkpoint) => {
-                if let Some(checkpointer) = &mut self.checkpointer {
-                    (self.model, self.optim, self.lr_scheduler) = checkpointer.load_checkpoint(
-                        self.model,
-                        self.optim,
-                        self.lr_scheduler,
-                        &Default::default(), // Load the checkpoint on the default device.
-                        checkpoint,
-                    );
-                }
-                checkpoint + 1
-            }
-            None => 1,
-        };
-
-        for epoch in starting_epoch..self.num_epochs + 1 {
-            let epoch_train = TrainEpoch::new(
-                dataloader_train.clone(),
-                epoch,
-                self.num_epochs,
-                self.grad_accumulation,
-            );
-
-            if self.devices.len() > 1 {
-                (self.model, self.optim) = epoch_train.run_multi_device::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    self.devices.clone(),
-                    &self.interrupter,
-                )
-            } else {
-                (self.model, self.optim) = epoch_train.run::<LC, OutputTrain>(
-                    self.model,
-                    self.optim,
-                    &mut self.lr_scheduler,
-                    &mut self.event_processor,
-                    &self.interrupter,
-                );
-            }
-
-            if self.interrupter.should_stop() {
-                break;
-            }
-
-            let epoch_valid = ValidEpoch::new(dataloader_valid.clone(), epoch, self.num_epochs);
-            epoch_valid.run::<LC, OutputValid>(
-                &self.model,
-                &mut self.event_processor,
-                &self.interrupter,
-            );
-
-            if let Some(checkpointer) = &mut self.checkpointer {
-                checkpointer.checkpoint(
-                    &self.model,
-                    &self.optim,
-                    &self.lr_scheduler,
-                    epoch,
-                    &self.event_store,
-                );
-            }
-
-            if let Some(early_stopping) = &mut self.early_stopping {
-                if early_stopping.should_stop(epoch, &self.event_store) {
-                    break;
-                }
-            }
-        }
-
-        // Display learner summary
-        if let Some(summary) = self.summary {
-            match summary.init() {
-                Ok(summary) => {
-                    // Drop event processor (includes renderer) so the summary is displayed
-                    // when switching back to "main" screen
-                    core::mem::drop(self.event_processor);
-                    println!("{}", summary.with_model(self.model.to_string()))
-                }
-                Err(err) => log::error!("Could not retrieve learner summary:\n{err}"),
-            }
-        }
-
-        self.model
+        // processor.process_train(Event::EndEpoch(self.epoch));
+        model
     }
 }

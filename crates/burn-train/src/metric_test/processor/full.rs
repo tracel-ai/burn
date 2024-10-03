@@ -30,7 +30,7 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
-    fn process_train(&mut self, event: Event<Self::ItemTrain>) {
+    fn process(&mut self, event: Event<Self::ItemTrain>) {
         match event {
             Event::ProcessedItem(item) => {
                 let progress = (&item).into();
@@ -62,42 +62,6 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
                 self.metrics.end_epoch_train();
                 self.store
                     .add_event_train(crate::metric_test::store::Event::EndEpoch(epoch));
-            }
-        }
-    }
-
-    fn process_valid(&mut self, event: Event<Self::ItemValid>) {
-        match event {
-            Event::ProcessedItem(item) => {
-                let progress = (&item).into();
-                let metadata = (&item).into();
-
-                let update = self.metrics.update_valid(&item, &metadata);
-
-                self.store
-                    .add_event_valid(crate::metric_test::store::Event::MetricsUpdate(
-                        update.clone(),
-                    ));
-
-                update
-                    .entries
-                    .into_iter()
-                    .for_each(|entry| self.renderer.update_valid(MetricState::Generic(entry)));
-
-                update
-                    .entries_numeric
-                    .into_iter()
-                    .for_each(|(entry, value)| {
-                        self.renderer
-                            .update_valid(MetricState::Numeric(entry, value))
-                    });
-
-                self.renderer.render_valid(progress);
-            }
-            Event::EndEpoch(epoch) => {
-                self.metrics.end_epoch_valid();
-                self.store
-                    .add_event_valid(crate::metric_test::store::Event::EndEpoch(epoch));
             }
         }
     }

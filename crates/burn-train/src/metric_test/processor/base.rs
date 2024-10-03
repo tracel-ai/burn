@@ -17,9 +17,7 @@ pub trait EventProcessor {
     type ItemValid;
 
     /// Collect a training event.
-    fn process_train(&mut self, event: Event<Self::ItemTrain>);
-    /// Collect a validation event.
-    fn process_valid(&mut self, event: Event<Self::ItemValid>);
+    fn process(&mut self, event: Event<Self::ItemTrain>);
 }
 
 /// A learner item.
