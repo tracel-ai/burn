@@ -49,12 +49,6 @@ pub struct TrainingProgress {
     /// The progress.
     pub progress: Progress,
 
-    /// The epoch.
-    pub epoch: usize,
-
-    /// The total number of epochs.
-    pub epoch_total: usize,
-
     /// The iteration.
     pub iteration: usize,
 }
@@ -67,8 +61,6 @@ impl TrainingProgress {
                 items_processed: 0,
                 items_total: 0,
             },
-            epoch: 0,
-            epoch_total: 0,
             iteration: 0,
         }
     }

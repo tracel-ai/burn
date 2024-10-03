@@ -1,7 +1,7 @@
 use super::Learner;
 use crate::components_test::LearnerComponents;
 use crate::metric_test::processor::{Event, EventProcessor, LearnerItem};
-use burn_core::data::dataloader::DataLoader;
+use burn_core::data::dataloader::{DataLoader, Progress};
 use burn_core::module::AutodiffModule;
 use burn_core::optim::{GradientsParams, Optimizer};
 use burn_core::tensor::backend::AutodiffBackend;
@@ -101,10 +101,8 @@ impl<LC: LearnerComponents> Learner<LC> {
         InputTrain: Send + 'static,
         OutputTrain: Send + 'static,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
+        LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain>,
     {
-        let model = self.model;
-        let mut processor = self.event_processor;
-
         log::info!("Executing testing");
 
         let mut iterator = dataloader.iter();
@@ -117,12 +115,11 @@ impl<LC: LearnerComponents> Learner<LC> {
             let progress = iterator.progress();
 
             // TODO hmm
-            let item = model.step(item);
-            let item = LearnerItem::new(item.item, progress, 0, 0, iteration, None);
+            let item = self.model.step(item);
+            let item = LearnerItem::new(item.item, progress, iteration);
 
-            processor.process(Event::ProcessedItem(item));
+            self.event_processor.process(Event::ProcessedItem(item));
         }
-        // processor.process_train(Event::EndEpoch(self.epoch));
-        model
+        self.model
     }
 }

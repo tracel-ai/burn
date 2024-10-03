@@ -76,8 +76,6 @@ impl<T> From<&LearnerItem<T>> for TrainingProgress {
     fn from(item: &LearnerItem<T>) -> Self {
         Self {
             progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
             iteration: item.iteration,
         }
     }
@@ -87,10 +85,7 @@ impl<T> From<&LearnerItem<T>> for MetricMetadata {
     fn from(item: &LearnerItem<T>) -> Self {
         Self {
             progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
             iteration: item.iteration,
-            lr: item.lr,
         }
     }
 }

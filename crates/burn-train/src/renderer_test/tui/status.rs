@@ -61,10 +61,6 @@ impl StatusView {
             lines: vec![
                 vec![title("Mode      :"), value(mode.to_string())],
                 vec![
-                    title("Epoch     :"),
-                    value(format!("{}/{}", progress.epoch, progress.epoch_total)),
-                ],
-                vec![
                     title("Iteration :"),
                     value(format!("{}", progress.iteration)),
                 ],

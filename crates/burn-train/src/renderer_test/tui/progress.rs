@@ -13,7 +13,6 @@ use std::time::{Duration, Instant};
 /// We currently ignore the time taken for the validation part.
 pub(crate) struct ProgressBarState {
     progress_train: f64, // Progress for total training.
-    starting_epoch: usize,
     estimate: ProgressEstimate,
 }
 
@@ -26,13 +25,12 @@ impl ProgressBarState {
         Self {
             progress_train: 0.0,
             estimate: ProgressEstimate::new(),
-            starting_epoch: checkpoint.unwrap_or(0),
         }
     }
     /// Update the training progress.
     pub(crate) fn update_train(&mut self, progress: &TrainingProgress) {
-        self.progress_train = calculate_progress(progress, 0, 0);
-        self.estimate.update(progress, self.starting_epoch);
+        self.progress_train = calculate_progress(progress, 0);
+        self.estimate.update(progress);
     }
 
     /// Update the validation progress.
@@ -129,9 +127,9 @@ impl ProgressEstimate {
         }
     }
 
-    fn update(&mut self, progress: &TrainingProgress, starting_epoch: usize) {
+    fn update(&mut self, progress: &TrainingProgress) {
         if self.started_after_warmup.is_some() {
-            self.progress = calculate_progress(progress, starting_epoch, self.warmup_num_items);
+            self.progress = calculate_progress(progress, self.warmup_num_items);
             return;
         }
 
@@ -139,7 +137,7 @@ impl ProgressEstimate {
 
         // When the training has started since 30 seconds.
         if self.started.elapsed() > Duration::from_secs(30) {
-            self.init(progress, starting_epoch);
+            self.init(progress);
             return;
         }
 
@@ -147,31 +145,23 @@ impl ProgressEstimate {
         if progress.iteration >= WARMUP_NUM_ITERATION
             && self.started.elapsed() > Duration::from_secs(10)
         {
-            self.init(progress, starting_epoch);
+            self.init(progress);
         }
     }
 
-    fn init(&mut self, progress: &TrainingProgress, starting_epoch: usize) {
-        let epoch = progress.epoch - starting_epoch;
-        let epoch_items = (epoch - 1) * progress.progress.items_total;
+    fn init(&mut self, progress: &TrainingProgress) {
+        let epoch_items = progress.progress.items_total;
         let iteration_items = progress.progress.items_processed;
 
         self.warmup_num_items = epoch_items + iteration_items;
         self.started_after_warmup = Some(Instant::now());
-        self.progress = calculate_progress(progress, starting_epoch, self.warmup_num_items);
+        self.progress = calculate_progress(progress, self.warmup_num_items);
     }
 }
 
-fn calculate_progress(
-    progress: &TrainingProgress,
-    starting_epoch: usize,
-    ignore_num_items: usize,
-) -> f64 {
-    let epoch_total = progress.epoch_total - starting_epoch;
-    let epoch = progress.epoch - starting_epoch;
-
-    let total_items = progress.progress.items_total * epoch_total;
-    let epoch_items = (epoch - 1) * progress.progress.items_total;
+fn calculate_progress(progress: &TrainingProgress, ignore_num_items: usize) -> f64 {
+    let total_items = progress.progress.items_total;
+    let epoch_items = progress.progress.items_total;
     let iteration_items = progress.progress.items_processed;
     let num_items = epoch_items + iteration_items - ignore_num_items;
 

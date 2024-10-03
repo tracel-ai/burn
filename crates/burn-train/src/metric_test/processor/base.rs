@@ -27,15 +27,6 @@ pub struct LearnerItem<T> {
     /// The progress.
     pub progress: Progress,
 
-    /// The epoch.
-    pub epoch: usize,
-
-    /// The total number of epochs.
-    pub epoch_total: usize,
-
     /// The iteration.
     pub iteration: usize,
-
-    /// The learning rate.
-    pub lr: Option<LearningRate>,
 }

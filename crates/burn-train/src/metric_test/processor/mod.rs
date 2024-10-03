@@ -40,10 +40,7 @@ pub(crate) mod test_utils {
         processor.process(Event::ProcessedItem(LearnerItem::new(
             value,
             dummy_progress,
-            epoch,
-            num_epochs,
             dummy_iteration,
-            None,
         )));
     }
 
