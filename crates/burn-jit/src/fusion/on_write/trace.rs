@@ -184,7 +184,7 @@ impl FuseOnWriteTrace {
             let tensor = context.tensors.get(&tensor_relative.id).unwrap();
             let handle = context.handles.get_handle(&tensor.id, &tensor.status);
 
-            if tensor.status == TensorStatus::ReadWrite {
+            if tensor.status == TensorStatus::ReadWrite && handle.handle.can_mut() {
                 potential_inplaces.push((tensor_relative, handle.strides.clone(), i));
             }
 
@@ -194,15 +194,15 @@ impl FuseOnWriteTrace {
         }
 
         for (precision, tensor_relative) in self.outputs.iter() {
-            let tensor = context.tensors.get(&tensor_relative.id).unwrap();
-            let strides = strides_dyn_rank(&tensor.shape);
-            outputs_desc.push(tensor);
+            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
+            let strides = strides_dyn_rank(&tensor_global.shape);
+            outputs_desc.push(tensor_global);
 
             if let Some(index) = potential_inplaces
                 .iter()
                 .enumerate()
                 .find(|(_pos, (input_relative, input_strides, _))| {
-                    input_relative.dtype == tensor.dtype
+                    input_relative.dtype == tensor_global.dtype
                         && input_relative.shape == tensor_relative.shape
                         && input_strides == &strides
                 })
@@ -222,7 +222,9 @@ impl FuseOnWriteTrace {
                     });
                 }
 
-                context.handles.register_handle(tensor.id, handle.clone());
+                context
+                    .handles
+                    .register_handle(tensor_global.id, handle.clone());
                 handles_outputs.push(HandleOutput::Alias(handle_index, precision));
             } else {
                 if ref_layout.is_none() {
@@ -231,7 +233,8 @@ impl FuseOnWriteTrace {
                     });
                 }
 
-                let size = tensor.shape.iter().product::<usize>() * Elem::from(tensor.dtype).size();
+                let size = tensor_global.shape.iter().product::<usize>()
+                    * Elem::from(tensor_global.dtype).size();
                 let handle = JitFusionHandle {
                     client: client.clone(),
                     handle: client.empty(size),
@@ -239,9 +242,15 @@ impl FuseOnWriteTrace {
                     strides,
                 };
 
-                rank = usize::max(tensor.shape.len(), rank);
-                context.handles.register_handle(tensor.id, handle.clone());
-                handles_outputs.push(HandleOutput::Owned(precision, handle, tensor.shape.clone()));
+                rank = usize::max(tensor_global.shape.len(), rank);
+                context
+                    .handles
+                    .register_handle(tensor_global.id, handle.clone());
+                handles_outputs.push(HandleOutput::Owned(
+                    precision,
+                    handle,
+                    tensor_global.shape.clone(),
+                ));
             }
         }
 
@@ -272,6 +281,7 @@ impl FuseOnWriteTrace {
         // Register everything
         for (precision, handle, shape) in handles_inputs.iter() {
             let arg = handle.as_tensor_arg(shape, vectorization);
+            println!("Input {arg:?}");
 
             match precision {
                 OpPrecision::F32 => inputs.t_f32.push(arg),
@@ -292,6 +302,7 @@ impl FuseOnWriteTrace {
                 },
                 HandleOutput::Owned(precision, handle, shape) => {
                     let arg = handle.as_tensor_arg(shape, vectorization);
+                    println!("Output {arg:?}");
 
                     match precision {
                         OpPrecision::F32 => outputs.t_f32.push(arg),

@@ -163,7 +163,195 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 }
                 _ => comptime![panic!("Unsupported")],
             },
-            _ => todo!(),
+            ElemwiseOp::Exp(op) => match op.out.precision() {
+                OpPrecision::F32 => exp::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::F16 => exp::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::BF16 => {
+                    exp::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Cos(op) => match op.out.precision() {
+                OpPrecision::F32 => cos::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::F16 => cos::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::BF16 => {
+                    cos::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Sin(op) => match op.out.precision() {
+                OpPrecision::F32 => sin::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::F16 => sin::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::BF16 => {
+                    sin::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Tanh(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    tanh::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    tanh::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    tanh::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Equal(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => {
+                    equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::U32 => {
+                    equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Greater(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    greater::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    greater::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    greater::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => {
+                    greater::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::U32 => {
+                    greater::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::GreaterEqual(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    greater_equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    greater_equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    greater_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => {
+                    greater_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::U32 => {
+                    greater_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::Lower(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    lower::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    lower::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    lower::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => {
+                    lower::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::U32 => {
+                    lower::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::LowerEqual(op) => match op.out.precision() {
+                OpPrecision::F32 => {
+                    lower_equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::F16 => {
+                    lower_equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::BF16 => {
+                    lower_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => {
+                    lower_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::U32 => {
+                    lower_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                _ => comptime![panic!("Unsupported")],
+            },
+            ElemwiseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => match out.precision() {
+                OpPrecision::F32 => conditional_assign::<f32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                OpPrecision::F16 => conditional_assign::<f16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                OpPrecision::BF16 => conditional_assign::<bf16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                OpPrecision::I32 => conditional_assign::<i32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                OpPrecision::U32 => conditional_assign::<u32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                _ => comptime![panic!("Unsupported")],
+            },
         }
     }
 }
@@ -208,6 +396,26 @@ macro_rules! binary_func {
     };
 }
 
+macro_rules! comparison_op {
+    ($ident:ident, $op:tt) => {
+        #[cube]
+        fn $ident<C: CubePrimitive + core::cmp::PartialOrd>(
+            inputs: &FusionArgs,
+            outputs: &mut FusionArgs,
+            locals: &mut FusionLocals,
+            write_pos: u32,
+            #[comptime] op: BinaryElemwiseOp,
+            #[comptime] config: &FusionConfig,
+        ) {
+            let lhs = read::<C>(inputs, outputs, &locals, write_pos, op.lhs, config);
+            let rhs = read::<C>(inputs, outputs, &locals, write_pos, op.rhs, config);
+            let result = Line::new(lhs $op rhs);
+
+            write::<bool>(inputs, outputs, locals, write_pos, result, op.out, config);
+        }
+    };
+}
+
 macro_rules! unary_func {
     ($ident:ident, $func:expr, $c:tt) => {
         #[cube]
@@ -241,10 +449,36 @@ fn assign<C: CubePrimitive>(
     write::<C>(inputs, outputs, locals, write_pos, input, op.out, config);
 }
 
+#[cube]
+fn conditional_assign<C: CubePrimitive>(
+    inputs: &FusionArgs,
+    outputs: &mut FusionArgs,
+    locals: &mut FusionLocals,
+    write_pos: u32,
+    #[comptime] cond: Arg,
+    #[comptime] lhs: Arg,
+    #[comptime] rhs: Arg,
+    #[comptime] out: Arg,
+    #[comptime] config: &FusionConfig,
+) {
+    let cond = read::<bool>(inputs, outputs, &locals, write_pos, cond, config);
+    let lhs = read::<C>(inputs, outputs, &locals, write_pos, lhs, config);
+    let rhs = read::<C>(inputs, outputs, &locals, write_pos, rhs, config);
+    let result = select_many(cond, lhs, rhs);
+
+    write::<C>(inputs, outputs, locals, write_pos, result, out, config);
+}
+
 binary_op!(add, +);
 binary_op!(mul, *);
 binary_op!(div, /);
 binary_op!(sub, -);
+
+comparison_op!(equal, ==);
+comparison_op!(greater, >);
+comparison_op!(greater_equal, >=);
+comparison_op!(lower, <);
+comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Line::<C>::powf, Float);
 

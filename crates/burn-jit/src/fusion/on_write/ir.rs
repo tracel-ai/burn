@@ -43,7 +43,6 @@ pub enum ElemwiseOp {
     Erf(UnaryElemwiseOp),
     Recip(UnaryElemwiseOp),
     Assign(UnaryElemwiseOp),
-    ToLayout(UnaryElemwiseOp),
     ConditionalAssign {
         cond: Arg,
         lhs: Arg,

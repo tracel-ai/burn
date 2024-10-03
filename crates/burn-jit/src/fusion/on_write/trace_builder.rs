@@ -217,11 +217,6 @@ impl FuseOnWriteTraceBuilder {
                     &mut local_tensor_ids_input,
                     &mut local_tensor_ids_output,
                 ),
-                ElemwiseOp::ToLayout(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
                 ElemwiseOp::ConditionalAssign {
                     cond,
                     lhs,

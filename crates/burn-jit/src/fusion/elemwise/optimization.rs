@@ -62,11 +62,15 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
             Arg::Input(index, precision) => match precision {
                 OpPrecision::F32 => inputs.t_f32.values.get(index as usize),
                 OpPrecision::F16 => inputs.t_f16.values.get(index as usize),
+                OpPrecision::U32 => inputs.t_u32.values.get(index as usize),
+                OpPrecision::I32 => inputs.t_i32.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             Arg::Output(index, precision) => match precision {
                 OpPrecision::F32 => outputs.t_f32.values.get(index as usize),
                 OpPrecision::F16 => outputs.t_f16.values.get(index as usize),
+                OpPrecision::U32 => outputs.t_u32.values.get(index as usize),
+                OpPrecision::I32 => outputs.t_i32.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             _ => panic!("Invalid value"),
@@ -86,9 +90,7 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
-        unsafe {
-            elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config)
-        }
+        unsafe { elemwise_fuse::launch(client, cube_count, cube_dim, inputs, outputs, config) }
     }
 
     fn vectorization<'a>(
@@ -108,7 +110,7 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
 
             for s in factors {
                 // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize != 0 {
+                if desc.shape[rank - 1] % *s as usize == 0 {
                     return *s;
                 }
             }
@@ -121,7 +123,7 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
 
             for s in factors {
                 // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize != 0 {
+                if desc.shape[rank - 1] % *s as usize == 0 {
                     return *s;
                 }
             }
@@ -143,7 +145,7 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch)]
 pub fn elemwise_fuse(
     inputs: &FusionArgs,
     outputs: &mut FusionArgs,
