@@ -83,20 +83,6 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
-/// Trait to be implemented for validating models.
-pub trait ValidStep<VI, VO> {
-    /// Runs a validation step.
-    ///
-    /// # Arguments
-    ///
-    /// * `item` - The item to validate on.
-    ///
-    /// # Returns
-    ///
-    /// The validation output.
-    fn step(&self, item: VI) -> VO;
-}
-
 impl<LC: LearnerComponents> Learner<LC> {
     /// Tests the model.
     ///
@@ -107,18 +93,14 @@ impl<LC: LearnerComponents> Learner<LC> {
     /// # Returns
     ///
     /// The tested model.
-    pub fn test<InputTrain, InputValid, OutputTrain, OutputValid>(
+    pub fn test<InputTrain, OutputTrain>(
         mut self,
         dataloader: Arc<dyn DataLoader<InputTrain>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
-        InputValid: Send,
         OutputTrain: Send + 'static,
-        OutputValid: Send,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
-        <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
-        LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
         let model = self.model;
         let mut processor = self.event_processor;

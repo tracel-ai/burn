@@ -26,7 +26,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn process_train(
-        processor: &mut MinimalEventProcessor<f64, f64>,
+        processor: &mut MinimalEventProcessor<f64>,
         value: f64,
         epoch: usize,
     ) {

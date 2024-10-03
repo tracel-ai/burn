@@ -5,14 +5,13 @@ use std::rc::Rc;
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 #[derive(new)]
-pub(crate) struct MinimalEventProcessor<T, V> {
-    metrics: Metrics<T, V>,
+pub(crate) struct MinimalEventProcessor<T> {
+    metrics: Metrics<T>,
     store: Rc<EventStoreClient>,
 }
 
-impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
+impl<T> EventProcessor for MinimalEventProcessor<T> {
     type ItemTrain = T;
-    type ItemValid = V;
 
     fn process(&mut self, event: Event<Self::ItemTrain>) {
         match event {

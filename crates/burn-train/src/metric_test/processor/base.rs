@@ -13,8 +13,6 @@ pub enum Event<T> {
 pub trait EventProcessor {
     /// The training item.
     type ItemTrain;
-    /// The validation item.
-    type ItemValid;
 
     /// Collect a training event.
     fn process(&mut self, event: Event<Self::ItemTrain>);

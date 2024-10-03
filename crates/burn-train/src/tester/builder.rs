@@ -15,16 +15,15 @@ use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V>
+pub struct LearnerBuilder<B, T>
 where
     T: Send + 'static,
-    V: Send + 'static,
     B: AutodiffBackend,
 {
     directory: PathBuf,
     devices: Vec<B::Device>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: Metrics<T, V>,
+    metrics: Metrics<T>,
     event_store: LogEventStore,
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -33,11 +32,10 @@ where
     summary: bool,
 }
 
-impl<B, T, V> LearnerBuilder<B, T, V>
+impl<B, T> LearnerBuilder<B, T>
 where
     B: AutodiffBackend,
     T: Send + 'static,
-    V: Send + 'static,
 {
     /// Creates a new learner builder.
     ///
@@ -68,14 +66,12 @@ where
     /// # Arguments
     ///
     /// * `logger_train` - The training logger.
-    /// * `logger_valid` - The validation logger.
-    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT) -> Self
     where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
         self.event_store.register_logger_train(logger_train);
-        self.event_store.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
     }
@@ -102,15 +98,6 @@ where
         self
     }
 
-    /// Register a validation metric.
-    pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
-    where
-        V: Adaptor<Me::Input>,
-    {
-        self.metrics.register_valid_metric(metric);
-        self
-    }
-
     /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
@@ -119,19 +106,6 @@ where
     {
         self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_train_metric_numeric(metric);
-        self
-    }
-
-    /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
-    pub fn metric_valid_numeric<Me: Metric + crate::metric_test::Numeric + 'static>(
-        mut self,
-        metric: Me,
-    ) -> Self
-    where
-        V: Adaptor<Me::Input>,
-    {
-        self.summary_metrics.insert(Me::NAME.to_string());
-        self.metrics.register_valid_metric_numeric(metric);
         self
     }
 
@@ -173,7 +147,7 @@ where
     pub fn build<M>(
         mut self,
         model: M,
-    ) -> Learner<LearnerComponentsMarker<B, M, FullEventProcessor<T, V>>>
+    ) -> Learner<LearnerComponentsMarker<B, M, FullEventProcessor<T>>>
     where
         M::Record: 'static,
         M: AutodiffModule<B> + core::fmt::Display + 'static,
@@ -190,8 +164,6 @@ where
         if self.num_loggers == 0 {
             self.event_store
                 .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
-            self.event_store
-                .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
         }
 
         let event_store = Rc::new(EventStoreClient::new(self.event_store));

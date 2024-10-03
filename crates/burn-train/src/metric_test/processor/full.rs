@@ -6,15 +6,15 @@ use std::rc::Rc;
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct FullEventProcessor<T, V> {
-    metrics: Metrics<T, V>,
+pub struct FullEventProcessor<T> {
+    metrics: Metrics<T>,
     renderer: Box<dyn MetricsRenderer>,
     store: Rc<EventStoreClient>,
 }
 
-impl<T, V> FullEventProcessor<T, V> {
+impl<T> FullEventProcessor<T> {
     pub(crate) fn new(
-        metrics: Metrics<T, V>,
+        metrics: Metrics<T>,
         renderer: Box<dyn MetricsRenderer>,
         store: Rc<EventStoreClient>,
     ) -> Self {
@@ -26,9 +26,8 @@ impl<T, V> FullEventProcessor<T, V> {
     }
 }
 
-impl<T, V> EventProcessor for FullEventProcessor<T, V> {
+impl<T> EventProcessor for FullEventProcessor<T> {
     type ItemTrain = T;
-    type ItemValid = V;
 
     fn process(&mut self, event: Event<Self::ItemTrain>) {
         match event {

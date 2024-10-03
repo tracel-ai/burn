@@ -51,12 +51,10 @@ impl MetricSummary {
     }
 }
 
-/// Contains the summary of recorded metrics for the training and validation steps.
+/// Contains the summary of recorded metrics for the training step.
 pub struct SummaryMetrics {
     /// Training metrics summary.
     pub train: Vec<MetricSummary>,
-    /// Validation metrics summary.
-    pub valid: Vec<MetricSummary>,
 }
 
 /// Detailed training summary.
@@ -85,10 +83,9 @@ impl LearnerSummary {
             ));
         }
         let train_dir = directory.join("train");
-        let valid_dir = directory.join("valid");
-        if !train_dir.exists() & !valid_dir.exists() {
+        if !train_dir.exists() {
             return Err(format!(
-                "No training or validation artifacts found at: {}",
+                "No training artifacts found at: {}",
                 directory.display()
             ));
         }
@@ -96,13 +93,11 @@ impl LearnerSummary {
         let mut event_store = LogEventStore::default();
 
         let train_logger = FileMetricLogger::new(train_dir.to_str().unwrap());
-        let valid_logger = FileMetricLogger::new(valid_dir.to_str().unwrap());
 
         // Number of recorded epochs
         let epochs = train_logger.epochs();
 
         event_store.register_logger_train(train_logger);
-        event_store.register_logger_valid(valid_logger);
 
         let train_summary = metrics
             .iter()
@@ -111,18 +106,10 @@ impl LearnerSummary {
             })
             .collect::<Vec<_>>();
 
-        let valid_summary = metrics
-            .iter()
-            .filter_map(|metric| {
-                MetricSummary::new(&mut event_store, metric.as_ref(), Split::Valid, epochs)
-            })
-            .collect::<Vec<_>>();
-
         Ok(Self {
             epochs,
             metrics: SummaryMetrics {
                 train: train_summary,
-                valid: valid_summary,
             },
             model: None,
         })
@@ -138,13 +125,9 @@ impl Display for LearnerSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Compute the max length for each column
         let split_train = "Train";
-        let split_valid = "Valid";
-        let max_split_len = "Split".len().max(split_train.len()).max(split_valid.len());
+        let max_split_len = "Split".len().max(split_train.len());
         let mut max_metric_len = "Metric".len();
         for metric in self.metrics.train.iter() {
-            max_metric_len = max_metric_len.max(metric.name.len());
-        }
-        for metric in self.metrics.valid.iter() {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
 
@@ -227,7 +210,6 @@ impl Display for LearnerSummary {
             };
 
         write_metrics_summary(&self.metrics.train, split_train)?;
-        write_metrics_summary(&self.metrics.valid, split_valid)?;
 
         Ok(())
     }
@@ -256,26 +238,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Summary artifacts should exist"]
-    fn test_train_valid_artifacts_should_exist() {
-        let dir = "/tmp/test-learner-summary-empty";
-        std::fs::create_dir_all(dir).ok();
-        let _summary = LearnerSummary::new(dir, &["Loss"]).expect("Summary artifacts should exist");
-    }
-
-    #[test]
     fn test_summary_should_be_empty() {
         let dir = Path::new("/tmp/test-learner-summary-empty-metrics");
         std::fs::create_dir_all(dir).unwrap();
         std::fs::create_dir_all(dir.join("train/epoch-1")).unwrap();
-        std::fs::create_dir_all(dir.join("valid/epoch-1")).unwrap();
         let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
             .expect("Summary artifacts should exist");
 
         assert_eq!(summary.epochs, 1);
 
         assert_eq!(summary.metrics.train.len(), 0);
-        assert_eq!(summary.metrics.valid.len(), 0);
 
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -284,13 +256,10 @@ mod tests {
     fn test_summary_should_be_collected() {
         let dir = Path::new("/tmp/test-learner-summary");
         let train_dir = dir.join("train/epoch-1");
-        let valid_dir = dir.join("valid/epoch-1");
         std::fs::create_dir_all(dir).unwrap();
         std::fs::create_dir_all(&train_dir).unwrap();
-        std::fs::create_dir_all(&valid_dir).unwrap();
 
         std::fs::write(train_dir.join("Loss.log"), "1.0\n2.0").expect("Unable to write file");
-        std::fs::write(valid_dir.join("Loss.log"), "1.0").expect("Unable to write file");
 
         let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
             .expect("Summary artifacts should exist");
@@ -299,7 +268,6 @@ mod tests {
 
         // Only Loss metric
         assert_eq!(summary.metrics.train.len(), 1);
-        assert_eq!(summary.metrics.valid.len(), 1);
 
         // Aggregated train metric entries for 1 epoch
         let train_metric = &summary.metrics.train[0];
@@ -308,14 +276,6 @@ mod tests {
         let entry = &train_metric.entries[0];
         assert_eq!(entry.step, 1); // epoch = 1
         assert_eq!(entry.value, 1.5); // (1 + 2) / 2
-
-        // Aggregated valid metric entries for 1 epoch
-        let valid_metric = &summary.metrics.valid[0];
-        assert_eq!(valid_metric.name, "Loss");
-        assert_eq!(valid_metric.entries.len(), 1);
-        let entry = &valid_metric.entries[0];
-        assert_eq!(entry.step, 1); // epoch = 1
-        assert_eq!(entry.value, 1.0);
 
         std::fs::remove_dir_all(dir).unwrap();
     }
