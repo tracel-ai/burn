@@ -37,7 +37,7 @@ pub(crate) mod test_utils {
         let num_epochs = 3;
         let dummy_iteration = 1;
 
-        processor.process_train(Event::ProcessedItem(LearnerItem::new(
+        processor.process(Event::ProcessedItem(LearnerItem::new(
             value,
             dummy_progress,
             epoch,
@@ -48,7 +48,6 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn end_epoch(processor: &mut MinimalEventProcessor<f64, f64>, epoch: usize) {
-        processor.process_train(Event::EndEpoch(epoch));
-        processor.process_valid(Event::EndEpoch(epoch));
+        processor.process(Event::EndEpoch(epoch));
     }
 }
