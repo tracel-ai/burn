@@ -1,6 +1,5 @@
 use crate::components_test::LearnerComponents;
 use crate::metric_test::store::EventStoreClient;
-use crate::tester::EarlyStoppingStrategy;
 use crate::LearnerSummaryConfig;
 use burn_core::tensor::backend::Backend;
 use std::rc::Rc;
@@ -12,11 +11,9 @@ use std::sync::Arc;
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
 pub struct Learner<LC: LearnerComponents> {
     pub(crate) model: LC::Model,
-    pub(crate) num_epochs: usize,
     pub(crate) grad_accumulation: Option<usize>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
     pub(crate) interrupter: TrainingInterrupter,
-    pub(crate) early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     pub(crate) event_processor: LC::EventProcessor,
     pub(crate) event_store: Rc<EventStoreClient>,
     pub(crate) summary: Option<LearnerSummaryConfig>,

@@ -10,7 +10,6 @@ use crate::metric_test::store::{EventStoreClient, LogEventStore};
 use crate::metric_test::{Adaptor, Metric};
 use crate::renderer_test::{default_renderer, MetricsRenderer};
 use crate::tester::base::TrainingInterrupter;
-use crate::tester::EarlyStoppingStrategy;
 use crate::{ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerSummaryConfig};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
@@ -22,7 +21,6 @@ where
     V: Send + 'static,
     B: AutodiffBackend,
 {
-    num_epochs: usize,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
@@ -32,7 +30,6 @@ where
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
-    early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     summary_metrics: HashSet<String>,
     summary: bool,
 }
@@ -52,7 +49,6 @@ where
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
         Self {
-            num_epochs: 1,
             directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
@@ -64,7 +60,6 @@ where
                 experiment_log_file,
             ))),
             num_loggers: 0,
-            early_stopping: None,
             summary_metrics: HashSet::new(),
             summary: false,
         }
@@ -157,12 +152,6 @@ where
         self
     }
 
-    /// The number of epochs the training should last.
-    pub fn num_epochs(mut self, num_epochs: usize) -> Self {
-        self.num_epochs = num_epochs;
-        self
-    }
-
     /// Run the training loop on multiple devices.
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;
@@ -172,16 +161,6 @@ where
     /// Provides a handle that can be used to interrupt training.
     pub fn interrupter(&self) -> TrainingInterrupter {
         self.interrupter.clone()
-    }
-
-    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
-    /// conditions are meet.
-    pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
-    where
-        Strategy: EarlyStoppingStrategy + 'static,
-    {
-        self.early_stopping = Some(Box::new(strategy));
-        self
     }
 
     /// By default, Rust logs are captured and written into
@@ -246,13 +225,11 @@ where
 
         Learner {
             model,
-            num_epochs: self.num_epochs,
             event_processor,
             event_store,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
             interrupter: self.interrupter,
-            early_stopping: self.early_stopping,
             summary,
         }
     }
