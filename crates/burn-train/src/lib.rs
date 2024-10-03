@@ -16,6 +16,7 @@ pub mod renderer_test;
 
 /// The logger module.
 pub mod logger;
+pub mod logger_test;
 
 /// The metric module.
 pub mod metric;
