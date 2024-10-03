@@ -9,6 +9,7 @@ extern crate derive_new;
 pub mod checkpoint;
 
 pub(crate) mod components;
+pub(crate) mod components_test;
 
 /// Renderer modules to display metrics and training information.
 pub mod renderer;
