@@ -1,10 +1,9 @@
-use super::optimization::ElemwiseKernel;
-use super::{ElementWise, ElementWiseState};
-use crate::fusion::builder::ElementWise2Builder;
-use crate::tensor::{is_contiguous, JitQuantizationParameters, QJitTensor};
+use super::elemwise::optimization::{ElemwiseKernel, ElemwiseKernelState};
+use crate::fusion::elemwise::builder::ElementWiseBuilder;
+use crate::tensor::{JitQuantizationParameters, QJitTensor};
 use crate::{
-    element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
-    IntElement, JitBackend, JitRuntime,
+    element::JitElement, kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend,
+    JitRuntime,
 };
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::quantization::QuantizationScheme;
@@ -13,7 +12,6 @@ use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
-use cubecl::{ir::ReadingStrategy, InplaceMapping, KernelExpansion, KernelSettings};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +20,6 @@ use serde::{Deserialize, Serialize};
 /// More optimization variants should be added here.
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
-    ElementWise(ElementWise<R>),
     ElementWise2(ElemwiseKernel<R>),
 }
 
@@ -32,7 +29,7 @@ pub enum JitOptimization<R: JitRuntime> {
 #[derive(Serialize, Deserialize)]
 pub enum JitOptimizationState {
     /// Element wise state.
-    ElementWise(ElementWiseState),
+    ElementWise(ElemwiseKernelState),
 }
 
 impl<R> burn_fusion::Optimization<FusionJitRuntime<R>> for JitOptimization<R>
@@ -41,29 +38,26 @@ where
 {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
-            Self::ElementWise(op) => op.execute(context),
             Self::ElementWise2(op) => op.execute(context),
         }
     }
 
     fn len(&self) -> usize {
         match self {
-            Self::ElementWise(op) => op.len(),
             Self::ElementWise2(op) => op.len(),
         }
     }
 
     fn to_state(&self) -> JitOptimizationState {
         match self {
-            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
-            Self::ElementWise2(value) => todo!(),
+            Self::ElementWise2(value) => JitOptimizationState::ElementWise(value.to_state()),
         }
     }
 
     fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
         match state {
             JitOptimizationState::ElementWise(state) => {
-                Self::ElementWise(ElementWise::from_state(device, state))
+                Self::ElementWise2(ElemwiseKernel::from_state(device, state))
             }
         }
     }
@@ -159,10 +153,7 @@ impl<R: JitRuntime> FusionRuntime for FusionJitRuntime<R> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![
-            // Box::new(ElementWiseBuilder::<R>::new(device.clone())),
-            Box::new(ElementWise2Builder::<R>::new(device)),
-        ]
+        vec![Box::new(ElementWiseBuilder::<R>::new(device.clone()))]
     }
 }
 
@@ -280,112 +271,4 @@ impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for JitFusionHandle<R> 
             strides: value.strides,
         }
     }
-}
-
-/// Apply dynamic settings based on the runtime information captured by the `burn-fusion`
-/// project.
-///
-/// Two optimizations are done here:
-///
-/// 1. Find and remove unnecessary broadcasting procedures based on runtime tensor layouts.
-///
-/// 2. (Optional) Find which inputs can be used inplaced based on runtime tensor layouts and captured tensor
-///    descriptions. This is enabled only when stateful is set to true.
-pub fn dynamic_settings<R: JitRuntime>(
-    mut settings: KernelSettings,
-    info: &KernelExpansion,
-    inputs: &[&burn_tensor::repr::TensorDescription],
-    outputs: &[&burn_tensor::repr::TensorDescription],
-    handles_inputs: &[JitFusionHandle<R>],
-    stateful: bool,
-) -> KernelSettings {
-    if stateful {
-        settings = dynamic_inplace(settings, info, inputs, outputs, handles_inputs);
-    }
-
-    dynamic_reading_strategy(settings, info, inputs, outputs, handles_inputs)
-}
-
-fn dynamic_inplace<R: JitRuntime>(
-    settings: KernelSettings,
-    info: &KernelExpansion,
-    inputs: &[&burn_tensor::repr::TensorDescription],
-    outputs: &[&burn_tensor::repr::TensorDescription],
-    handles_inputs: &[JitFusionHandle<R>],
-) -> KernelSettings {
-    let mut potential_inplace = inputs
-        .iter()
-        .zip(info.inputs.iter())
-        .enumerate()
-        .filter_map(|(pos, (desc, input))| {
-            match desc.status {
-                burn_tensor::repr::TensorStatus::ReadOnly => return None,
-                burn_tensor::repr::TensorStatus::NotInit => return None,
-                burn_tensor::repr::TensorStatus::ReadWrite => (),
-            };
-
-            let handle = &handles_inputs[pos];
-
-            if handle.handle.can_mut() && is_contiguous(&desc.shape, &handle.strides) {
-                Some((pos, desc, input))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let mappings = outputs
-        .iter()
-        .zip(info.outputs.iter())
-        .enumerate()
-        .filter_map(|(pos, (desc, output))| {
-            if potential_inplace.is_empty() {
-                return None;
-            }
-
-            for (index, (_, desc_input, input)) in potential_inplace.iter().enumerate() {
-                if desc.shape == desc_input.shape && input.item() == output.item() {
-                    let (pos_input, _desc, _info) = potential_inplace.remove(index);
-                    return Some(InplaceMapping::new(pos_input, pos));
-                }
-            }
-
-            None
-        })
-        .collect();
-
-    settings.inplace(mappings)
-}
-
-fn dynamic_reading_strategy<R: JitRuntime>(
-    mut settings: KernelSettings,
-    info: &KernelExpansion,
-    inputs: &[&burn_tensor::repr::TensorDescription],
-    outputs: &[&burn_tensor::repr::TensorDescription],
-    handles_inputs: &[JitFusionHandle<R>],
-) -> KernelSettings {
-    // First output is chosen for the layout reference.
-    // but all outputs should have the same shape anyways.
-    let layout_shape = &outputs[0].shape;
-
-    for (input_id, strategy) in info.scope.read_globals() {
-        if let ReadingStrategy::Plain = strategy {
-            continue;
-        };
-
-        let index = input_id as usize;
-        let handle = &handles_inputs[index];
-        let description_input = &inputs[index];
-
-        if &description_input.shape != layout_shape {
-            continue;
-        }
-
-        if is_contiguous(&description_input.shape, &handle.strides) {
-            settings
-                .reading_strategy
-                .push((input_id, ReadingStrategy::Plain));
-        }
-    }
-    settings
 }

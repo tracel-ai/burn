@@ -1,11 +1,8 @@
 use super::{
     ir::{Arg, BinaryElemwiseOp, ElemwiseOp, UnaryElemwiseOp},
-    trace::Tracel2Builder,
+    trace::{FuseOnWriteTrace, Tracel2Builder},
 };
-use crate::{
-    fusion::{optimization::ElemwiseKernel, JitFusionHandle, JitOptimization},
-    JitRuntime,
-};
+use crate::JitRuntime;
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
     repr::{
@@ -18,15 +15,14 @@ use burn_tensor::{
 use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWise2Builder<R: JitRuntime> {
+pub(crate) struct FuseOnWriteBuilder {
     builder: Tracel2Builder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     num_added: usize,
-    device: R::Device,
 }
 
-impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWise2Builder<R> {
+impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn register(&mut self, ops: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
@@ -73,13 +69,8 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWise2Buil
         self.num_added += 1;
     }
 
-    fn build(&self) -> JitOptimization<R> {
-        let client = R::client(&self.device);
-        let trace = self.builder.build();
-        let elementwise =
-            ElemwiseKernel::<R>::new(trace, client, self.device.clone(), self.num_added);
-
-        JitOptimization::ElementWise2(elementwise)
+    fn build(&self) -> FuseOnWriteTrace {
+        self.builder.build()
     }
 
     fn len(&self) -> usize {
@@ -106,14 +97,13 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWise2Buil
     }
 }
 
-impl<R: JitRuntime> ElementWise2Builder<R> {
-    pub fn new(device: R::Device) -> Self {
+impl FuseOnWriteBuilder {
+    pub fn new() -> Self {
         Self {
             builder: Tracel2Builder::new(),
             num_added: 0,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
-            device,
         }
     }
 
@@ -391,8 +381,4 @@ impl<R: JitRuntime> ElementWise2Builder<R> {
 
         true
     }
-}
-
-pub enum InputHandles<R: JitRuntime> {
-    F32(JitFusionHandle<R>, Vec<usize>),
 }

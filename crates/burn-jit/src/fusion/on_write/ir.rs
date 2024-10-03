@@ -1,9 +1,10 @@
 use burn_tensor::DType;
+use cubecl::ir::Elem;
 use cubecl::prelude::*;
-use cubecl::{ir::Elem, linalg::tensor::index_offset_with_layout};
 use half::{bf16, f16};
+use serde::{Deserialize, Serialize};
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Arg {
     Input(u32, OpPrecision),
     Local(u32, OpPrecision),
@@ -25,7 +26,7 @@ impl Arg {
     }
 }
 
-#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElemwiseOp {
     Add(BinaryElemwiseOp),
     Sub(BinaryElemwiseOp),
@@ -60,10 +61,12 @@ pub enum ElemwiseOp {
 pub struct FusionArgs {
     pub t_f32: Sequence<Tensor<Line<f32>>>,
     pub t_f16: Sequence<Tensor<Line<f16>>>,
+    pub t_bf16: Sequence<Tensor<Line<bf16>>>,
     pub t_i32: Sequence<Tensor<Line<i32>>>,
     pub t_u32: Sequence<Tensor<Line<u32>>>,
     pub s_f32: Sequence<f32>,
     pub s_f16: Sequence<f16>,
+    pub s_bf16: Sequence<bf16>,
     pub s_i32: Sequence<i32>,
     pub s_u32: Sequence<u32>,
 }
@@ -72,25 +75,28 @@ pub struct FusionArgs {
 pub struct FusionLocals {
     pub l_f32: Sequence<Line<f32>>,
     pub l_f16: Sequence<Line<f16>>,
+    pub l_bf16: Sequence<Line<bf16>>,
     pub l_i32: Sequence<Line<i32>>,
     pub l_u32: Sequence<Line<u32>>,
     pub l_bool: Sequence<Line<bool>>,
 }
 
-#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnaryElemwiseOp {
     pub input: Arg,
     pub out: Arg,
 }
 
-#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BinaryElemwiseOp {
     pub lhs: Arg,
     pub rhs: Arg,
     pub out: Arg,
 }
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 pub enum OpPrecision {
     F32,
     F16,

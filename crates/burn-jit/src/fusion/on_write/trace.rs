@@ -3,12 +3,8 @@ use crate::{
     JitRuntime,
 };
 
-use super::{
-    builder::InputHandles,
-    ir::{
-        Arg, BinaryElemwiseOp, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision,
-        UnaryElemwiseOp,
-    },
+use super::ir::{
+    Arg, BinaryElemwiseOp, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision, UnaryElemwiseOp,
 };
 use burn_fusion::stream::Context;
 use burn_tensor::{
@@ -16,6 +12,7 @@ use burn_tensor::{
     DType, Element,
 };
 use cubecl::{ir::Elem, prelude::*};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -27,20 +24,20 @@ pub struct Tracel2Builder {
     pub ops: Sequence<ElemwiseOp>,
 }
 
-#[derive(Clone)]
-pub struct Trace2 {
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FuseOnWriteTrace {
     pub outputs: Index2Tensor,
     pub inputs: Index2Tensor,
     pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Tensor2Index {
     tensors: BTreeMap<OpPrecision, BTreeMap<TensorId, u32>>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Index2Tensor {
     tensors: BTreeMap<OpPrecision, Vec<TensorDescription>>,
 }
@@ -185,12 +182,12 @@ impl Tracel2Builder {
 
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
-        let new_index = self.scalars.get(&precision).map(|a| *a).unwrap_or(0);
+        let new_index = self.scalars.get(&precision).map(|a| *a + 1).unwrap_or(0);
         self.scalars.insert(precision, new_index);
         Arg::Scalar(new_index, precision)
     }
 
-    pub fn build(&self) -> Trace2 {
+    pub fn build(&self) -> FuseOnWriteTrace {
         let outputs = self.output_tensors();
         let mut ops = self.ops.clone();
 
@@ -204,7 +201,7 @@ impl Tracel2Builder {
             }))
         }
 
-        Trace2 {
+        FuseOnWriteTrace {
             outputs,
             inputs: self.inputs.clone(),
             scalars: self.scalars.clone(),
@@ -405,7 +402,7 @@ pub trait Launch<R: JitRuntime> {
     );
 }
 
-impl Trace2 {
+impl FuseOnWriteTrace {
     pub fn run<'a, R: JitRuntime, L: Launch<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
@@ -426,8 +423,12 @@ impl Trace2 {
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
         );
         let mut outputs = FusionArgsLaunch::new(
+            SequenceArg::new(),
+            SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),

@@ -70,10 +70,10 @@ pub fn read<C: CubePrimitive>(
             OpPrecision::F16 => Line::cast_from(*inputs.s_f16.index(pos)),
             OpPrecision::U32 => Line::cast_from(*inputs.s_u32.index(pos)),
             OpPrecision::I32 => Line::cast_from(*inputs.s_i32.index(pos)),
+            OpPrecision::BF16 => comptime![panic!("Can't write into inputs or scalars")],
             _ => comptime![panic!("Can't write into inputs or scalars")],
         },
         Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
-        _ => comptime![panic!("Unsupported")],
     }
 }
 
@@ -139,38 +139,38 @@ pub fn get_offset<C: CubePrimitive>(
         Arg::Input(index, precision) => match comptime![precision] {
             OpPrecision::F32 => {
                 let layout = inputs.t_f32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::F16 => {
                 let layout = inputs.t_f16.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::U32 => {
                 let layout = inputs.t_u32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::I32 => {
                 let layout = inputs.t_i32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             _ => comptime![panic!("Unsupported")],
         },
         Arg::Output(index, precision) => match comptime![precision] {
             OpPrecision::F32 => {
                 let layout = outputs.t_f32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::F16 => {
                 let layout = outputs.t_f16.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::U32 => {
                 let layout = outputs.t_u32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             OpPrecision::I32 => {
                 let layout = outputs.t_i32.index(index);
-                index_offset_with_layout(tensor, layout, pos, 0, config.rank, true)
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             _ => comptime![panic!("Unsupported")],
         },

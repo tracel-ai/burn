@@ -15,6 +15,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     let mut locals = FusionLocals {
         l_f32: Sequence::new(),
         l_f16: Sequence::new(),
+        l_bf16: Sequence::new(),
         l_i32: Sequence::new(),
         l_u32: Sequence::new(),
         l_bool: Sequence::new(),
