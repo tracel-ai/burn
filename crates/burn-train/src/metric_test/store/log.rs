@@ -1,5 +1,5 @@
 use super::{aggregate::NumericMetricsAggregate, Aggregate, Direction, Event, EventStore, Split};
-use crate::logger::MetricLogger;
+use crate::logger_test::MetricLogger;
 
 #[derive(Default)]
 pub(crate) struct LogEventStore {

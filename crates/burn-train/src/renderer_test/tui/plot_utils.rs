@@ -1,4 +1,4 @@
-use crate::metric::format_float;
+use crate::metric_test::format_float;
 
 const AXIS_TITLE_PRECISION: usize = 2;
 

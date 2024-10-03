@@ -1,5 +1,5 @@
-use crate::renderer::{tui::NumericMetricsState, MetricsRenderer};
-use crate::renderer::{MetricState, TrainingProgress};
+use crate::renderer_test::{tui::NumericMetricsState, MetricsRenderer};
+use crate::renderer_test::{MetricState, TrainingProgress};
 use crate::TrainingInterrupter;
 use crossterm::{
     event::{self, Event, KeyCode},

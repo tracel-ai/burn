@@ -1,5 +1,5 @@
 use super::{AsyncLogger, FileLogger, InMemoryLogger, Logger};
-use crate::metric::{MetricEntry, NumericEntry};
+use crate::metric_test::{MetricEntry, NumericEntry};
 use std::{
     collections::HashMap,
     fs,

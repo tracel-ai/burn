@@ -1,4 +1,4 @@
-use crate::{logger::MetricLogger, metric::NumericEntry};
+use crate::{logger_test::MetricLogger, metric_test::NumericEntry};
 use std::collections::HashMap;
 
 use super::{Aggregate, Direction};
@@ -116,8 +116,8 @@ impl NumericMetricsAggregate {
 #[cfg(test)]
 mod tests {
     use crate::{
-        logger::{FileMetricLogger, InMemoryMetricLogger},
-        metric::MetricEntry,
+        logger_test::{FileMetricLogger, InMemoryMetricLogger},
+        metric_test::MetricEntry,
     };
 
     use super::*;

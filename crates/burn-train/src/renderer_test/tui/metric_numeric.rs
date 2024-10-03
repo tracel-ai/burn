@@ -1,4 +1,4 @@
-use crate::renderer::TrainingProgress;
+use crate::renderer_test::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
 use crossterm::event::{Event, KeyCode, KeyEventKind};

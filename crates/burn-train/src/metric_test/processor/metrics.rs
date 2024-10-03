@@ -1,7 +1,7 @@
 use super::LearnerItem;
 use crate::{
     metric_test::{store::MetricsUpdate, Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
-    renderer::TrainingProgress,
+    renderer_test::TrainingProgress,
 };
 
 pub(crate) struct Metrics<T, V> {

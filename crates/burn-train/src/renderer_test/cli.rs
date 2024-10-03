@@ -1,4 +1,4 @@
-use crate::renderer::{MetricState, MetricsRenderer, TrainingProgress};
+use crate::renderer_test::{MetricState, MetricsRenderer, TrainingProgress};
 
 /// A simple renderer for when the cli feature is not enabled.
 pub struct CliMetricsRenderer;
