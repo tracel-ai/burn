@@ -1,4 +1,6 @@
+use super::optimization::ElemwiseKernel;
 use super::{ElementWise, ElementWiseState};
+use crate::fusion::builder::ElementWise2Builder;
 use crate::tensor::{is_contiguous, JitQuantizationParameters, QJitTensor};
 use crate::{
     element::JitElement, fusion::ElementWiseBuilder, kernel, tensor::JitTensor, FloatElement,
@@ -21,6 +23,7 @@ use serde::{Deserialize, Serialize};
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
     ElementWise(ElementWise<R>),
+    ElementWise2(ElemwiseKernel<R>),
 }
 
 /// Fusion optimization state type for JIT.
@@ -39,18 +42,21 @@ where
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
             Self::ElementWise(op) => op.execute(context),
+            Self::ElementWise2(op) => op.execute(context),
         }
     }
 
     fn len(&self) -> usize {
         match self {
             Self::ElementWise(op) => op.len(),
+            Self::ElementWise2(op) => op.len(),
         }
     }
 
     fn to_state(&self) -> JitOptimizationState {
         match self {
             Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
+            Self::ElementWise2(value) => todo!(),
         }
     }
 
@@ -153,7 +159,10 @@ impl<R: JitRuntime> FusionRuntime for FusionJitRuntime<R> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R>::new(device))]
+        vec![
+            // Box::new(ElementWiseBuilder::<R>::new(device.clone())),
+            Box::new(ElementWise2Builder::<R>::new(device)),
+        ]
     }
 }
 

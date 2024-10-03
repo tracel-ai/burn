@@ -90,7 +90,7 @@ pub struct BinaryElemwiseOp {
     pub out: Arg,
 }
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OpPrecision {
     F32,
     F16,
