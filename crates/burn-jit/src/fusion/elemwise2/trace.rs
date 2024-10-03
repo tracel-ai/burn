@@ -23,13 +23,15 @@ pub struct Tracel2Builder {
     pub locals: Tensor2Index,
     pub outputs: Index2Tensor,
     pub inputs: Index2Tensor,
+    pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
 }
 
 #[derive(Clone)]
-pub struct Tracel2 {
+pub struct Trace2 {
     pub outputs: Index2Tensor,
     pub inputs: Index2Tensor,
+    pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
 }
 
@@ -126,6 +128,7 @@ impl Tracel2Builder {
             locals: Tensor2Index::default(),
             outputs: Index2Tensor::default(),
             inputs: Index2Tensor::default(),
+            scalars: BTreeMap::default(),
             ops: Sequence::new(),
         }
     }
@@ -180,11 +183,14 @@ impl Tracel2Builder {
         }
     }
 
-    pub fn scalar<E: Element>(&mut self, tensor: &E, dtype: DType) -> Arg {
-        Arg::Scalar(0, dtype.into())
+    pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
+        let precision = dtype.into();
+        let new_index = self.scalars.get(&precision).map(|a| *a).unwrap_or(0);
+        self.scalars.insert(precision, new_index);
+        Arg::Scalar(new_index, precision)
     }
 
-    pub fn build(&self) -> Tracel2 {
+    pub fn build(&self) -> Trace2 {
         let outputs = self.output_tensors();
         let mut ops = self.ops.clone();
 
@@ -198,9 +204,10 @@ impl Tracel2Builder {
             }))
         }
 
-        Tracel2 {
+        Trace2 {
             outputs,
             inputs: self.inputs.clone(),
+            scalars: self.scalars.clone(),
             ops,
         }
     }
@@ -398,7 +405,7 @@ pub trait Launch<R: JitRuntime> {
     );
 }
 
-impl Tracel2 {
+impl Trace2 {
     pub fn run<'a, R: JitRuntime, L: Launch<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
@@ -452,6 +459,18 @@ impl Tracel2 {
             rank = usize::max(tensor.shape.len(), rank);
             context.handles.register_handle(tensor.id, handle.clone());
             handles_outputs.push((precision, handle, tensor.shape.clone()));
+        }
+
+        for (precision, count) in self.scalars.iter() {
+            for i in 0..(*count as usize + 1) {
+                match precision {
+                    OpPrecision::F32 => inputs.s_f32.push(ScalarArg::new(context.scalar_f32[i])),
+                    OpPrecision::F16 => inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i])),
+                    OpPrecision::I32 => inputs.s_i32.push(ScalarArg::new(context.scalar_ints[i])),
+                    OpPrecision::U32 => todo!(),
+                    _ => todo!(),
+                }
+            }
         }
 
         let config = FusionConfig {

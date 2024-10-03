@@ -51,6 +51,16 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 OpPrecision::U32 => add::<u32>(inputs, outputs, &mut locals, write_pos, op, config),
                 _ => comptime![panic!("Unsupported")],
             },
+            ElemwiseOp::Div(op) => match op.out.precision() {
+                OpPrecision::F32 => div::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::F16 => div::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::BF16 => {
+                    div::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                OpPrecision::I32 => div::<i32>(inputs, outputs, &mut locals, write_pos, op, config),
+                OpPrecision::U32 => div::<u32>(inputs, outputs, &mut locals, write_pos, op, config),
+                _ => comptime![panic!("Unsupported")],
+            },
             ElemwiseOp::Sub(op) => match op.out.precision() {
                 OpPrecision::F32 => sub::<f32>(inputs, outputs, &mut locals, write_pos, op, config),
                 OpPrecision::F16 => sub::<f16>(inputs, outputs, &mut locals, write_pos, op, config),
@@ -152,7 +162,6 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 }
                 _ => comptime![panic!("Unsupported")],
             },
-
             _ => todo!(),
         }
     }

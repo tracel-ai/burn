@@ -6,12 +6,12 @@ use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, C
 
 use super::{
     ir::{Arg, FusionArgsLaunch, FusionConfig, OpPrecision},
-    trace::{Launch, Tracel2},
+    trace::{Launch, Trace2},
 };
 
 #[derive(new)]
 pub struct ElemwiseKernel<R: JitRuntime> {
-    trace: Tracel2,
+    trace: Trace2,
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     len: usize,
@@ -19,9 +19,8 @@ pub struct ElemwiseKernel<R: JitRuntime> {
 
 impl<R: JitRuntime> ElemwiseKernel<R> {
     pub fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        let vectorization = 1;
+        let vectorization = 4;
 
-        println!("Run");
         self.trace
             .run::<R, Self>(&self.client, &self.device, vectorization, context)
     }
@@ -52,15 +51,18 @@ impl<R: JitRuntime> Launch<R> for ElemwiseKernel<R> {
             },
             _ => panic!("Invalid value"),
         };
-        let shape = match arg {
+        let (shape, vectorization) = match arg {
             Some(val) => match val {
-                TensorArg::Handle { handle, .. } => handle.shape,
+                TensorArg::Handle {
+                    handle,
+                    vectorization_factor,
+                } => (handle.shape, vectorization_factor),
                 _ => panic!("Can't be an alias"),
             },
-            None => panic!("Invalud argument"),
+            None => panic!("Invalid argument"),
         };
 
-        let total_elem = shape.iter().product();
+        let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
