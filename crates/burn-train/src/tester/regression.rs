@@ -1,4 +1,4 @@
-use crate::metric::{Adaptor, LossInput};
+use crate::metric_test::{Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Tensor;
 

@@ -1,4 +1,4 @@
-use crate::metric::{
+use crate::metric_test::{
     store::{Aggregate, Direction, EventStoreClient, Split},
     Metric,
 };

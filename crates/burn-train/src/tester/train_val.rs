@@ -1,6 +1,7 @@
+use super::Learner;
 use crate::components::LearnerComponents;
-use crate::metric::processor::EventProcessor;
-use crate::{Learner, TrainEpoch, ValidEpoch};
+use crate::metric_test::processor::EventProcessor;
+use crate::{TrainEpoch, ValidEpoch};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::optim::{GradientsParams, Optimizer};

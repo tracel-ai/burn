@@ -8,13 +8,13 @@ use crate::checkpoint::{
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
 use crate::components::LearnerComponentsMarker;
-use crate::learner::base::TrainingInterrupter;
-use crate::learner::EarlyStoppingStrategy;
-use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{FullEventProcessor, Metrics};
-use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric};
-use crate::renderer::{default_renderer, MetricsRenderer};
+use crate::tester::base::TrainingInterrupter;
+use crate::tester::EarlyStoppingStrategy;
+use crate::logger_test::{FileMetricLogger, MetricLogger};
+use crate::metric_test::processor::{FullEventProcessor, Metrics};
+use crate::metric_test::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
+use crate::metric_test::{Adaptor, LossMetric, Metric};
+use crate::renderer_test::{default_renderer, MetricsRenderer};
 use crate::{
     ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
     LearnerSummaryConfig,

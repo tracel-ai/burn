@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    logger::FileMetricLogger,
-    metric::store::{Aggregate, EventStore, LogEventStore, Split},
+    logger_test::FileMetricLogger,
+    metric_test::store::{Aggregate, EventStore, LogEventStore, Split},
 };
 
 /// Contains the metric value at a given time.
