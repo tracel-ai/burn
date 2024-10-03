@@ -12,6 +12,7 @@ pub(crate) mod components;
 
 /// Renderer modules to display metrics and training information.
 pub mod renderer;
+pub mod renderer_test;
 
 /// The logger module.
 pub mod logger;
