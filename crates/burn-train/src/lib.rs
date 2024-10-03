@@ -23,6 +23,7 @@ pub mod metric;
 pub mod metric_test;
 
 mod learner;
+mod tester;
 
 pub use learner::*;
 
