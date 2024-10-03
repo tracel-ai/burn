@@ -3,49 +3,26 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use super::Learner;
-use crate::checkpoint::{
-    AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
-    KeepLastNCheckpoints, MetricCheckpointingStrategy,
-};
-use crate::tester::base::TrainingInterrupter;
-use crate::tester::EarlyStoppingStrategy;
 use crate::components_test::LearnerComponentsMarker;
 use crate::logger_test::{FileMetricLogger, MetricLogger};
 use crate::metric_test::processor::{FullEventProcessor, Metrics};
-use crate::metric_test::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric_test::{Adaptor, LossMetric, Metric};
+use crate::metric_test::store::{EventStoreClient, LogEventStore};
+use crate::metric_test::{Adaptor, Metric};
 use crate::renderer_test::{default_renderer, MetricsRenderer};
-use crate::{
-    ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerCheckpointer,
-    LearnerSummaryConfig,
-};
-use burn_core::lr_scheduler::LrScheduler;
+use crate::tester::base::TrainingInterrupter;
+use crate::tester::EarlyStoppingStrategy;
+use crate::{ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerSummaryConfig};
 use burn_core::module::AutodiffModule;
-use burn_core::optim::Optimizer;
-use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T, V, M, O, S>
+pub struct LearnerBuilder<B, T, V>
 where
     T: Send + 'static,
     V: Send + 'static,
     B: AutodiffBackend,
-    M: AutodiffModule<B>,
-    O: Optimizer<M, B>,
-    S: LrScheduler,
 {
-    // Not that complex and very convenient when the traits are
-    // already constrained correctly. Extracting in another type
-    // would be more complex.
-    #[allow(clippy::type_complexity)]
-    checkpointers: Option<(
-        AsyncCheckpointer<M::Record, B>,
-        AsyncCheckpointer<O::Record, B>,
-        AsyncCheckpointer<S::Record<B>, B>,
-    )>,
     num_epochs: usize,
-    checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     devices: Vec<B::Device>,
@@ -55,20 +32,16 @@ where
     interrupter: TrainingInterrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     num_loggers: usize,
-    checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     summary_metrics: HashSet<String>,
     summary: bool,
 }
 
-impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
+impl<B, T, V> LearnerBuilder<B, T, V>
 where
     B: AutodiffBackend,
     T: Send + 'static,
     V: Send + 'static,
-    M: AutodiffModule<B> + core::fmt::Display + 'static,
-    O: Optimizer<M, B>,
-    S: LrScheduler,
 {
     /// Creates a new learner builder.
     ///
@@ -80,8 +53,6 @@ where
         let experiment_log_file = directory.join("experiment.log");
         Self {
             num_epochs: 1,
-            checkpoint: None,
-            checkpointers: None,
             directory,
             grad_accumulation: None,
             devices: vec![B::Device::default()],
@@ -93,16 +64,6 @@ where
                 experiment_log_file,
             ))),
             num_loggers: 0,
-            checkpointer_strategy: Box::new(
-                ComposedCheckpointingStrategy::builder()
-                    .add(KeepLastNCheckpoints::new(2))
-                    .add(MetricCheckpointingStrategy::new::<LossMetric<B>>(
-                        Aggregate::Mean,
-                        Direction::Lowest,
-                        Split::Valid,
-                    ))
-                    .build(),
-            ),
             early_stopping: None,
             summary_metrics: HashSet::new(),
             summary: false,
@@ -123,15 +84,6 @@ where
         self.event_store.register_logger_train(logger_train);
         self.event_store.register_logger_valid(logger_valid);
         self.num_loggers += 1;
-        self
-    }
-
-    /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy<CS>(mut self, strategy: CS) -> Self
-    where
-        CS: CheckpointingStrategy + 'static,
-    {
-        self.checkpointer_strategy = Box::new(strategy);
         self
     }
 
@@ -184,7 +136,7 @@ where
     /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
-        Me: Metric + crate::metric::Numeric + 'static,
+        Me: Metric + crate::metric_test::Numeric + 'static,
         T: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(Me::NAME.to_string());
@@ -193,7 +145,7 @@ where
     }
 
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
-    pub fn metric_valid_numeric<Me: Metric + crate::metric::Numeric + 'static>(
+    pub fn metric_valid_numeric<Me: Metric + crate::metric_test::Numeric + 'static>(
         mut self,
         metric: Me,
     ) -> Self
@@ -214,12 +166,6 @@ where
     /// Run the training loop on multiple devices.
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;
-        self
-    }
-
-    /// The epoch from which the training must resume.
-    pub fn checkpoint(mut self, checkpoint: usize) -> Self {
-        self.checkpoint = Some(checkpoint);
         self
     }
 
@@ -249,32 +195,6 @@ where
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](Optimizer), the
-    /// [model](AutodiffModule) and the [scheduler](LrScheduler) to different files.
-    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
-    where
-        FR: FileRecorder<B> + 'static,
-        FR: FileRecorder<B::InnerBackend> + 'static,
-        O::Record: 'static,
-        M::Record: 'static,
-        S::Record<B>: 'static,
-    {
-        let checkpoint_dir = self.directory.join("checkpoint");
-        let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
-        let checkpointer_optimizer =
-            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
-        let checkpointer_scheduler: FileCheckpointer<FR> =
-            FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
-
-        self.checkpointers = Some((
-            AsyncCheckpointer::new(checkpointer_model),
-            AsyncCheckpointer::new(checkpointer_optimizer),
-            AsyncCheckpointer::new(checkpointer_scheduler),
-        ));
-
-        self
-    }
-
     /// Enable the training summary report.
     ///
     /// The summary will be displayed at the end of `.fit()`.
@@ -288,28 +208,13 @@ where
     /// [learning rate](burn_core::LearningRate).
     #[allow(clippy::type_complexity)] // The goal for the builder is to handle all types and
                                       // creates a clean learner.
-    pub fn build(
+    pub fn build<M>(
         mut self,
         model: M,
-        optim: O,
-        lr_scheduler: S,
-    ) -> Learner<
-        LearnerComponentsMarker<
-            B,
-            S,
-            M,
-            O,
-            AsyncCheckpointer<M::Record, B>,
-            AsyncCheckpointer<O::Record, B>,
-            AsyncCheckpointer<S::Record<B>, B>,
-            FullEventProcessor<T, V>,
-            Box<dyn CheckpointingStrategy>,
-        >,
-    >
+    ) -> Learner<LearnerComponentsMarker<B, M, FullEventProcessor<T, V>>>
     where
         M::Record: 'static,
-        O::Record: 'static,
-        S::Record<B>: 'static,
+        M: AutodiffModule<B> + core::fmt::Display + 'static,
     {
         if self.tracing_logger.is_some() {
             if let Err(e) = self.tracing_logger.as_ref().unwrap().install() {
@@ -318,7 +223,7 @@ where
         }
         let renderer = self
             .renderer
-            .unwrap_or_else(|| default_renderer(self.interrupter.clone(), self.checkpoint));
+            .unwrap_or_else(|| default_renderer(self.interrupter.clone()));
 
         if self.num_loggers == 0 {
             self.event_store
@@ -329,10 +234,6 @@ where
 
         let event_store = Rc::new(EventStoreClient::new(self.event_store));
         let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
-
-        let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
-            LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
-        });
 
         let summary = if self.summary {
             Some(LearnerSummaryConfig {
@@ -345,13 +246,9 @@ where
 
         Learner {
             model,
-            optim,
-            lr_scheduler,
-            checkpointer,
             num_epochs: self.num_epochs,
             event_processor,
             event_store,
-            checkpoint: self.checkpoint,
             grad_accumulation: self.grad_accumulation,
             devices: self.devices,
             interrupter: self.interrupter,

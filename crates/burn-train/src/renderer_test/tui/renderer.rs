@@ -1,6 +1,6 @@
 use crate::renderer_test::{tui::NumericMetricsState, MetricsRenderer};
 use crate::renderer_test::{MetricState, TrainingProgress};
-use crate::TrainingInterrupter;
+use crate::tester::TrainingInterrupter;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -85,7 +85,7 @@ impl MetricsRenderer for TuiMetricsRenderer {
 
 impl TuiMetricsRenderer {
     /// Create a new terminal UI renderer.
-    pub fn new(interuptor: TrainingInterrupter, checkpoint: Option<usize>) -> Self {
+    pub fn new(interuptor: TrainingInterrupter) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -106,7 +106,8 @@ impl TuiMetricsRenderer {
         Self {
             terminal,
             last_update: Instant::now(),
-            progress: ProgressBarState::new(checkpoint),
+            // TODO tmp passing None here is correct?
+            progress: ProgressBarState::new(None),
             metrics_numeric: NumericMetricsState::default(),
             metrics_text: TextMetricsState::default(),
             status: StatusState::default(),

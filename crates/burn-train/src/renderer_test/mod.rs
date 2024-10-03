@@ -8,7 +8,7 @@ mod cli;
 
 #[cfg(feature = "tui")]
 mod tui;
-use crate::TrainingInterrupter;
+use crate::tester::TrainingInterrupter;
 
 /// Return the default metrics renderer.
 ///
@@ -20,11 +20,10 @@ use crate::TrainingInterrupter;
 #[allow(unused_variables)]
 pub(crate) fn default_renderer(
     interuptor: TrainingInterrupter,
-    checkpoint: Option<usize>,
 ) -> Box<dyn MetricsRenderer> {
     #[cfg(feature = "tui")]
     if std::io::stdout().is_terminal() {
-        return Box::new(tui::TuiMetricsRenderer::new(interuptor, checkpoint));
+        return Box::new(tui::TuiMetricsRenderer::new(interuptor));
     }
 
     Box::new(cli::CliMetricsRenderer::new())
