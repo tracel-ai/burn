@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
 /// Multi devices train step.
-pub struct MultiDevicesTrainStep<B: AutodiffBackend, M, TI, TO> {
+pub struct MultiDevicesTestStep<B: AutodiffBackend, M, TI, TO> {
     workers: Vec<Worker<B, M, TI>>,
     receiver: Receiver<TrainOutput<TO>>,
 }
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<B, M, TI, TO> MultiDevicesTrainStep<B, M, TI, TO>
+impl<B, M, TI, TO> MultiDevicesTestStep<B, M, TI, TO>
 where
     B: AutodiffBackend,
     M: AutodiffModule<B> + TrainStep<TI, TO> + Send + Clone + 'static,

@@ -1,4 +1,4 @@
-use super::Learner;
+use super::Tester;
 use crate::components_test::LearnerComponents;
 use crate::metric_test::processor::{Event, EventProcessor, LearnerItem};
 use burn_core::data::dataloader::{DataLoader, Progress};
@@ -8,7 +8,7 @@ use burn_core::tensor::backend::AutodiffBackend;
 use std::sync::Arc;
 
 /// A training output.
-pub struct TrainOutput<TO> {
+pub struct TestOutput<TO> {
     /// The gradients.
     pub grads: GradientsParams,
 
@@ -16,7 +16,7 @@ pub struct TrainOutput<TO> {
     pub item: TO,
 }
 
-impl<TO> TrainOutput<TO> {
+impl<TO> TestOutput<TO> {
     /// Creates a new training output.
     ///
     /// # Arguments
@@ -51,7 +51,7 @@ impl<TO> TrainOutput<TO> {
 /// To be used with the [Learner](Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
+pub trait TestStep<TI, TO> {
     /// Runs the training step, which executes the forward and backward passes.
     ///
     /// # Arguments
@@ -61,7 +61,7 @@ pub trait TrainStep<TI, TO> {
     /// # Returns
     ///
     /// The training output containing the model output and the gradients.
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+    fn step(&self, item: TI) -> TestOutput<TO>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
@@ -83,7 +83,7 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
-impl<LC: LearnerComponents> Learner<LC> {
+impl<LC: LearnerComponents> Tester<LC> {
     /// Tests the model.
     ///
     /// # Arguments
@@ -100,7 +100,7 @@ impl<LC: LearnerComponents> Learner<LC> {
     where
         InputTrain: Send + 'static,
         OutputTrain: Send + 'static,
-        LC::Model: TrainStep<InputTrain, OutputTrain>,
+        LC::Model: TestStep<InputTrain, OutputTrain>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain>,
     {
         log::info!("Executing testing");

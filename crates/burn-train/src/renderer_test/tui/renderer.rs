@@ -1,6 +1,6 @@
 use crate::renderer_test::{tui::NumericMetricsState, MetricsRenderer};
 use crate::renderer_test::{MetricState, TrainingProgress};
-use crate::tester::TrainingInterrupter;
+use crate::tester::TestingInterrupter;
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -38,7 +38,7 @@ pub struct TuiMetricsRenderer {
     metrics_numeric: NumericMetricsState,
     metrics_text: TextMetricsState,
     status: StatusState,
-    interuptor: TrainingInterrupter,
+    interuptor: TestingInterrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
 }
@@ -85,7 +85,7 @@ impl MetricsRenderer for TuiMetricsRenderer {
 
 impl TuiMetricsRenderer {
     /// Create a new terminal UI renderer.
-    pub fn new(interuptor: TrainingInterrupter) -> Self {
+    pub fn new(interuptor: TestingInterrupter) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -200,7 +200,7 @@ impl TuiMetricsRenderer {
     }
 }
 
-struct QuitPopupAccept(TrainingInterrupter);
+struct QuitPopupAccept(TestingInterrupter);
 struct KillPopupAccept;
 struct PopupCancel;
 

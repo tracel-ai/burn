@@ -5,17 +5,17 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, Layer};
 
 /// This trait is used to install an application logger.
-pub trait ApplicationLoggerInstaller {
+pub trait ApplicationTesterLoggerInstaller {
     /// Install the application logger.
     fn install(&self) -> Result<(), String>;
 }
 
 /// This struct is used to install a local file application logger to output logs to a given file path.
-pub struct FileApplicationLoggerInstaller {
+pub struct FileApplicationTesterLoggerInstaller {
     path: PathBuf,
 }
 
-impl FileApplicationLoggerInstaller {
+impl FileApplicationTesterLoggerInstaller {
     /// Create a new file application logger.
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
@@ -24,7 +24,7 @@ impl FileApplicationLoggerInstaller {
     }
 }
 
-impl ApplicationLoggerInstaller for FileApplicationLoggerInstaller {
+impl ApplicationTesterLoggerInstaller for FileApplicationTesterLoggerInstaller {
     fn install(&self) -> Result<(), String> {
         let path = Path::new(&self.path);
         let writer = tracing_appender::rolling::never(

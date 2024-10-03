@@ -27,6 +27,7 @@ mod learner;
 mod tester;
 
 pub use learner::*;
+pub use tester::*;
 
 #[cfg(test)]
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;

@@ -4,7 +4,7 @@ use burn_core::tensor::Tensor;
 
 /// Simple regression output adapted for multiple metrics.
 #[derive(new)]
-pub struct RegressionOutput<B: Backend> {
+pub struct TesterRegressionOutput<B: Backend> {
     /// The loss.
     pub loss: Tensor<B, 1>,
 
@@ -15,7 +15,7 @@ pub struct RegressionOutput<B: Backend> {
     pub targets: Tensor<B, 2>,
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {
+impl<B: Backend> Adaptor<LossInput<B>> for TesterRegressionOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
     }

@@ -2,20 +2,22 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use super::Learner;
+use super::Tester;
 use crate::components_test::LearnerComponentsMarker;
 use crate::logger_test::{FileMetricLogger, MetricLogger};
 use crate::metric_test::processor::{FullEventProcessor, Metrics};
 use crate::metric_test::store::{EventStoreClient, LogEventStore};
 use crate::metric_test::{Adaptor, Metric};
 use crate::renderer_test::{default_renderer, MetricsRenderer};
-use crate::tester::base::TrainingInterrupter;
-use crate::{ApplicationLoggerInstaller, FileApplicationLoggerInstaller, LearnerSummaryConfig};
+use crate::tester::base::TestingInterrupter;
+use crate::{
+    ApplicationTesterLoggerInstaller, FileApplicationTesterLoggerInstaller, TesterSummaryConfig,
+};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 
 /// Struct to configure and create a [learner](Learner).
-pub struct LearnerBuilder<B, T>
+pub struct TesterBuilder<B, T>
 where
     T: Send + 'static,
     B: AutodiffBackend,
@@ -25,14 +27,14 @@ where
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: Metrics<T>,
     event_store: LogEventStore,
-    interrupter: TrainingInterrupter,
-    tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+    interrupter: TestingInterrupter,
+    tracing_logger: Option<Box<dyn ApplicationTesterLoggerInstaller>>,
     num_loggers: usize,
     summary_metrics: HashSet<String>,
     summary: bool,
 }
 
-impl<B, T> LearnerBuilder<B, T>
+impl<B, T> TesterBuilder<B, T>
 where
     B: AutodiffBackend,
     T: Send + 'static,
@@ -51,8 +53,8 @@ where
             metrics: Metrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
-            interrupter: TrainingInterrupter::new(),
-            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
+            interrupter: TestingInterrupter::new(),
+            tracing_logger: Some(Box::new(FileApplicationTesterLoggerInstaller::new(
                 experiment_log_file,
             ))),
             num_loggers: 0,
@@ -116,7 +118,7 @@ where
     }
 
     /// Provides a handle that can be used to interrupt training.
-    pub fn interrupter(&self) -> TrainingInterrupter {
+    pub fn interrupter(&self) -> TestingInterrupter {
         self.interrupter.clone()
     }
 
@@ -125,7 +127,7 @@ where
     /// will apply.
     pub fn with_application_logger(
         mut self,
-        logger: Option<Box<dyn ApplicationLoggerInstaller>>,
+        logger: Option<Box<dyn ApplicationTesterLoggerInstaller>>,
     ) -> Self {
         self.tracing_logger = logger;
         self
@@ -147,7 +149,7 @@ where
     pub fn build<M>(
         mut self,
         model: M,
-    ) -> Learner<LearnerComponentsMarker<B, M, FullEventProcessor<T>>>
+    ) -> Tester<LearnerComponentsMarker<B, M, FullEventProcessor<T>>>
     where
         M::Record: 'static,
         M: AutodiffModule<B> + core::fmt::Display + 'static,
@@ -170,7 +172,7 @@ where
         let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
 
         let summary = if self.summary {
-            Some(LearnerSummaryConfig {
+            Some(TesterSummaryConfig {
                 directory: self.directory,
                 metrics: self.summary_metrics.into_iter().collect::<Vec<_>>(),
             })
@@ -178,7 +180,7 @@ where
             None
         };
 
-        Learner {
+        Tester {
             model,
             event_processor,
             event_store,

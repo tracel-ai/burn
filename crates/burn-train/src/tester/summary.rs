@@ -58,7 +58,7 @@ pub struct SummaryMetrics {
 }
 
 /// Detailed training summary.
-pub struct LearnerSummary {
+pub struct TesterSummary {
     /// The number of epochs completed.
     pub epochs: usize,
     /// The summary of recorded metrics during training.
@@ -67,7 +67,7 @@ pub struct LearnerSummary {
     pub(crate) model: Option<String>,
 }
 
-impl LearnerSummary {
+impl TesterSummary {
     /// Creates a new learner summary for the specified metrics.
     ///
     /// # Arguments
@@ -121,7 +121,7 @@ impl LearnerSummary {
     }
 }
 
-impl Display for LearnerSummary {
+impl Display for TesterSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Compute the max length for each column
         let split_train = "Train";
@@ -215,14 +215,14 @@ impl Display for LearnerSummary {
     }
 }
 
-pub(crate) struct LearnerSummaryConfig {
+pub(crate) struct TesterSummaryConfig {
     pub(crate) directory: PathBuf,
     pub(crate) metrics: Vec<String>,
 }
 
-impl LearnerSummaryConfig {
-    pub fn init(&self) -> Result<LearnerSummary, String> {
-        LearnerSummary::new(&self.directory, &self.metrics[..])
+impl TesterSummaryConfig {
+    pub fn init(&self) -> Result<TesterSummary, String> {
+        TesterSummary::new(&self.directory, &self.metrics[..])
     }
 }
 
@@ -234,7 +234,7 @@ mod tests {
     #[should_panic = "Summary artifacts should exist"]
     fn test_artifact_dir_should_exist() {
         let dir = "/tmp/learner-summary-not-found";
-        let _summary = LearnerSummary::new(dir, &["Loss"]).expect("Summary artifacts should exist");
+        let _summary = TesterSummary::new(dir, &["Loss"]).expect("Summary artifacts should exist");
     }
 
     #[test]
@@ -242,7 +242,7 @@ mod tests {
         let dir = Path::new("/tmp/test-learner-summary-empty-metrics");
         std::fs::create_dir_all(dir).unwrap();
         std::fs::create_dir_all(dir.join("train/epoch-1")).unwrap();
-        let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
+        let summary = TesterSummary::new(dir.to_str().unwrap(), &["Loss"])
             .expect("Summary artifacts should exist");
 
         assert_eq!(summary.epochs, 1);
@@ -261,7 +261,7 @@ mod tests {
 
         std::fs::write(train_dir.join("Loss.log"), "1.0\n2.0").expect("Unable to write file");
 
-        let summary = LearnerSummary::new(dir.to_str().unwrap(), &["Loss"])
+        let summary = TesterSummary::new(dir.to_str().unwrap(), &["Loss"])
             .expect("Summary artifacts should exist");
 
         assert_eq!(summary.epochs, 1);

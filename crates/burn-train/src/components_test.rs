@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 pub trait LearnerComponents {
     /// The backend in used for the training.
     type Backend: AutodiffBackend;
-    /// The model to train.
+    /// The model to test.
     type Model: AutodiffModule<Self::Backend> + core::fmt::Display + 'static;
 
     type EventProcessor: EventProcessor + 'static;
