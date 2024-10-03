@@ -11,7 +11,6 @@ use std::sync::Arc;
 /// To create a learner, use the [builder](crate::learner::LearnerBuilder) struct.
 pub struct Learner<LC: LearnerComponents> {
     pub(crate) model: LC::Model,
-    pub(crate) grad_accumulation: Option<usize>,
     pub(crate) devices: Vec<<LC::Backend as Backend>::Device>,
     pub(crate) interrupter: TrainingInterrupter,
     pub(crate) event_processor: LC::EventProcessor,
