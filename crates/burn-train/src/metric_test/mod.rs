@@ -10,7 +10,7 @@ mod cpu_use;
 #[cfg(feature = "metrics")]
 mod cuda;
 mod hamming;
-mod learning_rate;
+
 mod loss;
 #[cfg(feature = "metrics")]
 mod memory_use;
@@ -27,7 +27,6 @@ pub use cpu_use::*;
 #[cfg(feature = "metrics")]
 pub use cuda::*;
 pub use hamming::*;
-pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
 pub use memory_use::*;
