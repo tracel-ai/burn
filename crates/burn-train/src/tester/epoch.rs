@@ -5,7 +5,7 @@ use burn_core::{
 use std::sync::Arc;
 
 use crate::metric_test::processor::{Event, EventProcessor, LearnerItem};
-use crate::{components::LearnerComponents, tester::base::TrainingInterrupter};
+use crate::{components_test::LearnerComponents, tester::base::TrainingInterrupter};
 use crate::{MultiDevicesTrainStep, TrainStep, ValidStep};
 
 /// A validation epoch.

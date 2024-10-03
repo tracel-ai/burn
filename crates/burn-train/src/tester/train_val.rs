@@ -1,5 +1,5 @@
 use super::Learner;
-use crate::components::LearnerComponents;
+use crate::components_test::LearnerComponents;
 use crate::metric_test::processor::{Event, EventProcessor, LearnerItem};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;

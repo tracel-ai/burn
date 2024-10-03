@@ -7,9 +7,9 @@ use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::LearnerComponentsMarker;
 use crate::tester::base::TrainingInterrupter;
 use crate::tester::EarlyStoppingStrategy;
+use crate::components_test::LearnerComponentsMarker;
 use crate::logger_test::{FileMetricLogger, MetricLogger};
 use crate::metric_test::processor::{FullEventProcessor, Metrics};
 use crate::metric_test::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
