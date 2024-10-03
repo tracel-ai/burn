@@ -39,7 +39,9 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
                 let update = self.metrics.update_train(&item, &metadata);
 
                 self.store
-                    .add_event_train(crate::metric_test::store::Event::MetricsUpdate(update.clone()));
+                    .add_event_train(crate::metric_test::store::Event::MetricsUpdate(
+                        update.clone(),
+                    ));
 
                 update
                     .entries
@@ -73,7 +75,9 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
                 let update = self.metrics.update_valid(&item, &metadata);
 
                 self.store
-                    .add_event_valid(crate::metric_test::store::Event::MetricsUpdate(update.clone()));
+                    .add_event_valid(crate::metric_test::store::Event::MetricsUpdate(
+                        update.clone(),
+                    ));
 
                 update
                     .entries
