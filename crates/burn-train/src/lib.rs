@@ -18,6 +18,7 @@ pub mod logger;
 
 /// The metric module.
 pub mod metric;
+pub mod metric_test;
 
 mod learner;
 
