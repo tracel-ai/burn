@@ -1,6 +1,6 @@
 use burn_core::data::dataloader::Progress;
 
-use crate::metric::MetricEntry;
+use crate::metric_test::MetricEntry;
 
 /// Trait for rendering metrics.
 pub trait MetricsRenderer: Send + Sync {

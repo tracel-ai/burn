@@ -1,5 +1,5 @@
 use super::TerminalFrame;
-use crate::metric::MetricEntry;
+use crate::metric_test::MetricEntry;
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},

@@ -1,6 +1,6 @@
 use super::{Event, EventProcessor, Metrics};
 use crate::metric_test::store::EventStoreClient;
-use crate::renderer::{MetricState, MetricsRenderer};
+use crate::renderer_test::{MetricState, MetricsRenderer};
 use std::rc::Rc;
 
 /// An [event processor](EventProcessor) that handles:
