@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricEntry, MetricMetadata};
-use crate::metric::{Metric, Numeric};
+use crate::metric_test::{Metric, Numeric};
 use burn_core::tensor::{activation::sigmoid, backend::Backend, ElementConversion, Int, Tensor};
 
 /// The hamming score, sometimes referred to as multi-label or label-based accuracy.

@@ -1,5 +1,5 @@
 use super::{Adaptor, MetricMetadata};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric_test::{Metric, MetricEntry};
 use nvml_wrapper::Nvml;
 
 /// Track basic cuda infos.

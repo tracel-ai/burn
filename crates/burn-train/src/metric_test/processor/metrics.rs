@@ -1,6 +1,6 @@
 use super::LearnerItem;
 use crate::{
-    metric::{store::MetricsUpdate, Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
+    metric_test::{store::MetricsUpdate, Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
     renderer::TrainingProgress,
 };
 

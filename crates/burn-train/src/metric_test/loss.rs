@@ -2,7 +2,7 @@ use super::state::FormatOptions;
 use super::state::NumericMetricState;
 use super::MetricEntry;
 use super::MetricMetadata;
-use crate::metric::{Metric, Numeric};
+use crate::metric_test::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Tensor;
 

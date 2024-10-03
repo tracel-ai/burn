@@ -1,5 +1,5 @@
 use super::{Event, EventProcessor, Metrics};
-use crate::metric::store::EventStoreClient;
+use crate::metric_test::store::EventStoreClient;
 use crate::renderer::{MetricState, MetricsRenderer};
 use std::rc::Rc;
 
@@ -39,7 +39,7 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
                 let update = self.metrics.update_train(&item, &metadata);
 
                 self.store
-                    .add_event_train(crate::metric::store::Event::MetricsUpdate(update.clone()));
+                    .add_event_train(crate::metric_test::store::Event::MetricsUpdate(update.clone()));
 
                 update
                     .entries
@@ -59,7 +59,7 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
             Event::EndEpoch(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
-                    .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_train(crate::metric_test::store::Event::EndEpoch(epoch));
             }
         }
     }
@@ -73,7 +73,7 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
                 let update = self.metrics.update_valid(&item, &metadata);
 
                 self.store
-                    .add_event_valid(crate::metric::store::Event::MetricsUpdate(update.clone()));
+                    .add_event_valid(crate::metric_test::store::Event::MetricsUpdate(update.clone()));
 
                 update
                     .entries
@@ -93,7 +93,7 @@ impl<T, V> EventProcessor for FullEventProcessor<T, V> {
             Event::EndEpoch(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
-                    .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_valid(crate::metric_test::store::Event::EndEpoch(epoch));
             }
         }
     }

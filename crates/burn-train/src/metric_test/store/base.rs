@@ -1,4 +1,4 @@
-use crate::metric::MetricEntry;
+use crate::metric_test::MetricEntry;
 
 /// Event happening during the training/validation process.
 pub enum Event {

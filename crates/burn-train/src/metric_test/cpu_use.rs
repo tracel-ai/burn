@@ -1,5 +1,5 @@
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric_test::{Metric, MetricEntry};
 use std::time::{Duration, Instant};
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 

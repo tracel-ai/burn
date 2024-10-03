@@ -1,6 +1,6 @@
 /// CPU Temperature metric
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric_test::{Metric, MetricEntry};
 use systemstat::{Platform, System};
 
 /// CPU Temperature in celsius degrees

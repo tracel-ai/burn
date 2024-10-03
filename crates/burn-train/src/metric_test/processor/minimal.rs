@@ -1,5 +1,5 @@
 use super::{Event, EventProcessor, Metrics};
-use crate::metric::store::EventStoreClient;
+use crate::metric_test::store::EventStoreClient;
 use std::rc::Rc;
 
 /// An [event processor](EventProcessor) that handles:
@@ -22,12 +22,12 @@ impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
                 let update = self.metrics.update_train(&item, &metadata);
 
                 self.store
-                    .add_event_train(crate::metric::store::Event::MetricsUpdate(update));
+                    .add_event_train(crate::metric_test::store::Event::MetricsUpdate(update));
             }
             Event::EndEpoch(epoch) => {
                 self.metrics.end_epoch_train();
                 self.store
-                    .add_event_train(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_train(crate::metric_test::store::Event::EndEpoch(epoch));
             }
         }
     }
@@ -40,12 +40,12 @@ impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
                 let update = self.metrics.update_valid(&item, &metadata);
 
                 self.store
-                    .add_event_valid(crate::metric::store::Event::MetricsUpdate(update));
+                    .add_event_valid(crate::metric_test::store::Event::MetricsUpdate(update));
             }
             Event::EndEpoch(epoch) => {
                 self.metrics.end_epoch_valid();
                 self.store
-                    .add_event_valid(crate::metric::store::Event::EndEpoch(epoch));
+                    .add_event_valid(crate::metric_test::store::Event::EndEpoch(epoch));
             }
         }
     }

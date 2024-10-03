@@ -2,7 +2,7 @@ use super::{
     state::{FormatOptions, NumericMetricState},
     MetricMetadata, Numeric,
 };
-use crate::metric::{Metric, MetricEntry};
+use crate::metric_test::{Metric, MetricEntry};
 
 /// Track the learning rate across iterations.
 pub struct LearningRateMetric {

@@ -1,6 +1,6 @@
 /// RAM use metric
 use super::{MetricMetadata, Numeric};
-use crate::metric::{Metric, MetricEntry};
+use crate::metric_test::{Metric, MetricEntry};
 use std::time::{Duration, Instant};
 use sysinfo::System;
 
