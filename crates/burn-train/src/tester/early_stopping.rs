@@ -116,8 +116,8 @@ mod tests {
     use std::rc::Rc;
 
     use crate::{
-        logger::InMemoryMetricLogger,
-        metric::{
+        logger_test::InMemoryMetricLogger,
+        metric_test::{
             processor::{
                 test_utils::{end_epoch, process_train},
                 Metrics, MinimalEventProcessor,

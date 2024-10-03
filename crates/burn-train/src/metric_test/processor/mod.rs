@@ -12,7 +12,7 @@ pub(crate) use minimal::*;
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use crate::metric::{
+    use crate::metric_test::{
         processor::{Event, EventProcessor, LearnerItem, MinimalEventProcessor},
         Adaptor, LossInput,
     };
