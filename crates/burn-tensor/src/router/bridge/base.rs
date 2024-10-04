@@ -1,17 +1,32 @@
-use burn_common::stream::StreamId;
-
 use crate::{
     backend::{Backend, DeviceOps},
     repr::{OperationDescription, ReprBackend, TensorDescription},
-    router::{RouterTensor, Runner, RunnerChannel, RunnerClient},
-    DType, TensorData,
+    router::{RouterTensor, Runner, RunnerClient},
+    DType, Shape, TensorData,
 };
 
+// pub trait IntoDescription {
+//     fn into_description(self) -> TensorDescription;
+// }
+
 pub trait MultiBackendBridge: Send + Sync + 'static {
-    type TensorType;
+    // for now, but we might just change `to_backend` to return a TensorDescription instead
+    // and since quantized tensor actually have a diff description, we might need to have backend switches
+    // for all primitive types
+    type TensorType; //: IntoDescription; NOTE: rename TensorHandle?
     type Device;
+
     /// Move `tensor` to the target backend specified `device`.
-    fn to_backend(tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType;
+    // fn to_backend<B: ReprBackend>(
+    //     tensor: Self::TensorType,
+    //     device: &Self::Device,
+    // ) -> Self::TensorType;
+
+    fn change_backend_float(
+        tensor: Self::TensorType,
+        shape: Shape,
+        device: &Self::Device,
+    ) -> Self::TensorType;
 }
 
 // TODO: generate this for different number of backends (up to 4?)
@@ -22,6 +37,12 @@ pub enum Handle2<B1: Backend, B2: Backend> {
     FloatHandle2(B2::FloatTensorPrimitive),
     IntHandle1(B1::IntTensorPrimitive),
     IntHandle2(B2::IntTensorPrimitive),
+}
+
+/// [`MultiBackendBridge`] handle type for two backends.
+pub enum TensorHandle2<B1: ReprBackend, B2: ReprBackend> {
+    Handle1(B1::Handle),
+    Handle2(B2::Handle),
 }
 
 /// [`MultiBackendBridge`] device type for two backends.
@@ -58,13 +79,7 @@ impl<B1: Backend, B2: Backend> DeviceOps for MultiDevice2<B1, B2> {
     }
 }
 
-/// Trait to implement to distinguish between devices.
-pub trait IntoMultiDevice2<B1: Backend, B2: Backend> {
-    fn from_device1(device: B1::Device) -> MultiDevice2<B1, B2>;
-    fn from_device2(device: B2::Device) -> MultiDevice2<B1, B2>;
-}
-
-/// [`MultiBackendBridge`] client for two backends.
+/// Local [`RunnerClient`] with two backends.
 #[derive(Clone)]
 pub enum MultiRunnerClient2<B1: ReprBackend, B2: ReprBackend> {
     RunnerClient1(Runner<B1>),
@@ -72,6 +87,8 @@ pub enum MultiRunnerClient2<B1: ReprBackend, B2: ReprBackend> {
 }
 
 impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B2> {
+    type Device = MultiDevice2<B1, B2>;
+
     fn register(&self, op: OperationDescription) {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => runner.register(op),
@@ -80,14 +97,69 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
     }
 
     async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
-        todo!()
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => runner.read_tensor(tensor).await,
+            MultiRunnerClient2::RunnerClient2(runner) => runner.read_tensor(tensor).await,
+        }
     }
 
     fn write_tensor(&self, data: TensorData) -> TensorDescription {
-        todo!()
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => runner.write_tensor(data),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.write_tensor(data),
+        }
     }
 
-    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
-        todo!()
+    fn register_new_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => {
+                let tensor = runner.register_new_tensor(shape, dtype);
+                RouterTensor {
+                    desc: tensor.desc,
+                    client: MultiRunnerClient2::RunnerClient1(tensor.client),
+                }
+            }
+            MultiRunnerClient2::RunnerClient2(runner) => {
+                let tensor = runner.register_new_tensor(shape, dtype);
+                RouterTensor {
+                    desc: tensor.desc,
+                    client: MultiRunnerClient2::RunnerClient2(tensor.client),
+                }
+            }
+        }
+    }
+
+    fn device(&self) -> Self::Device {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => {
+                MultiDevice2::Device1(runner.device().clone())
+            }
+            MultiRunnerClient2::RunnerClient2(runner) => {
+                MultiDevice2::Device2(runner.device().clone())
+            }
+        }
     }
 }
+
+// NOTE: conflicting implementations because B1 and B2 cannot be differentiated (could be the same type)
+// impl<B1: ReprBackend, B2: ReprBackend> From<RouterTensor<Runner<B1>>>
+//     for RouterTensor<MultiRunnerClient2<B1, B2>>
+// {
+//     fn from(value: RouterTensor<Runner<B1>>) -> Self {
+//         RouterTensor {
+//             desc: value.desc,
+//             client: MultiRunnerClient2::RunnerClient1(value.client),
+//         }
+//     }
+// }
+
+// impl<B1: ReprBackend, B2: ReprBackend> From<RouterTensor<Runner<B2>>>
+//     for RouterTensor<MultiRunnerClient2<B1, B2>>
+// {
+//     fn from(value: RouterTensor<Runner<B2>>) -> Self {
+//         RouterTensor {
+//             desc: value.desc,
+//             client: MultiRunnerClient2::RunnerClient2(value.client),
+//         }
+//     }
+// }

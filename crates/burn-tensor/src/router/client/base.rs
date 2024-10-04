@@ -5,9 +5,9 @@ use burn_common::stream::StreamId;
 use spin::Mutex;
 
 use crate::{
-    backend::{DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps},
     repr::{OperationDescription, TensorDescription},
-    router::{RouterTensor, RunnerChannel},
+    router::{MultiBackendBridge, RouterTensor, RunnerChannel},
     DType, TensorData,
 };
 
@@ -18,12 +18,19 @@ type Key = (core::any::TypeId, DeviceId);
 
 /// Define how to interact with the runner server.
 pub trait RunnerClient: Clone + Send + Sync + Sized {
+    type Device: DeviceOps;
+    // type Bridge: MultiBackendBridge<Device = Self::Device>;
+
     /// Register a new tensor operation to be executed by the (runner) server.
     fn register(&self, op: OperationDescription);
     /// Read the values contained by a tensor.
     fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send;
     fn write_tensor(&self, data: TensorData) -> TensorDescription;
-    fn empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
+    fn register_new_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
+    /// Get the current device used by all operations handled by this client.
+    fn device(&self) -> Self::Device;
+
+    // fn register_tensor
 }
 
 pub(crate) struct RunnerClientLocator {

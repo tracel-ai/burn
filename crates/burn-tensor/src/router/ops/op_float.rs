@@ -2,7 +2,10 @@ use burn_common::stream::StreamId;
 
 use crate::ops::FloatTensorOps;
 use crate::ops::{BoolTensor, FloatElem, FloatTensor, IntTensor};
-use crate::repr::{FloatOperationDescription, OperationDescription, RandomOperationDescription};
+use crate::repr::{
+    BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
+    NumericOperationDescription, OperationDescription, RandomOperationDescription,
+};
 use crate::router::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
 use crate::{Device, Distribution, Element, Shape, TensorData};
 use std::ops::Range;
@@ -29,7 +32,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = get_client::<R>(device);
         // let stream = StreamId::current();
         let dtype = FloatElem::<Self>::dtype();
-        let out = client.empty_tensor(shape.dims.to_vec(), dtype);
+        let out = client.register_new_tensor(shape.dims.to_vec(), dtype);
 
         client.register(OperationDescription::Float(
             dtype,
@@ -59,7 +62,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
-        todo!()
+        Shape::from(tensor.desc.shape.clone())
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
@@ -67,12 +70,20 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     fn float_device(tensor: &FloatTensor<Self>) -> Device<Self> {
-        todo!()
+        tensor.client.device()
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
-        todo!()
-        // TODO: check if tensor device runner == device runner -> use backend bridge to switch device
+        if &tensor.client.device() == device {
+            return tensor;
+        }
+
+        //
+        // TODO: rework change_backend
+        // Expected associated type <<R as RunnerChannel>::Bridge as MultiBackendBridge>::TensorType
+        // got RouterTensor<RouterTensor<<R as RunnerChannel>::Client>>
+        // --> need to go from RouterTensor to TensorType
+        R::change_backend(tensor, device)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
@@ -84,7 +95,22 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        todo!()
+        let client = lhs.client;
+        let dtype = lhs.desc.dtype;
+        let out = client.register_new_tensor(lhs.desc.shape.clone(), dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.desc,
+            rhs: rhs.desc,
+            out: out.desc.clone(),
+        };
+
+        client.register(OperationDescription::NumericFloat(
+            dtype,
+            NumericOperationDescription::Add(desc),
+        ));
+
+        out
     }
 
     fn float_add_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {

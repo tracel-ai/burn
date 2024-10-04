@@ -69,7 +69,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the tensor handle for the given [tensor description](TensorDescription).
-    fn get_tensor_handle(&mut self, tensor: &TensorDescription) -> TensorHandle<H> {
+    pub fn get_tensor_handle(&mut self, tensor: &TensorDescription) -> TensorHandle<H> {
         TensorHandle {
             handle: self.get_handle(&tensor.id, &tensor.status),
             shape: Shape::from(&tensor.shape),

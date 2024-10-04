@@ -1,10 +1,7 @@
-// use burn_common::stream::StreamId;
-
 use super::RunnerClient;
 use crate::{repr::TensorDescription, TensorData};
 
 // #[derive(Clone, Debug)]
-// pub struct RouterTensor<R: MultiBackendRuntime> {
 pub struct RouterTensor<C: RunnerClient> {
     pub(crate) desc: TensorDescription,
     pub(crate) client: C,
@@ -23,6 +20,16 @@ impl<C: RunnerClient> RouterTensor<C> {
     pub fn to_description(&self) -> TensorDescription {
         self.desc.clone()
     }
+
+    // TODO: should hold same fields as TensorDescription but hold Arc<TensorId>
+    // for refcount
+    //     pub(crate) fn status(&self) -> TensorStatus {
+    //         if Arc::strong_count(&self.desc.id) <= 1 {
+    //             TensorStatus::ReadWrite
+    //         } else {
+    //             TensorStatus::ReadOnly
+    //         }
+    //     }
 }
 
 impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
@@ -36,7 +43,6 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
         Self {
             desc: self.desc.clone(),
             client: self.client.clone(),
-            // stream: self.stream,
         }
     }
 }
