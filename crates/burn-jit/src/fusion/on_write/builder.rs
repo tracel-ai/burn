@@ -23,12 +23,14 @@ pub(crate) struct FuseOnWriteBuilder {
 }
 
 impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
-    fn register(&mut self, ops: &OperationDescription) {
+    fn register(&mut self, op: &OperationDescription) {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
 
-        match ops {
+        println!("===\n{op:?}\n");
+
+        match op {
             OperationDescription::BaseFloat(ops) => {
                 if !self.register_base(ops) {
                     self.status = OptimizationStatus::Closed;
@@ -80,7 +82,9 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn reset(&mut self) {
         self.num_added = 0;
         self.status = OptimizationStatus::Open;
+        self.builder.clear();
         self.current_output_shape.clear();
+        println!("Clear new")
     }
 
     fn status(&self) -> OptimizationStatus {
@@ -156,8 +160,8 @@ impl FuseOnWriteBuilder {
         }
     }
 
-    fn register_numeric<E: Element>(&mut self, ops: &NumericOperationDescription<E>) -> bool {
-        match ops {
+    fn register_numeric<E: Element>(&mut self, op: &NumericOperationDescription<E>) -> bool {
+        match op {
             NumericOperationDescription::Add(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
                     ElemwiseOp::Add(BinaryElemwiseOp { lhs, rhs, out })

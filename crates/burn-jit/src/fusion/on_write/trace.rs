@@ -5,7 +5,10 @@ use crate::{
 
 use super::ir::{Arg, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision, RefLayout};
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
+use burn_tensor::{
+    repr::{TensorDescription, TensorId, TensorStatus},
+    DType,
+};
 use cubecl::{ir::Elem, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -71,15 +74,19 @@ impl RegisteredTensors {
             0
         }
     }
-    pub fn update_status(&mut self, precision: OpPrecision, tensor: &TensorDescription) {
+    pub fn update(&mut self, precision: OpPrecision, tensor: &TensorDescription) -> bool {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
             if let Some(tensor_old) = tensors
                 .iter_mut()
                 .find(|tensor_old| tensor_old.id == tensor.id)
             {
                 tensor_old.status = tensor.status.clone();
+                println!("Updated status {tensor_old:?}");
+                return true;
             }
         }
+
+        false
     }
 }
 
@@ -88,6 +95,16 @@ impl Tensor2Index {
         if let Some(indexes) = self.tensors.get(&precision) {
             if let Some(index) = indexes.get(&tensor_id) {
                 return Some(*index);
+            }
+        }
+
+        None
+    }
+
+    pub fn get_any_precision(&self, tensor_id: TensorId) -> Option<(OpPrecision, u32)> {
+        for (precision, indexes) in self.tensors.iter() {
+            if let Some(index) = indexes.get(&tensor_id) {
+                return Some((*precision, *index));
             }
         }
 
@@ -141,6 +158,7 @@ impl FuseOnWriteTrace {
         device: &R::Device,
         context: &mut Context<'a, JitFusionHandle<R>>,
     ) {
+        #[derive(Debug)]
         enum HandleOutput<R: JitRuntime> {
             Alias(usize, OpPrecision),
             Owned(OpPrecision, JitFusionHandle<R>, Vec<usize>),
@@ -181,16 +199,21 @@ impl FuseOnWriteTrace {
         );
 
         for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
-            let tensor = context.tensors.get(&tensor_relative.id).unwrap();
-            let handle = context.handles.get_handle(&tensor.id, &tensor.status);
+            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
+            // Important to take the status of the relative graph and not
+            // the global graph, since the status of the global graph
+            // might be of a later operation on the same tensor id.
+            let status = &tensor_relative.status;
+            let handle = context.handles.get_handle(&tensor_global.id, status);
+            // println!("Input {handle:?}");
 
-            if tensor.status == TensorStatus::ReadWrite && handle.handle.can_mut() {
+            if status == &TensorStatus::ReadWrite && handle.handle.can_mut() && false {
                 potential_inplaces.push((tensor_relative, handle.strides.clone(), i));
             }
 
-            inputs_desc.push(tensor);
-            rank = usize::max(tensor.shape.len(), rank);
-            handles_inputs.push((precision, handle, tensor.shape.clone()));
+            inputs_desc.push(tensor_global);
+            rank = usize::max(tensor_global.shape.len(), rank);
+            handles_inputs.push((precision, handle, tensor_global.shape.clone()));
         }
 
         for (precision, tensor_relative) in self.outputs.iter() {
@@ -222,6 +245,10 @@ impl FuseOnWriteTrace {
                     });
                 }
 
+                println!(
+                    "Registering tensor for relative id {:?} => global {:?}",
+                    tensor_relative.id, tensor_global.id
+                );
                 context
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
@@ -233,8 +260,12 @@ impl FuseOnWriteTrace {
                     });
                 }
 
-                let size = tensor_global.shape.iter().product::<usize>()
-                    * Elem::from(tensor_global.dtype).size();
+                // We encode bool tensors as u32.
+                let dtype = match tensor_global.dtype {
+                    DType::Bool => DType::U32,
+                    _ => tensor_global.dtype,
+                };
+                let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
                 let handle = JitFusionHandle {
                     client: client.clone(),
                     handle: client.empty(size),
@@ -243,6 +274,10 @@ impl FuseOnWriteTrace {
                 };
 
                 rank = usize::max(tensor_global.shape.len(), rank);
+                println!(
+                    "Registering tensor for relative id {:?} => global {:?}",
+                    tensor_relative.id, tensor_global.id
+                );
                 context
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
@@ -255,7 +290,7 @@ impl FuseOnWriteTrace {
         }
 
         for (precision, count) in self.scalars.iter() {
-            for i in 0..(*count as usize + 1) {
+            for i in 0..(*count as usize) {
                 match precision {
                     OpPrecision::F32 => inputs.s_f32.push(ScalarArg::new(context.scalar_f32[i])),
                     OpPrecision::F16 => inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i])),
@@ -281,7 +316,6 @@ impl FuseOnWriteTrace {
         // Register everything
         for (precision, handle, shape) in handles_inputs.iter() {
             let arg = handle.as_tensor_arg(shape, vectorization);
-            println!("Input {arg:?}");
 
             match precision {
                 OpPrecision::F32 => inputs.t_f32.push(arg),
@@ -302,13 +336,14 @@ impl FuseOnWriteTrace {
                 },
                 HandleOutput::Owned(precision, handle, shape) => {
                     let arg = handle.as_tensor_arg(shape, vectorization);
-                    println!("Output {arg:?}");
 
                     match precision {
                         OpPrecision::F32 => outputs.t_f32.push(arg),
                         OpPrecision::F16 => outputs.t_f16.push(arg),
                         OpPrecision::I32 => outputs.t_i32.push(arg),
                         OpPrecision::U32 => outputs.t_u32.push(arg),
+                        // Bools are encoded as u32.
+                        OpPrecision::Bool => outputs.t_u32.push(arg),
                         _ => todo!(),
                     };
                 }

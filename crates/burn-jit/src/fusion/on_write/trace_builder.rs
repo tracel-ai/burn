@@ -30,24 +30,34 @@ impl FuseOnWriteTraceBuilder {
     }
 
     pub fn register_operation(&mut self, op: ElemwiseOp) {
+        // println!("Op EW {op:?}\n");
         self.ops.push(op);
     }
 
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
+        // println!("EW INPUT {tensor:?}\n");
         let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as u32.
+        let precision_input = match precision {
+            OpPrecision::Bool => OpPrecision::U32,
+            _ => precision,
+        };
 
         match self.locals.get(precision, tensor.id) {
             Some(val) => {
-                // TODO: Update since the status can change for inplace.
-                self.inputs.update_status(precision, &tensor);
+                self.inputs.update(precision_input, &tensor);
+                // An input can be an output of a previously fused operation.
+                // We need to flag the new status for the tensor.
+                self.outputs.update(precision_input, &tensor);
 
                 Arg::Local(val, precision)
             }
             None => {
-                let new_input = self.inputs.insert(precision, tensor.clone());
+                let new_input = self.inputs.insert(precision_input, tensor.clone());
                 let new_local = self.locals.new_index(precision, tensor.id);
 
-                let input = Arg::Input(new_input, precision);
+                let input = Arg::Input(new_input, precision_input);
                 let out = Arg::Local(new_local, precision);
 
                 self.ops
@@ -61,23 +71,46 @@ impl FuseOnWriteTraceBuilder {
     pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
         let precision = tensor.dtype.into();
 
+        // Bool tensors are encoded as u32.
+        let precision_output = match precision {
+            OpPrecision::Bool => OpPrecision::U32,
+            _ => precision,
+        };
+
         match self.locals.get(precision, tensor.id) {
             Some(val) => Arg::Local(val, precision),
             None => {
                 let new_local = self.locals.new_index(precision, tensor.id);
                 let out = Arg::Local(new_local, precision);
 
-                self.outputs.insert(precision, tensor.clone());
+                self.outputs.insert(precision_output, tensor.clone());
 
                 out
             }
         }
     }
 
+    pub fn clear(&mut self) {
+        *self = Self::new();
+    }
+
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
-        let new_index = self.scalars.get(&precision).map(|a| *a + 1).unwrap_or(0);
-        self.scalars.insert(precision, new_index);
+
+        // Bool scalars are encoded as u32.
+        let precision = match precision {
+            OpPrecision::Bool => OpPrecision::U32,
+            _ => precision,
+        };
+        let new_index = self
+            .scalars
+            .get(&precision)
+            .map(|num_scalars| *num_scalars)
+            .unwrap_or(0);
+
+        let num_scalars = new_index + 1;
+
+        self.scalars.insert(precision, num_scalars);
         Arg::Scalar(new_index, precision)
     }
 
@@ -86,11 +119,11 @@ impl FuseOnWriteTraceBuilder {
         let mut ops = self.ops.clone();
 
         for (precision, tensor) in outputs.iter() {
-            let local_index = self.locals.get(precision, tensor.id).unwrap();
+            let (local_precision, local_index) = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
             ops.push(ElemwiseOp::Assign(UnaryElemwiseOp {
-                input: Arg::Local(local_index, precision),
+                input: Arg::Local(local_index, local_precision),
                 out: Arg::Output(out_index as u32, precision),
             }))
         }
@@ -115,7 +148,13 @@ impl FuseOnWriteTraceBuilder {
         let mark = |var: &Arg, list: &mut Vec<(TensorId, OpPrecision)>| {
             if let Arg::Local(index, precision) = var {
                 if let Some(tensor_id) = self.locals.find(*precision, *index) {
-                    let entry = (tensor_id, *precision);
+                    // Input and outputs tensors are using u32 for booleans.
+                    let precision = match precision {
+                        OpPrecision::Bool => OpPrecision::U32,
+                        _ => *precision,
+                    };
+
+                    let entry = (tensor_id, precision);
                     if !list.contains(&entry) {
                         list.push(entry);
                     }
@@ -256,6 +295,8 @@ impl FuseOnWriteTraceBuilder {
             }
         }
 
+        println!("Input {local_tensor_ids_input:?}");
+        println!("Output {local_tensor_ids_output:?}");
         // All output tensors that are never read by a following operation should be written to
         // since they are essentially the "logical" output of the shader.
         for entry in local_tensor_ids_output {
@@ -265,16 +306,21 @@ impl FuseOnWriteTraceBuilder {
                 let (tensor_id, precision) = entry;
                 let tensor = self.outputs.get(precision, tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
+                println!("Include output 1 {tensor:?}");
+            } else {
+                println!("Don't include output 1 {entry:?}");
             }
         }
 
         // All tensors where their latest description is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (precision, tensor) in self.outputs.iter() {
+        for (_precision, tensor) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
-                if self.locals.get(precision, tensor.id).is_some() {
-                    result.insert(precision, tensor.clone());
-                }
+                let (precision, _) = self.locals.get_any_precision(tensor.id).unwrap();
+                println!("Include output 2 {tensor:?}");
+                result.insert(precision, tensor.clone());
+            } else {
+                println!("Don't include output 2 {tensor:?}");
             }
         }
 

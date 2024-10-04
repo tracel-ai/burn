@@ -33,7 +33,7 @@ pub fn read<C: CubePrimitive>(
                 let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
                 Line::cast_from(tensor[offset])
             }
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Output(pos, precision) => match comptime![precision] {
             OpPrecision::F32 => {
@@ -56,14 +56,15 @@ pub fn read<C: CubePrimitive>(
                 let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
                 Line::cast_from(tensor[offset])
             }
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Local(pos, precision) => match comptime![precision] {
             OpPrecision::F32 => Line::cast_from(*locals.l_f32.index(pos)),
             OpPrecision::F16 => Line::cast_from(*locals.l_f16.index(pos)),
             OpPrecision::U32 => Line::cast_from(*locals.l_u32.index(pos)),
             OpPrecision::I32 => Line::cast_from(*locals.l_i32.index(pos)),
-            _ => comptime![panic!("Can't write into inputs or scalars")],
+            OpPrecision::Bool => Line::cast_from(*locals.l_bool.index(pos)),
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Scalar(pos, precision) => match comptime![precision] {
             OpPrecision::F32 => Line::cast_from(*inputs.s_f32.index(pos)),
@@ -71,7 +72,7 @@ pub fn read<C: CubePrimitive>(
             OpPrecision::U32 => Line::cast_from(*inputs.s_u32.index(pos)),
             OpPrecision::I32 => Line::cast_from(*inputs.s_i32.index(pos)),
             OpPrecision::BF16 => comptime![panic!("Can't write into inputs or scalars")],
-            _ => comptime![panic!("Can't write into inputs or scalars")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
     }
@@ -121,6 +122,7 @@ pub fn write<C: CubePrimitive>(
             OpPrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
             OpPrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
             OpPrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
+            OpPrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
             _ => comptime![panic!("Unsupported")],
         },
         _ => comptime![panic!("Can't write into inputs and scalars")],

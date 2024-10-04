@@ -90,7 +90,7 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
-        unsafe { elemwise_fuse::launch(client, cube_count, cube_dim, inputs, outputs, config) }
+        elemwise_fuse::launch(client, cube_count, cube_dim, inputs, outputs, config);
     }
 
     fn vectorization<'a>(
