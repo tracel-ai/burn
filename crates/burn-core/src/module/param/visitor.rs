@@ -14,14 +14,14 @@ where
     B: Backend,
     M: Module<B>,
 {
-    fn visit_float<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
-        self.param_ids.push(id.clone());
+    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
+        self.param_ids.push(id);
     }
-    fn visit_int<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D, Int>) {
-        self.param_ids.push(id.clone());
+    fn visit_int<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D, Int>) {
+        self.param_ids.push(id);
     }
-    fn visit_bool<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D, Bool>) {
-        self.param_ids.push(id.clone());
+    fn visit_bool<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D, Bool>) {
+        self.param_ids.push(id);
     }
 }
 

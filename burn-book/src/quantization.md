@@ -73,7 +73,7 @@ let model = model.quantize_weights(&mut quantizer);
 > impl<B: Backend> ModuleMapper<B> for Dequantize {
 >     fn map_float<const D: usize>(
 >         &mut self,
->         _id: &ParamId,
+>         _id: ParamId,
 >         tensor: Tensor<B, D>,
 >     ) -> Tensor<B, D> {
 >         tensor.dequantize()

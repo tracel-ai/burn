@@ -88,13 +88,12 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     type Record = Param<Tensor<B, D>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_float(&self.id, &self.val())
+        visitor.visit_float(self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let (id, tensor) = self.consume();
-        let value = mapper.map_float(&id, tensor);
-
+        let value = mapper.map_float(id, tensor);
         Self::initialized(id, value)
     }
 
@@ -170,11 +169,11 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Int>> {
     type Record = Param<Tensor<B, D, Int>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_int(&self.id, &self.val())
+        visitor.visit_int(self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_int(&self.id, self.val());
+        let value = mapper.map_int(self.id, self.val());
         Self::initialized(self.id, value)
     }
 
@@ -237,11 +236,11 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D, Bool>> {
     type Record = Param<Tensor<B, D, Bool>>;
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
-        visitor.visit_bool(&self.id, &self.val())
+        visitor.visit_bool(self.id, &self.val())
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
-        let value = mapper.map_bool(&self.id, self.val());
+        let value = mapper.map_bool(self.id, self.val());
         Self::initialized(self.id, value)
     }
 
@@ -306,7 +305,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::initialized(self.id.clone(), self.val().inner().set_require_grad(false))
+        Param::initialized(self.id, self.val().inner().set_require_grad(false))
     }
 }
 
@@ -314,7 +313,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D, Int>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::initialized(self.id.clone(), self.val().inner())
+        Param::initialized(self.id, self.val().inner())
     }
 }
 
@@ -322,7 +321,7 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for Param<Tensor<B, D
     type InnerModule = Param<Tensor<B::InnerBackend, D, Bool>>;
 
     fn valid(&self) -> Self::InnerModule {
-        Param::initialized(self.id.clone(), self.val().inner())
+        Param::initialized(self.id, self.val().inner())
     }
 }
 

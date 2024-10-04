@@ -16,7 +16,7 @@ use std::{marker::PhantomData, num::NonZero, sync::Arc};
 
 #[derive(new)]
 pub struct ElementWiseKernelFactory<R: JitRuntime> {
-    id: String,
+    id: u64,
     info: Arc<KernelExpansion>,
     cube_dim: CubeDim,
     _runtime: PhantomData<R>,
@@ -85,7 +85,7 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
                         });
 
                 FusionKernel::new(
-                    self.id.clone(),
+                    self.id,
                     self.info.clone(),
                     settings,
                     output_infos.collect(),
@@ -103,7 +103,7 @@ impl<R: JitRuntime> FusionKernelFactory<R> for ElementWiseKernelFactory<R> {
                 });
 
                 FusionKernel::new(
-                    self.id.clone(),
+                    self.id,
                     self.info.clone(),
                     settings,
                     output_infos.collect(),

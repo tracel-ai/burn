@@ -90,13 +90,13 @@ You can implement your own mapper or visitor by implementing these simple traits
 /// Module visitor trait.
 pub trait ModuleVisitor<B: Backend> {
     /// Visit a tensor in the module.
-    fn visit<const D: usize>(&mut self, id: &ParamId, tensor: &Tensor<B, D>);
+    fn visit<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>);
 }
 
 /// Module mapper trait.
 pub trait ModuleMapper<B: Backend> {
     /// Map a tensor in the module.
-    fn map<const D: usize>(&mut self, id: &ParamId, tensor: Tensor<B, D>) ->
+    fn map<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) ->
       Tensor<B, D>;
 }
 ```
