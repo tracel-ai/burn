@@ -489,7 +489,7 @@ where
     /// }
     /// ```
     pub fn unsqueeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
-        check!(TensorCheck::unsqueeze_dim::<{ D }>(dim));
+        check!(TensorCheck::unsqueeze_dim::<D, D2>(dim));
 
         let mut dims = [1; D2];
         let shape = self.shape();
@@ -785,7 +785,7 @@ where
     /// If all tensors don't have the same shape.
     /// Given dimension is not with range of 0..D2
     pub fn stack<const D2: usize>(tensors: Vec<Tensor<B, D, K>>, dim: usize) -> Tensor<B, D2, K> {
-        check!(TensorCheck::stack(&tensors, dim));
+        check!(TensorCheck::stack::<B, D, K, D2>(&tensors, dim));
         let tensors = tensors.into_iter().map(|t| t.unsqueeze_dim(dim)).collect();
         Tensor::<B, D2, K>::cat(tensors, dim)
     }
