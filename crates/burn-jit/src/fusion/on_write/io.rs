@@ -115,7 +115,7 @@ pub fn write<C: CubePrimitive>(
                 let tensor = outputs.t_i32.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Local(pos, precision) => match comptime![precision] {
             OpPrecision::F32 => locals.l_f32.insert(pos, Line::cast_from(value)),

@@ -85,7 +85,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
-        println!("Creating out zerossssssssss.");
         let out = client.tensor_uninitialized(shape.dims, B::FloatElem::dtype());
 
         let desc = out.to_description_out();
@@ -118,7 +117,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
-        println!("Creating out onessssss.");
         let out = client.tensor_uninitialized(shape.dims, B::FloatElem::dtype());
 
         let desc = out.to_description_out();

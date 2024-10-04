@@ -30,12 +30,10 @@ impl FuseOnWriteTraceBuilder {
     }
 
     pub fn register_operation(&mut self, op: ElemwiseOp) {
-        // println!("Op EW {op:?}\n");
         self.ops.push(op);
     }
 
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
-        // println!("EW INPUT {tensor:?}\n");
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as u32.
@@ -295,8 +293,6 @@ impl FuseOnWriteTraceBuilder {
             }
         }
 
-        println!("Input {local_tensor_ids_input:?}");
-        println!("Output {local_tensor_ids_output:?}");
         // All output tensors that are never read by a following operation should be written to
         // since they are essentially the "logical" output of the shader.
         for entry in local_tensor_ids_output {
@@ -306,21 +302,14 @@ impl FuseOnWriteTraceBuilder {
                 let (tensor_id, precision) = entry;
                 let tensor = self.outputs.get(precision, tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
-                println!("Include output 1 {tensor:?}");
-            } else {
-                println!("Don't include output 1 {entry:?}");
             }
         }
 
         // All tensors where their latest description is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (_precision, tensor) in self.outputs.iter() {
+        for (precision, tensor) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
-                let (precision, _) = self.locals.get_any_precision(tensor.id).unwrap();
-                println!("Include output 2 {tensor:?}");
                 result.insert(precision, tensor.clone());
-            } else {
-                println!("Don't include output 2 {tensor:?}");
             }
         }
 

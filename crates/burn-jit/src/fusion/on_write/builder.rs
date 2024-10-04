@@ -28,8 +28,6 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
             return;
         }
 
-        println!("===\n{op:?}\n");
-
         match op {
             OperationDescription::BaseFloat(ops) => {
                 if !self.register_base(ops) {
@@ -84,7 +82,6 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
         self.status = OptimizationStatus::Open;
         self.builder.clear();
         self.current_output_shape.clear();
-        println!("Clear new")
     }
 
     fn status(&self) -> OptimizationStatus {

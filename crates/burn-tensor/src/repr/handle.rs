@@ -39,7 +39,6 @@ impl<H: Clone> HandleContainer<H> {
 
     /// Register a handle for the given [tensor id](TensorId).
     pub fn register_handle(&mut self, id: TensorId, handle: H) {
-        println!("Register Tensor {id:?}");
         self.handles.insert(id, Handle::Existing(handle));
     }
 
@@ -51,7 +50,6 @@ impl<H: Clone> HandleContainer<H> {
     /// Make sure the status corresponds to the operation you want to execute the handle on,
     /// otherwise you might remove a tensor handle that will be required in the future.
     pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> H {
-        println!("Get Tensor {id:?} {status:?}");
         let (id, handle) = self
             .handles
             .remove_entry(id)
@@ -63,10 +61,7 @@ impl<H: Clone> HandleContainer<H> {
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
                 }
-                TensorStatus::ReadWrite => {
-                    println!("Drop tensor {id:?}");
-                    handle
-                }
+                TensorStatus::ReadWrite => handle,
                 TensorStatus::NotInit => panic!("Cannot get uninitialized tensor."),
             },
             Handle::NotInit => panic!("Cannot get uninitialized handle."),
@@ -133,7 +128,6 @@ impl<H: Clone> HandleContainer<H> {
         B: ReprBackend<Handle = H>,
     {
         let handle = B::float_tensor_handle(tensor);
-        println!("Register float tensor {id:?}");
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
@@ -153,7 +147,6 @@ impl<H: Clone> HandleContainer<H> {
         );
 
         for (handle, id) in handles.into_iter().zip(ids) {
-            println!("Register qfloat tensor {id:?}");
             self.handles.insert(**id, Handle::Existing(handle));
         }
     }
@@ -164,7 +157,6 @@ impl<H: Clone> HandleContainer<H> {
         B: ReprBackend<Handle = H>,
     {
         let handle = B::int_tensor_handle(tensor);
-        println!("Register int tensor {id:?}");
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
@@ -174,7 +166,6 @@ impl<H: Clone> HandleContainer<H> {
         B: ReprBackend<Handle = H>,
     {
         let handle = B::bool_tensor_handle(tensor);
-        println!("Register bool tensor {id:?}");
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
@@ -182,7 +173,6 @@ impl<H: Clone> HandleContainer<H> {
     pub fn create_tensor_uninit(&mut self) -> Arc<TensorId> {
         let id = TensorId::new(self.counter);
         self.counter += 1;
-        println!("Register uninit tensor {id:?}");
         self.handles.insert(id, Handle::NotInit);
 
         Arc::new(id)

@@ -81,7 +81,6 @@ impl RegisteredTensors {
                 .find(|tensor_old| tensor_old.id == tensor.id)
             {
                 tensor_old.status = tensor.status.clone();
-                println!("Updated status {tensor_old:?}");
                 return true;
             }
         }
@@ -205,7 +204,6 @@ impl FuseOnWriteTrace {
             // might be of a later operation on the same tensor id.
             let status = &tensor_relative.status;
             let handle = context.handles.get_handle(&tensor_global.id, status);
-            // println!("Input {handle:?}");
 
             if status == &TensorStatus::ReadWrite && handle.handle.can_mut() && false {
                 potential_inplaces.push((tensor_relative, handle.strides.clone(), i));
@@ -245,10 +243,6 @@ impl FuseOnWriteTrace {
                     });
                 }
 
-                println!(
-                    "Registering tensor for relative id {:?} => global {:?}",
-                    tensor_relative.id, tensor_global.id
-                );
                 context
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
@@ -274,10 +268,6 @@ impl FuseOnWriteTrace {
                 };
 
                 rank = usize::max(tensor_global.shape.len(), rank);
-                println!(
-                    "Registering tensor for relative id {:?} => global {:?}",
-                    tensor_relative.id, tensor_global.id
-                );
                 context
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
