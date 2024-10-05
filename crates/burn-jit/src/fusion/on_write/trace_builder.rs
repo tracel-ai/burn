@@ -1,5 +1,5 @@
 use super::{
-    ir::{Arg, BinaryElemwiseOp, ElemwiseOp, OpPrecision, UnaryElemwiseOp},
+    ir::{Arg, BinaryElemwiseOp, ElemwiseOp, LayoutInfo, OpPrecision, UnaryElemwiseOp},
     trace::{FuseOnWriteTrace, RegisteredTensors, Tensor2Index},
 };
 use burn_tensor::{
@@ -16,6 +16,7 @@ pub struct FuseOnWriteTraceBuilder {
     pub inputs: RegisteredTensors,
     pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, u32>,
 }
 
 impl FuseOnWriteTraceBuilder {
@@ -26,6 +27,7 @@ impl FuseOnWriteTraceBuilder {
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
             ops: Sequence::new(),
+            reads: BTreeMap::new(),
         }
     }
 
@@ -55,9 +57,17 @@ impl FuseOnWriteTraceBuilder {
                 let new_input = self.inputs.insert(precision_input, tensor.clone());
                 let new_local = self.locals.new_index(precision, tensor.id);
 
-                let input = Arg::Input(new_input, precision_input);
                 let out = Arg::Local(new_local, precision);
+                self.reads.insert(tensor.id, self.ops.len());
 
+                // self.reads.push(InputRead {
+                //     input_index: new_input,
+                //     input_precision: precision_input,
+                //     local_index: new_local,
+                //     local_precision: precision,
+                //     kind: InputReadKind::ToRefLayout,
+                // });
+                let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
                 self.ops
                     .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
@@ -113,24 +123,32 @@ impl FuseOnWriteTraceBuilder {
     }
 
     pub fn build(&self) -> FuseOnWriteTrace {
+        let inputs = self.inputs.clone();
+        let scalars = self.scalars.clone();
         let outputs = self.output_tensors();
+        let reads = self.reads.clone();
+
         let mut ops = self.ops.clone();
+        let mut writes = BTreeMap::new();
 
         for (precision, tensor) in outputs.iter() {
             let (local_precision, local_index) = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
+            writes.insert(tensor.id, ops.len());
             ops.push(ElemwiseOp::Assign(UnaryElemwiseOp {
                 input: Arg::Local(local_index, local_precision),
-                out: Arg::Output(out_index as u32, precision),
-            }))
+                out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
+            }));
         }
 
         FuseOnWriteTrace {
             outputs,
-            inputs: self.inputs.clone(),
-            scalars: self.scalars.clone(),
+            inputs,
+            scalars,
             ops,
+            reads,
+            writes,
         }
     }
 

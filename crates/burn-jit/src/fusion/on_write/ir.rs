@@ -6,20 +6,41 @@ use serde::{Deserialize, Serialize};
 
 #[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Arg {
-    Input(u32, OpPrecision),
+    Input(u32, OpPrecision, LayoutInfo),
     Local(u32, OpPrecision),
-    Output(u32, OpPrecision),
+    Output(u32, OpPrecision, LayoutInfo),
     Scalar(u32, OpPrecision),
     /// Only constant that can be encoded into an u32 can be used as literal.
     Literal(u32, OpPrecision),
 }
 
 impl Arg {
+    pub fn add_layout_info(&mut self, layout: LayoutInfo) {
+        match self {
+            Arg::Input(_, _, old) => {
+                *old = layout;
+            }
+            Arg::Output(_, _, old) => {
+                *old = layout;
+            }
+            _ => {}
+        }
+    }
+}
+
+#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LayoutInfo {
+    SameAsRef,
+    IsRef,
+    Unknown,
+}
+
+impl Arg {
     pub fn precision(&self) -> OpPrecision {
         *match self {
-            Arg::Input(_, p) => p,
+            Arg::Input(_, p, _) => p,
             Arg::Local(_, p) => p,
-            Arg::Output(_, p) => p,
+            Arg::Output(_, p, _) => p,
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
         }

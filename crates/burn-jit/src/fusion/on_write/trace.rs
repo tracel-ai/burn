@@ -1,5 +1,5 @@
 use crate::{
-    fusion::{strides_dyn_rank, JitFusionHandle},
+    fusion::{on_write::ir::LayoutInfo, strides_dyn_rank, JitFusionHandle},
     JitRuntime,
 };
 
@@ -19,6 +19,8 @@ pub struct FuseOnWriteTrace {
     pub inputs: RegisteredTensors,
     pub scalars: BTreeMap<OpPrecision, u32>,
     pub ops: Sequence<ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, u32>,
+    pub writes: BTreeMap<TensorId, u32>,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -162,6 +164,8 @@ impl FuseOnWriteTrace {
             Alias(usize, OpPrecision),
             Owned(OpPrecision, JitFusionHandle<R>, Vec<usize>),
         }
+
+        let mut ops = self.ops.clone();
         let mut handles_inputs = Vec::new();
         let mut handles_outputs = Vec::new();
 
@@ -170,6 +174,7 @@ impl FuseOnWriteTrace {
         let mut potential_inplaces = Vec::new();
 
         let mut ref_layout = None;
+        let mut ref_metadata = None;
         let mut rank = 1;
 
         let mut inputs = FusionArgsLaunch::new(
@@ -211,7 +216,12 @@ impl FuseOnWriteTrace {
 
             inputs_desc.push(tensor_global);
             rank = usize::max(tensor_global.shape.len(), rank);
-            handles_inputs.push((precision, handle, tensor_global.shape.clone()));
+            handles_inputs.push((
+                precision,
+                handle,
+                tensor_global.shape.clone(),
+                tensor_relative.id,
+            ));
         }
 
         for (precision, tensor_relative) in self.outputs.iter() {
@@ -231,16 +241,30 @@ impl FuseOnWriteTrace {
             {
                 let (tensor_relative_input, _strides, handle_index) =
                     potential_inplaces.remove(index);
-                let (_, handle, _) = handles_inputs.get(handle_index).unwrap();
+                let (_, handle, _, _) = handles_inputs.get(handle_index).unwrap();
 
                 if ref_layout.is_none() {
                     let index_input = self
                         .inputs
                         .get_index(precision, tensor_relative_input.id)
                         .unwrap();
+
+                    ref_metadata = Some((handle.strides.clone(), tensor_global.shape.clone()));
                     ref_layout = Some(RefLayout {
-                        arg: Arg::Input(index_input as u32, precision),
+                        arg: Arg::Input(index_input as u32, precision, LayoutInfo::IsRef),
                     });
+
+                    if let ElemwiseOp::Assign(op) =
+                        ops.index_mut(*self.reads.get(&tensor_relative_input.id).unwrap())
+                    {
+                        op.input.add_layout_info(LayoutInfo::IsRef);
+                    };
+
+                    if let ElemwiseOp::Assign(op) =
+                        ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
+                    {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                    };
                 }
 
                 context
@@ -249,9 +273,24 @@ impl FuseOnWriteTrace {
                 handles_outputs.push(HandleOutput::Alias(handle_index, precision));
             } else {
                 if ref_layout.is_none() {
+                    ref_metadata = Some((strides.clone(), tensor_global.shape.clone()));
                     ref_layout = Some(RefLayout {
-                        arg: Arg::Output(0, precision),
+                        arg: Arg::Output(0, precision, LayoutInfo::IsRef),
                     });
+
+                    if let ElemwiseOp::Assign(op) =
+                        ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
+                    {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                    };
+                } else if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
+                    if ref_strides == &strides && ref_shape == &tensor_global.shape {
+                        if let ElemwiseOp::Assign(op) =
+                            ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
+                        {
+                            op.out.add_layout_info(LayoutInfo::SameAsRef);
+                        };
+                    }
                 }
 
                 // We encode bool tensors as u32.
@@ -292,20 +331,24 @@ impl FuseOnWriteTrace {
         }
 
         let vectorization = L::vectorization(
-            handles_inputs.iter().map(|(_, handle, _)| handle),
+            handles_inputs.iter().map(|(_, handle, _, _)| handle),
             inputs_desc.iter().map(|desc| *desc),
             outputs_desc.iter().map(|desc| *desc),
         );
 
-        let config = FusionConfig {
-            rank: rank as u32,
-            ref_layout: ref_layout.expect("An output should exist for the fused kernel"),
-            ops: self.ops.clone(),
-        };
-
         // Register everything
-        for (precision, handle, shape) in handles_inputs.iter() {
+        for (precision, handle, shape, relative_id) in handles_inputs.iter() {
             let arg = handle.as_tensor_arg(shape, vectorization);
+
+            if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
+                if ref_strides == &handle.strides && ref_shape == shape {
+                    if let ElemwiseOp::Assign(op) =
+                        ops.index_mut(*self.reads.get(&relative_id).unwrap())
+                    {
+                        op.input.add_layout_info(LayoutInfo::SameAsRef);
+                    }
+                }
+            }
 
             match precision {
                 OpPrecision::F32 => inputs.t_f32.push(arg),
@@ -315,6 +358,7 @@ impl FuseOnWriteTrace {
                 _ => todo!(),
             };
         }
+
         for item in handles_outputs.iter() {
             match item {
                 HandleOutput::Alias(index, precision) => match precision {
@@ -339,6 +383,12 @@ impl FuseOnWriteTrace {
                 }
             }
         }
+
+        let config = FusionConfig {
+            rank: rank as u32,
+            ref_layout: ref_layout.expect("An output should exist for the fused kernel"),
+            ops,
+        };
 
         L::run(client, inputs, outputs, config)
     }

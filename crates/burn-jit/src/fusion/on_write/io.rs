@@ -12,48 +12,80 @@ pub fn read<C: CubePrimitive>(
     #[comptime] config: &FusionConfig,
 ) -> Line<C> {
     match arg {
-        Arg::Input(pos, precision) => match comptime![precision] {
+        Arg::Input(pos, precision, layout) => match comptime![precision] {
             OpPrecision::F32 => {
                 let tensor = inputs.t_f32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::F16 => {
                 let tensor = inputs.t_f16.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::U32 => {
                 let tensor = inputs.t_u32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::I32 => {
                 let tensor = inputs.t_i32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
-        Arg::Output(pos, precision) => match comptime![precision] {
+        Arg::Output(pos, precision, layout) => match comptime![precision] {
             OpPrecision::F32 => {
                 let tensor = outputs.t_f32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::F16 => {
                 let tensor = outputs.t_f16.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::U32 => {
                 let tensor = outputs.t_u32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             OpPrecision::I32 => {
                 let tensor = outputs.t_i32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 Line::cast_from(tensor[offset])
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
@@ -90,28 +122,44 @@ pub fn write<C: CubePrimitive>(
     #[comptime] config: &FusionConfig,
 ) {
     match arg {
-        Arg::Output(pos, precision) => match comptime![precision] {
+        Arg::Output(pos, precision, layout) => match comptime![precision] {
             OpPrecision::F32 => {
                 let tensor = outputs.t_f32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 let tensor = outputs.t_f32.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
             OpPrecision::F16 => {
                 let tensor = outputs.t_f16.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 let tensor = outputs.t_f16.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
             OpPrecision::U32 => {
                 let tensor = outputs.t_u32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 let tensor = outputs.t_u32.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
             OpPrecision::I32 => {
                 let tensor = outputs.t_i32.index(pos);
-                let offset = get_offset(inputs, outputs, tensor, ref_pos, config);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
                 let tensor = outputs.t_i32.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
@@ -138,7 +186,7 @@ pub fn get_offset<C: CubePrimitive>(
     #[comptime] config: &FusionConfig,
 ) -> u32 {
     match comptime![config.ref_layout.arg] {
-        Arg::Input(index, precision) => match comptime![precision] {
+        Arg::Input(index, precision, _) => match comptime![precision] {
             OpPrecision::F32 => {
                 let layout = inputs.t_f32.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
@@ -157,7 +205,7 @@ pub fn get_offset<C: CubePrimitive>(
             }
             _ => comptime![panic!("Unsupported")],
         },
-        Arg::Output(index, precision) => match comptime![precision] {
+        Arg::Output(index, precision, _) => match comptime![precision] {
             OpPrecision::F32 => {
                 let layout = outputs.t_f32.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)

@@ -59,14 +59,14 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
     ) {
         let arg = config.ref_layout.arg;
         let arg = match arg {
-            Arg::Input(index, precision) => match precision {
+            Arg::Input(index, precision, _) => match precision {
                 OpPrecision::F32 => inputs.t_f32.values.get(index as usize),
                 OpPrecision::F16 => inputs.t_f16.values.get(index as usize),
                 OpPrecision::U32 => inputs.t_u32.values.get(index as usize),
                 OpPrecision::I32 => inputs.t_i32.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
-            Arg::Output(index, precision) => match precision {
+            Arg::Output(index, precision, _) => match precision {
                 OpPrecision::F32 => outputs.t_f32.values.get(index as usize),
                 OpPrecision::F16 => outputs.t_f16.values.get(index as usize),
                 OpPrecision::U32 => outputs.t_u32.values.get(index as usize),
