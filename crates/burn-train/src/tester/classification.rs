@@ -1,4 +1,4 @@
-use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
+use crate::metric_test::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
 
