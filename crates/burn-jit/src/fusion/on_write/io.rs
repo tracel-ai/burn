@@ -91,11 +91,11 @@ pub fn read<C: CubePrimitive>(
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Local(pos, precision) => match comptime![precision] {
-            OpPrecision::F32 => Line::cast_from(*locals.l_f32.index(pos)),
-            OpPrecision::F16 => Line::cast_from(*locals.l_f16.index(pos)),
-            OpPrecision::U32 => Line::cast_from(*locals.l_u32.index(pos)),
-            OpPrecision::I32 => Line::cast_from(*locals.l_i32.index(pos)),
-            OpPrecision::Bool => Line::cast_from(*locals.l_bool.index(pos)),
+            OpPrecision::F32 => Line::cast_from(locals.l_f32.get(pos)),
+            OpPrecision::F16 => Line::cast_from(locals.l_f16.get(pos)),
+            OpPrecision::U32 => Line::cast_from(locals.l_u32.get(pos)),
+            OpPrecision::I32 => Line::cast_from(locals.l_i32.get(pos)),
+            OpPrecision::Bool => Line::cast_from(locals.l_bool.get(pos)),
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Scalar(pos, precision) => match comptime![precision] {

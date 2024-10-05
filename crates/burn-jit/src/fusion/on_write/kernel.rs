@@ -13,12 +13,12 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] config: &FusionConfig,
 ) {
     let mut locals = FusionLocals {
-        l_f32: Sequence::new(),
-        l_f16: Sequence::new(),
-        l_bf16: Sequence::new(),
-        l_i32: Sequence::new(),
-        l_u32: Sequence::new(),
-        l_bool: Sequence::new(),
+        l_f32: ConstMap::<u32, Line<f32>>::new(),
+        l_f16: ConstMap::<u32, Line<f16>>::new(),
+        l_bf16: ConstMap::<u32, Line<bf16>>::new(),
+        l_i32: ConstMap::<u32, Line<i32>>::new(),
+        l_u32: ConstMap::<u32, Line<u32>>::new(),
+        l_bool: ConstMap::<u32, Line<bool>>::new(),
     };
 
     // Initialize the write value.

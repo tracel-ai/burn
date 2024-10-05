@@ -18,9 +18,9 @@ pub struct FuseOnWriteTrace {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub scalars: BTreeMap<OpPrecision, u32>,
-    pub ops: Sequence<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, u32>,
-    pub writes: BTreeMap<TensorId, u32>,
+    pub ops: Vec<ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, ElemwiseOp>,
+    pub writes: BTreeMap<TensorId, ElemwiseOp>,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -165,7 +165,10 @@ impl FuseOnWriteTrace {
             Owned(OpPrecision, JitFusionHandle<R>, Vec<usize>),
         }
 
-        let mut ops = self.ops.clone();
+        let mut ops = Sequence::new();
+        let mut reads = self.reads.clone();
+        let mut writes = self.writes.clone();
+
         let mut handles_inputs = Vec::new();
         let mut handles_outputs = Vec::new();
 
@@ -255,14 +258,12 @@ impl FuseOnWriteTrace {
                     });
 
                     if let ElemwiseOp::Assign(op) =
-                        ops.index_mut(*self.reads.get(&tensor_relative_input.id).unwrap())
+                        reads.get_mut(&tensor_relative_input.id).unwrap()
                     {
                         op.input.add_layout_info(LayoutInfo::IsRef);
                     };
 
-                    if let ElemwiseOp::Assign(op) =
-                        ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
-                    {
+                    if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap() {
                         op.out.add_layout_info(LayoutInfo::IsRef);
                     };
                 }
@@ -278,15 +279,12 @@ impl FuseOnWriteTrace {
                         arg: Arg::Output(0, precision, LayoutInfo::IsRef),
                     });
 
-                    if let ElemwiseOp::Assign(op) =
-                        ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
-                    {
+                    if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap() {
                         op.out.add_layout_info(LayoutInfo::IsRef);
                     };
                 } else if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
                     if ref_strides == &strides && ref_shape == &tensor_global.shape {
-                        if let ElemwiseOp::Assign(op) =
-                            ops.index_mut(*self.writes.get(&tensor_relative.id).unwrap())
+                        if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap()
                         {
                             op.out.add_layout_info(LayoutInfo::SameAsRef);
                         };
@@ -342,9 +340,7 @@ impl FuseOnWriteTrace {
 
             if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
                 if ref_strides == &handle.strides && ref_shape == shape {
-                    if let ElemwiseOp::Assign(op) =
-                        ops.index_mut(*self.reads.get(&relative_id).unwrap())
-                    {
+                    if let ElemwiseOp::Assign(op) = reads.get_mut(&relative_id).unwrap() {
                         op.input.add_layout_info(LayoutInfo::SameAsRef);
                     }
                 }
@@ -382,6 +378,18 @@ impl FuseOnWriteTrace {
                     };
                 }
             }
+        }
+
+        for op in reads.into_values() {
+            ops.push(op);
+        }
+
+        for op in self.ops.iter() {
+            ops.push(op.clone());
+        }
+
+        for op in writes.into_values() {
+            ops.push(op);
         }
 
         let config = FusionConfig {

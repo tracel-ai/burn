@@ -6,7 +6,6 @@ use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Element,
 };
-use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -15,8 +14,8 @@ pub struct FuseOnWriteTraceBuilder {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub scalars: BTreeMap<OpPrecision, u32>,
-    pub ops: Sequence<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, u32>,
+    pub ops: Vec<ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, ElemwiseOp>,
 }
 
 impl FuseOnWriteTraceBuilder {
@@ -26,7 +25,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
-            ops: Sequence::new(),
+            ops: Vec::new(),
             reads: BTreeMap::new(),
         }
     }
@@ -58,7 +57,7 @@ impl FuseOnWriteTraceBuilder {
                 let new_local = self.locals.new_index(precision, tensor.id);
 
                 let out = Arg::Local(new_local, precision);
-                self.reads.insert(tensor.id, self.ops.len());
+                // self.reads.insert(tensor.id, self.ops.len());
 
                 // self.reads.push(InputRead {
                 //     input_index: new_input,
@@ -68,8 +67,12 @@ impl FuseOnWriteTraceBuilder {
                 //     kind: InputReadKind::ToRefLayout,
                 // });
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
-                self.ops
-                    .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
+                self.reads.insert(
+                    tensor.id,
+                    ElemwiseOp::Assign(UnaryElemwiseOp { input, out }),
+                );
+                // self.ops
+                //     .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
                 out
             }
@@ -124,24 +127,27 @@ impl FuseOnWriteTraceBuilder {
 
     pub fn build(&self) -> FuseOnWriteTrace {
         let inputs = self.inputs.clone();
-        let scalars = self.scalars.clone();
         let outputs = self.output_tensors();
+        let ops = self.ops.clone();
+        let scalars = self.scalars.clone();
         let reads = self.reads.clone();
 
-        let mut ops = self.ops.clone();
         let mut writes = BTreeMap::new();
 
         for (precision, tensor) in outputs.iter() {
             let (local_precision, local_index) = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
-            writes.insert(tensor.id, ops.len());
-            ops.push(ElemwiseOp::Assign(UnaryElemwiseOp {
-                input: Arg::Local(local_index, local_precision),
-                out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
-            }));
+            writes.insert(
+                tensor.id,
+                ElemwiseOp::Assign(UnaryElemwiseOp {
+                    input: Arg::Local(local_index, local_precision),
+                    out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
+                }),
+            );
         }
 
+        // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace {
             outputs,
             inputs,
@@ -192,123 +198,127 @@ impl FuseOnWriteTraceBuilder {
             mark(&op.out, outputs);
         };
 
-        // For all operators, mark their local tensor id in the proper set.
-        for index in 0..self.ops.len() {
-            let op = self.ops.index(index);
-
-            match op {
-                ElemwiseOp::Add(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Sub(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Mul(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Div(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Powf(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Abs(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Exp(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Log(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Log1p(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Cos(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Sin(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Tanh(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Erf(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Recip(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Assign(op) => mark_unary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::ConditionalAssign {
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                } => {
-                    mark(&cond, &mut local_tensor_ids_input);
-                    mark(&lhs, &mut local_tensor_ids_input);
-                    mark(&rhs, &mut local_tensor_ids_input);
-                    mark(&out, &mut local_tensor_ids_output);
-                }
-                ElemwiseOp::Equal(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Lower(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::Greater(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::LowerEqual(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
-                ElemwiseOp::GreaterEqual(op) => mark_binary(
-                    op,
-                    &mut local_tensor_ids_input,
-                    &mut local_tensor_ids_output,
-                ),
+        let mut mark_op = |op: &ElemwiseOp| match op {
+            ElemwiseOp::Add(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Sub(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Mul(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Div(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Powf(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Abs(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Exp(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Log(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Log1p(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Cos(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Sin(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Tanh(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Erf(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Recip(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Assign(op) => mark_unary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => {
+                mark(&cond, &mut local_tensor_ids_input);
+                mark(&lhs, &mut local_tensor_ids_input);
+                mark(&rhs, &mut local_tensor_ids_input);
+                mark(&out, &mut local_tensor_ids_output);
             }
+            ElemwiseOp::Equal(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Lower(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::Greater(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::LowerEqual(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+            ElemwiseOp::GreaterEqual(op) => mark_binary(
+                op,
+                &mut local_tensor_ids_input,
+                &mut local_tensor_ids_output,
+            ),
+        };
+
+        // For all operators, mark their local tensor id in the proper set.
+        for (_, op) in self.reads.iter() {
+            mark_op(op);
+        }
+
+        for op in self.ops.iter() {
+            mark_op(op);
         }
 
         // All output tensors that are never read by a following operation should be written to
