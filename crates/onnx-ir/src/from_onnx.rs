@@ -4,18 +4,20 @@ use std::{
     path::Path,
 };
 
-use crate::node_remap::remap_node_type;
+use crate::{node_remap::remap_node_type, protos::GraphProto};
 
 use super::{
     coalesce::coalesce,
     ir::{Data, OnnxGraph, TensorType},
     proto_conversion::convert_node_proto,
-    protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
+    protos::{ModelProto, TensorProto, ValueInfoProto},
 };
 
 use super::dim_inference::dim_inference;
 use super::ir::{ArgType, Argument, Node, NodeType};
 
+use log::{debug, warn};
+use petgraph::{graph::NodeIndex, Graph};
 use protobuf::Message;
 
 const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 12] = [
@@ -349,15 +351,16 @@ pub fn parse_onnx(onnx_path: &Path) -> OnnxGraph {
 
     // Open the file
     let mut file = File::open(onnx_path).expect("Unable to open file");
-    let onnx_model: ModelProto =
+    let mut onnx_model: ModelProto =
         Message::parse_from_reader(&mut file).expect("Unable to parse ONNX file");
 
     // ONNX nodes must be topologically sorted per spec:
     // https://github.com/onnx/onnx/blob/main/docs/IR.md#graphs
-    debug_assert!(
-        onnx_model.graph.node.is_top_sorted(),
-        "Nodes are not topologically sorted"
-    );
+    //
+    // Some ONNX models are still not topographically sorted, so we'll just do it here
+    // to ensure that the model can be loaded.
+    onnx_model.graph = onnx_model.graph.map(|graph| topo_sort(graph));
+
     log::debug!("Number of nodes: {:?}", onnx_model.graph.node.len());
     log::debug!("Number of inputs: {:?}", onnx_model.graph.input.len());
 
@@ -408,40 +411,96 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
         node.node_type = NodeType::Reshape;
     }
 }
-// Define a trait for topological sorting
-trait TopologicalSortable {
-    fn is_top_sorted(&self) -> bool;
-}
 
-impl TopologicalSortable for Vec<NodeProto> {
-    fn is_top_sorted(&self) -> bool {
-        // Create a hashmap to store the position of each node in the vector
-        let position: HashMap<String, usize> = self
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| (node.name.clone(), idx))
-            .collect();
+/// Topographically sort an ONNX node graph.
+fn topo_sort(mut input_graph: GraphProto) -> GraphProto {
+    let nodes = input_graph.node;
+    let mut graph = Graph::new();
 
-        // Iterate over each node in the vector
-        for node in self {
-            // Iterate over each output of the node
-            for output in &node.output {
-                // Iterate over each other node in the vector
-                for other_node in self {
-                    // If the other node has an input that matches the current output
-                    if other_node.input.contains(output) {
-                        // If the position of the current node is greater than the position of the other node
-                        if position[&node.name] > position[&other_node.name] {
-                            // The vector is not topologically sorted
-                            return false;
-                        }
-                    }
+    // Create two maps to track unique node/output names to node indices.
+    let mut node_map: HashMap<String, NodeIndex> = HashMap::new();
+    let mut output_map: HashMap<String, NodeIndex> = HashMap::new();
+
+    // Add all the nodes to the graph.
+    for node in nodes.iter() {
+        let idx = graph.add_node(node);
+        node_map.insert(node.name.clone(), idx);
+
+        debug!("Node {}: index {}", node.name, idx.index());
+
+        for output in node.output.iter() {
+            let output = output.trim();
+            if output.is_empty() {
+                // This happens sometimes. My guess is that they intended to discard the node's output.
+                warn!("Node {}: Unnamed output", node.name);
+                continue;
+            }
+
+            // Ensure the input graph does not have duplicate output names.
+            // Per the spec: "all node output names MUST be unique within a graph"
+            if let Some(old) = output_map.insert(output.to_string(), idx) {
+                panic!(
+                    "Malformed graph. Duplicate output name detected {} for nodes {} and {}",
+                    output,
+                    nodes[old.index()].name,
+                    node.name
+                );
+            }
+        }
+    }
+
+    // Add all the edges.
+    for node in nodes.iter() {
+        for input in &node.input {
+            let input = input.trim();
+            if input.is_empty() {
+                // Ignore empty inputs.
+                continue;
+            }
+
+            // Scan through the node's inputs and find the node that produces each.
+            if let Some(output_node) = output_map.get(input) {
+                debug!(
+                    "Node {}: Input {} <- {}",
+                    node.name,
+                    input,
+                    nodes[output_node.index()].name
+                );
+
+                let current_node = node_map[&node.name];
+                graph.update_edge(output_node.clone(), current_node, ());
+            } else {
+                // Ensure that this input exists as a graph input or constant value.
+                if !input_graph.input.iter().any(|x| x.name == input)
+                    && !input_graph.initializer.iter().any(|x| x.name == input)
+                {
+                    panic!(
+                        "Malformed graph. Node {}: Could not find input {}",
+                        node.name, input
+                    );
                 }
             }
         }
+    }
 
-        // The vector is topologically sorted
-        true
+    // Ensure the graph is sorted.
+    match petgraph::algo::toposort(&graph, None) {
+        Ok(order) => {
+            // Log a warning if we had to sort the graph, but do not panic since this is not fatal.
+            if !order.windows(2).all(|w| w[0] <= w[1]) {
+                warn!("ONNX graph was not topographically sorted");
+            }
+
+            input_graph.node = order.into_iter().map(|idx| graph[idx].clone()).collect();
+            input_graph
+        }
+        Err(e) => {
+            let idx = e.node_id().index();
+            panic!(
+                "Malformed graph. Failed to sort nodes: Cycle detected on node {} {:?}",
+                idx, nodes[idx].name
+            );
+        }
     }
 }
 
