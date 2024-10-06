@@ -91,11 +91,11 @@ pub fn read<C: CubePrimitive>(
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Local(pos, precision) => match comptime![precision] {
-            OpPrecision::F32 => Line::cast_from(locals.l_f32.get(pos)),
-            OpPrecision::F16 => Line::cast_from(locals.l_f16.get(pos)),
-            OpPrecision::U32 => Line::cast_from(locals.l_u32.get(pos)),
-            OpPrecision::I32 => Line::cast_from(locals.l_i32.get(pos)),
-            OpPrecision::Bool => Line::cast_from(locals.l_bool.get(pos)),
+            OpPrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
+            OpPrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
+            OpPrecision::U32 => Line::cast_from(locals.l_u32.find(pos)),
+            OpPrecision::I32 => Line::cast_from(locals.l_i32.find(pos)),
+            OpPrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Scalar(pos, precision) => match comptime![precision] {
@@ -111,7 +111,7 @@ pub fn read<C: CubePrimitive>(
 }
 
 #[cube]
-/// Read the value from the [arg](Arg) and cast it to the generic cube primitive.
+/// Write the given value at the [arg](Arg) position.
 pub fn write<C: CubePrimitive>(
     inputs: &FusionArgs,
     outputs: &mut FusionArgs,
@@ -178,7 +178,7 @@ pub fn write<C: CubePrimitive>(
 }
 
 #[cube]
-pub fn get_offset<C: CubePrimitive>(
+fn get_offset<C: CubePrimitive>(
     inputs: &FusionArgs,
     outputs: &FusionArgs,
     tensor: &Tensor<Line<C>>,

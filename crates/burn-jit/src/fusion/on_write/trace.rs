@@ -13,128 +13,15 @@ use cubecl::{ir::Elem, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(new, Clone, Serialize, Deserialize)]
+/// Trace containing all element wise operations as well as reads and writes.
 pub struct FuseOnWriteTrace {
-    pub outputs: RegisteredTensors,
-    pub inputs: RegisteredTensors,
-    pub scalars: BTreeMap<OpPrecision, u32>,
-    pub ops: Vec<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, ElemwiseOp>,
-    pub writes: BTreeMap<TensorId, ElemwiseOp>,
-}
-
-#[derive(Default, Clone, Serialize, Deserialize)]
-pub struct Tensor2Index {
-    tensors: BTreeMap<OpPrecision, BTreeMap<TensorId, u32>>,
-}
-
-#[derive(Default, Clone, Serialize, Deserialize)]
-pub struct RegisteredTensors {
-    tensors: BTreeMap<OpPrecision, Vec<TensorDescription>>,
-}
-
-impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = (OpPrecision, &TensorDescription)> {
-        self.tensors
-            .iter()
-            .map(|(precision, descriptions)| descriptions.iter().map(|desc| (*precision, desc)))
-            .flatten()
-    }
-
-    pub fn get_index(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<usize> {
-        self.tensors
-            .get(&precision)
-            .map(|items| {
-                items
-                    .iter()
-                    .enumerate()
-                    .find(|(_pos, tensor)| tensor.id == tensor_id)
-                    .map(|(pos, _)| pos)
-            })
-            .flatten()
-    }
-
-    pub fn get_all(&self, precision: OpPrecision) -> &[TensorDescription] {
-        self.tensors
-            .get(&precision)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[])
-    }
-    pub fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<&TensorDescription> {
-        self.get_all(precision)
-            .iter()
-            .find(|desc| desc.id == tensor_id)
-    }
-
-    pub fn insert(&mut self, precision: OpPrecision, tensor: TensorDescription) -> u32 {
-        if let Some(tensors) = self.tensors.get_mut(&precision) {
-            let position = tensors.len() as u32;
-            tensors.push(tensor);
-            position
-        } else {
-            self.tensors.insert(precision, vec![tensor]);
-            0
-        }
-    }
-    pub fn update(&mut self, precision: OpPrecision, tensor: &TensorDescription) -> bool {
-        if let Some(tensors) = self.tensors.get_mut(&precision) {
-            if let Some(tensor_old) = tensors
-                .iter_mut()
-                .find(|tensor_old| tensor_old.id == tensor.id)
-            {
-                tensor_old.status = tensor.status.clone();
-                return true;
-            }
-        }
-
-        false
-    }
-}
-
-impl Tensor2Index {
-    pub fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<u32> {
-        if let Some(indexes) = self.tensors.get(&precision) {
-            if let Some(index) = indexes.get(&tensor_id) {
-                return Some(*index);
-            }
-        }
-
-        None
-    }
-
-    pub fn get_any_precision(&self, tensor_id: TensorId) -> Option<(OpPrecision, u32)> {
-        for (precision, indexes) in self.tensors.iter() {
-            if let Some(index) = indexes.get(&tensor_id) {
-                return Some((*precision, *index));
-            }
-        }
-
-        None
-    }
-
-    pub fn find(&self, precision: OpPrecision, position: u32) -> Option<TensorId> {
-        if let Some(indexes) = self.tensors.get(&precision) {
-            indexes
-                .iter()
-                .find(|(_id, index)| **index == position)
-                .map(|(id, _index)| *id)
-        } else {
-            None
-        }
-    }
-
-    pub fn new_index(&mut self, precision: OpPrecision, tensor_id: TensorId) -> u32 {
-        if let Some(indexes) = self.tensors.get_mut(&precision) {
-            let new_index = indexes.len() as u32;
-            indexes.insert(tensor_id, new_index);
-            return new_index;
-        }
-
-        let new_index = 0;
-        self.tensors
-            .insert(precision, BTreeMap::from_iter([(tensor_id, new_index)]));
-        new_index
-    }
+    outputs: RegisteredTensors,
+    inputs: RegisteredTensors,
+    scalars: BTreeMap<OpPrecision, u32>,
+    ops: Vec<ElemwiseOp>,
+    reads: BTreeMap<TensorId, ElemwiseOp>,
+    writes: BTreeMap<TensorId, ElemwiseOp>,
 }
 
 pub trait RunTrace<R: JitRuntime> {
@@ -399,5 +286,68 @@ impl FuseOnWriteTrace {
         };
 
         L::run(client, inputs, outputs, config)
+    }
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct RegisteredTensors {
+    tensors: BTreeMap<OpPrecision, Vec<TensorDescription>>,
+}
+
+impl RegisteredTensors {
+    pub fn iter(&self) -> impl Iterator<Item = (OpPrecision, &TensorDescription)> {
+        self.tensors
+            .iter()
+            .map(|(precision, descriptions)| descriptions.iter().map(|desc| (*precision, desc)))
+            .flatten()
+    }
+
+    pub fn get_index(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<usize> {
+        self.tensors
+            .get(&precision)
+            .map(|items| {
+                items
+                    .iter()
+                    .enumerate()
+                    .find(|(_pos, tensor)| tensor.id == tensor_id)
+                    .map(|(pos, _)| pos)
+            })
+            .flatten()
+    }
+
+    pub fn get_all(&self, precision: OpPrecision) -> &[TensorDescription] {
+        self.tensors
+            .get(&precision)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    }
+
+    pub fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<&TensorDescription> {
+        self.get_all(precision)
+            .iter()
+            .find(|desc| desc.id == tensor_id)
+    }
+
+    pub fn insert(&mut self, precision: OpPrecision, tensor: TensorDescription) -> u32 {
+        if let Some(tensors) = self.tensors.get_mut(&precision) {
+            let position = tensors.len() as u32;
+            tensors.push(tensor);
+            position
+        } else {
+            self.tensors.insert(precision, vec![tensor]);
+            0
+        }
+    }
+
+    pub fn update(&mut self, precision: OpPrecision, tensor: &TensorDescription) {
+        if let Some(tensors) = self.tensors.get_mut(&precision) {
+            if let Some(tensor_old) = tensors
+                .iter_mut()
+                .find(|tensor_old| tensor_old.id == tensor.id)
+            {
+                tensor_old.status = tensor.status.clone();
+                return;
+            }
+        }
     }
 }

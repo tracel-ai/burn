@@ -4,7 +4,9 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
 pub enum Arg {
     Input(u32, OpPrecision, LayoutInfo),
     Local(u32, OpPrecision),
@@ -28,7 +30,11 @@ impl Arg {
     }
 }
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+impl ComptimeRegistryQuery<Self> for Arg {}
+
+#[derive(
+    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
+)]
 pub enum LayoutInfo {
     SameAsRef,
     IsRef,
@@ -93,12 +99,12 @@ pub struct FusionArgs {
 
 #[derive(CubeType, Clone)]
 pub struct FusionLocals {
-    pub l_f32: ConstMap<u32, Line<f32>>,
-    pub l_f16: ConstMap<u32, Line<f16>>,
-    pub l_bf16: ConstMap<u32, Line<bf16>>,
-    pub l_i32: ConstMap<u32, Line<i32>>,
-    pub l_u32: ConstMap<u32, Line<u32>>,
-    pub l_bool: ConstMap<u32, Line<bool>>,
+    pub l_f32: ComptimeRegistry<u32, Line<f32>>,
+    pub l_f16: ComptimeRegistry<u32, Line<f16>>,
+    pub l_bf16: ComptimeRegistry<u32, Line<bf16>>,
+    pub l_i32: ComptimeRegistry<u32, Line<i32>>,
+    pub l_u32: ComptimeRegistry<u32, Line<u32>>,
+    pub l_bool: ComptimeRegistry<u32, Line<bool>>,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

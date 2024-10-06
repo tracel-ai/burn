@@ -4,38 +4,34 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 
 #[cube]
+/// Fuse element-wise operations at the given write position.
+///
+/// You can start by writing some elements using `write_values` and `write_args`.
 pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &FusionArgs,
     outputs: &mut FusionArgs,
     write_pos: u32,
-    write_value: Line<E>,
-    #[comptime] write_arg: Option<Arg>,
+    write_values: ComptimeRegistry<Arg, Line<E>>,
+    #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &FusionConfig,
 ) {
     let mut locals = FusionLocals {
-        l_f32: ConstMap::<u32, Line<f32>>::new(),
-        l_f16: ConstMap::<u32, Line<f16>>::new(),
-        l_bf16: ConstMap::<u32, Line<bf16>>::new(),
-        l_i32: ConstMap::<u32, Line<i32>>::new(),
-        l_u32: ConstMap::<u32, Line<u32>>::new(),
-        l_bool: ConstMap::<u32, Line<bool>>::new(),
+        l_f32: ComptimeRegistry::<u32, Line<f32>>::new(),
+        l_f16: ComptimeRegistry::<u32, Line<f16>>::new(),
+        l_bf16: ComptimeRegistry::<u32, Line<bf16>>::new(),
+        l_i32: ComptimeRegistry::<u32, Line<i32>>::new(),
+        l_u32: ComptimeRegistry::<u32, Line<u32>>::new(),
+        l_bool: ComptimeRegistry::<u32, Line<bool>>::new(),
     };
 
-    // Initialize the write value.
-    match write_arg {
-        Some(val) => {
-            write::<E>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                write_value,
-                val,
-                config,
-            );
-        }
-        None => {}
-    };
+    // Write the values given as arguments.
+    #[unroll]
+    for i in 0..write_args.len() {
+        let arg = comptime![*write_args.index(i)];
+        let val = write_values.find(arg);
+
+        write::<E>(inputs, outputs, &mut locals, write_pos, val, arg, config);
+    }
 
     #[unroll]
     for index in 0..config.ops.len() {

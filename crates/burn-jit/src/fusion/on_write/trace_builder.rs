@@ -1,6 +1,6 @@
 use super::{
     ir::{Arg, BinaryElemwiseOp, ElemwiseOp, LayoutInfo, OpPrecision, UnaryElemwiseOp},
-    trace::{FuseOnWriteTrace, RegisteredTensors, Tensor2Index},
+    trace::{FuseOnWriteTrace, RegisteredTensors},
 };
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -10,18 +10,18 @@ use std::collections::BTreeMap;
 
 #[derive(Clone)]
 pub struct FuseOnWriteTraceBuilder {
-    pub locals: Tensor2Index,
-    pub outputs: RegisteredTensors,
-    pub inputs: RegisteredTensors,
-    pub scalars: BTreeMap<OpPrecision, u32>,
-    pub ops: Vec<ElemwiseOp>,
-    pub reads: BTreeMap<TensorId, ElemwiseOp>,
+    locals: Locals,
+    outputs: RegisteredTensors,
+    inputs: RegisteredTensors,
+    scalars: BTreeMap<OpPrecision, u32>,
+    ops: Vec<ElemwiseOp>,
+    reads: BTreeMap<TensorId, ElemwiseOp>,
 }
 
 impl FuseOnWriteTraceBuilder {
     pub fn new() -> Self {
         Self {
-            locals: Tensor2Index::default(),
+            locals: Locals::default(),
             outputs: RegisteredTensors::default(),
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
@@ -44,35 +44,23 @@ impl FuseOnWriteTraceBuilder {
         };
 
         match self.locals.get(precision, tensor.id) {
-            Some(val) => {
+            Some(local) => {
                 self.inputs.update(precision_input, &tensor);
                 // An input can be an output of a previously fused operation.
                 // We need to flag the new status for the tensor.
                 self.outputs.update(precision_input, &tensor);
 
-                Arg::Local(val, precision)
+                local
             }
             None => {
                 let new_input = self.inputs.insert(precision_input, tensor.clone());
-                let new_local = self.locals.new_index(precision, tensor.id);
-
-                let out = Arg::Local(new_local, precision);
-                // self.reads.insert(tensor.id, self.ops.len());
-
-                // self.reads.push(InputRead {
-                //     input_index: new_input,
-                //     input_precision: precision_input,
-                //     local_index: new_local,
-                //     local_precision: precision,
-                //     kind: InputReadKind::ToRefLayout,
-                // });
+                let out = self.locals.create(precision, tensor.id);
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+
                 self.reads.insert(
                     tensor.id,
                     ElemwiseOp::Assign(UnaryElemwiseOp { input, out }),
                 );
-                // self.ops
-                //     .push(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
 
                 out
             }
@@ -89,10 +77,9 @@ impl FuseOnWriteTraceBuilder {
         };
 
         match self.locals.get(precision, tensor.id) {
-            Some(val) => Arg::Local(val, precision),
+            Some(local) => local,
             None => {
-                let new_local = self.locals.new_index(precision, tensor.id);
-                let out = Arg::Local(new_local, precision);
+                let out = self.locals.create(precision, tensor.id);
 
                 self.outputs.insert(precision_output, tensor.clone());
 
@@ -135,27 +122,20 @@ impl FuseOnWriteTraceBuilder {
         let mut writes = BTreeMap::new();
 
         for (precision, tensor) in outputs.iter() {
-            let (local_precision, local_index) = self.locals.get_any_precision(tensor.id).unwrap();
+            let local = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
             writes.insert(
                 tensor.id,
                 ElemwiseOp::Assign(UnaryElemwiseOp {
-                    input: Arg::Local(local_index, local_precision),
+                    input: local,
                     out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
                 }),
             );
         }
 
         // Current problem is that I need btreemap instead of sequences.
-        FuseOnWriteTrace {
-            outputs,
-            inputs,
-            scalars,
-            ops,
-            reads,
-            writes,
-        }
+        FuseOnWriteTrace::new(outputs, inputs, scalars, ops, reads, writes)
     }
 
     fn output_tensors(&self) -> RegisteredTensors {
@@ -169,7 +149,7 @@ impl FuseOnWriteTraceBuilder {
         // Only local variables can become outputs.
         let mark = |var: &Arg, list: &mut Vec<(TensorId, OpPrecision)>| {
             if let Arg::Local(index, precision) = var {
-                if let Some(tensor_id) = self.locals.find(*precision, *index) {
+                if let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index) {
                     // Input and outputs tensors are using u32 for booleans.
                     let precision = match precision {
                         OpPrecision::Bool => OpPrecision::U32,
@@ -342,5 +322,57 @@ impl FuseOnWriteTraceBuilder {
         }
 
         result
+    }
+}
+
+#[derive(Default, Clone)]
+struct Locals {
+    values: BTreeMap<OpPrecision, BTreeMap<TensorId, u32>>,
+}
+
+impl Locals {
+    fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<Arg> {
+        if let Some(indexes) = self.values.get(&precision) {
+            if let Some(index) = indexes.get(&tensor_id) {
+                return Some(Arg::Local(*index, precision));
+            }
+        }
+
+        None
+    }
+
+    fn get_any_precision(&self, tensor_id: TensorId) -> Option<Arg> {
+        for (precision, indexes) in self.values.iter() {
+            if let Some(index) = indexes.get(&tensor_id) {
+                return Some(Arg::Local(*index, *precision));
+            }
+        }
+
+        None
+    }
+
+    fn find_tensor_id(&self, precision: OpPrecision, position: u32) -> Option<TensorId> {
+        if let Some(indexes) = self.values.get(&precision) {
+            indexes
+                .iter()
+                .find(|(_id, index)| **index == position)
+                .map(|(id, _index)| *id)
+        } else {
+            None
+        }
+    }
+
+    fn create(&mut self, precision: OpPrecision, tensor_id: TensorId) -> Arg {
+        if let Some(indexes) = self.values.get_mut(&precision) {
+            let new_index = indexes.len() as u32;
+            indexes.insert(tensor_id, new_index);
+            return Arg::Local(new_index, precision);
+        }
+
+        let new_index = 0;
+        self.values
+            .insert(precision, BTreeMap::from_iter([(tensor_id, new_index)]));
+
+        Arg::Local(new_index, precision)
     }
 }

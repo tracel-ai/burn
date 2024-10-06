@@ -151,5 +151,9 @@ pub fn elemwise_fuse(
     outputs: &mut FusionArgs,
     #[comptime] config: &FusionConfig,
 ) {
-    fuse_on_write::<f32>(inputs, outputs, ABSOLUTE_POS, Line::empty(1), None, config)
+    // We writes no values for this fusion.
+    let values = ComptimeRegistry::<Arg, Line<f32>>::new();
+    let args = comptime![Sequence::<Arg>::new()];
+
+    fuse_on_write::<f32>(inputs, outputs, ABSOLUTE_POS, values, args, config)
 }
