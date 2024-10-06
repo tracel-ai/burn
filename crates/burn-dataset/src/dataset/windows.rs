@@ -1,7 +1,5 @@
 use std::{cmp::max, marker::PhantomData, num::NonZeroUsize};
 
-use serde::de::DeserializeOwned;
-
 use crate::Dataset;
 
 /// Functionality to create windows.
@@ -129,7 +127,7 @@ where
 impl<D, I> Dataset<Vec<I>> for WindowsDataset<D, I>
 where
     D: Dataset<I>,
-    I: Clone + Send + Sync + DeserializeOwned,
+    I: Clone + Send + Sync,
 {
     /// Retrieves a window of items from the dataset.
     ///
