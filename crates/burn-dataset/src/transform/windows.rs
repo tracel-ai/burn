@@ -159,7 +159,10 @@ where
 mod tests {
     use rstest::rstest;
 
-    use crate::{transform::{WindowsDataset,Windows}, InMemDataset};
+    use crate::{
+        transform::{Windows, WindowsDataset},
+        Dataset, InMemDataset,
+    };
 
     #[rstest]
     pub fn windows_should_be_equal_to_vec_windows() {
