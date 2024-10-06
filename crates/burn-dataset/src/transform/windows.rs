@@ -91,10 +91,8 @@ impl<'a, I> Iterator for WindowsIterator<'a, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
-        let items = self.dataset.window(self.current, self.size);
-
         self.current += 1;
-        items
+        self.dataset.window(self.current - 1, self.size)
     }
 }
 
