@@ -1,5 +1,5 @@
 use super::{
-    ir::{Arg, BinaryElemwiseOp, ElemwiseOp, LayoutInfo, OpPrecision, UnaryElemwiseOp},
+    ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
     trace::{FuseOnWriteTrace, RegisteredTensors},
 };
 use burn_tensor::{
@@ -13,7 +13,7 @@ pub struct FuseOnWriteTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
-    scalars: BTreeMap<OpPrecision, u32>,
+    scalars: BTreeMap<ElemwisePrecision, u32>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
 }
@@ -39,7 +39,7 @@ impl FuseOnWriteTraceBuilder {
 
         // Bool tensors are encoded as u32.
         let precision_input = match precision {
-            OpPrecision::Bool => OpPrecision::U32,
+            ElemwisePrecision::Bool => ElemwisePrecision::U32,
             _ => precision,
         };
 
@@ -59,7 +59,7 @@ impl FuseOnWriteTraceBuilder {
 
                 self.reads.insert(
                     tensor.id,
-                    ElemwiseOp::Assign(UnaryElemwiseOp { input, out }),
+                    ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }),
                 );
 
                 out
@@ -72,7 +72,7 @@ impl FuseOnWriteTraceBuilder {
 
         // Bool tensors are encoded as u32.
         let precision_output = match precision {
-            OpPrecision::Bool => OpPrecision::U32,
+            ElemwisePrecision::Bool => ElemwisePrecision::U32,
             _ => precision,
         };
 
@@ -97,7 +97,7 @@ impl FuseOnWriteTraceBuilder {
 
         // Bool scalars are encoded as u32.
         let precision = match precision {
-            OpPrecision::Bool => OpPrecision::U32,
+            ElemwisePrecision::Bool => ElemwisePrecision::U32,
             _ => precision,
         };
         let new_index = self
@@ -127,7 +127,7 @@ impl FuseOnWriteTraceBuilder {
 
             writes.insert(
                 tensor.id,
-                ElemwiseOp::Assign(UnaryElemwiseOp {
+                ElemwiseOp::Assign(UnaryElemwiseArgs {
                     input: local,
                     out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
                 }),
@@ -147,12 +147,12 @@ impl FuseOnWriteTraceBuilder {
         // Mark a variable to the provided list of tensor ids using the variable list.
         //
         // Only local variables can become outputs.
-        let mark = |var: &Arg, list: &mut Vec<(TensorId, OpPrecision)>| {
+        let mark = |var: &Arg, list: &mut Vec<(TensorId, ElemwisePrecision)>| {
             if let Arg::Local(index, precision) = var {
                 if let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index) {
                     // Input and outputs tensors are using u32 for booleans.
                     let precision = match precision {
-                        OpPrecision::Bool => OpPrecision::U32,
+                        ElemwisePrecision::Bool => ElemwisePrecision::U32,
                         _ => *precision,
                     };
 
@@ -164,19 +164,21 @@ impl FuseOnWriteTraceBuilder {
             }
         };
 
-        let mark_binary = |op: &BinaryElemwiseOp,
-                           inputs: &mut Vec<(TensorId, OpPrecision)>,
-                           outputs: &mut Vec<(TensorId, OpPrecision)>| {
-            mark(&op.lhs, inputs);
-            mark(&op.rhs, inputs);
-            mark(&op.out, outputs);
-        };
-        let mark_unary = |op: &UnaryElemwiseOp,
-                          inputs: &mut Vec<(TensorId, OpPrecision)>,
-                          outputs: &mut Vec<(TensorId, OpPrecision)>| {
-            mark(&op.input, inputs);
-            mark(&op.out, outputs);
-        };
+        let mark_binary =
+            |op: &BinaryElemwiseArgs,
+             inputs: &mut Vec<(TensorId, ElemwisePrecision)>,
+             outputs: &mut Vec<(TensorId, ElemwisePrecision)>| {
+                mark(&op.lhs, inputs);
+                mark(&op.rhs, inputs);
+                mark(&op.out, outputs);
+            };
+        let mark_unary =
+            |op: &UnaryElemwiseArgs,
+             inputs: &mut Vec<(TensorId, ElemwisePrecision)>,
+             outputs: &mut Vec<(TensorId, ElemwisePrecision)>| {
+                mark(&op.input, inputs);
+                mark(&op.out, outputs);
+            };
 
         let mut mark_op = |op: &ElemwiseOp| match op {
             ElemwiseOp::Add(op) => mark_binary(
@@ -327,11 +329,11 @@ impl FuseOnWriteTraceBuilder {
 
 #[derive(Default, Clone)]
 struct Locals {
-    values: BTreeMap<OpPrecision, BTreeMap<TensorId, u32>>,
+    values: BTreeMap<ElemwisePrecision, BTreeMap<TensorId, u32>>,
 }
 
 impl Locals {
-    fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<Arg> {
+    fn get(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<Arg> {
         if let Some(indexes) = self.values.get(&precision) {
             if let Some(index) = indexes.get(&tensor_id) {
                 return Some(Arg::Local(*index, precision));
@@ -351,7 +353,7 @@ impl Locals {
         None
     }
 
-    fn find_tensor_id(&self, precision: OpPrecision, position: u32) -> Option<TensorId> {
+    fn find_tensor_id(&self, precision: ElemwisePrecision, position: u32) -> Option<TensorId> {
         if let Some(indexes) = self.values.get(&precision) {
             indexes
                 .iter()
@@ -362,7 +364,7 @@ impl Locals {
         }
     }
 
-    fn create(&mut self, precision: OpPrecision, tensor_id: TensorId) -> Arg {
+    fn create(&mut self, precision: ElemwisePrecision, tensor_id: TensorId) -> Arg {
         if let Some(indexes) = self.values.get_mut(&precision) {
             let new_index = indexes.len() as u32;
             indexes.insert(tensor_id, new_index);

@@ -6,8 +6,8 @@ use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, C
 use serde::{Deserialize, Serialize};
 
 use crate::fusion::on_write::{
-    ir::{Arg, FusionArgs, FusionArgsLaunch, FusionConfig, OpPrecision},
-    trace::{FuseOnWriteTrace, RunTrace},
+    ir::{Arg, ElemwiseConfig, ElemwisePrecision, GlobalArgs, GlobalArgsLaunch},
+    trace::{FuseOnWriteTrace, TraceRunner},
 };
 
 #[derive(new)]
@@ -50,27 +50,26 @@ impl<R: JitRuntime> ElemwiseKernel<R> {
     }
 }
 
-impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
+impl<R: JitRuntime> TraceRunner<R> for ElemwiseKernel<R> {
     fn run<'a>(
         client: &ComputeClient<R::Server, R::Channel>,
-        inputs: FusionArgsLaunch<'a, R>,
-        outputs: FusionArgsLaunch<'a, R>,
-        config: FusionConfig,
+        inputs: GlobalArgsLaunch<'a, R>,
+        outputs: GlobalArgsLaunch<'a, R>,
+        config: ElemwiseConfig,
     ) {
-        let arg = config.ref_layout.arg;
-        let arg = match arg {
+        let arg = match config.ref_layout {
             Arg::Input(index, precision, _) => match precision {
-                OpPrecision::F32 => inputs.t_f32.values.get(index as usize),
-                OpPrecision::F16 => inputs.t_f16.values.get(index as usize),
-                OpPrecision::U32 => inputs.t_u32.values.get(index as usize),
-                OpPrecision::I32 => inputs.t_i32.values.get(index as usize),
+                ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
+                ElemwisePrecision::F16 => inputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::U32 => inputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::I32 => inputs.t_i32.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             Arg::Output(index, precision, _) => match precision {
-                OpPrecision::F32 => outputs.t_f32.values.get(index as usize),
-                OpPrecision::F16 => outputs.t_f16.values.get(index as usize),
-                OpPrecision::U32 => outputs.t_u32.values.get(index as usize),
-                OpPrecision::I32 => outputs.t_i32.values.get(index as usize),
+                ElemwisePrecision::F32 => outputs.t_f32.values.get(index as usize),
+                ElemwisePrecision::F16 => outputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::U32 => outputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::I32 => outputs.t_i32.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             _ => panic!("Invalid value"),
@@ -147,11 +146,11 @@ impl<R: JitRuntime> RunTrace<R> for ElemwiseKernel<R> {
 
 #[cube(launch)]
 pub fn elemwise_fuse(
-    inputs: &FusionArgs,
-    outputs: &mut FusionArgs,
-    #[comptime] config: &FusionConfig,
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
 ) {
-    // We writes no values for this fusion.
+    // We write no values for this fusion.
     let values = ComptimeRegistry::<Arg, Line<f32>>::new();
     let args = comptime![Sequence::<Arg>::new()];
 

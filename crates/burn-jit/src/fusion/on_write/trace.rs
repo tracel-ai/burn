@@ -3,7 +3,7 @@ use crate::{
     JitRuntime,
 };
 
-use super::ir::{Arg, ElemwiseOp, FusionArgsLaunch, FusionConfig, OpPrecision, RefLayout};
+use super::ir::{Arg, ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch};
 use burn_fusion::stream::Context;
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -18,18 +18,22 @@ use std::collections::BTreeMap;
 pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
-    scalars: BTreeMap<OpPrecision, u32>,
+    scalars: BTreeMap<ElemwisePrecision, u32>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
 }
 
-pub trait RunTrace<R: JitRuntime> {
+/// A trace runner is responsable for determining the vectorization factor as well as launching
+/// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
+/// with a provided [element wise config](ElemwiseConfig).
+pub trait TraceRunner<R: JitRuntime> {
+    /// Run the trace.
     fn run<'a>(
         client: &ComputeClient<R::Server, R::Channel>,
-        inputs: FusionArgsLaunch<'a, R>,
-        outputs: FusionArgsLaunch<'a, R>,
-        config: FusionConfig,
+        inputs: GlobalArgsLaunch<'a, R>,
+        outputs: GlobalArgsLaunch<'a, R>,
+        config: ElemwiseConfig,
     );
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
@@ -39,59 +43,102 @@ pub trait RunTrace<R: JitRuntime> {
     ) -> u8;
 }
 
+struct LaunchAnalysis<'a, 'c, R: JitRuntime> {
+    potential_inplaces: Vec<PotentialInplace<'a>>,
+    global_inputs: Vec<&'c TensorDescription>,
+    global_outputs: Vec<&'c TensorDescription>,
+    handle_inputs: Vec<HandleInput<'c, R>>,
+    handle_outputs: Vec<HandleOutput<'c, R>>,
+    rank: usize,
+    reference: Option<Reference>,
+    reads: BTreeMap<TensorId, ElemwiseOp>,
+    writes: BTreeMap<TensorId, ElemwiseOp>,
+}
+
+#[derive(Debug)]
+enum HandleOutput<'c, R: JitRuntime> {
+    Alias {
+        input_pos: usize,
+        precision: ElemwisePrecision,
+    },
+    Owned {
+        precision: ElemwisePrecision,
+        handle: JitFusionHandle<R>,
+        global_shape: &'c [usize],
+    },
+}
+
+struct HandleInput<'c, R: JitRuntime> {
+    relative_id: TensorId,
+    precision: ElemwisePrecision,
+    handle: JitFusionHandle<R>,
+    global_shape: &'c [usize],
+}
+
+struct Reference {
+    layout: Arg,
+    shape: Vec<usize>,
+    strides: Vec<usize>,
+}
+
+struct PotentialInplace<'a> {
+    input_pos: usize,
+    tensor_relative: &'a TensorDescription,
+    strides: Vec<usize>,
+}
+
 impl FuseOnWriteTrace {
-    pub fn run<'a, R: JitRuntime, L: RunTrace<R>>(
+    /// Run a trace with the given [runner](TraceRunner).
+    pub fn run<'a, R: JitRuntime, Runner: TraceRunner<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
         context: &mut Context<'a, JitFusionHandle<R>>,
     ) {
-        #[derive(Debug)]
-        enum HandleOutput<R: JitRuntime> {
-            Alias(usize, OpPrecision),
-            Owned(OpPrecision, JitFusionHandle<R>, Vec<usize>),
-        }
+        let mut analysis = self.init_analysis();
+
+        self.analyse_inputs(context, &mut analysis);
+        self.analyse_outputs(client, device, context, &mut analysis);
+
+        let vectorization = Runner::vectorization(
+            analysis.handle_inputs.iter().map(|item| &item.handle),
+            analysis.global_inputs.iter().map(|desc| *desc),
+            analysis.global_outputs.iter().map(|desc| *desc),
+        );
+
+        let inputs = self.register_inputs(context, &analysis.handle_inputs, vectorization);
+        let outputs = self.register_outputs(&analysis.handle_outputs, vectorization);
 
         let mut ops = Sequence::new();
-        let mut reads = self.reads.clone();
-        let mut writes = self.writes.clone();
+        for op in analysis.reads.into_values() {
+            ops.push(op);
+        }
 
-        let mut handles_inputs = Vec::new();
-        let mut handles_outputs = Vec::new();
+        for op in self.ops.iter() {
+            ops.push(op.clone());
+        }
 
-        let mut inputs_desc = Vec::new();
-        let mut outputs_desc = Vec::new();
-        let mut potential_inplaces = Vec::new();
+        for op in analysis.writes.into_values() {
+            ops.push(op);
+        }
 
-        let mut ref_layout = None;
-        let mut ref_metadata = None;
-        let mut rank = 1;
+        let config = ElemwiseConfig {
+            rank: analysis.rank as u32,
+            ref_layout: analysis
+                .reference
+                .expect("An output should exist for the fused kernel")
+                .layout,
+            ops,
+        };
 
-        let mut inputs = FusionArgsLaunch::new(
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-        );
-        let mut outputs = FusionArgsLaunch::new(
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-        );
+        Runner::run(client, inputs, outputs, config)
+    }
 
+    fn analyse_inputs<'a, 'c, R: JitRuntime>(
+        &'a self,
+        context: &mut Context<'c, JitFusionHandle<R>>,
+        analysis: &mut LaunchAnalysis<'a, 'c, R>,
+    ) {
         for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
             // Important to take the status of the relative graph and not
@@ -101,77 +148,102 @@ impl FuseOnWriteTrace {
             let handle = context.handles.get_handle(&tensor_global.id, status);
 
             if status == &TensorStatus::ReadWrite && handle.handle.can_mut() && false {
-                potential_inplaces.push((tensor_relative, handle.strides.clone(), i));
+                analysis.potential_inplaces.push(PotentialInplace {
+                    input_pos: i,
+                    tensor_relative,
+                    strides: handle.strides.clone(),
+                });
             }
 
-            inputs_desc.push(tensor_global);
-            rank = usize::max(tensor_global.shape.len(), rank);
-            handles_inputs.push((
+            analysis.global_inputs.push(tensor_global);
+            analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
+            analysis.handle_inputs.push(HandleInput {
                 precision,
                 handle,
-                tensor_global.shape.clone(),
-                tensor_relative.id,
-            ));
+                relative_id: tensor_relative.id,
+                global_shape: &tensor_global.shape,
+            });
         }
+    }
 
+    fn analyse_outputs<'a, 'c, R: JitRuntime>(
+        &'a self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        device: &R::Device,
+        context: &mut Context<'c, JitFusionHandle<R>>,
+        analysis: &mut LaunchAnalysis<'a, 'c, R>,
+    ) {
         for (precision, tensor_relative) in self.outputs.iter() {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
             let strides = strides_dyn_rank(&tensor_global.shape);
-            outputs_desc.push(tensor_global);
+            analysis.global_outputs.push(tensor_global);
 
-            if let Some(index) = potential_inplaces
+            if let Some(index) = analysis
+                .potential_inplaces
                 .iter()
                 .enumerate()
-                .find(|(_pos, (input_relative, input_strides, _))| {
-                    input_relative.dtype == tensor_global.dtype
-                        && input_relative.shape == tensor_relative.shape
-                        && input_strides == &strides
+                .find(|(_pos, pi)| {
+                    pi.tensor_relative.dtype == tensor_global.dtype
+                        && pi.tensor_relative.shape == tensor_relative.shape
+                        && pi.strides == strides
                 })
                 .map(|(pos, _)| pos)
             {
-                let (tensor_relative_input, _strides, handle_index) =
-                    potential_inplaces.remove(index);
-                let (_, handle, _, _) = handles_inputs.get(handle_index).unwrap();
+                let potential_inplace = analysis.potential_inplaces.remove(index);
+                let handle_input = analysis
+                    .handle_inputs
+                    .get(potential_inplace.input_pos)
+                    .unwrap();
 
-                if ref_layout.is_none() {
+                if analysis.reference.is_none() {
                     let index_input = self
                         .inputs
-                        .get_index(precision, tensor_relative_input.id)
+                        .get_index(precision, potential_inplace.tensor_relative.id)
                         .unwrap();
 
-                    ref_metadata = Some((handle.strides.clone(), tensor_global.shape.clone()));
-                    ref_layout = Some(RefLayout {
-                        arg: Arg::Input(index_input as u32, precision, LayoutInfo::IsRef),
+                    analysis.reference = Some(Reference {
+                        layout: Arg::Input(index_input as u32, precision, LayoutInfo::IsRef),
+                        shape: tensor_global.shape.clone(),
+                        strides: handle_input.handle.strides.clone(),
                     });
 
                     if let ElemwiseOp::Assign(op) =
-                        reads.get_mut(&tensor_relative_input.id).unwrap()
+                        analysis.reads.get_mut(&handle_input.relative_id).unwrap()
                     {
                         op.input.add_layout_info(LayoutInfo::IsRef);
                     };
 
-                    if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap() {
+                    if let ElemwiseOp::Assign(op) =
+                        analysis.writes.get_mut(&tensor_relative.id).unwrap()
+                    {
                         op.out.add_layout_info(LayoutInfo::IsRef);
                     };
                 }
 
                 context
                     .handles
-                    .register_handle(tensor_global.id, handle.clone());
-                handles_outputs.push(HandleOutput::Alias(handle_index, precision));
+                    .register_handle(tensor_global.id, handle_input.handle.clone());
+                analysis.handle_outputs.push(HandleOutput::Alias {
+                    input_pos: potential_inplace.input_pos,
+                    precision,
+                });
             } else {
-                if ref_layout.is_none() {
-                    ref_metadata = Some((strides.clone(), tensor_global.shape.clone()));
-                    ref_layout = Some(RefLayout {
-                        arg: Arg::Output(0, precision, LayoutInfo::IsRef),
+                if analysis.reference.is_none() {
+                    analysis.reference = Some(Reference {
+                        layout: Arg::Output(0, precision, LayoutInfo::IsRef),
+                        shape: tensor_global.shape.clone(),
+                        strides: strides.clone(),
                     });
 
-                    if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap() {
+                    if let ElemwiseOp::Assign(op) =
+                        analysis.writes.get_mut(&tensor_relative.id).unwrap()
+                    {
                         op.out.add_layout_info(LayoutInfo::IsRef);
                     };
-                } else if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
-                    if ref_strides == &strides && ref_shape == &tensor_global.shape {
-                        if let ElemwiseOp::Assign(op) = writes.get_mut(&tensor_relative.id).unwrap()
+                } else if let Some(reference) = analysis.reference.as_ref() {
+                    if reference.strides == strides && reference.shape == tensor_global.shape {
+                        if let ElemwiseOp::Assign(op) =
+                            analysis.writes.get_mut(&tensor_relative.id).unwrap()
                         {
                             op.out.add_layout_info(LayoutInfo::SameAsRef);
                         };
@@ -184,6 +256,7 @@ impl FuseOnWriteTrace {
                     _ => tensor_global.dtype,
                 };
                 let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
+
                 let handle = JitFusionHandle {
                     client: client.clone(),
                     handle: client.empty(size),
@@ -191,118 +264,166 @@ impl FuseOnWriteTrace {
                     strides,
                 };
 
-                rank = usize::max(tensor_global.shape.len(), rank);
+                analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
                 context
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
-                handles_outputs.push(HandleOutput::Owned(
+
+                analysis.handle_outputs.push(HandleOutput::Owned {
                     precision,
                     handle,
-                    tensor_global.shape.clone(),
-                ));
+                    global_shape: &tensor_global.shape,
+                });
             }
+        }
+
+        Self::add_layout_info_inputs(analysis);
+    }
+
+    fn add_layout_info_inputs<'a, 'c, R: JitRuntime>(analysis: &mut LaunchAnalysis<'a, 'c, R>) {
+        for hi in analysis.handle_inputs.iter() {
+            if let Some(reference) = analysis.reference.as_ref() {
+                if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
+                    if let ElemwiseOp::Assign(op) = analysis.reads.get_mut(&hi.relative_id).unwrap()
+                    {
+                        op.input.add_layout_info(LayoutInfo::SameAsRef);
+                    }
+                }
+            }
+        }
+    }
+
+    fn register_inputs<'a, 'c, 'h, R: JitRuntime>(
+        &self,
+        context: &mut Context<'c, JitFusionHandle<R>>,
+        handle_inputs: &'h Vec<HandleInput<'c, R>>,
+        vectorization: u8,
+    ) -> GlobalArgsLaunch<'h, R> {
+        let mut inputs = GlobalArgsLaunch::new(
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+        );
+
+        for hi in handle_inputs.iter() {
+            let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
+            match hi.precision {
+                ElemwisePrecision::F32 => inputs.t_f32.push(arg),
+                ElemwisePrecision::F16 => inputs.t_f16.push(arg),
+                ElemwisePrecision::I32 => inputs.t_i32.push(arg),
+                ElemwisePrecision::U32 => inputs.t_u32.push(arg),
+                _ => todo!(),
+            };
         }
 
         for (precision, count) in self.scalars.iter() {
             for i in 0..(*count as usize) {
                 match precision {
-                    OpPrecision::F32 => inputs.s_f32.push(ScalarArg::new(context.scalar_f32[i])),
-                    OpPrecision::F16 => inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i])),
-                    OpPrecision::I32 => inputs.s_i32.push(ScalarArg::new(context.scalar_ints[i])),
-                    OpPrecision::U32 => todo!(),
+                    ElemwisePrecision::F32 => {
+                        inputs.s_f32.push(ScalarArg::new(context.scalar_f32[i]))
+                    }
+                    ElemwisePrecision::F16 => {
+                        inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i]))
+                    }
+                    ElemwisePrecision::I32 => {
+                        inputs.s_i32.push(ScalarArg::new(context.scalar_ints[i]))
+                    }
                     _ => todo!(),
                 }
             }
         }
 
-        let vectorization = L::vectorization(
-            handles_inputs.iter().map(|(_, handle, _, _)| handle),
-            inputs_desc.iter().map(|desc| *desc),
-            outputs_desc.iter().map(|desc| *desc),
+        inputs
+    }
+
+    fn register_outputs<'a, 'c, 's, R: JitRuntime>(
+        &self,
+        handle_outputs: &'s Vec<HandleOutput<'c, R>>,
+        vectorization: u8,
+    ) -> GlobalArgsLaunch<'s, R> {
+        let mut outputs = GlobalArgsLaunch::new(
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
         );
-
-        // Register everything
-        for (precision, handle, shape, relative_id) in handles_inputs.iter() {
-            let arg = handle.as_tensor_arg(shape, vectorization);
-
-            if let Some((ref_strides, ref_shape)) = ref_metadata.as_ref() {
-                if ref_strides == &handle.strides && ref_shape == shape {
-                    if let ElemwiseOp::Assign(op) = reads.get_mut(&relative_id).unwrap() {
-                        op.input.add_layout_info(LayoutInfo::SameAsRef);
-                    }
-                }
-            }
-
-            match precision {
-                OpPrecision::F32 => inputs.t_f32.push(arg),
-                OpPrecision::F16 => inputs.t_f16.push(arg),
-                OpPrecision::I32 => inputs.t_i32.push(arg),
-                OpPrecision::U32 => inputs.t_u32.push(arg),
-                _ => todo!(),
-            };
-        }
-
-        for item in handles_outputs.iter() {
+        for item in handle_outputs.iter() {
             match item {
-                HandleOutput::Alias(index, precision) => match precision {
-                    OpPrecision::F32 => outputs.t_f32.push(TensorArg::alias(*index)),
-                    OpPrecision::F16 => outputs.t_f16.push(TensorArg::alias(*index)),
-                    OpPrecision::I32 => outputs.t_i32.push(TensorArg::alias(*index)),
-                    OpPrecision::U32 => outputs.t_u32.push(TensorArg::alias(*index)),
+                HandleOutput::Alias {
+                    input_pos,
+                    precision,
+                } => match precision {
+                    ElemwisePrecision::F32 => outputs.t_f32.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::F16 => outputs.t_f16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::I32 => outputs.t_i32.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::U32 => outputs.t_u32.push(TensorArg::alias(*input_pos)),
                     _ => todo!(),
                 },
-                HandleOutput::Owned(precision, handle, shape) => {
-                    let arg = handle.as_tensor_arg(shape, vectorization);
+                HandleOutput::Owned {
+                    precision,
+                    handle,
+                    global_shape,
+                } => {
+                    let arg = handle.as_tensor_arg(&global_shape, vectorization);
 
                     match precision {
-                        OpPrecision::F32 => outputs.t_f32.push(arg),
-                        OpPrecision::F16 => outputs.t_f16.push(arg),
-                        OpPrecision::I32 => outputs.t_i32.push(arg),
-                        OpPrecision::U32 => outputs.t_u32.push(arg),
+                        ElemwisePrecision::F32 => outputs.t_f32.push(arg),
+                        ElemwisePrecision::F16 => outputs.t_f16.push(arg),
+                        ElemwisePrecision::I32 => outputs.t_i32.push(arg),
+                        ElemwisePrecision::U32 => outputs.t_u32.push(arg),
                         // Bools are encoded as u32.
-                        OpPrecision::Bool => outputs.t_u32.push(arg),
+                        ElemwisePrecision::Bool => outputs.t_u32.push(arg),
                         _ => todo!(),
                     };
                 }
             }
         }
 
-        for op in reads.into_values() {
-            ops.push(op);
+        outputs
+    }
+
+    fn init_analysis<'a, 'c, R: JitRuntime>(&'a self) -> LaunchAnalysis<'a, 'c, R> {
+        LaunchAnalysis {
+            potential_inplaces: Vec::new(),
+            global_inputs: Vec::new(),
+            global_outputs: Vec::new(),
+            handle_inputs: Vec::new(),
+            handle_outputs: Vec::new(),
+            rank: 1,
+            reference: None,
+            reads: self.reads.clone(),
+            writes: self.writes.clone(),
         }
-
-        for op in self.ops.iter() {
-            ops.push(op.clone());
-        }
-
-        for op in writes.into_values() {
-            ops.push(op);
-        }
-
-        let config = FusionConfig {
-            rank: rank as u32,
-            ref_layout: ref_layout.expect("An output should exist for the fused kernel"),
-            ops,
-        };
-
-        L::run(client, inputs, outputs, config)
     }
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct RegisteredTensors {
-    tensors: BTreeMap<OpPrecision, Vec<TensorDescription>>,
+    tensors: BTreeMap<ElemwisePrecision, Vec<TensorDescription>>,
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = (OpPrecision, &TensorDescription)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &TensorDescription)> {
         self.tensors
             .iter()
             .map(|(precision, descriptions)| descriptions.iter().map(|desc| (*precision, desc)))
             .flatten()
     }
 
-    pub fn get_index(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<usize> {
+    pub fn get_index(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<usize> {
         self.tensors
             .get(&precision)
             .map(|items| {
@@ -315,20 +436,24 @@ impl RegisteredTensors {
             .flatten()
     }
 
-    pub fn get_all(&self, precision: OpPrecision) -> &[TensorDescription] {
+    pub fn get_all(&self, precision: ElemwisePrecision) -> &[TensorDescription] {
         self.tensors
             .get(&precision)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
 
-    pub fn get(&self, precision: OpPrecision, tensor_id: TensorId) -> Option<&TensorDescription> {
+    pub fn get(
+        &self,
+        precision: ElemwisePrecision,
+        tensor_id: TensorId,
+    ) -> Option<&TensorDescription> {
         self.get_all(precision)
             .iter()
             .find(|desc| desc.id == tensor_id)
     }
 
-    pub fn insert(&mut self, precision: OpPrecision, tensor: TensorDescription) -> u32 {
+    pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorDescription) -> u32 {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
             let position = tensors.len() as u32;
             tensors.push(tensor);
@@ -339,7 +464,7 @@ impl RegisteredTensors {
         }
     }
 
-    pub fn update(&mut self, precision: OpPrecision, tensor: &TensorDescription) {
+    pub fn update(&mut self, precision: ElemwisePrecision, tensor: &TensorDescription) {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
             if let Some(tensor_old) = tensors
                 .iter_mut()

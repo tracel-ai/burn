@@ -1,5 +1,5 @@
 use super::{
-    ir::{Arg, BinaryElemwiseOp, ElemwiseOp, UnaryElemwiseOp},
+    ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, UnaryElemwiseArgs},
     trace::FuseOnWriteTrace,
     trace_builder::FuseOnWriteTraceBuilder,
 };
@@ -112,10 +112,10 @@ impl FuseOnWriteBuilder {
         match ops {
             BaseOperationDescription::Equal(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Equal(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Equal(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             BaseOperationDescription::Cast(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Assign(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             _ => false,
         }
@@ -124,34 +124,34 @@ impl FuseOnWriteBuilder {
     fn register_float(&mut self, ops: &FloatOperationDescription) -> bool {
         match ops {
             FloatOperationDescription::Exp(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Exp(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Exp(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::Log(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Log(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Log(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::Log1p(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    ElemwiseOp::Log1p(UnaryElemwiseOp { input, out })
+                    ElemwiseOp::Log1p(UnaryElemwiseArgs { input, out })
                 }),
             FloatOperationDescription::Cos(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Cos(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Cos(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::Sin(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Sin(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Sin(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::PowfScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Powf(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Powf(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             FloatOperationDescription::Tanh(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Tanh(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Tanh(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::Erf(desc) => self.register_unary_ops(desc, |input, out| {
-                ElemwiseOp::Erf(UnaryElemwiseOp { input, out })
+                ElemwiseOp::Erf(UnaryElemwiseArgs { input, out })
             }),
             FloatOperationDescription::Recip(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    ElemwiseOp::Recip(UnaryElemwiseOp { input, out })
+                    ElemwiseOp::Recip(UnaryElemwiseArgs { input, out })
                 }),
             _ => false,
         }
@@ -161,75 +161,75 @@ impl FuseOnWriteBuilder {
         match op {
             NumericOperationDescription::Add(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Add(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Add(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::AddScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Add(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Add(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::Sub(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Sub(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Sub(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::SubScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Sub(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Sub(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::Mul(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Mul(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Mul(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::MulScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Mul(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Mul(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::Div(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Div(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Div(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::DivScalar(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Div(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Div(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::Abs(desc) => self
                 .register_unary_ops(desc, |input, out| {
-                    ElemwiseOp::Abs(UnaryElemwiseOp { input, out })
+                    ElemwiseOp::Abs(UnaryElemwiseArgs { input, out })
                 }),
             NumericOperationDescription::Lower(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Lower(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Lower(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Lower(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Lower(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::Greater(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Greater(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Greater(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Greater(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Greater(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerEqual(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::LowerEqual(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::LowerEqual(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::LowerEqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::LowerEqual(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::LowerEqual(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterEqual(desc) => self
                 .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::GreaterEqual(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::GreaterEqual(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::GreaterEqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::GreaterEqual(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::GreaterEqual(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::EqualElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Equal(BinaryElemwiseOp { lhs, rhs, out })
+                    ElemwiseOp::Equal(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
             NumericOperationDescription::MaskWhere(desc) => {
                 if !self.output_is_compatible(&desc.out) {
@@ -282,7 +282,7 @@ impl FuseOnWriteBuilder {
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
                 true
             }
@@ -297,7 +297,7 @@ impl FuseOnWriteBuilder {
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
                 true
             }
@@ -310,7 +310,7 @@ impl FuseOnWriteBuilder {
                 let out = self.builder.output(desc);
 
                 self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseOp { input, out }));
+                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
                 true
             }

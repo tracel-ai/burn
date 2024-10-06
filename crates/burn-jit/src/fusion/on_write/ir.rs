@@ -7,42 +7,31 @@ use serde::{Deserialize, Serialize};
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
+/// Argument to an [elemwise operation](ElemwiseOp).
 pub enum Arg {
-    Input(u32, OpPrecision, LayoutInfo),
-    Local(u32, OpPrecision),
-    Output(u32, OpPrecision, LayoutInfo),
-    Scalar(u32, OpPrecision),
+    Input(u32, ElemwisePrecision, LayoutInfo),
+    Local(u32, ElemwisePrecision),
+    Output(u32, ElemwisePrecision, LayoutInfo),
+    Scalar(u32, ElemwisePrecision),
     /// Only constant that can be encoded into an u32 can be used as literal.
-    Literal(u32, OpPrecision),
+    Literal(u32, ElemwisePrecision),
 }
-
-impl Arg {
-    pub fn add_layout_info(&mut self, layout: LayoutInfo) {
-        match self {
-            Arg::Input(_, _, old) => {
-                *old = layout;
-            }
-            Arg::Output(_, _, old) => {
-                *old = layout;
-            }
-            _ => {}
-        }
-    }
-}
-
-impl ComptimeRegistryQuery<Self> for Arg {}
 
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
+/// Layout information.
 pub enum LayoutInfo {
+    /// The layout if the same as the reference.
     SameAsRef,
+    /// The reference layout.
     IsRef,
+    /// The layout if unknown.
     Unknown,
 }
 
 impl Arg {
-    pub fn precision(&self) -> OpPrecision {
+    pub fn precision(&self) -> ElemwisePrecision {
         *match self {
             Arg::Input(_, p, _) => p,
             Arg::Local(_, p) => p,
@@ -54,37 +43,39 @@ impl Arg {
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// Operations that can be executed and fused.
 pub enum ElemwiseOp {
-    Add(BinaryElemwiseOp),
-    Sub(BinaryElemwiseOp),
-    Mul(BinaryElemwiseOp),
-    Div(BinaryElemwiseOp),
-    Powf(BinaryElemwiseOp),
-    Abs(UnaryElemwiseOp),
-    Exp(UnaryElemwiseOp),
-    Log(UnaryElemwiseOp),
-    Log1p(UnaryElemwiseOp),
-    Cos(UnaryElemwiseOp),
-    Sin(UnaryElemwiseOp),
-    Tanh(UnaryElemwiseOp),
-    Erf(UnaryElemwiseOp),
-    Recip(UnaryElemwiseOp),
-    Assign(UnaryElemwiseOp),
+    Add(BinaryElemwiseArgs),
+    Sub(BinaryElemwiseArgs),
+    Mul(BinaryElemwiseArgs),
+    Div(BinaryElemwiseArgs),
+    Powf(BinaryElemwiseArgs),
+    Abs(UnaryElemwiseArgs),
+    Exp(UnaryElemwiseArgs),
+    Log(UnaryElemwiseArgs),
+    Log1p(UnaryElemwiseArgs),
+    Cos(UnaryElemwiseArgs),
+    Sin(UnaryElemwiseArgs),
+    Tanh(UnaryElemwiseArgs),
+    Erf(UnaryElemwiseArgs),
+    Recip(UnaryElemwiseArgs),
+    Assign(UnaryElemwiseArgs),
+    Equal(BinaryElemwiseArgs),
+    Lower(BinaryElemwiseArgs),
+    Greater(BinaryElemwiseArgs),
+    LowerEqual(BinaryElemwiseArgs),
+    GreaterEqual(BinaryElemwiseArgs),
     ConditionalAssign {
         cond: Arg,
         lhs: Arg,
         rhs: Arg,
         out: Arg,
     },
-    Equal(BinaryElemwiseOp),
-    Lower(BinaryElemwiseOp),
-    Greater(BinaryElemwiseOp),
-    LowerEqual(BinaryElemwiseOp),
-    GreaterEqual(BinaryElemwiseOp),
 }
 
 #[derive(CubeLaunch)]
-pub struct FusionArgs {
+/// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
+pub struct GlobalArgs {
     pub t_f32: Sequence<Tensor<Line<f32>>>,
     pub t_f16: Sequence<Tensor<Line<f16>>>,
     pub t_bf16: Sequence<Tensor<Line<bf16>>>,
@@ -98,7 +89,9 @@ pub struct FusionArgs {
 }
 
 #[derive(CubeType, Clone)]
-pub struct FusionLocals {
+/// Keep track of all local variables that are used as argument in fused
+/// [element wise operations](ElemwiseOp).
+pub struct LocalArgs {
     pub l_f32: ComptimeRegistry<u32, Line<f32>>,
     pub l_f16: ComptimeRegistry<u32, Line<f16>>,
     pub l_bf16: ComptimeRegistry<u32, Line<bf16>>,
@@ -108,13 +101,15 @@ pub struct FusionLocals {
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UnaryElemwiseOp {
+/// Unary [element wise operation](ElemwiseOp) arguments.
+pub struct UnaryElemwiseArgs {
     pub input: Arg,
     pub out: Arg,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BinaryElemwiseOp {
+/// Binary [element wise operation](ElemwiseOp) arguments.
+pub struct BinaryElemwiseArgs {
     pub lhs: Arg,
     pub rhs: Arg,
     pub out: Arg,
@@ -123,7 +118,8 @@ pub struct BinaryElemwiseOp {
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
-pub enum OpPrecision {
+/// Precisions supported by [element wise operations](ElemwiseOp).
+pub enum ElemwisePrecision {
     F32,
     F16,
     BF16,
@@ -134,7 +130,7 @@ pub enum OpPrecision {
     Bool,
 }
 
-impl From<Elem> for OpPrecision {
+impl From<Elem> for ElemwisePrecision {
     fn from(value: Elem) -> Self {
         match value {
             Elem::Float(kind) => match kind {
@@ -154,7 +150,7 @@ impl From<Elem> for OpPrecision {
     }
 }
 
-impl From<DType> for OpPrecision {
+impl From<DType> for ElemwisePrecision {
     fn from(value: DType) -> Self {
         match value {
             DType::F32 => Self::F32,
@@ -170,14 +166,28 @@ impl From<DType> for OpPrecision {
     }
 }
 
-#[derive(CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct RefLayout {
-    pub arg: Arg,
-}
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct FusionConfig {
+/// Configuration that encapsulates all comptime information necessary for element wise fusion.
+pub struct ElemwiseConfig {
     pub rank: u32,
-    pub ref_layout: RefLayout,
+    pub ref_layout: Arg,
     pub ops: Sequence<ElemwiseOp>,
 }
+
+impl Arg {
+    /// Add layout information; it's going to impact how the input or output is read
+    /// and written to.
+    pub fn add_layout_info(&mut self, layout: LayoutInfo) {
+        match self {
+            Arg::Input(_, _, old) => {
+                *old = layout;
+            }
+            Arg::Output(_, _, old) => {
+                *old = layout;
+            }
+            _ => {}
+        }
+    }
+}
+
+impl ComptimeRegistryQuery<Self> for Arg {}
