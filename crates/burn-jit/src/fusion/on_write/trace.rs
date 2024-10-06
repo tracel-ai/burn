@@ -49,10 +49,11 @@ struct LaunchAnalysis<'a, 'c, R: JitRuntime> {
     global_outputs: Vec<&'c TensorDescription>,
     handle_inputs: Vec<HandleInput<'c, R>>,
     handle_outputs: Vec<HandleOutput<'c, R>>,
-    rank: usize,
     reference: Option<Reference>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
+    rank: usize,
+    vectorization: u8,
 }
 
 #[derive(Debug)]
@@ -95,19 +96,10 @@ impl FuseOnWriteTrace {
         device: &R::Device,
         context: &mut Context<'a, JitFusionHandle<R>>,
     ) {
-        let mut analysis = self.init_analysis();
+        let analysis = self.analyse::<R, Runner>(client, device, context);
 
-        self.analyse_inputs(context, &mut analysis);
-        self.analyse_outputs(client, device, context, &mut analysis);
-
-        let vectorization = Runner::vectorization(
-            analysis.handle_inputs.iter().map(|item| &item.handle),
-            analysis.global_inputs.iter().map(|desc| *desc),
-            analysis.global_outputs.iter().map(|desc| *desc),
-        );
-
-        let inputs = self.register_inputs(context, &analysis.handle_inputs, vectorization);
-        let outputs = self.register_outputs(&analysis.handle_outputs, vectorization);
+        let inputs = self.register_inputs(context, &analysis.handle_inputs, analysis.vectorization);
+        let outputs = self.register_outputs(&analysis.handle_outputs, analysis.vectorization);
 
         let mut ops = Sequence::new();
         for op in analysis.reads.into_values() {
@@ -132,6 +124,37 @@ impl FuseOnWriteTrace {
         };
 
         Runner::run(client, inputs, outputs, config)
+    }
+
+    fn analyse<'a, 'c, R: JitRuntime, Runner: TraceRunner<R>>(
+        &'a self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        device: &R::Device,
+        context: &mut Context<'c, JitFusionHandle<R>>,
+    ) -> LaunchAnalysis<'a, 'c, R> {
+        let mut analysis = LaunchAnalysis {
+            potential_inplaces: Vec::new(),
+            global_inputs: Vec::new(),
+            global_outputs: Vec::new(),
+            handle_inputs: Vec::new(),
+            handle_outputs: Vec::new(),
+            reference: None,
+            reads: self.reads.clone(),
+            writes: self.writes.clone(),
+            rank: 1,
+            vectorization: 1,
+        };
+
+        self.analyse_inputs(context, &mut analysis);
+        self.analyse_outputs(client, device, context, &mut analysis);
+
+        analysis.vectorization = Runner::vectorization(
+            analysis.handle_inputs.iter().map(|item| &item.handle),
+            analysis.global_inputs.iter().map(|desc| *desc),
+            analysis.global_outputs.iter().map(|desc| *desc),
+        );
+
+        analysis
     }
 
     fn analyse_inputs<'a, 'c, R: JitRuntime>(
@@ -393,20 +416,6 @@ impl FuseOnWriteTrace {
         }
 
         outputs
-    }
-
-    fn init_analysis<'a, 'c, R: JitRuntime>(&'a self) -> LaunchAnalysis<'a, 'c, R> {
-        LaunchAnalysis {
-            potential_inplaces: Vec::new(),
-            global_inputs: Vec::new(),
-            global_outputs: Vec::new(),
-            handle_inputs: Vec::new(),
-            handle_outputs: Vec::new(),
-            rank: 1,
-            reference: None,
-            reads: self.reads.clone(),
-            writes: self.writes.clone(),
-        }
     }
 }
 
