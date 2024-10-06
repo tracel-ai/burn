@@ -2,6 +2,24 @@ use std::{cmp::max, marker::PhantomData, num::NonZeroUsize};
 
 use crate::Dataset;
 
+/// Functionality to create a window.
+pub trait Window<I> {
+    /// Returns a window of a dataset.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec<I>` representing a window of the Dataset.
+    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
+}
+
+impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
+    fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>> {
+        (current..current + size.get())
+            .map(|x| self.get(x))
+            .collect()
+    }
+}
+
 /// Functionality to create windows.
 pub trait Windows<I> {
     /// Returns an iterator over all the windows of length `size`. The windows overlap.
@@ -73,9 +91,7 @@ impl<'a, I> Iterator for WindowsIterator<'a, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
-        let items = (self.current..self.current + self.size.get())
-            .map(|x| self.dataset.get(x))
-            .collect();
+        let items = self.dataset.window(self.current, self.size);
 
         self.current += 1;
         items
@@ -143,9 +159,7 @@ where
     ///
     /// A vector containing the items of the window.
     fn get(&self, index: usize) -> Option<Vec<I>> {
-        (index..index + self.size.get())
-            .map(|x| self.dataset.get(x))
-            .collect()
+        self.dataset.window(index, self.size)
     }
 
     /// Retrieves the number of windows in the dataset.
