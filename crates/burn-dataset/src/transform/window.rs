@@ -4,7 +4,7 @@ use crate::Dataset;
 
 /// Functionality to create a window.
 pub trait Window<I> {
-    /// Returns a window of a collection.
+    /// Creates a window of a collection.
     ///
     /// # Returns
     ///
@@ -22,7 +22,7 @@ impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
 
 /// Functionality to create a `WindowsIterator`.
 pub trait Windows<I> {
-    /// Returns an iterator over all the windows of length `size`.
+    /// Creates and returns an iterator over all the windows of length `size`.
     fn windows(&self, size: usize) -> WindowsIterator<'_, I>;
 }
 
