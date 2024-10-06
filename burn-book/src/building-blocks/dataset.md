@@ -37,7 +37,7 @@ distributions.
 | `PartialDataset`  | Returns a view of the input dataset with a specified range.                                                              |
 | `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
 | `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
-| `WindowDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
+| `WindowsDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
 
 Let us look at the basic usages of each dataset transform and how they can be composed together.
 These transforms are lazy by default except when specified, reducing the need for unnecessary
@@ -90,6 +90,9 @@ let data_split = match split {
 - **ComposedDataset**: This transform is useful to compose multiple datasets downloaded from
   multiple sources (say different HuggingfaceDatasetLoader sources) into a single bigger dataset
   which can be sampled from one source.
+
+- **WindowsDataset**: This transform is useful to create overlapping windows of a dataset.
+  Particularly useful for sequential Time series Data, for example when working with an LSTM.
 
 ## Storage
 
