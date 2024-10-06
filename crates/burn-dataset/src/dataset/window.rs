@@ -8,8 +8,8 @@ pub trait Windows<I> {
     ///
     /// # Returns
     ///
-    /// A `WindowIterator` instance.
-    fn windows(&self, size: usize) -> WindowIterator<'_, I>;
+    /// A `WindowsIterator` instance.
+    fn windows(&self, size: usize) -> WindowsIterator<'_, I>;
 }
 
 impl<I, T: Dataset<I>> Windows<I> for T {
@@ -30,22 +30,22 @@ impl<I, T: Dataset<I>> Windows<I> for T {
     ///  // do sth with window
     /// }
     /// ```
-    fn windows(&self, size: usize) -> WindowIterator<'_, I> {
+    fn windows(&self, size: usize) -> WindowsIterator<'_, I> {
         let size = NonZeroUsize::new(size).expect("window size must be non-zero");
-        WindowIterator::new(self, size)
+        WindowsIterator::new(self, size)
     }
 }
 
 /// Overlapping windows iterator.
-pub struct WindowIterator<'a, I> {
+pub struct WindowsIterator<'a, I> {
     /// The size of the windows.
     pub size: NonZeroUsize,
     current: usize,
     dataset: &'a dyn Dataset<I>,
 }
 
-impl<'a, I> WindowIterator<'a, I> {
-    /// Creates a new `WindowIterator` instance. The windows overlap.
+impl<'a, I> WindowsIterator<'a, I> {
+    /// Creates a new `WindowsIterator` instance. The windows overlap.
     /// Is empty if the input `Dataset` is shorter than `size`.
     ///
     /// # Parameters
@@ -57,7 +57,7 @@ impl<'a, I> WindowIterator<'a, I> {
     ///
     /// A `Windows` iterator.
     pub fn new(dataset: &'a dyn Dataset<I>, size: NonZeroUsize) -> Self {
-        WindowIterator {
+        WindowsIterator {
             current: 0,
             dataset,
             size,
@@ -65,7 +65,7 @@ impl<'a, I> WindowIterator<'a, I> {
     }
 }
 
-impl<'a, I> Iterator for WindowIterator<'a, I> {
+impl<'a, I> Iterator for WindowsIterator<'a, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
@@ -78,9 +78,9 @@ impl<'a, I> Iterator for WindowIterator<'a, I> {
     }
 }
 
-impl<'a, I> Clone for WindowIterator<'a, I> {
+impl<'a, I> Clone for WindowsIterator<'a, I> {
     fn clone(&self) -> Self {
-        WindowIterator {
+        WindowsIterator {
             size: self.size,
             dataset: self.dataset,
             current: self.current,
@@ -89,18 +89,18 @@ impl<'a, I> Clone for WindowIterator<'a, I> {
 }
 
 /// Dataset designed to work with overlapping windows of data.
-pub struct WindowDataset<D, I> {
+pub struct WindowsDataset<D, I> {
     /// The size of the windows.
     pub size: NonZeroUsize,
     dataset: D,
     input: PhantomData<I>,
 }
 
-impl<D, I> WindowDataset<D, I>
+impl<D, I> WindowsDataset<D, I>
 where
     D: Dataset<I>,
 {
-    /// Creates a new `WindowDataset` instance. The windows overlap.
+    /// Creates a new `WindowsDataset` instance. The windows overlap.
     /// Is empty if the input `Dataset` is shorter than `size`.
     ///
     /// # Parameters
@@ -110,13 +110,13 @@ where
     ///
     /// # Returns
     ///
-    /// A `WindowDataset` instance.
+    /// A `WindowsDataset` instance.
     pub fn new(dataset: D, size: usize) -> Self
     where
         D:,
     {
         let size = NonZeroUsize::new(size).expect("window size must be non-zero");
-        WindowDataset::<D, I> {
+        WindowsDataset::<D, I> {
             size,
             dataset,
             input: PhantomData,
@@ -124,7 +124,7 @@ where
     }
 }
 
-impl<D, I> Dataset<Vec<I>> for WindowDataset<D, I>
+impl<D, I> Dataset<Vec<I>> for WindowsDataset<D, I>
 where
     D: Dataset<I>,
     I: Clone + Send + Sync,
@@ -159,7 +159,7 @@ where
 mod tests {
     use rstest::rstest;
 
-    use crate::{Dataset, InMemDataset, WindowDataset, Windows};
+    use crate::{Dataset, InMemDataset, WindowsDataset, Windows};
 
     #[rstest]
     pub fn windows_should_be_equal_to_vec_windows() {
@@ -190,14 +190,14 @@ mod tests {
         let items = [1, 2].to_vec();
         let dataset = InMemDataset::new(items.clone());
 
-        WindowDataset::new(dataset, 0);
+        WindowsDataset::new(dataset, 0);
     }
 
     #[rstest]
     pub fn window_dataset_len_should_be_equal() {
         let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
 
-        let result = WindowDataset::new(dataset, 2).len();
+        let result = WindowsDataset::new(dataset, 2).len();
 
         assert_eq!(result, 3);
     }
@@ -216,7 +216,7 @@ mod tests {
     pub fn window_dataset_len_should_be_zero() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = WindowDataset::new(dataset, 4).len();
+        let result = WindowsDataset::new(dataset, 4).len();
 
         assert_eq!(result, 0);
     }
@@ -226,7 +226,7 @@ mod tests {
         let dataset = InMemDataset::new([1, 2, 3, 4].to_vec());
         let expected = Some([1, 2, 3].to_vec());
 
-        let result = WindowDataset::new(dataset, 3).get(0);
+        let result = WindowsDataset::new(dataset, 3).get(0);
 
         assert_eq!(result, expected);
     }
@@ -235,7 +235,7 @@ mod tests {
     pub fn window_dataset_get_should_be_none() {
         let dataset = InMemDataset::new([1, 2].to_vec());
 
-        let result = WindowDataset::new(dataset, 4).get(0);
+        let result = WindowsDataset::new(dataset, 4).get(0);
 
         assert_eq!(result, None);
     }
