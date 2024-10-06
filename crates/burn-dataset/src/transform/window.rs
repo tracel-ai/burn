@@ -4,11 +4,11 @@ use crate::Dataset;
 
 /// Functionality to create a window.
 pub trait Window<I> {
-    /// Returns a window of a dataset.
+    /// Returns a window of a collection.
     ///
     /// # Returns
     ///
-    /// A `Vec<I>` representing a window of the Dataset.
+    /// A `Vec<I>` representing a window of a collection.
     fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
 }
 
