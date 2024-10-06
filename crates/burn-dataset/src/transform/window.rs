@@ -8,7 +8,7 @@ pub trait Window<I> {
     ///
     /// # Returns
     ///
-    /// A `Vec<I>` representing a window.
+    /// A `Vec<I>` representing the window.
     fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
 }
 
@@ -22,11 +22,7 @@ impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
 
 /// Functionality to create a `WindowsIterator`.
 pub trait Windows<I> {
-    /// Returns an iterator over all the windows of length `size`. The windows overlap.
-    ///
-    /// # Returns
-    ///
-    /// A `WindowsIterator` instance.
+    /// Returns an iterator over all the windows of length `size`.
     fn windows(&self, size: usize) -> WindowsIterator<'_, I>;
 }
 
@@ -74,10 +70,6 @@ impl<'a, I> WindowsIterator<'a, I> {
     ///
     /// - `dataset`: The dataset over which windows will be created.
     /// - `size`: The size of the windows.
-    ///
-    /// # Returns
-    ///
-    /// A `Windows` iterator.
     pub fn new(dataset: &'a dyn Dataset<I>, size: NonZeroUsize) -> Self {
         WindowsIterator {
             current: 0,
@@ -125,10 +117,6 @@ where
     ///
     /// - `dataset`: The dataset over which windows will be created.
     /// - `size`: The size of the windows.
-    ///
-    /// # Returns
-    ///
-    /// A `WindowsDataset` instance.
     pub fn new(dataset: D, size: usize) -> Self
     where
         D:,
@@ -155,7 +143,7 @@ where
     ///
     /// # Returns
     ///
-    /// A vector containing the items of the window.
+    /// A vector representing the window.
     fn get(&self, index: usize) -> Option<Vec<I>> {
         self.dataset.window(index, self.size)
     }
