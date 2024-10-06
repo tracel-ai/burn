@@ -22,7 +22,11 @@ impl<I, T: Dataset<I>> Windows<I> for T {
     /// # Examples
     ///
     /// ```
-    /// use crate::burn_dataset::{Dataset, InMemDataset, Windows};
+    /// use crate::{
+    ///    transform::{Windows, WindowsDataset},
+    ///    Dataset, InMemDataset,
+    /// };
+    ///
     /// let items = [1, 2, 3, 4].to_vec();
     /// let dataset = InMemDataset::new(items.clone());
     ///
