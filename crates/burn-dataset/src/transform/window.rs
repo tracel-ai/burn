@@ -8,7 +8,7 @@ pub trait Window<I> {
     ///
     /// # Returns
     ///
-    /// A `Vec<I>` representing a window of the Dataset.
+    /// A `Vec<I>` representing a window of another collection.
     fn window(&self, current: usize, size: NonZeroUsize) -> Option<Vec<I>>;
 }
 
