@@ -1,12 +1,10 @@
 mod base;
 mod in_memory;
 mod iterator;
-mod windows;
 
 pub use base::*;
 pub use in_memory::*;
 pub use iterator::*;
-pub use windows::*;
 
 #[cfg(any(test, feature = "fake"))]
 mod fake;
