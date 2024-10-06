@@ -37,7 +37,7 @@ distributions.
 | `PartialDataset`  | Returns a view of the input dataset with a specified range.                                                              |
 | `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
 | `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
-| `WindowsDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
+| `WindowsDataset`  | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
 
 Let us look at the basic usages of each dataset transform and how they can be composed together.
 These transforms are lazy by default except when specified, reducing the need for unnecessary
