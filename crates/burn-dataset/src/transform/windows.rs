@@ -20,7 +20,7 @@ impl<I, T: Dataset<I> + ?Sized> Window<I> for T {
     }
 }
 
-/// Functionality to create windows.
+/// Functionality to create a `WindowsIterator`.
 pub trait Windows<I> {
     /// Returns an iterator over all the windows of length `size`. The windows overlap.
     ///
