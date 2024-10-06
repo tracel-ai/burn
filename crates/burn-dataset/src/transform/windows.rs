@@ -22,7 +22,7 @@ impl<I, T: Dataset<I>> Windows<I> for T {
     /// # Examples
     ///
     /// ```
-    /// use crate::{
+    /// use crate::burn_dataset::{
     ///    transform::{Windows, WindowsDataset},
     ///    Dataset, InMemDataset,
     /// };
@@ -178,6 +178,22 @@ mod tests {
             .collect::<Vec<Vec<i32>>>();
 
         let result = dataset.windows(3).collect::<Vec<Vec<i32>>>();
+
+        assert_eq!(result, expected);
+    }
+
+    #[rstest]
+    pub fn windows_dataset_should_be_equal_to_vec_windows() {
+        let items = [1, 2, 3, 4, 5].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+        let expected = items
+            .windows(3)
+            .map(|x| x.to_vec())
+            .collect::<Vec<Vec<i32>>>();
+
+        let result = WindowsDataset::new(dataset, 3)
+            .iter()
+            .collect::<Vec<Vec<i32>>>();
 
         assert_eq!(result, expected);
     }
