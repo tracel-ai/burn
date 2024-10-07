@@ -45,10 +45,10 @@ impl FuseOnWriteTraceBuilder {
 
         match self.locals.get(precision, tensor.id) {
             Some(local) => {
-                self.inputs.update(precision_input, &tensor);
+                self.inputs.update(precision_input, tensor);
                 // An input can be an output of a previously fused operation.
                 // We need to flag the new status for the tensor.
-                self.outputs.update(precision_input, &tensor);
+                self.outputs.update(precision_input, tensor);
 
                 local
             }
@@ -100,11 +100,7 @@ impl FuseOnWriteTraceBuilder {
             ElemwisePrecision::Bool => ElemwisePrecision::U32,
             _ => precision,
         };
-        let new_index = self
-            .scalars
-            .get(&precision)
-            .map(|num_scalars| *num_scalars)
-            .unwrap_or(0);
+        let new_index = self.scalars.get(&precision).copied().unwrap_or(0);
 
         let num_scalars = new_index + 1;
 
@@ -262,10 +258,10 @@ impl FuseOnWriteTraceBuilder {
                 rhs,
                 out,
             } => {
-                mark(&cond, &mut local_tensor_ids_input);
-                mark(&lhs, &mut local_tensor_ids_input);
-                mark(&rhs, &mut local_tensor_ids_input);
-                mark(&out, &mut local_tensor_ids_output);
+                mark(cond, &mut local_tensor_ids_input);
+                mark(lhs, &mut local_tensor_ids_input);
+                mark(rhs, &mut local_tensor_ids_input);
+                mark(out, &mut local_tensor_ids_output);
             }
             ElemwiseOp::Equal(op) => mark_binary(
                 op,

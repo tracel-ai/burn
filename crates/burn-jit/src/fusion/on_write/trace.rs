@@ -90,11 +90,11 @@ struct PotentialInplace<'a> {
 
 impl FuseOnWriteTrace {
     /// Run a trace with the given [runner](TraceRunner).
-    pub fn run<'a, R: JitRuntime, Runner: TraceRunner<R>>(
+    pub fn run<R: JitRuntime, Runner: TraceRunner<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'a, JitFusionHandle<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
         let analysis = self.analyse::<R, Runner>(client, device, context);
 
@@ -150,8 +150,8 @@ impl FuseOnWriteTrace {
 
         analysis.vectorization = Runner::vectorization(
             analysis.handle_inputs.iter().map(|item| &item.handle),
-            analysis.global_inputs.iter().map(|desc| *desc),
-            analysis.global_outputs.iter().map(|desc| *desc),
+            analysis.global_inputs.iter().copied(),
+            analysis.global_outputs.iter().copied(),
         );
 
         analysis
@@ -303,7 +303,7 @@ impl FuseOnWriteTrace {
         Self::add_layout_info_inputs(analysis);
     }
 
-    fn add_layout_info_inputs<'a, 'c, R: JitRuntime>(analysis: &mut LaunchAnalysis<'a, 'c, R>) {
+    fn add_layout_info_inputs<R: JitRuntime>(analysis: &mut LaunchAnalysis<'_, '_, R>) {
         for hi in analysis.handle_inputs.iter() {
             if let Some(reference) = analysis.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
@@ -336,7 +336,7 @@ impl FuseOnWriteTrace {
         );
 
         for hi in handle_inputs.iter() {
-            let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
+            let arg = hi.handle.as_tensor_arg(hi.global_shape, vectorization);
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),
@@ -366,9 +366,9 @@ impl FuseOnWriteTrace {
         inputs
     }
 
-    fn register_outputs<'a, 'c, 's, R: JitRuntime>(
+    fn register_outputs<'a, 's, R: JitRuntime>(
         &self,
-        handle_outputs: &'s Vec<HandleOutput<'c, R>>,
+        handle_outputs: &'s Vec<HandleOutput<'_, R>>,
         vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
@@ -400,7 +400,7 @@ impl FuseOnWriteTrace {
                     handle,
                     global_shape,
                 } => {
-                    let arg = handle.as_tensor_arg(&global_shape, vectorization);
+                    let arg = handle.as_tensor_arg(global_shape, vectorization);
 
                     match precision {
                         ElemwisePrecision::F32 => outputs.t_f32.push(arg),
@@ -426,23 +426,19 @@ pub struct RegisteredTensors {
 
 impl RegisteredTensors {
     pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &TensorDescription)> {
-        self.tensors
-            .iter()
-            .map(|(precision, descriptions)| descriptions.iter().map(|desc| (*precision, desc)))
-            .flatten()
+        self.tensors.iter().flat_map(|(precision, descriptions)| {
+            descriptions.iter().map(|desc| (*precision, desc))
+        })
     }
 
     pub fn get_index(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<usize> {
-        self.tensors
-            .get(&precision)
-            .map(|items| {
-                items
-                    .iter()
-                    .enumerate()
-                    .find(|(_pos, tensor)| tensor.id == tensor_id)
-                    .map(|(pos, _)| pos)
-            })
-            .flatten()
+        self.tensors.get(&precision).and_then(|items| {
+            items
+                .iter()
+                .enumerate()
+                .find(|(_pos, tensor)| tensor.id == tensor_id)
+                .map(|(pos, _)| pos)
+        })
     }
 
     pub fn get_all(&self, precision: ElemwisePrecision) -> &[TensorDescription] {
@@ -480,7 +476,6 @@ impl RegisteredTensors {
                 .find(|tensor_old| tensor_old.id == tensor.id)
             {
                 tensor_old.status = tensor.status.clone();
-                return;
             }
         }
     }

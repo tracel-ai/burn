@@ -38,14 +38,14 @@ impl<R: JitRuntime> ElemwiseKernel<R> {
         Self {
             trace: state.trace,
             len: state.len,
-            client: R::client(&device),
+            client: R::client(device),
             device: device.clone(),
         }
     }
     pub fn to_state(&self) -> ElemwiseKernelState {
         ElemwiseKernelState {
             trace: self.trace.clone(),
-            len: self.len.clone(),
+            len: self.len,
         }
     }
 }

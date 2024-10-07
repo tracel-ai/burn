@@ -257,7 +257,7 @@ impl FuseOnWriteBuilder {
                 }
 
                 let cond = self.builder.input(&desc.mask);
-                let lhs = self.builder.scalar(&desc.value, desc.out.dtype.into());
+                let lhs = self.builder.scalar(&desc.value, desc.out.dtype);
                 let rhs = self.builder.input(&desc.tensor);
                 let out = self.builder.output(&desc.out);
 
@@ -306,7 +306,7 @@ impl FuseOnWriteBuilder {
                     return false;
                 }
 
-                let input = self.builder.scalar(elem, desc.dtype.into());
+                let input = self.builder.scalar(elem, desc.dtype);
                 let out = self.builder.output(desc);
 
                 self.builder
@@ -363,7 +363,7 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        let elem = desc.lhs.dtype.into();
+        let elem = desc.lhs.dtype;
         let lhs = self.builder.input(&desc.lhs);
         let rhs = self.builder.scalar(&desc.rhs, elem);
         let out = self.builder.output(&desc.out);

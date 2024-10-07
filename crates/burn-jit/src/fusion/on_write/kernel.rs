@@ -502,7 +502,7 @@ fn assign<C: CubePrimitive>(
     #[comptime] op: UnaryElemwiseArgs,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let input = read::<C>(inputs, outputs, &locals, write_pos, op.input, config);
+    let input = read::<C>(inputs, outputs, locals, write_pos, op.input, config);
 
     write::<C>(inputs, outputs, locals, write_pos, input, op.out, config);
 }
@@ -519,9 +519,9 @@ fn conditional_assign<C: CubePrimitive>(
     #[comptime] out: Arg,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let cond = read::<bool>(inputs, outputs, &locals, write_pos, cond, config);
-    let lhs = read::<C>(inputs, outputs, &locals, write_pos, lhs, config);
-    let rhs = read::<C>(inputs, outputs, &locals, write_pos, rhs, config);
+    let cond = read::<bool>(inputs, outputs, locals, write_pos, cond, config);
+    let lhs = read::<C>(inputs, outputs, locals, write_pos, lhs, config);
+    let rhs = read::<C>(inputs, outputs, locals, write_pos, rhs, config);
     let result = select_many(cond, lhs, rhs);
 
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
