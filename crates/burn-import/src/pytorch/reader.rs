@@ -95,7 +95,7 @@ impl Serializable for CandleTensor {
     {
         let shape = self.shape().clone().into_dims();
         let flatten = CandleTensor(self.flatten_all().expect("Failed to flatten the tensor"));
-        let param_id = ParamId::new().into_string();
+        let param_id = ParamId::new();
 
         match self.dtype() {
             candle_core::DType::U8 => {
@@ -127,7 +127,7 @@ impl Serializable for CandleTensor {
 fn serialize_data<T, E>(
     tensor: CandleTensor,
     shape: Vec<usize>,
-    param_id: String,
+    param_id: ParamId,
     serializer: Serializer,
 ) -> Result<NestedValue, error::Error>
 where
@@ -157,7 +157,7 @@ where
     tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
 
     let mut param: HashMap<String, NestedValue> = HashMap::new();
-    param.insert("id".into(), NestedValue::String(param_id));
+    param.insert("id".into(), NestedValue::String(param_id.serialize()));
     param.insert("param".into(), NestedValue::Map(tensor_data));
 
     Ok(NestedValue::Map(param))
