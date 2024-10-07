@@ -67,12 +67,6 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         if &tensor.client.device() == device {
             return tensor;
         }
-
-        //
-        // TODO: rework change_backend
-        // Expected associated type <<R as RunnerChannel>::Bridge as MultiBackendBridge>::TensorType
-        // got RouterTensor<RouterTensor<<R as RunnerChannel>::Client>>
-        // --> need to go from RouterTensor to TensorType
         R::change_backend(tensor, device)
     }
 
