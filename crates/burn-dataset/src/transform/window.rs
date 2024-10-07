@@ -199,6 +199,31 @@ mod tests {
     }
 
     #[rstest]
+    pub fn cloned_iterator_should_be_equal() {
+        let items = [1, 2, 3, 4, 5].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+        let original = dataset.windows(4);
+
+        let cloned = original.clone();
+
+        assert!(std::ptr::eq(cloned.dataset, original.dataset));
+        assert_eq!(cloned.size, original.size);
+        assert_eq!(cloned.current, original.current);
+    }
+
+    #[rstest]
+    pub fn cloned_iterator_should_be_unaffected() {
+        let items = [1, 2, 3, 4, 5].to_vec();
+        let dataset = InMemDataset::new(items.clone());
+        let mut original = dataset.windows(4);
+
+        let cloned = original.clone();
+        original.current = 2;
+
+        assert_ne!(cloned.current, original.current);
+    }
+
+    #[rstest]
     #[should_panic(expected = "window size must be non-zero")]
     pub fn windows_should_panic() {
         let items = [1, 2].to_vec();
