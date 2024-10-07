@@ -92,12 +92,12 @@ pub struct GlobalArgs {
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
-    pub l_f32: ComptimeRegistry<u32, Line<f32>>,
-    pub l_f16: ComptimeRegistry<u32, Line<f16>>,
-    pub l_bf16: ComptimeRegistry<u32, Line<bf16>>,
-    pub l_i32: ComptimeRegistry<u32, Line<i32>>,
-    pub l_u32: ComptimeRegistry<u32, Line<u32>>,
-    pub l_bool: ComptimeRegistry<u32, Line<bool>>,
+    pub l_f32: Registry<u32, Line<f32>>,
+    pub l_f16: Registry<u32, Line<f16>>,
+    pub l_bf16: Registry<u32, Line<bf16>>,
+    pub l_i32: Registry<u32, Line<i32>>,
+    pub l_u32: Registry<u32, Line<u32>>,
+    pub l_bool: Registry<u32, Line<bool>>,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,4 +190,4 @@ impl Arg {
     }
 }
 
-impl ComptimeRegistryQuery<Self> for Arg {}
+impl RegistryQuery<Self> for Arg {}

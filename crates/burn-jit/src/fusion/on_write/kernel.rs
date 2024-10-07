@@ -11,17 +11,17 @@ pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     write_pos: u32,
-    write_values: ComptimeRegistry<Arg, Line<E>>,
+    write_values: Registry<Arg, Line<E>>,
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
     let mut locals = LocalArgs {
-        l_f32: ComptimeRegistry::<u32, Line<f32>>::new(),
-        l_f16: ComptimeRegistry::<u32, Line<f16>>::new(),
-        l_bf16: ComptimeRegistry::<u32, Line<bf16>>::new(),
-        l_i32: ComptimeRegistry::<u32, Line<i32>>::new(),
-        l_u32: ComptimeRegistry::<u32, Line<u32>>::new(),
-        l_bool: ComptimeRegistry::<u32, Line<bool>>::new(),
+        l_f32: Registry::<u32, Line<f32>>::new(),
+        l_f16: Registry::<u32, Line<f16>>::new(),
+        l_bf16: Registry::<u32, Line<bf16>>::new(),
+        l_i32: Registry::<u32, Line<i32>>::new(),
+        l_u32: Registry::<u32, Line<u32>>::new(),
+        l_bool: Registry::<u32, Line<bool>>::new(),
     };
 
     // Write the values given as arguments.
