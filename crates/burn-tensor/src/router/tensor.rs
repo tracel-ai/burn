@@ -1,35 +1,58 @@
-use super::RunnerClient;
-use crate::{repr::TensorDescription, TensorData};
+use alloc::sync::Arc;
 
-// #[derive(Clone, Debug)]
+use super::RunnerClient;
+use crate::{
+    repr::{TensorDescription, TensorId, TensorStatus},
+    DType, TensorData,
+};
+
 pub struct RouterTensor<C: RunnerClient> {
-    pub(crate) desc: TensorDescription,
+    // pub(crate) desc: TensorDescription,
+    pub(crate) id: Arc<TensorId>,
+    pub(crate) shape: Vec<usize>,
+    pub(crate) dtype: DType,
+
     pub(crate) client: C,
     // pub(crate) stream: StreamId,
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
     pub(crate) async fn into_data(self) -> TensorData {
-        self.client.read_tensor(self.desc).await
+        self.client
+            .clone()
+            .read_tensor(self.into_description())
+            .await
     }
 
-    pub fn into_description(self) -> TensorDescription {
-        self.desc
+    pub(crate) fn into_description(mut self) -> TensorDescription {
+        let status = self.status();
+        let mut shape_out = Vec::new();
+        core::mem::swap(&mut self.shape, &mut shape_out);
+
+        TensorDescription {
+            status,
+            shape: shape_out,
+            id: *self.id.as_ref(),
+            dtype: self.dtype,
+        }
     }
 
-    pub fn to_description(&self) -> TensorDescription {
-        self.desc.clone()
+    pub(crate) fn to_description_out(&self) -> TensorDescription {
+        TensorDescription {
+            status: TensorStatus::NotInit,
+            shape: self.shape.clone(),
+            id: *self.id.as_ref(),
+            dtype: self.dtype,
+        }
     }
 
-    // TODO: should hold same fields as TensorDescription but hold Arc<TensorId>
-    // for refcount
-    //     pub(crate) fn status(&self) -> TensorStatus {
-    //         if Arc::strong_count(&self.desc.id) <= 1 {
-    //             TensorStatus::ReadWrite
-    //         } else {
-    //             TensorStatus::ReadOnly
-    //         }
-    //     }
+    pub(crate) fn status(&self) -> TensorStatus {
+        if Arc::strong_count(&self.id) <= 1 {
+            TensorStatus::ReadWrite
+        } else {
+            TensorStatus::ReadOnly
+        }
+    }
 }
 
 impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
@@ -41,8 +64,10 @@ impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
 impl<C: RunnerClient> Clone for RouterTensor<C> {
     fn clone(&self) -> Self {
         Self {
-            desc: self.desc.clone(),
+            id: self.id.clone(),
+            shape: self.shape.clone(),
             client: self.client.clone(),
+            dtype: self.dtype,
         }
     }
 }

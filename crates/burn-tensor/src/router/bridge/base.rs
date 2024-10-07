@@ -13,31 +13,17 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
     // for now, but we might just change `to_backend` to return a TensorDescription instead
     // and since quantized tensor actually have a diff description, we might need to have backend switches
     // for all primitive types
-    type TensorType; //: IntoDescription; NOTE: rename TensorHandle?
+    type TensorHandle;
     type Device;
 
-    /// Move `tensor` to the target backend specified `device`.
-    // fn to_backend<B: ReprBackend>(
-    //     tensor: Self::TensorType,
-    //     device: &Self::Device,
-    // ) -> Self::TensorType;
-
     fn change_backend_float(
-        tensor: Self::TensorType,
+        tensor: Self::TensorHandle,
         shape: Shape,
         device: &Self::Device,
-    ) -> Self::TensorType;
+    ) -> Self::TensorHandle;
 }
 
 // TODO: generate this for different number of backends (up to 4?)
-
-/// [`MultiBackendBridge`] tensor type for two backends.
-pub enum Handle2<B1: Backend, B2: Backend> {
-    FloatHandle1(B1::FloatTensorPrimitive),
-    FloatHandle2(B2::FloatTensorPrimitive),
-    IntHandle1(B1::IntTensorPrimitive),
-    IntHandle2(B2::IntTensorPrimitive),
-}
 
 /// [`MultiBackendBridge`] handle type for two backends.
 pub enum TensorHandle2<B1: ReprBackend, B2: ReprBackend> {
@@ -103,10 +89,26 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
         }
     }
 
-    fn write_tensor(&self, data: TensorData) -> TensorDescription {
+    fn write_tensor(&self, data: TensorData) -> RouterTensor<Self> {
         match self {
-            MultiRunnerClient2::RunnerClient1(runner) => runner.write_tensor(data),
-            MultiRunnerClient2::RunnerClient2(runner) => runner.write_tensor(data),
+            MultiRunnerClient2::RunnerClient1(runner) => {
+                let tensor = runner.write_tensor(data);
+                RouterTensor {
+                    id: tensor.id,
+                    shape: tensor.shape,
+                    dtype: tensor.dtype,
+                    client: MultiRunnerClient2::RunnerClient1(tensor.client),
+                }
+            }
+            MultiRunnerClient2::RunnerClient2(runner) => {
+                let tensor = runner.write_tensor(data);
+                RouterTensor {
+                    id: tensor.id,
+                    shape: tensor.shape,
+                    dtype: tensor.dtype,
+                    client: MultiRunnerClient2::RunnerClient2(tensor.client),
+                }
+            }
         }
     }
 
@@ -115,14 +117,18 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
             MultiRunnerClient2::RunnerClient1(runner) => {
                 let tensor = runner.register_new_tensor(shape, dtype);
                 RouterTensor {
-                    desc: tensor.desc,
+                    id: tensor.id,
+                    shape: tensor.shape,
+                    dtype: tensor.dtype,
                     client: MultiRunnerClient2::RunnerClient1(tensor.client),
                 }
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
                 let tensor = runner.register_new_tensor(shape, dtype);
                 RouterTensor {
-                    desc: tensor.desc,
+                    id: tensor.id,
+                    shape: tensor.shape,
+                    dtype: tensor.dtype,
                     client: MultiRunnerClient2::RunnerClient2(tensor.client),
                 }
             }

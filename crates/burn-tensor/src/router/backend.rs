@@ -84,6 +84,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type QuantizedEncoding = u32;
 
     fn name() -> String {
+        // format!("router<{}>", B::name())
         todo!()
     }
 

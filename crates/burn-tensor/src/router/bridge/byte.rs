@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use super::{base::MultiBackendBridge, Handle2, MultiDevice2, TensorHandle2};
+use super::{base::MultiBackendBridge, MultiDevice2, TensorHandle2};
 use crate::{
     repr::{ReprBackend, TensorHandle},
     Shape,
@@ -16,20 +16,15 @@ pub struct ByteBridge<Backends> {
 // }
 
 // Concrete implementation for bridge between two backends.
-impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)>
-// where
-//     B1: ReprBackend<Handle = TensorHandle<<B1 as ReprBackend>::Handle>>,
-//     B2: ReprBackend<Handle = TensorHandle<<B2 as ReprBackend>::Handle>>,
-{
-    // TensorType should be handle type
-    type TensorType = TensorHandle2<B1, B2>;
+impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)> {
+    type TensorHandle = TensorHandle2<B1, B2>;
     type Device = MultiDevice2<B1, B2>;
 
     fn change_backend_float(
-        tensor: Self::TensorType,
+        tensor: Self::TensorHandle,
         shape: Shape,
         device: &Self::Device,
-    ) -> Self::TensorType {
+    ) -> Self::TensorHandle {
         let msg = "Failed to read tensor data synchronously.
 This can happen on platforms that don't support blocking futures like WASM.";
         match tensor {

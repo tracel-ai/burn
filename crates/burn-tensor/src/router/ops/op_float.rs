@@ -1,26 +1,17 @@
-use burn_common::stream::StreamId;
-
 use crate::ops::FloatTensorOps;
 use crate::ops::{BoolTensor, FloatElem, FloatTensor, IntTensor};
 use crate::repr::{
-    BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
-    NumericOperationDescription, OperationDescription, RandomOperationDescription,
+    BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
+    OperationDescription, RandomOperationDescription,
 };
-use crate::router::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient};
+use crate::router::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 use crate::{Device, Distribution, Element, Shape, TensorData};
 use std::ops::Range;
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        // let stream = StreamId::current();
-        let desc = client.write_tensor(data);
-
-        RouterTensor {
-            desc,
-            client,
-            // stream,
-        }
+        client.write_tensor(data)
     }
 
     fn float_random(
@@ -30,14 +21,13 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        // let stream = StreamId::current();
         let dtype = FloatElem::<Self>::dtype();
         let out = client.register_new_tensor(shape.dims.to_vec(), dtype);
 
         client.register(OperationDescription::Float(
             dtype,
             FloatOperationDescription::Random(RandomOperationDescription {
-                out: out.to_description(),
+                out: out.to_description_out(),
                 distribution,
             }),
         ));
@@ -62,7 +52,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
-        Shape::from(tensor.desc.shape.clone())
+        Shape::from(tensor.shape.clone())
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
@@ -95,14 +85,14 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        let client = lhs.client;
-        let dtype = lhs.desc.dtype;
-        let out = client.register_new_tensor(lhs.desc.shape.clone(), dtype);
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_new_tensor(lhs.shape.clone(), dtype);
 
         let desc = BinaryOperationDescription {
-            lhs: lhs.desc,
-            rhs: rhs.desc,
-            out: out.desc.clone(),
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
         };
 
         client.register(OperationDescription::NumericFloat(

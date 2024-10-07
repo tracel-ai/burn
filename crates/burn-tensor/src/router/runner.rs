@@ -1,11 +1,10 @@
 use alloc::sync::Arc;
-use burn_common::stream::StreamId;
 use spin::Mutex;
 
 use crate::{
     repr::{
-        HandleContainer, OperationDescription, ReprBackend, TensorDescription, TensorId,
-        TensorStatus,
+        FloatOperationDescription, HandleContainer, NumericOperationDescription,
+        OperationDescription, ReprBackend, TensorDescription, TensorId,
     },
     DType, TensorData,
 };
@@ -66,23 +65,24 @@ impl<B: ReprBackend> Runner<B> {
     }
 
     /// Create a tensor with the given handle and shape.
-    pub(crate) fn register_tensor(
+    pub(crate) fn register_tensor<C: RunnerClient>(
         &self,
         handle: B::Handle,
         shape: Vec<usize>,
         dtype: DType,
-    ) -> TensorDescription {
+        client: C,
+    ) -> RouterTensor<C> {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
 
         ctx.handles.register_handle(*id.as_ref(), handle);
         core::mem::drop(ctx);
 
-        TensorDescription {
-            id: *id.as_ref(),
+        RouterTensor {
+            id,
             shape,
-            status: TensorStatus::ReadOnly,
             dtype,
+            client,
         }
     }
 }
@@ -92,90 +92,106 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
     /// Execute a tensor operation.
     fn register(&self, op: OperationDescription) {
-        match op {
+        match &op {
             OperationDescription::BaseFloat(_) => todo!(),
             OperationDescription::BaseInt(_) => todo!(),
             OperationDescription::BaseBool(_) => todo!(),
             OperationDescription::NumericFloat(_dtype, op) => match op {
-                crate::repr::NumericOperationDescription::Add(desc) => {
+                NumericOperationDescription::Add(desc) => {
                     let handles = &mut self.context.lock().handles;
                     // TODO: macro like fusion for `binary_float_ops!` etc.
                     let lhs = handles.get_float_tensor::<B>(&desc.lhs);
                     let rhs = handles.get_float_tensor::<B>(&desc.rhs);
 
+                    // In fusion: out = client.tensor_uninitialized(...) yields Handle::NotInit
+                    // output: FusionTensor
                     let output = B::float_add(lhs, rhs);
 
+                    // B::sync(
+                    //     &B::float_device(&output),
+                    //     burn_common::sync_type::SyncType::Wait,
+                    // ); // force fusion output tensor handle registration (just to confirm that it works!)
+
+                    // B::float_tensor_handle(output) -> Fusion::float_tensor_handle(tensor) ->
+                    // trying to get a handle from container that is not initialized (NotInit)
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                crate::repr::NumericOperationDescription::AddScalar(_) => todo!(),
-                crate::repr::NumericOperationDescription::Sub(_) => todo!(),
-                crate::repr::NumericOperationDescription::SubScalar(_) => todo!(),
-                crate::repr::NumericOperationDescription::Div(_) => todo!(),
-                crate::repr::NumericOperationDescription::DivScalar(_) => todo!(),
-                crate::repr::NumericOperationDescription::RemScalar(_) => todo!(),
-                crate::repr::NumericOperationDescription::Mul(_) => todo!(),
-                crate::repr::NumericOperationDescription::MulScalar(_) => todo!(),
-                crate::repr::NumericOperationDescription::Abs(_) => todo!(),
-                crate::repr::NumericOperationDescription::Ones(_) => todo!(),
-                crate::repr::NumericOperationDescription::Zeros(_) => todo!(),
-                crate::repr::NumericOperationDescription::Full(_) => todo!(),
-                crate::repr::NumericOperationDescription::Gather(_) => todo!(),
-                crate::repr::NumericOperationDescription::Scatter(_) => todo!(),
-                crate::repr::NumericOperationDescription::Select(_) => todo!(),
-                crate::repr::NumericOperationDescription::SelectAssign(_) => todo!(),
-                crate::repr::NumericOperationDescription::MaskWhere(_) => todo!(),
-                crate::repr::NumericOperationDescription::MaskFill(_) => todo!(),
-                crate::repr::NumericOperationDescription::MeanDim(_) => todo!(),
-                crate::repr::NumericOperationDescription::Mean(_) => todo!(),
-                crate::repr::NumericOperationDescription::Sum(_) => todo!(),
-                crate::repr::NumericOperationDescription::SumDim(_) => todo!(),
-                crate::repr::NumericOperationDescription::Prod(_) => todo!(),
-                crate::repr::NumericOperationDescription::ProdDim(_) => todo!(),
-                crate::repr::NumericOperationDescription::EqualElem(_) => todo!(),
-                crate::repr::NumericOperationDescription::Greater(_) => todo!(),
-                crate::repr::NumericOperationDescription::GreaterElem(_) => todo!(),
-                crate::repr::NumericOperationDescription::GreaterEqual(_) => todo!(),
-                crate::repr::NumericOperationDescription::GreaterEqualElem(_) => todo!(),
-                crate::repr::NumericOperationDescription::Lower(_) => todo!(),
-                crate::repr::NumericOperationDescription::LowerElem(_) => todo!(),
-                crate::repr::NumericOperationDescription::LowerEqual(_) => todo!(),
-                crate::repr::NumericOperationDescription::LowerEqualElem(_) => todo!(),
-                crate::repr::NumericOperationDescription::ArgMax(_) => todo!(),
-                crate::repr::NumericOperationDescription::ArgMin(_) => todo!(),
-                crate::repr::NumericOperationDescription::Max(_) => todo!(),
-                crate::repr::NumericOperationDescription::MaxDimWithIndices(_) => todo!(),
-                crate::repr::NumericOperationDescription::MinDimWithIndices(_) => todo!(),
-                crate::repr::NumericOperationDescription::Min(_) => todo!(),
-                crate::repr::NumericOperationDescription::MaxDim(_) => todo!(),
-                crate::repr::NumericOperationDescription::MinDim(_) => todo!(),
-                crate::repr::NumericOperationDescription::Clamp(_) => todo!(),
-                crate::repr::NumericOperationDescription::IntRandom(_) => todo!(),
-                crate::repr::NumericOperationDescription::Powf(_) => todo!(),
+                NumericOperationDescription::AddScalar(_) => todo!(),
+                NumericOperationDescription::Sub(_) => todo!(),
+                NumericOperationDescription::SubScalar(_) => todo!(),
+                NumericOperationDescription::Div(_) => todo!(),
+                NumericOperationDescription::DivScalar(_) => todo!(),
+                NumericOperationDescription::RemScalar(_) => todo!(),
+                NumericOperationDescription::Mul(_) => todo!(),
+                NumericOperationDescription::MulScalar(_) => todo!(),
+                NumericOperationDescription::Abs(_) => todo!(),
+                NumericOperationDescription::Ones(_) => todo!(),
+                NumericOperationDescription::Zeros(_) => todo!(),
+                NumericOperationDescription::Full(_) => todo!(),
+                NumericOperationDescription::Gather(_) => todo!(),
+                NumericOperationDescription::Scatter(_) => todo!(),
+                NumericOperationDescription::Select(_) => todo!(),
+                NumericOperationDescription::SelectAssign(_) => todo!(),
+                NumericOperationDescription::MaskWhere(_) => todo!(),
+                NumericOperationDescription::MaskFill(_) => todo!(),
+                NumericOperationDescription::MeanDim(_) => todo!(),
+                NumericOperationDescription::Mean(_) => todo!(),
+                NumericOperationDescription::Sum(_) => todo!(),
+                NumericOperationDescription::SumDim(_) => todo!(),
+                NumericOperationDescription::Prod(_) => todo!(),
+                NumericOperationDescription::ProdDim(_) => todo!(),
+                NumericOperationDescription::EqualElem(_) => todo!(),
+                NumericOperationDescription::Greater(_) => todo!(),
+                NumericOperationDescription::GreaterElem(_) => todo!(),
+                NumericOperationDescription::GreaterEqual(_) => todo!(),
+                NumericOperationDescription::GreaterEqualElem(_) => todo!(),
+                NumericOperationDescription::Lower(_) => todo!(),
+                NumericOperationDescription::LowerElem(_) => todo!(),
+                NumericOperationDescription::LowerEqual(_) => todo!(),
+                NumericOperationDescription::LowerEqualElem(_) => todo!(),
+                NumericOperationDescription::ArgMax(_) => todo!(),
+                NumericOperationDescription::ArgMin(_) => todo!(),
+                NumericOperationDescription::Max(_) => todo!(),
+                NumericOperationDescription::MaxDimWithIndices(_) => todo!(),
+                NumericOperationDescription::MinDimWithIndices(_) => todo!(),
+                NumericOperationDescription::Min(_) => todo!(),
+                NumericOperationDescription::MaxDim(_) => todo!(),
+                NumericOperationDescription::MinDim(_) => todo!(),
+                NumericOperationDescription::Clamp(_) => todo!(),
+                NumericOperationDescription::IntRandom(_) => todo!(),
+                NumericOperationDescription::Powf(_) => todo!(),
             },
             OperationDescription::NumericInt(_, _) => todo!(),
             OperationDescription::Bool(_) => todo!(),
             OperationDescription::Int(_) => todo!(),
             OperationDescription::Float(_dtype, op) => match op {
-                crate::repr::FloatOperationDescription::Exp(_) => todo!(),
-                crate::repr::FloatOperationDescription::Log(_) => todo!(),
-                crate::repr::FloatOperationDescription::Log1p(_) => todo!(),
-                crate::repr::FloatOperationDescription::Erf(_) => todo!(),
-                crate::repr::FloatOperationDescription::PowfScalar(_) => todo!(),
-                crate::repr::FloatOperationDescription::Sqrt(_) => todo!(),
-                crate::repr::FloatOperationDescription::Cos(_) => todo!(),
-                crate::repr::FloatOperationDescription::Sin(_) => todo!(),
-                crate::repr::FloatOperationDescription::Tanh(_) => todo!(),
-                crate::repr::FloatOperationDescription::IntoInt(_) => todo!(),
-                crate::repr::FloatOperationDescription::Matmul(_) => todo!(),
-                crate::repr::FloatOperationDescription::Random(_desc) => {
+                FloatOperationDescription::Exp(_) => todo!(),
+                FloatOperationDescription::Log(_) => todo!(),
+                FloatOperationDescription::Log1p(_) => todo!(),
+                FloatOperationDescription::Erf(_) => todo!(),
+                FloatOperationDescription::PowfScalar(_) => todo!(),
+                FloatOperationDescription::Sqrt(_) => todo!(),
+                FloatOperationDescription::Cos(_) => todo!(),
+                FloatOperationDescription::Sin(_) => todo!(),
+                FloatOperationDescription::Tanh(_) => todo!(),
+                FloatOperationDescription::IntoInt(_) => todo!(),
+                FloatOperationDescription::Matmul(_) => todo!(),
+                FloatOperationDescription::Random(_desc) => {
                     todo!() // B::float_random(shape, distribution, device)
                 }
-                crate::repr::FloatOperationDescription::Recip(_) => todo!(),
-                crate::repr::FloatOperationDescription::Quantize(_) => todo!(),
-                crate::repr::FloatOperationDescription::Dequantize(_) => todo!(),
+                FloatOperationDescription::Recip(_) => todo!(),
+                FloatOperationDescription::Quantize(_) => todo!(),
+                FloatOperationDescription::Dequantize(_) => todo!(),
             },
             OperationDescription::Module(_) => todo!(),
         }
+
+        // Remove unused tensor handles
+        // NOTE: only ReadWrite handles are removed
+        let mut ctx = self.context.lock();
+        op.nodes()
+            .into_iter()
+            .for_each(|tensor| ctx.handles.free(tensor));
     }
 
     async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
@@ -185,16 +201,15 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         B::float_into_data(tensor).await
     }
 
-    fn write_tensor(&self, data: TensorData) -> TensorDescription {
+    fn write_tensor(&self, data: TensorData) -> RouterTensor<Self> {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
         let dtype = data.dtype;
 
         // TODO: split into write_float_tensor, write_int_tensor, ... ?
-        match &data.dtype {
+        match dtype {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {
-                // TODO: maybe device should be an arg to write_tensor?
                 let tensor = B::float_from_data(data, &self.device);
                 ctx.handles.register_float_tensor::<B>(&id, tensor)
             }
@@ -203,11 +218,11 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
         core::mem::drop(ctx);
 
-        TensorDescription {
-            id: *id,
+        RouterTensor {
+            id,
             shape,
-            status: TensorStatus::ReadOnly,
             dtype,
+            client: self.clone(),
         }
     }
 
@@ -218,19 +233,14 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
         // TODO: register_new_tensor for output should initialize w/ handle
         // (i.e., do not use create_empty_handle which calls handles.create_tensor_uninit)
-
-        // ctx.handles.register_handle(*id.as_ref(), handle);
-        // core::mem::drop(ctx);
-
-        let desc = TensorDescription {
-            id: *id,
-            shape: shape,
-            status: TensorStatus::ReadOnly, // right status? uninit doesn't get overwritten in op
-            dtype: dtype,
-        };
+        // NOTE: not true. sure, that's true for the current implementation (local backend runner),
+        // but in general the operations could be async - so the handle only exists when the output
+        // has been computed.
 
         RouterTensor {
-            desc,
+            id,
+            shape,
+            dtype,
             client: self.clone(),
         }
     }
