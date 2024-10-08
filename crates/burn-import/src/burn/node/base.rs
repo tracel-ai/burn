@@ -10,8 +10,9 @@ use super::{
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_uniform::RandomUniformNode,
-    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
-    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, scatter::ScatterNode,
+    slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, unary::UnaryNode,
+    unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -110,6 +111,7 @@ pub enum Node<PS: PrecisionSettings> {
     Range(RangeNode),
     Reshape(ReshapeNode),
     Resize(ResizeNode),
+    Scatter(ScatterNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
     Sum(SumNode),
@@ -158,6 +160,7 @@ macro_rules! match_all {
             Node::Range(node) => $func(node),
             Node::Reshape(node) => $func(node),
             Node::Resize(node) => $func(node),
+            Node::Scatter(node) => $func(node),
             Node::Slice(node) => $func(node),
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
@@ -214,6 +217,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Range(_) => "range",
             Node::Reshape(_) => "reshape",
             Node::Resize(_) => "resize",
+            Node::Scatter(_) => "scatter",
             Node::Slice(_) => "slice",
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
