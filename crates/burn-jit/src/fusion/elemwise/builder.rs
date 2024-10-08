@@ -5,7 +5,7 @@ use crate::{
     JitRuntime,
 };
 
-use super::optimization::ElemwiseKernel;
+use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
@@ -30,7 +30,8 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
     fn build(&self) -> JitOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.builder.build();
-        let elementwise = ElemwiseKernel::<R>::new(trace, client, self.device.clone(), self.len());
+        let elementwise =
+            ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
 
         JitOptimization::ElementWise2(elementwise)
     }

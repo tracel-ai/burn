@@ -1,4 +1,4 @@
-use super::elemwise::optimization::{ElemwiseKernel, ElemwiseKernelState};
+use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::tensor::{JitQuantizationParameters, QJitTensor};
 use crate::{
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// More optimization variants should be added here.
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
-    ElementWise2(ElemwiseKernel<R>),
+    ElementWise2(ElemwiseOptimization<R>),
 }
 
 /// Fusion optimization state type for JIT.
@@ -29,7 +29,7 @@ pub enum JitOptimization<R: JitRuntime> {
 #[derive(Serialize, Deserialize)]
 pub enum JitOptimizationState {
     /// Element wise state.
-    ElementWise(ElemwiseKernelState),
+    ElementWise(ElemwiseOptimizationState),
 }
 
 impl<R> burn_fusion::Optimization<FusionJitRuntime<R>> for JitOptimization<R>
@@ -44,7 +44,7 @@ where
 
     fn len(&self) -> usize {
         match self {
-            Self::ElementWise2(op) => op.len(),
+            Self::ElementWise2(op) => op.num_ops_fused(),
         }
     }
 
@@ -57,7 +57,7 @@ where
     fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
         match state {
             JitOptimizationState::ElementWise(state) => {
-                Self::ElementWise2(ElemwiseKernel::from_state(device, state))
+                Self::ElementWise2(ElemwiseOptimization::from_state(device, state))
             }
         }
     }

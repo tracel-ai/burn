@@ -171,7 +171,7 @@ pub fn write<C: CubePrimitive>(
             ElemwisePrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
@@ -203,7 +203,7 @@ fn get_offset<C: CubePrimitive>(
                 let layout = inputs.t_i32.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Output(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => {
@@ -222,8 +222,8 @@ fn get_offset<C: CubePrimitive>(
                 let layout = outputs.t_i32.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
-            _ => comptime![panic!("Unsupported")],
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
-        _ => comptime![panic!("Unsupported")],
+        _ => comptime![panic!("Invalid ref layout.")],
     }
 }

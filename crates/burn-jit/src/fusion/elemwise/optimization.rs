@@ -11,7 +11,8 @@ use crate::fusion::on_write::{
 };
 
 #[derive(new)]
-pub struct ElemwiseKernel<R: JitRuntime> {
+/// Fuse element wise operations into a single kernel.
+pub struct ElemwiseOptimization<R: JitRuntime> {
     trace: FuseOnWriteTrace,
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
@@ -19,22 +20,26 @@ pub struct ElemwiseKernel<R: JitRuntime> {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ElemwiseKernelState {
+/// State for the [elemwise optimization](ElemwiseOptimization).
+pub struct ElemwiseOptimizationState {
     trace: FuseOnWriteTrace,
     len: usize,
 }
 
-impl<R: JitRuntime> ElemwiseKernel<R> {
+impl<R: JitRuntime> ElemwiseOptimization<R> {
+    /// Execute the optimization.
     pub fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         self.trace
             .run::<R, Self>(&self.client, &self.device, context)
     }
 
-    pub fn len(&self) -> usize {
+    /// Number of element wise operations fused.
+    pub fn num_ops_fused(&self) -> usize {
         self.len
     }
 
-    pub fn from_state(device: &R::Device, state: ElemwiseKernelState) -> Self {
+    /// Create an optimization from its [state](ElemwiseOptimizationState).
+    pub fn from_state(device: &R::Device, state: ElemwiseOptimizationState) -> Self {
         Self {
             trace: state.trace,
             len: state.len,
@@ -42,15 +47,17 @@ impl<R: JitRuntime> ElemwiseKernel<R> {
             device: device.clone(),
         }
     }
-    pub fn to_state(&self) -> ElemwiseKernelState {
-        ElemwiseKernelState {
+
+    /// Convert the optimization to its [state](ElemwiseOptimizationState).
+    pub fn to_state(&self) -> ElemwiseOptimizationState {
+        ElemwiseOptimizationState {
             trace: self.trace.clone(),
             len: self.len,
         }
     }
 }
 
-impl<R: JitRuntime> TraceRunner<R> for ElemwiseKernel<R> {
+impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
     fn run<'a>(
         client: &ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
@@ -89,7 +96,9 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseKernel<R> {
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
-        elemwise_fuse::launch(client, cube_count, cube_dim, inputs, outputs, config);
+        unsafe {
+            elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config);
+        }
     }
 
     fn vectorization<'a>(
@@ -144,8 +153,8 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseKernel<R> {
     }
 }
 
-#[cube(launch)]
-pub fn elemwise_fuse(
+#[cube(launch_unchecked)]
+fn elemwise_fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     #[comptime] config: &ElemwiseConfig,
@@ -153,6 +162,27 @@ pub fn elemwise_fuse(
     // We write no values for this fusion.
     let values = Registry::<Arg, Line<f32>>::new();
     let args = comptime![Sequence::<Arg>::new()];
+    let pos = ABSOLUTE_POS;
 
-    fuse_on_write::<f32>(inputs, outputs, ABSOLUTE_POS, values, args, config)
+    let length = match comptime![config.ref_layout] {
+        Arg::Input(index, precision, _) => match comptime![precision] {
+            ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
+            ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),
+            ElemwisePrecision::U32 => inputs.t_u32.index(index).len(),
+            ElemwisePrecision::I32 => inputs.t_i32.index(index).len(),
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
+        },
+        Arg::Output(index, precision, _) => match comptime![precision] {
+            ElemwisePrecision::F32 => outputs.t_f32.index(index).len(),
+            ElemwisePrecision::F16 => outputs.t_f16.index(index).len(),
+            ElemwisePrecision::U32 => outputs.t_u32.index(index).len(),
+            ElemwisePrecision::I32 => outputs.t_i32.index(index).len(),
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
+        },
+        _ => comptime![panic!("Invalid ref layout.")],
+    };
+
+    if pos < length {
+        fuse_on_write::<f32>(inputs, outputs, pos, values, args, config)
+    }
 }

@@ -54,7 +54,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     add::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Div(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -72,7 +72,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     div::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Sub(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -90,7 +90,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     sub::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Mul(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -108,7 +108,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     mul::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Powf(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -120,7 +120,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     powf::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Erf(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -132,7 +132,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     erf::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Abs(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -150,7 +150,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::I32 => {
                     abs::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported precision")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Log(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -162,7 +162,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     log::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Log1p(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -174,7 +174,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     log1p::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Recip(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -186,7 +186,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     recip::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Assign(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -207,7 +207,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::Bool => {
                     assign::<bool>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Exp(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -219,7 +219,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     exp::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Cos(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -231,7 +231,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     cos::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Sin(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -243,7 +243,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     sin::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Tanh(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -255,7 +255,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     tanh::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Equal(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {
@@ -273,7 +273,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Greater(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {
@@ -291,7 +291,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     greater::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::GreaterEqual(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {
@@ -309,7 +309,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     greater_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Lower(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {
@@ -327,7 +327,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     lower::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::LowerEqual(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {
@@ -345,7 +345,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U32 => {
                     lower_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::ConditionalAssign {
                 cond,
@@ -408,7 +408,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                     out,
                     config,
                 ),
-                _ => comptime![panic!("Unsupported")],
+                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
         }
     }
