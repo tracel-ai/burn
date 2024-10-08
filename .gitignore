@@ -12,3 +12,6 @@ target
 
 # Generated IR and Burn Graph from ONNX
 out
+
+# Virtual Environment of Python
+.venv
