@@ -7,7 +7,7 @@ use std::{
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
-    pub nodes: HashMap<NodeRefCount, Vec<NodeID>>,
+    nodes: HashMap<NodeRefCount, Vec<NodeID>>,
     leaves: HashSet<NodeID>,
     statuses: HashMap<NodeID, NodeMemoryStatus>,
 }
