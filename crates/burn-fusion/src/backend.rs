@@ -170,88 +170,40 @@ pub trait FusionBackend:
 
 // Fusion implements `ReprBackend` to enable router backend usage.
 impl<B: FusionBackend> ReprBackend for Fusion<B> {
-    type Handle = B::Handle; // aka JitFusionHandle
+    type Handle = FusionTensor<B::FusionRuntime>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
-        let primitive = B::float_tensor(handle.clone());
-        let device = B::float_device(&primitive);
-
-        let shape = handle.shape;
-        let client = get_client::<B>(&device);
-        client.register_tensor(
-            handle.handle,
-            shape.dims,
-            StreamId::current(),
-            B::FloatElem::dtype(),
-        )
+        handle.handle
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
-        let primitive = B::int_tensor(handle.clone());
-        let device = B::int_device(&primitive);
-
-        let shape = handle.shape;
-        let client = get_client::<B>(&device);
-        client.register_tensor(
-            handle.handle,
-            shape.dims,
-            StreamId::current(),
-            B::IntElem::dtype(),
-        )
+        handle.handle
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
-        let primitive = B::bool_tensor(handle.clone());
-        let device = B::bool_device(&primitive);
-
-        let shape = handle.shape;
-        let client = get_client::<B>(&device);
-        client.register_tensor(
-            handle.handle,
-            shape.dims,
-            StreamId::current(),
-            burn_tensor::DType::Bool,
-        )
+        handle.handle
     }
 
     fn quantized_tensor(
-        handles: Vec<TensorHandle<Self::Handle>>,
-        scheme: burn_tensor::quantization::QuantizationScheme,
+        _handles: Vec<TensorHandle<Self::Handle>>,
+        _scheme: burn_tensor::quantization::QuantizationScheme,
     ) -> QuantizedTensor<Self> {
         todo!() // not as simple
     }
 
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
-        todo!()
-        // gotta go from FusionTensor <-> JitTensor (aka B::FloatTensorPrimitive)
-        // maybe into_description -> handle
-        // need to access handle container for that!
-        // FusionServer has HandleContainer<R::FusionHandle> where R: FusionRuntime
-        // The FusionServer is in MutexFusionClient (behind Arc<Mutex<..>>)
-        // MutexFusionClient implements FusionClient
-        // B::float_tensor_handle(tensor) // doesn't work because `tensor` is not B::FloatTensorPrimitive but a FusionTensor instead
-        // .. and from what I understand B::FloatTensorPrimitive is only accessible in an operation description (for kernel execution)
-        // so how tf can this be done?
-        // let client = tensor.client.clone();
-
-        // client.get_tensor_handle(&tensor.into_description())
-        // TODO: client.get_tensor_handle() will fail when trying to get an uninitialized output tensor handle
-        // so we have to find a way to get the tensor handle without
+        tensor
     }
 
     fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
-        // let client = tensor.client.clone();
-        // client.get_tensor_handle(&tensor.into_description())
-        todo!()
+        tensor
     }
 
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
-        // let client = tensor.client.clone();
-        // client.get_tensor_handle(&tensor.into_description())
-        todo!()
+        tensor
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Vec<Self::Handle> {
+    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> Vec<Self::Handle> {
         todo!() // not as simple
     }
 }
