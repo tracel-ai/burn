@@ -1,5 +1,5 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::{prelude::*, ExecutionMode, KernelId};
+use cubecl::{prelude::*, Compiler, ExecutionMode, KernelId};
 
 use super::SourceTemplate;
 
@@ -18,8 +18,8 @@ pub struct SourceKernel<K> {
     cube_dim: CubeDim,
 }
 
-impl<K: KernelSource> CubeTask for SourceKernel<K> {
-    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel {
+impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel<C> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
@@ -29,6 +29,7 @@ impl<K: KernelSource> CubeTask for SourceKernel<K> {
             cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
             debug_info: None,
+            repr: None,
         }
     }
 
