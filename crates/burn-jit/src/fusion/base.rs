@@ -203,7 +203,7 @@ pub struct JitFusionHandle<R: JitRuntime> {
     /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: cubecl::server::Handle<R::Server>,
+    pub handle: cubecl::server::Handle,
     /// The device of the current tensor.
     pub device: R::Device,
     pub(crate) strides: Vec<usize>,
@@ -250,6 +250,7 @@ impl<R: JitRuntime> JitFusionHandle<R> {
             handle: &self.handle,
             strides: &self.strides,
             shape,
+            runtime: PhantomData,
         }
     }
     /// Return the reference to a tensor argument.

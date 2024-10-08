@@ -41,8 +41,7 @@ pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, E
     dim: usize,
 ) -> JitTensor<R, EO> {
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise::<R::Server>(output.shape.num_elements(), cube_dim);
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
         naive_reduce_dim_compute_shader::launch_unchecked::<RD, EI, EO, R>(
