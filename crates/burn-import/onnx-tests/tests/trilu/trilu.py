@@ -25,29 +25,47 @@ def main():
     # Set print options for better precision output
     torch.set_printoptions(precision=8)
                            
-    # Export to onnx
+    # Export Trilu Upper Model
     upper = True  # Change to False for lower triangular matrix
     diagonal = 1         # Change k to adjust the diagonal
-    model = TriluModel(upper=upper, diagonal=diagonal)
-    model.eval()
+    lower_model = TriluModel(upper=upper, diagonal=diagonal)
+    lower_model.eval()
     device = torch.device("cpu")
 
     # Generate test input: a 2D matrix or batch of 2D matrices
-    file_name = "trilu.onnx"
+    upper_file_name = "trilu_upper.onnx"
     test_input = torch.randn(2, 4, 4, device=device)  # 2 batches of 4x4 matrices
-    torch.onnx.export(model, test_input, file_name,
+    torch.onnx.export(lower_model, test_input, upper_file_name,
                       verbose=False, opset_version=16)
 
-    print("Finished exporting model to {}".format(file_name))
+    print("Finished exporting model to {}".format(upper_file_name))
 
     # Output some test data for use in the test
     print("Test input data: {}".format(test_input))
     print("Test input data shape: {}".format(test_input.shape))
-    output = model.forward(test_input)
+    output = lower_model.forward(test_input)
     print("Test output data shape: {}".format(output.shape))
-
     print("Test output: {}".format(output))
 
+
+    # Export Trilu Lower Model
+    upper = False
+    diagonal = 1
+    lower_model = TriluModel(upper=upper, diagonal=diagonal)
+    lower_model.eval()
+    # Generate test input: a 2D matrix or batch of 2D matrices
+    upper_file_name = "trilu_lower.onnx"
+    test_input = torch.randn(2, 4, 4, device=device)  # 2 batches of 4x4 matrices
+    torch.onnx.export(lower_model, test_input, upper_file_name,
+                      verbose=False, opset_version=16)
+
+    print("Finished exporting model to {}".format(upper_file_name))
+
+    print("Test input data: {}".format(test_input))
+    print("Test input data shape: {}".format(test_input.shape))
+    output = lower_model.forward(test_input)
+    print("Test output data shape: {}".format(output.shape))
+    print("Test output: {}".format(output))
 
 if __name__ == '__main__':
     main()
