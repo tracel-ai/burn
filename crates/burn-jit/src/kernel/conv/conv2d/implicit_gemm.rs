@@ -16,7 +16,7 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-/// Perform a 2D convolution using the implicit GEMM algorithm. Requries `cmma` to be available.
+/// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
 /// * `input` - The input feature map
 /// * `weight` - The weights (filter) applied to each kernel
@@ -469,7 +469,8 @@ fn load_input_tile<F: Float, FMat: Float>(
         let rel_slice_row = m / cmma_k; // Relative row (0 - 15)
         let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
 
-        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
+        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is
+        // responsible for
         let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
 
         // Given the row of the matrix that the slice is in, and the index of the thread

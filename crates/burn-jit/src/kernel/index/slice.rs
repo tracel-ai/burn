@@ -122,7 +122,7 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
     let offset_start = offset_start * E::cube_elem().size();
     let offset_end = offset_end * E::cube_elem().size();
 
-    let memory_offset_alignment = tensor.client.properties().memory_properties().alignment as usize;
+    let memory_offset_alignment = tensor.client.properties().memory_properties().alignment;
 
     if offset_start % memory_offset_alignment == 0 && offset_end % memory_offset_alignment == 0 {
         JitTensor::new(

@@ -139,10 +139,7 @@ impl From<Elem> for ElemwisePrecision {
                 cubecl::ir::FloatKind::F32 => Self::F32,
                 _ => panic!("Unsupported precision for fusion: {value}"),
             },
-            Elem::Int(kind) => match kind {
-                cubecl::ir::IntKind::I32 => Self::I32,
-                _ => panic!("Unsupported precision for fusion: {value}"),
-            },
+            Elem::Int(cubecl::ir::IntKind::I32) => Self::I32,
             Elem::UInt => Self::U32,
             Elem::Bool => Self::Bool,
             _ => panic!("Unsupported precision for fusion: {value}"),

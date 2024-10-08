@@ -24,7 +24,7 @@ pub struct FuseOnWriteTrace {
     writes: BTreeMap<TensorId, ElemwiseOp>,
 }
 
-/// A trace runner is responsable for determining the vectorization factor as well as launching
+/// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with a provided [element wise config](ElemwiseConfig).
 pub trait TraceRunner<R: JitRuntime> {
@@ -170,7 +170,7 @@ impl FuseOnWriteTrace {
             let status = &tensor_relative.status;
             let handle = context.handles.get_handle(&tensor_global.id, status);
 
-            if status == &TensorStatus::ReadWrite && handle.handle.can_mut() && false {
+            if status == &TensorStatus::ReadWrite && handle.handle.can_mut() {
                 analysis.potential_inplaces.push(PotentialInplace {
                     input_pos: i,
                     tensor_relative,
@@ -316,10 +316,10 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn register_inputs<'a, 'c, 'h, R: JitRuntime>(
+    fn register_inputs<'c, 'h, R: JitRuntime>(
         &self,
         context: &mut Context<'c, JitFusionHandle<R>>,
-        handle_inputs: &'h Vec<HandleInput<'c, R>>,
+        handle_inputs: &'h [HandleInput<'c, R>],
         vectorization: u8,
     ) -> GlobalArgsLaunch<'h, R> {
         let mut inputs = GlobalArgsLaunch::new(
@@ -340,9 +340,10 @@ impl FuseOnWriteTrace {
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),
+                ElemwisePrecision::BF16 => inputs.t_bf16.push(arg),
                 ElemwisePrecision::I32 => inputs.t_i32.push(arg),
                 ElemwisePrecision::U32 => inputs.t_u32.push(arg),
-                _ => todo!(),
+                _ => panic!("Unsupported input precision {:?}", hi.precision),
             };
         }
 
@@ -366,9 +367,9 @@ impl FuseOnWriteTrace {
         inputs
     }
 
-    fn register_outputs<'a, 's, R: JitRuntime>(
+    fn register_outputs<'s, R: JitRuntime>(
         &self,
-        handle_outputs: &'s Vec<HandleOutput<'_, R>>,
+        handle_outputs: &'s [HandleOutput<'_, R>],
         vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
