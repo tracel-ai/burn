@@ -610,8 +610,8 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
         .copied()
         .filter(|(m, k, n)| {
             R::client(device)
-                .features()
-                .enabled(Feature::Cmma {
+                .properties()
+                .feature_enabled(Feature::Cmma {
                     a: F::as_elem(),
                     b: F::as_elem(),
                     c: FAcc::as_elem(),
