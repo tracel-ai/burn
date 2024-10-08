@@ -20,7 +20,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(&device);
-        client.write_tensor(data)
+        client.register_tensor_data(data)
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {

@@ -11,7 +11,7 @@ use std::ops::Range;
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        client.write_tensor(data)
+        client.register_tensor_data(data)
     }
 
     fn float_random(
@@ -22,7 +22,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
         let dtype = FloatElem::<Self>::dtype();
-        let out = client.register_new_tensor(shape.dims.to_vec(), dtype);
+        let out = client.register_empty_tensor(shape.dims.to_vec(), dtype);
 
         client.register(OperationDescription::Float(
             dtype,
@@ -67,7 +67,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         if &tensor.client.device() == device {
             return tensor;
         }
-        R::change_backend(tensor, device)
+        R::change_client_backend(tensor, device)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
@@ -81,7 +81,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;
-        let out = client.register_new_tensor(lhs.shape.clone(), dtype);
+        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
         let desc = BinaryOperationDescription {
             lhs: lhs.into_description(),

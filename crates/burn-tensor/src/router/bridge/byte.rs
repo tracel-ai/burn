@@ -1,8 +1,9 @@
 use core::marker::PhantomData;
 
-use super::{base::MultiBackendBridge, MultiDevice2, TensorHandle2};
+use super::base::MultiBackendBridge;
 use crate::{
     repr::{ReprBackend, TensorHandle},
+    router::{MultiDevice2, TensorHandle2},
     Shape,
 };
 
@@ -62,35 +63,4 @@ This can happen on platforms that don't support blocking futures like WASM.";
             },
         }
     }
-
-    //     fn to_backend(tensor: Self::TensorType, device: &Self::Device) -> Self::TensorType {
-    //         let msg = "Failed to read tensor data synchronously.
-    // This can happen on platforms that don't support blocking futures like WASM.";
-    //         match tensor {
-    //             Handle2::FloatHandle1(tensor) => {
-    //                 match device {
-    //                     MultiDevice2::Device1(device) => {
-    //                         Handle2::FloatHandle1(B1::float_to_device(tensor, device))
-    //                     } // same backend
-    //                     MultiDevice2::Device2(device) => {
-    //                         let data = crate::try_read_sync(B1::float_into_data(tensor)).expect(msg);
-    //                         Handle2::FloatHandle2(B2::float_from_data(data, device))
-    //                     }
-    //                 }
-    //             }
-    //             Handle2::FloatHandle2(tensor) => {
-    //                 match device {
-    //                     MultiDevice2::Device1(device) => {
-    //                         let data = crate::try_read_sync(B2::float_into_data(tensor)).expect(msg);
-    //                         Handle2::FloatHandle1(B1::float_from_data(data, device))
-    //                     }
-    //                     MultiDevice2::Device2(device) => {
-    //                         Handle2::FloatHandle2(B2::float_to_device(tensor, device))
-    //                     } // same backend
-    //                 }
-    //             }
-    //             Handle2::IntHandle1(tensor) => todo!(),
-    //             Handle2::IntHandle2(tensor) => todo!(),
-    //         }
-    //     }
 }

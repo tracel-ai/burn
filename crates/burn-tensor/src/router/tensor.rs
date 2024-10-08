@@ -7,13 +7,10 @@ use crate::{
 };
 
 pub struct RouterTensor<C: RunnerClient> {
-    // pub(crate) desc: TensorDescription,
     pub(crate) id: Arc<TensorId>,
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
-
     pub(crate) client: C,
-    // pub(crate) stream: StreamId,
 }
 
 impl<C: RunnerClient> RouterTensor<C> {

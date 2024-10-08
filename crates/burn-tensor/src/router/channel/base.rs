@@ -1,6 +1,6 @@
 use crate::{
     backend::DeviceOps,
-    repr::{QuantizedTensorDescription, TensorDescription},
+    repr::TensorDescription,
     router::{get_client, MultiBackendBridge, RouterTensor, RunnerClient},
     DType,
 };
@@ -9,6 +9,10 @@ use crate::{
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;
 
 // Defines associated types config for a setup with multiple backend runners.
+// TODO: most of the stuff should go in the client no?
+// We would then have something like a DirectClient or LocalClient instead of DirectChannel
+// type MyBackend = BackendRouter<DirectClient<(Cuda, NdArray, Wgpu), ByteBridge<(Cuda, NdArray, Wgpu)>>>
+// and in the future perhaps HttpClient
 pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type Device: DeviceOps;
     type Bridge: MultiBackendBridge<Device = Self::Device>;
@@ -17,29 +21,13 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     /// Initialize a new client for the given device.
     fn init_client(device: &Self::Device) -> Self::Client;
 
-    /// Get the float tensor handle corresponding to the [tensor description](TensorDescription).
-    fn get_float_tensor(
+    /// Get the tensor handle corresponding to the [tensor description](TensorDescription).
+    fn get_tensor_handle(
         tensor: &TensorDescription,
         client: &Self::Client,
     ) -> TensorHandle<Self::Bridge>;
 
-    /// Get the int tensor handle corresponding to the [tensor description](TensorDescription).
-    fn get_int_tensor(
-        tensor: &TensorDescription,
-        client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge>;
-
-    /// Get the bool tensor handle corresponding to the [tensor description](TensorDescription).
-    fn get_bool_tensor(
-        tensor: &TensorDescription,
-        client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge>;
-
-    /// Get the quantized tensor handle corresponding to the [tensor description](QuantizedTensorDescription).
-    fn get_quantized_tensor(
-        tensor: &QuantizedTensorDescription,
-        client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge>;
+    // TODO: get quantized tensor handle from QuantizedTensorDescription?
 
     /// Create a tensor with the given handle and shape.
     fn register_tensor(
@@ -49,20 +37,19 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
         dtype: DType,
     ) -> RouterTensor<Self::Client>;
 
-    /// Change the tensor to a different backend runner.
-    fn change_backend(
+    /// Change the tensor to a different client backend.
+    fn change_client_backend(
         tensor: RouterTensor<Self::Client>,
         device: &Self::Device, // target device
     ) -> RouterTensor<Self::Client> {
         // Get tensor handle from current client
         let original_client = tensor.client.clone();
         let desc = tensor.into_description();
-        let handle = Self::get_float_tensor(&desc, &original_client);
+        let handle = Self::get_tensor_handle(&desc, &original_client);
         let handle = Self::Bridge::change_backend_float(handle, desc.shape.clone().into(), device);
 
         // Register tensor handle on target client
         let target_client = get_client::<Self>(device);
         Self::register_tensor(&target_client, handle, desc.shape, desc.dtype)
-        // TODO: remove tensor handle from other client?
     }
 }

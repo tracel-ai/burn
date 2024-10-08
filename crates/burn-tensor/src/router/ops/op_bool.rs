@@ -21,7 +21,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: crate::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(&device);
-        client.write_tensor(data)
+        client.register_tensor_data(data)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

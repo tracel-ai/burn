@@ -19,13 +19,16 @@ type Key = (core::any::TypeId, DeviceId);
 pub trait RunnerClient: Clone + Send + Sync + Sized {
     // TODO: could a client deal with multiple devices? Or is a client strictly a 1:1 device relationship?
     type Device: DeviceOps;
+    // type Channel: RunnerChannel;
 
     /// Register a new tensor operation to be executed by the (runner) server.
     fn register(&self, op: OperationDescription);
     /// Read the values contained by a tensor.
     fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send;
-    fn write_tensor(&self, data: TensorData) -> RouterTensor<Self>;
-    fn register_new_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
+    /// Create a new [RouterTensor] from the tensor data.
+    fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
+    /// Create a new [RouterTensor] with no resources associated.
+    fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
 }
