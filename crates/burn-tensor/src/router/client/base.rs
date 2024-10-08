@@ -1,13 +1,12 @@
 use core::{future::Future, ops::DerefMut};
 use std::collections::HashMap;
 
-use burn_common::stream::StreamId;
 use spin::Mutex;
 
 use crate::{
-    backend::{Backend, DeviceId, DeviceOps},
+    backend::{DeviceId, DeviceOps},
     repr::{OperationDescription, TensorDescription},
-    router::{MultiBackendBridge, RouterTensor, RunnerChannel},
+    router::{RouterTensor, RunnerChannel},
     DType, TensorData,
 };
 

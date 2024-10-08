@@ -1,8 +1,6 @@
-use burn_common::stream::StreamId;
-
 use crate::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
-    router::{get_client, BackendRouter, RouterTensor, RunnerChannel, RunnerClient},
+    router::{get_client, BackendRouter, RunnerChannel, RunnerClient},
     Device, Shape,
 };
 
@@ -23,14 +21,6 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: crate::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(&device);
-        // let id = StreamId::current();
-        // let desc = client.write_tensor(data);
-
-        // RouterTensor {
-        //     desc,
-        //     client,
-        //     // stream: id,
-        // }
         client.write_tensor(data)
     }
 

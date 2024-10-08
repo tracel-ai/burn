@@ -5,10 +5,6 @@ use crate::{
     DType, Shape, TensorData,
 };
 
-// pub trait IntoDescription {
-//     fn into_description(self) -> TensorDescription;
-// }
-
 pub trait MultiBackendBridge: Send + Sync + 'static {
     // for now, but we might just change `to_backend` to return a TensorDescription instead
     // and since quantized tensor actually have a diff description, we might need to have backend switches
