@@ -6,6 +6,7 @@ use crate::{
     DType, Shape, TensorData,
 };
 
+/// Tensor primitive for the [router backend](crate::router::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
     pub(crate) id: Arc<TensorId>,
     pub(crate) shape: Vec<usize>,

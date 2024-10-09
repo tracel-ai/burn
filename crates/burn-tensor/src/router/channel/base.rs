@@ -8,14 +8,13 @@ use crate::{
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;
 
-// Defines associated types config for a setup with multiple backend runners.
-// TODO: most of the stuff should go in the client no?
-// We would then have something like a DirectClient or LocalClient instead of DirectChannel
-// type MyBackend = BackendRouter<DirectClient<(Cuda, NdArray, Wgpu), ByteBridge<(Cuda, NdArray, Wgpu)>>>
-// and in the future perhaps HttpClient
+/// Defines the connection channel and operations for a setup with multiple backend runner clients.
 pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
+    /// Device type.
     type Device: DeviceOps;
+    /// A bridge that can transfer tensors between multiple backends.
     type Bridge: MultiBackendBridge<Device = Self::Device>;
+    /// Client type.
     type Client: RunnerClient<Device = Self::Device>;
 
     /// Initialize a new client for the given device.
@@ -27,7 +26,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
         client: &Self::Client,
     ) -> TensorHandle<Self::Bridge>;
 
-    // TODO: get quantized tensor handle from QuantizedTensorDescription?
+    // TODO: get quantized tensor handle from QuantizedTensorDescription
 
     /// Create a tensor with the given handle and shape.
     fn register_tensor(

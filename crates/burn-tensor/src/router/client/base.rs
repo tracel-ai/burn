@@ -15,11 +15,10 @@ pub type Client<R> = <R as RunnerChannel>::Client;
 pub(crate) static CLIENTS: RunnerClientLocator = RunnerClientLocator::new();
 type Key = (core::any::TypeId, DeviceId);
 
-/// Define how to interact with the runner server.
+/// Define how to interact with the runner.
 pub trait RunnerClient: Clone + Send + Sync + Sized {
-    // TODO: could a client deal with multiple devices? Or is a client strictly a 1:1 device relationship?
+    /// Device type.
     type Device: DeviceOps;
-    // type Channel: RunnerChannel;
 
     /// Register a new tensor operation to be executed by the (runner) server.
     fn register(&self, op: OperationDescription);

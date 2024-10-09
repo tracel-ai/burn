@@ -1,33 +1,32 @@
-use crate::{
-    backend::{Backend, DeviceOps},
-    repr::{OperationDescription, ReprBackend, TensorDescription},
-    router::{RouterTensor, Runner, RunnerClient},
-    DType, Shape, TensorData,
-};
+use crate::{backend::DeviceOps, Shape};
 
+/// Allows tensors to be transferred between multiple backends.
 pub trait MultiBackendBridge: Send + Sync + 'static {
-    // for now, but we might just change `to_backend` to return a TensorDescription instead
-    // and since quantized tensor actually have a diff description, we might need to have backend switches
-    // for all primitive types
+    /// The type that can be used to point to a tensor of any kind.
     type TensorHandle;
-    type Device;
+    /// Device type used by the backends.
+    type Device: DeviceOps;
 
-    // TODO: change_backend_int, change_backend_bool, change_backend_quantized
+    /// Change the backend of the given float tensor.
     fn change_backend_float(
         tensor: Self::TensorHandle,
         shape: Shape,
-        device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle;
 
+    /// Change the backend of the given int tensor.
     fn change_backend_int(
         tensor: Self::TensorHandle,
         shape: Shape,
-        device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle;
 
+    /// Change the backend of the given bool tensor.
     fn change_backend_bool(
         tensor: Self::TensorHandle,
         shape: Shape,
-        device: &Self::Device,
+        target_device: &Self::Device,
     ) -> Self::TensorHandle;
+
+    // TODO: change_backend_quantized
 }

@@ -8,6 +8,7 @@ use crate::{
 
 use super::{RouterTensor, RunnerChannel, RunnerClient};
 
+/// A backend that forwards the tensor operations to the appropiate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {
     r: PhantomData<R>,
 }
@@ -30,6 +31,7 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
     }
 }
 
+// TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
     fn scheme(&self) -> &crate::quantization::QuantizationScheme {
         todo!()
@@ -48,7 +50,7 @@ impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
     type Target = BackendRouter<R>;
 
     fn into_target(
-        tensor: FloatTensor<BackendRouter<R>>,
+        _tensor: FloatTensor<BackendRouter<R>>,
         _device: Option<<BackendRouter<R> as Backend>::Device>,
     ) -> FloatTensor<Self::Target> {
         todo!()
@@ -56,7 +58,7 @@ impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
     }
 
     fn from_target(
-        tensor: FloatTensor<Self::Target>,
+        _tensor: FloatTensor<Self::Target>,
         _device: Option<<BackendRouter<R> as Backend>::Device>,
     ) -> FloatTensor<BackendRouter<R>> {
         todo!()
@@ -88,12 +90,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         todo!()
     }
 
-    fn seed(seed: u64) {
+    fn seed(_seed: u64) {
         todo!()
     }
 }
-
-// Example usage:
-// type MyBackend = BackendRouter<DirectChannel<(Cuda, NdArray, Wgpu), ByteBridge<(Cuda, NdArray, Wgpu)>>>
-// ByteBridge is the default bridge for moving data between backends
-// For efficient data movement/transfer, you can implement your own struct

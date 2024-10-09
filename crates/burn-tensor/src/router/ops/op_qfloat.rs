@@ -31,12 +31,12 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
         unimplemented!()
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        todo!()
+    fn q_shape(_tensor: &QuantizedTensor<Self>) -> Shape {
+        unimplemented!()
     }
 
-    fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        todo!()
+    fn q_device(_tensor: &QuantizedTensor<Self>) -> Device<Self> {
+        unimplemented!()
     }
 
     fn q_to_device(

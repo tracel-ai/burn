@@ -16,21 +16,21 @@ use crate::{
 
 use super::{RouterTensor, RunnerClient};
 
+/// A runner's context contains a [handle container](HandleContainer) to manage
+/// (i.e., fetch and update) existing tensors.
 pub struct RunnerContext<B: ReprBackend> {
+    /// Handle container to retrieve tensors based on their description.
     handles: HandleContainer<B::Handle>,
 }
 
 impl<B: ReprBackend> RunnerContext<B> {
-    pub fn create_empty_handle(&mut self) -> Arc<TensorId> {
+    /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
+    fn create_empty_handle(&mut self) -> Arc<TensorId> {
         self.handles.create_tensor_uninit()
     }
 }
 
-// HttpChannel will probably need a different RunnerClient implementation (otherwise, the
-// client machine will have backend requirements that could only be attributed to the server/runner)
-
-// Runners are used by the channels (e.g., DirectChannel, HttpChannel, etc.)
-// Responsible for executing the tensor operations.
+/// A runner is responsible for executing tensor operations for a given [intermediate backend](ReprBackend).
 #[derive(Clone)]
 pub struct Runner<B: ReprBackend> {
     // Mutex for the mutable handles
@@ -48,6 +48,7 @@ impl<B: ReprBackend> Runner<B> {
         }
     }
 
+    /// Get the tensor handle for the given [tensor description](TensorDescription).
     pub(crate) fn get_tensor_handle(&self, tensor: &TensorDescription) -> B::Handle {
         let handles = &mut self.context.lock().handles;
         handles.get_tensor_handle(tensor).handle
@@ -492,8 +493,14 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 NumericOperationDescription::MinDim(desc) => {
                     scalar_float_dim_ops!(self.context, desc, B::float_min_dim)
                 }
-                NumericOperationDescription::Clamp(_) => todo!(),
-                NumericOperationDescription::IntRandom(_) => todo!(),
+                NumericOperationDescription::Clamp(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+
+                    let output = B::float_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::IntRandom(_) => unreachable!(),
                 NumericOperationDescription::Powf(desc) => {
                     binary_float_ops!(self.context, desc, B::float_powf)
                 }
@@ -677,8 +684,20 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 NumericOperationDescription::MinDim(desc) => {
                     scalar_int_dim_ops!(self.context, desc, B::int_min_dim)
                 }
-                NumericOperationDescription::Clamp(_) => todo!(),
-                NumericOperationDescription::IntRandom(_) => todo!(),
+                NumericOperationDescription::Clamp(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+
+                    let output = B::int_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::IntRandom(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let shape = Shape::from(desc.out.shape.clone());
+
+                    let output = B::int_random(shape, desc.distribution, &self.device);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
                 NumericOperationDescription::Powf(desc) => {
                     let handles = &mut self.context.lock().handles;
                     let lhs = handles.get_int_tensor::<B>(&desc.lhs);
@@ -1140,17 +1159,17 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         let shape = data.shape.clone();
         let dtype = data.dtype;
 
-        // TODO: split into write_float_tensor, write_int_tensor, ... ?
-        match dtype {
-            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {
-                let tensor = B::float_from_data(data, &self.device);
-                ctx.handles.register_float_tensor::<B>(&id, tensor)
-            }
-            DType::I64 | DType::I32 => {
-                let tensor = B::int_from_data(data, &self.device);
-                ctx.handles.register_int_tensor::<B>(&id, tensor)
-            }
-            _ => todo!(),
+        if dtype.is_float() {
+            let tensor = B::float_from_data(data, &self.device);
+            ctx.handles.register_float_tensor::<B>(&id, tensor)
+        } else if dtype.is_int() {
+            let tensor = B::int_from_data(data, &self.device);
+            ctx.handles.register_int_tensor::<B>(&id, tensor)
+        } else if dtype.is_bool() {
+            let tensor = B::bool_from_data(data, &self.device);
+            ctx.handles.register_bool_tensor::<B>(&id, tensor)
+        } else if let DType::QFloat(_) = dtype {
+            todo!();
         }
 
         core::mem::drop(ctx);
