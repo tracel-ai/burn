@@ -1,4 +1,4 @@
-use alloc::sync::Arc;
+use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
 use crate::{

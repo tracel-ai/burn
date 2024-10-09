@@ -1,5 +1,6 @@
+use alloc::{boxed::Box, vec::Vec};
 use core::{future::Future, ops::DerefMut};
-use std::collections::HashMap;
+use hashbrown::HashMap;
 
 use spin::Mutex;
 

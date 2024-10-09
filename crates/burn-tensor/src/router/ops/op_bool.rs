@@ -9,6 +9,7 @@ use crate::{
     router::{get_client, BackendRouter, RunnerChannel, RunnerClient},
     DType, Device, Element, Shape, TensorData,
 };
+use alloc::vec::Vec;
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {

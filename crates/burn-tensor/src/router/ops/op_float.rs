@@ -16,7 +16,7 @@ use crate::repr::{
 };
 use crate::router::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 use crate::{DType, Device, Distribution, Element, Shape, TensorData};
-use std::ops::Range;
+use core::ops::Range;
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {

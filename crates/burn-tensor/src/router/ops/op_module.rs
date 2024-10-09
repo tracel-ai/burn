@@ -21,6 +21,7 @@ use crate::repr::{
 };
 use crate::router::{BackendRouter, RunnerChannel, RunnerClient};
 use crate::Element;
+use alloc::{boxed::Box, vec};
 
 impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
     fn conv1d(

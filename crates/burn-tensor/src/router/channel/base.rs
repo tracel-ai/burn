@@ -4,6 +4,7 @@ use crate::{
     router::{get_client, MultiBackendBridge, RouterTensor, RunnerClient},
     DType,
 };
+use alloc::{string::String, vec::Vec};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;
