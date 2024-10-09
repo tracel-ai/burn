@@ -47,7 +47,7 @@ fn prng_cube_count<R: JitRuntime>(
     num_elems: usize,
     cube_dim: usize,
     n_values_per_thread: usize,
-) -> CubeCount<R::Server> {
+) -> CubeCount {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
     let num_elems_per_cube = cube_dim * cube_dim;
     let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);

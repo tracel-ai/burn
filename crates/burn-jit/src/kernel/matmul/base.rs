@@ -60,13 +60,13 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
     }
 }
 
-pub(crate) fn simple_cube_count<R: JitRuntime>(
+pub(crate) fn simple_cube_count(
     lhs_shape: &Shape,
     rhs_shape: &Shape,
     output_shape: &Shape,
     cube_dim_x: usize,
     cube_dim_y: usize,
-) -> CubeCount<R::Server> {
+) -> CubeCount {
     let ndims = lhs_shape.num_dims();
     let num_rows = lhs_shape.dims[ndims - 2];
     let num_cols = rhs_shape.dims[ndims - 1];
