@@ -21,6 +21,7 @@ fn main() {
         .input("tests/conv1d/conv1d.onnx")
         .input("tests/conv2d/conv2d.onnx")
         .input("tests/conv3d/conv3d.onnx")
+        // .input("tests/conv_transpose1d/conv_transpose1d.onnx")
         .input("tests/conv_transpose2d/conv_transpose2d.onnx")
         .input("tests/conv_transpose3d/conv_transpose3d.onnx")
         .input("tests/cos/cos.onnx")
