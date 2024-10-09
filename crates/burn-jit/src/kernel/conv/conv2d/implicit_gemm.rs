@@ -16,7 +16,7 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-/// Perform a 2D convolution using the implicit GEMM algorithm. Requries `cmma` to be available.
+/// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
 /// * `input` - The input feature map
 /// * `weight` - The weights (filter) applied to each kernel
@@ -346,28 +346,30 @@ fn make_matrices<F: Float, FAcc: Float>(
         ..
     } = gemm_settings;
 
-    let matrices = Matrices::<F, FAcc> {
-        a: Matrix::<F>::new(
-            MatrixIdent::A,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::RowMajor,
-        ),
-        b: Matrix::<F>::new(
-            MatrixIdent::B,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::ColMajor,
-        ),
-        acc: Matrix::<FAcc>::new(
-            MatrixIdent::Accumulator,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::Undefined,
-        ),
+    let matrices = unsafe {
+        Matrices::<F, FAcc> {
+            a: Matrix::<F>::uninitialized(
+                MatrixIdent::A,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::RowMajor,
+            ),
+            b: Matrix::<F>::uninitialized(
+                MatrixIdent::B,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::ColMajor,
+            ),
+            acc: Matrix::<FAcc>::uninitialized(
+                MatrixIdent::Accumulator,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::Undefined,
+            ),
+        }
     };
 
     cmma::fill(&matrices.acc, FAcc::new(0.0));
@@ -467,7 +469,8 @@ fn load_input_tile<F: Float, FMat: Float>(
         let rel_slice_row = m / cmma_k; // Relative row (0 - 15)
         let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
 
-        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
+        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is
+        // responsible for
         let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
 
         // Given the row of the matrix that the slice is in, and the index of the thread
@@ -607,14 +610,16 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
         .iter()
         .copied()
         .filter(|(m, k, n)| {
-            R::client(device).features().enabled(Feature::Cmma {
-                a: F::as_elem(),
-                b: F::as_elem(),
-                c: FAcc::as_elem(),
-                m: *m,
-                k: *k,
-                n: *n,
-            })
+            R::client(device)
+                .properties()
+                .feature_enabled(Feature::Cmma {
+                    a: F::as_elem(),
+                    b: F::as_elem(),
+                    c: FAcc::as_elem(),
+                    m: *m,
+                    k: *k,
+                    n: *n,
+                })
         })
         .collect()
 }

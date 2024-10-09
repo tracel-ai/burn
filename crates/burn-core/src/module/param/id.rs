@@ -55,7 +55,7 @@ impl ParamId {
                 // Backward compatibility with uuid parameter identifiers
                 Ok(id) => {
                     // Hash the 128-bit uuid to 64-bit
-                    // Though not *theoretically* unique, the probability of a collision should be extremly low
+                    // Though not *theoretically* unique, the probability of a collision should be extremely low
                     let mut hasher = DefaultHashBuilder::default().build_hasher();
                     // let mut hasher = DefaultHasher::new();
                     hasher.write(id.as_bytes());
