@@ -63,18 +63,13 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(grad: &Tensor<E>, output: &mu
 
 #[cube]
 fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
-    let index = output_size_index * input_size;
-    u32::cast_from(f32::floor(
-        f32::cast_from(index) / f32::cast_from(output_size),
-    ))
+    (output_size_index * input_size) / output_size
 }
 
 #[cube]
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     let index = (output_size_index + 1) * input_size;
-    let index = u32::cast_from(f32::ceil(
-        f32::cast_from(index) / f32::cast_from(output_size),
-    ));
+    let index = (index + output_size - 1) / output_size;
 
     if input_size < index {
         input_size
