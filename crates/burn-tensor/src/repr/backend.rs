@@ -7,8 +7,7 @@ use crate::{
 use alloc::vec::Vec;
 
 /// A tensor representation containing a reference to a tensor resource with a given shape.
-#[derive(Clone)]
-pub struct TensorHandle<H: Clone> {
+pub struct TensorHandle<H> {
     /// The type that can be used to point to a tensor of any kind.
     pub handle: H,
     /// The shape associated to the tensor.

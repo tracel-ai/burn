@@ -140,7 +140,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
     /// Optimization type for the backend.
     type Optimization: Optimization<Self>;
     /// Handle used to store tensor dynamically.
-    type FusionHandle: Clone + Send + Sync;
+    type FusionHandle: Clone + Send;
     /// Device used by the runtime.
     type FusionDevice: DeviceOps;
     /// The client to interact with the runtime.

@@ -14,9 +14,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), DType::Bool);
-
-        out
+        client.register_empty_tensor(shape.into(), DType::Bool)
     }
 
     fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
@@ -28,7 +26,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     }
 
     fn bool_from_data(data: crate::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let client = get_client::<R>(&device);
+        let client = get_client::<R>(device);
         client.register_tensor_data(data)
     }
 

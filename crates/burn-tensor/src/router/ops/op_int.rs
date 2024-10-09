@@ -22,9 +22,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
         let dtype = IntElem::<Self>::dtype();
-        let out = client.register_empty_tensor(shape.into(), dtype);
-
-        out
+        client.register_empty_tensor(shape.into(), dtype)
     }
 
     fn int_shape(tensor: &IntTensor<Self>) -> Shape {
@@ -36,7 +34,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client::<R>(&device);
+        let client = get_client::<R>(device);
         client.register_tensor_data(data)
     }
 
@@ -510,7 +508,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs: rhs,
+            rhs,
             out: out.to_description_out(),
         };
 

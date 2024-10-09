@@ -18,8 +18,8 @@ pub struct DirectChannel<Backends, Bridge> {
 impl<Backends, Bridge> Clone for DirectChannel<Backends, Bridge> {
     fn clone(&self) -> Self {
         Self {
-            backends: self.backends.clone(),
-            bridge: self.bridge.clone(),
+            backends: self.backends,
+            bridge: self.bridge,
         }
     }
 }
