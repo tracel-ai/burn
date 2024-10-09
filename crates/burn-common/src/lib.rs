@@ -19,6 +19,3 @@ pub mod network;
 
 /// Parallel utilities.
 pub mod parallel;
-
-/// Streaming utilities.
-pub mod stream;
