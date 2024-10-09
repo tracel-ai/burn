@@ -82,6 +82,10 @@ where
             },
         }
     }
+
+    fn name() -> String {
+        format!("direct<({}, {})>", B1::name(), B2::name())
+    }
 }
 
 // TODO: generate this for different number of backends (up to 4?)

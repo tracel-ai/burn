@@ -86,8 +86,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type QuantizedEncoding = u32;
 
     fn name() -> String {
-        // format!("router<{}>", B::name())
-        todo!()
+        format!("router<{}>", R::name())
     }
 
     fn seed(_seed: u64) {

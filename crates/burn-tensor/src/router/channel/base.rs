@@ -17,6 +17,9 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     /// Client type.
     type Client: RunnerClient<Device = Self::Device>;
 
+    /// Name of the channel.
+    fn name() -> String;
+
     /// Initialize a new client for the given device.
     fn init_client(device: &Self::Device) -> Self::Client;
 
