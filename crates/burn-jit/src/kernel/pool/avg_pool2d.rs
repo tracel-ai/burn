@@ -19,7 +19,7 @@ impl PoolStrategy for AvgPool {
     type Accumulator = (Variable, Variable);
 
     fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
-        let sum = scope.create_local(item);
+        let sum = scope.zero(item);
         let count = scope.create_local(Elem::UInt);
         if self.count_include_pad {
             let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();

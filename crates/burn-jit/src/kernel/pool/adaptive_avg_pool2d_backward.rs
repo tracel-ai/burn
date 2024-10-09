@@ -86,7 +86,7 @@ impl<E: JitElement> AdaptiveAvgPool2dBackwardComputeShader<E> {
         let ow_start = Self::start_index(scope, iw, output_shape_3, grad_shape_3);
         let ow_end = Self::end_index(scope, iw, output_shape_3, grad_shape_3);
 
-        let grad_acc = scope.create_local(output.item());
+        let grad_acc = scope.zero(output.item());
         let contributed_h = scope.create_local(Elem::Bool);
         let contributed_w = scope.create_local(Elem::Bool);
         let contributed_tmp = scope.create_local(Elem::Bool);
@@ -222,14 +222,10 @@ impl<R: JitRuntime, E: JitElement> Kernel for AdaptiveAvgPool2dBackwardEagerKern
             item,
             visibility: Visibility::Read,
         };
-        let scalars = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: 6,
-        };
         let output = OutputInfo::Array { item };
 
         let info = KernelExpansion {
-            inputs: vec![grad, scalars],
+            inputs: vec![grad],
             outputs: vec![output],
             scope,
         };

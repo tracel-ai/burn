@@ -524,6 +524,24 @@ impl TraceBuilder {
                         &mut local_tensor_ids_input,
                         &mut local_tensor_ids_output,
                     ),
+                    Operator::InitLine(op) => {
+                        for input in &op.inputs {
+                            mark(input, &mut local_tensor_ids_input);
+                        }
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    Operator::Copy(op) => {
+                        mark(&op.input, &mut local_tensor_ids_input);
+                        mark(&op.in_index, &mut local_tensor_ids_input);
+                        mark(&op.out_index, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
+                    Operator::CopyBulk(op) => {
+                        mark(&op.input, &mut local_tensor_ids_input);
+                        mark(&op.in_index, &mut local_tensor_ids_input);
+                        mark(&op.out_index, &mut local_tensor_ids_input);
+                        mark(&op.out, &mut local_tensor_ids_output);
+                    }
                 },
                 Operation::Procedure(proc) => {
                     match proc {

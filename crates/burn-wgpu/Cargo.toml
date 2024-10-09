@@ -32,3 +32,4 @@ burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
 burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
+renderdoc = "0.12"

@@ -104,16 +104,17 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let warp_size = 32;
     let warps_per_cube = (cube_dim_y * cube_dim_x) / warp_size;
 
-    let max_vectorization = u8::MAX; // TODO: Fetch this based on backend
+    let supported_vecs = R::supported_line_sizes();
 
     let input_elems_per_thread = input_tile_size / warp_size;
-    let input_vectorization = u8::min(
-        find_common_vec(in_channels, input_elems_per_thread),
-        max_vectorization,
-    );
+    let input_vectorization = find_common_vec(in_channels, input_elems_per_thread, supported_vecs);
 
     let weight_elems_per_thread = weight_tile_size / warp_size;
-    let weight_vectorization = u8::min(weight_elems_per_thread as u8, max_vectorization);
+    let weight_vectorization = find_common_vec(
+        weight_elems_per_thread as usize,
+        weight_elems_per_thread,
+        supported_vecs,
+    );
 
     let settings = GemmSettings {
         cmma_m,
@@ -182,14 +183,15 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     permute(out, &[0, 3, 1, 2])
 }
 
-fn find_common_vec(channels: usize, elems_per_thread: u32) -> u8 {
+fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {
     let channels = channels as u8;
     let elems_per_thread = elems_per_thread as u8;
     let smaller = u8::min(channels, elems_per_thread);
     (1..=smaller)
         .rev()
+        .filter(|it| supported_vecs.contains(it))
         .find(|vec| channels % *vec == 0 && elems_per_thread % *vec == 0)
-        .unwrap()
+        .unwrap_or(1)
 }
 
 #[derive(CubeLaunch)]
@@ -346,7 +348,7 @@ fn make_matrices<F: Float, FAcc: Float>(
         ..
     } = gemm_settings;
 
-    let matrices = Matrices::<F, FAcc> {
+    Matrices::<F, FAcc> {
         a: unsafe {
             Matrix::<F>::uninitialized(
                 MatrixIdent::A,
@@ -373,11 +375,7 @@ fn make_matrices<F: Float, FAcc: Float>(
             MatrixLayout::Undefined,
             FAcc::new(0.0),
         ),
-    };
-
-    cmma::fill(&matrices.acc, FAcc::new(0.0));
-
-    matrices
+    }
 }
 
 #[cube]
@@ -461,6 +459,16 @@ fn load_input_tile<F: Float, FMat: Float>(
     let slice_start_idx = k % dims.slice_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
 
+    let rel_slice_row = start / cmma_k; // Relative row (0 - 15)
+    let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
+
+    // Given the row of the matrix that the slice is in, and the index of the thread
+    // within a slice, want to compute what input element to load...
+    // first compute coordinates in output space (center of the kernel in MxK matrix A)
+    let batch = abs_slice_row / batch_stride;
+    let out_y = (abs_slice_row % batch_stride) / y_stride;
+    let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
+
     #[unroll]
     for m in range_stepped(0, elems_per_thread, vec) {
         let m = m + start;
@@ -469,18 +477,8 @@ fn load_input_tile<F: Float, FMat: Float>(
         // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
         // we are and also which row the slice is in relative to the start of the CMMA matrix
 
-        let rel_slice_row = m / cmma_k; // Relative row (0 - 15)
-        let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
-
         // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
         let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
-
-        // Given the row of the matrix that the slice is in, and the index of the thread
-        // within a slice, want to compute what input element to load...
-        // first compute coordinates in output space (center of the kernel in MxK matrix A)
-        let batch = abs_slice_row / batch_stride;
-        let out_y = (abs_slice_row % batch_stride) / y_stride;
-        let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
 
         let channel = my_slice_idx % channels;
 
@@ -527,6 +525,8 @@ fn load_weight_tile<F: Float, FMat: Float>(
     let cmma_filter_tile_size = cmma_k * cmma_n;
     let elems_per_thread = cmma_filter_tile_size / warp_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
+    let abs_slice_col = pos.global_n + (start / cmma_k); // Row of the matrix the slice is on
+    let col_idx = abs_slice_col * weight.stride(0);
 
     #[unroll]
     for n in range_stepped(0, elems_per_thread, vec) {
@@ -534,9 +534,8 @@ fn load_weight_tile<F: Float, FMat: Float>(
         // Compute where in the slice we are starting
         let rel_slice_row = n % cmma_k; // Relative row (0 - 15)
         let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
-        let abs_slice_col = pos.global_n + (n / cmma_k); // Row of the matrix the slice is on
-        let idx = abs_slice_col * weight.stride(0) + abs_slice_row;
-        let value = FMat::cast_from(weight[idx / vec]);
+        let idx = col_idx + abs_slice_row;
+        let value = FMat::cast_from(unsafe { *weight.index_unchecked(idx / vec) });
 
         #[unroll]
         for i in 0..vec {
@@ -612,14 +611,16 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
         .iter()
         .copied()
         .filter(|(m, k, n)| {
-            R::client(device).features().enabled(Feature::Cmma {
-                a: F::as_elem(),
-                b: F::as_elem(),
-                c: FAcc::as_elem(),
-                m: *m,
-                k: *k,
-                n: *n,
-            })
+            R::client(device)
+                .properties()
+                .feature_enabled(Feature::Cmma {
+                    a: F::as_elem(),
+                    b: F::as_elem(),
+                    c: FAcc::as_elem(),
+                    m: *m,
+                    k: *k,
+                    n: *n,
+                })
         })
         .collect()
 }

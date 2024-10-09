@@ -1,7 +1,7 @@
-use std::{marker::PhantomData, mem::MaybeUninit};
+use std::marker::PhantomData;
 
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::{prelude::*, Compiler, ExecutionMode, KernelId};
+use cubecl::{prelude::*, ExecutionMode, KernelId};
 
 use super::SourceTemplate;
 
@@ -21,22 +21,15 @@ pub struct SourceKernel<K, R: JitRuntime> {
     _runtime: PhantomData<R>,
 }
 
-impl<K: KernelSource, R: JitRuntime> CubeTask<<R::Compiler as Compiler>::Representation>
-    for SourceKernel<K, R>
-{
-    fn compile(
-        &self,
-        _mode: ExecutionMode,
-    ) -> CompiledKernel<<R::Compiler as Compiler>::Representation> {
+impl<K: KernelSource, R: JitRuntime> CubeTask<R::Compiler> for SourceKernel<K, R> {
+    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel<R::Compiler> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
         CompiledKernel {
             name: Some(core::any::type_name::<K>()),
             source,
-            // Temp fix, this is only used for SPIR-V
-            #[allow(clippy::uninit_assumed_init)]
-            repr: unsafe { MaybeUninit::uninit().assume_init() },
+            repr: None,
             cube_dim: self.cube_dim,
             shared_mem_bytes: 0,
             debug_info: None,

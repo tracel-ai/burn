@@ -568,6 +568,7 @@ dependencies = [
  "derive-new",
  "half",
  "log",
+ "renderdoc",
 ]
 
 [[package]]
@@ -692,6 +693,7 @@ dependencies = [
  "openblas-src",
  "portable-atomic-util",
  "rand",
+ "renderdoc",
  "spin",
 ]
 
@@ -714,6 +716,7 @@ dependencies = [
  "libc",
  "log",
  "rand",
+ "renderdoc",
  "tch",
 ]
 
@@ -771,6 +774,7 @@ dependencies = [
  "burn-jit",
  "burn-tensor",
  "cubecl",
+ "renderdoc",
 ]
 
 [[package]]
@@ -1482,6 +1486,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cubecl-opt"
+version = "0.2.0"
+dependencies = [
+ "cubecl-common",
+ "cubecl-core",
+ "num",
+ "petgraph",
+ "stable-vec",
+]
+
+[[package]]
 name = "cubecl-runtime"
 version = "0.2.0"
 dependencies = [
@@ -1506,6 +1521,7 @@ version = "0.2.0"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
+ "cubecl-opt",
  "cubecl-runtime",
  "hashbrown 0.14.5",
  "rspirv",
@@ -1544,6 +1560,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "log",
  "pollster",
+ "sanitize-filename",
  "wgpu",
 ]
 
@@ -3766,6 +3783,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
+name = "no-std-compat"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df270209a7f04d62459240d890ecb792714d5db12c92937823574a09930276b4"
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3807,6 +3830,20 @@ checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
 dependencies = [
  "overload",
  "winapi",
+]
+
+[[package]]
+name = "num"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
+dependencies = [
+ "num-bigint",
+ "num-complex",
+ "num-integer",
+ "num-iter",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]
@@ -3852,6 +3889,17 @@ version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "num-iter"
+version = "0.1.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
+dependencies = [
+ "autocfg",
+ "num-integer",
  "num-traits",
 ]
 
@@ -5400,6 +5448,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
+name = "renderdoc"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac633a08f39bf3268714799bd8c4a1a19c19c203d817d3448bb8b91c97817cf0"
+dependencies = [
+ "bitflags 2.6.0",
+ "float-cmp",
+ "libloading",
+ "once_cell",
+ "renderdoc-sys",
+ "winapi",
+ "wio",
+]
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6125,6 +6188,15 @@ checksum = "d904e7009df136af5297832a3ace3370cd14ff1546a232f4f185036c2736fcac"
 dependencies = [
  "quote",
  "syn 2.0.77",
+]
+
+[[package]]
+name = "stable-vec"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1dff32a2ce087283bec878419027cebd888760d8760b2941ad0843531dc9ec8"
+dependencies = [
+ "no-std-compat",
 ]
 
 [[package]]
@@ -7590,6 +7662,15 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "wio"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d129932f4644ac2396cb456385cbf9e63b5b30c6e8dc4820bdca4eb082037a5"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]

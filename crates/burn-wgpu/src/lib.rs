@@ -79,7 +79,7 @@ pub type Wgpu<F = f32, I = i32> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32> = JitBackend<WgpuSpirvRuntime, F, I>;
+pub type Wgpu<F = f32, I = i32> = JitBackend<cubecl::wgpu_spirv::WgpuSpirvRuntime, F, I>;
 
 #[cfg(test)]
 mod tests {
