@@ -279,6 +279,73 @@ mod tests {
     }
 
     #[test]
+    fn test_conv2d_implicit_check_n() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 3,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 1,
+            padding_2: 1,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(TestTensor::from([[
+            [
+                [4521., 6753., 7014., 4635.],
+                [6858., 10197., 10548., 6939.],
+                [7830., 11601., 11952., 7839.],
+                [5007., 7383., 7590., 4953.],
+            ],
+            [
+                [10516., 15988., 16735., 11278.],
+                [16822., 25507., 26587., 17875.],
+                [19738., 29827., 30907., 20719.],
+                [13594., 20506., 21199., 14188.],
+            ],
+            [
+                [16511., 25223., 26456., 17921.],
+                [26786., 40817., 42626., 28811.],
+                [31646., 48053., 49862., 33599.],
+                [22181., 33629., 34808., 23423.],
+            ],
+        ]]));
+    }
+
+    #[test]
+    fn test_conv2d_implicit_check_m() {
+        let test = Conv2dTestCase {
+            batch_size: 1,
+            channels_in: 3,
+            channels_out: 3,
+            kernel_size_1: 3,
+            kernel_size_2: 3,
+            padding_1: 0,
+            padding_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 1,
+            height: 4,
+            width: 4,
+        };
+
+        test.assert_output(TestTensor::from([[
+            [[10197., 10548.], [11601., 11952.]],
+            [[25507., 26587.], [29827., 30907.]],
+            [[40817., 42626.], [48053., 49862.]],
+        ]]));
+    }
+
+    #[test]
     fn test_conv2d_groups() {
         let test = Conv2dTestCase {
             batch_size: 1,

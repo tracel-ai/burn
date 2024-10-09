@@ -7,8 +7,9 @@ use cubecl::{cube, prelude::*, Compiler, CubeCount, CubeDim, Feature};
 use half::f16;
 
 use crate::{
-    kernel::{into_contiguous, slice_assign},
+    kernel::{into_contiguous, slice, slice_assign},
     ops::{
+        into_data_sync,
         numeric::{empty_device, zeros_device},
         permute, reshape,
     },
@@ -32,6 +33,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let [batch_size, mut in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let padded_channels = padded_in_channels(in_channels, kernel_h, kernel_w);
+    let padded_out_channels = out_channels.div_ceil(16) * 16;
 
     let out_h = calculate_conv_output_size(
         kernel_h,
@@ -47,6 +49,9 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         options.dilation[1],
         width,
     );
+
+    let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
+    println!("Padded batches: {padded_batch_size}");
 
     if !can_do_implicit_gemm(&input, &weight, &options, out_h, out_w) {
         panic!(
@@ -83,13 +88,14 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         (input, weight)
     };
 
-    let out_shape = Shape::new([batch_size, out_h, out_w, out_channels]);
-    let mut out = empty_device(input.client.clone(), input.device.clone(), out_shape);
+    let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);
+    let out = empty_device(input.client.clone(), input.device.clone(), out_shape);
 
     // Implicit GEMM matrix size
-    let gemm_m = (batch_size * out_h * out_w) as u32;
-    let gemm_n = out_channels as u32;
+    let gemm_m = (padded_batch_size * out_h * out_w) as u32;
+    let gemm_n = padded_out_channels as u32;
     let gemm_k = (in_channels * kernel_h * kernel_w) as u32;
+
     let slice_size = kernel_h * kernel_w * in_channels;
 
     let (cmma_m, cmma_n, cmma_k) =
@@ -120,6 +126,8 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         cmma_m,
         cmma_n,
         cmma_k,
+        check_m: batch_size != padded_batch_size,
+        check_n: out_channels != padded_out_channels,
         warp_size,
         warps_per_cube,
         cube_dim_x,
@@ -154,6 +162,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             ScalarArg::new(gemm_n),
             ScalarArg::new(gemm_k),
             ScalarArg::new(slice_size as u32),
+            ScalarArg::new(padded_channels as u32),
             ScalarArg::new(out_h as u32),
             ScalarArg::new(out_w as u32),
         ),
@@ -175,10 +184,16 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         },
     );
 
+    let mut out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
+
+    let data = into_data_sync(out.clone());
+    println!("{data}");
+
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
         out = JitBackend::<R, F, I>::float_add(out, bias);
     }
+
     // Reset to NCHW
     permute(out, &[0, 3, 1, 2])
 }
@@ -211,6 +226,8 @@ struct Dimensions {
     gemm_k: u32,
     slice_size: u32,
 
+    padded_channels: u32,
+
     out_h: u32,
     out_w: u32,
 }
@@ -220,6 +237,9 @@ struct GemmSettings {
     cmma_m: u32,
     cmma_n: u32,
     cmma_k: u32,
+
+    check_m: bool,
+    check_n: bool,
 
     warp_size: u32,
     warps_per_cube: u32,
@@ -432,6 +452,7 @@ fn load_input_tile<F: Float, FMat: Float>(
         cmma_m,
         cmma_k,
         warp_size,
+        check_m,
         ..
     } = gemm_settings;
 
@@ -448,7 +469,7 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     let height = input.shape(1) as i32;
     let width = input.shape(2) as i32;
-    let channels = input.shape(3);
+    let channels = dims.padded_channels;
 
     // Row strides in the implicit GEMM matrix
     let batch_stride = dims.out_h * dims.out_w;
@@ -466,42 +487,50 @@ fn load_input_tile<F: Float, FMat: Float>(
     // within a slice, want to compute what input element to load...
     // first compute coordinates in output space (center of the kernel in MxK matrix A)
     let batch = abs_slice_row / batch_stride;
-    let out_y = (abs_slice_row % batch_stride) / y_stride;
-    let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
 
-    #[unroll]
-    for m in range_stepped(0, elems_per_thread, vec) {
-        let m = m + start;
-        // Compute where in the slice we are starting
-
-        // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
-        // we are and also which row the slice is in relative to the start of the CMMA matrix
-
-        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
-        let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
-
-        let channel = my_slice_idx % channels;
-
-        let kernel_x = (my_slice_idx / channels) % kernel_w;
-        let kernel_y = my_slice_idx / (channels * kernel_w);
-
-        let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - padding_h;
-        let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - padding_w;
-        let in_bounds =
-            (padding_h == 0 && padding_w == 0) || (x >= 0 && x < width && y >= 0 && y < height);
-        let idx = batch * input.stride(0)
-            + y as u32 * input.stride(1)
-            + x as u32 * input.stride(2)
-            + channel;
-        let value = select(
-            in_bounds,
-            FMat::cast_from(input[idx / vec]),
-            FMat::vectorized(0.0, vec),
-        );
+    if !check_m || batch < input.shape(0) {
+        let out_y = (abs_slice_row % batch_stride) / y_stride;
+        let out_x = ((abs_slice_row % batch_stride) % y_stride) / x_stride;
 
         #[unroll]
-        for i in 0..vec {
-            tile[m + i] = value[i];
+        for m in range_stepped(0, elems_per_thread, vec) {
+            let m = m + start;
+            // Compute where in the slice we are starting
+
+            // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
+            // we are and also which row the slice is in relative to the start of the CMMA matrix
+
+            // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
+            let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
+
+            let channel = my_slice_idx % channels;
+
+            let kernel_x = (my_slice_idx / channels) % kernel_w;
+            let kernel_y = my_slice_idx / (channels * kernel_w);
+
+            let y = (out_y * args.stride_h + kernel_y * args.dilation_h) as i32 - padding_h;
+            let x = (out_x * args.stride_w + kernel_x * args.dilation_w) as i32 - padding_w;
+            let in_bounds =
+                (padding_h == 0 && padding_w == 0) || (x >= 0 && x < width && y >= 0 && y < height);
+            let idx = batch * input.stride(0)
+                + y as u32 * input.stride(1)
+                + x as u32 * input.stride(2)
+                + channel;
+            let value = select(
+                in_bounds,
+                FMat::cast_from(input[idx / vec]),
+                FMat::vectorized(0.0, vec),
+            );
+
+            #[unroll]
+            for i in 0..vec {
+                tile[m + i] = value[i];
+            }
+        }
+    } else {
+        #[unroll]
+        for m in range_stepped(0, elems_per_thread, vec) {
+            tile[m + start] = FMat::new(0.0);
         }
     }
 }
@@ -518,6 +547,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
         cmma_n,
         cmma_k,
         warp_size,
+        check_n,
         ..
     } = gemm_settings;
 
@@ -528,18 +558,25 @@ fn load_weight_tile<F: Float, FMat: Float>(
     let abs_slice_col = pos.global_n + (start / cmma_k); // Row of the matrix the slice is on
     let col_idx = abs_slice_col * weight.stride(0);
 
-    #[unroll]
-    for n in range_stepped(0, elems_per_thread, vec) {
-        let n = n + start;
-        // Compute where in the slice we are starting
-        let rel_slice_row = n % cmma_k; // Relative row (0 - 15)
-        let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
-        let idx = col_idx + abs_slice_row;
-        let value = FMat::cast_from(unsafe { *weight.index_unchecked(idx / vec) });
-
+    if !check_n || abs_slice_col < weight.shape(0) {
         #[unroll]
-        for i in 0..vec {
-            tile[n + i] = value[i];
+        for n in range_stepped(0, elems_per_thread, vec) {
+            let n = n + start;
+            // Compute where in the slice we are starting
+            let rel_slice_row = n % cmma_k; // Relative row (0 - 15)
+            let abs_slice_row = k + rel_slice_row; // Row of the matrix the slice is on
+            let idx = col_idx + abs_slice_row;
+            let value = FMat::cast_from(unsafe { *weight.index_unchecked(idx / vec) });
+
+            #[unroll]
+            for i in 0..vec {
+                tile[n + i] = value[i];
+            }
+        }
+    } else {
+        #[unroll]
+        for n in range_stepped(0, elems_per_thread, vec) {
+            tile[n + start] = FMat::new(0.0);
         }
     }
 }
@@ -554,6 +591,8 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let [batch_size, in_channels, _, _] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let in_channels = padded_in_channels(in_channels, kernel_h, kernel_w);
+    let batch_size = padded_batch_size(batch_size, out_h, out_w);
+    let out_channels = out_channels.div_ceil(16) * 16;
 
     let gemm_m = batch_size * out_h * out_w;
     let gemm_n = out_channels;
@@ -586,6 +625,16 @@ fn padded_in_channels(in_channels: usize, kernel_h: usize, kernel_w: usize) -> u
     } else {
         in_channels
     }
+}
+
+fn padded_batch_size(batch_size: usize, out_h: usize, out_w: usize) -> usize {
+    let out_size = out_h * out_w;
+    let target = if out_size % 2 == 0 {
+        (16usize).div_ceil(out_size)
+    } else {
+        16
+    };
+    batch_size.div_ceil(target) * target
 }
 
 fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
