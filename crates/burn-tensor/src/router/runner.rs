@@ -4,7 +4,8 @@ use spin::Mutex;
 use crate::{
     binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     repr::{
-        FloatOperationDescription, HandleContainer, ModuleOperationDescription,
+        BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
+        HandleContainer, IntOperationDescription, ModuleOperationDescription,
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId,
     },
@@ -81,9 +82,237 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
     /// Execute a tensor operation.
     fn register(&self, op: OperationDescription) {
         match &op {
-            OperationDescription::BaseFloat(_) => todo!(),
-            OperationDescription::BaseInt(_) => todo!(),
-            OperationDescription::BaseBool(_) => todo!(),
+            // For every op: get the input(s), execute the operation and register the output(s)
+            OperationDescription::BaseFloat(op) => match op {
+                BaseOperationDescription::ToDevice(_) => unreachable!(),
+                BaseOperationDescription::Reshape(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_reshape(tensor, desc.out.shape.clone().into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SwapDims(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_swap_dims(tensor, desc.dim1, desc.dim2);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Permute(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_permute(tensor, &desc.axes);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Flip(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_flip(tensor, &desc.axes);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Expand(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_expand(tensor, desc.shape.clone().into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Slice(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+
+                    let output = B::float_slice(tensor, &desc.ranges);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SliceAssign(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+                    let value = handles.get_float_tensor::<B>(&desc.value);
+
+                    let output = B::float_slice_assign(tensor, &desc.ranges, value);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Equal(desc) => {
+                    binary_float_cmp_ops!(self.context, desc, B::float_equal)
+                }
+                BaseOperationDescription::RepeatDim(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_float_tensor::<B>(&desc.tensor);
+
+                    let output = B::float_repeat_dim(tensor, desc.dim, desc.times);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cat(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensors = desc
+                        .tensors
+                        .iter()
+                        .map(|tensor| handles.get_float_tensor::<B>(tensor))
+                        .collect();
+
+                    let output = B::float_cat(tensors, desc.dim);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cast(_) => unreachable!(),
+            },
+            OperationDescription::BaseInt(op) => match op {
+                BaseOperationDescription::ToDevice(_) => unreachable!(),
+                BaseOperationDescription::Reshape(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_reshape(tensor, desc.out.shape.clone().into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SwapDims(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_swap_dims(tensor, desc.dim1, desc.dim2);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Permute(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_permute(tensor, &desc.axes);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Flip(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_flip(tensor, &desc.axes);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Expand(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_expand(tensor, desc.shape.clone().into());
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Slice(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+
+                    let output = B::int_slice(tensor, &desc.ranges);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SliceAssign(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+                    let value = handles.get_int_tensor::<B>(&desc.value);
+
+                    let output = B::int_slice_assign(tensor, &desc.ranges, value);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Equal(desc) => {
+                    binary_int_cmp_ops!(self.context, desc, B::int_equal)
+                }
+                BaseOperationDescription::RepeatDim(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.tensor);
+
+                    let output = B::int_repeat_dim(tensor, desc.dim, desc.times);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cat(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensors = desc
+                        .tensors
+                        .iter()
+                        .map(|tensor| handles.get_int_tensor::<B>(tensor))
+                        .collect();
+
+                    let output = B::int_cat(tensors, desc.dim);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cast(_) => unreachable!(),
+            },
+            OperationDescription::BaseBool(op) => match op {
+                BaseOperationDescription::ToDevice(_) => unreachable!(),
+                BaseOperationDescription::Reshape(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_reshape(tensor, desc.out.shape.clone().into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SwapDims(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_swap_dims(tensor, desc.dim1, desc.dim2);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Permute(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_permute(tensor, &desc.axes);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Flip(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_flip(tensor, &desc.axes);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Expand(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_expand(tensor, desc.shape.clone().into());
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Slice(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+
+                    let output = B::bool_slice(tensor, &desc.ranges);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SliceAssign(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+                    let value = handles.get_bool_tensor::<B>(&desc.value);
+
+                    let output = B::bool_slice_assign(tensor, &desc.ranges, value);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Equal(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_bool_tensor::<B>(&desc.rhs);
+
+                    let output = B::bool_equal(lhs, rhs);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::RepeatDim(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
+
+                    let output = B::bool_repeat_dim(tensor, desc.dim, desc.times);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cat(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensors = desc
+                        .tensors
+                        .iter()
+                        .map(|tensor| handles.get_bool_tensor::<B>(tensor))
+                        .collect();
+
+                    let output = B::bool_cat(tensors, desc.dim);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cast(_) => unreachable!(),
+            },
             OperationDescription::NumericFloat(_dtype, op) => match op {
                 NumericOperationDescription::Add(desc) => {
                     binary_float_ops!(self.context, desc, B::float_add)
@@ -459,8 +688,38 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Bool(_) => todo!(),
-            OperationDescription::Int(_) => todo!(),
+            OperationDescription::Bool(op) => match op {
+                BoolOperationDescription::IntoFloat(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_into_float(tensor);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BoolOperationDescription::IntoInt(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_into_int(tensor);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BoolOperationDescription::Not(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_not(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+            },
+            OperationDescription::Int(op) => match op {
+                IntOperationDescription::IntoFloat(desc) => {
+                    let handles = &mut self.context.lock().handles;
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_into_float(tensor);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+            },
             OperationDescription::Float(_dtype, op) => match op {
                 FloatOperationDescription::Exp(desc) => {
                     unary_float_ops!(self.context, desc, B::float_exp)
@@ -886,6 +1145,10 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
             DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {
                 let tensor = B::float_from_data(data, &self.device);
                 ctx.handles.register_float_tensor::<B>(&id, tensor)
+            }
+            DType::I64 | DType::I32 => {
+                let tensor = B::int_from_data(data, &self.device);
+                ctx.handles.register_int_tensor::<B>(&id, tensor)
             }
             _ => todo!(),
         }

@@ -12,7 +12,20 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
     type TensorHandle;
     type Device;
 
+    // TODO: change_backend_int, change_backend_bool, change_backend_quantized
     fn change_backend_float(
+        tensor: Self::TensorHandle,
+        shape: Shape,
+        device: &Self::Device,
+    ) -> Self::TensorHandle;
+
+    fn change_backend_int(
+        tensor: Self::TensorHandle,
+        shape: Shape,
+        device: &Self::Device,
+    ) -> Self::TensorHandle;
+
+    fn change_backend_bool(
         tensor: Self::TensorHandle,
         shape: Shape,
         device: &Self::Device,

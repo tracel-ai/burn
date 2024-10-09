@@ -45,8 +45,17 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
         // Get tensor handle from current client
         let original_client = tensor.client.clone();
         let desc = tensor.into_description();
-        let handle = Self::get_tensor_handle(&desc, &original_client);
-        let handle = Self::Bridge::change_backend_float(handle, desc.shape.clone().into(), device);
+        let mut handle = Self::get_tensor_handle(&desc, &original_client);
+
+        if desc.dtype.is_float() {
+            handle = Self::Bridge::change_backend_float(handle, desc.shape.clone().into(), device);
+        } else if desc.dtype.is_int() {
+            handle = Self::Bridge::change_backend_int(handle, desc.shape.clone().into(), device);
+        } else if desc.dtype.is_bool() {
+            handle = Self::Bridge::change_backend_bool(handle, desc.shape.clone().into(), device);
+        } else {
+            unimplemented!()
+        }
 
         // Register tensor handle on target client
         let target_client = get_client::<Self>(device);

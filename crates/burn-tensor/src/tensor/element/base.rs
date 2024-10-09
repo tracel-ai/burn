@@ -258,3 +258,31 @@ pub enum DType {
     Bool,
     QFloat(QuantizationStrategy),
 }
+
+impl DType {
+    pub fn is_float(&self) -> bool {
+        match self {
+            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => true,
+            _ => false,
+        }
+    }
+    pub fn is_int(&self) -> bool {
+        match self {
+            DType::I64
+            | DType::I32
+            | DType::I16
+            | DType::I8
+            | DType::U64
+            | DType::U32
+            | DType::U8 => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        match self {
+            DType::Bool => true,
+            _ => false,
+        }
+    }
+}

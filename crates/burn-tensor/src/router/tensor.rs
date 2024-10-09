@@ -3,7 +3,7 @@ use alloc::sync::Arc;
 use super::RunnerClient;
 use crate::{
     repr::{TensorDescription, TensorId, TensorStatus},
-    DType, TensorData,
+    DType, Shape, TensorData,
 };
 
 pub struct RouterTensor<C: RunnerClient> {
@@ -41,6 +41,10 @@ impl<C: RunnerClient> RouterTensor<C> {
             id: *self.id.as_ref(),
             dtype: self.dtype,
         }
+    }
+
+    pub(crate) fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
     }
 
     pub(crate) fn status(&self) -> TensorStatus {

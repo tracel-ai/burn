@@ -2,12 +2,11 @@ use crate::{
     client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
     QFusionTensor,
 };
-use burn_common::stream::StreamId;
 use burn_tensor::{
     backend::{Backend, DeviceOps, SyncType},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
     repr::{OperationDescription, ReprBackend, TensorHandle},
-    Device, Element,
+    Device,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
