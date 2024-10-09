@@ -18,7 +18,7 @@ use super::tracing::ExecutionInfo;
 
 #[derive(new)]
 pub struct FusionKernel<R: JitRuntime> {
-    id: String, // Same ID for all different settings.
+    id: u64, // Same ID for all different settings.
     info: Arc<KernelExpansion>,
     settings: KernelSettings,
     runtime_info: Vec<OutputRuntimeInfo>,
@@ -270,7 +270,7 @@ impl<R: JitRuntime> Kernel for FusionKernel<R> {
     }
 
     fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info((self.settings.clone(), self.id.clone()))
+        cubecl::KernelId::new::<Self>().info((self.settings.clone(), self.id))
     }
 }
 

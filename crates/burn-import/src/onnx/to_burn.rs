@@ -51,6 +51,7 @@ use crate::{
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
+            trilu::TriluNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -68,7 +69,7 @@ use super::op_configuration::{
     max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
     reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
     shape_config, slice_config, softmax_config, squeeze_config, tile_config, transpose_config,
-    unsqueeze_config,
+    trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -338,6 +339,7 @@ impl ParsedOnnxGraph {
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
+                NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
@@ -1183,6 +1185,13 @@ impl ParsedOnnxGraph {
         let config = tile_config(&node);
 
         TileNode::new(input, output, config)
+    }
+
+    fn trilu_conversion(node: Node) -> TriluNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = trilu_config(&node);
+        TriluNode::new(input, output, config)
     }
 }
 

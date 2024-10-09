@@ -17,8 +17,8 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = {path = "../../crates/burn", features=["train"]}
+burn = { path = "../../crates/burn", features = ["train"] }
 
 # Serialization
-log = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
+log = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }

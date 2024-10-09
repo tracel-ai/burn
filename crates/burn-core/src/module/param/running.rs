@@ -79,13 +79,12 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
 
     fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
         let tensor = self.value.lock().unwrap();
-
-        visitor.visit_float(&self.id, &tensor)
+        visitor.visit_float(self.id, &tensor)
     }
 
     fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
         let mut tensor = self.value.lock().unwrap();
-        let tensor_out = mapper.map_float(&self.id, tensor.clone());
+        let tensor_out = mapper.map_float(self.id, tensor.clone());
 
         *tensor = tensor_out;
         core::mem::drop(tensor);
@@ -246,6 +245,6 @@ impl<const D: usize, B: AutodiffBackend> AutodiffModule<B> for RunningState<Tens
         self.sync();
         let value = self.value();
 
-        RunningState::with_id(self.id.clone(), value.inner())
+        RunningState::with_id(self.id, value.inner())
     }
 }

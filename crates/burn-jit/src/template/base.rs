@@ -1,7 +1,5 @@
-use std::marker::PhantomData;
-
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::{prelude::*, ExecutionMode, KernelId};
+use cubecl::{prelude::*, Compiler, ExecutionMode, KernelId};
 
 use super::SourceTemplate;
 
@@ -15,14 +13,13 @@ pub trait KernelSource: Send + 'static + Sync {
 
 #[derive(new)]
 /// Wraps a [kernel source](KernelSource) into a [cube task](CubeTask).
-pub struct SourceKernel<K, R: JitRuntime> {
+pub struct SourceKernel<K> {
     kernel_source: K,
     cube_dim: CubeDim,
-    _runtime: PhantomData<R>,
 }
 
-impl<K: KernelSource, R: JitRuntime> CubeTask<R::Compiler> for SourceKernel<K, R> {
-    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel<R::Compiler> {
+impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel<C> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 

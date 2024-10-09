@@ -2,6 +2,7 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "WGPU backend for the Burn framework"
+documentation = "https://docs.rs/burn-wgpu"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu", "wgpu", "webgpu"]
 license.workspace = true
@@ -32,4 +33,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
 burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
-renderdoc = "0.12"
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]

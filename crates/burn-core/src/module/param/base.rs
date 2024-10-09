@@ -235,7 +235,7 @@ impl<T: Parameter> Param<T> {
 
 impl<T: Parameter> Clone for Param<T> {
     fn clone(&self) -> Self {
-        Param::initialized(self.id.clone(), self.val())
+        Param::initialized(self.id, self.val())
     }
 }
 

@@ -1,205 +1,188 @@
-use std::sync::Arc;
-
-use super::{
-    kernel::ElementWiseKernelFactory, tune::ElementWiseAutotuneOperationSet,
-    FusionElemWiseAutotuneKey,
-};
-use crate::{
-    fusion::{kernel::FusionKernel, tracing::Trace, JitFusionHandle},
-    tune_key::JitAutotuneKey,
-    JitRuntime, JitTuneId,
-};
-use burn_common::id::IdGenerator;
+use crate::fusion::on_write::kernel::fuse_on_write;
+use crate::{fusion::JitFusionHandle, JitRuntime};
 use burn_fusion::stream::Context;
-use cubecl::ir::CubeDim;
-use cubecl::{
-    client::ComputeClient,
-    tune::{local_tuner, LocalTuner},
-};
+use burn_tensor::repr::TensorDescription;
+use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
+use crate::fusion::on_write::{
+    ir::{Arg, ElemwiseConfig, ElemwisePrecision, GlobalArgs, GlobalArgsLaunch},
+    trace::{FuseOnWriteTrace, TraceRunner},
+};
+
 #[derive(new)]
-pub struct ElementWise<R: JitRuntime, Phase = ExecutionPhase<R>> {
-    pub(super) trace: Trace,
-    pub(super) num_operations: usize,
-    pub(super) device: R::Device,
-    pub(super) phase: Phase,
+/// Fuse element wise operations into a single kernel.
+pub struct ElemwiseOptimization<R: JitRuntime> {
+    trace: FuseOnWriteTrace,
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    len: usize,
 }
 
-/// Phase where the kernel should be compiled.
-pub struct CompilationPhase;
-
-/// Phase where the kernel should be executed.
-#[derive(new)]
-pub struct ExecutionPhase<R: JitRuntime> {
-    /// Kernel set with default cube size.
-    pub(super) kernel_factory_1: ElementWiseKernelFactory<R>,
-    /// Kernel set with custom cube size.
-    pub(super) kernel_factory_2: ElementWiseKernelFactory<R>,
+#[derive(Serialize, Deserialize)]
+/// State for the [elemwise optimization](ElemwiseOptimization).
+pub struct ElemwiseOptimizationState {
+    trace: FuseOnWriteTrace,
+    len: usize,
 }
 
-#[derive(new, Serialize, Deserialize)]
-pub struct ElementWiseState {
-    trace: Trace,
-    num_operations: usize,
-}
+impl<R: JitRuntime> ElemwiseOptimization<R> {
+    /// Execute the optimization.
+    pub fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+        self.trace
+            .run::<R, Self>(&self.client, &self.device, context)
+    }
 
-impl<R: JitRuntime> ElementWise<R, CompilationPhase> {
-    pub(crate) fn compile(self) -> ElementWise<R, ExecutionPhase<R>> {
-        let info = Arc::new(self.trace.compiling());
+    /// Number of element wise operations fused.
+    pub fn num_ops_fused(&self) -> usize {
+        self.len
+    }
 
-        let kernel_factory_1 = ElementWiseKernelFactory::new(
-            IdGenerator::generate(),
-            info.clone(),
-            CubeDim::default(),
-        );
-        let kernel_factory_2 =
-            ElementWiseKernelFactory::new(IdGenerator::generate(), info, CubeDim::new(16, 16, 1));
+    /// Create an optimization from its [state](ElemwiseOptimizationState).
+    pub fn from_state(device: &R::Device, state: ElemwiseOptimizationState) -> Self {
+        Self {
+            trace: state.trace,
+            len: state.len,
+            client: R::client(device),
+            device: device.clone(),
+        }
+    }
 
-        ElementWise {
-            trace: self.trace,
-            device: self.device,
-            phase: ExecutionPhase::new(kernel_factory_1, kernel_factory_2),
-            num_operations: self.num_operations,
+    /// Convert the optimization to its [state](ElemwiseOptimizationState).
+    pub fn to_state(&self) -> ElemwiseOptimizationState {
+        ElemwiseOptimizationState {
+            trace: self.trace.clone(),
+            len: self.len,
         }
     }
 }
 
-impl<R: JitRuntime> ElementWise<R, ExecutionPhase<R>> {
-    pub(crate) fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        let client = R::client(&self.device);
-
-        let key = JitAutotuneKey::FusionElemWise(FusionElemWiseAutotuneKey::new(
-            self.num_operations,
-            self.autotune_shape(context),
-        ));
-
-        let id = JitTuneId::new::<R>(&self.device);
-
-        static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
-
-        if let Some(index) = TUNER.autotune_result(&id, &key) {
-            self.run_kernel(context, client, index)
-        } else {
-            self.run_autotune(context, client, id, key, &TUNER)
-        }
-    }
-
-    fn run_kernel(
-        &mut self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
-        client: ComputeClient<R::Server, R::Channel>,
-        fastest_set_index: usize,
+impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
+    fn run<'a>(
+        client: &ComputeClient<R::Server, R::Channel>,
+        inputs: GlobalArgsLaunch<'a, R>,
+        outputs: GlobalArgsLaunch<'a, R>,
+        config: ElemwiseConfig,
     ) {
-        let info = self.trace.running();
-        let kernel_set = match fastest_set_index {
-            0 => &self.phase.kernel_factory_1,
-            1 => &self.phase.kernel_factory_2,
-            _ => panic!("Should be 0 or 1, got {fastest_set_index}"),
+        let arg = match config.ref_layout {
+            Arg::Input(index, precision, _) => match precision {
+                ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
+                ElemwisePrecision::F16 => inputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::U32 => inputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::I32 => inputs.t_i32.values.get(index as usize),
+                _ => panic!("Invalid value"),
+            },
+            Arg::Output(index, precision, _) => match precision {
+                ElemwisePrecision::F32 => outputs.t_f32.values.get(index as usize),
+                ElemwisePrecision::F16 => outputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::U32 => outputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::I32 => outputs.t_i32.values.get(index as usize),
+                _ => panic!("Invalid value"),
+            },
+            _ => panic!("Invalid value"),
+        };
+        let (shape, vectorization) = match arg {
+            Some(val) => match val {
+                TensorArg::Handle {
+                    handle,
+                    vectorization_factor,
+                } => (handle.shape, vectorization_factor),
+                _ => panic!("Can't be an alias"),
+            },
+            None => panic!("Invalid argument"),
         };
 
-        let kernel = FusionKernel::create(
-            kernel_set,
-            &info,
-            context,
-            self.device.clone(),
-            client,
-            true,
-        );
+        let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
+        let cube_dim = CubeDim::default();
+        let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
-        kernel.execute();
+        unsafe {
+            elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config);
+        }
     }
 
-    fn run_autotune(
-        &mut self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
-        client: ComputeClient<R::Server, R::Channel>,
-        id: JitTuneId,
-        key: JitAutotuneKey,
-        tuner: &LocalTuner<JitAutotuneKey, JitTuneId>,
-    ) {
-        let info = self.trace.running();
+    fn vectorization<'a>(
+        handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
+        inputs: impl Iterator<Item = &'a TensorDescription>,
+        outputs: impl Iterator<Item = &'a TensorDescription>,
+    ) -> u8 {
+        let factors = R::supported_line_sizes();
 
-        let kernel_1 = FusionKernel::create(
-            &self.phase.kernel_factory_1,
-            &info,
-            context,
-            self.device.clone(),
-            client.clone(),
-            false,
-        );
-        let kernel_2 = FusionKernel::create(
-            &self.phase.kernel_factory_2,
-            &info,
-            context,
-            self.device.clone(),
-            client.clone(),
-            false,
-        );
-        let kernel_default = FusionKernel::create(
-            &self.phase.kernel_factory_1,
-            &info,
-            context,
-            self.device.clone(),
-            client.clone(),
-            false,
-        );
+        let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+            let rank = handle.strides.len();
 
-        tuner.execute(
-            &id,
-            &client,
-            Box::new(ElementWiseAutotuneOperationSet::new(
-                key,
-                kernel_1.into(),
-                kernel_2.into(),
-                kernel_default.into(),
-            )),
-        );
-    }
+            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+            if handle.strides[rank - 1] != 1 {
+                return 1;
+            }
 
-    pub(crate) fn len(&self) -> usize {
-        self.num_operations
-    }
+            for s in factors {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % *s as usize == 0 {
+                    return *s;
+                }
+            }
 
-    /// The first output is chosen when possible, otherwise the first input is chosen.
-    pub(crate) fn autotune_shape<'a>(
-        &self,
-        context: &mut Context<'a, JitFusionHandle<R>>,
-    ) -> &'a [usize] {
-        let info = self.trace.running();
+            1
+        };
 
-        if let Some(tensor) = info.outputs.first() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
-            return &tensor.shape;
+        let vectorization_output = |desc: &TensorDescription| {
+            let rank = desc.shape.len();
+
+            for s in factors {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % *s as usize == 0 {
+                    return *s;
+                }
+            }
+
+            1
+        };
+
+        let mut output = u8::MAX;
+
+        for (handle, tensor) in handles_inputs.zip(inputs) {
+            output = u8::min(vectorization_input(handle, tensor), output);
         }
 
-        if let Some(tensor) = info.inputs.first() {
-            let tensor = context.tensors.get(&tensor.id).unwrap();
-            return &tensor.shape;
+        for tensor in outputs {
+            output = u8::min(vectorization_output(tensor), output);
         }
 
-        &[]
+        output
     }
+}
 
-    pub(crate) fn from_state(device: &R::Device, state: ElementWiseState) -> Self {
-        // We don't save the compiled kernel structs since it's quick to compile and the output is
-        // very large.
-        //
-        // It is still unclear if the deserialization would be that much faster than
-        // simply recompiling it.
-        ElementWise {
-            trace: state.trace,
-            device: device.clone(),
-            phase: CompilationPhase,
-            num_operations: state.num_operations,
-        }
-        .compile()
-    }
+#[cube(launch_unchecked)]
+fn elemwise_fuse(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    #[comptime] config: &ElemwiseConfig,
+) {
+    // We write no values for this fusion.
+    let values = Registry::<Arg, Line<f32>>::new();
+    let args = comptime![Sequence::<Arg>::new()];
+    let pos = ABSOLUTE_POS;
 
-    pub(crate) fn to_state(&self) -> ElementWiseState {
-        ElementWiseState {
-            trace: self.trace.clone(),
-            num_operations: self.num_operations,
-        }
+    let length = match comptime![config.ref_layout] {
+        Arg::Input(index, precision, _) => match comptime![precision] {
+            ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
+            ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),
+            ElemwisePrecision::U32 => inputs.t_u32.index(index).len(),
+            ElemwisePrecision::I32 => inputs.t_i32.index(index).len(),
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
+        },
+        Arg::Output(index, precision, _) => match comptime![precision] {
+            ElemwisePrecision::F32 => outputs.t_f32.index(index).len(),
+            ElemwisePrecision::F16 => outputs.t_f16.index(index).len(),
+            ElemwisePrecision::U32 => outputs.t_u32.index(index).len(),
+            ElemwisePrecision::I32 => outputs.t_i32.index(index).len(),
+            _ => comptime![panic!("Unsupported precision {precision:?}")],
+        },
+        _ => comptime![panic!("Invalid ref layout.")],
+    };
+
+    if pos < length {
+        fuse_on_write::<f32>(inputs, outputs, pos, values, args, config)
     }
 }

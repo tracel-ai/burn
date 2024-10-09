@@ -6,10 +6,10 @@ use burn_tensor::{
 use crate::{tensor::JitTensor, FloatElement, IntElement, JitElement, JitRuntime};
 
 #[cfg(feature = "autotune")]
-use super::conv2d_autotune;
+use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
-    conv2d_direct, conv2d_im2col, conv_transpose2d_autotune, conv_transpose2d_col2im,
-    conv_transpose2d_direct, implicit_gemm::conv2d_implicit_gemm,
+    conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
+    implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
