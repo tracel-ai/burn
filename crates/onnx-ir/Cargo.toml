@@ -9,6 +9,7 @@ license.workspace = true
 name = "onnx-ir"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir"
+documentation = "https://docs.rs/onnx-ir"
 version.workspace = true
 
 

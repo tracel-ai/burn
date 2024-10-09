@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-wgpu"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-wgpu"
+documentation = "https://docs.rs/burn-wgpu"
 version.workspace = true
 
 [features]
@@ -32,3 +33,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
 burn-jit = { path = "../burn-jit", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]

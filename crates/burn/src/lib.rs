@@ -93,6 +93,8 @@
 //!   - `std`: Activates the standard library (deactivate for no_std)
 //!   - `network`: Enables network utilities (currently, only a file downloader with progress bar)
 //!   - `experimental-named-tensor`: Enables named tensors (experimental)
+//!
+//! You can also check the details in sub-crates [`burn-core`](https://docs.rs/burn-core) and [`burn-train`](https://docs.rs/burn-train).
 
 pub use burn_core::*;
 

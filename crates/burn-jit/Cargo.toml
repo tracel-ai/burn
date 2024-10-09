@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-jit"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-jit"
+documentation = "https://docs.rs/burn-jit"
 version.workspace = true
 
 [features]
@@ -56,3 +57,4 @@ serial_test = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

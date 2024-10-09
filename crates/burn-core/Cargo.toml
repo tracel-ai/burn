@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-core"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-core"
+documentation = "https://docs.rs/burn-core"
 version.workspace = true
 
 [features]
@@ -50,6 +51,7 @@ doc = [
     "ndarray",
     "tch",
     "wgpu",
+    "cuda-jit",
     "vision",
     "autodiff",
     # Doc features
@@ -155,3 +157,4 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.15.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

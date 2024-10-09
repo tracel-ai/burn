@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-autodiff"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-autodiff"
+documentation = "https://docs.rs/burn-autodiff"
 version.workspace = true
 
 [features]
@@ -29,3 +30,7 @@ log = { workspace = true }
 burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false, features = [
   "export_tests",
 ] }
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]
