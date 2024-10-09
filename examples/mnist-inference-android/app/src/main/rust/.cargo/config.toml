@@ -1,0 +1,16 @@
+# Add your toolchain path if you want to build without using android studio
+# [target.aarch64-linux-android]
+# linker = "<INSERT_NDK_TOOLCHAIN_PATH>/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+
+# [target.armv7-linux-androideabi]
+# linker = "<INSERT_NDK_TOOLCHAIN_PATH>/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang"
+
+# [target.i686-linux-android]
+# linker = "<INSERT_NDK_TOOLCHAIN_PATH>/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android24-clang"
+
+# [target.x86_64-linux-android]
+# linker = "<INSERT_NDK_TOOLCHAIN_PATH>/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang"
+
+# We need the target to be in the current directory, not the workspace parent directory
+[build]
+target-dir = "./target"

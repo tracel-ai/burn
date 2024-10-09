@@ -6,6 +6,7 @@ extend-exclude = [
     "*.onnx",
     "assets/ModuleSerialization.xml",
     "examples/image-classification-web/src/model/label.txt",
+    "examples/mnist-inference-android/gradle/*",
 ]
 
 [default.extend-words]

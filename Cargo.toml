@@ -11,12 +11,14 @@ members = [
     "crates/burn-import/onnx-tests",
     "examples/*",
     "examples/pytorch-import/model",
+    "examples/mnist-inference-android/app/src/main/rust",
     "xtask",
 ]
 
 exclude = [
     "examples/notebook",
-    "examples/raspberry-pi-pico", # will cause dependency building issues otherwise
+    "examples/mnist-inference-android",
+    "examples/raspberry-pi-pico",       # will cause dependency building issues otherwise
     # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
