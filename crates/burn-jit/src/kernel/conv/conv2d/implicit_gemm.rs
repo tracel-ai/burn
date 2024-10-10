@@ -13,7 +13,7 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-/// Perform a 2D convolution using the implicit GEMM algorithm. Requries `cmma` to be available.
+/// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
 /// * `input` - The input feature map
 /// * `weight` - The weights (filter) applied to each kernel
