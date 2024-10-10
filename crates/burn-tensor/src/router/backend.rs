@@ -7,7 +7,7 @@ use crate::{
     quantization::QTensorPrimitive,
 };
 
-use super::{RouterTensor, RunnerChannel, RunnerClient};
+use super::{get_client, RouterTensor, RunnerChannel, RunnerClient};
 
 /// A backend that forwards the tensor operations to the appropiate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {
@@ -92,5 +92,10 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     fn seed(_seed: u64) {
         todo!()
+    }
+
+    fn sync(device: &Self::Device, sync_type: crate::backend::SyncType) {
+        let client = get_client::<R>(device);
+        client.sync(sync_type);
     }
 }

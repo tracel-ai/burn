@@ -28,6 +28,15 @@ impl<B: ReprBackend> RunnerContext<B> {
     fn create_empty_handle(&mut self) -> Arc<TensorId> {
         self.handles.create_tensor_uninit()
     }
+
+    fn free_orphans(&mut self) {
+        self.handles.free_orphans(&[])
+    }
+
+    /// Set a tensor handle to be removed.
+    fn drop_tensor_handle(&mut self, id: TensorId) {
+        self.handles.handles_orphan.push(id);
+    }
 }
 
 /// A runner is responsible for executing tensor operations for a given [intermediate backend](ReprBackend).
@@ -68,12 +77,7 @@ impl<B: ReprBackend> Runner<B> {
         ctx.handles.register_handle(*id.as_ref(), handle);
         core::mem::drop(ctx);
 
-        RouterTensor {
-            id,
-            shape,
-            dtype,
-            client,
-        }
+        RouterTensor::new(id, shape, dtype, client)
     }
 }
 
@@ -1137,13 +1141,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 }
             },
         }
-
-        // Remove unused tensor handles
-        // NOTE: only ReadWrite handles are removed
-        let mut ctx = self.context.lock();
-        op.nodes()
-            .into_iter()
-            .for_each(|tensor| ctx.handles.free(tensor));
     }
 
     async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
@@ -1174,12 +1171,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
         core::mem::drop(ctx);
 
-        RouterTensor {
-            id,
-            shape,
-            dtype,
-            client: self.clone(),
-        }
+        RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
@@ -1187,15 +1179,20 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);
 
-        RouterTensor {
-            id,
-            shape,
-            dtype,
-            client: self.clone(),
-        }
+        RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn device(&self) -> Self::Device {
         self.device.clone()
+    }
+
+    fn register_orphan(&self, id: &TensorId) {
+        self.context.lock().drop_tensor_handle(*id)
+    }
+
+    fn sync(&self, sync_type: crate::backend::SyncType) {
+        let ctx = &mut self.context.lock();
+        ctx.free_orphans();
+        B::sync(&self.device, sync_type);
     }
 }

@@ -12,9 +12,24 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) shape: Vec<usize>,
     pub(crate) dtype: DType,
     pub(crate) client: C,
+
+    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    //
+    // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
+    // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
+    pub(crate) is_orphan: bool,
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
+    pub(crate) fn new(id: Arc<TensorId>, shape: Vec<usize>, dtype: DType, client: C) -> Self {
+        Self {
+            id,
+            shape,
+            dtype,
+            client,
+            is_orphan: true,
+        }
+    }
     pub(crate) async fn into_data(self) -> TensorData {
         self.client
             .clone()
@@ -26,6 +41,10 @@ impl<C: RunnerClient> RouterTensor<C> {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
+
+        if let TensorStatus::ReadWrite = status {
+            self.is_orphan = false;
+        }
 
         TensorDescription {
             status,
@@ -70,6 +89,23 @@ impl<C: RunnerClient> Clone for RouterTensor<C> {
             shape: self.shape.clone(),
             client: self.client.clone(),
             dtype: self.dtype,
+            is_orphan: self.is_orphan,
+        }
+    }
+}
+
+impl<C: RunnerClient> Drop for RouterTensor<C> {
+    fn drop(&mut self) {
+        if !self.is_orphan {
+            return;
+        }
+
+        match self.status() {
+            TensorStatus::ReadWrite => {
+                self.client.register_orphan(&self.id);
+            }
+            TensorStatus::ReadOnly => {}
+            TensorStatus::NotInit => {}
         }
     }
 }

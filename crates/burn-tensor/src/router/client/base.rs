@@ -6,7 +6,7 @@ use spin::Mutex;
 
 use crate::{
     backend::{DeviceId, DeviceOps},
-    repr::{OperationDescription, TensorDescription},
+    repr::{OperationDescription, TensorDescription, TensorId},
     router::{RouterTensor, RunnerChannel},
     DType, TensorData,
 };
@@ -31,6 +31,10 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
+    /// Drop the tensor with the given [tensor id](TensorId).
+    fn register_orphan(&self, id: &TensorId);
+    /// Sync the runner, ensure that all computations are finished.
+    fn sync(&self, sync_type: crate::backend::SyncType);
 }
 
 pub(crate) struct RunnerClientLocator {

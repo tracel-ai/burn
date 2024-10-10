@@ -1,4 +1,4 @@
-use alloc::{format, string::String, vec::Vec};
+use alloc::{format, string::String, sync::Arc, vec::Vec};
 use core::marker::PhantomData;
 
 use crate::{
@@ -164,22 +164,22 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => {
-                let tensor = runner.register_tensor_data(data);
-                RouterTensor {
-                    id: tensor.id,
-                    shape: tensor.shape,
-                    dtype: tensor.dtype,
-                    client: MultiRunnerClient2::RunnerClient1(tensor.client),
-                }
+                let mut tensor = runner.register_tensor_data(data);
+                RouterTensor::new(
+                    Arc::new(*tensor.id),
+                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    tensor.dtype,
+                    self.clone(),
+                )
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
-                let tensor = runner.register_tensor_data(data);
-                RouterTensor {
-                    id: tensor.id,
-                    shape: tensor.shape,
-                    dtype: tensor.dtype,
-                    client: MultiRunnerClient2::RunnerClient2(tensor.client),
-                }
+                let mut tensor = runner.register_tensor_data(data);
+                RouterTensor::new(
+                    Arc::new(*tensor.id),
+                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    tensor.dtype,
+                    self.clone(),
+                )
             }
         }
     }
@@ -187,22 +187,22 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => {
-                let tensor = runner.register_empty_tensor(shape, dtype);
-                RouterTensor {
-                    id: tensor.id,
-                    shape: tensor.shape,
-                    dtype: tensor.dtype,
-                    client: MultiRunnerClient2::RunnerClient1(tensor.client),
-                }
+                let mut tensor = runner.register_empty_tensor(shape, dtype);
+                RouterTensor::new(
+                    Arc::new(*tensor.id),
+                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    tensor.dtype,
+                    self.clone(),
+                )
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
-                let tensor = runner.register_empty_tensor(shape, dtype);
-                RouterTensor {
-                    id: tensor.id,
-                    shape: tensor.shape,
-                    dtype: tensor.dtype,
-                    client: MultiRunnerClient2::RunnerClient2(tensor.client),
-                }
+                let mut tensor = runner.register_empty_tensor(shape, dtype);
+                RouterTensor::new(
+                    Arc::new(*tensor.id),
+                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    tensor.dtype,
+                    self.clone(),
+                )
             }
         }
     }
@@ -211,6 +211,20 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => MultiDevice2::Device1(runner.device()),
             MultiRunnerClient2::RunnerClient2(runner) => MultiDevice2::Device2(runner.device()),
+        }
+    }
+
+    fn register_orphan(&self, id: &crate::repr::TensorId) {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => runner.register_orphan(id),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.register_orphan(id),
+        }
+    }
+
+    fn sync(&self, sync_type: crate::backend::SyncType) {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => runner.sync(sync_type),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.sync(sync_type),
         }
     }
 }
