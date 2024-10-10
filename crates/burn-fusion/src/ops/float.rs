@@ -1,14 +1,12 @@
 use crate::{
     binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
-    get_client,
-    ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    get_client, scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{execution::Operation, StreamId},
     unary_float_ops, Fusion, FusionBackend,
 };
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+    ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     repr::*,
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
