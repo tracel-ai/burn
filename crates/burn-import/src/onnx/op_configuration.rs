@@ -1,6 +1,7 @@
 use burn::nn::{
     conv::{
-        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
+        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig,
+        ConvTranspose3dConfig,
     },
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
@@ -218,31 +219,31 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
         .remove("kernel_shape")
         .map(AttributeValue::into_i64s)
         .unwrap_or_default();
-    
+
     // Extract strides, default to 1 if not present
     let stride = attrs
         .remove("strides")
         .map(AttributeValue::into_i64s)
         .unwrap_or_else(|| vec![1]);
-    
+
     // Extract padding, default to 0 if not present
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);  // Begin and end padding
-    
+        .unwrap_or_else(|| vec![0, 0]); // Begin and end padding
+
     // Extract dilations, default to 1 if not present
     let dilations = attrs
         .remove("dilations")
         .map(AttributeValue::into_i64s)
         .unwrap_or_else(|| vec![1]);
-    
+
     // Extract group attribute, default to 1
     let group = attrs
         .remove("group")
         .map(AttributeValue::into_i64)
         .unwrap_or(1) as usize;
-    
+
     // Extract output_padding, default to 0 if not present
     let output_padding = attrs
         .remove("output_padding")
@@ -269,16 +270,13 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let channels: [usize; 2] = [shape[1] * group, shape[0]];
 
     // Create the ConvTranspose1d configuration
-    ConvTranspose1dConfig::new(
-        channels,
-        kernel_shape[0] as usize,
-    )
-    .with_stride(stride[0] as usize)
-    .with_padding(pads[0] as usize)  // Only use the first padding value for 1D
-    .with_dilation(dilations[0] as usize)
-    .with_padding_out(output_padding[0] as usize)
-    .with_groups(group)
-    .with_bias(bias)
+    ConvTranspose1dConfig::new(channels, kernel_shape[0] as usize)
+        .with_stride(stride[0] as usize)
+        .with_padding(pads[0] as usize) // Only use the first padding value for 1D
+        .with_dilation(dilations[0] as usize)
+        .with_padding_out(output_padding[0] as usize)
+        .with_groups(group)
+        .with_bias(bias)
 }
 
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
