@@ -28,8 +28,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 ) -> JitTensor<R, F> {
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
-    let in_c_per_group = in_channels / options.groups;
-    let padded_in_channels = padded_in_channels(in_c_per_group, kernel_h, kernel_w);
+    let padded_in_channels = padded_in_channels(in_channels, kernel_h, kernel_w);
     let padded_out_channels = out_channels.div_ceil(16) * 16;
 
     let out_h = calculate_conv_output_size(
@@ -50,13 +49,10 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
     println!("Padded batches: {padded_batch_size}");
 
-    if !can_do_implicit_gemm(&input, &weight, out_h, out_w) {
+    if !can_do_implicit_gemm(&input, &weight, out_h, out_w, &options) {
         panic!(
             "Requirements for implicit GEMM not met:
 - CMMA must be available
-- `batch_size * out_h * out_w` must be divisible by 16
-- `out_channels` must be divisible by 16
-- `in_channels * kernel_h * kernel_w` must be divisible by 16
 - `groups` must be 1
         "
         );
@@ -102,7 +98,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         cmma_k,
         check_m: batch_size != padded_batch_size,
         check_n: out_channels != padded_out_channels,
-        check_k: in_c_per_group != padded_in_channels,
+        check_k: in_channels != padded_in_channels,
         warp_size,
         warps_per_cube,
         cube_dim_x,
@@ -137,7 +133,6 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             ScalarArg::new(gemm_n),
             ScalarArg::new(gemm_k),
             ScalarArg::new(slice_size as u32),
-            ScalarArg::new((in_channels / options.groups) as u32),
             ScalarArg::new(padded_in_channels as u32),
             ScalarArg::new(out_h as u32),
             ScalarArg::new(out_w as u32),
@@ -157,7 +152,6 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             padding_h: options.padding[0] as i32,
             padding_w: options.padding[1] as i32,
             aligned,
-            groups: options.groups as u32,
         },
     );
 
@@ -200,7 +194,6 @@ struct Dimensions {
     gemm_k: u32,
     slice_size: u32,
 
-    channels_per_group: u32,
     padded_channels: u32,
 
     out_h: u32,
@@ -230,7 +223,6 @@ struct ConvSettings {
     padding_h: i32,
     padding_w: i32,
     aligned: bool,
-    groups: u32,
 }
 
 #[derive(Clone, Copy, CubeType)]
@@ -291,22 +283,18 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
     let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
     if kernel_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
-        #[unroll]
-        for group in 0..kernel_settings.groups {
-            execute_gemm(
-                input,
-                weight,
-                out,
-                input_tile,
-                weight_tile,
-                dims,
-                &pos,
-                args,
-                group,
-                gemm_settings,
-                kernel_settings,
-            );
-        }
+        execute_gemm(
+            input,
+            weight,
+            out,
+            input_tile,
+            weight_tile,
+            dims,
+            &pos,
+            args,
+            gemm_settings,
+            kernel_settings,
+        );
     }
 }
 
@@ -389,7 +377,6 @@ fn execute_gemm<F: Float, FMat: Float>(
     dims: &Dimensions,
     pos: &Positions,
     args: &ConvArgs,
-    group: u32,
     #[comptime] g_settings: GemmSettings,
     #[comptime] k_settings: ConvSettings,
 ) {
@@ -404,7 +391,7 @@ fn execute_gemm<F: Float, FMat: Float>(
         // i.e. each thread needs to load 8 elements of input and 8 elements of weight
 
         load_input_tile(
-            input, args, input_tile, dims, pos, k, group, g_settings, k_settings,
+            input, args, input_tile, dims, pos, k, g_settings, k_settings,
         );
 
         load_weight_tile(weight, weight_tile, dims, pos, k, g_settings, k_settings);
@@ -427,7 +414,6 @@ fn load_input_tile<F: Float, FMat: Float>(
     dims: &Dimensions,
     pos: &Positions,
     k: u32,
-    group: u32,
     #[comptime] gemm_settings: GemmSettings,
     #[comptime] kernel_settings: ConvSettings,
 ) {
@@ -467,8 +453,6 @@ fn load_input_tile<F: Float, FMat: Float>(
     let rel_slice_row = start / cmma_k; // Relative row (0 - 15)
     let abs_slice_row = pos.global_m + rel_slice_row; // Row of the matrix the slice is on
 
-    let group_offset = group * dims.channels_per_group;
-
     // Given the row of the matrix that the slice is in, and the index of the thread
     // within a slice, want to compute what input element to load...
     // first compute coordinates in output space (center of the kernel in MxK matrix A)
@@ -489,7 +473,7 @@ fn load_input_tile<F: Float, FMat: Float>(
         // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
         let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
 
-        let channel = (my_slice_idx % channels) + group_offset;
+        let channel = my_slice_idx % channels;
 
         let k_in_bounds = !check_k || channel < input.shape(3);
 
@@ -578,6 +562,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     weight: &JitTensor<R, E>,
     out_h: usize,
     out_w: usize,
+    options: &ConvOptions<2>,
 ) -> bool {
     let [batch_size, in_channels, _, _] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
@@ -597,7 +582,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
 
         let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
 
-        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size
+        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && options.groups == 1
     } else {
         false
     }
