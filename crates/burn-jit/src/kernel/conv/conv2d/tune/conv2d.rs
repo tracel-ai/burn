@@ -95,7 +95,7 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
                 o.dilation[1],
                 width,
             );
-            can_do_implicit_gemm(&op.input, &op.weights, out_h, out_w, &op.options)
+            can_do_implicit_gemm(&op.input, &op.weights, &op.options, out_h, out_w)
         }
         _ => true,
     }

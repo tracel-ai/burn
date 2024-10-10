@@ -16,7 +16,7 @@ autotune = ["burn-jit/autotune"]
 default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 doc = ["burn-jit/doc"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
-simple-memory-management = ["cubecl/simple-memory-management"]
+exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
 

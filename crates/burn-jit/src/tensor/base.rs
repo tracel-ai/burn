@@ -19,7 +19,7 @@ where
     /// Compute client for the [runtime](JitRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: Handle<R::Server>,
+    pub handle: Handle,
     /// The shape of the tensor.
     pub shape: Shape,
     /// The device of the tensor.
@@ -79,7 +79,7 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         shape: Shape,
-        handle: Handle<R::Server>,
+        handle: Handle,
     ) -> Self {
         let ndims = shape.num_dims();
         let mut strides = vec![0; ndims];
@@ -133,6 +133,7 @@ where
             handle: &self.handle,
             strides: &self.strides,
             shape: &self.shape.dims,
+            runtime: PhantomData,
         }
     }
 
