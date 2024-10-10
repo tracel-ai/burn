@@ -167,7 +167,7 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
                 let mut tensor = runner.register_tensor_data(data);
                 RouterTensor::new(
                     Arc::new(*tensor.id),
-                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    core::mem::take(&mut tensor.shape),
                     tensor.dtype,
                     self.clone(),
                 )
@@ -176,7 +176,7 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
                 let mut tensor = runner.register_tensor_data(data);
                 RouterTensor::new(
                     Arc::new(*tensor.id),
-                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    core::mem::take(&mut tensor.shape),
                     tensor.dtype,
                     self.clone(),
                 )
@@ -190,7 +190,7 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
                 let mut tensor = runner.register_empty_tensor(shape, dtype);
                 RouterTensor::new(
                     Arc::new(*tensor.id),
-                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    core::mem::take(&mut tensor.shape),
                     tensor.dtype,
                     self.clone(),
                 )
@@ -199,7 +199,7 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
                 let mut tensor = runner.register_empty_tensor(shape, dtype);
                 RouterTensor::new(
                     Arc::new(*tensor.id),
-                    core::mem::replace(&mut tensor.shape, Vec::new()),
+                    core::mem::take(&mut tensor.shape),
                     tensor.dtype,
                     self.clone(),
                 )
