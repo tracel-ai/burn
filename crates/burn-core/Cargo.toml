@@ -72,7 +72,7 @@ vision = ["burn-dataset?/vision", "burn-common/network"]
 
 # Backend
 autodiff = ["burn-autodiff"]
-fusion = ["burn-wgpu?/fusion"]
+fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
 
 ## Backend features
 metal = ["burn-candle?/metal"]
