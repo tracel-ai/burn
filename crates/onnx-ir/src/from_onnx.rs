@@ -412,7 +412,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
     }
 }
 
-/// Topographically sort an ONNX node graph.
+/// Topologically sort an ONNX node graph.
 fn topo_sort(mut input_graph: GraphProto) -> GraphProto {
     let nodes = input_graph.node;
     let mut graph = Graph::new();
