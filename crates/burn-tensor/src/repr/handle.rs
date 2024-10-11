@@ -19,6 +19,16 @@ pub struct HandleContainer<H> {
     pub handles_orphan: Vec<TensorId>,
 }
 
+impl<H> core::fmt::Debug for HandleContainer<H> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("HandleContainer")
+            .field("handles", &self.handles.keys()) // only care about the IDs when debugging
+            .field("counter", &self.counter)
+            .field("handles_orphan", &self.handles_orphan)
+            .finish()
+    }
+}
+
 /// Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
 pub enum Handle<H> {
     /// No [tensor handle](ReprBackend::Handle) has been created yet

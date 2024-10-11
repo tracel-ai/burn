@@ -30,6 +30,7 @@ impl<C: RunnerClient> RouterTensor<C> {
             is_orphan: true,
         }
     }
+
     pub(crate) async fn into_data(self) -> TensorData {
         self.client
             .clone()
@@ -78,7 +79,17 @@ impl<C: RunnerClient> RouterTensor<C> {
 
 impl<C: RunnerClient> core::fmt::Debug for RouterTensor<C> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_fmt(format_args!("tensor"))
+        f.write_str(
+            format!(
+                "{{ id: {:?}, shape: {:?}, dtype: {:?}, should_drop: {:?}, device: {:?} }}",
+                self.id,
+                self.shape,
+                self.dtype,
+                self.is_orphan,
+                self.client.device().clone(),
+            )
+            .as_str(),
+        )
     }
 }
 

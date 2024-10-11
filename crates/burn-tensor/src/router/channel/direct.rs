@@ -164,22 +164,12 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => {
-                let mut tensor = runner.register_tensor_data(data);
-                RouterTensor::new(
-                    Arc::new(*tensor.id),
-                    core::mem::take(&mut tensor.shape),
-                    tensor.dtype,
-                    self.clone(),
-                )
+                let desc = runner.register_tensor_data_desc(data);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
-                let mut tensor = runner.register_tensor_data(data);
-                RouterTensor::new(
-                    Arc::new(*tensor.id),
-                    core::mem::take(&mut tensor.shape),
-                    tensor.dtype,
-                    self.clone(),
-                )
+                let desc = runner.register_tensor_data_desc(data);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
             }
         }
     }
@@ -187,22 +177,12 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => {
-                let mut tensor = runner.register_empty_tensor(shape, dtype);
-                RouterTensor::new(
-                    Arc::new(*tensor.id),
-                    core::mem::take(&mut tensor.shape),
-                    tensor.dtype,
-                    self.clone(),
-                )
+                let desc = runner.register_empty_tensor_desc(shape, dtype);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
-                let mut tensor = runner.register_empty_tensor(shape, dtype);
-                RouterTensor::new(
-                    Arc::new(*tensor.id),
-                    core::mem::take(&mut tensor.shape),
-                    tensor.dtype,
-                    self.clone(),
-                )
+                let desc = runner.register_empty_tensor_desc(shape, dtype);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
             }
         }
     }
