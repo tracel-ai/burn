@@ -1111,9 +1111,21 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
     async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
         let mut ctx = self.context.lock();
-        let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
 
-        B::float_into_data(tensor).await
+        if tensor.dtype.is_float() {
+            let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
+            B::float_into_data(tensor).await
+        } else if tensor.dtype.is_int() {
+            let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
+            B::int_into_data(tensor).await
+        } else if tensor.dtype.is_bool() {
+            let tensor = ctx.handles.get_bool_tensor::<B>(&tensor);
+            B::bool_into_data(tensor).await
+        } else if let DType::QFloat(_) = tensor.dtype {
+            todo!()
+        } else {
+            unimplemented!()
+        }
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
