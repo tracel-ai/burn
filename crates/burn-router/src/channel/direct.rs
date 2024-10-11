@@ -1,14 +1,14 @@
 use alloc::{format, string::String, sync::Arc, vec::Vec};
 use core::marker::PhantomData;
 
-use crate::{
-    backend::{Backend, DeviceOps},
-    repr::{OperationDescription, ReprBackend, TensorDescription},
-    router::{MultiBackendBridge, RouterTensor, Runner, RunnerClient},
+use burn_tensor::{
+    backend::{Backend, DeviceId, DeviceOps, SyncType},
+    repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
     DType, TensorData,
 };
 
 use super::{RunnerChannel, TensorHandle};
+use crate::{MultiBackendBridge, RouterTensor, Runner, RunnerClient};
 
 /// A local channel with direct connection to the backend runner clients.
 pub struct DirectChannel<Backends, Bridge> {
@@ -66,7 +66,7 @@ where
         client: &Self::Client,
         handle: TensorHandle<Self::Bridge>,
         shape: Vec<usize>,
-        dtype: crate::DType,
+        dtype: DType,
     ) -> RouterTensor<Self::Client> {
         match client {
             MultiRunnerClient2::RunnerClient1(runner) => match handle {
@@ -127,7 +127,7 @@ impl<B1: Backend, B2: Backend> Default for MultiDevice2<B1, B2> {
 }
 
 impl<B1: Backend, B2: Backend> DeviceOps for MultiDevice2<B1, B2> {
-    fn id(&self) -> crate::backend::DeviceId {
+    fn id(&self) -> DeviceId {
         match self {
             MultiDevice2::Device1(device) => device.id(),
             MultiDevice2::Device2(device) => device.id(),
@@ -194,14 +194,14 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
         }
     }
 
-    fn register_orphan(&self, id: &crate::repr::TensorId) {
+    fn register_orphan(&self, id: &TensorId) {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => runner.register_orphan(id),
             MultiRunnerClient2::RunnerClient2(runner) => runner.register_orphan(id),
         }
     }
 
-    fn sync(&self, sync_type: crate::backend::SyncType) {
+    fn sync(&self, sync_type: SyncType) {
         match self {
             MultiRunnerClient2::RunnerClient1(runner) => runner.sync(sync_type),
             MultiRunnerClient2::RunnerClient2(runner) => runner.sync(sync_type),

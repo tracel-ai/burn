@@ -706,6 +706,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-router"
+version = "0.15.0"
+dependencies = [
+ "burn-tensor",
+ "hashbrown 0.14.5",
+ "spin",
+]
+
+[[package]]
 name = "burn-tch"
 version = "0.15.0"
 dependencies = [
@@ -735,7 +744,6 @@ dependencies = [
  "rand_distr",
  "serde",
  "serde_bytes",
- "spin",
 ]
 
 [[package]]
@@ -6380,6 +6388,7 @@ name = "text-classification"
 version = "0.15.0"
 dependencies = [
  "burn",
+ "burn-router",
  "derive-new",
  "serde",
  "tokenizers",

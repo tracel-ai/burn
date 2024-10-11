@@ -12,11 +12,6 @@ extern crate derive_new;
 
 extern crate alloc;
 
-/// Backend router module.
-// Relies on representation.
-#[cfg(feature = "repr")]
-pub mod router;
-
 mod tensor;
 
 /// Burn Tensor representaton

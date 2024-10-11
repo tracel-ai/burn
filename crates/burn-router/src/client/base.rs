@@ -4,12 +4,13 @@ use hashbrown::HashMap;
 
 use spin::Mutex;
 
-use crate::{
-    backend::{DeviceId, DeviceOps},
+use burn_tensor::{
+    backend::{DeviceId, DeviceOps, SyncType},
     repr::{OperationDescription, TensorDescription, TensorId},
-    router::{RouterTensor, RunnerChannel},
     DType, TensorData,
 };
+
+use crate::{RouterTensor, RunnerChannel};
 
 /// Type alias for `<R as RunnerChannel>::Client`.
 pub type Client<R> = <R as RunnerChannel>::Client;
@@ -34,7 +35,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self, sync_type: crate::backend::SyncType);
+    fn sync(&self, sync_type: SyncType);
 }
 
 pub(crate) struct RunnerClientLocator {

@@ -1,10 +1,10 @@
 use alloc::{format, string::String};
 use core::marker::PhantomData;
 
-use crate::{
-    backend::{Backend, BackendBridge},
+use burn_tensor::{
+    backend::{Backend, BackendBridge, SyncType},
     ops::FloatTensor,
-    quantization::QTensorPrimitive,
+    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
 };
 
 use super::{get_client, RouterTensor, RunnerChannel, RunnerClient};
@@ -34,11 +34,11 @@ impl<R: RunnerChannel> Default for BackendRouter<R> {
 
 // TODO: quantization tensor primitive (w/ qparams)
 impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
-    fn scheme(&self) -> &crate::quantization::QuantizationScheme {
+    fn scheme(&self) -> &QuantizationScheme {
         todo!()
     }
 
-    fn strategy(&self) -> crate::quantization::QuantizationStrategy {
+    fn strategy(&self) -> QuantizationStrategy {
         todo!()
     }
 }
@@ -94,7 +94,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         todo!()
     }
 
-    fn sync(device: &Self::Device, sync_type: crate::backend::SyncType) {
+    fn sync(device: &Self::Device, sync_type: SyncType) {
         let client = get_client::<R>(device);
         client.sync(sync_type);
     }

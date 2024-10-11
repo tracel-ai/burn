@@ -1,10 +1,10 @@
 use alloc::{vec, vec::Vec};
 use core::ops::Range;
 
-use crate::ops::{
+use burn_tensor::ops::{
     binary_ops_shape, BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps,
 };
-use crate::repr::{
+use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
     ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
     GatherOperationDescription, IntOperationDescription, MaskFillOperationDescription,
@@ -15,8 +15,9 @@ use crate::repr::{
     SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
     UnaryOperationDescription,
 };
-use crate::router::{get_client, BackendRouter, RunnerChannel, RunnerClient};
-use crate::{DType, Device, Distribution, Element, Shape, TensorData};
+use burn_tensor::{DType, Device, Distribution, Element, Shape, TensorData};
+
+use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {

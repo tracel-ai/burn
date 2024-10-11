@@ -1,13 +1,14 @@
 use core::marker::PhantomData;
 
-use super::base::MultiBackendBridge;
-use crate::{
+use burn_tensor::{
     repr::{ReprBackend, TensorHandle},
-    router::{MultiDevice2, TensorHandle2},
-    Shape,
+    try_read_sync, Shape,
 };
 
-/// Simply transfers tensors between backends via the underlying [tensor data](crate::TensorData).
+use super::base::MultiBackendBridge;
+use crate::{MultiDevice2, TensorHandle2};
+
+/// Simply transfers tensors between backends via the underlying [tensor data](burn_tensor::TensorData).
 pub struct ByteBridge<Backends> {
     backends: PhantomData<Backends>,
 }
@@ -39,7 +40,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
                 }
                 MultiDevice2::Device2(device) => {
                     let tensor = B1::float_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B1::float_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B1::float_into_data(tensor)).expect(msg);
                     let tensor = B2::float_from_data(data, device);
                     let handle = B2::float_tensor_handle(tensor);
                     TensorHandle2::Handle2(handle)
@@ -48,7 +49,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
             TensorHandle2::Handle2(handle) => match target_device {
                 MultiDevice2::Device1(device) => {
                     let tensor = B2::float_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B2::float_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B2::float_into_data(tensor)).expect(msg);
                     let tensor = B1::float_from_data(data, device);
                     let handle = B1::float_tensor_handle(tensor);
                     TensorHandle2::Handle1(handle)
@@ -82,7 +83,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
                 }
                 MultiDevice2::Device2(device) => {
                     let tensor = B1::int_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B1::int_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B1::int_into_data(tensor)).expect(msg);
                     let tensor = B2::int_from_data(data, device);
                     let handle = B2::int_tensor_handle(tensor);
                     TensorHandle2::Handle2(handle)
@@ -91,7 +92,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
             TensorHandle2::Handle2(handle) => match target_device {
                 MultiDevice2::Device1(device) => {
                     let tensor = B2::int_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B2::int_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B2::int_into_data(tensor)).expect(msg);
                     let tensor = B1::int_from_data(data, device);
                     let handle = B1::int_tensor_handle(tensor);
                     TensorHandle2::Handle1(handle)
@@ -125,7 +126,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
                 }
                 MultiDevice2::Device2(device) => {
                     let tensor = B1::bool_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B1::bool_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B1::bool_into_data(tensor)).expect(msg);
                     let tensor = B2::bool_from_data(data, device);
                     let handle = B2::bool_tensor_handle(tensor);
                     TensorHandle2::Handle2(handle)
@@ -134,7 +135,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
             TensorHandle2::Handle2(handle) => match target_device {
                 MultiDevice2::Device1(device) => {
                     let tensor = B2::bool_tensor(TensorHandle { handle, shape });
-                    let data = crate::try_read_sync(B2::bool_into_data(tensor)).expect(msg);
+                    let data = try_read_sync(B2::bool_into_data(tensor)).expect(msg);
                     let tensor = B1::bool_from_data(data, device);
                     let handle = B1::bool_tensor_handle(tensor);
                     TensorHandle2::Handle1(handle)

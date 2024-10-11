@@ -1,10 +1,7 @@
-use crate::{
-    backend::DeviceOps,
-    repr::TensorDescription,
-    router::{get_client, MultiBackendBridge, RouterTensor, RunnerClient},
-    DType,
-};
 use alloc::{string::String, vec::Vec};
+use burn_tensor::{backend::DeviceOps, repr::TensorDescription, DType};
+
+use crate::{get_client, MultiBackendBridge, RouterTensor, RunnerClient};
 
 /// Type alias for `<Br as MultiBackendBridge>::TensorHandle`.
 pub type TensorHandle<Br> = <Br as MultiBackendBridge>::TensorHandle;

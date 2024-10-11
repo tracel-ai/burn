@@ -1,11 +1,12 @@
 use core::ops::Range;
 
-use crate::{
+use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    router::{BackendRouter, RunnerChannel},
     Device, Shape, TensorData,
 };
+
+use crate::{BackendRouter, RunnerChannel};
 
 impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
     fn q_from_data(_data: TensorData, _device: &Device<Self>) -> QuantizedTensor<Self> {

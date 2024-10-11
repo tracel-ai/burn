@@ -1,14 +1,17 @@
-use crate::ops::conv::{
+use alloc::{boxed::Box, vec};
+
+use burn_tensor::ops::conv::{
     calculate_conv_output_size, calculate_conv_transpose_output_size, calculate_pool_output_size,
 };
-use crate::ops::{
-    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, FloatTensor, IntElem, ModuleOps,
+use burn_tensor::ops::{
+    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
+    IntElem, ModuleOps,
 };
-use crate::ops::{
+use burn_tensor::ops::{
     IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices,
 };
-use crate::repr::{
+use burn_tensor::repr::{
     AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
     AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
     AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
@@ -19,9 +22,9 @@ use crate::repr::{
     MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
     MaxPool2dWithIndicesDescription, ModuleOperationDescription, OperationDescription,
 };
-use crate::router::{BackendRouter, RunnerChannel, RunnerClient};
-use crate::Element;
-use alloc::{boxed::Box, vec};
+use burn_tensor::Element;
+
+use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
     fn conv1d(
@@ -731,7 +734,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         weight: FloatTensor<Self>,
         mask: Option<FloatTensor<Self>>,
         bias: Option<FloatTensor<Self>>,
-        options: crate::ops::DeformConvOptions<2>,
+        options: DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
         let size_0 = calculate_conv_output_size(
             weight.shape[2],
@@ -776,7 +779,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         mask: Option<FloatTensor<Self>>,
         bias: Option<FloatTensor<Self>>,
         output_grad: FloatTensor<Self>,
-        options: crate::ops::DeformConvOptions<2>,
+        options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
         let client = x.client.clone();
 

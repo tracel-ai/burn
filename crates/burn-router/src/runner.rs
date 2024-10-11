@@ -1,20 +1,23 @@
 use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 
-use crate::{
-    binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
+use burn_tensor::{
+    backend::SyncType,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
         HandleContainer, IntOperationDescription, ModuleOperationDescription,
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId, TensorStatus,
     },
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_dim_ops, scalar_float_ops,
-    scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops, unary_float_ops, unary_int_ops, DType,
-    ElementConversion, Shape, TensorData,
+    DType, ElementConversion, Shape, TensorData,
 };
 
 use super::{RouterTensor, RunnerClient};
+use crate::{
+    binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
+    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_dim_ops, scalar_float_ops,
+    scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
+};
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
@@ -480,6 +483,19 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 }
                 NumericOperationDescription::ArgMax(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmax)
+                    // let lhs = handles.get_float_tensor::<B>(&desc.lhs);
+                    // println!(
+                    //     "scalar_float2int_ops {}",
+                    //     crate::try_read_sync(B::float_into_data(lhs.clone())).unwrap()
+                    // );
+                    // let output = B::float_argmax(lhs, desc.rhs);
+                    // println!(
+                    //     "scalar_float2int_ops result {:?} {}",
+                    //     desc.out.id,
+                    //     crate::try_read_sync(B::int_into_data(output.clone())).unwrap()
+                    // );
+
+                    // handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationDescription::ArgMin(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmin)
@@ -1146,7 +1162,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         self.context.lock().drop_tensor_handle(*id)
     }
 
-    fn sync(&self, sync_type: crate::backend::SyncType) {
+    fn sync(&self, sync_type: SyncType) {
         B::sync(&self.device, sync_type);
     }
 }

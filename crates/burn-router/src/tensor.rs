@@ -1,7 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
-use crate::{
+use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Shape, TensorData,
 };

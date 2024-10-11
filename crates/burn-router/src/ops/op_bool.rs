@@ -1,15 +1,15 @@
-use crate::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use crate::repr::{
+use alloc::vec::Vec;
+
+use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
+use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     ExpandOperationDescription, FlipOperationDescription, OperationDescription,
     PermuteOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
     SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
 };
-use crate::{
-    router::{get_client, BackendRouter, RunnerChannel, RunnerClient},
-    DType, Device, Element, Shape, TensorData,
-};
-use alloc::vec::Vec;
+use burn_tensor::{DType, Device, Element, Shape, TensorData};
+
+use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -26,7 +26,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         tensor.into_data().await
     }
 
-    fn bool_from_data(data: crate::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
         client.register_tensor_data(data)
     }
