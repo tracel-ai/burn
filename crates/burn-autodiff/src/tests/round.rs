@@ -16,7 +16,7 @@ mod tests {
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
         grad_1.to_data().assert_eq(
-            &TensorData::from([[1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]),
+            &TensorData::from([[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]),
             false,
         );
     }

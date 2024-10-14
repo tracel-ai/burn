@@ -1891,7 +1891,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         retro_unary!(RetroRound, B::float_round);
 
         impl<B: Backend> Backward<B, 1> for Round {
-            type State = ();
+            type State = (Shape, B::Device);
 
             fn backward(
                 self,
@@ -1899,16 +1899,29 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                unary::<B, _>(ops.parents, ops.node, grads, |grad| grad)
+                let (shape, device) = ops.state;
+                unary::<B, _>(ops.parents, ops.node, grads, |_grad| {
+                    B::float_zeros(shape, &device)
+                })
             }
         }
 
-        Round
+        match Round
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
             .retro_forward(RetroRound::<B>::new(tensor.node.id))
             .parents([&tensor])
-            .stateless(B::float_round(tensor.primitive))
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (
+                    B::float_shape(&tensor.primitive),
+                    B::float_device(&tensor.primitive),
+                ),
+                B::float_round(tensor.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_round(tensor.primitive)),
+        }
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
