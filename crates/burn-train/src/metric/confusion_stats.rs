@@ -1,14 +1,14 @@
-use super::{ClassificationAverage, ClassificationInput};
-use burn_core::prelude::{Backend, Int, Tensor};
+use super::ClassAverageType;
+use burn_core::prelude::{Backend, Bool, Int, Tensor};
 use std::fmt::{self, Debug};
 
 #[derive(Clone)]
-pub struct ConfusionMatrix<B: Backend> {
-    confusion_matrix_map: Tensor<B, 2, Int>,
-    classification_average: ClassificationAverage,
+pub struct ConfusionStats<B: Backend> {
+    confusion_classes: Tensor<B, 2, Int>,
+    class_average: ClassAverageType,
 }
 
-impl<B: Backend> Debug for ConfusionMatrix<B> {
+impl<B: Backend> Debug for ConfusionStats<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let to_vec = |tensor_data: Tensor<B, 1>| {
             tensor_data
@@ -28,37 +28,39 @@ impl<B: Backend> Debug for ConfusionMatrix<B> {
     }
 }
 
-impl<B: Backend> ConfusionMatrix<B> {
+impl<B: Backend> ConfusionStats<B> {
+    /// Expects `predictions` to be normalized.
     pub fn new(
-        input: &ClassificationInput<B>,
+        predictions: Tensor<B, 2>,
+        targets: Tensor<B, 2, Bool>,
         threshold: f64,
-        classification_average: ClassificationAverage,
+        class_average: ClassAverageType,
     ) -> Self {
-        let thresholded_predictions = input.predictions.clone().greater_elem(threshold);
+        let thresholded_predictions = predictions.greater_elem(threshold);
         Self {
-            confusion_matrix_map: thresholded_predictions.int() + input.targets.clone().int() * 2,
-            classification_average,
+            confusion_classes: thresholded_predictions.int() + targets.int() * 2,
+            class_average,
         }
     }
 
     pub fn true_positive(self) -> Tensor<B, 1> {
-        self.classification_average
-            .aggregate_sum(self.confusion_matrix_map.equal_elem(3))
+        self.class_average
+            .aggregate_sum(self.confusion_classes.equal_elem(3))
     }
 
     pub fn true_negative(self) -> Tensor<B, 1> {
-        self.classification_average
-            .aggregate_sum(self.confusion_matrix_map.equal_elem(0))
+        self.class_average
+            .aggregate_sum(self.confusion_classes.equal_elem(0))
     }
 
     pub fn false_positive(self) -> Tensor<B, 1> {
-        self.classification_average
-            .aggregate_sum(self.confusion_matrix_map.equal_elem(1))
+        self.class_average
+            .aggregate_sum(self.confusion_classes.equal_elem(1))
     }
 
     pub fn false_negative(self) -> Tensor<B, 1> {
-        self.classification_average
-            .aggregate_sum(self.confusion_matrix_map.equal_elem(2))
+        self.class_average
+            .aggregate_sum(self.confusion_classes.equal_elem(2))
     }
 
     pub fn positive(self) -> Tensor<B, 1> {
@@ -85,8 +87,8 @@ impl<B: Backend> ConfusionMatrix<B> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClassificationAverage::{self, *},
-        ConfusionMatrix,
+        ClassAverageType::{self, *},
+        ConfusionStats,
     };
     use crate::{
         tests::{
@@ -108,11 +110,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [2, 2, 1].into()})]
     fn test_true_positive(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .true_positive()
             .into_data();
         assert_eq!(
@@ -130,11 +132,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [0, 2, 1].into()})]
     fn test_true_negative(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .true_negative()
             .into_data();
         assert_eq!(
@@ -152,11 +154,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [1, 1, 1].into()})]
     fn test_false_positive(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .false_positive()
             .into_data();
         assert_eq!(
@@ -174,11 +176,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [2, 0, 2].into()})]
     fn test_false_negatives(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .false_negative()
             .into_data();
         assert_eq!(
@@ -196,11 +198,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [4, 2, 3].into()})]
     fn test_positive(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .positive()
             .into_data();
         assert_eq!(
@@ -218,11 +220,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [1, 3, 2].into()})]
     fn test_negative(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .negative()
             .into_data();
         assert_eq!(
@@ -240,11 +242,11 @@ mod tests {
     multilabel_macro = {Multilabel, Macro, [3, 3, 2].into()})]
     fn test_predicted_positive(
         class_type: ClassificationType,
-        avg_type: ClassificationAverage,
+        avg_type: ClassAverageType,
         expected: TensorData,
     ) {
-        let input = dummy_classification_input(&class_type);
-        let test_value = ConfusionMatrix::new(&input, THRESHOLD, avg_type)
+        let (predictions, targets) = dummy_classification_input(&class_type).into();
+        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .predicted_positive()
             .into_data();
         assert_eq!(

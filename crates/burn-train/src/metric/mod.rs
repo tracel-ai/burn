@@ -38,6 +38,6 @@ pub(crate) mod processor;
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
 
-mod confusion_matrix;
+mod confusion_stats;
 #[cfg(feature = "metrics")]
 mod precision;

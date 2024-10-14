@@ -59,52 +59,46 @@ pub trait Metric: Send + Sync {
     fn clear(&mut self);
 }
 
-/// Classification Metric trait
-///
-/// Requires implementation [Metric](Metric)<Input = ClassificationInput<B>>
-pub trait ClassificationMetric<B: Backend>: Metric<Input = ClassificationInput<B>> {
-    /// Sets threshold. Default 0.5
-    fn with_threshold(self, threshold: f64) -> Self;
-    /// Sets average type. Default Micro
-    fn with_average(self, average: ClassificationAverage) -> Self;
-}
-
 /// The [classification metric](ClassificationMetric) input type.
-#[derive(new, Debug)]
+#[derive(new, Debug, Clone)]
 pub struct ClassificationInput<B: Backend> {
-    /// Sample x Class Non thresholded predictions
+    /// Sample x Class Non thresholded normalized predictions.
     pub predictions: Tensor<B, 2>,
-    /// Sample x Class target mask
+    /// Sample x Class one-hot encoded target.
     pub targets: Tensor<B, 2, Bool>,
 }
 
-///Aggregation types for Classification metric average
-#[derive(EnumIter, Copy, Clone, Debug)]
-pub enum ClassificationAverage {
-    /// overall aggregation
-    Micro,
-    /// over class aggregation
-    Macro,
-    // /// over class aggregation, weighted average
-    //Weighted(Rc<[f64]>), todo!()
+impl<B: Backend> From<ClassificationInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bool>) {
+    fn from(val: ClassificationInput<B>) -> Self {
+        (val.predictions, val.targets)
+    }
 }
 
-impl ClassificationAverage {
+/// Class Averaging types for Classification metrics.
+#[derive(EnumIter, Copy, Clone, Debug)]
+pub enum ClassAverageType {
+    ///Computes the statistics over all classes before averaging
+    Micro,
+    ///Computes the statistics independently for each class before averaging
+    Macro,
+}
+
+impl ClassAverageType {
     /// sum over samples
     pub fn aggregate_sum<B: Backend>(self, sample_class_mask: Tensor<B, 2, Bool>) -> Tensor<B, 1> {
-        use ClassificationAverage::*;
+        use ClassAverageType::*;
         match self {
             Macro => sample_class_mask.float().sum_dim(0).squeeze(0),
-            Micro => sample_class_mask.float().sum(), //Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+            Micro => sample_class_mask.float().sum(),
         }
     }
 
     /// average over samples
     pub fn aggregate_mean<B: Backend>(self, sample_class_mask: Tensor<B, 2, Bool>) -> Tensor<B, 1> {
-        use ClassificationAverage::*;
+        use ClassAverageType::*;
         match self {
             Macro => sample_class_mask.float().mean_dim(0).squeeze(0),
-            Micro => sample_class_mask.float().mean(), //Weighted(weights) => Left(metric.float().sum_dim(0).squeeze(0) * Tensor::from_floats(weights.deref(), &B::Device::default())) todo!()
+            Micro => sample_class_mask.float().mean(),
         }
     }
 
@@ -113,7 +107,7 @@ impl ClassificationAverage {
         self,
         mut aggregated_metric: Tensor<B, 1>,
     ) -> Tensor<B, 1> {
-        use ClassificationAverage::*;
+        use ClassAverageType::*;
         match self {
             Macro => {
                 if aggregated_metric.contains_nan().any().into_scalar() {
@@ -125,7 +119,6 @@ impl ClassificationAverage {
                 aggregated_metric.mean()
             }
             Micro => aggregated_metric,
-            //Weighted(weights) => todo!()
         }
     }
 
