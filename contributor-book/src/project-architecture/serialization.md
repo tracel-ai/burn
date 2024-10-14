@@ -40,7 +40,7 @@ which field is a parameter or a constant, or we assume that each field implement
 
 The second solution was chosen as it simplifies the code generation and reduces the size of the user
 API. This means that the `Module` trait should be implemented by
-[primitive types](https://github.com/tracel-ai/burn/blob/6d96e8d8086d2309c425f2c8a43a8246f8c454d2/crates/burn-core/src/module/param/primitive.rs).
+[primitive types](https://github.com/tracel-ai/burn/blob/main/crates/burn-core/src/module/param/primitive.rs).
 The following diagrams highlight the main types and traits used in the solution.
 
 <div align="center">
