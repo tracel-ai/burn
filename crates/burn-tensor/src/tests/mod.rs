@@ -105,6 +105,9 @@ macro_rules! testgen_all {
         burn_tensor::testgen_remainder!();
         burn_tensor::testgen_cartesian_grid!();
         burn_tensor::testgen_nan!();
+        burn_tensor::testgen_round!();
+        burn_tensor::testgen_floor!();
+        burn_tensor::testgen_ceil!();
 
         // test stats
         burn_tensor::testgen_var!();
