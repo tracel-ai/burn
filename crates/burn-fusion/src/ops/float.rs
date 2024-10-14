@@ -2099,4 +2099,16 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn float_round(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
+
+    fn float_floor(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
+
+    fn float_ceil(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
 }

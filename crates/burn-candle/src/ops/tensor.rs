@@ -337,6 +337,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new(tensor.tensor.tanh().unwrap())
     }
 
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.round().unwrap())
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.floor().unwrap())
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.ceil().unwrap())
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.erf().unwrap())
     }

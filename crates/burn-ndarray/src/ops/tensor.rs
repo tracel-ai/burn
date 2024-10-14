@@ -349,6 +349,33 @@ impl<E: FloatNdArrayElement, Q: QuantElement> FloatTensorOps<Self> for NdArray<E
         NdArrayTensor::new(array)
     }
 
+    fn float_round(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).round().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_floor(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).floor().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_ceil(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).ceil().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
     fn float_erf(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor
             .array

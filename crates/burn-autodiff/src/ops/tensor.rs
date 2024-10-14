@@ -1885,6 +1885,110 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Round;
+        retro_unary!(RetroRound, B::float_round);
+
+        impl<B: Backend> Backward<B, 1> for Round {
+            type State = ();
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| grad)
+            }
+        }
+
+        Round
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroRound::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateless(B::float_round(tensor.primitive))
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Floor;
+        retro_unary!(RetroFloor, B::float_floor);
+
+        impl<B: Backend> Backward<B, 1> for Floor {
+            type State = (Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape, device) = ops.state;
+                unary::<B, _>(ops.parents, ops.node, grads, |_grad| {
+                    B::float_zeros(shape, &device)
+                })
+            }
+        }
+
+        match Floor
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroFloor::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (
+                    B::float_shape(&tensor.primitive),
+                    B::float_device(&tensor.primitive),
+                ),
+                B::float_floor(tensor.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_floor(tensor.primitive)),
+        }
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct Ceil;
+        retro_unary!(RetroCeil, B::float_ceil);
+
+        impl<B: Backend> Backward<B, 1> for Ceil {
+            type State = (Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (shape, device) = ops.state;
+                unary::<B, _>(ops.parents, ops.node, grads, |_grad| {
+                    B::float_zeros(shape, &device)
+                })
+            }
+        }
+
+        match Ceil
+            .prepare::<C>([tensor.node.clone()])
+            .memory_bound()
+            .retro_forward(RetroCeil::<B>::new(tensor.node.id))
+            .parents([&tensor])
+            .stateful()
+        {
+            OpsKind::Tracked(preps) => preps.finish(
+                (
+                    B::float_shape(&tensor.primitive),
+                    B::float_device(&tensor.primitive),
+                ),
+                B::float_floor(tensor.primitive),
+            ),
+            OpsKind::UnTracked(preps) => preps.finish(B::float_floor(tensor.primitive)),
+        }
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Erf;
