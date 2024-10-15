@@ -4,9 +4,9 @@ use text_generation::{training::ExperimentConfig, DbPediaDataset};
 #[cfg(feature = "f16")]
 type Elem = burn::tensor::f16;
 #[cfg(not(feature = "f16"))]
-type Elem = burn::tensor::f16;
+type Elem = f32;
 
-type Backend = burn::backend::Autodiff<burn::backend::CudaJit<Elem>>;
+type Backend = burn::backend::Autodiff<burn::backend::LibTorch<Elem>>;
 
 fn main() {
     let config = ExperimentConfig::new(

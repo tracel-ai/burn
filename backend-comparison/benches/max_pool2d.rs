@@ -1,9 +1,6 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, module::max_pool2d, Distribution, Shape, Tensor};
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct MaxPool2dBenchmark<B: Backend> {
     shape: Shape,
@@ -40,7 +37,7 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 
