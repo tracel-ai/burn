@@ -6,6 +6,7 @@ use burn_tensor::{
     repr::{
         DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
         OperationDescription, QuantizationParametersDescription, QuantizeOperationDescription,
+        QuantizedKind,
     },
     DType, Device, Element, Shape, TensorData,
 };
@@ -25,19 +26,17 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 let tensor = B::q_from_data(data, device);
                 let shape = B::q_shape(&tensor);
 
-                let mut handles = B::quantized_tensor_handle(tensor);
+                let handles = B::quantized_tensor_handle(tensor);
                 let qparams = match strategy {
                     QuantizationStrategy::PerTensorAffineInt8(_) => {
-                        let num_handles = handles.len();
-                        assert_eq!(
-                            num_handles, 3,
-                            "Expected 3 handles for quantized tensor, got {num_handles}"
-                        );
-                        let offset = handles.pop().unwrap();
-                        let scale = handles.pop().unwrap();
+                        let offset = if let Some(offset) = handles.offset {
+                            offset
+                        } else {
+                            panic!("Expected offset for quantized tensor.");
+                        };
                         FusionQuantizationParameters {
                             scale: client.register_tensor(
-                                scale,
+                                handles.scale,
                                 vec![1],
                                 StreamId::current(),
                                 B::FloatElem::dtype(),
@@ -51,15 +50,13 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                         }
                     }
                     QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                        let num_handles = handles.len();
-                        assert_eq!(
-                            num_handles, 2,
-                            "Expected 2 handles for quantized tensor, got {num_handles}"
+                        assert!(
+                            handles.offset.is_none(),
+                            "Offset should not be provided for symmetric quantization."
                         );
-                        let scale = handles.pop().unwrap();
                         FusionQuantizationParameters {
                             scale: client.register_tensor(
-                                scale,
+                                handles.scale,
                                 vec![1],
                                 StreamId::current(),
                                 B::FloatElem::dtype(),
@@ -69,7 +66,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                     }
                 };
                 let qtensor = client.register_tensor(
-                    handles.pop().unwrap(),
+                    handles.tensor,
                     shape.dims,
                     StreamId::current(),
                     B::QuantizedEncoding::dtype(),
@@ -111,17 +108,20 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
                 let qparams = QuantizationParametersPrimitive { scale, offset };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
-                if let Some(offset) = &self.desc.qparams.offset {
-                    handles.register_quantized_tensor::<B>(
-                        &[&self.desc.out.id, &self.desc.qparams.scale.id, &offset.id],
-                        output,
-                    );
+                let q_ids = if let Some(offset) = &self.desc.qparams.offset {
+                    QuantizedKind {
+                        tensor: self.desc.out.id,
+                        scale: self.desc.qparams.scale.id,
+                        offset: Some(offset.id),
+                    }
                 } else {
-                    handles.register_quantized_tensor::<B>(
-                        &[&self.desc.out.id, &self.desc.qparams.scale.id],
-                        output,
-                    );
-                }
+                    QuantizedKind {
+                        tensor: self.desc.out.id,
+                        scale: self.desc.qparams.scale.id,
+                        offset: None,
+                    }
+                };
+                handles.register_quantized_tensor::<B>(&q_ids, output);
             }
         }
 

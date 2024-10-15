@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{collections::HashMap, sync::Arc};
 
-use super::{QuantizedTensorDescription, TensorHandle};
+use super::{QuantizedKind, QuantizedTensorDescription, TensorHandle};
 
 /// Keep all [tensor handles](ReprBackend::Handle) in one place and ensure that all resources
 /// are used optimally.
@@ -122,12 +122,14 @@ impl<H: Clone> HandleContainer<H> {
     where
         B: ReprBackend<Handle = H>,
     {
-        let qtensor = self.get_tensor_handle(&tensor.tensor);
-        let scale = self.get_tensor_handle(&tensor.qparams.scale);
-        let handles = if let Some(offset) = &tensor.qparams.offset {
-            vec![qtensor, scale, self.get_tensor_handle(offset)]
-        } else {
-            vec![qtensor, scale]
+        let handles = QuantizedKind {
+            tensor: self.get_tensor_handle(&tensor.tensor),
+            scale: self.get_tensor_handle(&tensor.qparams.scale),
+            offset: tensor
+                .qparams
+                .offset
+                .as_ref()
+                .map(|offset| self.get_tensor_handle(offset)),
         };
         B::quantized_tensor(handles, tensor.scheme.clone())
     }
@@ -144,20 +146,20 @@ impl<H: Clone> HandleContainer<H> {
     /// Register a new [quantized tensor](crate::backend::Backend::QuantizedTensorPrimitive) with the corresponding [tensor ids](TensorId).
     pub fn register_quantized_tensor<B>(
         &mut self,
-        ids: &[&TensorId],
+        id: &QuantizedKind<TensorId>,
         tensor: B::QuantizedTensorPrimitive,
     ) where
         B: ReprBackend<Handle = H>,
     {
         let handles = B::quantized_tensor_handle(tensor);
-        assert_eq!(
-            ids.len(),
-            handles.len(),
-            "Number of tensor ids and handles must match"
-        );
 
-        for (handle, id) in handles.into_iter().zip(ids) {
-            self.handles.insert(**id, Handle::Existing(handle));
+        self.handles
+            .insert(id.tensor, Handle::Existing(handles.tensor));
+        self.handles
+            .insert(id.scale, Handle::Existing(handles.scale));
+
+        if let (Some(id), Some(handle)) = (id.offset, handles.offset) {
+            self.handles.insert(id, Handle::Existing(handle));
         }
     }
 

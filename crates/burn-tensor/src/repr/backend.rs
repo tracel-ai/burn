@@ -4,14 +4,25 @@ use crate::{
     quantization::QuantizationScheme,
     Shape,
 };
-use alloc::vec::Vec;
 
 /// A tensor representation containing a reference to a tensor resource with a given shape.
-pub struct TensorHandle<H> {
+#[derive(Clone)]
+pub struct TensorHandle<H: Clone> {
     /// The type that can be used to point to a tensor of any kind.
     pub handle: H,
     /// The shape associated to the tensor.
     pub shape: Shape,
+}
+
+/// A simple struct to encapsulate a quantized tensor kind.
+#[derive(Clone)]
+pub struct QuantizedKind<T: Clone> {
+    /// The quantized tensor.
+    pub tensor: T,
+    /// The scaling factor.
+    pub scale: T,
+    /// The zero-point offset.
+    pub offset: Option<T>,
 }
 
 /// Backend extension trait that allows an existing [backend](Backend) to use the Burn tensor representation
@@ -28,7 +39,7 @@ pub trait ReprBackend: Backend {
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
     fn quantized_tensor(
-        handles: Vec<TensorHandle<Self::Handle>>,
+        handle: QuantizedKind<TensorHandle<Self::Handle>>,
         scheme: QuantizationScheme,
     ) -> QuantizedTensor<Self>;
 
@@ -40,5 +51,5 @@ pub trait ReprBackend: Backend {
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
     /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](ReprBackend::Handle).
     /// A quantized tensor has multiple handles for the tensor itself and the quantization parameters.
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Vec<Self::Handle>;
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle>;
 }

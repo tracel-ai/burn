@@ -5,7 +5,7 @@ use crate::{
 use burn_tensor::{
     backend::{Backend, DeviceOps, SyncType},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{OperationDescription, ReprBackend, TensorHandle},
+    repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
     Device,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -184,7 +184,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
     }
 
     fn quantized_tensor(
-        _handles: Vec<TensorHandle<Self::Handle>>,
+        _handles: QuantizedKind<TensorHandle<Self::Handle>>,
         _scheme: burn_tensor::quantization::QuantizationScheme,
     ) -> QuantizedTensor<Self> {
         todo!() // not as simple
@@ -202,7 +202,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         tensor
     }
 
-    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> Vec<Self::Handle> {
+    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
         todo!() // not as simple
     }
 }
