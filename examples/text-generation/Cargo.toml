@@ -12,7 +12,7 @@ f16 = []
 
 [dependencies]
 # Burn
-burn = {path = "../../crates/burn", features=["train", "tch"]}
+burn = {path = "../../crates/burn", features=["train", "tch", "cuda-jit", "fusion"]}
 
 # Tokenizer
 tokenizers = {version = "0.20.0", default-features = false, features = [

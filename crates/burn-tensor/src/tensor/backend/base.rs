@@ -1,5 +1,4 @@
 use alloc::string::String;
-pub use burn_common::sync_type::SyncType;
 
 use crate::tensor::Element;
 use crate::{ops::*, quantization::QTensorPrimitive};
@@ -103,7 +102,7 @@ pub trait Backend:
     fn seed(seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
-    fn sync(_device: &Self::Device, _sync_type: SyncType) {}
+    fn sync(_device: &Self::Device) {}
 }
 
 /// Trait that allows a backend to support autodiff.

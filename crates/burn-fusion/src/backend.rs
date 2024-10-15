@@ -3,7 +3,7 @@ use crate::{
     QFusionTensor,
 };
 use burn_tensor::{
-    backend::{Backend, DeviceOps, SyncType},
+    backend::{Backend, DeviceOps},
     ops::FloatTensor,
     repr::{OperationDescription, ReprBackend},
     Device,
@@ -50,10 +50,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(seed);
     }
 
-    fn sync(device: &Self::Device, sync_type: SyncType) {
+    fn sync(device: &Self::Device) {
         let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
         client.drain();
-        B::sync(device, sync_type);
+        B::sync(device);
     }
 
     fn ad_enabled() -> bool {

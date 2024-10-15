@@ -4,9 +4,9 @@ use text_generation::{training::ExperimentConfig, DbPediaDataset};
 #[cfg(feature = "f16")]
 type Elem = burn::tensor::f16;
 #[cfg(not(feature = "f16"))]
-type Elem = f32;
+type Elem = burn::tensor::f16;
 
-type Backend = burn::backend::Autodiff<burn::backend::LibTorch<Elem>>;
+type Backend = burn::backend::Autodiff<burn::backend::CudaJit<Elem>>;
 
 fn main() {
     let config = ExperimentConfig::new(
@@ -16,11 +16,7 @@ fn main() {
     );
 
     text_generation::training::train::<Backend, DbPediaDataset>(
-        if cfg!(target_os = "macos") {
-            burn::tensor::Device::<Backend>::Mps
-        } else {
-            burn::tensor::Device::<Backend>::Cuda(0)
-        },
+        Default::default(),
         DbPediaDataset::train(),
         DbPediaDataset::test(),
         config,
