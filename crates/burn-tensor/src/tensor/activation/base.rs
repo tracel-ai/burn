@@ -87,13 +87,8 @@ pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> 
 /// The dimension argument `dim` specifies the dimension along which the function will be computed.
 /// It must in the range of `0` and `D-1`.
 pub fn softmin<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    check!(TensorCheck::dim_ops::<D>("softmax", dim));
-
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = (-tensor).exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
-
-    tensor.div(tensor_tmp)
+    check!(TensorCheck::dim_ops::<D>("softmin", dim));
+    softmax(tensor.neg(), dim)
 }
 
 /// Applies the softplus function
