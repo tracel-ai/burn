@@ -44,7 +44,7 @@ rand = { workspace = true }
 spin = { workspace = true }
 
 # Async
-futures-lite = { workspace = true }
+futures-lite = { workspace = true, features = ["std"] }
 
 # Template
 serde = { workspace = true }
