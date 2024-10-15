@@ -53,7 +53,7 @@ where
 
     fn sync(device: &Self::Device) {
         let client = R::client(device);
-        client.sync();
+        futures_lite::future::block_on(client.sync());
     }
 }
 
