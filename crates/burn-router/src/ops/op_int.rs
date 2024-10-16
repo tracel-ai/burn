@@ -24,8 +24,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = IntElem::<Self>::dtype();
-        client.register_empty_tensor(shape.into(), dtype)
+        let out = client.register_empty_tensor(shape.into(), IntElem::<Self>::dtype());
+
+        client.register(OperationDescription::BaseInt(
+            BaseOperationDescription::Empty(out.to_description_out()),
+        ));
+
+        out
     }
 
     fn int_shape(tensor: &IntTensor<Self>) -> Shape {

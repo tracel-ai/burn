@@ -709,7 +709,10 @@ dependencies = [
 name = "burn-router"
 version = "0.15.0"
 dependencies = [
+ "burn-autodiff",
+ "burn-ndarray",
  "burn-tensor",
+ "burn-wgpu",
  "hashbrown 0.14.5",
  "spin",
 ]

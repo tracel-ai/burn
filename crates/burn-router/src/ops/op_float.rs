@@ -137,8 +137,13 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
-        client.register_empty_tensor(shape.into(), dtype)
+        let out = client.register_empty_tensor(shape.into(), FloatElem::<Self>::dtype());
+
+        client.register(OperationDescription::BaseFloat(
+            BaseOperationDescription::Empty(out.to_description_out()),
+        ));
+
+        out
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

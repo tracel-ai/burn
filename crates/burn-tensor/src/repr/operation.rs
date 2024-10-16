@@ -217,6 +217,13 @@ pub enum BaseOperationDescription {
     Cat(CatOperationDescription),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(UnaryOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [equal](crate::ops::FloatTensorOps::float_empty).
+    /// Int => [equal](crate::ops::IntTensorOps::int_empty).
+    /// Bool => [equal](crate::ops::BoolTensorOps::bool_empty).
+    Empty(TensorDescription),
 }
 
 /// Numeric operations on int and float tensors.
@@ -1289,6 +1296,7 @@ impl BaseOperationDescription {
             }
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
             BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
+            BaseOperationDescription::Empty(desc) => vec![desc],
         }
     }
 }

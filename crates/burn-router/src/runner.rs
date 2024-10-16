@@ -208,6 +208,11 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationDescription::Cast(_) => unreachable!(),
+                BaseOperationDescription::Empty(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::float_empty(shape, &self.device);
+                    handles.register_float_tensor::<B>(&desc.id, output);
+                }
             },
             OperationDescription::BaseInt(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -274,6 +279,11 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationDescription::Cast(_) => unreachable!(),
+                BaseOperationDescription::Empty(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::int_empty(shape, &self.device);
+                    handles.register_int_tensor::<B>(&desc.id, output);
+                }
             },
             OperationDescription::BaseBool(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -344,6 +354,11 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationDescription::Cast(_) => unreachable!(),
+                BaseOperationDescription::Empty(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::bool_empty(shape, &self.device);
+                    handles.register_bool_tensor::<B>(&desc.id, output);
+                }
             },
             OperationDescription::NumericFloat(_dtype, op) => match op {
                 NumericOperationDescription::Add(desc) => {

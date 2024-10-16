@@ -41,8 +41,9 @@ mod tests {
     type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
+    // TODO: add support for quantization
     // burn_tensor::testgen_quantization!();
 
-    // #[cfg(feature = "std")]
-    // burn_autodiff::testgen_all!();
+    #[cfg(feature = "std")]
+    burn_autodiff::testgen_all!();
 }
