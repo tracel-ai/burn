@@ -1,8 +1,7 @@
 use super::ParamId;
 use alloc::boxed::Box;
 use alloc::format;
-use burn_common::stub::RwLock;
-use core::cell::OnceCell;
+use burn_common::stub::{RwLock, SyncOnceCell};
 use core::ops::Deref;
 
 /// Parameters are the fundamental building blocks of [modules](crate::module::Module) where they
@@ -33,10 +32,10 @@ use core::ops::Deref;
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
-    state: OnceCell<T>,
+    state: SyncOnceCell<T>,
     /// The locking is only required because of `lazy_device` and `lazy_is_require_grad`.
     ///
-    /// Because of once cell, we have a guarantee that the initialization will only be called once,
+    /// Because of once lock, we have a guarantee that the initialization will only be called once,
     /// but it may be called at the same time as `lazy_device` and `lazy_is_require_grad`, which is
     /// when the lock is actually useful, waiting for the initialization to be completed before
     /// returning the value.
@@ -72,7 +71,7 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 
 #[allow(clippy::type_complexity)]
 struct Uninitialized<P: Parameter> {
-    init: Box<dyn Fn(&P::Device, bool) -> P + Send>,
+    init: Box<dyn Fn(&P::Device, bool) -> P + Send + Sync + 'static>,
     device: P::Device,
     is_require_grad: bool,
 }
@@ -89,7 +88,7 @@ impl<T: Parameter> Param<T> {
     pub fn initialized(id: ParamId, value: T) -> Self {
         Self {
             id,
-            state: OnceCell::from(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
         }
     }
@@ -97,11 +96,11 @@ impl<T: Parameter> Param<T> {
     /// Create a new parameter that is not already initialized.
     pub fn uninitialized<F>(id: ParamId, init: F, device: T::Device, is_require_grad: bool) -> Self
     where
-        F: Fn(&T::Device, bool) -> T + Send + 'static,
+        F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
-            state: OnceCell::new(),
+            state: SyncOnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
@@ -151,7 +150,7 @@ impl<T: Parameter> Param<T> {
 
         Self {
             id,
-            state: OnceCell::from(tensor),
+            state: SyncOnceCell::initialized(tensor),
             initialization: None,
         }
     }
