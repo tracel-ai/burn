@@ -5,7 +5,6 @@ use crate::{
     tensor::AutodiffTensor,
     AutodiffBridge,
 };
-use burn_common::sync_type::SyncType;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     ops::{BoolTensor, IntTensor, QuantizedTensor},
@@ -50,8 +49,8 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::seed(seed)
     }
 
-    fn sync(device: &B::Device, sync_type: SyncType) {
-        B::sync(device, sync_type)
+    fn sync(device: &B::Device) {
+        B::sync(device)
     }
 }
 

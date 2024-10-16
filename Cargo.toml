@@ -94,7 +94,7 @@ zip = "2.2.0"
 
 # Async handling
 async-channel = "2.3"
-pollster = "0.3"
+futures-lite = { version = "2.3.0", default-features = false }
 
 # Terminal UI
 crossterm = "0.27.0"

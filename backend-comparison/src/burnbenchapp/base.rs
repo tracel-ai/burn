@@ -80,6 +80,8 @@ enum BackendValues {
     WgpuFusion,
     #[strum(to_string = "cuda-jit")]
     CudaJit,
+    #[strum(to_string = "cuda-jit-fusion")]
+    CudaJitFusion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]

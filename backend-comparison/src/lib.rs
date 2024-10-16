@@ -59,6 +59,8 @@ macro_rules! bench_on_backend {
         let feature_name = "wgpu-fusion";
         #[cfg(feature = "cuda-jit")]
         let feature_name = "cuda-jit";
+        #[cfg(feature = "cuda-jit-fusion")]
+        let feature_name = "cuda-jit-fusion";
 
         #[cfg(feature = "wgpu")]
         {
