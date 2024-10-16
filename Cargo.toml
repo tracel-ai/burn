@@ -94,7 +94,7 @@ zip = "2.2.0"
 
 # Async handling
 async-channel = "2.3"
-pollster = "0.3"
+futures-lite = { version = "2.3.0", default-features = false }
 
 # Terminal UI
 crossterm = "0.27.0"
@@ -152,11 +152,11 @@ tch = "0.15.0"
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fb47090f7a44952ae3e3b2b72f8c5a88d8af56fd" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fb47090f7a44952ae3e3b2b72f8c5a88d8af56fd" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ed136e2385b17e36680589f8a6245926f430f59f" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ed136e2385b17e36680589f8a6245926f430f59f" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl" }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false  }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
 # cubecl = { version="0.2.0", default-features = false }
 # cubecl-common = { version="0.2.0", default-features = false }
