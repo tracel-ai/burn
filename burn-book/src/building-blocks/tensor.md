@@ -330,6 +330,7 @@ strategies.
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
+| `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
 
