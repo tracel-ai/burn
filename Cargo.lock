@@ -740,6 +740,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.5",
  "num-traits",
+ "portable-atomic-util",
  "rand",
  "rand_distr",
  "serde",

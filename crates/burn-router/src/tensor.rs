@@ -6,7 +6,7 @@ use burn_tensor::{
     DType, Shape, TensorData,
 };
 
-/// Tensor primitive for the [router backend](crate::router::BackendRouter).
+/// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
     pub(crate) id: Arc<TensorId>,
     pub(crate) shape: Vec<usize>,

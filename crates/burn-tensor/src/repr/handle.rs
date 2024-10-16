@@ -5,7 +5,14 @@ use crate::{
     },
     Shape,
 };
-use std::{collections::HashMap, sync::Arc};
+use alloc::vec::Vec;
+use hashbrown::HashMap;
+
+#[cfg(target_has_atomic = "ptr")]
+use alloc::sync::Arc;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use portable_atomic_util::Arc;
 
 use super::{QuantizedKind, QuantizedTensorDescription, TensorHandle};
 
