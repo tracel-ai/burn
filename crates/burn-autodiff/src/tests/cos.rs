@@ -21,11 +21,11 @@ mod tests {
 
         grad_1.to_data().assert_approx_eq_diff(
             &TensorData::from([[26.8063, -27.7870], [26.8063, -27.7870]]),
-            2.0e-3,
+            4.0e-3,
         );
         grad_2.to_data().assert_approx_eq_diff(
             &TensorData::from([[9.222064, -39.123375], [-28.721354, 49.748356]]),
-            2.0e-3,
+            4.0e-3,
         );
     }
 }

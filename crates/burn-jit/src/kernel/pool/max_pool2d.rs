@@ -88,7 +88,7 @@ impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
             .elem()
             .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
         cpa!(scope, max_val = max_initial);
-        let max_index = scope.create_local(Elem::UInt);
+        let max_index = scope.zero(Elem::UInt);
         (max_val, max_index)
     }
 

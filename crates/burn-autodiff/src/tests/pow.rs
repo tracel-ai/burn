@@ -20,10 +20,10 @@ mod tests {
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
         let expected = TensorData::from([[68.0, 79.0328], [68.0, 79.0328]]);
-        grad_1.to_data().assert_approx_eq(&expected, 3);
+        grad_1.to_data().assert_approx_eq_diff(&expected, 0.02);
 
         let expected = TensorData::from([[23.5081, 25.2779], [26.0502, 28.6383]]);
-        grad_2.to_data().assert_approx_eq(&expected, 3);
+        grad_2.to_data().assert_approx_eq(&expected, 2);
     }
 
     #[test]

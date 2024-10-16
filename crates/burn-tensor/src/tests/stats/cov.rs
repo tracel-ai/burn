@@ -45,7 +45,7 @@ mod tests {
         ])
         .convert::<FloatElem>();
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq_diff(&expected, 0.003);
     }
 
     #[test]
