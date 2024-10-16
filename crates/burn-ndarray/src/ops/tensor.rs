@@ -352,7 +352,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> FloatTensorOps<Self> for NdArray<E
     fn float_round(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor
             .array
-            .mapv_into(|a| (a.to_f64()).round().elem())
+            .mapv_into(|a| (a.to_f64()).round_ties_even().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
