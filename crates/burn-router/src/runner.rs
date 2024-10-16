@@ -779,7 +779,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_sin)
                 }
                 FloatOperationDescription::Tanh(desc) => {
-                    unary_float_ops!(handles, desc, B::float_sin)
+                    unary_float_ops!(handles, desc, B::float_tanh)
                 }
                 FloatOperationDescription::IntoInt(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -1044,7 +1044,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                         desc.dilation,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
-                    handles.register_int_tensor::<B>(&desc.out.id, output.indices);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
                 }
                 ModuleOperationDescription::MaxPool1dWithIndicesBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
@@ -1085,7 +1085,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                         desc.dilation,
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
-                    handles.register_int_tensor::<B>(&desc.out.id, output.indices);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
                 }
                 ModuleOperationDescription::MaxPool2dWithIndicesBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);

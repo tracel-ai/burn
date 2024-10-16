@@ -6,7 +6,7 @@ use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_tensor::quantization::QuantizationScheme;
-use burn_tensor::repr::{QuantizedKind, ReprBackend, TensorHandle};
+use burn_tensor::repr::{HandleKind, QuantizedKind, ReprBackend, TensorHandle};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -73,55 +73,27 @@ impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
     }
 }
 
-/// Handle which points to a backend tensor primitive kind.
-// NOTE: could possibly be moved to tensor representation if used across other backends.
-#[derive(Clone, Debug)]
-pub enum HandleKind<B: Backend> {
-    /// Float tensor handle.
-    Float(B::FloatTensorPrimitive),
-    /// Int tensor handle.
-    Int(B::IntTensorPrimitive),
-    /// Bool tensor handle.
-    Bool(B::BoolTensorPrimitive),
-    /// Quantized tensor handle.
-    Quantized(B::QuantizedTensorPrimitive),
-    /// Empty handle (used as a dummy representation).
-    Empty,
-}
-
-impl<B: Backend> HandleKind<B> {
-    fn dtype_str(&self) -> &str {
-        match self {
-            HandleKind::Float(_) => "float",
-            HandleKind::Int(_) => "int",
-            HandleKind::Bool(_) => "bool",
-            HandleKind::Quantized(_) => "quantized",
-            HandleKind::Empty => unreachable!(), // should not happen
-        }
-    }
-}
-
 impl<E: FloatNdArrayElement, Q: QuantElement> ReprBackend for NdArray<E, Q> {
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
         match handle.handle {
             HandleKind::Float(handle) => handle,
-            _ => panic!("Expected float handle, got {}", handle.handle.dtype_str()),
+            _ => panic!("Expected float handle, got {}", handle.handle.name()),
         }
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
         match handle.handle {
             HandleKind::Int(handle) => handle,
-            _ => panic!("Expected int handle, got {}", handle.handle.dtype_str()),
+            _ => panic!("Expected int handle, got {}", handle.handle.name()),
         }
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
         match handle.handle {
             HandleKind::Bool(handle) => handle,
-            _ => panic!("Expected bool handle, got {}", handle.handle.dtype_str()),
+            _ => panic!("Expected bool handle, got {}", handle.handle.name()),
         }
     }
 
@@ -132,7 +104,7 @@ impl<E: FloatNdArrayElement, Q: QuantElement> ReprBackend for NdArray<E, Q> {
         let handle = handles.tensor.handle;
         match handle {
             HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.dtype_str()),
+            _ => panic!("Expected quantized handle, got {}", handle.name()),
         }
     }
 

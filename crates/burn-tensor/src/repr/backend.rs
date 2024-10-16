@@ -53,3 +53,31 @@ pub trait ReprBackend: Backend {
     /// A quantized tensor has multiple handles for the tensor itself and the quantization parameters.
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle>;
 }
+
+/// Handle which points to a backend tensor primitive kind.
+#[derive(Clone, Debug)]
+pub enum HandleKind<B: Backend> {
+    /// Float tensor handle.
+    Float(B::FloatTensorPrimitive),
+    /// Int tensor handle.
+    Int(B::IntTensorPrimitive),
+    /// Bool tensor handle.
+    Bool(B::BoolTensorPrimitive),
+    /// Quantized tensor handle.
+    Quantized(B::QuantizedTensorPrimitive),
+    /// Empty handle (used as a dummy representation).
+    Empty,
+}
+
+impl<B: Backend> HandleKind<B> {
+    /// Returns the handle kind name.
+    pub fn name(&self) -> &str {
+        match self {
+            HandleKind::Float(_) => "float",
+            HandleKind::Int(_) => "int",
+            HandleKind::Bool(_) => "bool",
+            HandleKind::Quantized(_) => "quantized",
+            HandleKind::Empty => unreachable!(), // should not happen
+        }
+    }
+}

@@ -3,9 +3,10 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-    ExpandOperationDescription, FlipOperationDescription, OperationDescription,
-    PermuteOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
-    SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
+    CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
+    OperationDescription, PermuteOperationDescription, RepeatDimOperationDescription,
+    ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
+    SwapDimsDescription, UnaryOperationDescription,
 };
 use burn_tensor::{DType, Device, Element, Shape, TensorData};
 
@@ -28,7 +29,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        client.register_tensor_data(data)
+        client.register_tensor_data(data.convert::<bool>())
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
@@ -242,6 +243,52 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         client.register(OperationDescription::BaseBool(
             BaseOperationDescription::Expand(desc),
+        ));
+
+        out
+    }
+
+    fn bool_cat(tensors: Vec<BoolTensor<Self>>, dim: usize) -> BoolTensor<Self> {
+        let tensor_first = tensors.first().unwrap();
+        let client = tensor_first.client.clone();
+        let dtype = tensor_first.dtype;
+
+        // Calculate the output shape
+        let mut shape = tensor_first.shape.clone();
+        shape[dim] = 0;
+        for tensor in tensors.iter() {
+            shape[dim] += tensor.shape[dim];
+        }
+        let out = client.register_empty_tensor(shape, dtype);
+
+        let desc = CatOperationDescription {
+            tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
+            dim,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::BaseBool(
+            BaseOperationDescription::Cat(desc),
+        ));
+
+        out
+    }
+
+    fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let mut shape = tensor.shape.clone();
+        shape[dim] *= times;
+        let out = client.register_empty_tensor(shape, tensor.dtype);
+
+        let desc = RepeatDimOperationDescription {
+            tensor: tensor.into_description(),
+            dim,
+            times,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::BaseBool(
+            BaseOperationDescription::RepeatDim(desc),
         ));
 
         out

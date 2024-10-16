@@ -1,4 +1,5 @@
 use alloc::{vec, vec::Vec};
+use burn_tensor::backend::Backend;
 use core::ops::Range;
 
 use burn_tensor::ops::{
@@ -32,12 +33,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
-        tensor.into_data().await
+        tensor
+            .into_data()
+            .await
+            // Since underlying backends can have different data types, we convert to the current elem
+            .convert::<<Self as Backend>::IntElem>()
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(device);
-        client.register_tensor_data(data)
+        client.register_tensor_data(data.convert::<<Self as Backend>::IntElem>())
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -914,7 +919,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             dim2,
         };
 
-        client.register(OperationDescription::BaseFloat(
+        client.register(OperationDescription::BaseInt(
             BaseOperationDescription::SwapDims(desc),
         ));
 
