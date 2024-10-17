@@ -23,6 +23,60 @@ mod tests {
     }
 
     #[test]
+    fn should_support_mask_where_broadcast_int() {
+        let device = Default::default();
+        // When broadcasted, the input [[2, 3], [4, 5]] is repeated 4 times
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(2..6, &device).reshape([1, 2, 2]);
+        let mask = Tensor::<TestBackend, 3, Bool>::from_bool(
+            TensorData::from([
+                [[true, false], [false, true]],
+                [[false, true], [true, false]],
+                [[false, false], [false, false]],
+                [[true, true], [true, true]],
+            ]),
+            &device,
+        );
+        let value = Tensor::<TestBackend, 3, Int>::ones([4, 2, 2], &device);
+
+        let output = tensor.mask_where(mask, value);
+        let expected = TensorData::from([
+            [[1, 3], [4, 1]],
+            [[2, 1], [1, 5]],
+            [[2, 3], [4, 5]],
+            [[1, 1], [1, 1]],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_mask_where_broadcast() {
+        let device = Default::default();
+        // When broadcasted, the input [[2, 3], [4, 5]] is repeated 4 times
+        let tensor = Tensor::<TestBackend, 1, Int>::arange(2..6, &device).reshape([1, 2, 2]);
+        let mask = Tensor::<TestBackend, 3, Bool>::from_bool(
+            TensorData::from([
+                [[true, false], [false, true]],
+                [[false, true], [true, false]],
+                [[false, false], [false, false]],
+                [[true, true], [true, true]],
+            ]),
+            &device,
+        );
+        let value = Tensor::<TestBackend, 3>::ones([4, 2, 2], &device);
+
+        let output = tensor.float().mask_where(mask, value);
+        let expected = TensorData::from([
+            [[1., 3.], [4., 1.]],
+            [[2., 1.], [1., 5.]],
+            [[2., 3.], [4., 5.]],
+            [[1., 1.], [1., 1.]],
+        ]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_handle_mask_where_nans() {
         let device = Default::default();
         let tensor = TestTensor::from_data(

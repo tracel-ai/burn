@@ -217,7 +217,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream_1 = tensor.stream;
         let stream_2 = mask.stream;
         let stream_3 = value.stream;
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = binary_ops_shape(&tensor.shape, &mask.shape);
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::IntElem::dtype());

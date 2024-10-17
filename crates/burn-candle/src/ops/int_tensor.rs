@@ -60,11 +60,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         mask: BoolTensor<Self>,
         source: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        CandleTensor::new(
-            mask.tensor
-                .where_cond(&source.tensor, &tensor.tensor)
-                .unwrap(),
-        )
+        super::base::mask_where_broadcasted(tensor, mask, source)
     }
 
     fn int_mask_fill(
