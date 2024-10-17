@@ -424,7 +424,12 @@ fn execute_gemm<F: Float, FMat: Float>(
     if has_bias {
         let mut smem_bias = SharedMemory::new(cmma_m * cmma_n * warps_per_cube);
         load_bias_tile(bias, &mut smem_bias, pos, g_settings);
-        cmma::load(&matrices.acc, smem_bias.as_slice(), cmma_n);
+        cmma::load_with_layout(
+            &matrices.acc,
+            smem_bias.as_slice(),
+            cmma_n,
+            MatrixLayout::RowMajor,
+        );
     }
 
     // Loop over the K-dimension
