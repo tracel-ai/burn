@@ -1,5 +1,5 @@
 mod application_logger;
-mod base;
+pub(crate) mod base;
 mod builder;
 mod classification;
 mod early_stopping;
