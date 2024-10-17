@@ -561,7 +561,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     ) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
-        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+        let shape = binary_ops_shape(&tensor.shape, &mask.shape);
+        let out = client.register_empty_tensor(shape, dtype);
 
         let desc = MaskWhereOperationDescription {
             tensor: tensor.into_description(),

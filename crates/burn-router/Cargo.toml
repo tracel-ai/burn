@@ -30,8 +30,8 @@ burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = 
   "export_tests",
 ] }
 
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", default-features = false }
-burn-wgpu = { path = "../burn-wgpu", version = "0.15.0", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
+burn-wgpu = { path = "../burn-wgpu", version = "0.15.0" }
 
 
 [package.metadata.docs.rs]
