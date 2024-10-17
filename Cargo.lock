@@ -6392,7 +6392,6 @@ name = "text-classification"
 version = "0.15.0"
 dependencies = [
  "burn",
- "burn-router",
  "derive-new",
  "serde",
  "tokenizers",
