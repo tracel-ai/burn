@@ -1,5 +1,5 @@
 use burn_tensor::{
-    ops::{FloatTensor, IntTensor},
+    ops::{binary_ops_shape, FloatTensor, IntTensor},
     DType, Element, TensorData,
 };
 use std::marker::PhantomData;
@@ -7,7 +7,6 @@ use std::marker::PhantomData;
 use crate::{
     client::FusionClient,
     get_client,
-    ops::binary::binary_ops_shape,
     stream::{execution::Operation, StreamId},
     Fusion, FusionBackend,
 };

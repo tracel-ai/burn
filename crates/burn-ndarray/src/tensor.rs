@@ -212,7 +212,7 @@ mod tests {
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
             scale: NdArrayTensor::from_data(TensorData::from([0.009_019_608])),
-            offset: Some(NdArrayTensor::from_data(TensorData::from([72]))),
+            offset: Some(NdArrayTensor::<i64>::from_data(TensorData::from([72]))),
         };
         let qtensor: NdArrayQTensor<i8> = NdArray::quantize(tensor, &scheme, qparams);
 

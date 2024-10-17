@@ -252,7 +252,7 @@ pub mod backward {
     #[cfg(target_has_atomic = "32")]
     use core::sync::atomic::Ordering;
 
-    use crate::NdArray;
+    use crate::{element::IntNdArrayElement, NdArray};
     use atomic_float::AtomicF32;
     use burn_tensor::ops::DeformConv2dBackward;
     use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
@@ -260,7 +260,11 @@ pub mod backward {
     use super::*;
 
     /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-    pub(crate) fn deform_conv2d_backward<F: FloatNdArrayElement, Q: QuantElement>(
+    pub(crate) fn deform_conv2d_backward<
+        F: FloatNdArrayElement,
+        I: IntNdArrayElement,
+        Q: QuantElement,
+    >(
         input: NdArrayTensor<F>,
         offset: NdArrayTensor<F>,
         weight: NdArrayTensor<F>,
@@ -268,7 +272,7 @@ pub mod backward {
         bias: Option<NdArrayTensor<F>>,
         out_grad: NdArrayTensor<F>,
         args: DeformConvOptions<2>,
-    ) -> DeformConv2dBackward<NdArray<F, Q>> {
+    ) -> DeformConv2dBackward<NdArray<F, I, Q>> {
         let [batch_size, out_channels, out_h, out_w] = out_grad.shape().dims();
         let [_, _, kernel_h, kernel_w] = weight.shape().dims();
         let groups = args.weight_groups;

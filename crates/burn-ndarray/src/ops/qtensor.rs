@@ -10,7 +10,7 @@ use burn_tensor::{
 };
 
 use crate::{
-    element::{NdArrayElement, QuantElement},
+    element::{IntNdArrayElement, NdArrayElement, QuantElement},
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
 };
 
@@ -22,7 +22,9 @@ fn into_data<E: NdArrayElement>(tensor: NdArrayTensor<E>) -> TensorData {
     TensorData::new(values, shape)
 }
 
-impl<E: FloatNdArrayElement, Q: QuantElement> QTensorOps<Self> for NdArray<E, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<Self>
+    for NdArray<E, I, Q>
+{
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(strategy) => match strategy {

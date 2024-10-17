@@ -16,6 +16,8 @@ where
 {
 }
 
+pub trait IntNdArrayElement: NdArrayElement + core::ops::Rem<Output = Self> + Signed {}
+
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
     Element
@@ -48,6 +50,9 @@ impl QuantElement for i8 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
+
+impl IntNdArrayElement for i64 {}
+impl IntNdArrayElement for i32 {}
 
 macro_rules! make_elem {
     (

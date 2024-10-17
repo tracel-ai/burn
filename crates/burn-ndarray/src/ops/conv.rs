@@ -11,7 +11,7 @@ use ndarray::{
 };
 
 use crate::{
-    element::{FloatNdArrayElement, QuantElement},
+    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
     ops::padding::{apply_padding_4d, apply_padding_5d},
     sharing::UnsafeSharedRef,
     tensor::NdArrayTensor,
@@ -98,7 +98,7 @@ fn conv3d_mad_inner<E: FloatNdArrayElement>(
     }
 }
 
-pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
+pub(crate) fn conv2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E>,
     weight: NdArrayTensor<E>,
     bias: Option<NdArrayTensor<E>>,
@@ -126,7 +126,7 @@ pub(crate) fn conv2d<E: FloatNdArrayElement, Q: QuantElement>(
         in_width,
     );
 
-    let x = apply_padding_4d::<E, Q>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_4d::<E, I, Q>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
@@ -310,7 +310,7 @@ pub(crate) fn conv_transpose2d<E: FloatNdArrayElement>(
     NdArrayTensor::new(output.into_dyn().into_shared())
 }
 
-pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
+pub(crate) fn conv3d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
     x: NdArrayTensor<E>,
     weight: NdArrayTensor<E>,
     bias: Option<NdArrayTensor<E>>,
@@ -345,7 +345,7 @@ pub(crate) fn conv3d<E: FloatNdArrayElement, Q: QuantElement>(
         in_width,
     );
 
-    let x = apply_padding_5d::<E, Q>(x, options.padding, 0i32.elem()).array;
+    let x = apply_padding_5d::<E, I, Q>(x, options.padding, 0i32.elem()).array;
 
     // Convert inputs from dynamic indexes to static to improve perf.
     let x = x.into_dimensionality::<ndarray::Ix5>().unwrap();

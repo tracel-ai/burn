@@ -31,7 +31,7 @@ template = []
 burn-common = { path = "../burn-common", version = "0.15.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
-  "cubecl",
+  "cubecl", "repr",
 ] }
 cubecl = { workspace = true, features = ["linalg"] }
 
