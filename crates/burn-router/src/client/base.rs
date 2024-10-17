@@ -30,6 +30,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Create a new [RouterTensor] with no resources associated.
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
+    /// Create a new float [RouterTensor] with no resources associated.
+    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
     /// Drop the tensor with the given [tensor id](TensorId).

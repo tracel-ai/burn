@@ -2,14 +2,15 @@ use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 
 use burn_tensor::{
-    backend::SyncType,
+    backend::{Backend, BackendBridge, SyncType},
+    ops::FullPrecisionBackend,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
         HandleContainer, IntOperationDescription, ModuleOperationDescription,
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId, TensorStatus,
     },
-    DType, ElementConversion, Shape, TensorData,
+    DType, Element, ElementConversion, Shape, TensorData,
 };
 
 use super::{RouterTensor, RunnerClient};
@@ -51,7 +52,12 @@ pub struct Runner<B: ReprBackend> {
     device: B::Device,
 }
 
-impl<B: ReprBackend> Runner<B> {
+impl<B: ReprBackend> Runner<B>
+where
+    // Restrict full precision backend handle to be the same
+    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
+        ReprBackend<Handle = B::Handle>,
+{
     pub(crate) fn new(device: B::Device) -> Self {
         Self {
             context: Arc::new(Mutex::new(RunnerContext {
@@ -129,9 +135,27 @@ impl<B: ReprBackend> Runner<B> {
             dtype,
         }
     }
+
+    pub(crate) fn register_float_tensor_desc(
+        &self,
+        shape: Vec<usize>,
+        full_precision: bool,
+    ) -> TensorDescription {
+        let dtype = if full_precision {
+            <FullPrecisionBackend<B> as Backend>::FloatElem::dtype()
+        } else {
+            B::FloatElem::dtype()
+        };
+        self.register_empty_tensor_desc(shape, dtype)
+    }
 }
 
-impl<B: ReprBackend> RunnerClient for Runner<B> {
+impl<B: ReprBackend> RunnerClient for Runner<B>
+where
+    // Restrict full precision backend handle to be the same
+    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
+        ReprBackend<Handle = B::Handle>,
+{
     type Device = B::Device;
 
     /// Execute a tensor operation.
@@ -207,7 +231,26 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let output = B::float_cat(tensors, desc.dim);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cast(_) => unreachable!(),
+                BaseOperationDescription::Cast(desc) => {
+                    let input_dtype = desc.input.dtype;
+                    let out_dtype = desc.out.dtype;
+                    let float_dtype = B::FloatElem::dtype();
+                    let full_dtype = <FullPrecisionBackend<B> as Backend>::FloatElem::dtype();
+
+                    if input_dtype == float_dtype && out_dtype == full_dtype {
+                        let tensor = handles.get_float_tensor::<B>(&desc.input);
+                        let output = B::float_into_full_precision(tensor);
+                        handles
+                            .register_float_tensor::<FullPrecisionBackend<B>>(&desc.out.id, output);
+                    } else if input_dtype == full_dtype && out_dtype == float_dtype {
+                        let tensor =
+                            handles.get_float_tensor::<FullPrecisionBackend<B>>(&desc.input);
+                        let output = B::float_from_full_precision(tensor);
+                        handles.register_float_tensor::<B>(&desc.out.id, output);
+                    } else {
+                        unimplemented!() // only cast to and from full precision
+                    }
+                }
                 BaseOperationDescription::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_empty(shape, &self.device);
@@ -1166,6 +1209,11 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self> {
         let desc = self.register_empty_tensor_desc(shape, dtype);
+        RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+    }
+
+    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+        let desc = self.register_float_tensor_desc(shape, full_precision);
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 

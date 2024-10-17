@@ -2,7 +2,7 @@ use alloc::{format, string::String, sync::Arc, vec::Vec};
 use core::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps, SyncType},
+    backend::{Backend, BackendBridge, DeviceId, DeviceOps, SyncType},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
     DType, TensorData,
 };
@@ -30,6 +30,11 @@ where
     B1: ReprBackend,
     B2: ReprBackend,
     Br: MultiBackendBridge<TensorHandle = TensorHandle2<B1, B2>, Device = MultiDevice2<B1, B2>>,
+    // Restrict full precision backend handle to be the same
+    <<B1 as Backend>::FullPrecisionBridge as BackendBridge<B1>>::Target:
+        ReprBackend<Handle = B1::Handle>,
+    <<B2 as Backend>::FullPrecisionBridge as BackendBridge<B2>>::Target:
+        ReprBackend<Handle = B2::Handle>,
 {
     type Device = Br::Device;
 
@@ -144,7 +149,13 @@ pub enum MultiRunnerClient2<B1: ReprBackend, B2: ReprBackend> {
     RunnerClient2(Runner<B2>),
 }
 
-impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B2> {
+impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B2>
+where
+    <<B1 as Backend>::FullPrecisionBridge as BackendBridge<B1>>::Target:
+        ReprBackend<Handle = B1::Handle>,
+    <<B2 as Backend>::FullPrecisionBridge as BackendBridge<B2>>::Target:
+        ReprBackend<Handle = B2::Handle>,
+{
     type Device = MultiDevice2<B1, B2>;
 
     fn register(&self, op: OperationDescription) {
@@ -182,6 +193,19 @@ impl<B1: ReprBackend, B2: ReprBackend> RunnerClient for MultiRunnerClient2<B1, B
             }
             MultiRunnerClient2::RunnerClient2(runner) => {
                 let desc = runner.register_empty_tensor_desc(shape, dtype);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+            }
+        }
+    }
+
+    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => {
+                let desc = runner.register_float_tensor_desc(shape, full_precision);
+                RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
+            }
+            MultiRunnerClient2::RunnerClient2(runner) => {
+                let desc = runner.register_float_tensor_desc(shape, full_precision);
                 RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
             }
         }
