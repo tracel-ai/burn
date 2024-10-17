@@ -1,4 +1,4 @@
-use crate::element::{FloatNdArrayElement, QuantElement};
+use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::PrecisionBridge;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
@@ -38,20 +38,21 @@ impl Default for NdArrayDevice {
 /// This backend is compatible with CPUs and can be compiled for almost any platform, including
 /// `wasm`, `arm`, and `x86`.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct NdArray<E = f32, Q = i8> {
+pub struct NdArray<E = f32, I = i64, Q = i8> {
     _e: PhantomData<E>,
+    _i: PhantomData<I>,
     _q: PhantomData<Q>,
 }
 
-impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q> {
     type Device = NdArrayDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
     type FloatTensorPrimitive = NdArrayTensor<E>;
     type FloatElem = E;
 
-    type IntTensorPrimitive = NdArrayTensor<i64>;
-    type IntElem = i64;
+    type IntTensorPrimitive = NdArrayTensor<I>;
+    type IntElem = I;
 
     type BoolTensorPrimitive = NdArrayTensor<bool>;
 
@@ -73,7 +74,9 @@ impl<E: FloatNdArrayElement, Q: QuantElement> Backend for NdArray<E, Q> {
     }
 }
 
-impl<E: FloatNdArrayElement, Q: QuantElement> ReprBackend for NdArray<E, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
+    for NdArray<E, I, Q>
+{
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

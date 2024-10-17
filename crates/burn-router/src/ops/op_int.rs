@@ -16,7 +16,7 @@ use burn_tensor::repr::{
     SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
     UnaryOperationDescription,
 };
-use burn_tensor::{DType, Device, Distribution, Element, Shape, TensorData};
+use burn_tensor::{DType, Device, Distribution, Element, ElementConversion, Shape, TensorData};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
@@ -162,7 +162,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let desc = MaskFillOperationDescription {
             tensor: tensor.into_description(),
             mask: mask.into_description(),
-            value,
+            value: value.elem(),
             out: out.to_description_out(),
         };
 
@@ -327,7 +327,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -366,7 +366,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -405,7 +405,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -444,7 +444,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -483,7 +483,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -521,7 +521,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -559,7 +559,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -597,7 +597,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -635,7 +635,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -654,7 +654,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ScalarOperationDescription {
             lhs: lhs.into_description(),
-            rhs,
+            rhs: rhs.elem(),
             out: out.to_description_out(),
         };
 
@@ -864,8 +864,8 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let desc = ClampOperationDescription {
             tensor: tensor.into_description(),
-            min,
-            max,
+            min: min.elem(),
+            max: max.elem(),
             out: out.to_description_out(),
         };
 

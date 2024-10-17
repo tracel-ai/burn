@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use burn_tensor::{backend::DeviceOps, repr::TensorDescription, DType};
+use burn_tensor::{backend::DeviceOps, repr::TensorDescription, DType, Element};
 
 use crate::{get_client, MultiBackendBridge, RouterTensor, RunnerClient};
 
@@ -14,6 +14,10 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type Bridge: MultiBackendBridge<Device = Self::Device>;
     /// Client type.
     type Client: RunnerClient<Device = Self::Device>;
+    /// Float element type.
+    type FloatElem: Element;
+    /// Int element type.
+    type IntElem: Element;
 
     /// Name of the channel.
     fn name() -> String;

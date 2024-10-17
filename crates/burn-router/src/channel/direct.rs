@@ -28,7 +28,7 @@ impl<Backends, Bridge> Clone for DirectChannel<Backends, Bridge> {
 impl<B1, B2, Br> RunnerChannel for DirectChannel<(B1, B2), Br>
 where
     B1: ReprBackend,
-    B2: ReprBackend,
+    B2: ReprBackend<FloatElem = B1::FloatElem, IntElem = B1::IntElem>,
     Br: MultiBackendBridge<TensorHandle = TensorHandle2<B1, B2>, Device = MultiDevice2<B1, B2>>,
     // Restrict full precision backend handle to be the same
     <<B1 as Backend>::FullPrecisionBridge as BackendBridge<B1>>::Target:
@@ -39,6 +39,9 @@ where
     type Device = Br::Device;
 
     type Bridge = Br;
+
+    type FloatElem = B1::FloatElem;
+    type IntElem = B1::IntElem;
 
     type Client = MultiRunnerClient2<B1, B2>;
 

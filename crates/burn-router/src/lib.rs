@@ -32,13 +32,14 @@ mod tests {
 
     type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
 
-    type TestBackendNdArray = burn_ndarray::NdArray<f32>;
-    type TestBackendWgpu = burn_wgpu::Wgpu<f32, i32>;
-    type TestBackend = BackendRouter<DirectByteChannel<(TestBackendNdArray, TestBackendWgpu)>>;
+    pub type TestBackend1 = burn_ndarray::NdArray<f32, i32>;
+    pub type TestBackend2 = burn_wgpu::Wgpu<f32, i32>;
+    pub type TestBackend = BackendRouter<DirectByteChannel<(TestBackend1, TestBackend2)>>;
 
-    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+    pub type TestTensorBool<const D: usize> =
+        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
 
     burn_tensor::testgen_all!();
     // TODO: add support for quantization

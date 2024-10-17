@@ -21,6 +21,8 @@ pub struct ByteBridge<Backends> {
 impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)> {
     type TensorHandle = TensorHandle2<B1, B2>;
     type Device = MultiDevice2<B1, B2>;
+    type FloatElem = B1::FloatElem;
+    type IntElem = B1::IntElem;
 
     fn change_backend_float(
         tensor: Self::TensorHandle,

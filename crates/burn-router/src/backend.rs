@@ -53,11 +53,11 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type FloatTensorPrimitive = RouterTensor<R::Client>;
 
     // TODO: how to set elem types?
-    type FloatElem = f32;
+    type FloatElem = R::FloatElem;
 
     type IntTensorPrimitive = RouterTensor<R::Client>;
 
-    type IntElem = i32;
+    type IntElem = R::IntElem;
 
     type BoolTensorPrimitive = RouterTensor<R::Client>;
 
