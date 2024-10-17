@@ -153,3 +153,25 @@ This can happen on platforms that don't support blocking futures like WASM.";
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use burn_tensor::{backend::Backend, Tensor};
+
+    use super::*;
+    use crate::tests::{TestBackend, TestBackend1, TestBackend2};
+
+    #[test]
+    fn should_support_dual_byte_bridge() {
+        let device1 = MultiDevice2::Device1(<TestBackend1 as Backend>::Device::default());
+        let device2 = MultiDevice2::Device2(<TestBackend2 as Backend>::Device::default());
+        let tensor1 = Tensor::<TestBackend, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device1);
+        let tensor2 = Tensor::<TestBackend, 1>::from_floats([5.0, 6.0, 7.0, 8.0], &device2);
+
+        let tensor1_2 = tensor1.clone().to_device(&device2);
+        tensor1.into_data().assert_eq(&tensor1_2.into_data(), true);
+
+        let tensor2_1 = tensor2.clone().to_device(&device1);
+        tensor2.into_data().assert_eq(&tensor2_1.into_data(), true);
+    }
+}
