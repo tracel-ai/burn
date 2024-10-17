@@ -1,4 +1,4 @@
-use burn_tensor::{backend::DeviceOps, Element, Shape};
+use burn_tensor::{backend::DeviceOps, Shape};
 
 /// Allows tensors to be transferred between multiple backends.
 pub trait MultiBackendBridge: Send + Sync + 'static {
@@ -6,10 +6,6 @@ pub trait MultiBackendBridge: Send + Sync + 'static {
     type TensorHandle;
     /// Device type used by the backends.
     type Device: DeviceOps;
-    /// Float element type.
-    type FloatElem: Element;
-    /// Int element type.
-    type IntElem: Element;
 
     /// Change the backend of the given float tensor.
     fn change_backend_float(
