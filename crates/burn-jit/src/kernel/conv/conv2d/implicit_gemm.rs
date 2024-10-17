@@ -1,5 +1,5 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions, FloatTensorOps},
+    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
 use cmma::{Matrix, MatrixIdent, MatrixLayout};
@@ -8,9 +8,12 @@ use half::f16;
 
 use crate::{
     kernel::{into_contiguous, slice},
-    ops::{numeric::empty_device, permute, reshape},
+    ops::{
+        numeric::{empty_device, zeros_device},
+        permute,
+    },
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, IntElement, JitRuntime,
 };
 
 /// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
@@ -20,6 +23,7 @@ use crate::{
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
+#[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     input: JitTensor<R, F>,
     weight: JitTensor<R, F>,
@@ -78,6 +82,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 
     let input_tile_size = cmma_m * cmma_k;
     let weight_tile_size = cmma_k * cmma_n;
+    let acc_tile_size = cmma_m * cmma_n;
 
     let warp_size = 32;
     let warps_per_cube = (cube_dim_y * cube_dim_x) / warp_size;
@@ -90,6 +95,13 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let weight_elems_per_thread = weight_tile_size / warp_size;
     let weight_vectorization =
         find_common_vec(in_channels, weight_elems_per_thread, supported_vecs);
+    let bias_elems_per_thread = acc_tile_size / warp_size;
+    let bias_vectorization = find_common_vec(out_channels, bias_elems_per_thread, supported_vecs);
+
+    let has_bias = bias.is_some();
+    let bias = bias.unwrap_or_else(|| {
+        zeros_device(input.client.clone(), input.device.clone(), Shape::new([1]))
+    });
 
     let settings = GemmSettings {
         cmma_m,
@@ -126,6 +138,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         cube_dim,
         input.as_tensor_arg(input_vectorization),
         weight.as_tensor_arg(weight_vectorization),
+        bias.as_tensor_arg(bias_vectorization),
         out.as_tensor_arg(1),
         DimensionsLaunch::new(
             ScalarArg::new(gemm_m),
@@ -152,15 +165,11 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             padding_h: options.padding[0] as i32,
             padding_w: options.padding[1] as i32,
             aligned,
+            has_bias,
         },
     );
 
-    let mut out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
-
-    if let Some(bias) = bias {
-        let bias = reshape(bias, Shape::new([1, 1, 1, out_channels]));
-        out = JitBackend::<R, F, I>::float_add(out, bias);
-    }
+    let out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
     permute(out, &[0, 3, 1, 2])
@@ -224,6 +233,7 @@ struct ConvSettings {
     padding_h: i32,
     padding_w: i32,
     aligned: bool,
+    has_bias: bool,
 }
 
 #[derive(Clone, Copy, CubeType)]
@@ -247,12 +257,15 @@ struct Matrices<F: Float, FAcc: Float> {
 fn implicit_gemm_kernel<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     weight: &Tensor<Line<F>>,
+    bias: &Tensor<Line<F>>,
     out: &mut Tensor<F>,
     dims: &Dimensions,
     args: &ConvArgs,
     #[comptime] gemm_settings: GemmSettings,
-    #[comptime] kernel_settings: ConvSettings,
+    #[comptime] conv_settings: ConvSettings,
 ) {
+    let _ = bias[0];
+
     let GemmSettings {
         cmma_m,
         cmma_n,
@@ -283,10 +296,11 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
     let out_pos = pos.global_n + pos.global_m * dims.gemm_n;
     let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
-    if kernel_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
+    if conv_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
         execute_gemm(
             input,
             weight,
+            bias,
             out,
             input_tile,
             weight_tile,
@@ -294,7 +308,7 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
             &pos,
             args,
             gemm_settings,
-            kernel_settings,
+            conv_settings,
         );
     }
 }
@@ -330,6 +344,7 @@ fn calculate_positions(#[comptime] gemm_settings: GemmSettings) -> Positions {
 #[cube]
 fn make_matrices<F: Float, FAcc: Float>(
     #[comptime] gemm_settings: GemmSettings,
+    #[comptime] has_bias: bool,
 ) -> Matrices<F, FAcc> {
     let GemmSettings {
         cmma_m,
@@ -337,6 +352,27 @@ fn make_matrices<F: Float, FAcc: Float>(
         cmma_k,
         ..
     } = gemm_settings;
+
+    let acc = if has_bias {
+        unsafe {
+            Matrix::<FAcc>::uninitialized(
+                MatrixIdent::Accumulator,
+                cmma_m,
+                cmma_n,
+                cmma_k,
+                MatrixLayout::Undefined,
+            )
+        }
+    } else {
+        Matrix::<FAcc>::from_value(
+            MatrixIdent::Accumulator,
+            cmma_m,
+            cmma_n,
+            cmma_k,
+            MatrixLayout::Undefined,
+            FAcc::new(0.0),
+        )
+    };
 
     Matrices::<F, FAcc> {
         a: unsafe {
@@ -357,14 +393,7 @@ fn make_matrices<F: Float, FAcc: Float>(
                 MatrixLayout::ColMajor,
             )
         },
-        acc: Matrix::<FAcc>::from_value(
-            MatrixIdent::Accumulator,
-            cmma_m,
-            cmma_n,
-            cmma_k,
-            MatrixLayout::Undefined,
-            FAcc::new(0.0),
-        ),
+        acc,
     }
 }
 
@@ -372,6 +401,7 @@ fn make_matrices<F: Float, FAcc: Float>(
 fn execute_gemm<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     weight: &Tensor<Line<F>>,
+    bias: &Tensor<Line<F>>,
     out: &mut SliceMut<F>,
     input_tile: &mut SliceMut<FMat>,
     weight_tile: &mut SliceMut<FMat>,
@@ -381,9 +411,21 @@ fn execute_gemm<F: Float, FMat: Float>(
     #[comptime] g_settings: GemmSettings,
     #[comptime] k_settings: ConvSettings,
 ) {
-    let GemmSettings { cmma_n, cmma_k, .. } = g_settings;
+    let GemmSettings {
+        cmma_m,
+        cmma_n,
+        cmma_k,
+        warps_per_cube,
+        ..
+    } = g_settings;
+    let has_bias = k_settings.has_bias;
 
-    let matrices = make_matrices::<FMat, F>(g_settings);
+    let matrices = make_matrices::<FMat, F>(g_settings, has_bias);
+    if has_bias {
+        let mut smem_bias = SharedMemory::new(cmma_m * cmma_n * warps_per_cube);
+        load_bias_tile(bias, &mut smem_bias, pos, g_settings);
+        cmma::load(&matrices.acc, smem_bias.as_slice(), cmma_n);
+    }
 
     // Loop over the K-dimension
     for k in range_stepped(0, dims.gemm_k, cmma_k) {
@@ -560,6 +602,40 @@ fn load_weight_tile<F: Float, FMat: Float>(
         #[unroll]
         for i in 0..vec {
             tile[n + i] = value[i];
+        }
+    }
+}
+
+#[cube]
+fn load_bias_tile<F: Float>(
+    bias: &Tensor<Line<F>>,
+    tile: &mut SharedMemory<F>,
+    pos: &Positions,
+    #[comptime] gemm_settings: GemmSettings,
+) {
+    let GemmSettings {
+        cmma_n,
+        cmma_m,
+        warp_size,
+        ..
+    } = gemm_settings;
+
+    let vec = vectorization_of(bias);
+    let cmma_acc_tile_size = cmma_m * cmma_n;
+    let elems_per_thread = cmma_acc_tile_size / warp_size;
+    let start = pos.intra_warp_unit_idx * elems_per_thread;
+    let bias_tile_start = pos.cube_linear_warp_idx * cmma_acc_tile_size;
+
+    #[unroll]
+    for n in range_stepped(0, elems_per_thread, vec) {
+        let n = n + start;
+
+        let row = n % cmma_n + pos.global_n;
+        let value = bias[row / vec];
+
+        #[unroll]
+        for i in 0..vec {
+            tile[bias_tile_start + n + i] = value[i];
         }
     }
 }

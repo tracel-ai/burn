@@ -504,7 +504,10 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            let data = output.into_data();
+            println!("data: {data}");
+
+            y.to_data().assert_approx_eq(&data, 3);
         }
     }
 }
