@@ -333,6 +333,19 @@ where
         })
     }
 
+    fn float_round(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // wait until cubecl-core/src/frontend/container/line/ops.rs exposes Round, Floor & Ceil
+        todo!()
+    }
+
+    fn float_floor(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
+
+    fn float_ceil(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
