@@ -2,7 +2,7 @@ use alloc::{format, string::String, sync::Arc, vec::Vec};
 use core::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, BackendBridge, DeviceId, DeviceOps, SyncType},
+    backend::{Backend, BackendBridge, DeviceId, DeviceOps},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
     DType, TensorData,
 };
@@ -225,10 +225,10 @@ where
         }
     }
 
-    fn sync(&self, sync_type: SyncType) {
+    fn sync(&self) {
         match self {
-            MultiRunnerClient2::RunnerClient1(runner) => runner.sync(sync_type),
-            MultiRunnerClient2::RunnerClient2(runner) => runner.sync(sync_type),
+            MultiRunnerClient2::RunnerClient1(runner) => runner.sync(),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.sync(),
         }
     }
 }

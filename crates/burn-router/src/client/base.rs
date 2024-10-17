@@ -5,7 +5,7 @@ use hashbrown::HashMap;
 use spin::Mutex;
 
 use burn_tensor::{
-    backend::{DeviceId, DeviceOps, SyncType},
+    backend::{DeviceId, DeviceOps},
     repr::{OperationDescription, TensorDescription, TensorId},
     DType, TensorData,
 };
@@ -37,7 +37,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self, sync_type: SyncType);
+    fn sync(&self);
 }
 
 pub(crate) struct RunnerClientLocator {

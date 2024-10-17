@@ -2,7 +2,7 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, BackendBridge, SyncType},
+    backend::{Backend, BackendBridge},
     ops::FloatTensor,
     quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
     repr::{BaseOperationDescription, OperationDescription, UnaryOperationDescription},
@@ -73,9 +73,9 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         todo!()
     }
 
-    fn sync(device: &Self::Device, sync_type: SyncType) {
+    fn sync(device: &Self::Device) {
         let client = get_client::<R>(device);
-        client.sync(sync_type);
+        client.sync();
     }
 }
 

@@ -2,7 +2,7 @@ use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 
 use burn_tensor::{
-    backend::{Backend, BackendBridge, SyncType},
+    backend::{Backend, BackendBridge},
     ops::FullPrecisionBackend,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
@@ -1225,7 +1225,7 @@ where
         self.context.lock().drop_tensor_handle(*id)
     }
 
-    fn sync(&self, sync_type: SyncType) {
-        B::sync(&self.device, sync_type);
+    fn sync(&self) {
+        B::sync(&self.device);
     }
 }

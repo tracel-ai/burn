@@ -2,10 +2,7 @@ use backend_comparison::persistence::save;
 use burn::tensor::{
     backend::Backend, module::conv2d, ops::ConvOptions, Distribution, Shape, Tensor,
 };
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct Conv2dBenchmark<B: Backend> {
     input_shape: Shape,
@@ -51,7 +48,7 @@ impl<B: Backend> Benchmark for Conv2dBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 

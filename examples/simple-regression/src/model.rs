@@ -50,7 +50,7 @@ impl<B: Backend> RegressionModel<B> {
     }
 
     pub fn forward_step(&self, item: DiabetesBatch<B>) -> RegressionOutput<B> {
-        let targets: Tensor<B, 2> = item.targets.unsqueeze();
+        let targets: Tensor<B, 2> = item.targets.unsqueeze_dim(1);
         let output: Tensor<B, 2> = self.forward(item.inputs);
 
         let loss = MseLoss::new().forward(output.clone(), targets.clone(), Mean);
