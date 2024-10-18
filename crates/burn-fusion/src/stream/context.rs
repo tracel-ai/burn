@@ -520,6 +520,24 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            FloatOperationDescription::Round(desc) => {
+                FloatOperationDescription::Round(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            FloatOperationDescription::Floor(desc) => {
+                FloatOperationDescription::Floor(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            FloatOperationDescription::Ceil(desc) => {
+                FloatOperationDescription::Ceil(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

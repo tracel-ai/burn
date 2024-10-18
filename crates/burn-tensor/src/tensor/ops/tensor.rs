@@ -931,6 +931,39 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` with tangent values.
     fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
+    /// Returns a new tensor with rounded values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be rounded.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with rounded values.
+    fn float_round(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with floored values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be floored.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with floored values.
+    fn float_floor(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with ceiled values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be ceiled.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with ceiled values.
+    fn float_ceil(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
     /// Returns a new tensor with the error function values.
     ///
     /// # Arguments
