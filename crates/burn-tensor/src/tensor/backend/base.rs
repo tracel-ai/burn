@@ -59,8 +59,8 @@ pub trait Backend:
     + ActivationOps<Self>
     + QTensorOps<Self>
     + Clone
-    + Sized
     + Default
+    + Sized
     + Send
     + Sync
     + core::fmt::Debug

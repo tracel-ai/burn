@@ -261,10 +261,10 @@ where
         }
     }
 
-    pub fn gather(
+    pub fn gather<I: NdArrayElement>(
         dim: usize,
         mut tensor: NdArrayTensor<E>,
-        mut indices: NdArrayTensor<i64>,
+        mut indices: NdArrayTensor<I>,
     ) -> NdArrayTensor<E> {
         let ndims = tensor.shape().num_dims();
         if dim != ndims - 1 {
@@ -284,7 +284,7 @@ where
             let indices = indices.slice(s!(b, ..));
 
             for (i, index) in indices.iter().enumerate() {
-                output[[b, i]] = tensor[[b, *index as usize]];
+                output[[b, i]] = tensor[[b, index.elem::<i64>() as usize]];
             }
         }
 
@@ -300,10 +300,10 @@ where
         output
     }
 
-    pub fn scatter(
+    pub fn scatter<I: NdArrayElement>(
         dim: usize,
         mut tensor: NdArrayTensor<E>,
-        mut indices: NdArrayTensor<i64>,
+        mut indices: NdArrayTensor<I>,
         mut value: NdArrayTensor<E>,
     ) -> NdArrayTensor<E> {
         let ndims = tensor.shape().num_dims();
@@ -338,7 +338,7 @@ where
             let indices = indices.slice(s!(b, ..));
 
             for (i, index) in indices.iter().enumerate() {
-                let index = *index as usize;
+                let index = index.elem::<i64>() as usize;
                 tensor[[b, index]] += value[[b, i]];
             }
         }
@@ -403,33 +403,33 @@ where
         batch_size
     }
 
-    pub fn select(
+    pub fn select<I: NdArrayElement>(
         tensor: NdArrayTensor<E>,
         dim: usize,
-        indices: NdArrayTensor<i64>,
+        indices: NdArrayTensor<I>,
     ) -> NdArrayTensor<E> {
         let array = tensor.array.select(
             Axis(dim),
             &indices
                 .array
                 .into_iter()
-                .map(|i| i as usize)
+                .map(|i| i.elem::<i64>() as usize)
                 .collect::<Vec<_>>(),
         );
 
         NdArrayTensor::new(array.into_shared())
     }
 
-    pub fn select_assign(
+    pub fn select_assign<I: NdArrayElement>(
         tensor: NdArrayTensor<E>,
         dim: usize,
-        indices: NdArrayTensor<i64>,
+        indices: NdArrayTensor<I>,
         value: NdArrayTensor<E>,
     ) -> NdArrayTensor<E> {
         let mut output_array = tensor.array.into_owned();
 
         for (index_value, index) in indices.array.into_iter().enumerate() {
-            let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
+            let mut view = output_array.index_axis_mut(Axis(dim), index.elem::<i64>() as usize);
             let value = value.array.index_axis(Axis(dim), index_value);
 
             view.zip_mut_with(&value, |a, b| *a += *b);
@@ -437,11 +437,11 @@ where
 
         NdArrayTensor::new(output_array.into_shared())
     }
-    pub fn argmax(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<i64> {
+    pub fn argmax<I: NdArrayElement>(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<I> {
         arg(tensor, dim, CmpType::Max)
     }
 
-    pub fn argmin(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<i64> {
+    pub fn argmin<I: NdArrayElement>(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<I> {
         arg(tensor, dim, CmpType::Min)
     }
 
@@ -523,11 +523,11 @@ enum CmpType {
     Max,
 }
 
-fn arg<E: NdArrayElement>(
+fn arg<E: NdArrayElement, I: NdArrayElement>(
     tensor: NdArrayTensor<E>,
     dim: usize,
     cmp: CmpType,
-) -> NdArrayTensor<i64> {
+) -> NdArrayTensor<I> {
     let mut reshape = tensor.array.shape().to_vec();
     reshape[dim] = 1;
 
@@ -546,7 +546,7 @@ fn arg<E: NdArrayElement>(
             }
         });
 
-        idx as i64
+        (idx as i64).elem()
     });
 
     let output = output.to_shape(Dim(reshape.as_slice())).unwrap();

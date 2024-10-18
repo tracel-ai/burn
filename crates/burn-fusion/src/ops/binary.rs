@@ -73,16 +73,6 @@ macro_rules! binary_int_cmp_ops {
     };
 }
 
-pub(crate) fn binary_ops_shape(lhs: &[usize], rhs: &[usize]) -> Vec<usize> {
-    let mut shape_out = Vec::with_capacity(lhs.len());
-
-    for (l, r) in lhs.iter().zip(rhs.iter()) {
-        shape_out.push(usize::max(*l, *r));
-    }
-
-    shape_out
-}
-
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
 macro_rules! binary_int_ops {
