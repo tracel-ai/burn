@@ -51,7 +51,7 @@ where
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: impl AsRef<Path>) -> Self {
         let directory = directory.as_ref().to_path_buf();
-        let experiment_log_file = directory.join("experiment_test.log");
+        let experiment_log_file = directory.join("experiment.log");
         Self {
             directory,
             devices: vec![B::Device::default()],
@@ -182,7 +182,7 @@ where
 
         if self.num_loggers == 0 {
             self.event_store
-                .register_logger_train(FileMetricLogger::new(self.directory.join("test")));
+                .register_logger_train(FileMetricLogger::new(self.directory.join("train")));
         }
 
         let event_store = Rc::new(EventStoreClient::new(self.event_store));
