@@ -27,6 +27,7 @@ use crate::{
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv3d::Conv3dNode,
+            conv_transpose_1d::ConvTranspose1dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
@@ -63,13 +64,13 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
-    conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
-    hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
-    max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
-    reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
-    shape_config, slice_config, softmax_config, squeeze_config, tile_config, transpose_config,
-    trilu_config, unsqueeze_config,
+    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
+    conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
+    flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, pad_config,
+    reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+    reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
+    squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -324,6 +325,9 @@ impl ParsedOnnxGraph {
                 NodeType::Dropout => graph.register(Self::dropout_conversion(node)),
                 NodeType::GlobalAveragePool => {
                     graph.register(Self::global_avg_pool_conversion(node))
+                }
+                NodeType::ConvTranspose1d => {
+                    graph.register(Self::conv_transpose1d_conversion::<PS>(node))
                 }
                 NodeType::ConvTranspose2d => {
                     graph.register(Self::conv_transpose2d_conversion::<PS>(node))
@@ -1004,6 +1008,23 @@ impl ParsedOnnxGraph {
 
         PReluNode::new(name, input, output, weight, config)
     }
+
+    fn conv_transpose1d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose1dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = conv_transpose1d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
+        let name = &node.name;
+        ConvTranspose1dNode::new(name, input, output, weight, bias, config)
+    }
+
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
