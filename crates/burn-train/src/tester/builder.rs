@@ -74,14 +74,12 @@ where
     /// # Arguments
     ///
     /// * `logger_train` - The training logger.
-    /// * `logger_valid` - The validation logger.
-    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT, logger_valid: MV) -> Self
+    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT) -> Self
     where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
         self.event_store.register_logger_train(logger_train);
-        self.event_store.register_logger_valid(logger_valid);
         self.num_loggers += 1;
         self
     }

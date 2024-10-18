@@ -5,6 +5,8 @@ use burn_core::data::dataloader::DataLoader;
 use burn_core::module::AutodiffModule;
 use std::sync::Arc;
 
+use super::empty_data_loader::EmptyDataLoader;
+
 /// A training output.
 impl<LC: TesterComponents> Tester<LC> {
     /// Fits the model.
@@ -20,17 +22,17 @@ impl<LC: TesterComponents> Tester<LC> {
     pub fn test<InputTrain, InputValid, OutputTrain, OutputValid>(
         self,
         dataloader_train: Arc<dyn DataLoader<InputTrain>>,
-        dataloader_valid: Arc<dyn DataLoader<InputValid>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
-        InputValid: Send,
+        InputValid: Send + 'static,
         OutputTrain: Send + 'static,
         OutputValid: Send,
         LC::Model: TrainStep<InputTrain, OutputTrain>,
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        self.learner.fit(dataloader_train, dataloader_valid)
+        self.learner
+            .fit(dataloader_train, Arc::new(EmptyDataLoader {}))
     }
 }
