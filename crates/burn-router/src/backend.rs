@@ -9,9 +9,7 @@ use burn_tensor::{
     Device,
 };
 
-use crate::set_seed;
-
-use super::{get_client, RouterTensor, RunnerChannel, RunnerClient};
+use super::{get_client, set_seed, RouterTensor, RunnerChannel, RunnerClient};
 
 /// A backend that forwards the tensor operations to the appropiate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {

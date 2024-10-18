@@ -88,7 +88,9 @@ impl RunnerClientLocator {
         // Initialize the client with a seed if it was previously set.
         if clients.is_none() {
             let client = R::init_client(device);
-            get_seed().map(|seed| client.seed(seed));
+            if let Some(seed) = get_seed() {
+                client.seed(seed)
+            }
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
