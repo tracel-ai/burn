@@ -53,10 +53,14 @@ macro_rules! bench_on_backend {
         let feature_name = "tch-cpu";
         #[cfg(feature = "tch-gpu")]
         let feature_name = "tch-gpu";
-        #[cfg(feature = "wgpu")]
+        #[cfg(all(feature = "wgpu", not(feature = "wgpu-spirv")))]
         let feature_name = "wgpu";
-        #[cfg(feature = "wgpu-fusion")]
+        #[cfg(all(feature = "wgpu-fusion", not(feature = "wgpu-spirv")))]
         let feature_name = "wgpu-fusion";
+        #[cfg(feature = "wgpu-spirv")]
+        let feature_name = "wgpu-spirv";
+        #[cfg(feature = "wgpu-spirv-fusion")]
+        let feature_name = "wgpu-spirv-fusion";
         #[cfg(feature = "cuda-jit")]
         let feature_name = "cuda-jit";
         #[cfg(feature = "cuda-jit-fusion")]
@@ -66,7 +70,12 @@ macro_rules! bench_on_backend {
         {
             use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
-            bench::<Wgpu<half::f16, i32>>(&WgpuDevice::default(), feature_name, url, token);
+            #[cfg(not(feature = "wgpu-spirv"))]
+            type Float = f32;
+            #[cfg(feature = "wgpu-spirv")]
+            type Float = half::f16;
+
+            bench::<Wgpu<Float, i32>>(&WgpuDevice::default(), feature_name, url, token);
         }
 
         #[cfg(feature = "tch-gpu")]

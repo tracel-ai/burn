@@ -1416,7 +1416,6 @@ dependencies = [
  "cubecl-linalg",
  "cubecl-runtime",
  "cubecl-wgpu",
- "cubecl-wgpu-spirv",
 ]
 
 [[package]]
@@ -1514,6 +1513,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "log",
  "md5",
+ "sanitize-filename",
  "serde",
  "serde_json",
  "spin",
@@ -1536,23 +1536,7 @@ dependencies = [
 name = "cubecl-wgpu"
 version = "0.2.0"
 dependencies = [
- "async-channel",
- "bytemuck",
- "cfg_aliases 0.2.1",
- "cubecl-common",
- "cubecl-core",
- "cubecl-runtime",
- "derive-new",
- "hashbrown 0.14.5",
- "log",
- "web-time",
- "wgpu",
-]
-
-[[package]]
-name = "cubecl-wgpu-spirv"
-version = "0.2.0"
-dependencies = [
+ "ash",
  "async-channel",
  "bytemuck",
  "cfg_aliases 0.2.1",
@@ -1560,7 +1544,6 @@ dependencies = [
  "cubecl-core",
  "cubecl-runtime",
  "cubecl-spirv",
- "cubecl-wgpu",
  "derive-new",
  "hashbrown 0.14.5",
  "log",
@@ -3738,7 +3721,6 @@ dependencies = [
  "hexf-parse",
  "indexmap 2.6.0",
  "log",
- "petgraph",
  "rustc-hash",
  "spirv",
  "termcolor",
@@ -7259,7 +7241,6 @@ dependencies = [
  "arrayvec",
  "bit-vec",
  "bitflags 2.6.0",
- "bytemuck",
  "cfg_aliases 0.1.1",
  "document-features",
  "indexmap 2.6.0",
