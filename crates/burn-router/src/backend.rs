@@ -9,6 +9,8 @@ use burn_tensor::{
     Device,
 };
 
+use crate::set_seed;
+
 use super::{get_client, RouterTensor, RunnerChannel, RunnerClient};
 
 /// A backend that forwards the tensor operations to the appropiate backend (given multiple backends).
@@ -68,8 +70,8 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         format!("router<{}>", R::name())
     }
 
-    fn seed(_seed: u64) {
-        todo!()
+    fn seed(seed: u64) {
+        set_seed(seed)
     }
 
     fn sync(device: &Self::Device) {

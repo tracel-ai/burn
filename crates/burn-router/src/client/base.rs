@@ -1,5 +1,9 @@
 use alloc::{boxed::Box, vec::Vec};
-use core::{future::Future, ops::DerefMut};
+use core::{
+    future::Future,
+    ops::DerefMut,
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+};
 use hashbrown::HashMap;
 
 use spin::Mutex;
@@ -15,6 +19,8 @@ use crate::{RouterTensor, RunnerChannel};
 /// Type alias for `<R as RunnerChannel>::Client`.
 pub type Client<R> = <R as RunnerChannel>::Client;
 pub(crate) static CLIENTS: RunnerClientLocator = RunnerClientLocator::new();
+static SEED_SET: AtomicBool = AtomicBool::new(false);
+static SEED: AtomicU64 = AtomicU64::new(0);
 type Key = (core::any::TypeId, DeviceId);
 
 /// Define how to interact with the runner.
@@ -38,6 +44,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
     fn sync(&self);
+    /// Seed the runner.
+    fn seed(&self, seed: u64);
 }
 
 pub(crate) struct RunnerClientLocator {
@@ -46,6 +54,19 @@ pub(crate) struct RunnerClientLocator {
 
 pub(crate) fn get_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
     CLIENTS.client::<R>(device)
+}
+
+pub(crate) fn set_seed(seed: u64) {
+    SEED_SET.store(true, Ordering::Relaxed);
+    SEED.store(seed, Ordering::Relaxed);
+}
+
+fn get_seed() -> Option<u64> {
+    if SEED_SET.load(Ordering::Relaxed) {
+        Some(SEED.load(Ordering::Relaxed))
+    } else {
+        None
+    }
 }
 
 impl RunnerClientLocator {
@@ -64,8 +85,10 @@ impl RunnerClientLocator {
         let client_id = (core::any::TypeId::of::<R>(), device_id);
         let mut clients = self.clients.lock();
 
+        // Initialize the client with a seed if it was previously set.
         if clients.is_none() {
             let client = R::init_client(device);
+            get_seed().map(|seed| client.seed(seed));
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 

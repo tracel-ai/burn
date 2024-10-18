@@ -238,6 +238,13 @@ where
             MultiRunnerClient2::RunnerClient2(runner) => runner.sync(),
         }
     }
+
+    fn seed(&self, seed: u64) {
+        match self {
+            MultiRunnerClient2::RunnerClient1(runner) => runner.seed(seed),
+            MultiRunnerClient2::RunnerClient2(runner) => runner.seed(seed),
+        }
+    }
 }
 
 // NOTE: conflicting implementations because B1 and B2 cannot be differentiated (could be the same type)

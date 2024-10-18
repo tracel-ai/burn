@@ -1215,4 +1215,8 @@ where
     fn sync(&self) {
         B::sync(&self.device);
     }
+
+    fn seed(&self, seed: u64) {
+        B::seed(seed)
+    }
 }
