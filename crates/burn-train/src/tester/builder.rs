@@ -18,7 +18,7 @@ use burn_core::module::AutodiffModule;
 use burn_core::optim::AdamConfig;
 use burn_core::tensor::backend::AutodiffBackend;
 
-/// Struct to configure and create a [learner](Learner).
+/// Struct to configure and create a [tester](Tester).
 pub struct TesterBuilder<B, T, V>
 where
     T: Send + 'static,
@@ -73,13 +73,13 @@ where
     ///
     /// # Arguments
     ///
-    /// * `logger_train` - The training logger.
-    pub fn metric_loggers<MT, MV>(mut self, logger_train: MT) -> Self
+    /// * `logger` - The testing logger.
+    pub fn metric_loggers<MT, MV>(mut self, logger: MT) -> Self
     where
         MT: MetricLogger + 'static,
         MV: MetricLogger + 'static,
     {
-        self.event_store.register_logger_train(logger_train);
+        self.event_store.register_logger_train(logger);
         self.num_loggers += 1;
         self
     }
@@ -97,8 +97,8 @@ where
         self
     }
 
-    /// Register a training metric.
-    pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a testing metric.
+    pub fn metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         T: Adaptor<Me::Input>,
     {
@@ -106,8 +106,8 @@ where
         self
     }
 
-    /// Register a [numeric](crate::metric_test::Numeric) training [metric](Metric).
-    pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric_test::Numeric) [metric](Metric).
+    pub fn metric_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + crate::metric::Numeric + 'static,
         T: Adaptor<Me::Input>,
@@ -117,18 +117,18 @@ where
         self
     }
 
-    /// Run the training loop on multiple devices.
+    /// Run testing on multiple devices.
     pub fn devices(mut self, devices: Vec<B::Device>) -> Self {
         self.devices = devices;
         self
     }
 
-    /// Provides a handle that can be used to interrupt training.
+    /// Provides a handle that can be used to interrupt testing.
     pub fn interrupter(&self) -> TrainingInterrupter {
         self.interrupter.clone()
     }
 
-    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
+    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the testing when the
     /// conditions are meet.
     pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
     where
@@ -149,7 +149,7 @@ where
         self
     }
 
-    /// Enable the training summary report.
+    /// Enable the testing summary report.
     ///
     /// The summary will be displayed at the end of `.fit()`.
     pub fn summary(mut self) -> Self {

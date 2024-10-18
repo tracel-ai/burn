@@ -7,21 +7,20 @@ use std::sync::Arc;
 
 use super::empty_data_loader::EmptyDataLoader;
 
-/// A training output.
+/// A testing output.
 impl<LC: TesterComponents> Tester<LC> {
-    /// Fits the model.
+    /// Tests the model.
     ///
     /// # Arguments
     ///
-    /// * `dataloader_train` - The training dataloader.
-    /// * `dataloader_valid` - The validation dataloader.
+    /// * `dataloader` - The testing dataloader.
     ///
     /// # Returns
     ///
-    /// The fitted model.
+    /// The tested model.
     pub fn test<InputTrain, InputValid, OutputTrain, OutputValid>(
         self,
-        dataloader_train: Arc<dyn DataLoader<InputTrain>>,
+        dataloader: Arc<dyn DataLoader<InputTrain>>,
     ) -> LC::Model
     where
         InputTrain: Send + 'static,
@@ -32,7 +31,6 @@ impl<LC: TesterComponents> Tester<LC> {
         <LC::Model as AutodiffModule<LC::Backend>>::InnerModule: ValidStep<InputValid, OutputValid>,
         LC::EventProcessor: EventProcessor<ItemTrain = OutputTrain, ItemValid = OutputValid>,
     {
-        self.learner
-            .fit(dataloader_train, Arc::new(EmptyDataLoader {}))
+        self.learner.fit(dataloader, Arc::new(EmptyDataLoader {}))
     }
 }

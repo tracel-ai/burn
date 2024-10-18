@@ -7,9 +7,9 @@ use burn_core::optim::Adam;
 use burn_core::record::{DefaultFileRecorder, FullPrecisionSettings};
 use burn_core::tensor::backend::AutodiffBackend;
 
-/// Learner struct encapsulating all components necessary to train a Neural Network model.
+/// Tester struct which tests a Neural Network model.
 ///
-/// To create a learner, use the [builder](crate::tester::LearnerBuilder) struct.
+/// To create a tester, use the [builder](crate::tester::TesterBuilder) struct.
 pub struct Tester<TC: TesterComponents> {
     pub(crate) learner: Learner<
         LearnerComponentsMarker<
