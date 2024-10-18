@@ -81,10 +81,14 @@ where
                 TensorHandle2::Handle1(handle) => {
                     runner.register_tensor(handle, shape, dtype, client.clone())
                 }
-                TensorHandle2::Handle2(_) => unreachable!(),
+                TensorHandle2::Handle2(_) => {
+                    unreachable!("Can't register tensor handle for another backend.")
+                }
             },
             MultiRunnerClient2::RunnerClient2(runner) => match handle {
-                TensorHandle2::Handle1(_) => unreachable!(),
+                TensorHandle2::Handle1(_) => {
+                    unreachable!("Can't register tensor handle for another backend.")
+                }
                 TensorHandle2::Handle2(handle) => {
                     runner.register_tensor(handle, shape, dtype, client.clone())
                 }
