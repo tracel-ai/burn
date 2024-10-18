@@ -90,7 +90,7 @@ impl Book {
     fn build(&self) -> anyhow::Result<()> {
         run_process(
             "mdbook",
-            &vec!["build"],
+            &["build"],
             None,
             Some(self.path),
             "mdbook should build the book successfully",
@@ -100,7 +100,7 @@ impl Book {
     fn open(&self, args: &OpenArgs) -> anyhow::Result<()> {
         run_process(
             "mdbook",
-            &vec!["serve", "--open", "--port", &args.port.to_string()],
+            &["serve", "--open", "--port", &args.port.to_string()],
             None,
             Some(self.path),
             "mdbook should open the book successfully",
