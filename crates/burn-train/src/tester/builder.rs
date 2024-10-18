@@ -51,7 +51,7 @@ where
     /// * `directory` - The directory to save the checkpoints.
     pub fn new(directory: impl AsRef<Path>) -> Self {
         let directory = directory.as_ref().to_path_buf();
-        let experiment_log_file = directory.join("experiment.log");
+        let experiment_log_file = directory.join("experiment_test.log");
         Self {
             directory,
             devices: vec![B::Device::default()],
