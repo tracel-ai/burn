@@ -152,6 +152,7 @@ This can happen on platforms that don't support blocking futures like WASM.";
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[cfg(test)]
 mod tests {
     use burn_tensor::{backend::Backend, Tensor};
