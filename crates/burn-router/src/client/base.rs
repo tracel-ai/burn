@@ -69,6 +69,17 @@ fn get_seed() -> Option<u64> {
     }
 }
 
+/// Initialize a new client for the given device.
+///
+/// If a (global) seed was previously set, the client seed is set.
+fn new_client<R: RunnerChannel>(device: &R::Device) -> Client<R> {
+    let client = R::init_client(device);
+    if let Some(seed) = get_seed() {
+        client.seed(seed)
+    }
+    client
+}
+
 impl RunnerClientLocator {
     /// Create a new client locator.
     pub const fn new() -> Self {
@@ -85,12 +96,8 @@ impl RunnerClientLocator {
         let client_id = (core::any::TypeId::of::<R>(), device_id);
         let mut clients = self.clients.lock();
 
-        // Initialize the client with a seed if it was previously set.
         if clients.is_none() {
-            let client = R::init_client(device);
-            if let Some(seed) = get_seed() {
-                client.seed(seed)
-            }
+            let client = new_client::<R>(device);
             Self::register_inner::<R>(client_id, client, &mut clients);
         }
 
@@ -101,7 +108,7 @@ impl RunnerClientLocator {
                     client.clone()
                 }
                 None => {
-                    let client = R::init_client(device);
+                    let client = new_client::<R>(device);
                     let any = Box::new(client.clone());
                     clients.insert(client_id, any);
                     client
