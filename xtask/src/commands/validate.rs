@@ -55,6 +55,7 @@ pub fn handle_command(
                 jobs: None,
                 command: Some(TestSubCommand::All),
                 ci: true,
+                features: None,
             },
             ExecutionEnvironment::Std,
         )?;
@@ -101,6 +102,7 @@ pub fn handle_command(
                     jobs: None,
                     command: Some(TestSubCommand::All),
                     ci: true,
+                    features: None,
                 },
                 ExecutionEnvironment::NoStd,
             )?;

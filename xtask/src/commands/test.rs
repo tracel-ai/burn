@@ -108,6 +108,7 @@ pub(crate) fn handle_command(
                         threads: args.threads,
                         jobs: args.jobs,
                         ci: args.ci,
+                        features: args.features.clone(),
                     },
                     env,
                 )
