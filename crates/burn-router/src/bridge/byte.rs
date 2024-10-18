@@ -13,11 +13,6 @@ pub struct ByteBridge<Backends> {
     backends: PhantomData<Backends>,
 }
 
-// TODO: refactor w/ visitor?
-// pub trait BackendSwitchVisitor<B1: Backend> {
-//     fn from_backend<B2: Backend>(handle: B2::FloatTensorPrimitive) -> B1::FloatTensorPrimitive;
-// }
-
 impl<B1: ReprBackend, B2: ReprBackend> MultiBackendBridge for ByteBridge<(B1, B2)> {
     type TensorHandle = TensorHandle2<B1, B2>;
     type Device = MultiDevice2<B1, B2>;

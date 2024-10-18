@@ -541,19 +541,6 @@ where
                 }
                 NumericOperationDescription::ArgMax(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmax)
-                    // let lhs = handles.get_float_tensor::<B>(&desc.lhs);
-                    // println!(
-                    //     "scalar_float2int_ops {}",
-                    //     crate::try_read_sync(B::float_into_data(lhs.clone())).unwrap()
-                    // );
-                    // let output = B::float_argmax(lhs, desc.rhs);
-                    // println!(
-                    //     "scalar_float2int_ops result {:?} {}",
-                    //     desc.out.id,
-                    //     crate::try_read_sync(B::int_into_data(output.clone())).unwrap()
-                    // );
-
-                    // handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationDescription::ArgMin(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmin)
