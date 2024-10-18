@@ -4,8 +4,8 @@ use crate::{
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
-    ops::FloatTensor,
-    repr::{OperationDescription, ReprBackend},
+    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
     Device,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -165,4 +165,44 @@ pub trait FusionBackend:
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
+}
+
+// Fusion implements `ReprBackend` to enable router backend usage.
+impl<B: FusionBackend> ReprBackend for Fusion<B> {
+    type Handle = FusionTensor<B::FusionRuntime>;
+
+    fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
+        handle.handle
+    }
+
+    fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
+        handle.handle
+    }
+
+    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
+        handle.handle
+    }
+
+    fn quantized_tensor(
+        _handles: QuantizedKind<TensorHandle<Self::Handle>>,
+        _scheme: burn_tensor::quantization::QuantizationScheme,
+    ) -> QuantizedTensor<Self> {
+        todo!() // not as simple
+    }
+
+    fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
+        todo!() // not as simple
+    }
 }
