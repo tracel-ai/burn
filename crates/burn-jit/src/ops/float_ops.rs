@@ -333,17 +333,34 @@ where
         })
     }
 
-    fn float_round(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        // wait until cubecl-core/src/frontend/container/line/ops.rs exposes Round, Floor & Ceil
-        todo!()
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::round(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
     }
 
-    fn float_floor(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        todo!()
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::floor(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
     }
 
-    fn float_ceil(_tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        todo!()
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::ceil(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
