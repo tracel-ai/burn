@@ -7,7 +7,7 @@ use core::ops::Range;
 use ndarray::{IntoDimension, Zip};
 
 // Current crate
-use crate::element::{FloatNdArrayElement, QuantElement};
+use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::NdArrayDevice;
 use crate::{tensor::NdArrayTensor, NdArray};
 
@@ -16,7 +16,9 @@ use burn_tensor::{backend::Backend, Shape, TensorData};
 
 use super::NdArrayOps;
 
-impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E, Q> {
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOps<Self>
+    for NdArray<E, I, Q>
+{
     fn bool_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
         NdArrayTensor::from_data(data)
     }
@@ -43,11 +45,11 @@ impl<E: FloatNdArrayElement, Q: QuantElement> BoolTensorOps<Self> for NdArray<E,
         NdArrayOps::slice(tensor, ranges)
     }
 
-    fn bool_into_int(tensor: NdArrayTensor<bool>) -> NdArrayTensor<i64> {
+    fn bool_into_int(tensor: NdArrayTensor<bool>) -> NdArrayTensor<I> {
         let shape = tensor.shape();
         let values = tensor.array.into_iter().collect();
-        NdArray::<E>::int_from_data(
-            TensorData::new(values, shape).convert::<i64>(),
+        NdArray::<E, I>::int_from_data(
+            TensorData::new(values, shape).convert::<I>(),
             &NdArrayDevice::Cpu,
         )
     }

@@ -203,11 +203,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(
-            mask.tensor
-                .where_cond(&value.tensor, &tensor.tensor)
-                .unwrap(),
-        )
+        super::base::mask_where_broadcasted(tensor, mask, value)
     }
 
     fn float_mask_fill(

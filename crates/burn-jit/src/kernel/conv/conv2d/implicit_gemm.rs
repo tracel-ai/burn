@@ -472,7 +472,7 @@ fn load_input_tile<F: Float, FMat: Float>(
         // Slices are always `kernel_size * channels` elements wide so we can compute where inside a slice
         // we are and also which row the slice is in relative to the start of the CMMA matrix
 
-        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is repsonsible for
+        // Actual index within a slice (0 to `kernel_size * channels - 1`) that the thread is responsible for
         let my_slice_idx = (slice_start_idx + (m % cmma_k)) % dims.slice_size;
 
         let channel = my_slice_idx % channels;

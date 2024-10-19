@@ -134,3 +134,22 @@ pub fn expand<E: CandleElement>(tensor: CandleTensor<E>, shape: Shape) -> Candle
 pub fn sign<E: CandleElement>(tensor: CandleTensor<E>) -> CandleTensor<E> {
     CandleTensor::new(tensor.tensor.sign().unwrap())
 }
+
+pub fn mask_where_broadcasted<E: CandleElement>(
+    tensor: CandleTensor<E>,
+    mask: CandleTensor<u8>,
+    value: CandleTensor<E>,
+) -> CandleTensor<E> {
+    let shape = tensor
+        .tensor
+        .shape()
+        .broadcast_shape_binary_op(mask.tensor.shape(), "where_cond")
+        .unwrap();
+
+    let mut tensor = tensor.tensor;
+    if shape != *tensor.shape() {
+        tensor = tensor.broadcast_as(shape).unwrap();
+    }
+
+    CandleTensor::new(mask.tensor.where_cond(&value.tensor, &tensor).unwrap())
+}

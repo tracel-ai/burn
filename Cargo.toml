@@ -28,9 +28,9 @@ version = "0.15.0"
 
 [workspace.dependencies]
 atomic_float = "1"
-bytemuck = "1.18.0"
+bytemuck = "1.19.0"
 candle-core = { version = "0.6.0" }
-clap = { version = "4.5.19", features = ["derive"] }
+clap = { version = "4.5.20", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.0"
@@ -94,7 +94,7 @@ zip = "2.2.0"
 
 # Async handling
 async-channel = "2.3"
-pollster = "0.3"
+futures-lite = { version = "2.3.0", default-features = false }
 
 # Terminal UI
 crossterm = "0.27.0"
@@ -152,17 +152,17 @@ tch = "0.15.0"
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fb47090f7a44952ae3e3b2b72f8c5a88d8af56fd" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "fb47090f7a44952ae3e3b2b72f8c5a88d8af56fd" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7854b343975c990dd8bb1b4b68b3bc9bda488c1d" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7854b343975c990dd8bb1b4b68b3bc9bda488c1d" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl" }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common" }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false  }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
 # cubecl = { version="0.2.0", default-features = false }
 # cubecl-common = { version="0.2.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "~1.0" }
+tracel-xtask = { version = "~1.1" }
 
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.

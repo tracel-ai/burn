@@ -986,6 +986,9 @@ impl RelativeOps for BaseOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            BaseOperationDescription::Empty(desc) => {
+                BaseOperationDescription::Empty(desc.to_relative(converter))
+            }
         }
     }
 }
