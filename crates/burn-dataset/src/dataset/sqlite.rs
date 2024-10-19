@@ -684,9 +684,8 @@ mod tests {
 
         let mut match_count = 0;
         for (_index, result) in indices.iter().zip(results.iter()) {
-            match result {
-                Some(_val) => match_count += 1,
-                None => (),
+            if let Some(_val) = result {
+                match_count += 1
             }
         }
 
