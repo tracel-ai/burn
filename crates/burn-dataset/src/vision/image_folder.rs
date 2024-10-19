@@ -73,10 +73,13 @@ pub enum Annotation {
 /// Segmentation mask annotation.
 /// For semantic segmentation, a mask has a single channel (C = 1).
 /// For instance segmentation, there may be multiple masks per image (C >= 1).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub struct SegmentationMask {
     /// Segmentation mask.
     pub mask: Vec<usize>,
+
+    /// Segmentation mask labels
+    pub labels: Vec<usize>,
 }
 
 /// Object detection bounding box annotation.
@@ -104,7 +107,8 @@ pub struct ImageDatasetItem {
 enum AnnotationRaw {
     Label(String),
     MultiLabel(Vec<String>),
-    // TODO: bounding boxes and segmentation mask
+    SegmentationMask(Vec<usize>, Vec<String>),
+    // TODO: bounding boxes
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -136,8 +140,8 @@ fn parse_image_annotation(
 ) -> Annotation {
     // TODO: add support for other annotations
     // - [ ] Object bounding boxes
-    // - [ ] Segmentation mask
-    // For now, only image classification labels are supported.
+    // - [x] Segmentation mask
+    // For now, only image classification labels and segmentation are supported.
 
     // Map class string to label id
     match annotation {
@@ -148,6 +152,15 @@ fn parse_image_annotation(
                 .map(|name| *classes.get(name).unwrap())
                 .collect(),
         ),
+        AnnotationRaw::SegmentationMask(mask, names) => {
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: mask.clone(),
+                labels: names
+                    .iter()
+                    .map(|name| *classes.get(name).unwrap())
+                    .collect(),
+            })
+        }
     }
 }
 
@@ -401,6 +414,43 @@ impl ImageFolderDataset {
         Self::with_items(items, classes)
     }
 
+    /// Create an image segmentation dataset with the specified items.
+    ///
+    /// # Arguments
+    ///
+    /// * `items` - List of dataset items, each item represented by a tuple `(image path, labels)`.
+    /// * `classes` - Dataset class names.
+    ///
+    /// # Returns
+    /// A new dataset instance.
+    pub fn new_segmentation_with_items<P: AsRef<Path>, S: AsRef<str>>(
+        items: Vec<(P, SegmentationMask)>,
+        classes: &[S],
+    ) -> Result<Self, ImageLoaderError> {
+        // Parse items and check valid image extension types
+        let items = items
+            .into_iter()
+            .map(|(path, segmentation_mask)| {
+                // Map image path and segmentation mask
+                let path = path.as_ref();
+                let annotation = AnnotationRaw::SegmentationMask(
+                    segmentation_mask.mask,
+                    segmentation_mask
+                        .labels
+                        .iter()
+                        .map(|&l| classes[l].as_ref().to_string())
+                        .collect(),
+                );
+
+                Self::check_extension(&path.extension().unwrap().to_str().unwrap())?;
+
+                Ok(ImageDatasetItemRaw::new(path, annotation))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Self::with_items(items, classes)
+    }
+
     /// Create an image dataset with the specified items.
     ///
     /// # Arguments
@@ -610,5 +660,31 @@ mod tests {
             parse_image_annotation(&anno, &classes),
             Annotation::MultiLabel(vec![0, 2])
         );
+    }
+
+    #[test]
+    pub fn parse_image_annotation_segmentation_mask_string() {
+        let classes = HashMap::from([
+            ("0".to_string(), 0_usize),
+            ("1".to_string(), 1_usize),
+            ("2".to_string(), 2_usize),
+            ("3".to_string(), 3_usize),
+        ]);
+        let anno = AnnotationRaw::SegmentationMask(
+            vec![0, 1, 2, 3],
+            vec![
+                "0".to_string(),
+                "1".to_string(),
+                "2".to_string(),
+                "3".to_string(),
+            ],
+        );
+        assert_eq!(
+            parse_image_annotation(&anno, &classes),
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: vec![0, 1, 2, 3],
+                labels: vec![0, 1, 2, 3],
+            })
+        )
     }
 }
