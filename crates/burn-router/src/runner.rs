@@ -826,6 +826,15 @@ where
                 FloatOperationDescription::Tanh(desc) => {
                     unary_float_ops!(handles, desc, B::float_tanh)
                 }
+                FloatOperationDescription::Round(desc) => {
+                    unary_float_ops!(handles, desc, B::float_round)
+                }
+                FloatOperationDescription::Floor(desc) => {
+                    unary_float_ops!(handles, desc, B::float_floor)
+                }
+                FloatOperationDescription::Ceil(desc) => {
+                    unary_float_ops!(handles, desc, B::float_ceil)
+                }
                 FloatOperationDescription::IntoInt(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
