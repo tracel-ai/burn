@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    kernel::{into_contiguous, slice},
+    kernel::into_contiguous,
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
