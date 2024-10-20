@@ -72,6 +72,8 @@ pub(crate) fn handle_command(
                     None,
                     "std wgpu",
                 )?;
+                // Vulkan isn't available on MacOS
+                #[cfg(not(target_os = "macos"))]
                 if std::env::var("DISABLE_WGPU_SPIRV").is_err() {
                     helpers::custom_crates_tests(
                         vec!["burn-core"],
