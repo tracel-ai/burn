@@ -1425,6 +1425,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-cuda",
  "cubecl-hip",
+ "cubecl-hip",
  "cubecl-linalg",
  "cubecl-runtime",
  "cubecl-wgpu",
