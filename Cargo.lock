@@ -304,6 +304,7 @@ dependencies = [
  "cubecl",
  "derive-new",
  "dirs 5.0.1",
+ "env_logger",
  "github-device-flow",
  "half",
  "indicatif",

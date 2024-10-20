@@ -65,6 +65,7 @@ macro_rules! bench_on_backend {
         let feature_name = "cuda-jit";
         #[cfg(feature = "cuda-jit-fusion")]
         let feature_name = "cuda-jit-fusion";
+        env_logger::init();
 
         #[cfg(any(feature = "wgpu"))]
         {

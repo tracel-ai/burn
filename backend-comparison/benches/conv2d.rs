@@ -5,6 +5,7 @@ use burn::tensor::{
 use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct Conv2dBenchmark<B: Backend> {
+    suffix: &'static str,
     input_shape: Shape,
     weight_shape: Shape,
     bias_shape: Shape,
@@ -16,7 +17,7 @@ impl<B: Backend> Benchmark for Conv2dBenchmark<B> {
     type Args = (Tensor<B, 4>, Tensor<B, 4>, Tensor<B, 1>);
 
     fn name(&self) -> String {
-        "conv2d".into()
+        format!("conv2d-{}", self.suffix)
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
@@ -75,6 +76,7 @@ fn bench<B: Backend>(
     let groups = 1;
     let options = ConvOptions::new(strides, padding, dilations, groups);
     let benchmark = Conv2dBenchmark::<B> {
+        suffix: "default",
         input_shape: [batch_size, channels_in, height_in, width_in].into(),
         weight_shape: [
             channels_out,
@@ -88,8 +90,130 @@ fn bench<B: Backend>(
         device: device.clone(),
     };
 
+    let conv1 = Conv2dBenchmark::<B> {
+        suffix: "conv1",
+        input_shape: [batch_size, 3, 227, 227].into(),
+        weight_shape: [96, 3, 11, 11].into(),
+        bias_shape: [96].into(),
+        options: ConvOptions::new([4, 4], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv2 = Conv2dBenchmark::<B> {
+        suffix: "conv2",
+        input_shape: [batch_size, 3, 231, 231].into(),
+        weight_shape: [96, 3, 11, 11].into(),
+        bias_shape: [96].into(),
+        options: ConvOptions::new([4, 4], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv3 = Conv2dBenchmark::<B> {
+        suffix: "conv3",
+        input_shape: [batch_size, 3, 227, 227].into(),
+        weight_shape: [64, 3, 7, 7].into(),
+        bias_shape: [64].into(),
+        options: ConvOptions::new([2, 2], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv4 = Conv2dBenchmark::<B> {
+        suffix: "conv4",
+        input_shape: [batch_size, 64, 224, 224].into(),
+        weight_shape: [64, 64, 7, 7].into(),
+        bias_shape: [64].into(),
+        options: ConvOptions::new([2, 2], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv5 = Conv2dBenchmark::<B> {
+        suffix: "conv5",
+        input_shape: [batch_size, 96, 24, 24].into(),
+        weight_shape: [256, 96, 5, 5].into(),
+        bias_shape: [256].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv6 = Conv2dBenchmark::<B> {
+        suffix: "conv6",
+        input_shape: [batch_size, 256, 12, 12].into(),
+        weight_shape: [512, 256, 3, 3].into(),
+        bias_shape: [512].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv7 = Conv2dBenchmark::<B> {
+        suffix: "conv7",
+        input_shape: [batch_size, 3, 224, 224].into(),
+        weight_shape: [64, 3, 3, 3].into(),
+        bias_shape: [64].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv8 = Conv2dBenchmark::<B> {
+        suffix: "conv8",
+        input_shape: [batch_size, 64, 112, 112].into(),
+        weight_shape: [128, 64, 3, 3].into(),
+        bias_shape: [128].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv9 = Conv2dBenchmark::<B> {
+        suffix: "conv9",
+        input_shape: [batch_size, 64, 56, 56].into(),
+        weight_shape: [64, 64, 3, 3].into(),
+        bias_shape: [64].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv10 = Conv2dBenchmark::<B> {
+        suffix: "conv10",
+        input_shape: [batch_size, 128, 28, 28].into(),
+        weight_shape: [128, 128, 3, 3].into(),
+        bias_shape: [128].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv11 = Conv2dBenchmark::<B> {
+        suffix: "conv11",
+        input_shape: [batch_size, 256, 14, 14].into(),
+        weight_shape: [256, 256, 3, 3].into(),
+        bias_shape: [256].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv12 = Conv2dBenchmark::<B> {
+        suffix: "conv12",
+        input_shape: [batch_size, 512, 7, 7].into(),
+        weight_shape: [512, 512, 3, 3].into(),
+        bias_shape: [512].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
     save::<B>(
-        vec![run_benchmark(benchmark)],
+        vec![
+            run_benchmark(benchmark),
+            run_benchmark(conv1),
+            run_benchmark(conv2),
+            run_benchmark(conv3),
+            run_benchmark(conv4),
+            run_benchmark(conv5),
+            run_benchmark(conv6),
+            run_benchmark(conv7),
+            run_benchmark(conv8),
+            run_benchmark(conv9),
+            run_benchmark(conv10),
+            run_benchmark(conv11),
+            run_benchmark(conv12),
+        ],
         device,
         feature_name,
         url,

@@ -39,6 +39,7 @@ colored = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
+env_logger = "*"
 github-device-flow = { workspace = true }
 half = { workspace = true }
 indicatif = { workspace = true }
