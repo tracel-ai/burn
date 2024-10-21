@@ -629,6 +629,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-hip"
+version = "0.15.0"
+dependencies = [
+ "burn-fusion",
+ "burn-jit",
+ "burn-tensor",
+ "bytemuck",
+ "cubecl",
+ "derive-new",
+ "half",
+ "log",
+]
+
+[[package]]
 name = "burn-import"
 version = "0.15.0"
 dependencies = [
@@ -1421,7 +1435,11 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1434,7 +1452,11 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "derive-new",
  "embassy-futures",
@@ -1450,7 +1472,11 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1467,7 +1493,11 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1481,7 +1511,11 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1497,7 +1531,11 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1522,7 +1560,11 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1533,7 +1575,11 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1563,7 +1609,11 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "async-channel",
  "cfg_aliases 0.2.1",
@@ -1596,7 +1646,11 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.2.0"
+<<<<<<< HEAD
 source = "git+https://github.com/tracel-ai/cubecl?rev=e3fdc96ec2d68dcdde8135bd011907b4e662388c#e3fdc96ec2d68dcdde8135bd011907b4e662388c"
+=======
+source = "git+https://github.com/tracel-ai/cubecl?rev=fb2a5c87802c9d01801f16d93cada5fe924989f3#fb2a5c87802c9d01801f16d93cada5fe924989f3"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "ash",
  "async-channel",
@@ -5970,9 +6024,15 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
+<<<<<<< HEAD
 version = "1.0.132"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+=======
+version = "1.0.130"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "610f75ff4a8e3cb29b85da56eabdd1bff5b06739059a4b8e2967fef32e5d9944"
+>>>>>>> 4c7e19bc (Add burn-hip crate)
 dependencies = [
  "itoa",
  "memchr",
