@@ -3,7 +3,7 @@ use core::hash::{BuildHasher, Hasher};
 use alloc::string::String;
 use burn_common::id::IdGenerator;
 use data_encoding::BASE32_DNSSEC;
-use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::DefaultHashBuilder;
 
 /// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
