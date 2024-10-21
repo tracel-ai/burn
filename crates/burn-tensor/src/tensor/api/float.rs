@@ -105,6 +105,9 @@ where
     }
 
     /// Applies element wise round operation.
+    ///
+    /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest integer value.
     pub fn round(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_round(
             self.primitive.tensor(),
