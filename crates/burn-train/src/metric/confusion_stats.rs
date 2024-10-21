@@ -1,5 +1,6 @@
-use super::ClassAverageType;
+use super::classification::ClassAverageType;
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
+use burn_core::tensor::cast::ToElement;
 use std::fmt::{self, Debug};
 
 #[derive(Clone)]
@@ -43,24 +44,50 @@ impl<B: Backend> ConfusionStats<B> {
         }
     }
 
+    /// sum over samples
+    fn aggregate(
+        sample_class_mask: Tensor<B, 2, Bool>,
+        class_average: ClassAverageType,
+    ) -> Tensor<B, 1> {
+        use ClassAverageType::*;
+        match class_average {
+            Micro => sample_class_mask.float().sum(),
+            Macro => sample_class_mask.float().sum_dim(0).squeeze(0),
+        }
+    }
+
+    ///convert to averaged metric, returns float
+    fn average(mut aggregated_metric: Tensor<B, 1>, class_average: ClassAverageType) -> f64 {
+        use ClassAverageType::*;
+        let avg_tensor = match class_average {
+            Micro => aggregated_metric,
+            Macro => {
+                if aggregated_metric.contains_nan().any().into_scalar() {
+                    let nan_mask = aggregated_metric.is_nan();
+                    aggregated_metric = aggregated_metric
+                        .clone()
+                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                }
+                aggregated_metric.mean()
+            }
+        };
+        avg_tensor.into_scalar().to_f64()
+    }
+
     pub fn true_positive(self) -> Tensor<B, 1> {
-        self.class_average
-            .aggregate_sum(self.confusion_classes.equal_elem(3))
+        Self::aggregate(self.confusion_classes.equal_elem(3), self.class_average)
     }
 
     pub fn true_negative(self) -> Tensor<B, 1> {
-        self.class_average
-            .aggregate_sum(self.confusion_classes.equal_elem(0))
+        Self::aggregate(self.confusion_classes.equal_elem(0), self.class_average)
     }
 
     pub fn false_positive(self) -> Tensor<B, 1> {
-        self.class_average
-            .aggregate_sum(self.confusion_classes.equal_elem(1))
+        Self::aggregate(self.confusion_classes.equal_elem(1), self.class_average)
     }
 
     pub fn false_negative(self) -> Tensor<B, 1> {
-        self.class_average
-            .aggregate_sum(self.confusion_classes.equal_elem(2))
+        Self::aggregate(self.confusion_classes.equal_elem(2), self.class_average)
     }
 
     pub fn positive(self) -> Tensor<B, 1> {
@@ -82,6 +109,14 @@ impl<B: Backend> ConfusionStats<B> {
     pub fn ratio_of_support(self, metric: Tensor<B, 1>) -> Tensor<B, 1> {
         metric / self.clone().support()
     }
+
+    pub fn precision(self) -> f64 {
+        let class_average = self.class_average;
+        Self::average(
+            self.clone().true_positive() / self.predicted_positive(),
+            class_average,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -90,168 +125,151 @@ mod tests {
         ClassAverageType::{self, *},
         ConfusionStats,
     };
-    use crate::{
-        tests::{
-            dummy_classification_input,
-            ClassificationType::{self, *},
-            THRESHOLD,
-        },
-        TestBackend, TestDevice,
+    use crate::tests::{
+        dummy_classification_input,
+        ClassificationType::{self, *},
+        THRESHOLD,
     };
-    use burn_core::prelude::{Tensor, TensorData};
-    use yare::parameterized;
+    use burn_core::prelude::TensorData;
+    use rstest::rstest;
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [1].into()},
-    binary_macro = {Binary, Macro, [1].into()},
-    multiclass_micro = {Multiclass, Micro, [3].into()},
-    multiclass_macro = {Multiclass, Macro, [1, 1, 1].into()},
-    multilabel_micro = {Multilabel, Micro, [5].into()},
-    multilabel_macro = {Multilabel, Macro, [2, 2, 1].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [1].into())]
+    #[case::binary_macro(Binary, Macro, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [3].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [1, 1, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [5].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [2, 2, 1].into())]
     fn test_true_positive(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .true_positive()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data()
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [2].into()},
-    binary_macro = {Binary, Macro, [2].into()},
-    multiclass_micro = {Multiclass, Micro, [8].into()},
-    multiclass_macro = {Multiclass, Macro, [2, 3, 3].into()},
-    multilabel_micro = {Multilabel, Micro, [3].into()},
-    multilabel_macro = {Multilabel, Macro, [0, 2, 1].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [2].into())]
+    #[case::binary_macro(Binary, Macro, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [8].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [2, 3, 3].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [3].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [0, 2, 1].into())]
     fn test_true_negative(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .true_negative()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data()
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [1].into()},
-    binary_macro = {Binary, Macro, [1].into()},
-    multiclass_micro = {Multiclass, Micro, [2].into()},
-    multiclass_macro = {Multiclass, Macro, [1, 1, 0].into()},
-    multilabel_micro = {Multilabel, Micro, [3].into()},
-    multilabel_macro = {Multilabel, Macro, [1, 1, 1].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [1].into())]
+    #[case::binary_macro(Binary, Macro, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [2].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [1, 1, 0].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [3].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [1, 1, 1].into())]
     fn test_false_positive(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .false_positive()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [1].into()},
-    binary_macro = {Binary, Macro, [1].into()},
-    multiclass_micro = {Multiclass, Micro, [2].into()},
-    multiclass_macro = {Multiclass, Macro, [1, 0, 1].into()},
-    multilabel_micro = {Multilabel, Micro, [4].into()},
-    multilabel_macro = {Multilabel, Macro, [2, 0, 2].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [1].into())]
+    #[case::binary_macro(Binary, Macro, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [2].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [1, 0, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [4].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [2, 0, 2].into())]
     fn test_false_negatives(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .false_negative()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [2].into()},
-    binary_macro = {Binary, Macro, [2].into()},
-    multiclass_micro = {Multiclass, Micro, [5].into()},
-    multiclass_macro = {Multiclass, Macro, [2, 1, 2].into()},
-    multilabel_micro = {Multilabel, Micro, [9].into()},
-    multilabel_macro = {Multilabel, Macro, [4, 2, 3].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [2].into())]
+    #[case::binary_macro(Binary, Macro, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [5].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [2, 1, 2].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [9].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [4, 2, 3].into())]
     fn test_positive(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .positive()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [3].into()},
-    binary_macro = {Binary, Macro, [3].into()},
-    multiclass_micro = {Multiclass, Micro, [10].into()},
-    multiclass_macro = {Multiclass, Macro, [3, 4, 3].into()},
-    multilabel_micro = {Multilabel, Micro, [6].into()},
-    multilabel_macro = {Multilabel, Macro, [1, 3, 2].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [3].into())]
+    #[case::binary_macro(Binary, Macro, [3].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [10].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [3, 4, 3].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [6].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [1, 3, 2].into())]
     fn test_negative(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .negative()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, [2].into()},
-    binary_macro = {Binary, Macro, [2].into()},
-    multiclass_micro = {Multiclass, Micro, [5].into()},
-    multiclass_macro = {Multiclass, Macro, [2, 2, 1].into()},
-    multilabel_micro = {Multilabel, Micro, [8].into()},
-    multilabel_macro = {Multilabel, Macro, [3, 3, 2].into()})]
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, [2].into())]
+    #[case::binary_macro(Binary, Macro, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, [5].into())]
+    #[case::multiclass_macro(Multiclass, Macro, [2, 2, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, [8].into())]
+    #[case::multilabel_macro(Multilabel, Macro, [3, 3, 2].into())]
     fn test_predicted_positive(
-        class_type: ClassificationType,
-        avg_type: ClassAverageType,
-        expected: TensorData,
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let test_value = ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
             .predicted_positive()
-            .into_data();
-        assert_eq!(
-            test_value,
-            Tensor::<TestBackend, 1>::from_data(expected, &TestDevice::default()).into_data(),
-        )
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 }

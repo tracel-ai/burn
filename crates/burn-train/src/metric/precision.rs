@@ -1,7 +1,8 @@
 use super::{
+    classification::{ClassAverageType, ClassificationInput},
     confusion_stats::ConfusionStats,
     state::{FormatOptions, NumericMetricState},
-    ClassAverageType, ClassificationInput, Metric, MetricEntry, MetricMetadata, Numeric,
+    Metric, MetricEntry, MetricMetadata, Numeric,
 };
 use burn_core::tensor::backend::Backend;
 use core::marker::PhantomData;
@@ -50,11 +51,8 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     ) -> MetricEntry {
         let (predictions, targets) = input.clone().into();
         let [sample_size, _] = input.predictions.dims();
-
-        let conf_mat =
-            ConfusionStats::new(predictions, targets, self.threshold, self.class_average);
-        let agg_metric = conf_mat.clone().true_positive() / conf_mat.predicted_positive();
-        let metric = self.class_average.to_averaged_metric(agg_metric);
+        let metric = ConfusionStats::new(predictions, targets, self.threshold, self.class_average)
+            .precision();
 
         self.state.update(
             100.0 * metric,
@@ -86,22 +84,27 @@ mod tests {
         THRESHOLD,
     };
     use crate::TestBackend;
-    use approx::assert_relative_eq;
-    use yare::parameterized;
+    use burn_core::tensor::TensorData;
+    use rstest::rstest;
 
-    #[parameterized(
-    binary_micro = {Binary, Micro, 0.5},
-    binary_macro = {Binary, Macro, 0.5},
-    multiclass_micro = {Multiclass, Micro, 3.0/5.0},
-    multiclass_macro = {Multiclass, Macro, (0.5 + 0.5 + 1.0)/3.0},
-    multilabel_micro = {Multilabel, Micro, 5.0/8.0},
-    multilabel_macro = {Multilabel, Macro, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0})]
-    fn test_presision(class_type: ClassificationType, avg_type: ClassAverageType, expected: f64) {
+    #[rstest]
+    #[case::binary_micro(Binary, Micro, 0.5)]
+    #[case::binary_macro(Binary, Macro, 0.5)]
+    #[case::multiclass_micro(Multiclass, Micro, 3.0/5.0)]
+    #[case::multiclass_macro(Multiclass, Macro, (0.5 + 0.5 + 1.0)/3.0)]
+    #[case::multilabel_micro(Multilabel, Micro, 5.0/8.0)]
+    #[case::multilabel_macro(Multilabel, Macro, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
+    fn test_precision(
+        #[case] class_type: ClassificationType,
+        #[case] avg_type: ClassAverageType,
+        #[case] expected: f64,
+    ) {
         let input = dummy_classification_input(&class_type);
         let mut metric = PrecisionMetric::<TestBackend>::default()
             .with_threshold(THRESHOLD)
             .with_class_average(avg_type);
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_relative_eq!(metric.value(), expected * 100.0, max_relative = 1e-3)
+        TensorData::from([metric.value()])
+            .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
     }
 }

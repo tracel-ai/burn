@@ -31,7 +31,7 @@ pub(crate) type TestDevice = burn_ndarray::NdArrayDevice;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{metric::ClassificationInput, TestBackend, TestDevice};
+    use crate::{metric::classification::ClassificationInput, TestBackend, TestDevice};
     use burn_core::{
         prelude::{Bool, Tensor},
         tensor::Distribution,
