@@ -933,8 +933,8 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Returns a new tensor with rounded values.
     ///
-    /// This function should implemented the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
-    /// strategy, with halfway cases rounded to the nearest integer value.
+    /// This function should implement the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest even integer value.
     ///
     /// # Arguments
     ///
