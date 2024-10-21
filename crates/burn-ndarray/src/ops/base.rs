@@ -480,12 +480,13 @@ where
         rhs: NdArrayTensor<OtherE>,
         var_name: impl FnMut(&E, &OtherE) -> E,
     ) -> NdArrayTensor<E> {
-        NdArrayTensor::new(
-            Zip::from(lhs.array.view())
-                .and(rhs.array.view())
-                .map_collect(var_name)
-                .into_shared(),
-        )
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(Zip::from(lhs).and(rhs).map_collect(var_name).into_shared())
     }
 
     pub(crate) fn elementwise_op_scalar(
