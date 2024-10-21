@@ -149,6 +149,7 @@ sysinfo = "0.30.13"
 systemstat = "0.2.3"
 tch = "0.15.0"
 
+ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###

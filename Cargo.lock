@@ -527,6 +527,7 @@ dependencies = [
 name = "burn-core"
 version = "0.15.0"
 dependencies = [
+ "ahash",
  "bincode",
  "burn-autodiff",
  "burn-candle",
