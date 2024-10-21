@@ -40,6 +40,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
+        NodeType::ConvTranspose1d => conv_transpose1d_update_outputs(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
@@ -592,6 +593,16 @@ fn conv1d_update_outputs(node: &mut Node) {
 
 /// Infers the shape of a Conv2d node and replaces the shape of the output tensor.
 fn conv2d_update_outputs(node: &mut Node) {
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
+
+/// Infers the shape of a ConvTranspose1d node and replaces the shape of the output tensor.
+fn conv_transpose1d_update_outputs(node: &mut Node) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
         node.outputs[0].ty = ArgType::Tensor(tensor);

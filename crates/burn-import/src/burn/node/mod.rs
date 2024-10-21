@@ -12,6 +12,7 @@ pub(crate) mod constant_of_shape;
 pub(crate) mod conv1d;
 pub(crate) mod conv2d;
 pub(crate) mod conv3d;
+pub(crate) mod conv_transpose_1d;
 pub(crate) mod conv_transpose_2d;
 pub(crate) mod conv_transpose_3d;
 pub(crate) mod dropout;
