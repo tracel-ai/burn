@@ -1076,6 +1076,60 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Float(
+            dtype,
+            FloatOperationDescription::Round(desc),
+        ));
+
+        out
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Float(
+            dtype,
+            FloatOperationDescription::Floor(desc),
+        ));
+
+        out
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Float(
+            dtype,
+            FloatOperationDescription::Ceil(desc),
+        ));
+
+        out
+    }
+
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let dtype = tensor.dtype;
