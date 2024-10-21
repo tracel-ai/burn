@@ -28,6 +28,7 @@ repr = []
 cubecl = ["dep:cubecl"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
+cubecl-hip = ["cubecl", "cubecl/hip"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
