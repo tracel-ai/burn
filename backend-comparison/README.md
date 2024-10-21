@@ -37,14 +37,23 @@ Available Backends:
 - tch-gpu
 - wgpu
 - wgpu-fusion
+- wgpu-spirv
+- wgpu-spirv-fusion
 
 Available Benchmarks:
 - binary
 - custom-gelu
 - data
 - matmul
-- resnet50
 - unary
+- max-pool2d
+- resnet50
+- load-record
+- autodiff
+- conv-transpose2d
+- conv-transpose3d
+- conv2d
+- conv3d
 ```
 
 #### Run benchmarks
