@@ -230,7 +230,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0]);
+        .unwrap_or_else(|| vec![0, 0]);
 
     // Extract dilations, default to 1 if not present
     let dilations = attrs
@@ -254,7 +254,13 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     if !attrs.is_empty() {
         panic!("Not all attributes are used: {attrs:?}");
     }
-
+    // Check the pads are symmetric.
+    if pads.len() != 2 || pads[0] != pads[1] {
+        panic!(
+            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
+            pads
+        );
+    }
     // Extract weight tensor, verify it's present
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
@@ -292,7 +298,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
+        .unwrap_or_else(|| vec![0, 0, 0, 0]);
     let dilations = attrs
         .remove("dilations")
         .map(AttributeValue::into_i64s)
@@ -311,11 +317,11 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
         panic!("Not all attributes are used: {attrs:?}");
     }
     // Check the pads are symmetric.
-    if pads.len() != 2 || pads[0] != pads[1] {
-        panic!(
-            "Asymmetric padding is not supported for ConvTranspose2d: {:?}",
-            pads
-        );
+    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
+    if left < 0 || top < 0 || right < 0 || bottom < 0 {
+        panic!("Negative pad values are not supported");
+    } else if (left != right) || (top != bottom) {
+        panic!("Asymmetric padding is not supported");
     }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
@@ -356,7 +362,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0]);
+        .unwrap_or_else(|| vec![0, 0, 0, 0, 0, 0]);
     let dilations = attrs
         .remove("dilations")
         .map(AttributeValue::into_i64s)
@@ -375,11 +381,13 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
         panic!("Not all attributes are used: {attrs:?}");
     }
     // Check the pads are symmetric.
-    if pads.len() != 3 || pads[0] != pads[2] {
-        panic!(
-            "Asymmetric padding is not supported for ConvTranspose3d: {:?}",
-            pads
-        );
+    let [left, top, front, right, bottom, back] =
+        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
+
+    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
+        panic!("Negative pad values are not supported");
+    } else if (left != right) || (top != bottom) || (front != back) {
+        panic!("Asymmetric padding is not supported");
     }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
