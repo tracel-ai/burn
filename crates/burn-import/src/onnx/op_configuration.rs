@@ -230,7 +230,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]); // Begin and end padding
+        .unwrap_or_else(|| vec![0]);
 
     // Extract dilations, default to 1 if not present
     let dilations = attrs
@@ -272,7 +272,7 @@ pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
     // Create the ConvTranspose1d configuration
     ConvTranspose1dConfig::new(channels, kernel_shape[0] as usize)
         .with_stride(stride[0] as usize)
-        .with_padding(pads[0] as usize) // Only use the first padding value for 1D
+        .with_padding(pads[0] as usize)
         .with_dilation(dilations[0] as usize)
         .with_padding_out(output_padding[0] as usize)
         .with_groups(group)
@@ -310,7 +310,13 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     if !attrs.is_empty() {
         panic!("Not all attributes are used: {attrs:?}");
     }
-
+    // Check the pads are symmetric.
+    if pads.len() != 2 || pads[0] != pads[1] {
+        panic!(
+            "Asymmetric padding is not supported for ConvTranspose2d: {:?}",
+            pads
+        );
+    }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
@@ -368,7 +374,13 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     if !attrs.is_empty() {
         panic!("Not all attributes are used: {attrs:?}");
     }
-
+    // Check the pads are symmetric.
+    if pads.len() != 3 || pads[0] != pads[2] {
+        panic!(
+            "Asymmetric padding is not supported for ConvTranspose3d: {:?}",
+            pads
+        );
+    }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
