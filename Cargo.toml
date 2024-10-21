@@ -82,7 +82,7 @@ spin = { version = "0.9.8", features = [
 ] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.79", features = ["full", "extra-traits"] }
+syn = { version = "2.0.82", features = ["full", "extra-traits"] }
 tempfile = "3.13.0"
 thiserror = "1.0.64"
 tokio = { version = "1.40.0", features = ["rt", "macros"] }
@@ -140,7 +140,7 @@ serde = { version = "1.0.210", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.128", default-features = false }
+serde_json = { version = "1.0.132", default-features = false }
 uuid = { version = "1.9.1", default-features = false }
 
 libc = "0.2.159"
