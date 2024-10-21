@@ -76,6 +76,7 @@
 //!   - `vision`: Enables vision datasets (MnistDataset)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
+//!   - `wgpu-spirv`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
 //!   - `ndarray`: Makes available the NdArray backend
