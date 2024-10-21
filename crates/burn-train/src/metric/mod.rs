@@ -37,3 +37,8 @@ pub use top_k_acc::*;
 pub(crate) mod processor;
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
+
+pub(crate) mod classification;
+mod confusion_stats;
+#[cfg(feature = "metrics")]
+mod precision;
