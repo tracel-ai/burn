@@ -1,4 +1,7 @@
-use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
+use burn_tensor::{
+    ops::{conv::calculate_conv_output_size, ConvTransposeOptions},
+    ElementConversion, Shape,
+};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
@@ -99,10 +102,29 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     _key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
-    let [batch_size, _, input_h, input_w] = op.input.shape.dims();
     match index {
         // im2col
-        1 => batches_per_run(batch_size, input_h, input_w).is_some(),
+        1 => {
+            let [batch_size, _, in_height, in_width] = op.input.shape.dims();
+            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
+
+            let out_h = calculate_conv_output_size(
+                kernel_h,
+                op.options.stride[0],
+                op.options.padding[0],
+                op.options.dilation[0],
+                in_height,
+            );
+            let out_w = calculate_conv_output_size(
+                kernel_w,
+                op.options.stride[1],
+                op.options.padding[1],
+                op.options.dilation[1],
+                in_width,
+            );
+
+            batches_per_run(batch_size, out_h, out_w).is_some()
+        }
         _ => true,
     }
 }
