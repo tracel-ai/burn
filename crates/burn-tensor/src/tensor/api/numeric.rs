@@ -70,6 +70,14 @@ where
         Self::new(K::remainder_scalar::<E>(self.primitive, other))
     }
 
+    /// Applies element wise the remainder operation with a scalar.
+    ///
+    /// `y = x2 % x1`
+    #[allow(clippy::should_implement_trait)]
+    pub fn remainder(self, other: Self) -> Self {
+        Self::new(K::remainder(self.primitive, other.primitive))
+    }
+
     /// Applies element wise multiplication operation.
     ///
     /// `y = x2 * x1`
@@ -989,6 +997,28 @@ where
     /// For dividing a tensor by a scalar, users should prefer the [Tensor::div_scalar](Tensor::div_scalar) function,
     /// which is more high-level and designed for public use.
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+
+    /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
+    /// less than that of the divisor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend.
+    /// * `rhs` - The divisor.
+    ///
+    /// # Returns
+    ///
+    /// The modulus of the input tensor with the divisor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For performing the modulus operation, users should prefer the [Tensor::remainder](Tensor::remainder) function,
+    /// which is more high-level and designed for public use.
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
     /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
     /// less than that of the divisor.
@@ -2094,6 +2124,9 @@ impl<B: Backend> Numeric<B> for Int {
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_div_scalar(lhs, rhs.elem())
     }
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_remainder(lhs, rhs)
+    }
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_remainder_scalar(lhs, rhs.elem())
     }
@@ -2914,6 +2947,18 @@ where
 
     fn div(self, other: E) -> Self {
         Tensor::div_scalar(self, other)
+    }
+}
+
+impl<const D: usize, B, K> core::ops::Rem<Tensor<B, D, K>> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    type Output = Self;
+    fn rem(self, rhs: Tensor<B, D, K>) -> Self::Output {
+        Tensor::remainder(self, rhs)
     }
 }
 
