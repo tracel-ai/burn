@@ -76,34 +76,43 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     op: &Conv2dOperations<R, F, I>,
-    _key: &JitAutotuneKey,
+    key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
-    let [batch_size, _, input_h, input_w] = op.input.shape.dims();
-    let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
-
-    let o = &op.options;
+    let key = match key {
+        JitAutotuneKey::Conv2d(key) => key,
+        _ => unreachable!(),
+    };
 
     match index {
         // im2col
-        1 => batches_per_run(batch_size, input_h, input_w).is_some(),
+        1 => batches_per_run(key.batch_size, key.height, key.width).is_some(),
         // Implicit gemm.
         2 => {
             let out_h = calculate_conv_output_size(
-                kernel_h,
-                o.stride[0],
-                o.padding[0],
-                o.dilation[0],
-                input_h,
+                key.kernel_size[0],
+                key.stride[0],
+                key.padding[0],
+                key.dilation[0],
+                key.height,
             );
             let out_w = calculate_conv_output_size(
-                kernel_w,
-                o.stride[1],
-                o.padding[1],
-                o.dilation[1],
-                input_w,
+                key.kernel_size[1],
+                key.stride[1],
+                key.padding[1],
+                key.dilation[1],
+                key.width,
             );
-            can_do_implicit_gemm(&op.input, &op.weights, op.options.groups, out_h, out_w)
+            can_do_implicit_gemm::<R, F>(
+                key.batch_size,
+                key.in_channels,
+                key.out_channels,
+                key.kernel_size,
+                op.options.groups,
+                out_h,
+                out_w,
+                &op.input.device,
+            )
         }
         _ => true,
     }
