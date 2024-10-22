@@ -210,7 +210,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
     }
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)
-    	.expect("Image too large to run even one batch at once");
+        .expect("Image too large to run even one batch at once");
     let matmul_shape = Shape::new([groups, out_c_per_group, batches_per_run * out_h * out_w]);
 
     let mut out = if batches_per_run != batch_size {

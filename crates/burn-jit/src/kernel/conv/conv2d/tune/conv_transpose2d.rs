@@ -113,28 +113,9 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
         stride: [stride_h, stride_w],
         ..
     } = op.options.clone();
-
-    let out_h = calculate_conv_transpose_output_size(
-        kernel_h,
-        stride_h,
-        padding_h,
-        padding_out_h,
-        dilation_h,
-        input_h,
-    );
-    let out_w = calculate_conv_transpose_output_size(
-        kernel_w,
-        stride_w,
-        padding_w,
-        padding_out_w,
-        dilation_w,
-        input_w,
-    );
     match index {
         // im2col
         1 => batches_per_run(batch_size, input_h, input_w).is_some(),
-        // Implicit gemm.
-        2 => can_do_implicit_gemm(&op.input, &op.weights, op.options.groups, out_h, out_w),
         _ => true,
     }
 }
