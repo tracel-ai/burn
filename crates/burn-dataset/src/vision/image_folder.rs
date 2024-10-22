@@ -77,9 +77,6 @@ pub enum Annotation {
 pub struct SegmentationMask {
     /// Segmentation mask.
     pub mask: Vec<usize>,
-
-    /// Segmentation mask labels
-    pub labels: Vec<usize>,
 }
 
 /// Object detection bounding box annotation.
@@ -107,7 +104,7 @@ pub struct ImageDatasetItem {
 enum AnnotationRaw {
     Label(String),
     MultiLabel(Vec<String>),
-    SegmentationMask(Vec<usize>, Vec<String>),
+    SegmentationMask(Vec<String>),
     // TODO: bounding boxes
 }
 
@@ -152,15 +149,12 @@ fn parse_image_annotation(
                 .map(|name| *classes.get(name).unwrap())
                 .collect(),
         ),
-        AnnotationRaw::SegmentationMask(mask, names) => {
-            Annotation::SegmentationMask(SegmentationMask {
-                mask: mask.clone(),
-                labels: names
-                    .iter()
-                    .map(|name| *classes.get(name).unwrap())
-                    .collect(),
-            })
-        }
+        AnnotationRaw::SegmentationMask(mask) => Annotation::SegmentationMask(SegmentationMask {
+            mask: mask
+                .iter()
+                .map(|name| *classes.get(name).unwrap())
+                .collect(),
+        }),
     }
 }
 
@@ -434,9 +428,8 @@ impl ImageFolderDataset {
                 // Map image path and segmentation mask
                 let path = path.as_ref();
                 let annotation = AnnotationRaw::SegmentationMask(
-                    segmentation_mask.mask,
                     segmentation_mask
-                        .labels
+                        .mask
                         .iter()
                         .map(|&l| classes[l].as_ref().to_string())
                         .collect(),
@@ -501,6 +494,7 @@ impl ImageFolderDataset {
 mod tests {
     use super::*;
     const DATASET_ROOT: &str = "tests/data/image_folder";
+    const SEGMASK_ROOT: &str = "tests/data/segmask_folder";
 
     #[test]
     pub fn image_folder_dataset() {
@@ -665,26 +659,117 @@ mod tests {
     #[test]
     pub fn parse_image_annotation_segmentation_mask_string() {
         let classes = HashMap::from([
-            ("0".to_string(), 0_usize),
-            ("1".to_string(), 1_usize),
-            ("2".to_string(), 2_usize),
-            ("3".to_string(), 3_usize),
+            ("foo".to_string(), 0_usize),
+            ("bar".to_string(), 1_usize),
+            ("baz".to_string(), 2_usize),
+            ("qux".to_string(), 3_usize),
         ]);
-        let anno = AnnotationRaw::SegmentationMask(
-            vec![0, 1, 2, 3],
-            vec![
-                "0".to_string(),
-                "1".to_string(),
-                "2".to_string(),
-                "3".to_string(),
-            ],
-        );
+        let anno = AnnotationRaw::SegmentationMask(vec![
+            "foo".to_string(),
+            "bar".to_string(),
+            "baz".to_string(),
+            "qux".to_string(),
+        ]);
         assert_eq!(
             parse_image_annotation(&anno, &classes),
             Annotation::SegmentationMask(SegmentationMask {
                 mask: vec![0, 1, 2, 3],
-                labels: vec![0, 1, 2, 3],
             })
         )
+    }
+
+    #[test]
+    pub fn segmask_folder_dataset() {
+        let root = Path::new(SEGMASK_ROOT);
+        let checkerboard_annotation =
+            image::open(root.join("annotations").join("mask_checkerboard.png"))
+                .unwrap()
+                .into_luma8()
+                .iter()
+                .map(|&x| x as usize)
+                .collect();
+        let random2_annotation =
+            image::open(root.join("annotations").join("mask_random_2colors.png"))
+                .unwrap()
+                .into_luma8()
+                .iter()
+                .map(|&x| x as usize)
+                .collect();
+        let random3_annotation =
+            image::open(root.join("annotations").join("mask_random_3colors.png"))
+                .unwrap()
+                .into_luma8()
+                .iter()
+                .map(|&x| x as usize)
+                .collect();
+
+        let items = vec![
+            (
+                root.join("images").join("image_checkerboard.png"),
+                SegmentationMask {
+                    mask: checkerboard_annotation,
+                },
+            ),
+            (
+                root.join("images").join("image_random_2colors.png"),
+                SegmentationMask {
+                    mask: random2_annotation,
+                },
+            ),
+            (
+                root.join("images").join("image_random_3colors.png"),
+                SegmentationMask {
+                    mask: random3_annotation,
+                },
+            ),
+        ];
+        let dataset = ImageFolderDataset::new_segmentation_with_items(
+            items,
+            &[
+                "foo", // 0
+                "bar", // 1
+                "baz", // 2
+                "qux", // 3
+            ],
+        )
+        .unwrap();
+
+        // Dataset has 3 elements; each (image, annotation) is a single item
+        assert_eq!(dataset.len(), 3);
+        assert_eq!(dataset.get(3), None);
+
+        // checkerboard mask
+        assert_eq!(
+            dataset.get(0).unwrap().annotation,
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: vec![
+                    1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1,
+                    2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2,
+                    1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1
+                ]
+            })
+        );
+        // random 2 colors mask
+        assert_eq!(
+            dataset.get(1).unwrap().annotation,
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: vec![
+                    1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2,
+                    2, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2,
+                    1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1
+                ]
+            })
+        );
+        // random 3 colors mask
+        assert_eq!(
+            dataset.get(2).unwrap().annotation,
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: vec![
+                    3, 1, 3, 3, 1, 1, 3, 2, 3, 3, 3, 3, 1, 3, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 1,
+                    1, 3, 3, 3, 2, 3, 2, 2, 3, 2, 3, 3, 1, 3, 1, 3, 3, 1, 1, 3, 2, 1, 2, 2, 2, 1,
+                    2, 1, 2, 3, 3, 1, 3, 3, 2, 1, 2, 2
+                ]
+            })
+        );
     }
 }
