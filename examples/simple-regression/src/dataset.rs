@@ -1,10 +1,7 @@
 use burn::{
     data::{
         dataloader::batcher::Batcher,
-        dataset::{
-            transform::{PartialDataset, ShuffledDataset},
-            Dataset, HuggingfaceDatasetLoader, SqliteDataset,
-        },
+        dataset::{Dataset, HuggingfaceDatasetLoader, SqliteDataset},
     },
     prelude::*,
 };
@@ -12,7 +9,7 @@ use burn::{
 pub const NUM_FEATURES: usize = 8;
 
 // Pre-computed statistics for the housing dataset features
-const FEATURES_MIN: [f32; NUM_FEATURES] = [0.4999, 1., 0.8461, 0.3333, 3., 0.6923, 32.54, -124.35];
+const FEATURES_MIN: [f32; NUM_FEATURES] = [0.4999, 1., 0.8461, 0.375, 3., 0.6923, 32.54, -124.35];
 const FEATURES_MAX: [f32; NUM_FEATURES] = [
     15., 52., 141.9091, 34.0667, 35682., 1243.3333, 41.95, -114.31,
 ];
@@ -56,11 +53,8 @@ pub struct HousingDistrictItem {
     pub median_house_value: f32,
 }
 
-type ShuffledData = ShuffledDataset<SqliteDataset<HousingDistrictItem>, HousingDistrictItem>;
-type PartialData = PartialDataset<ShuffledData, HousingDistrictItem>;
-
 pub struct HousingDataset {
-    dataset: PartialData,
+    dataset: SqliteDataset<HousingDistrictItem>,
 }
 
 impl Dataset<HousingDistrictItem> for HousingDataset {
@@ -78,6 +72,10 @@ impl HousingDataset {
         Self::new("train")
     }
 
+    pub fn validation() -> Self {
+        Self::new("validation")
+    }
+
     pub fn test() -> Self {
         Self::new("test")
     }
@@ -85,27 +83,10 @@ impl HousingDataset {
     pub fn new(split: &str) -> Self {
         let dataset: SqliteDataset<HousingDistrictItem> =
             HuggingfaceDatasetLoader::new("gvlassis/california_housing")
-                .dataset("train")
+                .dataset(split)
                 .unwrap();
 
-        let len = dataset.len();
-
-        // Shuffle the dataset with a defined seed such that train and test sets have no overlap
-        // when splitting by indexes
-        let dataset = ShuffledDataset::with_seed(dataset, 42);
-
-        // The dataset from HuggingFace has only train split, so we manually split the train dataset into train
-        // and test in a 80-20 ratio
-
-        let filtered_dataset = match split {
-            "train" => PartialData::new(dataset, 0, len * 8 / 10), // Get first 80% dataset
-            "test" => PartialData::new(dataset, len * 8 / 10, len), // Take remaining 20%
-            _ => panic!("Invalid split type"),                     // Handle unexpected split types
-        };
-
-        Self {
-            dataset: filtered_dataset,
-        }
+        Self { dataset: dataset }
     }
 }
 
@@ -180,7 +161,6 @@ impl<B: Backend> Batcher<HousingDistrictItem, HousingBatch<B>> for HousingBatche
         }
 
         let inputs = Tensor::cat(inputs, 0);
-        // let inputs = self.min_max_norm(inputs);
         let inputs = self.normalizer.normalize(inputs);
 
         let targets = items

@@ -11,18 +11,18 @@ use burn::{
 
 #[derive(Config)]
 pub struct ExpConfig {
-    #[config(default = 300)]
+    #[config(default = 100)]
     pub num_epochs: usize,
 
     #[config(default = 2)]
     pub num_workers: usize,
 
-    #[config(default = 42)]
+    #[config(default = 1337)]
     pub seed: u64,
 
     pub optimizer: AdamConfig,
 
-    #[config(default = 512)]
+    #[config(default = 256)]
     pub batch_size: usize,
 }
 
@@ -41,12 +41,12 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
     let model = RegressionModelConfig::new().init(&device);
     B::seed(config.seed);
 
-    // Define train/test datasets and dataloaders
+    // Define train/valid datasets and dataloaders
     let train_dataset = HousingDataset::train();
-    let test_dataset = HousingDataset::test();
+    let valid_dataset = HousingDataset::validation();
 
     println!("Train Dataset Size: {}", train_dataset.len());
-    println!("Test Dataset Size: {}", test_dataset.len());
+    println!("Valid Dataset Size: {}", valid_dataset.len());
 
     let batcher_train = HousingBatcher::<B>::new(device.clone());
 
@@ -62,7 +62,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .batch_size(config.batch_size)
         .shuffle(config.seed)
         .num_workers(config.num_workers)
-        .build(test_dataset);
+        .build(valid_dataset);
 
     // Model
     let learner = LearnerBuilder::new(artifact_dir)
@@ -72,7 +72,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .devices(vec![device.clone()])
         .num_epochs(config.num_epochs)
         .summary()
-        .build(model, config.optimizer.init(), 3e-3);
+        .build(model, config.optimizer.init(), 1e-3);
 
     let model_trained = learner.fit(dataloader_train, dataloader_test);
 
