@@ -10,6 +10,8 @@ use burn::{
 };
 
 pub const NUM_FEATURES: usize = 8;
+
+// Pre-computed statistics for the housing dataset features
 const FEATURES_MIN: [f32; NUM_FEATURES] = [0.4999, 1., 0.8461, 0.3333, 3., 0.6923, 32.54, -124.35];
 const FEATURES_MAX: [f32; NUM_FEATURES] = [
     15., 52., 141.9091, 34.0667, 35682., 1243.3333, 41.95, -114.31,
