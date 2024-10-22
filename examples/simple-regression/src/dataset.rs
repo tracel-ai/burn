@@ -86,7 +86,7 @@ impl HousingDataset {
                 .dataset(split)
                 .unwrap();
 
-        Self { dataset: dataset }
+        Self { dataset }
     }
 }
 
