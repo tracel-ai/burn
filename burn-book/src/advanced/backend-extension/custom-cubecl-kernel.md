@@ -1,12 +1,12 @@
-# Custom WGPU Kernel
+# Custom `cubecl` Kernel
 
 In this section, you will learn how to create your own custom operation by writing your own kernel
-with the WGPU backend. We will take the example of a common workflow in the deep learning field,
-where we create a kernel to fuse multiple operations together. Note that `burn` does this
-automatically, but a manual implementation might be more efficient in some cases. We will fuse a
-matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
+with the cubecl compiler frontend. We will take the example of a common workflow in the deep
+learning field, where we create a kernel to fuse multiple operations together. Note that `burn` does
+this automatically, but a manual implementation might be more efficient in some cases. We will fuse
+a matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
 various models. All the code can be found under the
-[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-wgpu-kernel).
+[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-cubecl-kernel).
 
 ## Custom Backend Trait
 
@@ -74,136 +74,67 @@ operations is feasible.
 
 ## Forward Kernel
 
-Now, let's proceed to write the fused kernel using the WGSL shading language. To keep things simple,
-we'll create a straightforward matmul kernel without employing any intricate techniques. Although we
-won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we
-still provide the implementation below for readers who are curious. The actual matmul, add and relu
-computations are found at the end, after an extensive overhead whose use is to correctly map each
-thread to the data it is responsible of, with support for batches.
+Now, let's proceed to write the fused kernel using the `cubecl` compiler frontend. To keep things
+simple, we'll create a straightforward matmul kernel without employing any intricate techniques. We
+won't delve into the details of the `cube` macro, but if you're interested to learn more, please see
+[`cubecl` Book](TODO). the The actual matmul, add and relu computations are found at the end, after
+an extensive prelude that serves to correctly map each thread to the data it is responsible for,
+with support for batches.
 
-```wgsl, ignore
-@group(0)
-@binding(0)
-var<storage, read_write> lhs: array<{{ elem }}>;
+```rust, ignore
+use cubecl::{cube, prelude::*};
 
-@group(0)
-@binding(1)
-var<storage, read_write> rhs: array<{{ elem }}>;
-
-@group(0)
-@binding(2)
-var<storage, read_write> bias: array<{{ elem }}>;
-
-@group(0)
-@binding(3)
-var<storage, read_write> output: array<{{ elem }}>;
-
-@group(0)
-@binding(4)
-var<storage, read_write> info: array<u32>;
-
-const BLOCK_SIZE = {{ workgroup_size_x }}u;
-
-@compute
-@workgroup_size({{ workgroup_size_x }}, {{ workgroup_size_y }}, 1)
-fn main(
-    @builtin(global_invocation_id) global_id: vec3<u32>,
-    @builtin(local_invocation_index) local_idx: u32,
-    @builtin(workgroup_id) workgroup_id: vec3<u32>,
+#[cube(launch)]
+pub fn fused_matmul_add_relu_kernel<F: Float>(
+    lhs: &Tensor<F>,
+    rhs: &Tensor<F>,
+    bias: &Tensor<F>,
+    output: &mut Tensor<F>,
 ) {
-    // Indices
-    let row = workgroup_id.x * BLOCK_SIZE + (local_idx / BLOCK_SIZE);
-    let col = workgroup_id.y * BLOCK_SIZE + (local_idx % BLOCK_SIZE);
-    let batch = global_id.z;
+    let row = ABSOLUTE_POS_X;
+    let col = ABSOLUTE_POS_Y;
+    let batch = ABSOLUTE_POS_Z;
 
-    // Basic information
-    let dim = info[0];
-    let n_rows = info[6u * dim - 1u];
-    let n_cols = info[6u * dim];
-    let K = info[5u * dim - 1u];
+    let n_rows = output.shape(output.rank() - 2);
+    let n_cols = output.shape(output.rank() - 1);
+    let dim_k = rhs.shape(rhs.rank() - 1);
 
-    // Returns if outside the output dimension
     if row >= n_rows || col >= n_cols {
         return;
     }
 
-    // Calculate the corresponding offsets with support for broadcasting.
     let offset_output = batch * n_rows * n_cols;
-    var offset_lhs: u32 = 0u;
-    var offset_rhs: u32 = 0u;
+    let mut offset_lhs = 0;
+    let mut offset_rhs = 0;
 
-    let batch_dims = dim - 2u;
-    for (var b: u32 = 1u; b <= batch_dims; b++) {
-        let stride_lhs = info[b];
-        let stride_rhs = info[b + dim];
-        let stride_output = info[b + 2u * dim];
-        let shape_lhs = info[b + 3u * dim];
-        let shape_rhs = info[b + 4u * dim];
-
-        offset_lhs += offset_output / stride_output % shape_lhs * stride_lhs;
-        offset_rhs += offset_output / stride_output % shape_rhs * stride_rhs;
+    let batch_dims = output.rank() - 2;
+    for dim in 0..batch_dims {
+        offset_lhs += offset_output / output.stride(dim) % lhs.shape(dim) * lhs.stride(dim);
+        offset_rhs += offset_output / output.stride(dim) % rhs.shape(dim) * rhs.stride(dim);
     }
 
-    // Basic matmul implementation
-    var sum = 0.0;
-    for (var k: u32 = 0u; k < K; k++) {
-        let lhs_index = row * K + k;
+    let mut sum = F::new(0.0);
+    for k in 0..dim_k {
+        let lhs_index = row * dim_k + k;
         let rhs_index = k * n_cols + col;
 
         sum += lhs[offset_lhs + lhs_index] * rhs[offset_rhs + rhs_index];
     }
 
-    let output_index = row * n_cols + col;
-    let index = offset_output + output_index;
+    let out_index = row * n_cols + col;
+    let index = offset_output + out_index;
 
-    // Add and ReLU
-    output[index] = max(sum + bias[index], 0.0);
+    output[index] = F::max(sum + bias[index], F::new(0.0));
 }
 ```
 
 Now, let's move on to the next step, which involves implementing the remaining code to launch the
-kernel. The initial part entails loading the template and populating it with the appropriate
-variables. The `register(name, value)` method simply replaces occurrences of `{{ name }}` in the
-above WGSL code with some other string before it is compilated. In order to use templating
-utilities, you will have to activate the `template` feature of Burn in your `cargo.toml`.
+kernel. We'll go into implementing our custom backend trait for the generic JIT backend. This
+automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusion.
 
 ```rust, ignore
-// Source the kernel written in WGSL.
-kernel_wgsl!(FusedMatmulAddReluRaw, "./kernel.wgsl");
-
-// Define our kernel type with cube information.
-#[derive(new, Debug)]
-struct FusedMatmulAddRelu<E: FloatElement> {
-    cube_dim: CubeDim,
-    _elem: PhantomData<E>,
-}
-
-// Implement the dynamic kernel trait for our kernel type.
-impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
-    fn source(&self) -> SourceTemplate {
-        // Extend our raw kernel with cube size information using the
-        // `SourceTemplate` trait.
-        FusedMatmulAddReluRaw::new()
-            .source()
-            .register("workgroup_size_x", self.cube_dim.x.to_string())
-            .register("workgroup_size_y", self.cube_dim.y.to_string())
-            .register("elem", E::type_name())
-            .register("int", "i32")
-    }
-
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info(self.cube_dim)
-    }
-}
-```
-
-Subsequently, we'll go into implementing our custom backend trait for the WGPU backend. Note that we
-won't go into supporting the `fusion` feature flag in this tutorial, so we implement the trait for
-the raw `WgpuBackend` type.
-
-```rust, ignore
-/// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
+/// Implement our custom backend trait for the generic `JitBackend`.
+impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F, I> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -245,30 +176,22 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         let output =
             JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
 
-        // Create the kernel.
-        let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
-
-        // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info(&[&lhs, &rhs, &output]);
-        let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
-
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
         let cubes_needed_in_y = f32::ceil(num_cols as f32 / cube_dim.y as f32) as u32;
         let cube_count =
             CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
 
-        // Execute lazily the kernel with the launch information and the given buffers.
-        lhs.client.execute(
-            Box::new(SourceKernel::new(kernel, cube_dim)),
+        // Execute lazily the kernel with the launch information and the given buffers. For
+        // simplicity, no vectorization is performed
+        fused_matmul_add_relu_kernel::launch::<F, R>(
+            &lhs.client,
             cube_count,
-            vec![
-                lhs.handle.binding(),
-                rhs.handle.binding(),
-                bias.handle.binding(),
-                output.handle.clone().binding(),
-                info_handle.binding(),
-            ],
+            cube_dim,
+            lhs.as_tensor_arg(1),
+            rhs.as_tensor_arg(1),
+            bias.as_tensor_arg(1),
+            output.as_tensor_arg(1),
         );
 
         // Return the output tensor.
@@ -285,22 +208,18 @@ mind.
 
 ## Backward
 
-Now that the custom backend trait is implemented for the WGPU backend, you can use it to invoke the
+Now that the custom backend trait is implemented for the JIT backend, you can use it to invoke the
 `matmul_add_relu_custom` function. However, calculating gradients is not yet possible at this stage.
 If your use case does not extend beyond inference, there is no need to implement any of the
 following code.
 
 For the backward pass, we will leverage the backend implementation from `burn-autodiff`, which is
-actually generic over the backend. Instead of crafting our own WGSL kernel for the backward pass, we
-will use our fused kernel only for the forward pass, and compute the gradient using basic
+actually generic over the backend. Instead of crafting our own `cubecl` kernel for the backward
+pass, we will use our fused kernel only for the forward pass, and compute the gradient using basic
 operations.
 
 ```rust, ignore
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
-//
-// Note that we could implement the backend trait only for the Wgpu backend instead of any backend that
-// also implements our own API. This would allow us to call any function only implemented for Wgpu
-// and potentially call a custom kernel crafted only for this task.
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -389,10 +308,12 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // When at least one node is tracked, we should register our backward step.
 
                 // The state consists of what will be needed for this operation's backward pass.
-                // Since we need the parents' outputs, we must checkpoint their ids to retrieve their node
-                // output at the beginning of the backward. We can also save utilitary data such as the bias shape
-                // If we also need this operation's output, we can either save it in the state or recompute it
-                // during the backward pass. Here we choose to save it in the state because it's a compute bound operation.
+                // Since we need the parents' outputs, we must checkpoint their ids to retrieve
+                // their node output at the beginning of the backward pass. We can also save
+                // utilitary data such as the bias shape. If we also need this operation's output,
+                // we can either save it in the state or recompute it.
+                // during the backward pass. Here we choose to save it in the state because it's a
+                // compute bound operation.
                 let lhs_state = prep.checkpoint(&lhs);
                 let rhs_state = prep.checkpoint(&rhs);
                 let bias_shape = B::float_shape(&bias.primitive);
@@ -418,7 +339,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 }
 ```
 
-The previous code is self-documented to make it clearer, but here is what it does in summary.
+The previous code is self-documented to make it clearer, but here is what it does in summary:
 
 We define `fused_matmul_add_relu` within `Autodiff<B>`, allowing any autodiff-decorated backend to
 benefit from our implementation. In an autodiff-decorated backend, the forward pass must still be
@@ -434,19 +355,20 @@ derivative is one), and `matmul` (another `matmul` with transposed inputs). This
 gradients for both input tensors and the bias, which are registered for consumption by subsequent
 operation nodes.
 
-The only remaining part is to implement our autodiff-decorated backend trait for our WGPU Backend.
+The only remaining part is to implement our autodiff-decorated backend trait for our JIT Backend.
 
 ```rust, ignore
-impl<G: GraphicsApi, F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<WgpuBackend<G, F, I>>
+impl<R: JitRuntime, F: FloatElement, I: IntElement> AutodiffBackend
+    for Autodiff<JitBackend<R, F, I>>
 {
 }
 ```
 
 ## Conclusion
 
-In this guide, we've implemented a fused kernel using the WGPU backend, enabling execution on any
-GPU. By delving into the inner workings of both the WGPU backend and the autodiff backend, we've
-gained a deeper understanding of these systems.
+In this guide, we've implemented a fused kernel using the `cubecl` compiler frontend, enabling
+execution on any GPU and any `cubecl` backend. By delving into the inner workings of both the JIT
+backend and the autodiff backend, we've gained a deeper understanding of these systems.
 
 While extending a backend may be harder than working with straightforward tensors, the benefits can
 be worth it. This approach enables the crafting of custom models with greater control over
