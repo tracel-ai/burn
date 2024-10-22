@@ -1,7 +1,4 @@
-use burn_tensor::{
-    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
-    ElementConversion, Shape,
-};
+use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
@@ -9,9 +6,7 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{
-            batches_per_run, can_do_implicit_gemm, conv_transpose2d_col2im, conv_transpose2d_direct,
-        },
+        conv::{batches_per_run, conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -104,15 +99,7 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     _key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
-    let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
     let [batch_size, _, input_h, input_w] = op.input.shape.dims();
-    let ConvTransposeOptions {
-        padding: [padding_h, padding_w],
-        padding_out: [padding_out_h, padding_out_w],
-        dilation: [dilation_h, dilation_w],
-        stride: [stride_h, stride_w],
-        ..
-    } = op.options.clone();
     match index {
         // im2col
         1 => batches_per_run(batch_size, input_h, input_w).is_some(),
