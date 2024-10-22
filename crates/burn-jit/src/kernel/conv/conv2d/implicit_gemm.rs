@@ -52,7 +52,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 
     let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
 
-    if !can_do_implicit_gemm(&input, &weight, &options, out_h, out_w) {
+    if !can_do_implicit_gemm(&input, &weight, options.groups, out_h, out_w) {
         panic!(
             "Requirements for implicit GEMM not met:
 - CMMA must be available
@@ -648,7 +648,7 @@ fn load_bias_tile<F: Float>(
 pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     input: &JitTensor<R, E>,
     weight: &JitTensor<R, E>,
-    options: &ConvOptions<2>,
+    groups: usize,
     out_h: usize,
     out_w: usize,
 ) -> bool {
@@ -670,7 +670,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
 
         let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
 
-        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && options.groups == 1
+        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && groups == 1
     } else {
         false
     }

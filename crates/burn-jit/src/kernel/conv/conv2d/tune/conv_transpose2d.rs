@@ -1,4 +1,7 @@
-use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
+use burn_tensor::{
+    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
+    ElementConversion, Shape,
+};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
@@ -6,7 +9,9 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
+        conv::{
+            batches_per_run, can_do_implicit_gemm, conv_transpose2d_col2im, conv_transpose2d_direct,
+        },
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -35,7 +40,7 @@ pub fn conv_transpose2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
     )
 }
 
-#[tune(operations(conv_transpose2d_direct, conv_transpose2d_col2im), create_key = create_key)]
+#[tune(operations(conv_transpose2d_direct, conv_transpose2d_col2im), create_key = create_key, should_run = should_run)]
 pub fn conv_transpose2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     key: JitAutotuneKey,
     input: JitTensor<R, E>,
@@ -92,4 +97,44 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         batch_size,
         bias.is_some(),
     ))
+}
+
+fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
+    op: &ConvTranspose2dOperations<R, F, I>,
+    _key: &JitAutotuneKey,
+    index: usize,
+) -> bool {
+    let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
+    let [batch_size, _, input_h, input_w] = op.input.shape.dims();
+    let ConvTransposeOptions {
+        padding: [padding_h, padding_w],
+        padding_out: [padding_out_h, padding_out_w],
+        dilation: [dilation_h, dilation_w],
+        stride: [stride_h, stride_w],
+        ..
+    } = op.options.clone();
+
+    let out_h = calculate_conv_transpose_output_size(
+        kernel_h,
+        stride_h,
+        padding_h,
+        padding_out_h,
+        dilation_h,
+        input_h,
+    );
+    let out_w = calculate_conv_transpose_output_size(
+        kernel_w,
+        stride_w,
+        padding_w,
+        padding_out_w,
+        dilation_w,
+        input_w,
+    );
+    match index {
+        // im2col
+        1 => batches_per_run(batch_size, input_h, input_w).is_some(),
+        // Implicit gemm.
+        2 => can_do_implicit_gemm(&op.input, &op.weights, op.options.groups, out_h, out_w),
+        _ => true,
+    }
 }

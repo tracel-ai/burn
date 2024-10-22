@@ -9,7 +9,10 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{can_do_implicit_gemm, conv2d_direct, conv2d_im2col, conv2d_implicit_gemm},
+        conv::{
+            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col,
+            conv2d_implicit_gemm,
+        },
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -76,27 +79,21 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     _key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
+    let [batch_size, _, input_h, input_w] = op.input.shape.dims();
+    let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
+
+    let o = &op.options;
+
+    let out_h =
+        calculate_conv_output_size(kernel_h, o.stride[0], o.padding[0], o.dilation[0], input_h);
+    let out_w =
+        calculate_conv_output_size(kernel_w, o.stride[1], o.padding[1], o.dilation[1], input_w);
+
     match index {
-        2 => {
-            let [_, _, height, width] = op.input.shape.dims();
-            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
-            let o = &op.options;
-            let out_h = calculate_conv_output_size(
-                kernel_h,
-                o.stride[0],
-                o.padding[0],
-                o.dilation[0],
-                height,
-            );
-            let out_w = calculate_conv_output_size(
-                kernel_w,
-                o.stride[1],
-                o.padding[1],
-                o.dilation[1],
-                width,
-            );
-            can_do_implicit_gemm(&op.input, &op.weights, &op.options, out_h, out_w)
-        }
+        // im2col
+        1 => batches_per_run(batch_size, out_h, out_w).is_some(),
+        // Implicit gemm.
+        2 => can_do_implicit_gemm(&op.input, &op.weights, op.options.groups, out_h, out_w),
         _ => true,
     }
 }
