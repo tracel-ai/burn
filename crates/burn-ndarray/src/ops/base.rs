@@ -205,6 +205,12 @@ where
         NdArrayTensor { array }
     }
 
+    pub fn remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = lhs.array % rhs.array;
+        let array = array.into_shared();
+        NdArrayTensor { array }
+    }
+
     pub fn remainder_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E>
     where
         E: core::ops::Rem<Output = E>,

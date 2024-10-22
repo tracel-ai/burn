@@ -16,7 +16,7 @@ where
 {
 }
 
-pub trait IntNdArrayElement: NdArrayElement + core::ops::Rem<Output = Self> + Signed {}
+pub trait IntNdArrayElement: NdArrayElement + Signed {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
@@ -28,6 +28,7 @@ pub trait NdArrayElement:
     + core::ops::AddAssign
     + core::cmp::PartialEq
     + core::cmp::PartialOrd<Self>
+    + core::ops::Rem<Output = Self>
 {
 }
 

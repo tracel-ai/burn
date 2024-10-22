@@ -2429,6 +2429,20 @@ impl<B: Backend> Numeric<B> for Float {
             }
         }
     }
+    fn remainder(
+        lhs: Self::Primitive,
+        rhs: Self::Primitive,
+    ) -> <Float as TensorKind<B>>::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_remainder(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_remainder(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
+        }
+    }
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         match lhs {
             TensorPrimitive::Float(lhs) => {
