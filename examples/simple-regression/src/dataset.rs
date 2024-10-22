@@ -9,62 +9,60 @@ use burn::{
     prelude::*,
 };
 
+pub const NUM_FEATURES: usize = 8;
+const FEATURES_MIN: [f32; NUM_FEATURES] = [0.4999, 1., 0.8461, 0.3333, 3., 0.6923, 32.54, -124.35];
+const FEATURES_MAX: [f32; NUM_FEATURES] = [
+    15., 52., 141.9091, 34.0667, 35682., 1243.3333, 41.95, -114.31,
+];
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct DiabetesItem {
-    /// Age in years
-    #[serde(rename = "AGE")]
-    pub age: u8,
+pub struct HousingDistrictItem {
+    /// Median income
+    #[serde(rename = "MedInc")]
+    pub median_income: f32,
 
-    /// Sex categorical label
-    #[serde(rename = "SEX")]
-    pub sex: u8,
+    /// Median house age
+    #[serde(rename = "HouseAge")]
+    pub house_age: f32,
 
-    /// Body mass index
-    #[serde(rename = "BMI")]
-    pub bmi: f32,
+    /// Average number of rooms per household
+    #[serde(rename = "AveRooms")]
+    pub avg_rooms: f32,
 
-    /// Average blood pressure
-    #[serde(rename = "BP")]
-    pub bp: f32,
+    /// Average number of bedrooms per household
+    #[serde(rename = "AveBedrms")]
+    pub avg_bedrooms: f32,
 
-    /// S1: total serum cholesterol
-    #[serde(rename = "S1")]
-    pub tc: u16,
+    /// Block group population
+    #[serde(rename = "Population")]
+    pub population: f32,
 
-    /// S2: low-density lipoproteins
-    #[serde(rename = "S2")]
-    pub ldl: f32,
+    /// Average number of household members
+    #[serde(rename = "AveOccup")]
+    pub avg_occupancy: f32,
 
-    /// S3: high-density lipoproteins
-    #[serde(rename = "S3")]
-    pub hdl: f32,
+    /// Block group latitude
+    #[serde(rename = "Latitude")]
+    pub latitude: f32,
 
-    /// S4: total cholesterol
-    #[serde(rename = "S4")]
-    pub tch: f32,
+    /// Block group longitude
+    #[serde(rename = "Longitude")]
+    pub longitude: f32,
 
-    /// S5: possibly log of serum triglycerides level
-    #[serde(rename = "S5")]
-    pub ltg: f32,
-
-    /// S6: blood sugar level
-    #[serde(rename = "S6")]
-    pub glu: u8,
-
-    /// Y: quantitative measure of disease progression one year after baseline
-    #[serde(rename = "Y")]
-    pub response: u16,
+    /// Median house value (in 100 000$)
+    #[serde(rename = "MedHouseVal")]
+    pub median_house_value: f32,
 }
 
-type ShuffledData = ShuffledDataset<SqliteDataset<DiabetesItem>, DiabetesItem>;
-type PartialData = PartialDataset<ShuffledData, DiabetesItem>;
+type ShuffledData = ShuffledDataset<SqliteDataset<HousingDistrictItem>, HousingDistrictItem>;
+type PartialData = PartialDataset<ShuffledData, HousingDistrictItem>;
 
-pub struct DiabetesDataset {
+pub struct HousingDataset {
     dataset: PartialData,
 }
 
-impl Dataset<DiabetesItem> for DiabetesDataset {
-    fn get(&self, index: usize) -> Option<DiabetesItem> {
+impl Dataset<HousingDistrictItem> for HousingDataset {
+    fn get(&self, index: usize) -> Option<HousingDistrictItem> {
         self.dataset.get(index)
     }
 
@@ -73,7 +71,7 @@ impl Dataset<DiabetesItem> for DiabetesDataset {
     }
 }
 
-impl DiabetesDataset {
+impl HousingDataset {
     pub fn train() -> Self {
         Self::new("train")
     }
@@ -83,8 +81,8 @@ impl DiabetesDataset {
     }
 
     pub fn new(split: &str) -> Self {
-        let dataset: SqliteDataset<DiabetesItem> =
-            HuggingfaceDatasetLoader::new("Jayabalambika/toy-diabetes")
+        let dataset: SqliteDataset<HousingDistrictItem> =
+            HuggingfaceDatasetLoader::new("gvlassis/california_housing")
                 .dataset("train")
                 .unwrap();
 
@@ -109,20 +107,45 @@ impl DiabetesDataset {
     }
 }
 
+/// Normalizer for the housing dataset.
 #[derive(Clone, Debug)]
-pub struct DiabetesBatcher<B: Backend> {
-    device: B::Device,
+pub struct Normalizer<B: Backend> {
+    pub min: Tensor<B, 2>,
+    pub max: Tensor<B, 2>,
+}
+
+impl<B: Backend> Normalizer<B> {
+    /// Creates a new normalizer.
+    pub fn new(device: &B::Device, min: &[f32], max: &[f32]) -> Self {
+        let min = Tensor::<B, 1>::from_floats(min, device).unsqueeze();
+        let max = Tensor::<B, 1>::from_floats(max, device).unsqueeze();
+        Self { min, max }
+    }
+
+    /// Normalizes the input image according to the housing dataset min/max.
+    pub fn normalize(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+        (input - self.min.clone()) / (self.max.clone() - self.min.clone())
+    }
 }
 
 #[derive(Clone, Debug)]
-pub struct DiabetesBatch<B: Backend> {
+pub struct HousingBatcher<B: Backend> {
+    device: B::Device,
+    normalizer: Normalizer<B>,
+}
+
+#[derive(Clone, Debug)]
+pub struct HousingBatch<B: Backend> {
     pub inputs: Tensor<B, 2>,
     pub targets: Tensor<B, 1>,
 }
 
-impl<B: Backend> DiabetesBatcher<B> {
+impl<B: Backend> HousingBatcher<B> {
     pub fn new(device: B::Device) -> Self {
-        Self { device }
+        Self {
+            device: device.clone(),
+            normalizer: Normalizer::new(&device, &FEATURES_MIN, &FEATURES_MAX),
+        }
     }
 
     pub fn min_max_norm<const D: usize>(&self, inp: Tensor<B, D>) -> Tensor<B, D> {
@@ -132,23 +155,21 @@ impl<B: Backend> DiabetesBatcher<B> {
     }
 }
 
-impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> {
-    fn batch(&self, items: Vec<DiabetesItem>) -> DiabetesBatch<B> {
+impl<B: Backend> Batcher<HousingDistrictItem, HousingBatch<B>> for HousingBatcher<B> {
+    fn batch(&self, items: Vec<HousingDistrictItem>) -> HousingBatch<B> {
         let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
 
         for item in items.iter() {
             let input_tensor = Tensor::<B, 1>::from_floats(
                 [
-                    item.age as f32,
-                    item.sex as f32,
-                    item.bmi,
-                    item.bp,
-                    item.tc as f32,
-                    item.ldl,
-                    item.hdl,
-                    item.tch,
-                    item.ltg,
-                    item.glu as f32,
+                    item.median_income,
+                    item.house_age,
+                    item.avg_rooms,
+                    item.avg_bedrooms,
+                    item.population,
+                    item.avg_occupancy,
+                    item.latitude,
+                    item.longitude,
                 ],
                 &self.device,
             );
@@ -157,16 +178,16 @@ impl<B: Backend> Batcher<DiabetesItem, DiabetesBatch<B>> for DiabetesBatcher<B> 
         }
 
         let inputs = Tensor::cat(inputs, 0);
-        let inputs = self.min_max_norm(inputs);
+        // let inputs = self.min_max_norm(inputs);
+        let inputs = self.normalizer.normalize(inputs);
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([item.response as f32], &self.device))
+            .map(|item| Tensor::<B, 1>::from_floats([item.median_house_value], &self.device))
             .collect();
 
         let targets = Tensor::cat(targets, 0);
-        let targets = self.min_max_norm(targets);
 
-        DiabetesBatch { inputs, targets }
+        HousingBatch { inputs, targets }
     }
 }
