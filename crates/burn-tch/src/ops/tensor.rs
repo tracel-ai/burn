@@ -357,6 +357,18 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         tensor.unary_ops(|mut tensor| tensor.tanh_(), |tensor| tensor.tanh())
     }
 
+    fn float_round(tensor: TchTensor<E>) -> TchTensor<E> {
+        tensor.unary_ops(|mut tensor| tensor.round_(), |tensor| tensor.round())
+    }
+
+    fn float_floor(tensor: TchTensor<E>) -> TchTensor<E> {
+        tensor.unary_ops(|mut tensor| tensor.floor_(), |tensor| tensor.floor())
+    }
+
+    fn float_ceil(tensor: TchTensor<E>) -> TchTensor<E> {
+        tensor.unary_ops(|mut tensor| tensor.ceil_(), |tensor| tensor.ceil())
+    }
+
     fn float_erf(tensor: TchTensor<E>) -> TchTensor<E> {
         tensor.unary_ops(|mut tensor| tensor.erf_(), |tensor| tensor.erf())
     }

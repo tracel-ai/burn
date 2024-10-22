@@ -59,6 +59,12 @@ pub enum FloatOperationDescription {
     Sin(UnaryOperationDescription),
     /// Operation corresponding to [tanh](crate::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOperationDescription),
+    /// Operation corresponding to [round](crate::ops::FloatTensorOps::float_round).
+    Round(UnaryOperationDescription),
+    /// Operation corresponding to [floor](crate::ops::FloatTensorOps::float_floor).
+    Floor(UnaryOperationDescription),
+    /// Operation corresponding to [ceil](crate::ops::FloatTensorOps::float_ceil).
+    Ceil(UnaryOperationDescription),
     /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
     /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
@@ -1454,6 +1460,9 @@ impl FloatOperationDescription {
             FloatOperationDescription::Cos(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Round(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Floor(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Ceil(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Quantize(desc) => {
                 if let Some(offset) = &desc.qparams.offset {

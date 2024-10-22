@@ -54,4 +54,21 @@ mod tests {
 
         output.into_data().assert_approx_eq(&expected, 3);
     }
+
+    #[test]
+    fn should_support_powf_broadcasted() {
+        let device = Default::default();
+        let tensor_1 = Tensor::<TestBackend, 1>::from_floats([2.0, 3.0, 4.0], &device);
+        let tensor_2 = Tensor::from_floats([1.0], &device);
+
+        // Broadcast rhs
+        let output = tensor_1.clone().powf(tensor_2.clone());
+        output.into_data().assert_approx_eq(&tensor_1.to_data(), 3);
+
+        // Broadcast lhs
+        let output = tensor_2.powf(tensor_1);
+        output
+            .into_data()
+            .assert_approx_eq(&TensorData::from([1.0, 1.0, 1.0]), 3);
+    }
 }

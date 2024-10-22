@@ -20,6 +20,22 @@ use num_traits::Float;
 
 use libm::erf;
 
+#[cfg(feature = "std")]
+#[allow(dead_code)]
+fn round_ties_even_wrapper(x: f64) -> f64 {
+    x.round_ties_even()
+}
+
+#[cfg(not(feature = "std"))]
+#[allow(dead_code)]
+fn round_ties_even_wrapper(x: f64) -> f64 {
+    if (x - x.floor()) == 0.5 {
+        (x * 0.5).round() * 2.0
+    } else {
+        x.round()
+    }
+}
+
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorOps<Self>
     for NdArray<E, I, Q>
 {
@@ -346,6 +362,34 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         let array = tensor
             .array
             .mapv_into(|a| (a.to_f64()).tanh().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_round(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            // .mapv_into(|a| (a.to_f64()).round_ties_even().elem())
+            .mapv_into(|a| round_ties_even_wrapper(a.to_f64()).elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_floor(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).floor().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_ceil(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).ceil().elem())
             .into_shared();
 
         NdArrayTensor::new(array)
