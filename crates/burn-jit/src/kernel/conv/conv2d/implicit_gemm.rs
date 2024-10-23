@@ -52,7 +52,16 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 
     let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
 
-    if !can_do_implicit_gemm(&input, &weight, &options, out_h, out_w) {
+    if !can_do_implicit_gemm::<R, F>(
+        batch_size,
+        in_channels,
+        out_channels,
+        [kernel_h, kernel_w],
+        options.groups,
+        out_h,
+        out_w,
+        &input.device,
+    ) {
         panic!(
             "Requirements for implicit GEMM not met:
 - CMMA must be available
@@ -645,16 +654,18 @@ fn load_bias_tile<F: Float>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R, E>,
-    weight: &JitTensor<R, E>,
-    options: &ConvOptions<2>,
+    batch_size: usize,
+    in_channels: usize,
+    out_channels: usize,
+    kernel_size: [usize; 2],
+    groups: usize,
     out_h: usize,
     out_w: usize,
+    device: &R::Device,
 ) -> bool {
-    let [batch_size, in_channels, _, _] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
-    let (in_channels, kernel_h, kernel_w) = padded_k(in_channels, kernel_h, kernel_w);
+    let (in_channels, kernel_h, kernel_w) = padded_k(in_channels, kernel_size[0], kernel_size[1]);
     let batch_size = padded_batch_size(batch_size, out_h, out_w);
     let out_channels = out_channels.div_ceil(16) * 16;
 
@@ -662,15 +673,14 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let size =
-        find_cmma_size::<R, f16, E>(&input.device, gemm_m as u32, gemm_k as u32, gemm_n as u32);
+    let size = find_cmma_size::<R, f16, E>(device, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
     if let Some((cmma_m, cmma_k, cmma_n)) = size {
         let warps_per_cube = 8;
 
         let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
 
-        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && options.groups == 1
+        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && groups == 1
     } else {
         false
     }
