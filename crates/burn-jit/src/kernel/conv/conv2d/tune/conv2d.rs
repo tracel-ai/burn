@@ -84,36 +84,35 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
         _ => unreachable!(),
     };
 
+    let out_h = calculate_conv_output_size(
+        key.kernel_size[0],
+        key.stride[0],
+        key.padding[0],
+        key.dilation[0],
+        key.height,
+    );
+    let out_w = calculate_conv_output_size(
+        key.kernel_size[1],
+        key.stride[1],
+        key.padding[1],
+        key.dilation[1],
+        key.width,
+    );
+
     match index {
         // im2col
-        1 => batches_per_run(key.batch_size, key.height, key.width).is_some(),
+        1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
         // Implicit gemm.
-        2 => {
-            let out_h = calculate_conv_output_size(
-                key.kernel_size[0],
-                key.stride[0],
-                key.padding[0],
-                key.dilation[0],
-                key.height,
-            );
-            let out_w = calculate_conv_output_size(
-                key.kernel_size[1],
-                key.stride[1],
-                key.padding[1],
-                key.dilation[1],
-                key.width,
-            );
-            can_do_implicit_gemm::<R, F>(
-                key.batch_size,
-                key.in_channels,
-                key.out_channels,
-                key.kernel_size,
-                op.options.groups,
-                out_h,
-                out_w,
-                &op.input.device,
-            )
-        }
+        2 => can_do_implicit_gemm::<R, F>(
+            key.batch_size,
+            key.in_channels,
+            key.out_channels,
+            key.kernel_size,
+            op.options.groups,
+            out_h,
+            out_w,
+            &op.input.device,
+        ),
         _ => true,
     }
 }

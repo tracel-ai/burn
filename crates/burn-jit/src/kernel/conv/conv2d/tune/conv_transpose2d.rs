@@ -1,7 +1,4 @@
-use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvTransposeOptions},
-    ElementConversion, Shape,
-};
+use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
 use cubecl::{
     tune,
     tune::{local_tuner, tune_with, LocalTuner},
@@ -107,23 +104,9 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
         _ => unreachable!(),
     };
 
-    let out_h = calculate_conv_output_size(
-        key.kernel_size[0],
-        key.stride[0],
-        key.padding[0],
-        key.dilation[0],
-        key.height,
-    );
-    let out_w = calculate_conv_output_size(
-        key.kernel_size[1],
-        key.stride[1],
-        key.padding[1],
-        key.dilation[1],
-        key.width,
-    );
     match index {
         // im2col
-        1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
+        1 => batches_per_run(key.batch_size, key.height, key.width).is_some(),
         _ => true,
     }
 }
