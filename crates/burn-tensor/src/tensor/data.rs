@@ -8,7 +8,7 @@ use half::{bf16, f16};
 
 use crate::{
     quantization::{Quantization, QuantizationStrategy},
-    tensor::Shape,
+    tensor::{bytes::Bytes, Shape},
     DType, Distribution, Element, ElementConversion,
 };
 
@@ -33,8 +33,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    #[serde(with = "serde_bytes")]
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -60,9 +59,6 @@ impl TensorData {
 
     /// Initializes a new tensor data structure from the provided values.
     fn init<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S, dtype: DType) -> Self {
-        // Ensure `E` satisfies the `Pod` trait requirements
-        assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
-
         // Ensure shape is valid
         let shape = shape.into();
         let shape_numel = Self::numel(&shape);
@@ -74,14 +70,7 @@ impl TensorData {
             shape, numel,
         );
 
-        let factor = core::mem::size_of::<E>() / core::mem::size_of::<u8>();
-        let len = numel * factor;
-        let capacity = value.capacity() * factor;
-        let ptr = value.as_mut_ptr();
-
-        core::mem::forget(value);
-
-        let bytes = unsafe { Vec::from_raw_parts(ptr as *mut u8, len, capacity) };
+        let bytes = Bytes::from_elems(value);
 
         Self {
             bytes,
@@ -280,7 +269,7 @@ impl TensorData {
 
     /// Returns the data as a slice of bytes.
     pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_slice()
+        &self.bytes
     }
 
     /// Applies the data quantization strategy.

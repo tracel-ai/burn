@@ -152,7 +152,7 @@ where
     // Because serializer copies individual elements of TensorData `value` into a new Vec<u8>,
     // which is not necessary and inefficient.
     let mut tensor_data: HashMap<String, NestedValue> = HashMap::new();
-    tensor_data.insert("bytes".into(), NestedValue::U8s(bytes));
+    tensor_data.insert("bytes".into(), NestedValue::Bytes(bytes));
     tensor_data.insert("shape".into(), shape.serialize(serializer.clone())?);
     tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
 

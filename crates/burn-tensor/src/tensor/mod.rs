@@ -1,12 +1,14 @@
 pub(crate) mod stats;
 
 mod api;
+mod bytes;
 mod data;
 mod distribution;
 mod element;
 mod shape;
 
 pub use api::*;
+pub use bytes::*;
 pub use data::*;
 pub use distribution::*;
 pub use element::*;

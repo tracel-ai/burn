@@ -8,6 +8,7 @@ use crate::record::{PrecisionSettings, Record};
 use crate::tensor::backend::Backend;
 
 use alloc::fmt;
+use burn_tensor::Bytes;
 use num_traits::cast::ToPrimitive;
 use regex::Regex;
 use serde::Deserialize;
@@ -66,7 +67,11 @@ pub enum NestedValue {
 
     /// A vector of 32-bit floating point values.
     F32s(Vec<f32>),
+
+    /// An opaque vector of bytes, with alignment.
+    Bytes(Bytes),
 }
+
 impl NestedValue {
     /// Get the nested value as a map.
     pub fn as_map(self) -> Option<HashMap<String, NestedValue>> {
@@ -368,6 +373,7 @@ impl fmt::Debug for NestedValue {
             NestedValue::U8s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::U16s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
             NestedValue::F32s(vec) if vec.len() > 3 => write_vec_truncated(vec, f),
+            NestedValue::Bytes(bytes) if bytes.len() > 3 => write_vec_truncated(bytes, f),
             // Handle other variants as usual
             NestedValue::Default(origin) => f.debug_tuple("Default").field(origin).finish(),
             NestedValue::Bool(b) => f.debug_tuple("Bool").field(b).finish(),
@@ -385,6 +391,7 @@ impl fmt::Debug for NestedValue {
             NestedValue::U8s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::U16s(vec) => f.debug_list().entries(vec.iter()).finish(),
             NestedValue::F32s(vec) => f.debug_list().entries(vec.iter()).finish(),
+            NestedValue::Bytes(bytes) => f.debug_list().entries(bytes.iter()).finish(),
         }
     }
 }
