@@ -1,6 +1,6 @@
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -24,7 +24,7 @@ impl<E: JitElement> InterpolateNearestShader<E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
         let elem = E::cube_elem();
 
         let input_stride_0 = scope.create_local(Elem::UInt);
@@ -106,7 +106,7 @@ impl<E: JitElement> InterpolateNearestShader<E> {
 
         let index = scope.create_local(Elem::UInt);
         let index_tmp = scope.create_local(Elem::UInt);
-        let val = scope.create_local(output.item());
+        let val = scope.create_local(output.item);
 
         cpa!(scope, index = b * input_stride_0);
         cpa!(scope, index_tmp = c * input_stride_1);
@@ -126,8 +126,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestEagerKernel<R, E
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         InterpolateNearestShader {
             input,

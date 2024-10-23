@@ -16,7 +16,7 @@ impl<E: JitElement> ReduceDimShared<E> for ProdDim {
         input_item: Item,
     ) -> Self::Accumulator {
         let shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let neutral_element = scope.create_with_value(1, shared_memory.item());
+        let neutral_element = scope.create_with_value(1, shared_memory.item);
         cpa!(scope, shared_memory[write_position] = neutral_element);
         shared_memory
     }
@@ -27,8 +27,8 @@ impl<E: JitElement> ReduceDimShared<E> for ProdDim {
         write_position: Variable,
         value: Self::Accumulator,
     ) {
-        let current_value = scope.create_local(value.item());
-        let computed = scope.create_local(value.item());
+        let current_value = scope.create_local(value.item);
+        let computed = scope.create_local(value.item);
         cpa!(scope, current_value = shared_memory[write_position]);
         cpa!(scope, computed = current_value * value);
         cpa!(scope, shared_memory[write_position] = computed);
@@ -40,7 +40,7 @@ impl<E: JitElement> ReduceDimShared<E> for ProdDim {
         read_position: Variable,
         _i: Variable,
     ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
+        let value = scope.create_local(input.item);
         cpa!(scope, value = input[read_position]);
         value
     }
@@ -50,7 +50,7 @@ impl<E: JitElement> ReduceDimShared<E> for ProdDim {
         shared_memory: Self::Accumulator,
         read_position: Variable,
     ) -> Self::Accumulator {
-        let read_value = scope.create_local(shared_memory.item());
+        let read_value = scope.create_local(shared_memory.item);
         cpa!(scope, read_value = shared_memory[read_position]);
         read_value
     }
@@ -62,7 +62,7 @@ impl<E: JitElement> ReduceDimShared<E> for ProdDim {
         write_position: Variable,
         _shape_reduce_dim: Variable,
     ) {
-        let final_value = scope.create_local(output.item());
+        let final_value = scope.create_local(output.item);
         cpa!(scope, final_value = shared_memory[0]);
         cpa!(scope, output[write_position] = final_value);
     }

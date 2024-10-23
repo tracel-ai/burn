@@ -7,7 +7,9 @@ use crate::{
 };
 use cubecl::{
     cpa,
-    ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
+    ir::{
+        Builtin, Elem, IntKind, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility,
+    },
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -32,7 +34,7 @@ impl AvgPool2dBackwardComputeShader {
     fn expand(self, scope: &mut Scope) {
         let grad = self.grad;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);
@@ -70,22 +72,10 @@ impl AvgPool2dBackwardComputeShader {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let pool_stride_0 = Variable::GlobalScalar {
-            id: 0,
-            elem: Elem::UInt,
-        };
-        let pool_stride_1 = Variable::GlobalScalar {
-            id: 1,
-            elem: Elem::UInt,
-        };
-        let padding_0 = Variable::GlobalScalar {
-            id: 4,
-            elem: Elem::UInt,
-        };
-        let padding_1 = Variable::GlobalScalar {
-            id: 5,
-            elem: Elem::UInt,
-        };
+        let pool_stride_0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(Elem::UInt));
+        let pool_stride_1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(Elem::UInt));
+        let padding_0 = Variable::new(VariableKind::GlobalScalar(4), Item::new(Elem::UInt));
+        let padding_1 = Variable::new(VariableKind::GlobalScalar(5), Item::new(Elem::UInt));
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
         let b = scope.create_local(Elem::UInt);
@@ -116,9 +106,9 @@ impl AvgPool2dBackwardComputeShader {
         let index_tmp = scope.create_local(Elem::UInt);
         let index_base = scope.create_local(Elem::UInt);
 
-        let grad_accumulation = scope.zero(grad.item());
-        let result = scope.create_local(grad.item());
-        let count = scope.create_local(grad.item());
+        let grad_accumulation = scope.zero(grad.item);
+        let result = scope.create_local(grad.item);
+        let count = scope.create_local(grad.item);
 
         let count_include_pad = self.count_include_pad;
         if count_include_pad {
@@ -226,30 +216,12 @@ impl AvgPool2dBackwardComputeShader {
         output_stride_2: Variable,
         output_stride_3: Variable,
     ) -> (Variable, Variable, Variable, Variable) {
-        let pool_stride_0 = Variable::GlobalScalar {
-            id: 0,
-            elem: Elem::UInt,
-        };
-        let pool_stride_1 = Variable::GlobalScalar {
-            id: 1,
-            elem: Elem::UInt,
-        };
-        let dilation_0 = Variable::GlobalScalar {
-            id: 2,
-            elem: Elem::UInt,
-        };
-        let dilation_1 = Variable::GlobalScalar {
-            id: 3,
-            elem: Elem::UInt,
-        };
-        let padding_0 = Variable::GlobalScalar {
-            id: 4,
-            elem: Elem::UInt,
-        };
-        let padding_1 = Variable::GlobalScalar {
-            id: 5,
-            elem: Elem::UInt,
-        };
+        let pool_stride_0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(Elem::UInt));
+        let pool_stride_1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(Elem::UInt));
+        let dilation_0 = Variable::new(VariableKind::GlobalScalar(2), Item::new(Elem::UInt));
+        let dilation_1 = Variable::new(VariableKind::GlobalScalar(3), Item::new(Elem::UInt));
+        let padding_0 = Variable::new(VariableKind::GlobalScalar(4), Item::new(Elem::UInt));
+        let padding_1 = Variable::new(VariableKind::GlobalScalar(5), Item::new(Elem::UInt));
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
@@ -350,8 +322,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for AvgPool2dBackwardEagerKernel<R, E>
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let grad = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let grad = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 
