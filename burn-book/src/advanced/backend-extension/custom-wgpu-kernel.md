@@ -16,9 +16,6 @@ encapsulates the underlying tensor implementation of the backend, we will use a 
 the ugly disambiguation with associated types.
 
 ```rust, ignore
-/// We use a type alias for better readability.
-pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
-
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {
     fn fused_matmul_add_relu(
@@ -79,7 +76,7 @@ we'll create a straightforward matmul kernel without employing any intricate tec
 won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we
 still provide the implementation below for readers who are curious. The actual matmul, add and relu
 computations are found at the end, after an extensive overhead whose use is to correctly map each
-thread to the data it is responsible of, with support for batches.
+compute unit to the data it is responsible of, with support for batches.
 
 ```wgsl, ignore
 @group(0)

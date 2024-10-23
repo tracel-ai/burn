@@ -16,9 +16,6 @@ encapsulates the underlying tensor implementation of the backend, we will use a 
 the ugly disambiguation with associated types.
 
 ```rust, ignore
-/// We use a type alias for better readability.
-pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
-
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {
     fn fused_matmul_add_relu(
@@ -79,7 +76,7 @@ simple, we'll create a straightforward matmul kernel without employing any intri
 won't delve into the details of the `cube` macro, but if you're interested to learn more, please see
 [`cubecl` Book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book).
 the The actual matmul, add and relu computations are found at the end, after an extensive prelude
-that serves to correctly map each thread to the data it is responsible for, with support for
+that serves to correctly map each compute unit to the data it is responsible for, with support for
 batches.
 
 ```rust, ignore
