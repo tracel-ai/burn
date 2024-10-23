@@ -209,18 +209,6 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
     }
 
-    log::error!("Doing batches_per_run now");
-    log::error!("Batch size: {}", batch_size);
-    log::error!("Input channels: {}", in_channels);
-    log::error!("Input height: {}", in_height);
-    log::error!("Input width: {}", in_width);
-    log::error!("Output channels: {}", out_channels);
-    log::error!("Kernel height: {}", kernel_h);
-    log::error!("Kernel width: {}", kernel_w);
-    log::error!("Output height: {}", out_h);
-    log::error!("Output width: {}", out_w);
-    log::error!("Groups: {}", groups);
-
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)
         .expect("Image too large to run even one batch at once");
     let matmul_shape = Shape::new([groups, out_c_per_group, batches_per_run * out_h * out_w]);
