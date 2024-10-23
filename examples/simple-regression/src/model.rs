@@ -41,9 +41,7 @@ impl RegressionModelConfig {
 
 impl<B: Backend> RegressionModel<B> {
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        // self.input_layer.forward(input)
-        let x = input;
-        let x = self.input_layer.forward(x);
+        let x = self.input_layer.forward(input);
         let x = self.activation.forward(x);
         self.output_layer.forward(x)
     }

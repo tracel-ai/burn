@@ -130,12 +130,6 @@ impl<B: Backend> HousingBatcher<B> {
             normalizer: Normalizer::new(&device, &FEATURES_MIN, &FEATURES_MAX),
         }
     }
-
-    pub fn min_max_norm<const D: usize>(&self, inp: Tensor<B, D>) -> Tensor<B, D> {
-        let min = inp.clone().min_dim(0);
-        let max = inp.clone().max_dim(0);
-        (inp.clone() - min.clone()).div(max - min)
-    }
 }
 
 impl<B: Backend> Batcher<HousingDistrictItem, HousingBatch<B>> for HousingBatcher<B> {
