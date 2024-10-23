@@ -34,12 +34,24 @@ impl<B: Backend> ConfusionStats<B> {
     pub fn new(
         predictions: Tensor<B, 2>,
         targets: Tensor<B, 2, Bool>,
-        threshold: f64,
+        threshold: Option<f64>,
+        top_k: Option<usize>,
         class_average: ClassAverageType,
     ) -> Self {
-        let thresholded_predictions = predictions.greater_elem(threshold);
+        let prediction_mask = match (threshold, top_k) {
+            (Some(threshold), None) => {
+                predictions.greater_elem(threshold)
+            },
+            (None, Some(top_k)) => {
+                let mask = predictions.zeros_like();
+                let values = predictions.ones_like().narrow(1, 0, top_k);
+                let indexes = predictions.argsort_descending(1).narrow(1, 0, top_k);
+                mask.scatter(1, indexes, values).bool()
+            }
+            _ => panic!("Either threshold (for binary or multilabel) or top_k (for multiclass) must be set."),
+        };
         Self {
-            confusion_classes: thresholded_predictions.int() + targets.int() * 2,
+            confusion_classes: prediction_mask.int() + targets.int() * 2,
             class_average,
         }
     }
@@ -134,6 +146,19 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
+    #[should_panic]
+    #[case::both_some(Some(THRESHOLD), Some(1))]
+    #[should_panic]
+    #[case::both_none(None, None)]
+    fn test_exclusive_threshold_top_k(
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
+    ) {
+        let (predictions, targets) = dummy_classification_input(&Binary).into();
+        ConfusionStats::new(predictions, targets, threshold, top_k, Micro);
+    }
+
+    #[rstest]
     #[case::binary_micro(Binary, Micro, [1].into())]
     #[case::binary_macro(Binary, Macro, [1].into())]
     #[case::multiclass_micro(Multiclass, Micro, [3].into())]
@@ -146,7 +171,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .true_positive()
             .int()
             .into_data()
@@ -166,7 +195,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .true_negative()
             .int()
             .into_data()
@@ -186,7 +219,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .false_positive()
             .int()
             .into_data()
@@ -206,7 +243,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .false_negative()
             .int()
             .into_data()
@@ -226,7 +267,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .positive()
             .int()
             .into_data()
@@ -246,7 +291,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .negative()
             .int()
             .into_data()
@@ -266,7 +315,11 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        ConfusionStats::new(predictions, targets, THRESHOLD, avg_type)
+        let (threshold, top_k) = match class_type {
+            Multiclass => (None, Some(1)),
+            _ => (Some(THRESHOLD), None),
+        };
+        ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .predicted_positive()
             .int()
             .into_data()

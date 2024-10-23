@@ -1,6 +1,6 @@
 use burn_core::prelude::{Backend, Bool, Tensor};
 
-/// The [classification metric](ClassificationMetric) input type.
+/// Input for classification tasks.
 #[derive(new, Debug, Clone)]
 pub struct ClassificationInput<B: Backend> {
     /// Sample x Class Non thresholded normalized predictions.
