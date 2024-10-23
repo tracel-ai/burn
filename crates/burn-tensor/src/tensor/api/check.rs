@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, Shape, Tensor};
+use crate::{backend::Backend, BasicOps, Int, Shape, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -30,8 +30,8 @@ use core::ops::Range;
 /// Maybe the Backend API should return a result for each operation, which would allow handling
 /// all checks, even the ones that can't be efficiently checked before performing an operation,
 /// such as the `index_select` operation. The downside of that approach is that all backend
-/// implementation might re-implement the same checks, which may result in uncessary code
-/// duplication. Maybe a combination of both strategies could help to cover all usecases.
+/// implementation might re-implement the same checks, which may result in unnecessary code
+/// duplication. Maybe a combination of both strategies could help to cover all use cases.
 pub(crate) enum TensorCheck {
     Ok,
     Failed(FailedTensorCheck),
@@ -448,6 +448,27 @@ impl TensorCheck {
             );
         }
 
+        check
+    }
+
+    pub(crate) fn one_hot_encode<B: Backend>(
+        index_tensor: Tensor<B, 1, Int>,
+        num_classes: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+        if index_tensor
+            .clone()
+            .greater_equal_elem(num_classes as i32)
+            .any()
+            .into_scalar()
+        {
+            check = check.register(
+                "One Hot",
+                TensorError::new(format!(
+                    "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
+                )),
+            );
+        }
         check
     }
 
@@ -1139,7 +1160,7 @@ impl TensorError {
 /// Module where we defined macros that can be used only in the project.
 pub(crate) mod macros {
     /// We use a macro for all checks, since the panic message file and line number will match the
-    /// function that does the check instead of a the generic error.rs crate private unrelated file
+    /// function that does the check instead of a generic error.rs crate private unrelated file
     /// and line number.
     macro_rules! check {
         ($check:expr) => {

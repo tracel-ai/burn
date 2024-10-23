@@ -172,7 +172,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 Those operations are available for numeric tensor kinds: `Float` and `Int`.
 
 | Burn                                                            | PyTorch Equivalent                             |
-| --------------------------------------------------------------- | ---------------------------------------------- |
+|-----------------------------------------------------------------|------------------------------------------------|
 | `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
 | `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
 | `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
@@ -194,6 +194,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
+| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           | 
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
@@ -221,6 +222,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
+| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
@@ -243,6 +245,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.zeros_like()`                                           | `torch.zeros_like(tensor)`                     |
 
 ### Float Operations
 
@@ -260,7 +263,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.log1p()`                             | `tensor.log1p()`                   |
 | `tensor.matmul(other)`                       | `tensor.matmul(other)`             |
 | `tensor.one_hot(index, num_classes, device)` | N/A                                |
-| `tensor.ones_like()`                         | `torch.ones_like(tensor)`          |
 | `tensor.random(shape, distribution, device)` | N/A                                |
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform   |
 | `tensor.recip()`                             | `tensor.reciprocal()`              |
@@ -274,20 +276,20 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_bias(dim)`                       | N/A                                |
 | `tensor.var_mean(dim)`                       | N/A                                |
 | `tensor.var_mean_bias(dim)`                  | N/A                                |
-| `tensor.zeros_like()`                        | `torch.zeros_like(tensor)`         |
 
 ### Int Operations
 
 Those operations are only available for `Int` tensors.
 
 | Burn API                                         | PyTorch Equivalent                                      |
-| ------------------------------------------------ | ------------------------------------------------------- |
+|--------------------------------------------------|---------------------------------------------------------|
 | `tensor.arange(5..10, device)`                   | `tensor.arange(start=5, end=10, device=device)`         |
 | `tensor.arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
+| `tensor.one_hot_encode(num_classes)`             | N/A                                                     |
 
 ### Bool Operations
 

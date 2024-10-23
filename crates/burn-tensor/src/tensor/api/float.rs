@@ -19,7 +19,7 @@ where
     ///
     /// # Notes
     ///
-    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
+    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
     /// no other reference pointing to the same tensor.
     ///
     /// Wrapping operations with inplace is not an optimization, it's mainly there if you
@@ -123,7 +123,7 @@ where
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
-    /// casted to Integer.
+    /// cast to Integer.
     ///
     /// # Example
     ///
@@ -139,22 +139,6 @@ where
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
         Tensor::new(B::float_into_int(self.primitive.tensor()))
-    }
-
-    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
-    pub fn zeros_like(&self) -> Self {
-        Tensor::new(TensorPrimitive::Float(B::float_zeros(
-            self.shape(),
-            &self.device(),
-        )))
-    }
-
-    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
-    pub fn ones_like(&self) -> Self {
-        Tensor::new(TensorPrimitive::Float(B::float_ones(
-            self.shape(),
-            &self.device(),
-        )))
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor filled random
@@ -202,7 +186,7 @@ where
     ///
     /// # Panics
     ///
-    /// If the two tensors dont' have a compatible shape.
+    /// If the two tensors don't have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Self::new(TensorPrimitive::Float(B::float_matmul(
@@ -275,7 +259,7 @@ where
         }
     }
 
-    /// Mark the tensor as tracked or untracked depending on the require grad argument.
+    /// Mark the tensor as tracked or untracked depending on the require_grad argument.
     /// When tracked, the gradients will be available after the backward pass.
     ///
     /// This function does nothing when autodiff is not enabled.
