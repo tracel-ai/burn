@@ -89,3 +89,15 @@ mod cube_cuda {
         }
     }
 }
+
+#[cfg(feature = "cubecl-hip")]
+mod cube_hip {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::hip::HipDevice;
+
+    impl DeviceOps for HipDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, self.index as u32)
+        }
+    }
+}
