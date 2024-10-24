@@ -11,6 +11,7 @@ mod client;
 mod ops;
 mod runner;
 mod tensor;
+mod types;
 
 pub use backend::*;
 pub use bridge::*;
@@ -18,6 +19,7 @@ pub use channel::*;
 pub use client::*;
 pub use runner::*;
 pub use tensor::*;
+pub use types::*;
 
 extern crate alloc;
 
