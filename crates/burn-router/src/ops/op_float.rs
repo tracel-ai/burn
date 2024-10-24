@@ -322,6 +322,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        todo!()
+    }
+
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         let client = lhs.client.clone();
         let dtype = lhs.dtype;

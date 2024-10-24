@@ -116,6 +116,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayMathOps::div_scalar(lhs, rhs)
     }
 
+    fn float_remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        todo!()
+    }
+
     fn float_remainder_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         NdArrayMathOps::remainder_scalar(lhs, rhs)
     }

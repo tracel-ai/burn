@@ -137,6 +137,10 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         )
     }
 
+    fn float_remainder(lhs: TchTensor<E>, rhs: TchTensor<E>) -> TchTensor<E> {
+        todo!()
+    }
+
     fn float_remainder_scalar(lhs: TchTensor<E>, rhs: E) -> TchTensor<E> {
         let rhs: f64 = rhs.elem();
 

@@ -167,6 +167,10 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(out.tensor.to_dtype(tch::Kind::Int64, non_blocking, copy))
     }
 
+    fn int_remainder(lhs: TchTensor<i64>, rhs: TchTensor<i64>) -> TchTensor<i64> {
+        todo!()
+    }
+
     fn int_remainder_scalar(lhs: TchTensor<i64>, rhs: i64) -> TchTensor<i64> {
         lhs.unary_ops(
             |tensor| tensor.f_remainder(rhs).unwrap(),
