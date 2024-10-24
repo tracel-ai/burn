@@ -15,9 +15,9 @@ impression that Burn operates at a high level over the backend layer. However, m
 explicit instead of being chosen via a compilation flag was a thoughtful design decision. This
 explicitness does not imply that all backends must be identical; rather, it offers a great deal of
 flexibility when composing backends. The autodifferentiation backend trait (see
-[autodiff section](../../building-blocks/autodiff.md)) is an example of how the backend trait has been
-extended to enable gradient computation with backpropagation. Furthermore, this design allows you to
-create your own backend extension. To achieve this, you need to design your own backend trait
+[autodiff section](../../building-blocks/autodiff.md)) is an example of how the backend trait has
+been extended to enable gradient computation with backpropagation. Furthermore, this design allows
+you to create your own backend extension. To achieve this, you need to design your own backend trait
 specifying which functions should be supported.
 
 ```rust, ignore
@@ -76,5 +76,7 @@ impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E>> {
 }
 ```
 
-The specificity of each implementation will be covered by the examples provided in this section.
-Currently, we only have one example, but more are yet to come!
+The specifics of each implementation will be covered by the examples provided in this section. The
+`cubecl` compiler frontend is the recommended method of implementing custom kernels, since it
+supports multiple backends, including `wgpu` and `CUDA`, and is the way first-party `burn` kernels
+are written.
