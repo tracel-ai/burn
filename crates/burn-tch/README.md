@@ -12,6 +12,8 @@ This crate provides a Torch backend for [Burn](https://github.com/tracel-ai/burn
 The backend supports CPU (multithreaded), [CUDA](https://pytorch.org/docs/stable/notes/cuda.html)
 (multiple GPUs), and [MPS](https://pytorch.org/docs/stable/notes/mps.html) devices (MacOS).
 
+**WARNING:** There's a bug about CUDA on nightly Rust when initializing model, see issue #1867.
+
 ## Installation
 
 [`tch-rs`](https://github.com/LaurentMazare/tch-rs) requires the C++ PyTorch library (LibTorch) to
