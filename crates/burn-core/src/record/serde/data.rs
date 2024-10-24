@@ -189,9 +189,10 @@ impl NestedValue {
     }
 
     /// Get the nested value as a vector of bytes.
-    pub fn as_bytes(self) -> Option<Vec<u8>> {
+    pub fn as_bytes(self) -> Option<Bytes> {
         match self {
-            NestedValue::U8s(u) => Some(u),
+            NestedValue::Bytes(u) => Some(u),
+            NestedValue::U8s(u) => Some(Bytes::from_elems(u)),
             _ => None,
         }
     }
