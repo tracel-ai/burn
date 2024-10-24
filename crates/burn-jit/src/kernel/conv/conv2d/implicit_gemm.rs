@@ -178,7 +178,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {
     let channels = channels as u8;
     let elems_per_thread = elems_per_thread as u8;
-    let smaller = u8::min(channels, elems_per_thread);
+    let smaller = Ord::min(channels, elems_per_thread);
     (1..=smaller)
         .rev()
         .filter(|it| supported_vecs.contains(it))

@@ -142,11 +142,11 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
         let mut output = u8::MAX;
 
         for (handle, tensor) in handles_inputs.zip(inputs) {
-            output = u8::min(vectorization_input(handle, tensor), output);
+            output = Ord::min(vectorization_input(handle, tensor), output);
         }
 
         for tensor in outputs {
-            output = u8::min(vectorization_output(tensor), output);
+            output = Ord::min(vectorization_output(tensor), output);
         }
 
         output

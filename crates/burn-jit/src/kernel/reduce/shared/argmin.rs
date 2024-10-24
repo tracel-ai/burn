@@ -2,6 +2,7 @@ use burn_tensor::cast::ToElement;
 use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
+    prelude::*,
 };
 
 use crate::{kernel::reduce::Argmin, JitElement};
@@ -18,7 +19,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         input_item: Item,
     ) -> Self::Accumulator {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
+        let index_shared_memory = scope.create_shared(u32::as_elem(), shared_memory_size);
         let min = input_item
             .elem()
             .constant_from_f64(ToElement::to_f64(&E::maximum_value()));

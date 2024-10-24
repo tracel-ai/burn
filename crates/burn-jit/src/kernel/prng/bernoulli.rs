@@ -2,6 +2,7 @@ use burn_tensor::Shape;
 use cubecl::{
     cpa,
     ir::{Elem, FloatKind, Scope, Variable},
+    prelude::*,
 };
 
 use crate::{
@@ -43,7 +44,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 taus_step_2(scope, state_2);
                 lcg_step(scope, state_3);
 
-                let int_random = scope.create_local(Elem::UInt);
+                let int_random = scope.create_local(u32::as_elem());
                 cpa!(scope, int_random = state_0 ^ state_1);
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
@@ -54,7 +55,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 let bernoulli = scope.create_local(Elem::Bool);
                 cpa!(scope, bernoulli = float_random < prob);
 
-                let write_index = scope.create_local(Elem::UInt);
+                let write_index = scope.create_local(u32::as_elem());
                 cpa!(scope, write_index = i * n_invocations);
                 cpa!(scope, write_index += write_index_base);
                 cpa!(scope, output[write_index] = bernoulli);
