@@ -86,6 +86,8 @@ enum BackendValues {
     CudaJit,
     #[strum(to_string = "cuda-jit-fusion")]
     CudaJitFusion,
+    #[strum(to_string = "hip-jit")]
+    HipJit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
