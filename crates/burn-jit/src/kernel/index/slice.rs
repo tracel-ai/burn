@@ -110,21 +110,23 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
     indices: &[Range<usize>],
 ) -> JitTensor<R, E> {
     let mut dims = tensor.shape.dims.clone();
-    let mut offset_start = 0;
-    let mut offset_end = 0;
+    let mut offset_start = 0u64;
+    let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += tensor.strides[i] * indices[i].start;
-        offset_end += tensor.strides[i] * (dims[i] - indices[i].end);
+        offset_start += (tensor.strides[i] * indices[i].start) as u64;
+        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
         dims[i] = indices[i].end - indices[i].start;
     }
 
-    let offset_start = offset_start * E::cube_elem().size();
-    let offset_end = offset_end * E::cube_elem().size();
+    let offset_start = offset_start * E::cube_elem().size() as u64;
+    let offset_end = offset_end * E::cube_elem().size() as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory_properties().alignment;
 
-    if offset_start % memory_offset_alignment == 0 && offset_end % memory_offset_alignment == 0 {
+    if offset_start % memory_offset_alignment == 0u64
+        && offset_end % memory_offset_alignment == 0u64
+    {
         JitTensor::new(
             tensor.client,
             tensor

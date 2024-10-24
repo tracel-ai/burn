@@ -92,7 +92,7 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
 
 macro_rules! matmul_tune_ops {
     ($name:ident, $func:expr) => {
-        #[derive(new)]
+        #[derive(new, Debug)]
         pub(crate) struct $name<R: JitRuntime, E: FloatElement> {
             lhs: JitTensor<R, E>,
             rhs: JitTensor<R, E>,

@@ -1526,7 +1526,7 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = 33.810329; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
