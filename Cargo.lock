@@ -1438,6 +1438,7 @@ dependencies = [
  "embassy-futures",
  "futures-lite",
  "getrandom",
+ "log",
  "portable-atomic",
  "rand",
  "serde",

@@ -119,8 +119,8 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
         dims[i] = indices[i].end - indices[i].start;
     }
 
-    let offset_start = offset_start * E::cube_elem().size();
-    let offset_end = offset_end * E::cube_elem().size();
+    let offset_start = (offset_start * E::cube_elem().size()) as u64;
+    let offset_end = (offset_end * E::cube_elem().size()) as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory_properties().alignment;
 

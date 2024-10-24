@@ -76,7 +76,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         _shape_reduce_dim: Variable,
     ) {
         let (_, index_shared_memory) = shared_memory;
-        let final_value = scope.create_local(output.item);
+        let final_value = scope.create_local(index_shared_memory.item);
         cpa!(scope, final_value = index_shared_memory[0]);
         cpa!(scope, output[write_position] = final_value);
     }
