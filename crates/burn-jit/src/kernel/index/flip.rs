@@ -4,7 +4,7 @@ use crate::{
 use burn_tensor::ElementConversion;
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -27,7 +27,7 @@ impl FlipComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_local = scope.create_local(Elem::UInt);
@@ -42,10 +42,10 @@ impl FlipComputeShader {
             cpa!(scope, shape = shape(output, i));
             cpa!(
                 scope,
-                flip = cast(Variable::GlobalScalar {
-                    id: i as u16,
-                    elem: Elem::UInt
-                })
+                flip = cast(Variable::new(
+                    VariableKind::GlobalScalar(i as u16),
+                    Item::new(Elem::UInt)
+                ))
             );
             cpa!(scope, flip_bool = flip == 1u32);
 
@@ -61,7 +61,7 @@ impl FlipComputeShader {
             cpa!(scope, offset_input += offset_local);
         }
 
-        let result = scope.create_local(input.item());
+        let result = scope.create_local(input.item);
         cpa!(scope, result = input[offset_input]);
         cpa!(scope, output[id] = result);
     }
@@ -72,8 +72,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 

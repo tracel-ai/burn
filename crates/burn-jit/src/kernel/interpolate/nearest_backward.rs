@@ -1,6 +1,6 @@
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -24,7 +24,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.out_grad;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
         let grad_stride_0 = scope.create_local(Elem::UInt);
         let grad_stride_1 = scope.create_local(Elem::UInt);
@@ -88,7 +88,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let gw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
         let gw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
 
-        let result = scope.create_local(grad.item());
+        let result = scope.create_local(grad.item);
 
         let index_grad = scope.create_local(Elem::UInt);
         let index_grad_0 = scope.create_local(Elem::UInt);
@@ -99,7 +99,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         cpa!(scope, index_grad_0 = b * grad_stride_0);
         cpa!(scope, index_grad_1 = c * grad_stride_1);
 
-        let sum = scope.zero(output.item());
+        let sum = scope.zero(output.item);
 
         cpa!(
             scope,
@@ -184,8 +184,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let out_grad = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let out_grad = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         InterpolateNearestBackwardShader {
             out_grad,

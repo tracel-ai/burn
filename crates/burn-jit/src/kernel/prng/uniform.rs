@@ -35,7 +35,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let item = output.item();
+        let item = output.item;
         let lower_bound = args[0];
         let upper_bound = args[1];
         let scale = scope.create_local(item);

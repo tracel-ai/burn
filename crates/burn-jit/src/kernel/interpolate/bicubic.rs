@@ -1,6 +1,6 @@
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -24,7 +24,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
     pub(crate) fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
         let elem = E::cube_elem();
 
         let input_stride_0 = scope.create_local(Elem::UInt);
@@ -181,10 +181,10 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
         let index_1 = scope.create_local(Elem::UInt);
         let index_2 = scope.create_local(Elem::UInt);
         let index_3 = scope.create_local(Elem::UInt);
-        let inp_0 = scope.create_local(input.item());
-        let inp_1 = scope.create_local(input.item());
-        let inp_2 = scope.create_local(input.item());
-        let inp_3 = scope.create_local(input.item());
+        let inp_0 = scope.create_local(input.item);
+        let inp_1 = scope.create_local(input.item);
+        let inp_2 = scope.create_local(input.item);
+        let inp_3 = scope.create_local(input.item);
 
         cpa!(scope, index_0 = index_base);
         cpa!(scope, index_0 += y0_stride);
@@ -276,7 +276,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
 
     fn min(scope: &mut Scope, a: Variable, b: Variable) -> Variable {
         let cond = scope.create_local(Elem::Bool);
-        let res = scope.create_local(a.item());
+        let res = scope.create_local(a.item);
 
         cpa!(scope, cond = a < b);
         cpa!(scope, if(cond).then(|scope|{
@@ -296,7 +296,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
         x3: Variable,
         t: Variable,
     ) -> Variable {
-        let item = x0.item();
+        let item = x0.item;
         let x = scope.create_local(item);
         let a: Variable = scope.create_with_value(-0.75, item);
         let one: Variable = scope.create_with_value(1, item);
@@ -327,7 +327,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
     }
 
     fn cubic_convolution1(scope: &mut Scope, x: Variable, a: Variable) -> Variable {
-        let item = x.item();
+        let item = x.item;
         let conv = scope.create_local(item);
         let tmp = scope.create_local(item);
         let one = scope.create_with_value(1, item);
@@ -346,7 +346,7 @@ impl<E: JitElement> InterpolateBicubicShader<E> {
     }
 
     fn cubic_convolution2(scope: &mut Scope, x: Variable, a: Variable) -> Variable {
-        let item = x.item();
+        let item = x.item;
         let conv = scope.create_local(item);
         let tmp = scope.create_local(item);
         let four = scope.create_with_value(4, item);
@@ -372,8 +372,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateBicubicEagerKernel<R, E
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         InterpolateBicubicShader {
             input,
