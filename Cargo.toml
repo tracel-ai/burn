@@ -97,8 +97,7 @@ async-channel = "2.3"
 futures-lite = { version = "2.3.0", default-features = false }
 
 # Terminal UI
-crossterm = "0.27.0"
-ratatui = "0.26.3"
+ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"

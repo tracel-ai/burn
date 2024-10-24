@@ -11,6 +11,7 @@ mod client;
 mod ops;
 mod runner;
 mod tensor;
+mod types;
 
 pub use backend::*;
 pub use bridge::*;
@@ -18,6 +19,11 @@ pub use channel::*;
 pub use client::*;
 pub use runner::*;
 pub use tensor::*;
+pub use types::*;
+
+/// A local channel with a simple byte bridge between backends.
+/// It transfers tensors between backends via the underlying [tensor data](burn_tensor::TensorData).
+pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
 
 extern crate alloc;
 
@@ -27,10 +33,7 @@ mod tests {
     use alloc::vec;
 
     use crate::BackendRouter;
-    use crate::ByteBridge;
-    use crate::DirectChannel;
-
-    type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
+    use crate::DirectByteChannel;
 
     pub type TestBackend1 = burn_ndarray::NdArray<f32, i32>;
     pub type TestBackend2 = burn_wgpu::Wgpu<f32, i32>;

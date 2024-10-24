@@ -6,7 +6,7 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
+        conv::{batches_per_run, conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -35,7 +35,7 @@ pub fn conv_transpose2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
     )
 }
 
-#[tune(operations(conv_transpose2d_direct, conv_transpose2d_col2im), create_key = create_key)]
+#[tune(operations(conv_transpose2d_direct, conv_transpose2d_col2im), create_key = create_key, should_run = should_run)]
 pub fn conv_transpose2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     key: JitAutotuneKey,
     input: JitTensor<R, E>,
@@ -92,4 +92,21 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         batch_size,
         bias.is_some(),
     ))
+}
+
+fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
+    _op: &ConvTranspose2dOperations<R, F, I>,
+    key: &JitAutotuneKey,
+    index: usize,
+) -> bool {
+    let key = match key {
+        JitAutotuneKey::ConvTranspose2d(key) => key,
+        _ => unreachable!(),
+    };
+
+    match index {
+        // im2col
+        1 => batches_per_run(key.batch_size, key.height, key.width).is_some(),
+        _ => true,
+    }
 }
