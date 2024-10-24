@@ -546,6 +546,7 @@ dependencies = [
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
+ "burn-hip",
  "burn-ndarray",
  "burn-tch",
  "burn-tensor",
