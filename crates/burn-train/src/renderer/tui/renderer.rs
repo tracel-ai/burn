@@ -1,12 +1,15 @@
 use crate::renderer::{tui::NumericMetricsState, MetricsRenderer};
 use crate::renderer::{MetricState, TrainingProgress};
 use crate::TrainingInterrupter;
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+use ratatui::{
+    crossterm::{
+        event::{self, Event, KeyCode},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    },
+    prelude::*,
+    Terminal,
 };
-use ratatui::{prelude::*, Terminal};
 use std::panic::{set_hook, take_hook};
 use std::sync::Arc;
 use std::{
@@ -132,7 +135,7 @@ impl TuiMetricsRenderer {
 
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         self.terminal.draw(|frame| {
-            let size = frame.size();
+            let size = frame.area();
 
             match self.popup.view() {
                 Some(view) => view.render(frame, size),
