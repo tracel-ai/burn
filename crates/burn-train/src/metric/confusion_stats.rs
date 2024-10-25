@@ -1,6 +1,5 @@
 use super::classification::ClassAverageType;
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
-use burn_core::tensor::cast::ToElement;
 use std::fmt::{self, Debug};
 
 #[derive(Clone)]
@@ -19,7 +18,7 @@ impl<B: Backend> Debug for ConfusionStats<B> {
         };
         let ratio_of_support_vec =
             |metric: Tensor<B, 1>| to_vec(self.clone().ratio_of_support(metric));
-        f.debug_struct("ConfusionMatrix")
+        f.debug_struct("ConfusionStats")
             .field("tp", &ratio_of_support_vec(self.clone().true_positive()))
             .field("fp", &ratio_of_support_vec(self.clone().false_positive()))
             .field("tn", &ratio_of_support_vec(self.clone().true_negative()))
@@ -68,24 +67,6 @@ impl<B: Backend> ConfusionStats<B> {
         }
     }
 
-    ///convert to averaged metric, returns float
-    fn average(mut aggregated_metric: Tensor<B, 1>, class_average: ClassAverageType) -> f64 {
-        use ClassAverageType::*;
-        let avg_tensor = match class_average {
-            Micro => aggregated_metric,
-            Macro => {
-                if aggregated_metric.contains_nan().any().into_scalar() {
-                    let nan_mask = aggregated_metric.is_nan();
-                    aggregated_metric = aggregated_metric
-                        .clone()
-                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
-                }
-                aggregated_metric.mean()
-            }
-        };
-        avg_tensor.into_scalar().to_f64()
-    }
-
     pub fn true_positive(self) -> Tensor<B, 1> {
         Self::aggregate(self.confusion_classes.equal_elem(3), self.class_average)
     }
@@ -121,14 +102,6 @@ impl<B: Backend> ConfusionStats<B> {
     pub fn ratio_of_support(self, metric: Tensor<B, 1>) -> Tensor<B, 1> {
         metric / self.clone().support()
     }
-
-    pub fn precision(self) -> f64 {
-        let class_average = self.class_average;
-        Self::average(
-            self.clone().true_positive() / self.predicted_positive(),
-            class_average,
-        )
-    }
 }
 
 #[cfg(test)]
@@ -159,22 +132,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [1].into())]
-    #[case::binary_macro(Binary, Macro, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [3].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [1, 1, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [5].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [2, 2, 1].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [3].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 1, 1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [4].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 1, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [5].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [2, 2, 1].into())]
     fn test_true_positive(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .true_positive()
             .int()
@@ -183,22 +156,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [2].into())]
-    #[case::binary_macro(Binary, Macro, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [8].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [2, 3, 3].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [3].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [0, 2, 1].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [8].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 3, 3].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [4].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [1, 1, 2].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [3].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [0, 2, 1].into())]
     fn test_true_negative(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .true_negative()
             .int()
@@ -207,22 +180,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [1].into())]
-    #[case::binary_macro(Binary, Macro, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [2].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [1, 1, 0].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [3].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [1, 1, 1].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [2].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 1, 0].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [6].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 3, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [3].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [1, 1, 1].into())]
     fn test_false_positive(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .false_positive()
             .int()
@@ -231,22 +204,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [1].into())]
-    #[case::binary_macro(Binary, Macro, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [2].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [1, 0, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [4].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [2, 0, 2].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [2].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 0, 1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [1].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [0, 0, 1].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [4].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [2, 0, 2].into())]
     fn test_false_negatives(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .false_negative()
             .int()
@@ -255,22 +228,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [2].into())]
-    #[case::binary_macro(Binary, Macro, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [5].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [2, 1, 2].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [9].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [4, 2, 3].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [5].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 1, 2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [5].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 1, 2].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [9].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [4, 2, 3].into())]
     fn test_positive(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .positive()
             .int()
@@ -279,22 +252,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [3].into())]
-    #[case::binary_macro(Binary, Macro, [3].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [10].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [3, 4, 3].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [6].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [1, 3, 2].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [3].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [3].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [10].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [3, 4, 3].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [10].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [3, 4, 3].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [6].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [1, 3, 2].into())]
     fn test_negative(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .negative()
             .int()
@@ -303,22 +276,22 @@ mod tests {
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, [2].into())]
-    #[case::binary_macro(Binary, Macro, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, [5].into())]
-    #[case::multiclass_macro(Multiclass, Macro, [2, 2, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, [8].into())]
-    #[case::multilabel_macro(Multilabel, Macro, [3, 3, 2].into())]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [5].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 2, 1].into())]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [10].into())]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [4, 4, 2].into())]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [8].into())]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [3, 3, 2].into())]
     fn test_predicted_positive(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&class_type).into();
-        let (threshold, top_k) = match class_type {
-            Multiclass => (None, Some(1)),
-            _ => (Some(THRESHOLD), None),
-        };
         ConfusionStats::new(predictions, targets, threshold, top_k, avg_type)
             .predicted_positive()
             .int()

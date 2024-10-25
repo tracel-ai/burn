@@ -32,10 +32,7 @@ pub(crate) type TestDevice = burn_ndarray::NdArrayDevice;
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::{metric::classification::ClassificationInput, TestBackend, TestDevice};
-    use burn_core::{
-        prelude::{Bool, Tensor},
-        tensor::Distribution,
-    };
+    use burn_core::prelude::{Bool, Tensor};
     use std::default::Default;
 
     /// Probability of tp before adding errors
@@ -53,49 +50,61 @@ pub(crate) mod tests {
     pub fn dummy_classification_input(
         classification_type: &ClassificationType,
     ) -> ClassificationInput<TestBackend> {
-        let (real_targets, prediction_targets) = match classification_type {
+        let (targets, predictions) = match classification_type {
             ClassificationType::Binary => {
-                let real_targets = Tensor::<TestBackend, 2, Bool>::from_data(
-                    [[0], [1], [0], [0], [1]],
-                    &TestDevice::default(),
-                );
-
-                let prediction_targets = Tensor::<TestBackend, 2>::from_data(
-                    [[0], [0], [1], [0], [1]],
-                    &TestDevice::default(),
-                );
-                (real_targets, prediction_targets)
+                (
+                    Tensor::<TestBackend, 2, Bool>::from_data(
+                        [[0], [1], [0], [0], [1]],
+                        &TestDevice::default(),
+                    ),
+                    Tensor::<TestBackend, 2>::from_data(
+                        [[0.3], [0.2], [0.7], [0.1], [0.55]],
+                        //[[0],   [0],   [1],   [0],   [1]] with threshold=0.5
+                        &TestDevice::default(),
+                    ),
+                )
             }
             ClassificationType::Multiclass => {
-                let real_targets = Tensor::<TestBackend, 2, Bool>::from_data(
-                    [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
-                    &TestDevice::default(),
-                );
-
-                let prediction_targets = Tensor::<TestBackend, 2>::from_data(
-                    [[0, 1, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1], [1, 0, 0]],
-                    &TestDevice::default(),
-                );
-                (real_targets, prediction_targets)
+                (
+                    Tensor::<TestBackend, 2, Bool>::from_data(
+                        [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
+                        &TestDevice::default(),
+                    ),
+                    Tensor::<TestBackend, 2>::from_data(
+                        [
+                            [0.2, 0.8, 0.0],
+                            [0.3, 0.6, 0.1],
+                            [0.7, 0.25, 0.05],
+                            [0.1, 0.15, 0.8],
+                            [0.9, 0.03, 0.07],
+                        ],
+                        //[[0,   1,   0],   [0,   1,   0],    [1,   0,   0],    [0,   0,   1],    [1,   0,    0]] with top_k=1
+                        //[[1,   1,   0],   [1,   1,   0],    [1,   1,   0],    [0,   1,   1],    [1,   0,    1]] with top_k=2
+                        &TestDevice::default(),
+                    ),
+                )
             }
             ClassificationType::Multilabel => {
-                let real_targets = Tensor::<TestBackend, 2, Bool>::from_data(
-                    [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
-                    &TestDevice::default(),
-                );
-
-                let prediction_targets = Tensor::<TestBackend, 2>::from_data(
-                    [[0, 1, 1], [0, 1, 0], [1, 1, 0], [1, 0, 1], [1, 0, 0]],
-                    &TestDevice::default(),
-                );
-                (real_targets, prediction_targets)
+                (
+                    Tensor::<TestBackend, 2, Bool>::from_data(
+                        [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
+                        &TestDevice::default(),
+                    ),
+                    Tensor::<TestBackend, 2>::from_data(
+                        [
+                            [0.1, 0.7, 0.6],
+                            [0.3, 0.9, 0.05],
+                            [0.8, 0.9, 0.4],
+                            [0.7, 0.5, 0.9],
+                            [1.0, 0.3, 0.2],
+                        ],
+                        //[[0,   1,   1],   [0,   1,   0],    [1,   1,   0],   [1,   0,   1],   [1,   0,   0]] with threshold=0.5
+                        &TestDevice::default(),
+                    ),
+                )
             }
         };
-        let predictions = prediction_targets
-            .random_like(Distribution::Uniform(0.0, THRESHOLD - 0.1))
-            .sub(prediction_targets.clone())
-            .abs();
 
-        ClassificationInput::new(predictions, real_targets)
+        ClassificationInput::new(predictions, targets)
     }
 }

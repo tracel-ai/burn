@@ -4,30 +4,51 @@ use super::{
     state::{FormatOptions, NumericMetricState},
     Metric, MetricEntry, MetricMetadata, Numeric,
 };
-use burn_core::tensor::backend::Backend;
+use burn_core::{
+    prelude::{Backend, Tensor},
+    tensor::cast::ToElement,
+};
 use core::marker::PhantomData;
 
 /// The precision metric.
 pub struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
-    threshold: Option<f64>,
     class_average: ClassAverageType,
+    threshold: Option<f64>,
     top_k: Option<usize>,
 }
 
 #[allow(dead_code)]
 impl<B: Backend> PrecisionMetric<B> {
-    /// Sets the threshold.
-    pub fn with_threshold(mut self, threshold: f64) -> Self {
-        self.threshold = Some(threshold);
-        self.top_k = None;
-        self
+    ///convert to averaged metric, returns float
+    fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
+        use ClassAverageType::*;
+        let avg_tensor = match self.class_average {
+            Micro => aggregated_metric,
+            Macro => {
+                if aggregated_metric.contains_nan().any().into_scalar() {
+                    let nan_mask = aggregated_metric.is_nan();
+                    aggregated_metric = aggregated_metric
+                        .clone()
+                        .select(0, nan_mask.bool_not().argwhere().squeeze(1))
+                }
+                aggregated_metric.mean()
+            }
+        };
+        avg_tensor.into_scalar().to_f64()
     }
 
     /// Sets the class average.
     pub fn with_class_average(mut self, class_average: ClassAverageType) -> Self {
         self.class_average = class_average;
+        self
+    }
+
+    /// Sets the threshold.
+    pub fn with_threshold(mut self, threshold: f64) -> Self {
+        self.threshold = Some(threshold);
+        self.top_k = None;
         self
     }
 
@@ -62,14 +83,15 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     ) -> MetricEntry {
         let (predictions, targets) = input.clone().into();
         let [sample_size, _] = input.predictions.dims();
-        let metric = ConfusionStats::new(
+        let cf_stats = ConfusionStats::new(
             predictions,
             targets,
             self.threshold,
             self.top_k,
             self.class_average,
-        )
-        .precision();
+        );
+        let metric =
+            self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
 
         self.state.update(
             100.0 * metric,
@@ -105,22 +127,26 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, 0.5)]
-    #[case::binary_macro(Binary, Macro, 0.5)]
-    #[case::multiclass_micro(Multiclass, Micro, 3.0/5.0)]
-    #[case::multiclass_macro(Multiclass, Macro, (0.5 + 0.5 + 1.0)/3.0)]
-    #[case::multilabel_micro(Multilabel, Micro, 5.0/8.0)]
-    #[case::multilabel_macro(Multilabel, Macro, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
+    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, 0.5)]
+    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, 0.5)]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), 3.0/5.0)]
+    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), 4.0/10.0)]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), (0.5 + 0.5 + 1.0)/3.0)]
+    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), (0.5 + 1.0/4.0 + 0.5)/3.0)]
+    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, 5.0/8.0)]
+    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
     fn test_precision(
         #[case] class_type: ClassificationType,
         #[case] avg_type: ClassAverageType,
+        #[case] threshold: Option<f64>,
+        #[case] top_k: Option<usize>,
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&class_type);
         let mut metric = PrecisionMetric::<TestBackend>::default();
         metric = match class_type {
-            Multiclass => metric.with_top_k(1),
-            _ => metric.with_threshold(THRESHOLD),
+            Multiclass => metric.with_top_k(top_k.unwrap()),
+            _ => metric.with_threshold(threshold.unwrap()),
         };
         metric = metric.with_class_average(avg_type);
         let _entry = metric.update(&input, &MetricMetadata::fake());
