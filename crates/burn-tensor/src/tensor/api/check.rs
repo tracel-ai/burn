@@ -437,7 +437,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot(index: usize, num_classes: usize) -> Self {
+    pub(crate) fn one_hot_index(index: usize, num_classes: usize) -> Self {
         let mut check = Self::Ok;
         if index >= num_classes {
             check = check.register(
@@ -451,7 +451,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_encode<B: Backend>(
+    pub(crate) fn one_hot_tensor<B: Backend>(
         index_tensor: Tensor<B, 1, Int>,
         num_classes: usize,
     ) -> Self {

@@ -43,13 +43,13 @@ where
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 1, Int> = Tensor::from_ints([0, 1, 2, 3], &device);
-    ///     let one_hot = indices.one_hot_encode(4);
+    ///     let one_hot = indices.one_hot(4);
     ///     println!("{}", one_hot.to_data());
     ///     // [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     /// }
     /// ```
-    pub fn one_hot_encode(self, num_classes: usize) -> Tensor<B, 2, Int> {
-        check!(TensorCheck::one_hot_encode(self.clone(), num_classes));
+    pub fn one_hot(self, num_classes: usize) -> Tensor<B, 2, Int> {
+        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
         let [num_samples] = self.dims();
         let indices = self.unsqueeze();
         let values = indices.ones_like();
