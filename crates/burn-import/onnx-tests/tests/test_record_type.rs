@@ -30,7 +30,7 @@ macro_rules! test_model {
             let output = model.forward(input);
 
             // test the output shape
-            let expected_shape: Shape<3> = Shape::from([6, 2, 7]);
+            let expected_shape = Shape::from([6, 2, 7]);
             assert_eq!(output.shape(), expected_shape);
 
             // We are using the sum of the output tensor to test the correctness of the conv1d node

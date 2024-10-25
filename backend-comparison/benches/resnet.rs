@@ -1,7 +1,6 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
-use cubecl::client::SyncType;
 
 // Files retrieved during build to avoid reimplementing ResNet for benchmarks
 mod block {
@@ -14,7 +13,7 @@ mod model {
 }
 
 pub struct ResNetBenchmark<B: Backend> {
-    shape: Shape<4>,
+    shape: Shape,
     device: B::Device,
 }
 
@@ -26,7 +25,7 @@ impl<B: Backend> Benchmark for ResNetBenchmark<B> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape.dims.into()]
+        vec![self.shape.dims.clone()]
     }
 
     fn execute(&self, (model, input): Self::Args) {
@@ -42,7 +41,7 @@ impl<B: Backend> Benchmark for ResNetBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 

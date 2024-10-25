@@ -1,7 +1,12 @@
-use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
+use crate::{client::FusionClient, stream::StreamId, Client, Fusion, FusionBackend, FusionRuntime};
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    repr::{TensorDescription, TensorId, TensorStatus},
+    quantization::{
+        QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme, QuantizationStrategy,
+    },
+    repr::{
+        QuantizationParametersDescription, QuantizedTensorDescription, TensorDescription, TensorId,
+        TensorStatus,
+    },
     DType, Shape, TensorData,
 };
 use std::sync::Arc;
@@ -69,7 +74,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             stream,
         }
     }
-    pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
+    pub(crate) fn shape(&self) -> Shape {
         Shape::from(self.shape.clone())
     }
 
@@ -109,36 +114,36 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_float::<B, D>(self.into_description(), id)
+            .read_tensor_float::<B>(self.into_description(), id)
             .await
     }
 
-    pub(crate) async fn int_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn int_into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_int::<B, D>(self.into_description(), id)
+            .read_tensor_int::<B>(self.into_description(), id)
             .await
     }
 
-    pub(crate) async fn bool_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) async fn bool_into_data<B>(self) -> TensorData
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
         self.client
             .clone()
-            .read_tensor_bool::<B, D>(self.into_description(), id)
+            .read_tensor_bool::<B>(self.into_description(), id)
             .await
     }
 }
@@ -166,6 +171,8 @@ pub struct QFusionTensor<R: FusionRuntime> {
     pub qtensor: FusionTensor<R>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
+    /// The quantization parameters.
+    pub qparams: FusionQuantizationParameters<R>,
 }
 
 impl<R: FusionRuntime> QTensorPrimitive for QFusionTensor<R> {
@@ -174,6 +181,7 @@ impl<R: FusionRuntime> QTensorPrimitive for QFusionTensor<R> {
     }
 
     fn strategy(&self) -> QuantizationStrategy {
+        // TODO
         todo!()
     }
 }
@@ -183,6 +191,72 @@ impl<R: FusionRuntime> Clone for QFusionTensor<R> {
         Self {
             qtensor: self.qtensor.clone(),
             scheme: self.scheme.clone(),
+            qparams: self.qparams.clone(),
+        }
+    }
+}
+
+impl<R: FusionRuntime> QFusionTensor<R> {
+    pub(crate) async fn into_data<B>(self) -> TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let streams = if let Some(offset) = &self.qparams.offset {
+            vec![
+                self.qtensor.stream,
+                self.qparams.scale.stream,
+                offset.stream,
+            ]
+        } else {
+            vec![self.qtensor.stream, self.qparams.scale.stream]
+        };
+
+        // Quantized tensor and qparams tensors client are the same
+        self.qtensor
+            .client
+            .clone()
+            .read_tensor_quantized::<B>(self.into_description(), streams)
+            .await
+    }
+
+    /// Description to be used when using an initialized tensor used as input.
+    pub(crate) fn into_description(self) -> QuantizedTensorDescription {
+        QuantizedTensorDescription {
+            tensor: self.qtensor.into_description(),
+            qparams: QuantizationParametersDescription {
+                scale: self.qparams.scale.into_description(),
+                offset: self.qparams.offset.map(|x| x.into_description()),
+            },
+            scheme: self.scheme,
+        }
+    }
+}
+
+/// The quantization parameters.
+#[derive(Debug)]
+pub struct FusionQuantizationParameters<R: FusionRuntime> {
+    /// The scaling factor.
+    pub scale: FusionTensor<R>,
+    /// The zero-point offset.
+    pub offset: Option<FusionTensor<R>>,
+}
+
+impl<R: FusionRuntime> Clone for FusionQuantizationParameters<R> {
+    fn clone(&self) -> Self {
+        Self {
+            scale: self.scale.clone(),
+            offset: self.offset.clone(),
+        }
+    }
+}
+
+impl<B: FusionBackend> From<QuantizationParametersPrimitive<Fusion<B>>>
+    for FusionQuantizationParameters<B::FusionRuntime>
+{
+    fn from(value: QuantizationParametersPrimitive<Fusion<B>>) -> Self {
+        FusionQuantizationParameters {
+            scale: value.scale,
+            offset: value.offset,
         }
     }
 }

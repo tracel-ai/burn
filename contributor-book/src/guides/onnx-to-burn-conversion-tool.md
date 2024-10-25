@@ -6,7 +6,7 @@ learning framework written in Rust. It converts both ONNX models to Rust source 
 weights to Burn state files.
 
 For an introduction to ONNX import in Burn, see
-[this section of the Burn book](https://burn.dev/book/import/onnx-model.html).
+[this section of the Burn book](https://burn.dev/burn-book/import/onnx-model.html).
 
 ## Table of Contents
 

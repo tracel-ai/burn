@@ -1,23 +1,21 @@
 use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, UnsafeSharedRef};
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Shape};
 use ndarray::s;
 
-pub(crate) fn matmul<E, const D: usize>(
-    lhs: NdArrayTensor<E, D>,
-    rhs: NdArrayTensor<E, D>,
-) -> NdArrayTensor<E, D>
+pub(crate) fn matmul<E>(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E>
 where
     E: FloatNdArrayElement,
 {
     let shape_lhs = lhs.shape();
     let shape_rhs = rhs.shape();
-    let m = shape_lhs.dims[D - 2]; // # of left rows
-    let k = shape_rhs.dims[D - 2]; // # of left cols and right rows
-    let n = shape_rhs.dims[D - 1]; // # of right cols
+    let ndims = shape_lhs.num_dims();
+    let m = shape_lhs.dims[ndims - 2]; // # of left rows
+    let k = shape_rhs.dims[ndims - 2]; // # of left cols and right rows
+    let n = shape_rhs.dims[ndims - 1]; // # of right cols
 
     let (out_shape, strides_lhs, strides_rhs, strides_out) = output_shape(&shape_lhs, &shape_rhs);
     let l_mat_size = m * k; // size of matrix component of left array
@@ -31,7 +29,7 @@ where
     let alpha: E = 1.0.elem();
     let beta: E = 0.0.elem();
 
-    let out: NdArrayTensor<E, D> = run_par!(|| {
+    let out: NdArrayTensor<E> = run_par!(|| {
         let mut out_array = ndarray::Array3::<E>::zeros((num_out_batches, m, n));
         let unsafe_shared_out_array = UnsafeSharedRef::new(&mut out_array);
 
@@ -112,36 +110,34 @@ impl Strides {
 /// * If the matrix multiplication dimensions (last 2) are incompatible.
 /// * If any other dimension is not the same for both tensors, or equal to 1. (Any dimension where
 ///   one dim is equal to 1 is broadcast.)
-fn output_shape<const D: usize>(
-    lsh: &Shape<D>,
-    rsh: &Shape<D>,
-) -> (Shape<D>, Strides, Strides, Strides) {
-    if D < 2 {
+fn output_shape(lsh: &Shape, rsh: &Shape) -> (Shape, Strides, Strides, Strides) {
+    let ndims = lsh.num_dims();
+    if ndims < 2 {
         panic!("Matrix multiplication requires an array with at least 2 dimensions.");
     }
 
     // Fetch matrix dimensions and check compatibility.
-    let l_rows = lsh.dims[D - 2];
-    let l_cols = lsh.dims[D - 1];
-    let r_rows = rsh.dims[D - 2];
-    let r_cols = rsh.dims[D - 1];
+    let l_rows = lsh.dims[ndims - 2];
+    let l_cols = lsh.dims[ndims - 1];
+    let r_rows = rsh.dims[ndims - 2];
+    let r_cols = rsh.dims[ndims - 1];
     if l_cols != r_rows {
         panic!("Dimensions are incompatible for matrix multiplication.");
     }
     // Set matrix dimensions of the output shape.
-    let mut osh = [0; D];
-    osh[D - 2] = l_rows;
-    osh[D - 1] = r_cols;
+    let mut osh = vec![0; ndims];
+    osh[ndims - 2] = l_rows;
+    osh[ndims - 1] = r_cols;
 
     // Set other array dimensions, broadcasting as necessary.
     // Compute the strides inline.
     let mut cur_l_stride: usize = 1;
     let mut cur_r_stride: usize = 1;
     let mut cur_o_stride: usize = 1;
-    let mut l_strides = Vec::with_capacity(D - 2);
-    let mut r_strides = Vec::with_capacity(D - 2);
-    let mut o_strides = Vec::with_capacity(D - 2);
-    for i in (0..D - 2).rev() {
+    let mut l_strides = Vec::with_capacity(ndims - 2);
+    let mut r_strides = Vec::with_capacity(ndims - 2);
+    let mut o_strides = Vec::with_capacity(ndims - 2);
+    for i in (0..ndims - 2).rev() {
         let l_dim = lsh.dims[i];
         let r_dim = rsh.dims[i];
 
@@ -186,7 +182,6 @@ fn output_shape<const D: usize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
 
     impl Strides {
         fn empty() -> Self {

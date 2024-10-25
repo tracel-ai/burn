@@ -4,10 +4,10 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 
 #[cube(launch)]
 fn mask_where_readonly_kernel<T: CubePrimitive>(
-    input: &Tensor<T>,
-    mask: &Tensor<u32>,
-    value: &Tensor<T>,
-    output: &mut Tensor<T>,
+    input: &Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
+    value: &Tensor<Line<T>>,
+    output: &mut Tensor<Line<T>>,
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -18,7 +18,7 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
     let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
     let index_value = index_offset_with_layout(value, output, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= 1 {
+    if mask[index_mask] >= Line::new(1) {
         output[ABSOLUTE_POS] = value[index_value];
     } else {
         output[ABSOLUTE_POS] = input[index_input];
@@ -27,9 +27,9 @@ fn mask_where_readonly_kernel<T: CubePrimitive>(
 
 #[cube(launch)]
 fn mask_where_inplace_kernel<T: CubePrimitive>(
-    input: &mut Tensor<T>,
-    mask: &Tensor<u32>,
-    value: &Tensor<T>,
+    input: &mut Tensor<Line<T>>,
+    mask: &Tensor<Line<u32>>,
+    value: &Tensor<Line<T>>,
     reverse: u32,
     #[comptime] rank: u32,
 ) {
@@ -40,7 +40,7 @@ fn mask_where_inplace_kernel<T: CubePrimitive>(
     let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
     let index_value = index_offset_with_layout(value, input, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] != reverse {
+    if mask[index_mask] != Line::new(reverse) {
         input[ABSOLUTE_POS] = value[index_value];
     }
 }
@@ -61,12 +61,12 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: JitRuntime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
-    mask: JitTensor<R, u32, D>,
-    value: JitTensor<R, E, D>,
+pub fn mask_where<R: JitRuntime, E: JitElement>(
+    input: JitTensor<R, E>,
+    mask: JitTensor<R, u32>,
+    value: JitTensor<R, E>,
     strategy: MaskWhereStrategy,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     match strategy {
         MaskWhereStrategy::Readonly => mask_where_readonly(input, mask, value),
         MaskWhereStrategy::InplaceLhs => mask_where_inplace(input, mask, value, false),
@@ -74,11 +74,12 @@ pub fn mask_where<R: JitRuntime, E: JitElement, const D: usize>(
     }
 }
 
-fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    mask: JitTensor<R, EM, D>,
-    value: JitTensor<R, EI, D>,
-) -> JitTensor<R, EI, D> {
+fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
+    input: JitTensor<R, EI>,
+    mask: JitTensor<R, EM>,
+    value: JitTensor<R, EI>,
+) -> JitTensor<R, EI> {
+    let ndims = input.shape.num_dims();
     let output = empty_device(
         input.client.clone(),
         input.device.clone(),
@@ -96,18 +97,19 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement, const D: u
         mask.as_tensor_arg(1),
         value.as_tensor_arg(1),
         output.as_tensor_arg(1),
-        D as u32,
+        ndims as u32,
     );
 
     output
 }
 
-fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: usize>(
-    input: JitTensor<R, EI, D>,
-    mask: JitTensor<R, EM, D>,
-    value: JitTensor<R, EI, D>,
+fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
+    input: JitTensor<R, EI>,
+    mask: JitTensor<R, EM>,
+    value: JitTensor<R, EI>,
     reverse: bool,
-) -> JitTensor<R, EI, D> {
+) -> JitTensor<R, EI> {
+    let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
 
@@ -119,7 +121,7 @@ fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement, const D: us
         mask.as_tensor_arg(1),
         value.as_tensor_arg(1),
         ScalarArg::new(reverse as u32),
-        D as u32,
+        ndims as u32,
     );
 
     input

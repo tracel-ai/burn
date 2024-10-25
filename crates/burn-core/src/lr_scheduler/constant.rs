@@ -19,30 +19,30 @@ impl From<LearningRate> for ConstantLr {
     }
 }
 
-impl<B: Backend> LrScheduler<B> for ConstantLr {
-    type Record = ();
+impl LrScheduler for ConstantLr {
+    type Record<B: Backend> = ();
 
     fn step(&mut self) -> LearningRate {
         self.lr
     }
 
-    fn to_record(&self) -> Self::Record {}
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {}
 
-    fn load_record(self, _record: Self::Record) -> Self {
+    fn load_record<B: Backend>(self, _record: Self::Record<B>) -> Self {
         self
     }
 }
 
-impl<B: Backend> LrScheduler<B> for LearningRate {
-    type Record = ();
+impl LrScheduler for LearningRate {
+    type Record<B: Backend> = ();
 
     fn step(&mut self) -> LearningRate {
         *self
     }
 
-    fn to_record(&self) -> Self::Record {}
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {}
 
-    fn load_record(self, _record: Self::Record) -> Self {
+    fn load_record<B: Backend>(self, _record: Self::Record<B>) -> Self {
         self
     }
 }

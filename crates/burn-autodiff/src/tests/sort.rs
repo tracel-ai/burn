@@ -34,7 +34,8 @@ mod tests {
             TestAutodiffTensor::from_floats([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        let tensor_4 = tensor_1.clone().mul(tensor_3.sort_with_indices(1).0);
+        let (values, _indices) = tensor_3.sort_with_indices(1);
+        let tensor_4 = tensor_1.clone().mul(values);
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

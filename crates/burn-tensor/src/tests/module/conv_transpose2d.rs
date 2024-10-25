@@ -28,6 +28,7 @@ mod tests {
 
         test.assert_output(TestTensor::from([[[[5.0, 11.0], [23.0, 29.0]]]]));
     }
+
     #[test]
     fn test_conv_transpose2d_simple_2() {
         let test = ConvTranspose2dTestCase {
@@ -69,6 +70,34 @@ mod tests {
                 [19319., 29663., 30572., 20861.],
             ],
         ]]));
+    }
+
+    #[test]
+    fn test_conv_transpose2d_simple_3() {
+        let test = ConvTranspose2dTestCase {
+            batch_size: 1,
+            channels_in: 1,
+            channels_out: 1,
+            kernel_size_1: 2,
+            kernel_size_2: 2,
+            padding_1: 0,
+            padding_2: 0,
+            padding_out_1: 0,
+            padding_out_2: 0,
+            stride_1: 1,
+            stride_2: 1,
+            dilation_1: 1,
+            dilation_2: 1,
+            groups: 1,
+            height: 2,
+            width: 2,
+        };
+
+        test.assert_output(TestTensor::from([[[
+            [0.0, 0.0, 1.0],
+            [0.0, 4.0, 6.0],
+            [4.0, 12.0, 9.0],
+        ]]]));
     }
 
     #[test]
@@ -303,7 +332,7 @@ mod tests {
             let device = Default::default();
             let weights = TestTensor::from(
                 TestTensorInt::arange(0..shape_weights.num_elements() as i64, &device)
-                    .reshape(shape_weights)
+                    .reshape::<4, _>(shape_weights)
                     .into_data(),
             );
             let bias = TestTensor::from(
@@ -311,7 +340,7 @@ mod tests {
             );
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
             let output = conv_transpose2d(

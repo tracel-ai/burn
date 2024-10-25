@@ -1,15 +1,12 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, const D: usize> {
-    shape_lhs: Shape<D>,
-    shape_rhs: Shape<D>,
+    shape_lhs: Shape,
+    shape_rhs: Shape,
     device: B::Device,
 }
 
@@ -21,7 +18,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape_lhs.dims.into(), self.shape_rhs.dims.into()]
+        vec![self.shape_lhs.dims.clone(), self.shape_rhs.dims.clone()]
     }
 
     fn num_samples(&self) -> usize {
@@ -40,7 +37,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 

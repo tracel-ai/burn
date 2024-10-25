@@ -2,7 +2,7 @@ use crate::{PrecisionBridge, QuantElement, TchQTensor};
 
 use super::element::TchElement;
 use super::TchTensor;
-use burn_tensor::backend::{Backend, DeviceId, DeviceOps, SyncType};
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::IntTensorOps;
 use burn_tensor::{Int, Tensor};
 
@@ -95,15 +95,16 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type Device = LibTorchDevice;
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive<const D: usize> = TchTensor<E, D>;
+    type FloatTensorPrimitive = TchTensor<E>;
     type FloatElem = E;
 
-    type IntTensorPrimitive<const D: usize> = TchTensor<i64, D>;
+    type IntTensorPrimitive = TchTensor<i64>;
     type IntElem = i64;
 
-    type BoolTensorPrimitive<const D: usize> = TchTensor<bool, D>;
+    type BoolTensorPrimitive = TchTensor<bool>;
 
-    type QuantizedTensorPrimitive<const D: usize> = TchQTensor<Q, D>;
+    type QuantizedTensorPrimitive = TchQTensor<Q>;
+    type QuantizedEncoding = Q;
 
     fn seed(seed: u64) {
         tch::manual_seed(seed as i64);
@@ -117,20 +118,19 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
         "tch".to_string()
     }
 
-    fn sync(device: &Self::Device, sync_type: SyncType) {
-        if sync_type == SyncType::Wait {
-            match device {
-                LibTorchDevice::Cpu => (),
-                LibTorchDevice::Cuda(index) => {
-                    tch::Cuda::synchronize(*index as i64);
-                }
-                _ => {
-                    // When there is no explicit way to synchronize, we write and read one value to sync
-                    Tensor::<Self, 1, Int>::from_primitive(
-                        <Self as IntTensorOps<Self>>::int_zeros([1].into(), device),
-                    )
-                    .into_data();
-                }
+    fn sync(device: &Self::Device) {
+        match device {
+            LibTorchDevice::Cpu => (),
+            LibTorchDevice::Cuda(index) => {
+                tch::Cuda::synchronize(*index as i64);
+            }
+            _ => {
+                // When there is no explicit way to synchronize, we write and read one value to sync
+                Tensor::<Self, 1, Int>::from_primitive(<Self as IntTensorOps<Self>>::int_zeros(
+                    [1].into(),
+                    device,
+                ))
+                .into_data();
             }
         }
     }

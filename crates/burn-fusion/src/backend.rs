@@ -3,9 +3,9 @@ use crate::{
     QFusionTensor,
 };
 use burn_tensor::{
-    backend::{Backend, DeviceOps, SyncType},
-    ops::FloatTensor,
-    repr::{OperationDescription, ReprBackend},
+    backend::{Backend, DeviceOps},
+    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
     Device,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -28,17 +28,19 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
-    type FloatTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
 
-    type IntTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type IntTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type IntElem = B::IntElem;
 
-    type BoolTensorPrimitive<const D: usize> = FusionTensor<B::FusionRuntime>;
+    type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
-    type QuantizedTensorPrimitive<const D: usize> = QFusionTensor<B::FusionRuntime>;
+    type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
+
+    type QuantizedEncoding = B::QuantizedEncoding;
 
     fn name() -> String {
         format!("fusion<{}>", B::name())
@@ -48,10 +50,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::seed(seed);
     }
 
-    fn sync(device: &Self::Device, sync_type: SyncType) {
+    fn sync(device: &Self::Device) {
         let client = CLIENTS.client::<B::FusionRuntime>(&device.clone());
         client.drain();
-        B::sync(device, sync_type);
+        B::sync(device);
     }
 
     fn ad_enabled() -> bool {
@@ -159,11 +161,48 @@ pub trait FusionBackend:
     type FusionRuntime: FusionRuntime;
 
     /// Cast a float tensor and returns the resulting handle.
-    fn cast_float<const D: usize>(
-        tensor: FloatTensor<Self, D>,
-        dtype: burn_tensor::DType,
-    ) -> Self::Handle;
+    fn cast_float(tensor: FloatTensor<Self>, dtype: burn_tensor::DType) -> Self::Handle;
 
     /// Pointer to the full precision fusion backend.
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
+}
+
+// Fusion implements `ReprBackend` to enable router backend usage.
+impl<B: FusionBackend> ReprBackend for Fusion<B> {
+    type Handle = FusionTensor<B::FusionRuntime>;
+
+    fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
+        handle.handle
+    }
+
+    fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
+        handle.handle
+    }
+
+    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
+        handle.handle
+    }
+
+    fn quantized_tensor(
+        _handles: QuantizedKind<TensorHandle<Self::Handle>>,
+        _scheme: burn_tensor::quantization::QuantizationScheme,
+    ) -> QuantizedTensor<Self> {
+        todo!() // not as simple
+    }
+
+    fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
+        todo!() // not as simple
+    }
 }

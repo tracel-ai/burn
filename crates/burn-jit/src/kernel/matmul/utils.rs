@@ -2,18 +2,19 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: &JitTensor<R, E, D>,
-    rhs: &JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+pub fn init_matmul_output<R: JitRuntime, E: JitElement>(
+    lhs: &JitTensor<R, E>,
+    rhs: &JitTensor<R, E>,
+) -> JitTensor<R, E> {
     empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: &JitTensor<R, E, D>,
-    rhs: &JitTensor<R, E, D>,
-) -> Shape<D> {
-    let mut shape_out = [0; D];
+pub(crate) fn shape_out<R: JitRuntime, E: JitElement>(
+    lhs: &JitTensor<R, E>,
+    rhs: &JitTensor<R, E>,
+) -> Shape {
+    let ndims = lhs.shape.num_dims();
+    let mut shape_out = vec![0; ndims];
     lhs.shape
         .dims
         .iter()
@@ -22,7 +23,7 @@ pub(crate) fn shape_out<R: JitRuntime, E: JitElement, const D: usize>(
         .for_each(|(index, (dim_lhs, dim_rhs))| {
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
         });
-    shape_out[D - 2] = lhs.shape.dims[D - 2];
-    shape_out[D - 1] = rhs.shape.dims[D - 1];
-    Shape::new(shape_out)
+    shape_out[ndims - 2] = lhs.shape.dims[ndims - 2];
+    shape_out[ndims - 1] = rhs.shape.dims[ndims - 1];
+    Shape::from(shape_out)
 }

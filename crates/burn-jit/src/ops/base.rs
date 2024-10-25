@@ -3,30 +3,25 @@ use burn_tensor::{Shape, TensorData};
 use cubecl::CubeElement;
 use std::marker::PhantomData;
 
-pub(crate) fn from_data<R: JitRuntime, E: JitElement, const D: usize>(
+pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
     device: &R::Device,
-) -> JitTensor<R, E, D> {
-    // TODO: from_data QFloat should not convert
-    let shape: Shape<D> = (&data.shape).into();
+) -> JitTensor<R, E> {
+    let shape: Shape = (&data.shape).into();
     let client = R::client(device);
     let buffer = client.create(data.convert::<E>().as_bytes());
 
     JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
-pub(crate) async fn into_data<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
-) -> TensorData {
+pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R, E>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_async(tensor.handle.binding()).await;
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime, const D: usize>(
-    tensor: JitTensor<R, u32, D>,
-) -> TensorData {
+pub(crate) async fn bool_into_data<R: JitRuntime>(tensor: JitTensor<R, u32>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_async(tensor.handle.binding()).await;
     TensorData::new(
@@ -35,10 +30,10 @@ pub(crate) async fn bool_into_data<R: JitRuntime, const D: usize>(
     )
 }
 
-pub(crate) fn to_device<R: JitRuntime, E: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn to_device<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
     device: &R::Device,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     if &tensor.device == device {
         return tensor;
     }
@@ -47,52 +42,55 @@ pub(crate) fn to_device<R: JitRuntime, E: JitElement, const D: usize>(
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+pub(crate) fn empty<R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     let client = R::client(device);
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
     JitTensor::new_contiguous(client, device.clone(), shape, buffer)
 }
 
-pub(crate) fn swap_dims<R: JitRuntime, E: JitElement, const D: usize>(
-    mut tensor: JitTensor<R, E, D>,
+pub(crate) fn swap_dims<R: JitRuntime, E: JitElement>(
+    mut tensor: JitTensor<R, E>,
     dim1: usize,
     dim2: usize,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     tensor.strides.swap(dim1, dim2);
     tensor.shape.dims.swap(dim1, dim2);
 
     tensor
 }
 
-pub(crate) fn permute<R: JitRuntime, E: JitElement, const D: usize>(
-    mut tensor: JitTensor<R, E, D>,
-    axes: [usize; D],
-) -> JitTensor<R, E, D> {
+pub(crate) fn permute<R: JitRuntime, E: JitElement>(
+    mut tensor: JitTensor<R, E>,
+    axes: &[usize],
+) -> JitTensor<R, E> {
     // remap strides
-    tensor.strides = axes.map(|i| tensor.strides[i]);
+    tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
     // remap shape
-    tensor.shape.dims = axes.map(|i| tensor.shape.dims[i]);
+    tensor.shape.dims = axes.iter().map(|i| tensor.shape.dims[*i]).collect();
 
     tensor
 }
-pub(crate) fn expand<R: JitRuntime, E: JitElement, const D: usize, const D_OUT: usize>(
-    tensor: JitTensor<R, E, D>,
-    target_shape: Shape<D_OUT>,
-) -> JitTensor<R, E, D_OUT> {
+pub(crate) fn expand<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    target_shape: Shape,
+) -> JitTensor<R, E> {
+    let ndims_in = tensor.shape.num_dims();
+    let ndims_out = target_shape.num_dims();
+
     // Initialize new strides with zeros
-    let mut new_strides = [0usize; D_OUT];
+    let mut new_strides = vec![0usize; ndims_out];
 
     // Calculate the difference in dimensions
-    let dim_diff = D_OUT.saturating_sub(D);
+    let dim_diff = ndims_out.saturating_sub(ndims_in);
 
     // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
     let mut tensor_dim_iter = tensor.shape.dims.iter().rev();
-    for i in (0..D_OUT).rev() {
+    for i in (0..ndims_out).rev() {
         if i >= dim_diff {
             if let Some(&tensor_dim) = tensor_dim_iter.next() {
                 if tensor_dim == target_shape.dims[i] || tensor_dim == 1 {
@@ -130,10 +128,10 @@ pub(crate) fn expand<R: JitRuntime, E: JitElement, const D: usize, const D_OUT: 
     }
 }
 
-pub(crate) fn reshape<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
-    tensor: JitTensor<R, E, D1>,
-    shape: Shape<D2>,
-) -> JitTensor<R, E, D2> {
+pub(crate) fn reshape<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    shape: Shape,
+) -> JitTensor<R, E> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 

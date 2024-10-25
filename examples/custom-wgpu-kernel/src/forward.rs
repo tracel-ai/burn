@@ -42,11 +42,11 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         // Define cube dim, hardcoded for simplicity.
         let cube_dim = CubeDim { x: 16, y: 16, z: 1 };
 
@@ -59,19 +59,20 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         let bias = into_contiguous(bias);
 
         // Get the matmul relevant shapes.
-        let num_rows = lhs.shape.dims[D - 2];
-        let num_cols = rhs.shape.dims[D - 1];
+        let ndims = lhs.shape.num_dims();
+        let num_rows = lhs.shape.dims[ndims - 2];
+        let num_cols = rhs.shape.dims[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
-        let mut shape_out = [0; D];
-        for i in shape_out.into_iter().take(D - 2) {
+        let mut shape_out = vec![0; ndims];
+        for i in shape_out.clone().into_iter().take(ndims - 2) {
             shape_out[i] = usize::max(lhs.shape.dims[i], rhs.shape.dims[i]);
             num_batches *= shape_out[i];
         }
-        shape_out[D - 2] = num_rows;
-        shape_out[D - 1] = num_cols;
-        let shape_out = Shape::new(shape_out);
+        shape_out[ndims - 2] = num_rows;
+        shape_out[ndims - 1] = num_cols;
+        let shape_out = Shape::from(shape_out);
 
         // Create a buffer for the output tensor.
         let buffer = lhs

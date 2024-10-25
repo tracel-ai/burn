@@ -46,10 +46,10 @@ impl TensorCheck {
     ) -> Self {
         Self::Ok
             .binary_ops_device(ops, &lhs.device(), &rhs.device())
-            .binary_ops_ew_shape(ops, &lhs.shape(), &rhs.shape())
+            .binary_ops_ew_shape::<D>(ops, &lhs.shape(), &rhs.shape())
     }
 
-    pub(crate) fn into_scalar<const D: usize>(shape: &Shape<D>) -> Self {
+    pub(crate) fn into_scalar<const D: usize>(shape: &Shape) -> Self {
         let mut check = Self::Ok;
 
         if shape.num_elements() != 1 {
@@ -148,8 +148,8 @@ impl TensorCheck {
     }
 
     pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
-        original: &Shape<D1>,
-        target: &Shape<D2>,
+        original: &Shape,
+        target: &Shape,
     ) -> Self {
         let mut check = Self::Ok;
 
@@ -406,14 +406,24 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn unsqueeze_dim<const D: usize>(dim: usize) -> Self {
+    pub(crate) fn unsqueeze_dim<const D1: usize, const D2: usize>(dim: usize) -> Self {
         let mut check = Self::Ok;
-        if dim > D {
+        if dim > D1 {
             check = check.register(
                 "Unsqueeze",
                 TensorError::new(format!(
                     "Can't unsqueeze at dimension {}, exceeds tensor dimensions (D={})",
-                    dim, D
+                    dim, D1
+                )),
+            );
+        }
+
+        if dim >= D2 {
+            check = check.register(
+                "Unsqueeze",
+                TensorError::new(format!(
+                    "Can't unsqueeze at dimension {}, exceeds output tensor dimensions (D2={})",
+                    dim, D2
                 )),
             );
         }
@@ -577,20 +587,31 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn stack<B: Backend, const D: usize, K: BasicOps<B>>(
-        tensors: &[Tensor<B, D, K>],
+    pub(crate) fn stack<B: Backend, const D1: usize, K: BasicOps<B>, const D2: usize>(
+        tensors: &[Tensor<B, D1, K>],
         dim: usize,
     ) -> Self {
         let mut check = Self::Ok;
 
-        if dim > D {
+        if dim > D1 {
             check = check.register(
                 "Stack",
                 TensorError::new(
                     "Can't stack tensors on a dim that exceeds the tensors dimension (inclusive)",
                 )
                 .details(format!(
-                    "Trying to concatenate tensors with {D} dimensions on axis {dim}."
+                    "Trying to concatenate tensors with {D1} dimensions on axis {dim}."
+                )),
+            );
+        }
+
+        if D1 == D2 {
+            check = check.register(
+                "Stack",
+                TensorError::new(format!(
+                    "Can't stack tensors on existing dimension {}, the input and output ranks are the same (D={}; D2={}).\
+                    If you want to concatenate the tensors along the specified dimension ({}), use `Tensor::cat` instead.",
+                    dim, D1, D2, dim
                 )),
             );
         }
@@ -675,7 +696,7 @@ impl TensorCheck {
     }
 
     pub(crate) fn slice<const D1: usize, const D2: usize>(
-        shape: &Shape<D1>,
+        shape: &Shape,
         ranges: &[Range<usize>; D2],
     ) -> Self {
         let mut check = Self::Ok;
@@ -736,8 +757,8 @@ impl TensorCheck {
     }
 
     pub(crate) fn slice_assign<const D1: usize, const D2: usize>(
-        shape: &Shape<D1>,
-        shape_value: &Shape<D1>,
+        shape: &Shape,
+        shape_value: &Shape,
         ranges: &[Range<usize>; D2],
     ) -> Self {
         let mut check = Self::Ok;
@@ -818,23 +839,19 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn gather<const D: usize>(
-        dim: usize,
-        shape: &Shape<D>,
-        shape_indices: &Shape<D>,
-    ) -> Self {
-        Self::check_gather_scatter_indices(Self::Ok, "Gather", dim, shape, shape_indices)
+    pub(crate) fn gather<const D: usize>(dim: usize, shape: &Shape, shape_indices: &Shape) -> Self {
+        Self::check_gather_scatter_indices::<D>(Self::Ok, "Gather", dim, shape, shape_indices)
     }
 
     pub(crate) fn scatter<const D: usize>(
         dim: usize,
-        shape: &Shape<D>,
-        shape_indices: &Shape<D>,
-        shape_value: &Shape<D>,
+        shape: &Shape,
+        shape_indices: &Shape,
+        shape_value: &Shape,
     ) -> Self {
         let ops = "Scatter";
         let mut check =
-            Self::check_gather_scatter_indices(Self::Ok, ops, dim, shape, shape_indices);
+            Self::check_gather_scatter_indices::<D>(Self::Ok, ops, dim, shape, shape_indices);
 
         if shape_indices != shape_value {
             check = check.register(
@@ -877,8 +894,8 @@ impl TensorCheck {
         mut check: Self,
         ops: &str,
         dim: usize,
-        shape: &Shape<D>,
-        shape_indices: &Shape<D>,
+        shape: &Shape,
+        shape_indices: &Shape,
     ) -> Self {
         if dim > D {
             check = check.register(
@@ -915,8 +932,8 @@ impl TensorCheck {
     }
 
     pub(crate) fn check_prelu_shape<const D: usize>(
-        shape_tensor: &Shape<D>,
-        shape_weight: &Shape<1>,
+        shape_tensor: &Shape,
+        shape_weight: &Shape,
     ) -> Self {
         let mut check = Self::Ok;
         if shape_weight.dims[0] == 1 {
@@ -1006,8 +1023,8 @@ impl TensorCheck {
     pub(crate) fn binary_ops_ew_shape<const D: usize>(
         self,
         ops: &str,
-        lhs: &Shape<D>,
-        rhs: &Shape<D>,
+        lhs: &Shape,
+        rhs: &Shape,
     ) -> Self {
         let mut check = self;
 
@@ -1057,11 +1074,7 @@ impl TensorCheck {
     }
 
     /// Checks if expand operation is possible for the given shapes.
-    pub fn expand<const D1: usize, const D2: usize>(
-        ops: &str,
-        shape: &Shape<D1>,
-        to: &Shape<D2>,
-    ) -> Self {
+    pub fn expand<const D1: usize, const D2: usize>(ops: &str, shape: &Shape, to: &Shape) -> Self {
         let mut check = TensorCheck::Ok;
         let max_dims = core::cmp::max(D1, D2);
 
@@ -1180,7 +1193,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn reshape_invalid_shape() {
-        check!(TensorCheck::reshape_args_usize(
+        check!(TensorCheck::reshape_args_usize::<2, 2>(
             &Shape::new([2, 2]),
             &Shape::new([1, 3])
         ));
@@ -1188,7 +1201,7 @@ mod tests {
 
     #[test]
     fn reshape_valid_shape() {
-        check!(TensorCheck::reshape_args_usize(
+        check!(TensorCheck::reshape_args_usize::<2, 2>(
             &Shape::new([2, 2]),
             &Shape::new([1, 4])
         ));
@@ -1197,7 +1210,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn index_range_exceed_dimension() {
-        check!(TensorCheck::slice(
+        check!(TensorCheck::slice::<3, 3>(
             &Shape::new([3, 5, 7]),
             &[0..2, 0..4, 1..8]
         ));
@@ -1206,13 +1219,16 @@ mod tests {
     #[test]
     #[should_panic]
     fn index_range_exceed_number_of_dimensions() {
-        check!(TensorCheck::slice(&Shape::new([3, 5]), &[0..1, 0..1, 0..1]));
+        check!(TensorCheck::slice::<2, 3>(
+            &Shape::new([3, 5]),
+            &[0..1, 0..1, 0..1]
+        ));
     }
 
     #[test]
     #[should_panic]
     fn binary_ops_shapes_no_broadcast() {
-        check!(TensorCheck::binary_ops_ew_shape(
+        check!(TensorCheck::binary_ops_ew_shape::<2>(
             TensorCheck::Ok,
             "TestOps",
             &Shape::new([3, 5]),
@@ -1222,7 +1238,7 @@ mod tests {
 
     #[test]
     fn binary_ops_shapes_with_broadcast() {
-        check!(TensorCheck::binary_ops_ew_shape(
+        check!(TensorCheck::binary_ops_ew_shape::<2>(
             TensorCheck::Ok,
             "Test",
             &Shape::new([3, 5]),

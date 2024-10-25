@@ -104,6 +104,30 @@ where
         )))
     }
 
+    /// Applies element wise round operation.
+    ///
+    /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest even integer value.
+    pub fn round(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_round(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise floor operation.
+    pub fn floor(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_floor(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise ceil operation.
+    pub fn ceil(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_ceil(
+            self.primitive.tensor(),
+        )))
+    }
+
     /// Create a tensor from floats (f32) on a given device.
     ///
     /// # Example

@@ -29,10 +29,10 @@ where
 {
     type Target = Autodiff<Bridge::Target, C>;
 
-    fn into_target<const D: usize>(
-        tensor: burn_tensor::ops::FloatTensor<Autodiff<B, C>, D>,
+    fn into_target(
+        tensor: burn_tensor::ops::FloatTensor<Autodiff<B, C>>,
         _device: Option<burn_tensor::Device<Self::Target>>,
-    ) -> burn_tensor::ops::FloatTensor<Self::Target, D> {
+    ) -> burn_tensor::ops::FloatTensor<Self::Target> {
         #[derive(Debug)]
         struct IntoTarget<B: Backend, Bridge: BackendBridge<B>> {
             _backend: PhantomData<B>,
@@ -40,25 +40,25 @@ where
         }
 
         #[derive(new, Debug, Clone)]
-        struct RetroIntoTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
+        struct RetroIntoTarget<B: Backend, Bridge: BackendBridge<B>> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,
             _bridge: PhantomData<Bridge>,
         }
 
-        impl<B, Bridge, const D: usize> RetroForward for RetroIntoTarget<B, Bridge, D>
+        impl<B, Bridge> RetroForward for RetroIntoTarget<B, Bridge>
         where
             B: Backend,
             Bridge: BackendBridge<B> + 'static,
         {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor: FloatTensor<B, D> = states.get_state(&self.tensor_id);
+                let tensor: FloatTensor<B> = states.get_state(&self.tensor_id);
                 let out = Bridge::into_target(tensor, Default::default());
                 states.save(out_node, out)
             }
         }
 
-        impl<B, Bridge, const D: usize> Backward<Bridge::Target, D, 1> for IntoTarget<B, Bridge>
+        impl<B, Bridge> Backward<Bridge::Target, 1> for IntoTarget<B, Bridge>
         where
             B: Backend,
             Bridge: BackendBridge<B> + 'static,
@@ -71,7 +71,7 @@ where
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                unary_different_backend::<B, Bridge::Target, D, D, _>(
+                unary_different_backend::<B, Bridge::Target, _>(
                     ops.parents,
                     ops.node,
                     grads,
@@ -86,15 +86,15 @@ where
         }
         .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroIntoTarget::<B, Bridge, D>::new(tensor.node.id))
+        .retro_forward(RetroIntoTarget::<B, Bridge>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::into_target(tensor.primitive, None))
     }
 
-    fn from_target<const D: usize>(
-        tensor: burn_tensor::ops::FloatTensor<Self::Target, D>,
+    fn from_target(
+        tensor: burn_tensor::ops::FloatTensor<Self::Target>,
         _device: Option<burn_tensor::Device<Autodiff<B, C>>>,
-    ) -> burn_tensor::ops::FloatTensor<Autodiff<B, C>, D> {
+    ) -> burn_tensor::ops::FloatTensor<Autodiff<B, C>> {
         #[derive(Debug)]
         struct FromTarget<B: Backend, Bridge: BackendBridge<B>> {
             _backend: PhantomData<B>,
@@ -102,25 +102,25 @@ where
         }
 
         #[derive(new, Debug, Clone)]
-        struct RetroFromTarget<B: Backend, Bridge: BackendBridge<B>, const D: usize> {
+        struct RetroFromTarget<B: Backend, Bridge: BackendBridge<B>> {
             tensor_id: NodeID,
             _backend: PhantomData<B>,
             _bridge: PhantomData<Bridge>,
         }
 
-        impl<B, Bridge, const D: usize> RetroForward for RetroFromTarget<B, Bridge, D>
+        impl<B, Bridge> RetroForward for RetroFromTarget<B, Bridge>
         where
             B: Backend,
             Bridge: BackendBridge<B> + 'static,
         {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let tensor: FloatTensor<Bridge::Target, D> = states.get_state(&self.tensor_id);
+                let tensor: FloatTensor<Bridge::Target> = states.get_state(&self.tensor_id);
                 let out = Bridge::from_target(tensor, None);
                 states.save(out_node, out)
             }
         }
 
-        impl<B, Bridge, const D: usize> Backward<B, D, 1> for FromTarget<B, Bridge>
+        impl<B, Bridge> Backward<B, 1> for FromTarget<B, Bridge>
         where
             B: Backend,
             Bridge: BackendBridge<B> + 'static,
@@ -133,7 +133,7 @@ where
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                unary_different_backend::<Bridge::Target, B, D, D, _>(
+                unary_different_backend::<Bridge::Target, B, _>(
                     ops.parents,
                     ops.node,
                     grads,
@@ -148,7 +148,7 @@ where
         }
         .prepare::<C>([tensor.node.clone()])
         .memory_bound()
-        .retro_forward(RetroFromTarget::<B, Bridge, D>::new(tensor.node.id))
+        .retro_forward(RetroFromTarget::<B, Bridge>::new(tensor.node.id))
         .parents([&tensor])
         .stateless(Bridge::from_target(tensor.primitive, None))
     }

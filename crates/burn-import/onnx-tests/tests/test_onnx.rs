@@ -30,6 +30,7 @@ include_models!(
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose1d,
     conv_transpose2d,
     conv_transpose3d,
     cos,
@@ -116,6 +117,8 @@ include_models!(
     sum_int,
     tanh,
     tile,
+    trilu_upper,
+    trilu_lower,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
@@ -352,7 +355,7 @@ mod tests {
         let output = model.forward(input);
 
         // test the output shape
-        let expected_shape: Shape<3> = Shape::from([6, 2, 7]);
+        let expected_shape: Shape = Shape::from([6, 2, 7]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv1d node
@@ -1441,9 +1444,9 @@ mod tests {
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
         // test the output shape
-        let expected_shape1: Shape<2> = Shape::from([4, 4]);
-        let expected_shape2: Shape<2> = Shape::from([2, 6]);
-        let expected_shape3: Shape<3> = Shape::from([3, 2, 8]);
+        let expected_shape1: Shape = Shape::from([4, 4]);
+        let expected_shape2: Shape = Shape::from([2, 6]);
+        let expected_shape3: Shape = Shape::from([3, 2, 8]);
         assert_eq!(output1.shape(), expected_shape1);
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
@@ -1504,6 +1507,28 @@ mod tests {
         // data from pyTorch
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn conv_transpose1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 22]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 
     #[test]
@@ -1867,6 +1892,44 @@ mod tests {
             [1.0f32, 2.0f32, 1.0f32, 2.0f32],
             [3.0f32, 4.0f32, 3.0f32, 4.0f32],
         ]);
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn trilu_upper() {
+        let device = Default::default();
+        let model: trilu_upper::Model<Backend> = trilu_upper::Model::new(&device);
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
+            &device,
+        );
+        let expected = TensorData::from([[
+            [1.0_f32, 2.0_f32, 3.0_f32],
+            [0.0_f32, 5.0_f32, 6.0_f32],
+            [0.0_f32, 0.0_f32, 9.0_f32],
+        ]]);
+
+        let output = model.forward(input).to_data();
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn trilu_lower() {
+        let device = Default::default();
+        let model: trilu_lower::Model<Backend> = trilu_lower::Model::new(&device);
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
+            &device,
+        );
+        let expected = TensorData::from([[
+            [1.0_f32, 0.0_f32, 0.0_f32],
+            [4.0_f32, 5.0_f32, 0.0_f32],
+            [7.0_f32, 8.0_f32, 9.0_f32],
+        ]]);
+
+        let output = model.forward(input).to_data();
 
         output.assert_eq(&expected, true);
     }

@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 // Allow deprecated `Data` and `DataSerialize`
 #![allow(deprecated)]
 
@@ -83,6 +84,18 @@ mod cube_cuda {
     use cubecl::cuda::CudaDevice;
 
     impl DeviceOps for CudaDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, self.index as u32)
+        }
+    }
+}
+
+#[cfg(feature = "cubecl-hip")]
+mod cube_hip {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::hip::HipDevice;
+
+    impl DeviceOps for HipDevice {
         fn id(&self) -> DeviceId {
             DeviceId::new(0, self.index as u32)
         }

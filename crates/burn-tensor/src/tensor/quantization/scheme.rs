@@ -1,16 +1,18 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{backend::Backend, Tensor, TensorPrimitive};
 
 use super::{CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive};
 
 /// Quantization data type.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationType {
     /// 8-bit signed integer.
     QInt8,
 }
 
 /// Quantization scheme.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationScheme {
     /// Per-tensor affine/asymmetric quantization.
     PerTensorAffine(QuantizationType),
@@ -69,8 +71,8 @@ impl QuantizationScheme {
     /// Compute the quantization parameters.
     pub(crate) fn compute_q_params_primitive<B: Backend>(
         &self,
-        min: B::FloatTensorPrimitive<1>,
-        max: B::FloatTensorPrimitive<1>,
+        min: B::FloatTensorPrimitive,
+        max: B::FloatTensorPrimitive,
     ) -> QuantizationParametersPrimitive<B> {
         let range = CalibrationRange {
             min: Tensor::from_primitive(TensorPrimitive::Float(min)),

@@ -44,18 +44,19 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     }
 }
 
-pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement>(
+    tensor: JitTensor<R, E>,
     dim: usize,
-    indices: JitTensor<R, I, 1>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+    indices: JitTensor<R, I>,
+    value: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    let ndims = tensor.shape.num_dims();
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
     };
 
-    let mut strides = [0; D];
+    let mut strides = vec![0; ndims];
     let mut current = 1;
     let mut num_elems = 1;
 

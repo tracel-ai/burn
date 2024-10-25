@@ -28,6 +28,7 @@
 - [Quantization (Beta)](./quantization.md)
 - [Advanced](./advanced/README.md)
   - [Backend Extension](./advanced/backend-extension/README.md)
+    - [Custom `cubecl` Kernel](./advanced/backend-extension/custom-cubecl-kernel.md)
     - [Custom WGPU Kernel](./advanced/backend-extension/custom-wgpu-kernel.md)
   - [Custom Optimizer]()
   - [WebAssembly]()

@@ -1,73 +1,79 @@
 use alloc::vec::Vec;
 
 /// Shape of a tensor.
-#[derive(new, Debug, Clone, PartialEq, Eq)]
-pub struct Shape<const D: usize> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Shape {
     /// The dimensions of the tensor.
-    pub dims: [usize; D],
+    pub dims: Vec<usize>,
 }
 
-impl<const D: usize> Shape<D> {
+impl Shape {
     /// Returns the total number of elements of a tensor having this shape
     pub fn num_elements(&self) -> usize {
-        let mut num_elements = 1;
-        for i in 0..D {
-            num_elements *= self.dims[i];
-        }
+        self.dims.iter().product()
+    }
 
-        num_elements
+    /// Returns the number of dimensions.
+    pub fn num_dims(&self) -> usize {
+        self.dims.len()
+    }
+
+    /// Constructs a new `Shape`.
+    pub fn new<const D: usize>(dims: [usize; D]) -> Self {
+        // For backward compat
+        Self {
+            dims: dims.to_vec(),
+        }
+    }
+
+    // For compat with dims: [usize; D]
+    /// Returns the dimensions of the tensor as an array.
+    pub fn dims<const D: usize>(&self) -> [usize; D] {
+        let mut dims = [1; D];
+        dims[..D].copy_from_slice(&self.dims[..D]);
+        dims
     }
 }
 
-impl<const D: usize> From<[usize; D]> for Shape<D> {
+impl<const D: usize> From<[usize; D]> for Shape {
     fn from(dims: [usize; D]) -> Self {
         Shape::new(dims)
     }
 }
 
-impl<const D: usize> From<Vec<i64>> for Shape<D> {
+impl From<Vec<i64>> for Shape {
     fn from(shape: Vec<i64>) -> Self {
-        let mut dims = [1; D];
-        for (i, dim) in shape.into_iter().enumerate() {
-            dims[i] = dim as usize;
+        Self {
+            dims: shape.into_iter().map(|d| d as usize).collect(),
         }
-        Self::new(dims)
     }
 }
 
-impl<const D: usize> From<Vec<u64>> for Shape<D> {
+impl From<Vec<u64>> for Shape {
     fn from(shape: Vec<u64>) -> Self {
-        let mut dims = [1; D];
-        for (i, dim) in shape.into_iter().enumerate() {
-            dims[i] = dim as usize;
+        Self {
+            dims: shape.into_iter().map(|d| d as usize).collect(),
         }
-        Self::new(dims)
     }
 }
 
-impl<const D: usize> From<Vec<usize>> for Shape<D> {
+impl From<Vec<usize>> for Shape {
     fn from(shape: Vec<usize>) -> Self {
-        let mut dims = [1; D];
-        for (i, dim) in shape.into_iter().enumerate() {
-            dims[i] = dim;
-        }
-        Self::new(dims)
+        Self { dims: shape }
     }
 }
 
-impl<const D: usize> From<&Vec<usize>> for Shape<D> {
+impl From<&Vec<usize>> for Shape {
     fn from(shape: &Vec<usize>) -> Self {
-        let mut dims = [1; D];
-        for (i, dim) in shape.iter().enumerate() {
-            dims[i] = *dim;
+        Self {
+            dims: shape.clone(),
         }
-        Self::new(dims)
     }
 }
 
-impl<const D: usize> From<Shape<D>> for Vec<usize> {
-    fn from(shape: Shape<D>) -> Self {
-        shape.dims.to_vec()
+impl From<Shape> for Vec<usize> {
+    fn from(shape: Shape) -> Self {
+        shape.dims
     }
 }
 

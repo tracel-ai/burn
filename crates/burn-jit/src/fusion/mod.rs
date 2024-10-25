@@ -1,8 +1,6 @@
 mod base;
-mod elemwise;
 
-pub(crate) mod kernel;
-pub(crate) mod tracing;
+pub(crate) mod elemwise;
+pub(crate) mod on_write;
 
 pub use base::*;
-pub(crate) use elemwise::*;

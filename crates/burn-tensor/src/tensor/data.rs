@@ -660,7 +660,7 @@ pub struct Data<E, const D: usize> {
     pub value: Vec<E>,
 
     /// The shape of the tensor.
-    pub shape: Shape<D>,
+    pub shape: Shape,
 }
 
 #[allow(deprecated)]
@@ -725,7 +725,7 @@ impl<E: Element> DataSerialize<E> {
 #[allow(deprecated)]
 impl<E: Element, const D: usize> Data<E, D> {
     /// Populates the data with random values.
-    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution, rng: &mut R) -> Self {
+    pub fn random<R: RngCore>(shape: Shape, distribution: Distribution, rng: &mut R) -> Self {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
@@ -743,7 +743,7 @@ where
     E: Element,
 {
     /// Populates the data with zeros.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
+    pub fn zeros<S: Into<Shape>>(shape: S) -> Data<E, D> {
         let shape = shape.into();
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
@@ -762,7 +762,7 @@ where
     E: Element,
 {
     /// Populates the data with ones.
-    pub fn ones(shape: Shape<D>) -> Data<E, D> {
+    pub fn ones(shape: Shape) -> Data<E, D> {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
 
@@ -780,7 +780,7 @@ where
     E: Element,
 {
     /// Populates the data with the given value
-    pub fn full(shape: Shape<D>, fill_value: E) -> Data<E, D> {
+    pub fn full(shape: Shape, fill_value: E) -> Data<E, D> {
         let num_elements = shape.num_elements();
         let mut data = Vec::with_capacity(num_elements);
         for _ in 0..num_elements {

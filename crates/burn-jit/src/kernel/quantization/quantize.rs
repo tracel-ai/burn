@@ -130,16 +130,17 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
     output[ABSOLUTE_POS] = v_packed;
 }
 
-pub(crate) fn quantize_per_tensor<R, F, I, const D: usize>(
-    tensor: JitTensor<R, F, D>,
-    scale: JitTensor<R, F, 1>,
-    offset: Option<JitTensor<R, I, 1>>,
-) -> JitTensor<R, u32, D>
+pub(crate) fn quantize_per_tensor<R, F, I>(
+    tensor: JitTensor<R, F>,
+    scale: JitTensor<R, F>,
+    offset: Option<JitTensor<R, I>>,
+) -> JitTensor<R, u32>
 where
     R: JitRuntime,
     F: JitElement,
     I: IntElement,
 {
+    let ndims = tensor.shape.num_dims();
     let num_elems = tensor.shape.num_elements();
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
@@ -154,7 +155,7 @@ where
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
-    let dummy_array = [1; D];
+    let dummy_array = vec![1; ndims];
     if let Some(offset) = offset {
         unsafe {
             quantize_per_tensor_affine_int8_kernel::launch_unchecked::<R>(
@@ -192,11 +193,11 @@ where
 }
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
-pub fn quantize<R, F, I, const D: usize>(
-    tensor: JitTensor<R, F, D>,
+pub fn quantize<R, F, I>(
+    tensor: JitTensor<R, F>,
     scheme: &QuantizationScheme,
     qparams: JitQuantizationParameters<R, F, I>,
-) -> QJitTensor<R, F, I, D>
+) -> QJitTensor<R, F, I>
 where
     R: JitRuntime,
     F: FloatElement,

@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! A library for training neural networks using the burn crate.
 

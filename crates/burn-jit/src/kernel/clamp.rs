@@ -9,11 +9,11 @@ struct Options<C: Numeric> {
     max_value: C,
 }
 
-pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
+pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
+    input: JitTensor<R, E>,
     min_value: E,
     max_value: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R, E> {
     struct ClampOp;
 
     impl<C: Numeric> UnaryOp<C> for ClampOp {
@@ -21,19 +21,23 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
 
         fn __expand_execute(
             context: &mut CubeContext,
-            input: C::ExpandType,
+            input: <Line<C> as CubeType>::ExpandType,
             options: OptionsExpand<C>,
-        ) -> C::ExpandType {
+        ) -> <Line<C> as CubeType>::ExpandType {
             #[cube]
-            fn execute<C: Numeric>(input: C, options: &Options<C>) -> C {
-                C::clamp(input, options.min_value, options.max_value)
+            fn execute<C: Numeric>(input: Line<C>, options: &Options<C>) -> Line<C> {
+                Line::clamp(
+                    input,
+                    Line::new(options.min_value),
+                    Line::new(options.max_value),
+                )
             }
 
             execute::expand(context, input, options)
         }
     }
 
-    launch_unary::<D, R, E, ClampOp, _>(input, |_| {
+    launch_unary::<R, E, ClampOp, _>(input, |_| {
         OptionsLaunch::new(ScalarArg::new(min_value), ScalarArg::new(max_value))
     })
 }

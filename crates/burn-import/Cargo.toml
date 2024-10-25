@@ -9,6 +9,7 @@ license.workspace = true
 name = "burn-import"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-import"
+documentation = "https://docs.rs/burn-import"
 version.workspace = true
 
 default-run = "onnx2burn"
@@ -40,3 +41,7 @@ zip = { workspace = true, optional = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]

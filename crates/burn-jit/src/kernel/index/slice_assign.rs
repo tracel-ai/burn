@@ -117,23 +117,24 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
     }
 }
 
-pub(crate) fn slice_assign<R: JitRuntime, E: JitElement, const D1: usize, const D2: usize>(
-    tensor: JitTensor<R, E, D1>,
-    indices: [Range<usize>; D2],
-    value: JitTensor<R, E, D1>,
-) -> JitTensor<R, E, D1> {
+pub(crate) fn slice_assign<R: JitRuntime, E: JitElement>(
+    tensor: JitTensor<R, E>,
+    indices: &[Range<usize>],
+    value: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
     };
-    let mut scalars: Vec<i32> = Vec::with_capacity(D1);
+    let ndims = tensor.shape.num_dims();
+    let mut scalars: Vec<i32> = Vec::with_capacity(ndims);
 
-    for i in 0..D1 {
+    for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
         scalars.push((start as i32).elem());
     }
 
-    let kernel = SliceAssignEagerKernel::<R, E>::new(D1);
+    let kernel = SliceAssignEagerKernel::<R, E>::new(ndims);
 
     Execution::start(kernel, value.client.clone())
         .inputs(&[tensor.as_handle_ref(), value.as_handle_ref()])

@@ -220,9 +220,9 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateBilinearEagerKernel<R, 
 }
 
 pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E, 4>,
-    output: JitTensor<R, E, 4>,
-) -> JitTensor<R, E, 4> {
+    input: JitTensor<R, E>,
+    output: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let kernel = InterpolateBilinearEagerKernel::<R, E>::new();
 
     Execution::start(kernel, input.client.clone())
