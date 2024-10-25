@@ -757,47 +757,6 @@ where
         )
     }
 
-    /// Returns the indices of the `k` largest elements of the given input tensor along a given dimension.
-    ///
-    /// # Arguments
-    ///
-    /// * `k` - Number of top indices to return.
-    /// * `dim` - The dimension along which to find top elements
-    ///
-    /// # Returns
-    ///
-    /// A new tensor containing the indices of the `k` largest elements along a given dimension.
-    ///
-    /// # Example
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Int, Tensor};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2, Int>::from_ints(
-    ///        [
-    ///          [1, 2, 3],
-    ///          [6, 5, 4],
-    ///          [7, 9, 8]
-    ///        ],
-    ///        &device
-    ///    );
-    ///
-    ///    let tensor = tensor.argtopk(2, 1);
-    ///    println!("{}", tensor);
-    ///    // Tensor { data: [
-    ///    //   [2, 1],
-    ///    //   [0, 1],
-    ///    //   [1, 2]
-    ///    // ], ... }
-    /// }
-    /// ```
-    pub fn argtopk(self, k: usize, dim: usize) -> Tensor<B, D, Int> {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
-        self.argsort_descending(dim).select(dim, k_indices)
-    }
-
     /// Pad the tensor of rank two or higher with the given value on the last two dimensions.
     ///
     /// # Arguments

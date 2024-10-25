@@ -186,7 +186,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.argmin(dim)`                                            | `tensor.argmin(dim)`                           |
 | `tensor.argsort(dim)`                                           | `tensor.argsort(dim)`                          |
 | `tensor.argsort_descending(dim)`                                | `tensor.argsort(dim, descending=True)`         |
-| `tensor.argtopk(k, dim)`                                        | `tensor.topk(k, dim).indices`                  |
 | `tensor.bool()`                                                 | `tensor.bool()`                                |
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`        |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
