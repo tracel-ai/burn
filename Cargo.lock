@@ -1684,6 +1684,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-cubecl-kernel"
+version = "0.15.0"
+dependencies = [
+ "burn",
+ "burn-jit",
+ "bytemuck",
+ "cubecl",
+ "derive-new",
+ "log",
+ "serde",
+]
+
+[[package]]
 name = "custom-image-dataset"
 version = "0.15.0"
 dependencies = [
