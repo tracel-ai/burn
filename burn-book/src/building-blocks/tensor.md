@@ -289,7 +289,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
-| `tensor.one_hot_encode(num_classes)`             | N/A                                                     |
+| `tensor.one_hot(num_classes)`                    | N/A                                                     |
 
 ### Bool Operations
 
