@@ -31,6 +31,9 @@ pub use burn_candle::Candle;
 #[cfg(feature = "hip-jit")]
 pub use burn_hip as hip_jit;
 
+#[cfg(feature = "hip-jit")]
+pub use burn_hip::Hip as HipJit;
+
 #[cfg(feature = "tch")]
 pub use burn_tch as libtorch;
 
