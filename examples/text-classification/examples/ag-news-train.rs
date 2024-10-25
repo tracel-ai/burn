@@ -81,7 +81,7 @@ mod tch_cpu {
     }
 }
 
-#[cfg(feature = "wgpu")]
+#[cfg(any(feature = "wgpu", feature = "wgpu-spirv"))]
 mod wgpu {
     use crate::{launch, ElemType};
     use burn::backend::{wgpu::Wgpu, Autodiff};
@@ -101,6 +101,16 @@ mod cuda_jit {
     }
 }
 
+#[cfg(feature = "hip-jit")]
+mod hip_jit {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, HipJit};
+
+    pub fn run() {
+        launch::<Autodiff<HipJit<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -113,8 +123,10 @@ fn main() {
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
     tch_cpu::run();
-    #[cfg(feature = "wgpu")]
+    #[cfg(any(feature = "wgpu", feature = "wgpu-spirv"))]
     wgpu::run();
     #[cfg(feature = "cuda-jit")]
     cuda_jit::run();
+    #[cfg(feature = "hip-jit")]
+    hip_jit::run();
 }
