@@ -1,5 +1,5 @@
 use super::{
-    classification::{ClassAverageType, ClassificationInput},
+    classification::{ClassReduction, ClassificationInput},
     confusion_stats::ConfusionStats,
     state::{FormatOptions, NumericMetricState},
     Metric, MetricEntry, MetricMetadata, Numeric,
@@ -14,7 +14,7 @@ use core::marker::PhantomData;
 pub struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
-    class_average: ClassAverageType,
+    class_reduction: ClassReduction,
     threshold: Option<f64>,
     top_k: Option<usize>,
 }
@@ -23,8 +23,8 @@ pub struct PrecisionMetric<B: Backend> {
 impl<B: Backend> PrecisionMetric<B> {
     ///convert to averaged metric, returns float
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
-        use ClassAverageType::*;
-        let avg_tensor = match self.class_average {
+        use ClassReduction::*;
+        let avg_tensor = match self.class_reduction {
             Micro => aggregated_metric,
             Macro => {
                 if aggregated_metric.contains_nan().any().into_scalar() {
@@ -39,9 +39,9 @@ impl<B: Backend> PrecisionMetric<B> {
         avg_tensor.into_scalar().to_f64()
     }
 
-    /// Sets the class average.
-    pub fn with_class_average(mut self, class_average: ClassAverageType) -> Self {
-        self.class_average = class_average;
+    /// Sets the class reduction.
+    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
+        self.class_reduction = class_reduction;
         self
     }
 
@@ -67,7 +67,7 @@ impl<B: Backend> Default for PrecisionMetric<B> {
             state: NumericMetricState::default(),
             _b: PhantomData,
             threshold: Some(0.5),
-            class_average: ClassAverageType::Micro,
+            class_reduction: ClassReduction::Micro,
             top_k: None,
         }
     }
@@ -88,7 +88,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
             targets,
             self.threshold,
             self.top_k,
-            self.class_average,
+            self.class_reduction,
         );
         let metric =
             self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
@@ -114,7 +114,7 @@ impl<B: Backend> Numeric for PrecisionMetric<B> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ClassAverageType::{self, *},
+        ClassReduction::{self, *},
         Metric, MetricMetadata, Numeric, PrecisionMetric,
     };
     use crate::tests::{
@@ -136,19 +136,19 @@ mod tests {
     #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, 5.0/8.0)]
     #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
     fn test_precision(
-        #[case] class_type: ClassificationType,
-        #[case] avg_type: ClassAverageType,
+        #[case] classification_type: ClassificationType,
+        #[case] class_reduction: ClassReduction,
         #[case] threshold: Option<f64>,
         #[case] top_k: Option<usize>,
         #[case] expected: f64,
     ) {
-        let input = dummy_classification_input(&class_type);
+        let input = dummy_classification_input(&classification_type);
         let mut metric = PrecisionMetric::<TestBackend>::default();
-        metric = match class_type {
+        metric = match classification_type {
             Multiclass => metric.with_top_k(top_k.unwrap()),
             _ => metric.with_threshold(threshold.unwrap()),
         };
-        metric = metric.with_class_average(avg_type);
+        metric = metric.with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
