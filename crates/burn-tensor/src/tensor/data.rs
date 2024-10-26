@@ -155,6 +155,11 @@ impl TensorData {
                         .map(|e: &i64| e.elem::<E>()),
                 ),
                 DType::U8 => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::U16 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &u16| e.elem::<E>()),
+                ),
                 DType::U32 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
@@ -357,6 +362,7 @@ impl TensorData {
             DType::I8 => self.assert_eq_elem::<i8>(other),
             DType::U64 => self.assert_eq_elem::<u64>(other),
             DType::U32 => self.assert_eq_elem::<u32>(other),
+            DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
             DType::QFloat(q) => {
@@ -621,6 +627,7 @@ impl core::fmt::Display for TensorData {
             DType::I8 => format!("{:?}", self.as_slice::<i8>().unwrap()),
             DType::U64 => format!("{:?}", self.as_slice::<u64>().unwrap()),
             DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(q) => match &q {

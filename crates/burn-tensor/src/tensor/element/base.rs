@@ -1,6 +1,8 @@
 use core::cmp::Ordering;
 
 use crate::{cast::ToElement, quantization::QuantizationStrategy, Distribution};
+#[cfg(feature = "cubecl")]
+use cubecl::flex32;
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -194,6 +196,14 @@ make_element!(
 );
 
 make_element!(
+    ty u16 Precision::Half,
+    convert |elem: &dyn ToElement| elem.to_u16(),
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
+    cmp |a: &u16, b: &u16| Ord::cmp(a, b),
+    dtype DType::U16
+);
+
+make_element!(
     ty i8 Precision::Other,
     convert |elem: &dyn ToElement| elem.to_i8(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
@@ -230,6 +240,18 @@ make_element!(
     dtype DType::BF16
 );
 
+#[cfg(feature = "cubecl")]
+make_element!(
+    ty flex32 Precision::Half,
+    convert |elem: &dyn ToElement| flex32::from_f32(elem.to_f32()),
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: f32 = distribution.sampler(rng).sample();
+        flex32::from_elem(sample)
+    },
+    cmp |a: &flex32, b: &flex32| a.total_cmp(b),
+    dtype DType::F32
+);
+
 make_element!(
     ty bool Precision::Other,
     convert |elem: &dyn ToElement| elem.to_u8() != 0,
@@ -254,6 +276,7 @@ pub enum DType {
     I8,
     U64,
     U32,
+    U16,
     U8,
     Bool,
     QFloat(QuantizationStrategy),

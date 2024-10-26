@@ -133,7 +133,7 @@ pub(crate) fn reduce_dim_autotune<
     output
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 // Probably better on balanced tensor shapes
 pub(crate) struct ReduceDimNaiveAutotune<
     RD: ReduceDimAlgorithm<EI>,
@@ -169,7 +169,7 @@ where
     }
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 // Probably better on tensors large along reduce dim
 pub(crate) struct ReduceDimSharedAutotune<
     RD: ReduceDimAlgorithm<EI>,

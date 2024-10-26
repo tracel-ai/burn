@@ -45,6 +45,7 @@ mod cube {
                 crate::DType::I8 => Elem::Int(IntKind::I8),
                 crate::DType::U64 => Elem::UInt(UIntKind::U64),
                 crate::DType::U32 => Elem::UInt(UIntKind::U32),
+                crate::DType::U16 => Elem::UInt(UIntKind::U16),
                 crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
                 crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),

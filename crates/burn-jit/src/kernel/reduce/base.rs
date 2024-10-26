@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
@@ -9,7 +11,7 @@ use super::{
 
 #[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
-    ReduceDimNaive<EI> + ReduceDimShared<EI>
+    ReduceDimNaive<EI> + ReduceDimShared<EI> + Debug
 {
 }
 
@@ -64,6 +66,7 @@ impl Default for ReduceStrategy {
 
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
+        #[derive(Debug)]
         pub(crate) struct $ops;
         impl<EI: JitElement> ReduceDimAlgorithm<EI> for $ops {}
 
