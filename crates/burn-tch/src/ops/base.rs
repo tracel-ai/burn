@@ -266,6 +266,16 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
         )
     }
 
+    pub fn remainder(lhs: TchTensor<E>, rhs: TchTensor<E>) -> TchTensor<E> {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_remainder_tensor_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_remainder_tensor(rhs).unwrap(),
+            |lhs, rhs| lhs.f_remainder_tensor(rhs).unwrap(),
+        )
+    }
+
     pub fn mean(tensor: TchTensor<E>) -> TchTensor<E> {
         // view as 1d tensor
         let tensor = tensor.tensor.mean(E::KIND).view(1);
