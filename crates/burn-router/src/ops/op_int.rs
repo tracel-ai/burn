@@ -648,7 +648,22 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        todo!()
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::Rem(desc),
+        ));
+
+        out
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
