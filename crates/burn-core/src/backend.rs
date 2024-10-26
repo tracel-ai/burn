@@ -28,6 +28,9 @@ pub use burn_candle as candle;
 #[cfg(feature = "candle")]
 pub use burn_candle::Candle;
 
+#[cfg(feature = "hip-jit")]
+pub use burn_hip as hip_jit;
+
 #[cfg(feature = "tch")]
 pub use burn_tch as libtorch;
 

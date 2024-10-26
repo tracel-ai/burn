@@ -106,11 +106,21 @@ where
         Self::new(K::zeros(shape, device))
     }
 
+    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
+    pub fn zeros_like(&self) -> Self {
+        Self::zeros(self.shape(), &self.device())
+    }
+
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
         Self::new(K::ones(shape, device))
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
+    pub fn ones_like(&self) -> Self {
+        Self::ones(self.shape(), &self.device())
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -122,6 +132,11 @@ where
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
         Self::new(K::full(shape, fill_value, device))
+    }
+
+    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
+    pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
+        Self::full(self.shape(), fill_value, &self.device())
     }
 
     /// Aggregate all elements in the tensor with the mean operation.

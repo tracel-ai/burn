@@ -22,3 +22,7 @@ burn = {path = "../../crates/burn", features=["train"]}
 # Serialization
 log = {workspace = true}
 serde = {workspace = true, features = ["std", "derive"]}
+
+# Displaying results
+textplots = "0.8.6"
+rgb = "0.8.27"
