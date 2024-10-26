@@ -1,11 +1,19 @@
+use core::ops::Range;
 use serde::{Deserialize, Serialize};
-use std::ops::Range;
+
+use alloc::boxed::Box;
+use alloc::{vec, vec::Vec};
 
 use crate::{
-    ops::{ConvOptions, ConvTransposeOptions, InterpolateMode, InterpolateOptions},
+    ops::{
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+    },
+    quantization::QuantizationScheme,
     repr::tensor::TensorDescription,
     DType, Distribution, Element,
 };
+
+use super::{QuantizationParametersDescription, QuantizedTensorDescription};
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -51,6 +59,12 @@ pub enum FloatOperationDescription {
     Sin(UnaryOperationDescription),
     /// Operation corresponding to [tanh](crate::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOperationDescription),
+    /// Operation corresponding to [round](crate::ops::FloatTensorOps::float_round).
+    Round(UnaryOperationDescription),
+    /// Operation corresponding to [floor](crate::ops::FloatTensorOps::float_floor).
+    Floor(UnaryOperationDescription),
+    /// Operation corresponding to [ceil](crate::ops::FloatTensorOps::float_ceil).
+    Ceil(UnaryOperationDescription),
     /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
     /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
@@ -59,6 +73,10 @@ pub enum FloatOperationDescription {
     Random(RandomOperationDescription),
     /// Operation corresponding to [recip](crate::ops::FloatTensorOps::float_recip).
     Recip(UnaryOperationDescription),
+    /// Operation corresponding to [quantize](crate::ops::QTensorOps::quantize).
+    Quantize(QuantizeOperationDescription),
+    /// Operation corresponding to [dequantize](crate::ops::QTensorOps::dequantize).
+    Dequantize(DequantizeOperationDescription),
 }
 
 /// Operation description specific to module.
@@ -74,6 +92,10 @@ pub enum ModuleOperationDescription {
     Conv2d(Conv2dDescription),
     /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
     Conv3d(Conv3dDescription),
+    /// Operation corresponding to [deform_conv2d](crate::ops::ModuleOps::deform_conv2d)
+    DeformableConv2d(Box<DeformConv2dDescription>),
+    /// Operation corresponding to [deform_conv2d_backward](crate::ops::ModuleOps::deform_conv2d_backward)
+    DeformableConv2dBackward(Box<DeformConv2dBackwardDescription>),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dDescription),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
@@ -201,6 +223,13 @@ pub enum BaseOperationDescription {
     Cat(CatOperationDescription),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(UnaryOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [equal](crate::ops::FloatTensorOps::float_empty).
+    /// Int => [equal](crate::ops::IntTensorOps::int_empty).
+    /// Bool => [equal](crate::ops::BoolTensorOps::bool_empty).
+    Empty(TensorDescription),
 }
 
 /// Numeric operations on int and float tensors.
@@ -690,6 +719,35 @@ pub struct Conv2dDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct DeformConv2dDescription {
+    pub x: TensorDescription,
+    pub offset: TensorDescription,
+    pub weight: TensorDescription,
+    pub mask: Option<TensorDescription>,
+    pub bias: Option<TensorDescription>,
+    pub options: DeformableConv2dOptionsDescription,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct DeformConv2dBackwardDescription {
+    pub x: TensorDescription,
+    pub offset: TensorDescription,
+    pub weight: TensorDescription,
+    pub mask: Option<TensorDescription>,
+    pub bias: Option<TensorDescription>,
+    pub out_grad: TensorDescription,
+    pub options: DeformableConv2dOptionsDescription,
+    pub input_grad: TensorDescription,
+    pub offset_grad: TensorDescription,
+    pub weight_grad: TensorDescription,
+    pub mask_grad: Option<TensorDescription>,
+    pub bias_grad: Option<TensorDescription>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv3dDescription {
     pub x: TensorDescription,
     pub weight: TensorDescription,
@@ -748,6 +806,16 @@ pub struct Conv2dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct DeformableConv2dOptionsDescription {
+    pub stride: [usize; 2],
+    pub padding: [usize; 2],
+    pub dilation: [usize; 2],
+    pub weight_groups: usize,
+    pub offset_groups: usize,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv3dOptionsDescription {
     pub stride: [usize; 3],
     pub padding: [usize; 3],
@@ -785,6 +853,22 @@ pub struct ConvTranspose3dOptionsDescription {
     pub groups: usize,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct QuantizeOperationDescription {
+    pub tensor: TensorDescription,
+    pub qparams: QuantizationParametersDescription,
+    pub scheme: QuantizationScheme,
+    pub out: TensorDescription,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct DequantizeOperationDescription {
+    pub qtensor: QuantizedTensorDescription,
+    pub out: TensorDescription,
+}
+
 impl From<ConvOptions<1>> for Conv1dOptionsDescription {
     fn from(value: ConvOptions<1>) -> Self {
         Self {
@@ -814,6 +898,18 @@ impl From<ConvOptions<3>> for Conv3dOptionsDescription {
             padding: value.padding,
             dilation: value.dilation,
             groups: value.groups,
+        }
+    }
+}
+
+impl From<DeformConvOptions<2>> for DeformableConv2dOptionsDescription {
+    fn from(value: DeformConvOptions<2>) -> Self {
+        Self {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            weight_groups: value.weight_groups,
+            offset_groups: value.offset_groups,
         }
     }
 }
@@ -883,6 +979,18 @@ impl From<Conv3dOptionsDescription> for ConvOptions<3> {
             padding: val.padding,
             dilation: val.dilation,
             groups: val.groups,
+        }
+    }
+}
+
+impl From<DeformableConv2dOptionsDescription> for DeformConvOptions<2> {
+    fn from(value: DeformableConv2dOptionsDescription) -> Self {
+        DeformConvOptions {
+            stride: value.stride,
+            padding: value.padding,
+            dilation: value.dilation,
+            weight_groups: value.weight_groups,
+            offset_groups: value.offset_groups,
         }
     }
 }
@@ -1194,6 +1302,7 @@ impl BaseOperationDescription {
             }
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
             BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
+            BaseOperationDescription::Empty(desc) => vec![desc],
         }
     }
 }
@@ -1351,7 +1460,29 @@ impl FloatOperationDescription {
             FloatOperationDescription::Cos(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Round(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Floor(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Ceil(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Quantize(desc) => {
+                if let Some(offset) = &desc.qparams.offset {
+                    vec![&desc.tensor, &desc.qparams.scale, &offset, &desc.out]
+                } else {
+                    vec![&desc.tensor, &desc.qparams.scale, &desc.out]
+                }
+            }
+            FloatOperationDescription::Dequantize(desc) => {
+                if let Some(offset) = &desc.qtensor.qparams.offset {
+                    vec![
+                        &desc.qtensor.tensor,
+                        &desc.qtensor.qparams.scale,
+                        &offset,
+                        &desc.out,
+                    ]
+                } else {
+                    vec![&desc.qtensor.tensor, &desc.qtensor.qparams.scale, &desc.out]
+                }
+            }
         }
     }
 }
@@ -1402,6 +1533,22 @@ impl ModuleOperationDescription {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
+                }
+            }
+            ModuleOperationDescription::DeformableConv2d(desc) => match (&desc.mask, &desc.bias) {
+                (Some(mask), Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias],
+                (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
+                (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
+                (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
+            },
+            ModuleOperationDescription::DeformableConv2dBackward(desc) => {
+                match (&desc.mask, &desc.bias) {
+                    (Some(mask), Some(bias)) => {
+                        vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias]
+                    }
+                    (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
+                    (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
+                    (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
                 }
             }
             ModuleOperationDescription::ConvTranspose1d(desc) => {
@@ -1478,7 +1625,7 @@ impl ModuleOperationDescription {
 }
 
 impl core::hash::Hash for RandomOperationDescription {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
 
         match self.distribution {
@@ -1491,14 +1638,14 @@ impl core::hash::Hash for RandomOperationDescription {
 }
 
 impl<E> core::hash::Hash for ScalarOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);
         self.out.hash(state);
     }
 }
 
 impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.mask.hash(state);
         self.out.hash(state);
@@ -1506,14 +1653,14 @@ impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
 }
 
 impl<E> core::hash::Hash for ClampOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.out.hash(state);
     }
 }
 
 impl<E> core::hash::Hash for NumericOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         match self {
             NumericOperationDescription::Add(desc) => desc.hash(state),
             NumericOperationDescription::AddScalar(desc) => desc.hash(state),

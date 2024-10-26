@@ -3,11 +3,12 @@ use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
 
-/// The configuration for creating a linear learning rate scheduler.
+/// The configuration for creating a [linear learning rate scheduler](LinearLrScheduler).
 ///
-/// This scheduler starts at a learning rate `initial_lr`, then changes the learning rate by a constant amount on each
-/// iteration until reaching a final learning rate `final_lr`. The `num_iters` parameter controls how many iterations
-/// are needed to go from `initial_lr` to `final_lr`.
+/// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by a
+/// constant amount on each iteration until reaching a final learning rate `final_lr`. The
+/// `num_iters` parameter controls how many iterations are needed to go from `initial_lr` to
+/// `final_lr`.
 #[derive(Config)]
 pub struct LinearLrSchedulerConfig {
     // The initial learning rate.
@@ -32,11 +33,15 @@ impl LinearLrSchedulerConfig {
             self.final_lr >= 0. && self.final_lr <= 1.,
             "Final learning rate must be at least 0 and at most 1"
         );
+        assert!(
+            self.num_iters > 0,
+            "Number of iterations must be at least 1"
+        );
 
         LinearLrScheduler {
-            previous_lr: self.initial_lr,
+            final_lr: self.final_lr,
             step_size: (self.final_lr - self.initial_lr) / self.num_iters as f64,
-            remaining_iters: self.num_iters,
+            remaining_iters: self.num_iters + 1,
         }
     }
 }
@@ -46,39 +51,36 @@ impl LinearLrSchedulerConfig {
 /// See [LinearLrSchedulerConfig] for more information.
 #[derive(Clone, Copy, Debug)]
 pub struct LinearLrScheduler {
-    // The previous iteration's learning rate.
-    previous_lr: LearningRate,
+    // The final learning rate after the linear changing process stops.
+    final_lr: LearningRate,
     // The amount that the learning rate changes by on each iteration.
     step_size: f64,
     // The number of iterations left before reaching the final learning rate.
     remaining_iters: usize,
 }
 
-impl<B: Backend> LrScheduler<B> for LinearLrScheduler {
-    type Record = (LearningRate, f64, usize);
+impl LrScheduler for LinearLrScheduler {
+    type Record<B: Backend> = usize;
 
     fn step(&mut self) -> LearningRate {
-        if self.remaining_iters > 0 {
-            self.remaining_iters -= 1;
-            self.previous_lr += self.step_size;
-        }
-        self.previous_lr
+        self.remaining_iters -= (self.remaining_iters != 0) as usize;
+        self.final_lr - self.step_size * self.remaining_iters as f64
     }
 
-    fn to_record(&self) -> Self::Record {
-        (self.previous_lr, self.step_size, self.remaining_iters)
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+        self.remaining_iters
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        (self.previous_lr, self.step_size, self.remaining_iters) = record;
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+        self.remaining_iters = record;
         self
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use super::super::test_utils;
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
@@ -105,29 +107,47 @@ mod test {
     }
 
     #[test]
-    fn test_lr_change() {
-        const INITIAL_LR: LearningRate = 0.75;
-        const NUM_ITERS: usize = 10;
+    #[should_panic = "Number of iterations must be at least 1"]
+    fn config_num_iters_too_low() {
+        LinearLrSchedulerConfig::new(0.9, 0.1, 0).init();
+    }
 
-        let mut scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, 0.25, NUM_ITERS).init();
+    #[test]
+    fn test_lr_decreasing() {
+        const INITIAL_LR: LearningRate = 0.9;
+        const FINAL_LR: LearningRate = 0.5;
+        const NUM_ITERS: usize = 4;
+        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let expected_lrs = [0.9, 0.8, 0.7, 0.6, 0.5, 0.5];
+        test_utils::check_lr_sequence(scheduler, expected_lrs);
+    }
 
-        let mut previous_lr = INITIAL_LR;
+    #[test]
+    fn test_lr_increasing() {
+        const INITIAL_LR: LearningRate = 0.01;
+        const FINAL_LR: LearningRate = 0.04;
+        const NUM_ITERS: usize = 3;
+        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let expected_lrs = [0.01, 0.02, 0.03, 0.04, 0.04];
+        test_utils::check_lr_sequence(scheduler, expected_lrs);
+    }
 
-        for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
-            assert!(
-                lr < previous_lr,
-                "Learning rate should decrease with each iteration before reaching the final learning rate"
-            );
-            previous_lr = lr;
-        }
+    #[test]
+    fn test_lr_unchanging() {
+        const INITIAL_LR: LearningRate = 0.3;
+        const FINAL_LR: LearningRate = 0.3;
+        const NUM_ITERS: usize = 2;
+        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let expected_lrs = [0.3, 0.3, 0.3, 0.3];
+        test_utils::check_lr_sequence(scheduler, expected_lrs);
+    }
 
-        for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
-            assert_eq!(
-                previous_lr, lr,
-                "Learning rate should remain constant after reaching the final learning rate"
-            )
-        }
+    #[test]
+    fn test_save_and_load() {
+        const INITIAL_LR: LearningRate = 1.0;
+        const FINAL_LR: LearningRate = 0.01;
+        const NUM_ITERS: usize = 6;
+        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }
 }

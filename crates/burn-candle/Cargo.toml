@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-candle"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-candle"
+documentation = "https://docs.rs/burn-candle"
 version.workspace = true
 
 [features]
@@ -17,7 +18,6 @@ doc = ["default"]
 cuda = ["candle-core/cuda"]
 metal = ["candle-core/metal"]
 accelerate = ["candle-core/accelerate"]
-
 
 [dependencies]
 derive-new = { workspace = true }
@@ -37,3 +37,4 @@ burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = 
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

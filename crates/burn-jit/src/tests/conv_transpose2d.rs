@@ -4,7 +4,7 @@ mod tests {
     use burn_tensor::{backend::Backend, module, Distribution, Tensor};
 
     #[test]
-    fn conv_transpose2d_should_work_with_multiple_invocations() {
+    fn conv_transpose2d_should_match_reference_backend() {
         TestBackend::seed(0);
 
         let height = 8;

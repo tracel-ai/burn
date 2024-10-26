@@ -332,14 +332,14 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
 }
 
 pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: JitElement>(
-    x: JitTensor<R, E, 4>,
-    grad: JitTensor<R, E, 4>,
-    indices: JitTensor<R, I, 4>,
+    x: JitTensor<R, E>,
+    grad: JitTensor<R, E>,
+    indices: JitTensor<R, I>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R, E, 4> {
+) -> JitTensor<R, E> {
     let grad = kernel::into_contiguous(grad);
     let indices = kernel::into_contiguous(indices);
 

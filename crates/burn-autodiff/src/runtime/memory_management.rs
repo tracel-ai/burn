@@ -70,10 +70,23 @@ impl GraphMemoryManagement {
 
         // Replace leaves by the new ones and delete everything not useful anymore
         mem::swap(&mut self.leaves, &mut new_leaves);
+
+        self.clear_unused_roots(&mut deletables);
+
         self.statuses.clear();
         for node_to_delete in deletables {
             self.nodes.remove(&node_to_delete);
             on_free_graph(&node_to_delete)
+        }
+    }
+
+    fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeID>) {
+        for (id, parents) in self.nodes.iter() {
+            let is_useful = matches!(self.statuses.get(id), Some(NodeMemoryStatus::Useful));
+
+            if !is_useful && Arc::strong_count(id) == 1 && parents.is_empty() {
+                to_delete.push(*id.as_ref())
+            }
         }
     }
 

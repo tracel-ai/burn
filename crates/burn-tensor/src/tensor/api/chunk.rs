@@ -20,15 +20,15 @@ use alloc::vec::Vec;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-pub fn chunk<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
-    tensor: K::Primitive<D>,
+pub fn chunk<B: Backend, K: TensorKind<B> + BasicOps<B>>(
+    tensor: K::Primitive,
     chunks: usize,
     dim: usize,
-) -> Vec<K::Primitive<D>> {
+) -> Vec<K::Primitive> {
     let size = K::shape(&tensor).dims[dim];
     if size < chunks {
         return (0..size)
-            .map(|i| narrow::<B, D, K>(tensor.clone(), dim, i, 1))
+            .map(|i| narrow::<B, K>(tensor.clone(), dim, i, 1))
             .collect();
     }
 
@@ -37,7 +37,7 @@ pub fn chunk<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     if size % chunks == 0 {
         let chunk_size = size / chunks;
         for _ in 0..chunks {
-            tensors.push(narrow::<B, D, K>(
+            tensors.push(narrow::<B, K>(
                 tensor.clone(),
                 dim,
                 sum_chunk_size,
@@ -48,7 +48,7 @@ pub fn chunk<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
     } else {
         let chunk_size = (size / chunks) + 1; // assumes not divisible
         for _ in 0..chunks - 1 {
-            tensors.push(narrow::<B, D, K>(
+            tensors.push(narrow::<B, K>(
                 tensor.clone(),
                 dim,
                 sum_chunk_size,
@@ -57,7 +57,7 @@ pub fn chunk<B: Backend, const D: usize, K: TensorKind<B> + BasicOps<B>>(
             sum_chunk_size += chunk_size;
         }
         let remainder = size % chunk_size;
-        tensors.push(narrow::<B, D, K>(
+        tensors.push(narrow::<B, K>(
             tensor.clone(),
             dim,
             sum_chunk_size,

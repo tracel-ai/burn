@@ -9,15 +9,15 @@ use super::{
 
 #[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
-    ReduceDimNaive<EI> + ReduceDimShared<EI>
+    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI>
 {
 }
 
 /// Creates an empty output tensor with reduce output shape
-pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
-    input: &JitTensor<R, EI, D>,
+pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement>(
+    input: &JitTensor<R, EI>,
     reduce_dim: usize,
-) -> JitTensor<R, EO, D> {
+) -> JitTensor<R, EO> {
     let mut shape_out = input.shape.clone();
     shape_out.dims[reduce_dim] = 1;
 
@@ -64,26 +64,28 @@ impl Default for ReduceStrategy {
 
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
+        #[derive(Debug)]
         pub(crate) struct $ops;
+
         impl<EI: JitElement> ReduceDimAlgorithm<EI> for $ops {}
 
         /// Executes the reduce operation with the given strategy.
-        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement, const D: usize>(
-            tensor: JitTensor<R, EI, D>,
+        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(
+            tensor: JitTensor<R, EI>,
             dim: usize,
             strategy: ReduceStrategy,
-        ) -> JitTensor<R, EO, D> {
+        ) -> JitTensor<R, EO> {
             match strategy {
                 ReduceStrategy::Naive => {
                     let output = init_reduce_output(&tensor, dim);
-                    reduce_dim_naive::<$ops, R, EI, EO, D>(tensor, output, dim)
+                    reduce_dim_naive::<$ops, R, EI, EO>(tensor, output, dim)
                 }
                 ReduceStrategy::SharedMemory => {
                     let output = init_reduce_output(&tensor, dim);
-                    reduce_dim_shared::<$ops, R, EI, EO, D>(tensor, output, dim)
+                    reduce_dim_shared::<$ops, R, EI, EO>(tensor, output, dim)
                 }
                 #[cfg(feature = "autotune")]
-                ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO, D>(tensor, dim),
+                ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO>(tensor, dim),
             }
         }
     };

@@ -125,11 +125,11 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     }
 }
 
-pub(crate) fn dequantize_per_tensor<R, F, I, const D: usize>(
-    tensor: JitTensor<R, u32, D>,
-    scale: JitTensor<R, F, 1>,
-    offset: Option<JitTensor<R, I, 1>>,
-) -> JitTensor<R, F, D>
+pub(crate) fn dequantize_per_tensor<R, F, I>(
+    tensor: JitTensor<R, u32>,
+    scale: JitTensor<R, F>,
+    offset: Option<JitTensor<R, I>>,
+) -> JitTensor<R, F>
 where
     R: JitRuntime,
     F: JitElement,
@@ -137,6 +137,7 @@ where
 {
     // The actual number of elements is 1/4 (four int8 values packed in a single u32)
     // so we choose a vectorization factor to match a valid input binding size.
+    let ndims = tensor.shape.num_dims();
     let num_out_elems = tensor.shape.num_elements();
     let num_elems = usize::div_ceil(num_out_elems, 4);
     let vectorization_factor = [4u8, 2, 1]
@@ -160,7 +161,7 @@ where
     let output =
         JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
 
-    let dummy_array = [1; D];
+    let dummy_array = vec![1; ndims];
     if let Some(offset) = offset {
         unsafe {
             dequantize_per_tensor_affine_int8_kernel::launch_unchecked::<R>(
@@ -194,7 +195,7 @@ where
 }
 
 /// Convert the tensor back to a higher precision data type.
-pub fn dequantize<R, F, I, const D: usize>(tensor: QJitTensor<R, F, I, D>) -> JitTensor<R, F, D>
+pub fn dequantize<R, F, I>(tensor: QJitTensor<R, F, I>) -> JitTensor<R, F>
 where
     R: JitRuntime,
     F: FloatElement,

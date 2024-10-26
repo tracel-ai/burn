@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-tensor"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
+documentation = "https://docs.rs/burn-tensor"
 version.workspace = true
 
 [features]
@@ -27,6 +28,7 @@ repr = []
 cubecl = ["dep:cubecl"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
+cubecl-hip = ["cubecl", "cubecl/hip"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
@@ -48,8 +50,12 @@ hashbrown = { workspace = true } # no_std compatible
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
+
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

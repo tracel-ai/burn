@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use alloc::vec::Vec;
+
 use crate::DType;
 
 /// The tensor unique identifier.

@@ -50,15 +50,15 @@ macro_rules! retro_unary_scalar {
         $ops:expr
     ) => {
         #[derive(new, Debug, Clone)]
-        struct $name<B: Backend, const D: usize> {
+        struct $name<B: Backend> {
             lhs_id: NodeID,
             rhs: FloatElem<B>,
             _backend: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> RetroForward for $name<B, D> {
+        impl<B: Backend> RetroForward for $name<B> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_id);
+                let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
                 let out = $ops(lhs, self.rhs);
                 states.save(out_node, out)
             }
@@ -74,14 +74,14 @@ macro_rules! retro_unary {
         $ops:expr
     ) => {
         #[derive(new, Debug, Clone)]
-        struct $name<B: Backend, const D: usize> {
+        struct $name<B: Backend> {
             input_id: NodeID,
             _backend: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> RetroForward for $name<B, D> {
+        impl<B: Backend> RetroForward for $name<B> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let input = states.get_state::<B::FloatTensorPrimitive<D>>(&self.input_id);
+                let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
                 let out = $ops(input);
                 states.save(out_node, out)
             }
@@ -97,16 +97,16 @@ macro_rules! retro_binary {
         $ops:expr
     ) => {
         #[derive(new, Debug, Clone)]
-        struct $name<B: Backend, const D: usize> {
+        struct $name<B: Backend> {
             lhs_id: NodeID,
             rhs_id: NodeID,
             _backend: PhantomData<B>,
         }
 
-        impl<B: Backend, const D: usize> RetroForward for $name<B, D> {
+        impl<B: Backend> RetroForward for $name<B> {
             fn forward(&self, states: &mut BackwardStates, out_node: NodeID) {
-                let lhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.lhs_id);
-                let rhs = states.get_state::<B::FloatTensorPrimitive<D>>(&self.rhs_id);
+                let lhs = states.get_state::<B::FloatTensorPrimitive>(&self.lhs_id);
+                let rhs = states.get_state::<B::FloatTensorPrimitive>(&self.rhs_id);
                 let out = $ops(lhs, rhs);
                 states.save(out_node, out)
             }

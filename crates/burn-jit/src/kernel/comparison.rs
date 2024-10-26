@@ -8,7 +8,7 @@ use cubecl::{
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a comparison operation.
-    fn execute(lhs: C, rhs: C) -> bool;
+    fn execute(lhs: Line<C>, rhs: Line<C>) -> bool;
 }
 
 struct EqualOp;
@@ -19,44 +19,44 @@ struct LowerOp;
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for EqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs == rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for GreaterEqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs >= rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for LowerEqualOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs <= rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for GreaterOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs > rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> ComparisonOp<N> for LowerOp {
-    fn execute(lhs: N, rhs: N) -> bool {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
         lhs < rhs
     }
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_scalar_cmp<C: Numeric, O: ComparisonOp<C>>(
-    input: &Tensor<C>,
+    input: &Tensor<Line<C>>,
     scalar: C,
-    output: &mut Tensor<u32>,
+    output: &mut Tensor<Line<u32>>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -64,14 +64,14 @@ pub(crate) fn kernel_scalar_cmp<C: Numeric, O: ComparisonOp<C>>(
         return;
     }
 
-    output[ABSOLUTE_POS] = u32::cast_from(O::execute(input[ABSOLUTE_POS], scalar));
+    output[ABSOLUTE_POS] = Line::cast_from(O::execute(input[ABSOLUTE_POS], Line::new(scalar)));
 }
 
 #[cube(launch)]
 pub(crate) fn kernel_cmp<C: Numeric, O: ComparisonOp<C>>(
-    lhs: &Tensor<C>,
-    rhs: &Tensor<C>,
-    out: &mut Tensor<u32>,
+    lhs: &Tensor<Line<C>>,
+    rhs: &Tensor<Line<C>>,
+    out: &mut Tensor<Line<u32>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -106,21 +106,22 @@ pub(crate) fn kernel_cmp<C: Numeric, O: ComparisonOp<C>>(
         );
     }
 
-    out[offset_out] = u32::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
+    out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
-pub(crate) fn launch_cmp<const D: usize, R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
+pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    let ndims = lhs.shape.num_dims();
     let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
     let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
 
     let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
-    let mut shape_out = [0; D];
+    let mut shape_out = vec![0; ndims];
     lhs.shape
         .dims
         .iter()
@@ -130,7 +131,7 @@ pub(crate) fn launch_cmp<const D: usize, R: JitRuntime, E: JitElement, O: Compar
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
         });
 
-    let shape_out = Shape::new(shape_out);
+    let shape_out = Shape::from(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
@@ -190,18 +191,14 @@ pub(crate) fn launch_cmp<const D: usize, R: JitRuntime, E: JitElement, O: Compar
     }
 }
 
-pub(crate) fn launch_scalar_cmp<
-    const D: usize,
-    R: JitRuntime,
-    E: JitElement,
-    O: ComparisonOp<E>,
->(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
+    tensor: JitTensor<R, E>,
     scalar: E,
-) -> JitTensor<R, u32, D> {
+) -> JitTensor<R, u32> {
+    let ndims = tensor.shape.num_dims();
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, ndims - 1);
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
@@ -234,7 +231,7 @@ pub(crate) fn launch_scalar_cmp<
             buffer,
             tensor.shape.clone(),
             tensor.device.clone(),
-            tensor.strides,
+            tensor.strides.clone(),
         );
 
         kernel_scalar_cmp::launch::<E, O, R>(
@@ -250,72 +247,66 @@ pub(crate) fn launch_scalar_cmp<
     }
 }
 
-pub fn equal<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
-    launch_cmp::<D, R, E, EqualOp>(lhs, rhs)
+pub fn equal<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    launch_cmp::<R, E, EqualOp>(lhs, rhs)
 }
 
-pub fn greater<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
-    launch_cmp::<D, R, E, GreaterOp>(lhs, rhs)
+pub fn greater<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    launch_cmp::<R, E, GreaterOp>(lhs, rhs)
 }
 
-pub fn greater_equal<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
-    launch_cmp::<D, R, E, GreaterEqualOp>(lhs, rhs)
+pub fn greater_equal<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    launch_cmp::<R, E, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
-    launch_cmp::<D, R, E, LowerOp>(lhs, rhs)
+pub fn lower<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    launch_cmp::<R, E, LowerOp>(lhs, rhs)
 }
 
-pub fn lower_equal<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, u32, D> {
-    launch_cmp::<D, R, E, LowerEqualOp>(lhs, rhs)
+pub fn lower_equal<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, u32> {
+    launch_cmp::<R, E, LowerEqualOp>(lhs, rhs)
 }
 
-pub fn equal_elem<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
+pub fn equal_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, u32> {
+    launch_scalar_cmp::<R, E, EqualOp>(lhs, rhs)
+}
+
+pub fn greater_elem<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
     rhs: E,
-) -> JitTensor<R, u32, D> {
-    launch_scalar_cmp::<D, R, E, EqualOp>(lhs, rhs)
+) -> JitTensor<R, u32> {
+    launch_scalar_cmp::<R, E, GreaterOp>(lhs, rhs)
 }
 
-pub fn greater_elem<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, u32, D> {
-    launch_scalar_cmp::<D, R, E, GreaterOp>(lhs, rhs)
+pub fn lower_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, u32> {
+    launch_scalar_cmp::<R, E, LowerOp>(lhs, rhs)
 }
 
-pub fn lower_elem<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
+pub fn greater_equal_elem<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
     rhs: E,
-) -> JitTensor<R, u32, D> {
-    launch_scalar_cmp::<D, R, E, LowerOp>(lhs, rhs)
+) -> JitTensor<R, u32> {
+    launch_scalar_cmp::<R, E, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn greater_equal_elem<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
+pub fn lower_equal_elem<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
     rhs: E,
-) -> JitTensor<R, u32, D> {
-    launch_scalar_cmp::<D, R, E, GreaterEqualOp>(lhs, rhs)
-}
-
-pub fn lower_equal_elem<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, u32, D> {
-    launch_scalar_cmp::<D, R, E, LowerEqualOp>(lhs, rhs)
+) -> JitTensor<R, u32> {
+    launch_scalar_cmp::<R, E, LowerEqualOp>(lhs, rhs)
 }

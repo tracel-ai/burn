@@ -4,12 +4,12 @@ mod tests {
     use burn_tensor::{backend::Backend, Distribution, Tensor};
 
     #[test]
-    fn cat_should_support_multiple_invocations_dim0() {
+    fn cat_should_match_reference_backend_dim0() {
         test_same_as_reference([6, 256], 2, 0);
     }
 
     #[test]
-    fn cat_should_support_multiple_invocations_dim1() {
+    fn cat_should_match_reference_backend_dim1() {
         test_same_as_reference([6, 256], 2, 1);
     }
 

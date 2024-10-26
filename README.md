@@ -61,9 +61,9 @@ lines of WGSL [WebGPU Shading Language]("https://www.w3.org/TR/WGSL/https://www.
 an extremely verbose lower level shader language you probably don't want to program your deep
 learning models in!
 
-> As of now, our fusion strategy is only implemented for our own WGPU backend and supports only a
-> subset of operations. We plan to add more operations very soon and extend this technique to other
-> future in-house backends.
+> As of now, our fusion strategy is only implemented for our own WGPU and CUDA backends and supports
+> only a subset of operations. We plan to add more operations very soon and extend this technique to
+> other future in-house backends.
 
 </details>
 
@@ -160,9 +160,10 @@ since this is how fully-connected neural networks are modeled.
 
 More and more, hardware manufacturers optimize their chips specifically for matrix multiplication
 workloads. For instance, Nvidia has its _Tensor Cores_ and today most cellphones have AI specialized
-chips. As of this moment, we support Tensor Cores with our LibTorch and Candle backends, but not
-other accelerators yet. We hope [this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets
-resolved at some point to bring support to our WGPU backend.
+chips. As of this moment, we support Tensor Cores with our LibTorch, Candle, CUDA and WGPU/SPIR-V
+backends, but not other accelerators yet. We hope
+[this issue](https://github.com/gpuweb/gpuweb/issues/4195) gets resolved at some point to bring
+support to our WGPU backend.
 
 </details>
 
@@ -178,8 +179,8 @@ functionalities of a backend implementation to suit your personal modeling requi
 
 This versatility is advantageous in numerous ways, such as supporting custom operations like flash
 attention or manually writing your own kernel for a specific backend to enhance performance. See
-[this section](https://burn.dev/book/advanced/backend-extension/index.html) in the Burn Book 🔥 for
-more details.
+[this section](https://burn.dev/burn-book/advanced/backend-extension/index.html) in the Burn Book 🔥
+for more details.
 
 </details>
 
@@ -244,7 +245,7 @@ you have written in another framework like TensorFlow or PyTorch to Burn to bene
 advantages our framework offers.
 
 Our ONNX support is further described in
-[this section of the Burn Book 🔥](https://burn.dev/book/import/onnx-model.html).
+[this section of the Burn Book 🔥](https://burn.dev/burn-book/import/onnx-model.html).
 
 > **Note**: This crate is in active development and currently supports a
 > [limited set of ONNX operators](./crates/burn-import/SUPPORTED-ONNX-OPS.md).
@@ -259,7 +260,7 @@ Importing PyTorch Models 🚚
 
 Support for loading of PyTorch model weights into Burn’s native model architecture, ensuring
 seamless integration. See
-[Burn Book 🔥 section on importing PyTorch](https://burn.dev/book/import/pytorch-model.html)
+[Burn Book 🔥 section on importing PyTorch](https://burn.dev/burn-book/import/pytorch-model.html)
 
 </details>
 
@@ -300,7 +301,8 @@ means it can run in bare metal environment such as embedded devices without an o
 <div align="left">
 <img align="right" src="https://raw.githubusercontent.com/tracel-ai/burn/main/assets/backend-chip.png" height="96px"/>
 Burn strives to be as fast as possible on as many hardwares as possible, with robust implementations.
-We believe this flexibility is crucial for modern needs where you may train your models in the cloud, then deploy on customer hardwares, which vary from user to user.
+We believe this flexibility is crucial for modern needs where you may train your models in the cloud,
+then deploy on customer hardwares, which vary from user to user.
 </div>
 
 <br />
@@ -322,17 +324,20 @@ WGPU (WebGPU): Cross-Platform GPU Backend 🌐
 
 Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
 backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
-shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/). It can also be
-compiled to Web Assembly to run in the browser while leveraging the GPU, see
+shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/), or optionally
+[SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
+Assembly to run in the browser while leveraging the GPU, see
 [this demo](https://antimora.github.io/image-classification/). For more information on the benefits
 of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
 
 The WGPU backend is our first "in-house backend", which means we have complete control over its
 implementation details. It is fully optimized with the
 [performance characteristics mentioned earlier](#performance), as it serves as our research
-playground for a variety of optimizations.
+playground for a variety of optimizations. We've since added CUDA, ROCm and SPIR-V support using the
+same compiler infrastructure, so a kernel written for burn once, can run anywhere.
 
-See the [WGPU Backend README](./crates/burn-wgpu/README.md) for more details.
+See the [WGPU Backend README](./crates/burn-wgpu/README.md) and
+[CUDA Backend README](./crates/burn-cuda/README.md) for more details.
 
 </details>
 
@@ -429,7 +434,7 @@ Fusion: Backend decorator that brings kernel fusion to backends that support it 
 
 This backend decorator enhances a backend with kernel fusion, provided that the inner backend
 supports it. Note that you can compose this backend with other backend decorators such as Autodiff.
-For now, only the WGPU backend has support for fused kernels.
+For now, only the WGPU and CUDA backends have support for fused kernels.
 
 ```rust
 use burn::backend::{Autodiff, Fusion, Wgpu};
@@ -480,9 +485,9 @@ The Burn Book 🔥
 
 To begin working effectively with Burn, it is crucial to understand its key components and
 philosophy. This is why we highly recommend new users to read the first sections of
-[The Burn Book 🔥](https://burn.dev/book/). It provides detailed examples and explanations covering
-every facet of the framework, including building blocks like tensors, modules, and optimizers, all
-the way to advanced usage, like coding your own GPU kernels.
+[The Burn Book 🔥](https://burn.dev/burn-book/). It provides detailed examples and explanations
+covering every facet of the framework, including building blocks like tensors, modules, and
+optimizers, all the way to advanced usage, like coding your own GPU kernels.
 
 > The project is constantly evolving, and we try as much as possible to keep the book up to date
 > with new additions. However, we might miss some details sometimes, so if you see something weird,
@@ -526,7 +531,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
 We have a somewhat large amount of [examples](./examples) in the repository that shows how to use
 the framework in different scenarios.
 
-Following [the book](https://burn.dev/book/):
+Following [the book](https://burn.dev/burn-book/):
 
 - [Basic Workflow](./examples/guide) : Creates a custom CNN `Module` to train on the MNIST dataset
   and use for inference.
@@ -539,8 +544,8 @@ Additional examples:
 
 - [Custom CSV Dataset](./examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
   regression task.
-- [Regression](./examples/simple-regression) : Trains a simple MLP on the CSV dataset for the
-  regression task.
+- [Regression](./examples/simple-regression) : Trains a simple MLP on the California Housing dataset
+  to predict the median house value for a district.
 - [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the

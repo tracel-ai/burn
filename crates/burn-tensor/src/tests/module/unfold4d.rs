@@ -91,7 +91,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data()
                     .convert::<f32>(),
             );
@@ -113,7 +113,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
 

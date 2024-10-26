@@ -3,10 +3,12 @@ use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
 
-/// The configuration for creating a Cosine Annealing learning rate scheduler with cold restarts.
+/// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
+/// restarts](CosineAnnealingLrScheduler).
 ///
-/// This scheduler starts at a learning rate `initial_lr`, then changes the learning rate by following a cosine function
-/// with a period of `num_iters` iterations. After `num_iters` iterations, the learning rate is reset to `initial_lr`.
+/// This scheduler returns the learning rate `initial_lr` at the first step, then changes it by
+/// following a cosine function. After `num_iters` iterations, the learning rate is reset to
+/// `initial_lr`.
 #[derive(Config)]
 pub struct CosineAnnealingLrSchedulerConfig {
     // The initial learning rate.
@@ -14,7 +16,8 @@ pub struct CosineAnnealingLrSchedulerConfig {
     // The final learning rate.
     #[config(default = 0.0)]
     min_lr: LearningRate,
-    // The number of iterations before the learning rate is reset.
+    // The number of iterations between two restarts. The two restart iterations themselves are not
+    // included.
     num_iters: usize,
 }
 
@@ -38,72 +41,57 @@ impl CosineAnnealingLrSchedulerConfig {
         );
 
         CosineAnnealingLrScheduler {
-            previous_lr: self.initial_lr,
             min_lr: self.min_lr,
             max_lr: self.initial_lr,
             num_iters: self.num_iters,
-            current_iter: 0,
+            current_iter: usize::MAX,
         }
     }
 }
 
 /// A Cosine Annealing learning rate scheduler.
 ///
-/// See [CosineAnnealingLrSchedulerConfig] for more information.
+/// This scheduler is described in [SGDR: Stochastic Gradient Descent with Warm
+/// Restarts](https://arxiv.org/abs/1608.03983). See [CosineAnnealingLrSchedulerConfig] for more
+/// information.
 #[derive(Clone, Copy, Debug)]
 pub struct CosineAnnealingLrScheduler {
-    // The previous iteration's learning rate.
-    previous_lr: LearningRate,
     min_lr: LearningRate,
     max_lr: LearningRate,
     num_iters: usize,
     current_iter: usize,
 }
 
-impl<B: Backend> LrScheduler<B> for CosineAnnealingLrScheduler {
-    type Record = (LearningRate, LearningRate, LearningRate, usize, usize);
+impl LrScheduler for CosineAnnealingLrScheduler {
+    type Record<B: Backend> = usize;
 
     fn step(&mut self) -> LearningRate {
-        if self.current_iter < self.num_iters {
-            self.current_iter += 1;
-        } else {
-            self.current_iter = 0;
-        }
-        self.previous_lr = self.min_lr
+        // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
+        // first call. We could've used i64 with an initial value -1, but keeping it in usize saves
+        // us from some type casting here.
+        self.current_iter = self.current_iter.wrapping_add(1) % (self.num_iters + 1);
+        self.min_lr
             + 0.5
                 * (self.max_lr - self.min_lr)
                 * (1.0
                     + (self.current_iter as f64 / self.num_iters as f64 * std::f64::consts::PI)
-                        .cos());
-        self.previous_lr
+                        .cos())
     }
 
-    fn to_record(&self) -> Self::Record {
-        (
-            self.previous_lr,
-            self.min_lr,
-            self.max_lr,
-            self.num_iters,
-            self.current_iter,
-        )
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+        self.current_iter
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        (
-            self.previous_lr,
-            self.min_lr,
-            self.max_lr,
-            self.num_iters,
-            self.current_iter,
-        ) = record;
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+        self.current_iter = record;
         self
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use super::super::test_utils;
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
@@ -143,32 +131,25 @@ mod test {
     fn test_lr_change() {
         const INITIAL_LR: LearningRate = 0.5;
         const MIN_LR: LearningRate = 0.1;
-        const NUM_ITERS: usize = 10;
+        const NUM_ITERS: usize = 2;
 
-        let mut scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, NUM_ITERS)
+        let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, NUM_ITERS)
             .with_min_lr(MIN_LR)
             .init();
+        let expected_lrs = [
+            INITIAL_LR,                  // cos(0)
+            (INITIAL_LR + MIN_LR) * 0.5, // cos(PI/2)
+            MIN_LR,                      // cos(PI)
+            INITIAL_LR,                  // restart
+        ];
+        test_utils::check_lr_sequence(scheduler, expected_lrs);
+    }
 
-        let mut previous_lr = INITIAL_LR;
-
-        for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
-            assert!(
-                lr < previous_lr,
-                "Learning rate should decrease with each iteration before reaching the specified number of iterations"
-            );
-            previous_lr = lr;
-        }
-
-        assert_eq!(
-            previous_lr, MIN_LR,
-            "Learning rate should reach the final learning rate"
-        );
-
-        assert_eq!(
-            LrScheduler::<TestBackend>::step(&mut scheduler),
-            INITIAL_LR,
-            "Learning rate should be reset after the specified number of iterations"
-        );
+    #[test]
+    fn test_save_and_load() {
+        const INITIAL_LR: LearningRate = 1.0;
+        const NUM_ITERS: usize = 9;
+        let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, NUM_ITERS).init();
+        test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }
 }

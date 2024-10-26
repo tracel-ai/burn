@@ -195,7 +195,7 @@ impl<const D: usize, B: Backend> ModuleDisplay for BatchNorm<B, D> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [num_features] = self.beta.shape().dims;
+        let [num_features] = self.beta.shape().dims();
 
         content
             .add("num_features", &num_features)

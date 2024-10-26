@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-fusion"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-fusion"
+documentation = "https://docs.rs/burn-fusion"
 version.workspace = true
 
 [features]
@@ -27,3 +28,4 @@ half = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

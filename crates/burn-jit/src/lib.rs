@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Burn JIT Backend
 
@@ -19,10 +20,7 @@ pub(crate) mod tune;
 pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
-use cubecl::{
-    compute::{CubeCount, CubeTask},
-    FeatureSet, Properties, Runtime,
-};
+use cubecl::{compute::CubeTask, Feature, Runtime};
 pub use element::{FloatElement, IntElement, JitElement};
 
 mod backend;
@@ -53,10 +51,8 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     type JitDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [JitAutotuneKey].
     type JitServer: cubecl::server::ComputeServer<
-        Kernel = Box<dyn CubeTask>,
-        DispatchOptions = CubeCount<Self::JitServer>,
-        Properties = Properties,
-        FeatureSet = FeatureSet,
+        Kernel = Box<dyn CubeTask<Self::Compiler>>,
+        Feature = Feature,
     >;
 }
 

@@ -9,8 +9,8 @@ use crate::{
 use burn_tensor::backend::Backend;
 
 #[derive(Debug, Clone)]
-pub struct AutodiffTensor<B: Backend, const D: usize> {
-    pub primitive: B::FloatTensorPrimitive<D>,
+pub struct AutodiffTensor<B: Backend> {
+    pub primitive: B::FloatTensorPrimitive,
     pub node: NodeRef,
     pub rc: NodeRefCount,
 }
@@ -40,9 +40,9 @@ impl Step for RootStep {
     }
 }
 
-impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
+impl<B: Backend> AutodiffTensor<B> {
     /// Create a new leaf tensor.
-    pub fn new(primitive: B::FloatTensorPrimitive<D>) -> Self {
+    pub fn new(primitive: B::FloatTensorPrimitive) -> Self {
         let id = NodeID::new();
         let node: NodeRef = Node::new(
             vec![],
@@ -95,7 +95,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
 
     /// Create a tensor from parent infos.
     pub fn from_parents(
-        primitive: B::FloatTensorPrimitive<D>,
+        primitive: B::FloatTensorPrimitive,
         parent_nodes: &[NodeRef],
         requirement: Requirement,
         computing_properties: ComputingProperty,
@@ -151,7 +151,7 @@ impl<B: Backend, const D: usize> AutodiffTensor<B, D> {
         self
     }
 
-    pub fn into_primitive(self) -> B::FloatTensorPrimitive<D> {
+    pub fn into_primitive(self) -> B::FloatTensorPrimitive {
         self.primitive
     }
 }

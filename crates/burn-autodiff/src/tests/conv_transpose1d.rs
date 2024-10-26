@@ -242,7 +242,7 @@ mod tests {
             let device = Default::default();
             let weight = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
-                    .reshape(shape_weight)
+                    .reshape::<3, _>(shape_weight)
                     .into_data(),
                 &device,
             )
@@ -254,7 +254,7 @@ mod tests {
             .require_grad();
             let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<3, _>(shape_x)
                     .into_data(),
                 &device,
             )

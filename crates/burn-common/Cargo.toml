@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-common"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-common"
+documentation = "https://docs.rs/burn-common"
 version.workspace = true
 
 [features]
@@ -21,10 +22,7 @@ rayon = ["dep:rayon"]
 getrandom = { workspace = true, features = ["js"] }
 web-time = { version = "1.1.0" }
 
-
 [dependencies]
-data-encoding = { workspace = true }
-
 # Network downloader
 indicatif = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
@@ -39,3 +37,4 @@ dashmap = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

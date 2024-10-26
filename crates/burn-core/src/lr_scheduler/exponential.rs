@@ -3,10 +3,11 @@ use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
 
-/// The configuration for creating an exponential learning rate scheduler.
+/// The configuration for creating an [exponential learning rate scheduler](ExponentialLrScheduler).
 ///
-/// This scheduler starts at a learning rate `initial_lr`, then changes the learning rate by multiplying it by a constant
-/// `gamma` at every iteration. At any iteration `i`, the learning rate is given by `initial_lr * gamma^i`.
+/// This scheduler returns the learning rate `initial_lr` at the first step, then multiplies it by
+/// a constant `gamma` at every iteration. At any iteration `i` (which starts from 0), the learning
+/// rate is given by `initial_lr * gamma^i`.
 #[derive(Config)]
 pub struct ExponentialLrSchedulerConfig {
     // The initial learning rate.
@@ -31,7 +32,9 @@ impl ExponentialLrSchedulerConfig {
         );
 
         ExponentialLrScheduler {
-            previous_lr: self.initial_lr,
+            // Such an initial value eliminates the need for special-case handling of the first
+            // learning rate.
+            previous_lr: self.initial_lr / self.gamma,
             gamma: self.gamma,
         }
     }
@@ -48,28 +51,28 @@ pub struct ExponentialLrScheduler {
     gamma: f64,
 }
 
-impl<B: Backend> LrScheduler<B> for ExponentialLrScheduler {
-    type Record = (LearningRate, f64);
+impl LrScheduler for ExponentialLrScheduler {
+    type Record<B: Backend> = LearningRate;
 
     fn step(&mut self) -> LearningRate {
         self.previous_lr *= self.gamma;
         self.previous_lr
     }
 
-    fn to_record(&self) -> Self::Record {
-        (self.previous_lr, self.gamma)
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+        self.previous_lr
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
-        (self.previous_lr, self.gamma) = record;
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+        self.previous_lr = record;
         self
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use super::super::test_utils;
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
@@ -97,28 +100,19 @@ mod test {
 
     #[test]
     fn test_lr_change() {
-        const INITIAL_LR: LearningRate = 0.75;
-        const GAMMA: f64 = 0.9;
-        const NUM_ITERS: usize = 10;
-        const EPSILON: f64 = 1e-10;
+        const INITIAL_LR: LearningRate = 0.8;
+        const GAMMA: f64 = 0.1;
 
-        let mut scheduler = ExponentialLrSchedulerConfig::new(INITIAL_LR, GAMMA).init();
+        let scheduler = ExponentialLrSchedulerConfig::new(INITIAL_LR, GAMMA).init();
+        let expected_lrs = [0.8, 0.08, 0.008, 0.0008, 0.00008];
+        test_utils::check_lr_sequence(scheduler, expected_lrs);
+    }
 
-        let mut previous_lr = INITIAL_LR;
-
-        for _ in 0..NUM_ITERS {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
-            assert!(
-                lr < previous_lr,
-                "Learning rate should decrease with each iteration before reaching the final learning rate"
-            );
-            previous_lr = lr;
-        }
-
-        let expected = INITIAL_LR * GAMMA.powi(NUM_ITERS as i32);
-        assert!(
-            (previous_lr - expected).abs() < EPSILON,
-            "Learning rate should be close to the expected value after reaching the final learning rate"
-        );
+    #[test]
+    fn test_save_and_load() {
+        const INITIAL_LR: LearningRate = 0.083;
+        const GAMMA: f64 = 0.3;
+        let scheduler = ExponentialLrSchedulerConfig::new(INITIAL_LR, GAMMA).init();
+        test_utils::check_save_load(scheduler, 7);
     }
 }

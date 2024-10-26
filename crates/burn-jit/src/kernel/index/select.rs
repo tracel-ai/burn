@@ -28,18 +28,19 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
+    tensor: JitTensor<R, E>,
     dim: usize,
-    indices: JitTensor<R, I, 1>,
-) -> JitTensor<R, E, D> {
+    indices: JitTensor<R, I>,
+) -> JitTensor<R, E> {
+    let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
     let total_elem = shape_output.num_elements();
 
     let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
 
-    let dummy_array = [1; D];
+    let dummy_array = vec![1; ndims];
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 

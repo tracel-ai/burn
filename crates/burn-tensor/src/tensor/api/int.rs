@@ -1,4 +1,8 @@
-use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData, TensorPrimitive};
+use crate::check;
+use crate::check::TensorCheck;
+use crate::{
+    backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+};
 
 use core::ops::Range;
 
@@ -25,6 +29,34 @@ where
     pub fn arange_step(range: Range<i64>, step: usize, device: &B::Device) -> Self {
         Tensor::new(B::int_arange_step(range, step, device))
     }
+
+    /// Create a one hot tensor from an index tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_classes` - The number of classes to use in encoding.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Int};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let indices: Tensor<B, 1, Int> = Tensor::from_ints([0, 1, 2, 3], &device);
+    ///     let one_hot = indices.one_hot(4);
+    ///     println!("{}", one_hot.to_data());
+    ///     // [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
+    /// }
+    /// ```
+    pub fn one_hot(self, num_classes: usize) -> Tensor<B, 2, Int> {
+        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
+        let [num_samples] = self.dims();
+        let indices = self.unsqueeze();
+        let values = indices.ones_like();
+        Tensor::zeros([num_samples, num_samples], &indices.device()).scatter(1, indices, values)
+    }
 }
 
 impl<const D: usize, B> Tensor<B, D, Int>
@@ -50,7 +82,7 @@ where
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
-    /// casted to Float.
+    /// cast to Float.
     ///
     /// # Example
     ///
@@ -91,10 +123,10 @@ where
     ///        println!("{}", result);
     ///    }
     /// ```
-    pub fn cartesian_grid<S: Into<Shape<D>>, const D2: usize>(
+    pub fn cartesian_grid<S: Into<Shape>, const D2: usize>(
         shape: S,
         device: &B::Device,
     ) -> Tensor<B, D2, Int> {
-        Tensor::new(B::int_cartesian_grid::<S, D, D2>(shape, device))
+        cartesian_grid::<B, S, D, D2>(shape, device)
     }
 }

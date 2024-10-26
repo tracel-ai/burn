@@ -1,21 +1,14 @@
-use alloc::string::String;
-
 use crate::rand::gen_random;
-
-use data_encoding::BASE32_DNSSEC;
 
 /// Simple ID generator.
 pub struct IdGenerator {}
 
 impl IdGenerator {
     /// Generates a new ID.
-    pub fn generate() -> String {
-        // Generate 6 random bytes (281,474,976,710,656 combinations)
-        let random_bytes: [u8; 6] = gen_random();
-
-        // Encode the random bytes in base32 DNSSEC
-        // 6 bytes encodes to 10 lower case characters, e.g. "3uu5e6vv7c"
-        BASE32_DNSSEC.encode(&random_bytes)
+    pub fn generate() -> u64 {
+        // Generate a random u64 (18,446,744,073,709,551,615 combinations)
+        let random_bytes: [u8; 8] = gen_random();
+        u64::from_le_bytes(random_bytes)
     }
 }
 
@@ -23,7 +16,7 @@ impl IdGenerator {
 mod tests {
     use super::*;
 
-    use alloc::{collections::BTreeSet, string::String};
+    use alloc::collections::BTreeSet;
 
     #[cfg(feature = "std")]
     use dashmap::DashSet; //Concurrent HashMap
@@ -31,15 +24,10 @@ mod tests {
     use std::{sync::Arc, thread};
 
     #[test]
-    fn not_empty_test() {
-        assert!(!IdGenerator::generate().is_empty());
-    }
-
-    #[test]
     fn uniqueness_test() {
         const IDS_CNT: usize = 10_000;
 
-        let mut set: BTreeSet<String> = BTreeSet::new();
+        let mut set: BTreeSet<u64> = BTreeSet::new();
 
         for _i in 0..IDS_CNT {
             assert!(set.insert(IdGenerator::generate()));
@@ -55,7 +43,7 @@ mod tests {
         const NUM_REPEATS: usize = 1_000;
         const EXPECTED_TOTAL_IDS: usize = NUM_THREADS * NUM_REPEATS;
 
-        let set: Arc<DashSet<String>> = Arc::new(DashSet::new());
+        let set: Arc<DashSet<u64>> = Arc::new(DashSet::new());
 
         let mut handles = vec![];
 

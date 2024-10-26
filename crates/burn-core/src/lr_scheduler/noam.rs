@@ -39,8 +39,8 @@ impl NoamLrSchedulerConfig {
     }
 }
 
-impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
-    type Record = usize;
+impl LrScheduler for NoamLrScheduler {
+    type Record<B: Backend> = usize;
 
     fn step(&mut self) -> LearningRate {
         self.step += 1.0;
@@ -51,11 +51,11 @@ impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
         self.init_lr * self.embedding_size.powf(-0.5) * f64::min(arg1, arg2)
     }
 
-    fn to_record(&self) -> Self::Record {
+    fn to_record<B: Backend>(&self) -> Self::Record<B> {
         self.step as usize
     }
 
-    fn load_record(mut self, record: Self::Record) -> Self {
+    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
         self.step = record as f64;
         self
     }
@@ -63,8 +63,6 @@ impl<B: Backend> LrScheduler<B> for NoamLrScheduler {
 
 #[cfg(test)]
 mod tests {
-    use crate::TestBackend;
-
     use super::*;
 
     #[test]
@@ -76,7 +74,7 @@ mod tests {
         let mut lr_current = 0.0;
 
         for _ in 0..warmup_steps {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr > lr_current,
                 "Learning rate should increase before the warmup_steps is reached."
@@ -85,7 +83,7 @@ mod tests {
         }
 
         for _ in 0..warmup_steps {
-            let lr = LrScheduler::<TestBackend>::step(&mut scheduler);
+            let lr = scheduler.step();
             assert!(
                 lr < lr_current,
                 "Learning rate should decrease after the warmup_steps is reached."

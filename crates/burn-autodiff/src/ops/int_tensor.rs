@@ -7,396 +7,329 @@ use burn_tensor::{
 };
 
 impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
-    fn int_from_data<const D: usize>(data: TensorData, device: &Device<Self>) -> IntTensor<B, D> {
+    fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<B> {
         B::int_from_data(data, device)
     }
 
-    fn int_shape<const D: usize>(tensor: &IntTensor<B, D>) -> Shape<D> {
+    fn int_shape(tensor: &IntTensor<B>) -> Shape {
         B::int_shape(tensor)
     }
 
-    async fn int_into_data<const D: usize>(tensor: IntTensor<B, D>) -> TensorData {
+    async fn int_into_data(tensor: IntTensor<B>) -> TensorData {
         B::int_into_data(tensor).await
     }
 
-    fn int_to_device<const D: usize>(
-        tensor: IntTensor<B, D>,
-        device: &Device<Self>,
-    ) -> IntTensor<B, D> {
+    fn int_to_device(tensor: IntTensor<B>, device: &Device<Self>) -> IntTensor<B> {
         B::int_to_device(tensor, device)
     }
 
-    fn int_device<const D: usize>(tensor: &IntTensor<B, D>) -> Device<Self> {
+    fn int_device(tensor: &IntTensor<B>) -> Device<Self> {
         B::int_device(tensor)
     }
 
-    fn int_reshape<const D1: usize, const D2: usize>(
-        tensor: IntTensor<B, D1>,
-        shape: Shape<D2>,
-    ) -> IntTensor<B, D2> {
+    fn int_reshape(tensor: IntTensor<B>, shape: Shape) -> IntTensor<B> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice<const D1: usize, const D2: usize>(
-        tensor: IntTensor<B, D1>,
-        ranges: [std::ops::Range<usize>; D2],
-    ) -> IntTensor<B, D1> {
+    fn int_slice(tensor: IntTensor<B>, ranges: &[std::ops::Range<usize>]) -> IntTensor<B> {
         B::int_slice(tensor, ranges)
     }
 
-    fn int_empty<const D: usize>(
-        shape: Shape<D>,
-        device: &<Autodiff<B> as Backend>::Device,
-    ) -> IntTensor<B, D> {
+    fn int_empty(shape: Shape, device: &<Autodiff<B> as Backend>::Device) -> IntTensor<B> {
         B::int_empty(shape, device)
     }
 
-    fn int_slice_assign<const D1: usize, const D2: usize>(
-        tensor: IntTensor<B, D1>,
-        ranges: [std::ops::Range<usize>; D2],
-        value: IntTensor<B, D1>,
-    ) -> IntTensor<B, D1> {
+    fn int_slice_assign(
+        tensor: IntTensor<B>,
+        ranges: &[std::ops::Range<usize>],
+        value: IntTensor<B>,
+    ) -> IntTensor<B> {
         B::int_slice_assign(tensor, ranges, value)
     }
 
-    fn int_cat<const D: usize>(tensors: Vec<IntTensor<B, D>>, dim: usize) -> IntTensor<B, D> {
+    fn int_cat(tensors: Vec<IntTensor<B>>, dim: usize) -> IntTensor<B> {
         B::int_cat(tensors, dim)
     }
 
-    fn int_equal<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+    fn int_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
         B::int_equal(lhs, rhs)
     }
 
-    fn int_equal_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+    fn int_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
         B::int_equal_elem(lhs, rhs)
     }
 
-    fn int_add<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+    fn int_add(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         B::int_add(lhs, rhs)
     }
 
-    fn int_add_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
+    fn int_add_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_add_scalar(lhs, rhs)
     }
 
-    fn int_clamp_min<const D: usize>(tensor: IntTensor<B, D>, min: B::IntElem) -> IntTensor<B, D> {
+    fn int_clamp_min(tensor: IntTensor<B>, min: B::IntElem) -> IntTensor<B> {
         B::int_clamp_min(tensor, min)
     }
 
-    fn int_clamp_max<const D: usize>(tensor: IntTensor<B, D>, max: B::IntElem) -> IntTensor<B, D> {
+    fn int_clamp_max(tensor: IntTensor<B>, max: B::IntElem) -> IntTensor<B> {
         B::int_clamp_max(tensor, max)
     }
 
-    fn int_clamp<const D: usize>(
-        tensor: IntTensor<B, D>,
-        min: B::IntElem,
-        max: B::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_clamp(tensor: IntTensor<B>, min: B::IntElem, max: B::IntElem) -> IntTensor<B> {
         B::int_clamp(tensor, min, max)
     }
 
-    fn int_sub<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+    fn int_sub(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         B::int_sub(lhs, rhs)
     }
 
-    fn int_sub_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
+    fn int_sub_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_sub_scalar(lhs, rhs)
     }
 
-    fn int_mul<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+    fn int_mul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         B::int_mul(lhs, rhs)
     }
 
-    fn int_mul_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
+    fn int_mul_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_mul_scalar(lhs, rhs)
     }
 
-    fn int_div<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> IntTensor<B, D> {
+    fn int_div(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         B::int_div(lhs, rhs)
     }
 
-    fn int_div_scalar<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> IntTensor<B, D> {
+    fn int_div_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_div_scalar(lhs, rhs)
     }
 
-    fn int_remainder_scalar<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: B::IntElem,
-    ) -> IntTensor<B, D> {
+    fn int_remainder_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_remainder_scalar(lhs, rhs)
     }
 
-    fn int_neg<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, D> {
+    fn int_neg(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_neg(tensor)
     }
 
-    fn int_zeros<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
+    fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
         B::int_zeros(shape, device)
     }
 
-    fn int_ones<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> IntTensor<B, D> {
+    fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<B> {
         B::int_ones(shape, device)
     }
 
-    fn int_full<const D: usize>(
-        shape: Shape<D>,
-        fill_value: B::IntElem,
-        device: &Device<Self>,
-    ) -> IntTensor<B, D> {
+    fn int_full(shape: Shape, fill_value: B::IntElem, device: &Device<Self>) -> IntTensor<B> {
         B::int_full(shape, fill_value, device)
     }
 
-    fn int_sum<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
+    fn int_sum(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_sum(tensor)
     }
 
-    fn int_sum_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn int_sum_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_sum_dim(tensor, dim)
     }
 
-    fn int_mean<const D: usize>(tensor: IntTensor<B, D>) -> IntTensor<B, 1> {
+    fn int_mean(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_mean(tensor)
     }
 
-    fn int_mean_dim<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn int_mean_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_mean_dim(tensor, dim)
     }
 
-    fn int_repeat_dim<const D: usize>(
-        tensor: IntTensor<B, D>,
-        dim: usize,
-        times: usize,
-    ) -> IntTensor<B, D> {
+    fn int_repeat_dim(tensor: IntTensor<B>, dim: usize, times: usize) -> IntTensor<B> {
         B::int_repeat_dim(tensor, dim, times)
     }
 
-    fn int_greater<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+    fn int_greater(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
         B::int_greater(lhs, rhs)
     }
 
-    fn int_greater_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+    fn int_greater_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
         B::int_greater_elem(lhs, rhs)
     }
 
-    fn int_greater_equal<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: IntTensor<B, D>,
-    ) -> BoolTensor<B, D> {
+    fn int_greater_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
         B::int_greater_equal(lhs, rhs)
     }
 
-    fn int_greater_equal_elem<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: B::IntElem,
-    ) -> BoolTensor<B, D> {
+    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
         B::int_greater_equal_elem(lhs, rhs)
     }
 
-    fn int_lower<const D: usize>(lhs: IntTensor<B, D>, rhs: IntTensor<B, D>) -> BoolTensor<B, D> {
+    fn int_lower(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
         B::int_lower(lhs, rhs)
     }
 
-    fn int_lower_elem<const D: usize>(lhs: IntTensor<B, D>, rhs: B::IntElem) -> BoolTensor<B, D> {
+    fn int_lower_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
         B::int_lower_elem(lhs, rhs)
     }
 
-    fn int_lower_equal<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: IntTensor<B, D>,
-    ) -> BoolTensor<B, D> {
+    fn int_lower_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
         B::int_lower_equal(lhs, rhs)
     }
 
-    fn int_lower_equal_elem<const D: usize>(
-        lhs: IntTensor<B, D>,
-        rhs: B::IntElem,
-    ) -> BoolTensor<B, D> {
+    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
         B::int_lower_equal_elem(lhs, rhs)
     }
 
-    fn int_gather<const D: usize>(
-        dim: usize,
-        tensor: IntTensor<B, D>,
-        indices: IntTensor<B, D>,
-    ) -> IntTensor<B, D> {
+    fn int_gather(dim: usize, tensor: IntTensor<B>, indices: IntTensor<B>) -> IntTensor<B> {
         B::int_gather(dim, tensor, indices)
     }
 
-    fn int_scatter<const D: usize>(
+    fn int_scatter(
         dim: usize,
-        tensor: IntTensor<B, D>,
-        indices: IntTensor<B, D>,
-        value: IntTensor<B, D>,
-    ) -> IntTensor<B, D> {
+        tensor: IntTensor<B>,
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+    ) -> IntTensor<B> {
         B::int_scatter(dim, tensor, indices, value)
     }
 
-    fn int_select<const D: usize>(
-        tensor: IntTensor<B, D>,
-        dim: usize,
-        indices: IntTensor<B, 1>,
-    ) -> IntTensor<B, D> {
+    fn int_select(tensor: IntTensor<B>, dim: usize, indices: IntTensor<B>) -> IntTensor<B> {
         B::int_select(tensor, dim, indices)
     }
 
-    fn int_select_assign<const D: usize>(
-        tensor: IntTensor<B, D>,
+    fn int_select_assign(
+        tensor: IntTensor<B>,
         dim: usize,
-        indices: IntTensor<B, 1>,
-        value: IntTensor<B, D>,
-    ) -> IntTensor<B, D> {
+        indices: IntTensor<B>,
+        value: IntTensor<B>,
+    ) -> IntTensor<B> {
         B::int_select_assign(tensor, dim, indices, value)
     }
 
-    fn int_mask_where<const D: usize>(
-        tensor: IntTensor<B, D>,
-        mask: BoolTensor<B, D>,
-        value: IntTensor<B, D>,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+    fn int_mask_where(
+        tensor: IntTensor<B>,
+        mask: BoolTensor<B>,
+        value: IntTensor<B>,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
         B::int_mask_where(tensor, mask, value)
     }
 
-    fn int_mask_fill<const D: usize>(
-        tensor: IntTensor<B, D>,
-        mask: BoolTensor<B, D>,
+    fn int_mask_fill(
+        tensor: IntTensor<B>,
+        mask: BoolTensor<B>,
         value: B::IntElem,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
         B::int_mask_fill(tensor, mask, value)
     }
 
-    fn int_argmax<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn int_argmax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_argmax(tensor, dim)
     }
-    fn int_argmin<const D: usize>(tensor: IntTensor<B, D>, dim: usize) -> IntTensor<B, D> {
+    fn int_argmin(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_argmin(tensor, dim)
     }
-    fn int_max<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+    fn int_max(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
         B::int_max(tensor)
     }
-    fn int_max_dim<const D: usize>(
-        tensor: B::IntTensorPrimitive<D>,
-        dim: usize,
-    ) -> B::IntTensorPrimitive<D> {
+    fn int_max_dim(tensor: B::IntTensorPrimitive, dim: usize) -> B::IntTensorPrimitive {
         B::int_max_dim(tensor, dim)
     }
-    fn int_max_dim_with_indices<const D: usize>(
-        tensor: B::IntTensorPrimitive<D>,
+    fn int_max_dim_with_indices(
+        tensor: B::IntTensorPrimitive,
         dim: usize,
-    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+    ) -> (B::IntTensorPrimitive, B::IntTensorPrimitive) {
         B::int_max_dim_with_indices(tensor, dim)
     }
-    fn int_min<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<1> {
+    fn int_min(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
         B::int_min(tensor)
     }
-    fn int_min_dim<const D: usize>(
-        tensor: B::IntTensorPrimitive<D>,
-        dim: usize,
-    ) -> B::IntTensorPrimitive<D> {
+    fn int_min_dim(tensor: B::IntTensorPrimitive, dim: usize) -> B::IntTensorPrimitive {
         B::int_min_dim(tensor, dim)
     }
-    fn int_min_dim_with_indices<const D: usize>(
-        tensor: B::IntTensorPrimitive<D>,
+    fn int_min_dim_with_indices(
+        tensor: B::IntTensorPrimitive,
         dim: usize,
-    ) -> (B::IntTensorPrimitive<D>, B::IntTensorPrimitive<D>) {
+    ) -> (B::IntTensorPrimitive, B::IntTensorPrimitive) {
         B::int_min_dim_with_indices(tensor, dim)
     }
-    fn int_abs<const D: usize>(tensor: B::IntTensorPrimitive<D>) -> B::IntTensorPrimitive<D> {
+    fn int_abs(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
         B::int_abs(tensor)
     }
-    fn int_into_float<const D: usize>(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive<D> {
+    fn int_into_float(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
         AutodiffTensor::new(B::int_into_float(tensor))
     }
 
-    fn int_swap_dims<const D: usize>(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+    fn int_swap_dims(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
         dim1: usize,
         dim2: usize,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
         B::int_swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_narrow<const D: usize>(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+    fn int_narrow(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
         dim: usize,
         start: usize,
         length: usize,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive<D> {
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
         B::int_narrow(tensor, dim, start, length)
     }
 
-    fn int_chunk<const D: usize>(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive<D>,
+    fn int_chunk(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
         chunks: usize,
         dim: usize,
-    ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive<D>> {
+    ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive> {
         B::int_chunk(tensor, chunks, dim)
     }
 
-    fn int_random<const D: usize>(
-        shape: Shape<D>,
+    fn int_random(
+        shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
-    ) -> IntTensor<Self, D> {
+    ) -> IntTensor<Self> {
         B::int_random(shape, distribution, device)
     }
 
-    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self, 1> {
+    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self> {
         B::int_arange(range, device)
     }
 
-    fn int_permute<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        axes: [usize; D],
-    ) -> IntTensor<Self, D> {
+    fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         B::int_permute(tensor, axes)
     }
 
-    fn int_flip<const D: usize>(tensor: IntTensor<Self, D>, axes: &[usize]) -> IntTensor<Self, D> {
+    fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         B::int_flip(tensor, axes)
     }
 
-    fn int_sign<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, D> {
+    fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         B::int_sign(tensor)
     }
 
-    fn int_prod<const D: usize>(tensor: IntTensor<Self, D>) -> IntTensor<Self, 1> {
+    fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
         B::int_prod(tensor)
     }
 
-    fn int_prod_dim<const D: usize>(tensor: IntTensor<Self, D>, dim: usize) -> IntTensor<Self, D> {
+    fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         B::int_prod_dim(tensor, dim)
     }
 
-    fn int_expand<const D: usize, const D2: usize>(
-        tensor: IntTensor<B, D>,
-        shape: Shape<D2>,
-    ) -> IntTensor<B, D2> {
+    fn int_expand(tensor: IntTensor<B>, shape: Shape) -> IntTensor<B> {
         B::int_expand(tensor, shape)
     }
 
-    fn int_sort<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        dim: usize,
-        descending: bool,
-    ) -> IntTensor<Self, D> {
+    fn int_sort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         B::int_sort(tensor, dim, descending)
     }
 
-    fn int_sort_with_indices<const D: usize>(
-        tensor: IntTensor<Self, D>,
+    fn int_sort_with_indices(
+        tensor: IntTensor<Self>,
         dim: usize,
         descending: bool,
-    ) -> (IntTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
         B::int_sort_with_indices(tensor, dim, descending)
     }
 
-    fn int_argsort<const D: usize>(
-        tensor: IntTensor<Self, D>,
-        dim: usize,
-        descending: bool,
-    ) -> IntTensor<Self, D> {
+    fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         B::int_argsort(tensor, dim, descending)
     }
 }

@@ -140,15 +140,15 @@ fn conv3d_kernel<F: Float>(
 }
 
 pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E, 5>,
-    weight: JitTensor<R, E, 5>,
-    bias: Option<JitTensor<R, E, 1>>,
+    input: JitTensor<R, E>,
+    weight: JitTensor<R, E>,
+    bias: Option<JitTensor<R, E>>,
     options: ConvOptions<3>,
-) -> JitTensor<R, E, 5> {
+) -> JitTensor<R, E> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
-    let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims;
-    let [out_channels, _, kernel_0, kernel_1, kernel_2] = weight.shape.dims;
+    let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();
+    let [out_channels, _, kernel_0, kernel_1, kernel_2] = weight.shape.dims();
 
     let out_0 = calculate_conv_output_size(
         kernel_0,

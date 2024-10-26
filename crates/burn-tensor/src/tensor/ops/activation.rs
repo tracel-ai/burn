@@ -18,10 +18,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn leaky_relu<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        negative_slope: super::FloatElem<B>,
-    ) -> FloatTensor<B, D> {
+    fn leaky_relu(tensor: FloatTensor<B>, negative_slope: super::FloatElem<B>) -> FloatTensor<B> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
         let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope.elem());
 
@@ -38,7 +35,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn relu<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn relu(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let mask = B::float_lower_equal_elem(tensor.clone(), 0.elem());
 
         B::float_mask_fill(tensor, mask, 0.elem())
@@ -53,10 +50,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The gradient.
-    fn relu_backward<const D: usize>(
-        output: FloatTensor<B, D>,
-        grad: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D> {
+    fn relu_backward(output: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B> {
         let mask = B::float_lower_equal_elem(output, 0.elem());
 
         B::float_mask_fill(grad, mask, 0.elem())
@@ -71,7 +65,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn gelu<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn gelu(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let x = B::float_div_scalar(tensor.clone(), SQRT_2.elem());
         let x = B::float_erf(x);
         let x = B::float_add_scalar(x, 1i32.elem());
@@ -83,10 +77,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Arguments
     /// * `tensor` - The input tensor
     /// * `alpha` - The weight tensor
-    fn prelu<const D: usize>(
-        tensor: FloatTensor<B, D>,
-        alpha: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D> {
+    fn prelu(tensor: FloatTensor<B>, alpha: FloatTensor<B>) -> FloatTensor<B> {
         let mask = B::float_lower_elem(tensor.clone(), 0.elem());
         let scaled_tensor = B::float_mul(tensor.clone(), alpha);
         B::float_mask_where(tensor, mask, scaled_tensor)
@@ -102,10 +93,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn gelu_backward<const D: usize>(
-        x: FloatTensor<B, D>,
-        grad: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D> {
+    fn gelu_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B> {
         // Derivative of the approximate gelu implementation based on tanh.
 
         let constant_1 = 0.0356774;
@@ -146,7 +134,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn sigmoid(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let tensor_full = B::float_into_full_precision(tensor);
         let tensor_tmp =
             FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
@@ -171,10 +159,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn sigmoid_backward<const D: usize>(
-        output: FloatTensor<B, D>,
-        grad: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D> {
+    fn sigmoid_backward(output: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B> {
         let value = B::float_mul(
             output.clone(),
             B::float_add_scalar(B::float_neg(output), 1.0.elem()),
@@ -193,11 +178,11 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn hard_sigmoid<const D: usize>(
-        tensor: FloatTensor<B, D>,
+    fn hard_sigmoid(
+        tensor: FloatTensor<B>,
         alpha: super::FloatElem<B>,
         beta: super::FloatElem<B>,
-    ) -> FloatTensor<B, D> {
+    ) -> FloatTensor<B> {
         let tensor_full = B::float_into_full_precision(tensor);
 
         let tensor_tmp = FullPrecisionBackend::<B>::float_clamp(
@@ -221,7 +206,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output tensor.
-    fn log_sigmoid<const D: usize>(tensor: FloatTensor<B, D>) -> FloatTensor<B, D> {
+    fn log_sigmoid(tensor: FloatTensor<B>) -> FloatTensor<B> {
         // To avoid overflow, we use the log-sum-exp trick.
         //
         // ```ignore
@@ -265,10 +250,7 @@ pub trait ActivationOps<B: Backend> {
     /// # Returns
     ///
     /// The output gradient.
-    fn log_sigmoid_backward<const D: usize>(
-        x: FloatTensor<B, D>,
-        grad: FloatTensor<B, D>,
-    ) -> FloatTensor<B, D> {
+    fn log_sigmoid_backward(x: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B> {
         // Derivative of -max(-x, 0) - log(exp(-max(-x, 0)) - exp(-x - max(-x, 0)))) is
         // -max_derive - (-max_derive * exp(-max(-x, 0)) + (-1 - max_derive) * exp(-x - max(-x, 0))) / z
         // where z = exp(-max(-x, 0)) + exp(-x - max(-x, 0))

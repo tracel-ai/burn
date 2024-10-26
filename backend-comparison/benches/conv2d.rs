@@ -2,15 +2,12 @@ use backend_comparison::persistence::save;
 use burn::tensor::{
     backend::Backend, module::conv2d, ops::ConvOptions, Distribution, Shape, Tensor,
 };
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct Conv2dBenchmark<B: Backend> {
-    input_shape: Shape<4>,
-    weight_shape: Shape<4>,
-    bias_shape: Shape<1>,
+    input_shape: Shape,
+    weight_shape: Shape,
+    bias_shape: Shape,
     options: ConvOptions<2>,
     device: B::Device,
 }
@@ -24,9 +21,9 @@ impl<B: Backend> Benchmark for Conv2dBenchmark<B> {
 
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![
-            self.input_shape.dims.into(),
-            self.weight_shape.dims.into(),
-            self.bias_shape.dims.into(),
+            self.input_shape.dims.clone(),
+            self.weight_shape.dims.clone(),
+            self.bias_shape.dims.clone(),
         ]
     }
 
@@ -51,7 +48,7 @@ impl<B: Backend> Benchmark for Conv2dBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 
@@ -80,8 +77,8 @@ fn bench<B: Backend>(
     let benchmark = Conv2dBenchmark::<B> {
         input_shape: [batch_size, channels_in, height_in, width_in].into(),
         weight_shape: [
-            channels_in,
-            channels_out / groups,
+            channels_out,
+            channels_in / groups,
             kernel_size_0,
             kernel_size_1,
         ]

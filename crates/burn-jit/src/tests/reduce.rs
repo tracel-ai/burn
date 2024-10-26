@@ -10,7 +10,7 @@ mod reduction {
     };
 
     #[test]
-    fn reduction_sum_dim_should_work_with_multiple_invocations() {
+    fn reduction_sum_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -21,7 +21,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -33,7 +32,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_prod_dim_should_work_with_multiple_invocations() {
+    fn reduction_prod_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -44,7 +43,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -56,38 +54,36 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_argmin_dim_should_work_with_multiple_invocations() {
+    fn reduction_argmin_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val =
-            Tensor::<TestBackend, 2, Int>::from_primitive(argmin::<TestRuntime, f32, i32, 2>(
-                tensor.into_primitive().tensor(),
-                reduce_dim,
-                ReduceStrategy::Naive,
-            ));
+        let val = Tensor::<TestBackend, 2, Int>::from_primitive(argmin::<TestRuntime, f32, i32>(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Naive,
+        ));
         let val_ref = tensor_ref.argmin(reduce_dim);
 
         val_ref.into_data().assert_eq(&val.into_data(), false);
     }
 
     #[test]
-    fn reduction_argmax_dim_should_work_with_multiple_invocations() {
+    fn reduction_argmax_dim_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
         let reduce_dim = 1;
 
-        let val =
-            Tensor::<TestBackend, 2, Int>::from_primitive(argmax::<TestRuntime, f32, i32, 2>(
-                tensor.into_primitive().tensor(),
-                reduce_dim,
-                ReduceStrategy::Naive,
-            ));
+        let val = Tensor::<TestBackend, 2, Int>::from_primitive(argmax::<TestRuntime, f32, i32>(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Naive,
+        ));
         let val_ref = tensor_ref.argmax(reduce_dim);
 
         val_ref.into_data().assert_eq(&val.into_data(), false);
@@ -99,9 +95,11 @@ mod reduction {
         let data = TensorData::from([1, 2, 3, 4]);
         let tensor = TestBackend::int_from_data(data, &Default::default());
 
-        let val = Tensor::<TestBackend, 1, Int>::from_primitive(
-            sum_dim::<TestRuntime, i32, i32, 1>(tensor, 0, ReduceStrategy::Naive),
-        );
+        let val = Tensor::<TestBackend, 1, Int>::from_primitive(sum_dim::<TestRuntime, i32, i32>(
+            tensor,
+            0,
+            ReduceStrategy::Naive,
+        ));
 
         let sum_as_data = TensorData::from([10]);
         val.into_data().assert_approx_eq(&sum_as_data, 1);
@@ -113,9 +111,11 @@ mod reduction {
         let data = TensorData::from([1, 2, 3, 4]);
         let tensor = TestBackend::int_from_data(data, &Default::default());
 
-        let val = Tensor::<TestBackend, 1, Int>::from_primitive(
-            mean_dim::<TestRuntime, i32, i32, 1>(tensor, 0, ReduceStrategy::Naive),
-        );
+        let val = Tensor::<TestBackend, 1, Int>::from_primitive(mean_dim::<TestRuntime, i32, i32>(
+            tensor,
+            0,
+            ReduceStrategy::Naive,
+        ));
 
         // Mean calculation truncates to an integer
         let mean_as_data = TensorData::from([2]);
@@ -134,7 +134,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            1,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -157,7 +156,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -180,7 +178,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -206,7 +203,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            3,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -229,7 +225,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -252,7 +247,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -278,7 +272,6 @@ mod reduction {
             TestRuntime,
             f32,
             f32,
-            2,
         >(
             tensor.into_primitive().tensor(),
             reduce_dim,
@@ -290,7 +283,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_sum_should_work_with_multiple_invocations() {
+    fn reduction_sum_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -306,7 +299,7 @@ mod reduction {
     }
 
     #[test]
-    fn reduction_prod_should_work_with_multiple_invocations() {
+    fn reduction_prod_should_match_reference_backend() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 256], Distribution::Default, &Default::default());
         let tensor_ref =
@@ -327,7 +320,7 @@ mod reduction {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
 
         let val_shared =
-            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, f32, i32, 1>(
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, f32, i32>(
                 tensor.into_primitive().tensor(),
                 0,
                 ReduceStrategy::SharedMemory,
@@ -348,7 +341,7 @@ mod reduction {
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
 
         let val_shared =
-            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, f32, i32, 1>(
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, f32, i32>(
                 tensor.into_primitive().tensor(),
                 0,
                 ReduceStrategy::SharedMemory,
@@ -369,7 +362,7 @@ mod reduction {
         let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
 
         let val_shared =
-            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, i32, i32, 1>(
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmin::<TestRuntime, i32, i32>(
                 tensor.into_primitive(),
                 0,
                 ReduceStrategy::SharedMemory,
@@ -390,7 +383,7 @@ mod reduction {
         let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
 
         let val_shared =
-            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, i32, i32, 1>(
+            Tensor::<TestBackend, 1, Int>::from_primitive(argmax::<TestRuntime, i32, i32>(
                 tensor.into_primitive(),
                 0,
                 ReduceStrategy::SharedMemory,

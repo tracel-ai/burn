@@ -87,13 +87,13 @@ where
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
     /// fill the specified area with a value.
-    fn tri_mask<S: Into<Shape<D>>>(
+    fn tri_mask<S: Into<Shape>>(
         shape: S,
         tri_part: TriPart,
         offset: i64,
         device: &B::Device,
     ) -> Self {
-        let shape = shape.into();
+        let shape: Shape = shape.into();
         let height = shape.dims[D - 2];
         let width = shape.dims[D - 1];
 
@@ -108,7 +108,7 @@ where
         col_shape[D - 1] = width;
 
         // Reshape for broadcasting.
-        let row_broadcast = row_indices.reshape(Shape::new(row_shape));
+        let row_broadcast: Tensor<B, D, Int> = row_indices.reshape(Shape::new(row_shape));
         let col_broadcast = col_indices.reshape(Shape::new(col_shape));
 
         // Broadcasting trick to create a matrix that facilitates comparison for mask generation.
@@ -141,7 +141,7 @@ where
     ///
     /// Returns a boolean tensor where `true` indicates the elements of the matrix that are part of the
     /// upper triangle taking into account the specified `offset`.
-    pub fn triu_mask<S: Into<Shape<D>>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
         Self::tri_mask(shape, TriPart::Upper, offset, device)
     }
 
@@ -161,7 +161,7 @@ where
     ///
     /// Returns a boolean tensor where `true` indicates the elements of the matrix that are part of the
     /// lower triangle taking into account the specified `offset`.
-    pub fn tril_mask<S: Into<Shape<D>>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
         Self::tri_mask(shape, TriPart::Lower, offset, device)
     }
 
@@ -179,7 +179,7 @@ where
     ///
     /// Returns a boolean tensor where `true` indicates the elements of the matrix that are part of the
     /// diagonal.
-    pub fn diag_mask<S: Into<Shape<D>>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)
     }
 }

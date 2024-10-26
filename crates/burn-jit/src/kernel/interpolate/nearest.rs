@@ -161,9 +161,9 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestEagerKernel<R, E
 }
 
 pub(crate) fn interpolate_nearest_launch<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E, 4>,
-    output: JitTensor<R, E, 4>,
-) -> JitTensor<R, E, 4> {
+    input: JitTensor<R, E>,
+    output: JitTensor<R, E>,
+) -> JitTensor<R, E> {
     let kernel = InterpolateNearestEagerKernel::<R, E>::new();
 
     Execution::start(kernel, input.client.clone())

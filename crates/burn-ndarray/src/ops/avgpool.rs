@@ -5,16 +5,16 @@ use burn_tensor::ElementConversion;
 use ndarray::Array4;
 
 pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
+    x: NdArrayTensor<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> NdArrayTensor<E, 4> {
+) -> NdArrayTensor<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [padding_height, padding_width] = padding;
     let [stride_height, stride_width] = stride;
-    let [batch_size, channels, x_height, x_width] = x.shape().dims;
+    let [batch_size, channels, x_height, x_width] = x.shape().dims();
 
     let out_height = ((x_height + 2 * padding_height - kernel_height) / stride_height) + 1;
     let out_width = ((x_width + 2 * padding_width - kernel_width) / stride_width) + 1;
@@ -71,18 +71,18 @@ pub(crate) fn avg_pool2d<E: FloatNdArrayElement>(
 }
 
 pub(crate) fn avg_pool2d_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
-    grad: NdArrayTensor<E, 4>,
+    x: NdArrayTensor<E>,
+    grad: NdArrayTensor<E>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> NdArrayTensor<E, 4> {
+) -> NdArrayTensor<E> {
     let [kernel_height, kernel_width] = kernel_size;
     let [stride_height, stride_width] = stride;
     let [padding_height, padding_width] = padding;
-    let [batch_size, channels, x_height, x_width] = x.shape().dims;
-    let [_batch_size, _channels, out_height, out_width] = grad.shape().dims;
+    let [batch_size, channels, x_height, x_width] = x.shape().dims();
+    let [_batch_size, _channels, out_height, out_width] = grad.shape().dims();
 
     let grad = grad.array;
 

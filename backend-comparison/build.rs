@@ -3,7 +3,6 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-const MODELS_DIR: &str = "/tmp/models";
 const MODELS_REPO: &str = "https://github.com/tracel-ai/models.git";
 
 // Patch resnet code (remove pretrained feature code)
@@ -224,8 +223,10 @@ where
 }
 
 fn main() {
+    let models_dir = std::env::temp_dir().join("models");
+    let models_dir = models_dir.as_path();
     // Checkout ResNet code from models repo
-    let models_dir = Path::new(MODELS_DIR);
+    let models_dir = Path::new(models_dir);
     if !models_dir.join(".git").exists() {
         run("git", |command| {
             command
@@ -233,7 +234,7 @@ fn main() {
                 .arg("--depth=1")
                 .arg("--no-checkout")
                 .arg(MODELS_REPO)
-                .arg(MODELS_DIR)
+                .arg(models_dir)
         });
 
         run("git", |command| {
@@ -266,10 +267,12 @@ fn main() {
     let source_path = models_dir.join("resnet-burn").join("resnet").join("src");
     let dest_path = Path::new(&out_dir);
 
-    for file in fs::read_dir(source_path).unwrap() {
-        let source_file = file.unwrap().path();
-        let dest_file = dest_path.join(source_file.file_name().unwrap());
-        fs::copy(source_file, dest_file).expect("should copy file successfully");
+    if let Ok(source_path) = fs::read_dir(source_path) {
+        for file in source_path {
+            let source_file = file.unwrap().path();
+            let dest_file = dest_path.join(source_file.file_name().unwrap());
+            fs::copy(source_file, dest_file).expect("should copy file successfully");
+        }
     }
 
     // Delete cloned repository contents
