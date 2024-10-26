@@ -126,6 +126,19 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-hip:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    needs:
+      - publish-burn-tensor
+      - publish-burn-autodiff
+      - publish-burn-ndarray
+      - publish-burn-common
+      - publish-burn-jit
+    with:
+      crate: burn-hip
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-candle:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:

@@ -6,7 +6,7 @@ to complex models.
 ## burnbench CLI
 
 This crate comes with a CLI binary called `burnbench` which can be executed via
-`cargo run  --release --bin burnbench`.
+`cargo run --release --bin burnbench`.
 
 Note that you need to run the `release` target of `burnbench` otherwise you won't
 be able to share your benchmark results.
@@ -14,6 +14,9 @@ be able to share your benchmark results.
 The end of options argument `--` is used to pass arguments to the `burnbench`
 application. For instance `cargo run --bin burnbench -- list` passes the `list`
 argument to `burnbench` effectively calling `burnbench list`.
+
+There is also a cargo alias `cargo bb` which simplifies the command line.
+The example command above then becomes: `cargo bb list`.
 
 ### Commands
 

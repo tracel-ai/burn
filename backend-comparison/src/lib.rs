@@ -65,6 +65,8 @@ macro_rules! bench_on_backend {
         let feature_name = "cuda-jit";
         #[cfg(feature = "cuda-jit-fusion")]
         let feature_name = "cuda-jit-fusion";
+        #[cfg(feature = "hip-jit")]
+        let feature_name = "hip-jit";
 
         #[cfg(any(feature = "wgpu"))]
         {
@@ -145,6 +147,13 @@ macro_rules! bench_on_backend {
             use burn::backend::cuda_jit::{Cuda, CudaDevice};
 
             bench::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
+        }
+
+        #[cfg(feature = "hip-jit")]
+        {
+            use burn::backend::hip_jit::{Hip, HipDevice};
+
+            bench::<Hip<half::f16>>(&HipDevice::default(), feature_name, url, token);
         }
     };
 }

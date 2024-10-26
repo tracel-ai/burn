@@ -86,6 +86,9 @@ enum BackendValues {
     CudaJit,
     #[strum(to_string = "cuda-jit-fusion")]
     CudaJitFusion,
+    #[cfg(target_os = "linux")]
+    #[strum(to_string = "hip-jit")]
+    HipJit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
