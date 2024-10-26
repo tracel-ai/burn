@@ -628,6 +628,13 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOperationDescription::Rem(desc) => {
+                NumericOperationDescription::Rem(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             NumericOperationDescription::RemScalar(desc) => {
                 NumericOperationDescription::RemScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
