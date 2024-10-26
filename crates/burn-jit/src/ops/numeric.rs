@@ -137,6 +137,13 @@ pub fn div_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) ->
     launch_scalar_binop::<R, E, DivOp>(lhs, rhs)
 }
 
+pub fn remainder<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R, E>,
+    rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    launch_binop::<R, E, RemainderOp>(lhs, rhs)
+}
+
 pub fn remainder_scalar<R: JitRuntime, E: JitElement>(
     lhs: JitTensor<R, E>,
     rhs: E,
