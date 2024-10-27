@@ -109,12 +109,13 @@ where
             unreachable!();
         };
 
-        // Little hope that naively reducing is faster if the dim length is that high.
-        if index == 0 && key.reduce_dim_length > 8192 {
-            return false;
+        match index {
+            // Naive
+            0 => key.reduce_dim_length <= 8192,
+            // Shared
+            1 => key.reduce_dim_length >= 16,
+            _ => true,
         }
-
-        true
     }
 }
 
