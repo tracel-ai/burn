@@ -374,7 +374,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     fn float_round(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor
             .array
-            // .mapv_into(|a| (a.to_f64()).round_ties_even().elem())
             .mapv_into(|a| round_ties_even_wrapper(a.to_f64()).elem())
             .into_shared();
 
