@@ -86,6 +86,7 @@ mod tests {
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
     burn_tensor::testgen_permute!();
+    burn_tensor::testgen_remainder!();
     burn_tensor::testgen_flip!();
     burn_tensor::testgen_argwhere_nonzero!();
     burn_tensor::testgen_sign!();
@@ -159,6 +160,7 @@ mod tests {
     burn_autodiff::testgen_ad_mul!();
     burn_autodiff::testgen_ad_neg!();
     burn_autodiff::testgen_ad_recip!();
+    burn_autodiff::testgen_ad_remainder!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_sin!();
     burn_autodiff::testgen_ad_softmax!();
