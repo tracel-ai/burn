@@ -10,7 +10,7 @@ mod tests {
         let output = activation::sigmoid(tensor);
         let expected = TensorData::from([[0.7311, 0.9991], [1.0, 0.0474]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 
     #[test]

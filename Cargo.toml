@@ -53,6 +53,7 @@ js-sys = "0.3.69"
 libm = "0.2.8"
 log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
+paste = "1"
 percent-encoding = "2.3.1"
 polars = { version = "0.41.3", features = ["lazy"] }
 pretty_assertions = "1.4.1"

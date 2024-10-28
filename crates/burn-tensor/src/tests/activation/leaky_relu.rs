@@ -9,9 +9,9 @@ mod tests {
 
         let output = activation::leaky_relu(tensor, 0.01);
 
-        output.into_data().assert_eq(
-            &TensorData::from([[0.0, -0.01, 2.0], [3.0, -0.04, 5.0]]),
-            false,
-        );
+        // Account for conversion errors if `FloatT != f32`
+        output
+            .into_data()
+            .assert_approx_eq(&TensorData::from([[0.0, -0.01, 2.0], [3.0, -0.04, 5.0]]), 5);
     }
 }

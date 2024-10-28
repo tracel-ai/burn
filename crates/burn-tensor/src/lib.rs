@@ -20,7 +20,7 @@ pub mod repr;
 
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
-mod tests;
+pub mod tests;
 
 pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;

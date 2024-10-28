@@ -102,7 +102,7 @@ mod tests {
     fn test_matmul_trivial() {
         let device = Default::default();
 
-        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
+        let tensor_1 = TestTensorInt::<1>::arange(0..16, &device)
             .reshape([4, 4])
             .float();
 
@@ -123,7 +123,7 @@ mod tests {
     fn test_matmul_trivial_transposed() {
         let device = Default::default();
 
-        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..16, &device)
+        let tensor_1 = TestTensorInt::<1>::arange(0..16, &device)
             .reshape([4, 4])
             .float();
 
@@ -144,7 +144,7 @@ mod tests {
     fn test_matmul_4_8() {
         let device = Default::default();
 
-        let tensor_1 = Tensor::<TestBackend, 1, Int>::arange(0..32, &device)
+        let tensor_1 = TestTensorInt::<1>::arange(0..32, &device)
             .reshape([4, 8])
             .float();
 

@@ -122,7 +122,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Nearest),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq(&output.into_data(), 2);
         }
     }
 }

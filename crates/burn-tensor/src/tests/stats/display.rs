@@ -283,7 +283,7 @@ mod tests {
     }
     #[test]
     fn test_display_precision() {
-        let tensor = Tensor::<TestBackend, 2>::full([1, 1], 0.123456789, &Default::default());
+        let tensor = TestTensor::<2>::full([1, 1], 0.123456789, &Default::default());
 
         let output = format!("{}", tensor);
         let expected = format!(
@@ -308,7 +308,7 @@ mod tests {
         // };
         // set_print_options(print_options);
 
-        let tensor = Tensor::<TestBackend, 2>::full([3, 2], 0.123456789, &Default::default());
+        let tensor = TestTensor::<2>::full([3, 2], 0.123456789, &Default::default());
 
         // Set precision to 3
         let output = format!("{:.3}", tensor);

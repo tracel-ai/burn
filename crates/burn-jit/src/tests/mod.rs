@@ -37,8 +37,11 @@ pub use serial_test;
 #[macro_export]
 macro_rules! testgen_all {
     () => {
+        $crate::testgen_all!(f32: [], i32: [], u32: []);
+    };
+    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*], $u_def:ident: [$($uint:ident),*]) => {
         mod jit {
-            burn_jit::testgen_jit!();
+            burn_jit::testgen_jit!($f_def: [$($float),*], $i_def: [$($int),*], $u_def: [$($uint),*]);
 
             mod kernel {
                 use super::*;
@@ -87,21 +90,30 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_jit {
     () => {
-        use super::*;
+        $crate::testgen_jit!(f32: [], i32: [], u32: []);
+    };
+    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*], $u_def:ident: [$($uint:ident),*]) => {
+        pub use super::*;
         use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
         pub type TestBackend = JitBackend<TestRuntime, f32, i32>;
+        pub type TestBackend2<F, I> = JitBackend<TestRuntime, F, I>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+        pub type TestTensor2<F, I, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I>, D>;
         pub type TestTensorInt<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
+        pub type TestTensorInt2<F, I, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Int>;
         pub type TestTensorBool<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
+        pub type TestTensorBool2<F, I, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Bool>;
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-        burn_tensor::testgen_all!();
+        burn_tensor::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*], $u_def: [$($uint),*]);
         burn_autodiff::testgen_all!();
 
         // Not all ops are implemented for quantization yet, notably missing:
@@ -111,7 +123,7 @@ macro_rules! testgen_jit {
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
-    };
+    }
 }
 
 #[macro_export]

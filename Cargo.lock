@@ -582,6 +582,7 @@ dependencies = [
  "derive-new",
  "half",
  "log",
+ "paste",
 ]
 
 [[package]]
@@ -697,6 +698,7 @@ dependencies = [
  "hashbrown 0.15.0",
  "log",
  "num-traits",
+ "paste",
  "rand",
  "serde",
  "serial_test",
@@ -812,6 +814,8 @@ dependencies = [
  "burn-jit",
  "burn-tensor",
  "cubecl",
+ "half",
+ "paste",
 ]
 
 [[package]]

@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn should_support_exp_log1p() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.log1p();
         let expected = TensorData::from([
