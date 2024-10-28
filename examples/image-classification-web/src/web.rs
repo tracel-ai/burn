@@ -10,9 +10,8 @@ use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as S
 
 use burn::{backend::NdArray, prelude::*, tensor::activation::softmax};
 
+use burn::backend::wgpu::{init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
 use burn_candle::Candle;
-use burn_wgpu::{Wgpu, WgpuDevice};
-use cubecl::wgpu::{init_async, AutoGraphicsApi};
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;

@@ -3264,9 +3264,8 @@ dependencies = [
  "burn",
  "burn-candle",
  "burn-import",
- "burn-wgpu",
  "console_error_panic_hook",
- "cubecl",
+ "cubecl-runtime",
  "js-sys",
  "log",
  "serde",
@@ -3794,6 +3793,7 @@ version = "0.15.0"
 dependencies = [
  "burn",
  "console_error_panic_hook",
+ "cubecl-runtime",
  "js-sys",
  "serde",
  "wasm-bindgen",
