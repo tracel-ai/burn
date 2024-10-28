@@ -286,7 +286,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "burn"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-core",
  "burn-train",
@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "burn-autodiff"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "burn-candle"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-tensor",
  "candle-core",
@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "burn-common"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "cubecl-common",
  "data-encoding",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "burn-core"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "bincode",
  "burn-autodiff",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cuda"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-fusion",
  "burn-jit",
@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "burn-dataset"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "csv",
  "derive-new",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "burn-derive"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "derive-new",
  "proc-macro2",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "burn-fusion"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "burn-import"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn",
  "candle-core",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "burn-jit"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-common",
  "burn-fusion",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ndarray"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tch"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-tensor",
  "half",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-common",
  "bytemuck",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "burn-train"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-core",
  "crossterm",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "burn-wgpu"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "burn-fusion",
  "burn-jit",
@@ -2959,7 +2959,7 @@ checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "onnx-ir"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "bytemuck",
  "half",
