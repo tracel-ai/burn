@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(sigmoid)]
 mod tests {
     use super::*;
-    use burn_tensor::{activation, Tensor, TensorData};
+    use burn_tensor::{activation, tests::Numeric, Tensor, TensorData};
 
     #[test]
     fn test_sigmoid() {
@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn test_sigmoid_overflow() {
-        let tensor = TestTensor::<1>::from([f32::MAX, f32::MIN]);
+        let tensor = TestTensor::<1>::from([FloatT::MAX, FloatT::MIN]);
 
         let output = activation::sigmoid(tensor);
         let expected = TensorData::from([1.0, 0.0]);

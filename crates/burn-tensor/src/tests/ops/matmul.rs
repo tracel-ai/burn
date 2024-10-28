@@ -150,14 +150,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
 
-        tensor_3.into_data().assert_eq(
+        tensor_3.into_data().assert_approx_eq(
             &TensorData::from([
                 [140., 364., 588., 812.],
                 [364., 1100., 1836., 2572.],
                 [588., 1836., 3084., 4332.],
                 [812., 2572., 4332., 6092.],
             ]),
-            false,
+            4,
         );
     }
 

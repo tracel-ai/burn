@@ -143,5 +143,6 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         width,
         batch_size,
         bias.is_some(),
+        E::dtype(),
     ))
 }

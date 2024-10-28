@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{as_type, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_full_sliceing_1d() {
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn clamp_when_slice_exceeds_dimension() {
-        let data = TensorData::from([0.0f32, 1.0, 2.0]);
+        let data = TensorData::from(as_type!(FloatT: [0.0f32, 1.0, 2.0]));
         let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..4]);
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn negative_dimensions() {
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
@@ -156,7 +156,7 @@ mod tests {
 
         // Negative dimensions
         let output = tensor.clone().slice([(0, 1), (0, 1)]);
-        let data = TensorData::from([[0.0f32]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.slice([(0, -1), (0, -2)]);
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn missing_dimensions() {
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
@@ -173,21 +173,21 @@ mod tests {
         output.into_data().assert_eq(&data, true);
 
         // Negative dimensions
-        let data = TensorData::from([[0.0f32]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32]]));
         let output = tensor.clone().slice([Some((0, -1)), Some((0, -2))]);
         output.into_data().assert_eq(&data, true);
 
         // Missing dimensions
         let output = tensor.clone().slice([Some((0, 1)), None]);
-        let data = TensorData::from([[0.0f32, 1.0, 2.0]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32, 1.0, 2.0]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, Some((0, 2))]);
-        let data = TensorData::from([[0.0f32, 1.0], [3.0, 4.0]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32, 1.0], [3.0, 4.0]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, None]);
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from(as_type!(FloatT: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         output.into_data().assert_eq(&data, true);
     }
 

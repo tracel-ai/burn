@@ -84,7 +84,7 @@ mod tests {
             !output
                 .clone()
                 .to_data()
-                .as_slice::<f32>()
+                .as_slice::<FloatT>()
                 .unwrap()
                 .iter()
                 .any(|&x| x.is_nan()),
@@ -122,7 +122,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Nearest),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 2);
+            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.2);
         }
     }
 }

@@ -11,7 +11,7 @@ mod tests {
         let output = tensor.erf();
         let expected = TensorData::from([[0.0000, 0.8427, 0.9953], [1.0000, 1.0000, 1.0000]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq(&expected, 2);
     }
 
     #[test]
@@ -25,6 +25,6 @@ mod tests {
             [1.0000, 1.0000, 1.0000],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq(&expected, 2);
     }
 }

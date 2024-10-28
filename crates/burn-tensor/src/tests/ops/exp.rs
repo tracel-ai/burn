@@ -11,6 +11,6 @@ mod tests {
         let output = tensor.exp();
         let expected = TensorData::from([[1.0, 2.71830, 7.3891], [20.0855, 54.5981, 148.4132]]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq(&expected, 2);
     }
 }

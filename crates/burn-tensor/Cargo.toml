@@ -33,7 +33,7 @@ std = [
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.15.0", optional = true }
-cubecl = { workspace = true, optional = true }
+cubecl = { workspace = true, optional = true, default-features = true }
 
 bytemuck = { workspace = true }
 colored = { workspace = true, optional = true }

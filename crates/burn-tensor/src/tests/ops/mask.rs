@@ -104,7 +104,7 @@ mod tests {
             [f32::NAN, f32::NAN, f32::NAN],
         ]);
 
-        output.into_data().assert_eq(&expected, false);
+        output.into_data().assert_approx_eq(&expected, 5);
     }
 
     #[test]

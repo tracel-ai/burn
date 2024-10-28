@@ -95,10 +95,11 @@ pub type Wgpu<F = f32, I = i32, C = Compiler> = JitBackend<cubecl::wgpu::WgpuRun
 
 #[cfg(test)]
 mod tests {
-    pub use crate::flex32;
     use burn_jit::JitBackend;
     pub use half::f16;
     pub type TestRuntime = cubecl::wgpu::WgpuRuntime<super::Compiler>;
 
-    burn_jit::testgen_all!(f32: [f16, flex32, f32, f64], i32: [i8, i16, i32, i64], u32: []);
+    // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
+    // breaks a lot of tests from precision issues
+    burn_jit::testgen_all!(f32: [f16, f32, f64], i32: [i8, i16, i32, i64], u32: []);
 }

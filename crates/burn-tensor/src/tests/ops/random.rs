@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(random)]
 mod tests {
     use super::*;
-    use burn_tensor::{Distribution, Tensor};
+    use burn_tensor::{tests::Float, Distribution, Tensor};
 
     #[test]
     fn rand_default() {
@@ -24,6 +24,6 @@ mod tests {
         let tensor =
             TestTensor::<1>::random([20], Distribution::Bernoulli(1.), &Default::default());
 
-        assert_eq!(tensor.into_data(), [1f32; 20].into());
+        assert_eq!(tensor.into_data(), [FloatT::new(1f32); 20].into());
     }
 }

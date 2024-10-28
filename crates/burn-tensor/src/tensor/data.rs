@@ -1,4 +1,7 @@
-use core::any::{Any, TypeId};
+use core::{
+    any::{Any, TypeId},
+    f32,
+};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -455,9 +458,21 @@ impl TensorData {
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if self.dtype.is_float() {
+                if let Some(err) = compare_floats(a, b, self.dtype, tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -814,7 +829,7 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
 }
 
 #[allow(deprecated)]
-impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
+impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq + Element, const D: usize> Data<E, D> {
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
@@ -871,9 +886,21 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if E::dtype().is_float() {
+                if let Some(err) = compare_floats(a, b, E::dtype(), tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -1018,6 +1045,30 @@ impl<
 impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(format!("{:?}", &self.value).as_str())
+    }
+}
+
+fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<f64> {
+    let epsilon_deviations = tolerance / f32::EPSILON as f64;
+    let epsilon = match ty {
+        DType::F64 => f32::EPSILON as f64, // Don't increase precision beyond `f32`, see below
+        DType::F32 => f32::EPSILON as f64,
+        DType::F16 => half::f16::EPSILON.to_f64(),
+        DType::BF16 => half::bf16::EPSILON.to_f64(),
+        _ => unreachable!(),
+    };
+    let tolerance_norm = epsilon_deviations * epsilon;
+    // Clamp to 1.0 so we don't require more precision than `tolerance`. This is because literals
+    // have a fixed number of digits, so increasing precision breaks things
+    let value_abs = value.abs().max(1.0);
+    let tolerance_adjusted = tolerance_norm * value_abs;
+
+    let err = (value - other).abs();
+
+    if err > tolerance_adjusted || err.is_nan() {
+        Some(err)
+    } else {
+        None
     }
 }
 

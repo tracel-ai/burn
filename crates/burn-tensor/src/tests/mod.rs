@@ -141,6 +141,9 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_tanh_activation!();
 
         // test module
+        burn_tensor::testgen_module_conv1d!();
+        burn_tensor::testgen_module_conv2d!();
+        burn_tensor::testgen_module_conv3d!();
         burn_tensor::testgen_module_forward!();
         burn_tensor::testgen_module_deform_conv2d!();
         burn_tensor::testgen_module_conv_transpose1d!();
@@ -158,6 +161,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_module_bicubic_interpolate!();
 
         // test ops
+        burn_tensor::testgen_gather_scatter!();
+        burn_tensor::testgen_narrow!();
         burn_tensor::testgen_add!();
         burn_tensor::testgen_aggregation!();
         burn_tensor::testgen_arange!();
@@ -250,6 +255,7 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_stack!();
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_transpose!();
+        burn_tensor::testgen_gather_scatter!();
 
         // test stats
         burn_tensor::testgen_eye!();
@@ -260,15 +266,6 @@ macro_rules! testgen_with_int_param {
 #[macro_export]
 macro_rules! testgen_no_param {
     () => {
-        // test modules
-        burn_tensor::testgen_module_conv1d!();
-        burn_tensor::testgen_module_conv2d!();
-        burn_tensor::testgen_module_conv3d!();
-
-        // test ops
-        burn_tensor::testgen_gather_scatter!();
-        burn_tensor::testgen_narrow!();
-
         // test stats
         burn_tensor::testgen_var!();
         burn_tensor::testgen_cov!();
@@ -294,7 +291,10 @@ macro_rules! as_bytes {
 #[allow(missing_docs)]
 #[macro_export]
 macro_rules! as_type {
-    ($ty:ident: $($elem:expr),*) => {
-        &[$(<$ty as burn_tensor::tests::Float>::new($elem),)*]
+    ($ty:ident: [$($elem:tt),*]) => {
+        [$($crate::as_type![$ty: $elem]),*]
+    };
+    ($ty:ident: $elem:expr) => {
+        <$ty as $crate::tests::Float>::new($elem)
     };
 }

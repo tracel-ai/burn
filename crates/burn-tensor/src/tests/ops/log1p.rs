@@ -14,6 +14,6 @@ mod tests {
             [1.3862, 1.6094, 1.7917],
         ]);
 
-        output.into_data().assert_approx_eq(&expected, 3);
+        output.into_data().assert_approx_eq(&expected, 2);
     }
 }

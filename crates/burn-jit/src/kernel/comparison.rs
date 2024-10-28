@@ -169,7 +169,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
 
         JitTensor::new(rhs.client, rhs.handle, rhs.shape, rhs.device, rhs.strides)
     } else {
-        let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
+        let buffer = lhs.client.empty(num_elems * core::mem::size_of::<u32>());
         let output =
             JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
@@ -225,7 +225,7 @@ pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>
             tensor.strides,
         )
     } else {
-        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
+        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<u32>());
         let output = JitTensor::new(
             tensor.client.clone(),
             buffer,
