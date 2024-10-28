@@ -1463,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1475,7 +1475,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-common"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "derive-new",
  "embassy-futures",
@@ -1491,7 +1491,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-core"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1508,7 +1508,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-cpp"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1521,7 +1521,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-cuda"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1536,7 +1536,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-hip"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1560,7 +1560,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-linalg"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1570,7 +1570,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-macros"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1584,7 +1584,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-opt"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -1598,7 +1598,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-runtime"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1618,7 +1618,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-spirv"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -1631,7 +1631,7 @@ dependencies = [
 
 [[package]]
 name = "cubecl-wgpu"
-version = "0.2.0"
+version = "0.4.0"
 dependencies = [
  "ash",
  "async-channel",
@@ -1644,6 +1644,7 @@ dependencies = [
  "derive-new",
  "hashbrown 0.14.5",
  "log",
+ "sanitize-filename",
  "web-time",
  "wgpu",
 ]

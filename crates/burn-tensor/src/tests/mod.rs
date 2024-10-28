@@ -5,7 +5,7 @@ mod ops;
 mod quantization;
 mod stats;
 
-pub use cubecl::prelude::{Float, Numeric};
+pub use cubecl::prelude::{Float, Int, Numeric};
 
 #[allow(missing_docs)]
 #[macro_export]
@@ -14,17 +14,21 @@ macro_rules! testgen_all {
         pub mod tensor {
             pub use super::*;
 
-            pub type FloatT = f32;
+            pub type FloatT = <TestBackend as $crate::backend::Backend>::FloatElem;
+            pub type IntT = <TestBackend as $crate::backend::Backend>::IntElem;
+            pub type BoolT = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
 
             $crate::testgen_with_float_param!();
             $crate::testgen_no_param!();
         }
     };
-    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*], $u_def:ident: [$($uint:ident),*]) => {
+    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*]) => {
         pub mod tensor {
             pub use super::*;
 
-            pub type FloatT = f32;
+            pub type FloatT = $f_def;
+            pub type IntT = $i_def;
+            pub type BoolT = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
@@ -37,7 +41,6 @@ macro_rules! testgen_all {
 
                     type FloatT = $float;
                     type IntT = $i_def;
-                    type UintT = $u_def;
 
                     $crate::testgen_with_float_param!();
                 })*
@@ -51,15 +54,6 @@ macro_rules! testgen_all {
 
                     type FloatT = $f_def;
                     type IntT = $int;
-                    type UintT = $u_def;
-
-                })*
-                $(mod [<$uint _ty>] {
-                    pub use super::*;
-
-                    type FloatT = $f_def;
-                    type IntT = $i_def;
-                    type UintT = $uint;
 
                 })*
             }
@@ -227,6 +221,14 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
+
+        // test stats
+        burn_tensor::testgen_var!();
+        burn_tensor::testgen_cov!();
+        burn_tensor::testgen_eye!();
+
+        // test padding
+        burn_tensor::testgen_padding!();
     };
 }
 
@@ -259,6 +261,9 @@ macro_rules! testgen_with_int_param {
 
         // test stats
         burn_tensor::testgen_eye!();
+
+        // test padding
+        burn_tensor::testgen_padding!();
     };
 }
 
@@ -267,16 +272,10 @@ macro_rules! testgen_with_int_param {
 macro_rules! testgen_no_param {
     () => {
         // test stats
-        burn_tensor::testgen_var!();
-        burn_tensor::testgen_cov!();
-        burn_tensor::testgen_eye!();
         burn_tensor::testgen_display!();
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
-
-        // test padding
-        burn_tensor::testgen_padding!();
     };
 }
 
@@ -294,7 +293,14 @@ macro_rules! as_type {
     ($ty:ident: [$($elem:tt),*]) => {
         [$($crate::as_type![$ty: $elem]),*]
     };
+    ($ty:ident: [$($elem:tt,)*]) => {
+        [$($crate::as_type![$ty: $elem]),*]
+    };
     ($ty:ident: $elem:expr) => {
-        <$ty as $crate::tests::Float>::new($elem)
+        {
+            use $crate::tests::{Float, Int};
+
+            $ty::new($elem)
+        }
     };
 }

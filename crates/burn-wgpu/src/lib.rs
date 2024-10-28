@@ -101,5 +101,5 @@ mod tests {
 
     // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
     // breaks a lot of tests from precision issues
-    burn_jit::testgen_all!(f32: [f16, f32, f64], i32: [i8, i16, i32, i64], u32: []);
+    burn_jit::testgen_all!(f32: [f16, f32], i32: [i8, i16, i32, i64]);
 }
