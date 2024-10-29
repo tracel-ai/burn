@@ -260,7 +260,8 @@ pub enum DType {
 }
 
 impl DType {
-    pub fn size(&self) -> usize {
+    /// Returns the size of a type in bytes.
+    pub const fn size(&self) -> usize {
         match self {
             DType::F64 => core::mem::size_of::<f64>(),
             DType::F32 => core::mem::size_of::<f32>(),
@@ -274,7 +275,10 @@ impl DType {
             DType::U32 => core::mem::size_of::<u32>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(_) => core::mem::size_of::<u8>(), // TODO: Unsure
+            DType::QFloat(strategy) => match strategy {
+                QuantizationStrategy::PerTensorAffineInt8(_) => core::mem::size_of::<u8>(),
+                QuantizationStrategy::PerTensorSymmetricInt8(_) => core::mem::size_of::<u8>(),
+            },
         }
     }
     /// Returns true if the data type is a floating point type.

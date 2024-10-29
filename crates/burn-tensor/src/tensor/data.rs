@@ -333,9 +333,7 @@ impl TensorData {
             let val = &val.elem::<Target>();
             let slice_new = bytemuck::bytes_of(val);
 
-            for i in 0..step {
-                slice_old[i] = slice_new[i].clone();
-            }
+            slice_old.clone_from_slice(slice_new);
         }
         self.dtype = Target::dtype();
 
@@ -1180,7 +1178,7 @@ mod tests {
     #[test]
     fn should_convert_bytes_correctly_inplace() {
         fn test_precision<E: Element>() {
-            let data = TensorData::new((0..32).into_iter().collect(), [32]);
+            let data = TensorData::new((0..32).collect(), [32]);
             for (i, val) in data
                 .clone()
                 .convert::<E>()
