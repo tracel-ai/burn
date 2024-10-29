@@ -1464,6 +1464,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1476,6 +1477,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "derive-new",
  "embassy-futures",
@@ -1492,6 +1494,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1509,6 +1512,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1522,6 +1526,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1537,6 +1542,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1561,6 +1567,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1571,6 +1578,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1585,6 +1593,7 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -1599,6 +1608,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1619,6 +1629,7 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -1632,6 +1643,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.4.0"
+source = "git+https://github.com/wingertge/cubecl?rev=be19ceca3da78a7cb5d1993903ca78a7882e65e4#be19ceca3da78a7cb5d1993903ca78a7882e65e4"
 dependencies = [
  "ash",
  "async-channel",
@@ -1644,7 +1656,6 @@ dependencies = [
  "derive-new",
  "hashbrown 0.14.5",
  "log",
- "sanitize-filename",
  "web-time",
  "wgpu",
 ]
