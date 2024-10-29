@@ -4,6 +4,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use bytemuck::AnyBitPattern;
 use half::{bf16, f16};
 
 use crate::{
@@ -298,9 +299,47 @@ impl TensorData {
     pub fn convert<E: Element>(self) -> Self {
         if E::dtype() == self.dtype {
             self
+        } else if core::mem::size_of::<E>() == self.dtype.size()
+            && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
+        {
+            match self.dtype {
+                DType::F64 => self.convert_inplace::<f64, E>(),
+                DType::F32 => self.convert_inplace::<f32, E>(),
+                DType::F16 => self.convert_inplace::<f16, E>(),
+                DType::BF16 => self.convert_inplace::<bf16, E>(),
+                DType::I64 => self.convert_inplace::<i64, E>(),
+                DType::I32 => self.convert_inplace::<i32, E>(),
+                DType::I16 => self.convert_inplace::<i16, E>(),
+                DType::I8 => self.convert_inplace::<i8, E>(),
+                DType::U64 => self.convert_inplace::<u64, E>(),
+                DType::U32 => self.convert_inplace::<u32, E>(),
+                DType::U8 => self.convert_inplace::<u8, E>(),
+                DType::Bool | DType::QFloat(_) => unreachable!(),
+            }
         } else {
             TensorData::new(self.iter::<E>().collect(), self.shape)
         }
+    }
+
+    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element>(mut self) -> Self {
+        let step = core::mem::size_of::<Current>();
+
+        for offset in 0..(self.bytes.len() / step) {
+            let start = offset * step;
+            let end = start + step;
+
+            let slice_old = &mut self.bytes[start..end];
+            let val: Current = *bytemuck::from_bytes(slice_old);
+            let val = &val.elem::<Target>();
+            let slice_new = bytemuck::bytes_of(val);
+
+            for i in 0..step {
+                slice_old[i] = slice_new[i].clone();
+            }
+        }
+        self.dtype = Target::dtype();
+
+        self
     }
 
     /// Returns the data as a slice of bytes.
@@ -1136,5 +1175,26 @@ mod tests {
         let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
         assert_eq!(data1.bytes.len(), 2 * factor);
         assert_eq!(data1.bytes.capacity(), 5 * factor);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly_inplace() {
+        fn test_precision<E: Element>() {
+            let data = TensorData::new((0..32).into_iter().collect(), [32]);
+            for (i, val) in data
+                .clone()
+                .convert::<E>()
+                .into_vec::<E>()
+                .unwrap()
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(i as u32, val.elem::<u32>())
+            }
+        }
+        test_precision::<f32>();
+        test_precision::<f16>();
+        test_precision::<i64>();
+        test_precision::<i32>();
     }
 }

@@ -260,6 +260,23 @@ pub enum DType {
 }
 
 impl DType {
+    pub fn size(&self) -> usize {
+        match self {
+            DType::F64 => core::mem::size_of::<f64>(),
+            DType::F32 => core::mem::size_of::<f32>(),
+            DType::F16 => core::mem::size_of::<f16>(),
+            DType::BF16 => core::mem::size_of::<bf16>(),
+            DType::I64 => core::mem::size_of::<i64>(),
+            DType::I32 => core::mem::size_of::<i32>(),
+            DType::I16 => core::mem::size_of::<i16>(),
+            DType::I8 => core::mem::size_of::<i8>(),
+            DType::U64 => core::mem::size_of::<u64>(),
+            DType::U32 => core::mem::size_of::<u32>(),
+            DType::U8 => core::mem::size_of::<u8>(),
+            DType::Bool => core::mem::size_of::<bool>(),
+            DType::QFloat(_) => core::mem::size_of::<u8>(), // TODO: Unsure
+        }
+    }
     /// Returns true if the data type is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, DType::F64 | DType::F32 | DType::F16 | DType::BF16)
