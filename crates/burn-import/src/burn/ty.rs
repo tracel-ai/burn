@@ -63,6 +63,16 @@ pub enum Type {
 }
 
 impl Type {
+    // This is used, because types might have number literal name, which cannot be
+    // used as a variable name.
+    pub fn format_name(name: &str) -> String {
+        let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
+        if name_is_number {
+            format!("_{}", name)
+        } else {
+            name.to_string()
+        }
+    }
     pub fn name(&self) -> &Ident {
         match self {
             Type::Tensor(tensor) => &tensor.name,
@@ -107,8 +117,10 @@ impl ScalarType {
         if name.as_ref().is_empty() {
             panic!("Scalar of Type {:?} was passed with empty name", kind);
         }
+
+        let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(name.as_ref(), Span::call_site()),
+            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
             kind,
         }
     }
@@ -150,8 +162,9 @@ impl ShapeType {
         if name.as_ref().is_empty() {
             panic!("Shape was passed with empty name");
         }
+        let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(name.as_ref(), Span::call_site()),
+            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
             dim,
         }
     }
@@ -173,16 +186,6 @@ impl ShapeType {
 }
 
 impl TensorType {
-    // This is used, because Tensors might have number literal name, which cannot be
-    // used as a variable name.
-    pub fn format_name(name: &str) -> String {
-        let name_is_number = name.bytes().all(|digit| digit.is_ascii_digit());
-        if name_is_number {
-            format!("_{}", name)
-        } else {
-            name.to_string()
-        }
-    }
 
     pub fn new<S: AsRef<str>>(
         name: S,
@@ -196,7 +199,7 @@ impl TensorType {
                 kind, shape
             );
         }
-        let formatted_name = Self::format_name(name.as_ref());
+        let formatted_name = Type::format_name(name.as_ref());
         assert_ne!(
             dim, 0,
             "Trying to create TensorType with dim = 0 - should be a Scalar instead!"
@@ -277,8 +280,9 @@ impl OtherType {
                 tokens
             );
         }
+        let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(name.as_ref(), Span::call_site()),
+            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
             ty: tokens,
         }
     }
