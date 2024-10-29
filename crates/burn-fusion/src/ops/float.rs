@@ -1,14 +1,12 @@
 use crate::{
     binary_float_cmp_ops, binary_float_ops,
     client::FusionClient,
-    get_client,
-    ops::binary::binary_ops_shape,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    get_client, scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{execution::Operation, StreamId},
     unary_float_ops, Fusion, FusionBackend,
 };
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+    ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     repr::*,
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
@@ -941,7 +939,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let stream_1 = tensor.stream;
         let stream_2 = mask.stream;
         let stream_3 = value.stream;
-        let shape: Vec<usize> = tensor.shape.clone();
+        let shape = binary_ops_shape(&tensor.shape, &mask.shape);
         let out = tensor
             .client
             .tensor_uninitialized(shape, B::FloatElem::dtype());
@@ -2095,6 +2093,78 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::Flip(desc.clone())),
             FlipOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(RoundOps, B::float_round);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Round(desc.clone()),
+            ),
+            RoundOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(FloorOps, B::float_floor);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Floor(desc.clone()),
+            ),
+            FloorOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_float_ops!(CeilOps, B::float_ceil);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::FloatElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::Float(
+                FloatElem::<Self>::dtype(),
+                FloatOperationDescription::Ceil(desc.clone()),
+            ),
+            CeilOps::<B>::new(desc),
         );
 
         out

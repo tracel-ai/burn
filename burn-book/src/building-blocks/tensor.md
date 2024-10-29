@@ -194,6 +194,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
+| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           | 
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
@@ -221,6 +222,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.mul_scalar(scalar)` or `tensor * scalar`                | `tensor * scalar`                              |
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
+| `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
 | `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
@@ -243,38 +245,40 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.topk_with_indices(k, dim)`                              | `tensor.topk(k, dim)`                          |
 | `tensor.tril(diagonal)`                                         | `torch.tril(tensor, diagonal)`                 |
 | `tensor.triu(diagonal)`                                         | `torch.triu(tensor, diagonal)`                 |
+| `tensor.zeros_like()`                                           | `torch.zeros_like(tensor)`                     |
 
 ### Float Operations
 
 Those operations are only available for `Float` tensors.
 
-| Burn API                                     | PyTorch Equivalent                 |
-| -------------------------------------------- | ---------------------------------- |
-| `tensor.cos()`                               | `tensor.cos()`                     |
-| `tensor.erf()`                               | `tensor.erf()`                     |
-| `tensor.exp()`                               | `tensor.exp()`                     |
-| `tensor.from_floats(floats, device)`         | N/A                                |
-| `tensor.from_full_precision(tensor)`         | N/A                                |
-| `tensor.int()`                               | Similar to `tensor.to(torch.long)` |
-| `tensor.log()`                               | `tensor.log()`                     |
-| `tensor.log1p()`                             | `tensor.log1p()`                   |
-| `tensor.matmul(other)`                       | `tensor.matmul(other)`             |
-| `tensor.one_hot(index, num_classes, device)` | N/A                                |
-| `tensor.ones_like()`                         | `torch.ones_like(tensor)`          |
-| `tensor.random(shape, distribution, device)` | N/A                                |
-| `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform   |
-| `tensor.recip()`                             | `tensor.reciprocal()`              |
-| `tensor.sin()`                               | `tensor.sin()`                     |
-| `tensor.sqrt()`                              | `tensor.sqrt()`                    |
-| `tensor.swap_dims(dim1, dim2)`               | `tensor.transpose(dim1, dim2)`     |
-| `tensor.tanh()`                              | `tensor.tanh()`                    |
-| `tensor.to_full_precision()`                 | `tensor.to(torch.float)`           |
-| `tensor.transpose()`                         | `tensor.T`                         |
-| `tensor.var(dim)`                            | `tensor.var(dim)`                  |
-| `tensor.var_bias(dim)`                       | N/A                                |
-| `tensor.var_mean(dim)`                       | N/A                                |
-| `tensor.var_mean_bias(dim)`                  | N/A                                |
-| `tensor.zeros_like()`                        | `torch.zeros_like(tensor)`         |
+| Burn API                                      | PyTorch Equivalent                 |
+|-----------------------------------------------| ---------------------------------- |
+| `Tensor::one_hot(index, num_classes, device)` | N/A                                |
+| `tensor.ceil()`                               | `tensor.ceil()`                    |
+| `tensor.cos()`                                | `tensor.cos()`                     |
+| `tensor.erf()`                                | `tensor.erf()`                     |
+| `tensor.exp()`                                | `tensor.exp()`                     |
+| `tensor.floor()`                              | `tensor.floor()`                   |
+| `tensor.from_floats(floats, device)`          | N/A                                |
+| `tensor.from_full_precision(tensor)`          | N/A                                |
+| `tensor.int()`                                | Similar to `tensor.to(torch.long)` |
+| `tensor.log()`                                | `tensor.log()`                     |
+| `tensor.log1p()`                              | `tensor.log1p()`                   |
+| `tensor.matmul(other)`                        | `tensor.matmul(other)`             |
+| `tensor.random(shape, distribution, device)`  | N/A                                |
+| `tensor.random_like(distribution)`            | `torch.rand_like()` only uniform   |
+| `tensor.recip()`                              | `tensor.reciprocal()`              |
+| `tensor.round()`                              | `tensor.round()`                   |
+| `tensor.sin()`                                | `tensor.sin()`                     |
+| `tensor.sqrt()`                               | `tensor.sqrt()`                    |
+| `tensor.swap_dims(dim1, dim2)`                | `tensor.transpose(dim1, dim2)`     |
+| `tensor.tanh()`                               | `tensor.tanh()`                    |
+| `tensor.to_full_precision()`                  | `tensor.to(torch.float)`           |
+| `tensor.transpose()`                          | `tensor.T`                         |
+| `tensor.var(dim)`                             | `tensor.var(dim)`                  |
+| `tensor.var_bias(dim)`                        | N/A                                |
+| `tensor.var_mean(dim)`                        | N/A                                |
+| `tensor.var_mean_bias(dim)`                   | N/A                                |
 
 ### Int Operations
 
@@ -288,6 +292,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
+| `tensor.one_hot(num_classes)`                    | N/A                                                     |
 
 ### Bool Operations
 
@@ -330,6 +335,7 @@ strategies.
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
+| `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
 

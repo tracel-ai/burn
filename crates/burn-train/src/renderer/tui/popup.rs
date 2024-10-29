@@ -1,5 +1,5 @@
-use crossterm::event::{Event, KeyCode};
 use ratatui::{
+    crossterm::event::{Event, KeyCode},
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},

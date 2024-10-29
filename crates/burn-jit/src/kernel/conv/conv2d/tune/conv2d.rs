@@ -9,7 +9,10 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{can_do_implicit_gemm, conv2d_direct, conv2d_im2col, conv2d_implicit_gemm},
+        conv::{
+            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col,
+            conv2d_implicit_gemm,
+        },
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -73,30 +76,43 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     op: &Conv2dOperations<R, F, I>,
-    _key: &JitAutotuneKey,
+    key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
+    let key = match key {
+        JitAutotuneKey::Conv2d(key) => key,
+        _ => unreachable!(),
+    };
+
+    let out_h = calculate_conv_output_size(
+        key.kernel_size[0],
+        key.stride[0],
+        key.padding[0],
+        key.dilation[0],
+        key.height,
+    );
+    let out_w = calculate_conv_output_size(
+        key.kernel_size[1],
+        key.stride[1],
+        key.padding[1],
+        key.dilation[1],
+        key.width,
+    );
+
     match index {
-        2 => {
-            let [_, _, height, width] = op.input.shape.dims();
-            let [_, _, kernel_h, kernel_w] = op.weights.shape.dims();
-            let o = &op.options;
-            let out_h = calculate_conv_output_size(
-                kernel_h,
-                o.stride[0],
-                o.padding[0],
-                o.dilation[0],
-                height,
-            );
-            let out_w = calculate_conv_output_size(
-                kernel_w,
-                o.stride[1],
-                o.padding[1],
-                o.dilation[1],
-                width,
-            );
-            can_do_implicit_gemm(&op.input, &op.weights, &op.options, out_h, out_w)
-        }
+        // im2col
+        1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
+        // Implicit gemm.
+        2 => can_do_implicit_gemm::<R, F>(
+            key.batch_size,
+            key.in_channels,
+            key.out_channels,
+            key.kernel_size,
+            op.options.groups,
+            out_h,
+            out_w,
+            &op.input.device,
+        ),
         _ => true,
     }
 }

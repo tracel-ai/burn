@@ -31,7 +31,7 @@ env:
   # Note: It is not possible to define env vars in composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.80.0
+  RUST_PREVIOUS_VERSION: 1.81.0
 
   # Cargo
   CARGO_TERM_COLOR: "always"
@@ -135,6 +135,8 @@ jobs:
   linux-std-tests:
     runs-on: ubuntu-22.04
     needs: prepare-checks
+    env:
+      DISABLE_WGPU_SPIRV: '1'
     strategy:
       matrix:
         rust: [stable, prev]

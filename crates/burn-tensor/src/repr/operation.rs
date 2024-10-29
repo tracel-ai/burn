@@ -1,5 +1,8 @@
+use core::ops::Range;
 use serde::{Deserialize, Serialize};
-use std::ops::Range;
+
+use alloc::boxed::Box;
+use alloc::{vec, vec::Vec};
 
 use crate::{
     ops::{
@@ -56,6 +59,12 @@ pub enum FloatOperationDescription {
     Sin(UnaryOperationDescription),
     /// Operation corresponding to [tanh](crate::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOperationDescription),
+    /// Operation corresponding to [round](crate::ops::FloatTensorOps::float_round).
+    Round(UnaryOperationDescription),
+    /// Operation corresponding to [floor](crate::ops::FloatTensorOps::float_floor).
+    Floor(UnaryOperationDescription),
+    /// Operation corresponding to [ceil](crate::ops::FloatTensorOps::float_ceil).
+    Ceil(UnaryOperationDescription),
     /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
     /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
@@ -214,6 +223,13 @@ pub enum BaseOperationDescription {
     Cat(CatOperationDescription),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(UnaryOperationDescription),
+
+    /// Operation corresponding to:
+    ///
+    /// Float => [equal](crate::ops::FloatTensorOps::float_empty).
+    /// Int => [equal](crate::ops::IntTensorOps::int_empty).
+    /// Bool => [equal](crate::ops::BoolTensorOps::bool_empty).
+    Empty(TensorDescription),
 }
 
 /// Numeric operations on int and float tensors.
@@ -1286,6 +1302,7 @@ impl BaseOperationDescription {
             }
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
             BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
+            BaseOperationDescription::Empty(desc) => vec![desc],
         }
     }
 }
@@ -1443,6 +1460,9 @@ impl FloatOperationDescription {
             FloatOperationDescription::Cos(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Round(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Floor(desc) => vec![&desc.input, &desc.out],
+            FloatOperationDescription::Ceil(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Quantize(desc) => {
                 if let Some(offset) = &desc.qparams.offset {
@@ -1605,7 +1625,7 @@ impl ModuleOperationDescription {
 }
 
 impl core::hash::Hash for RandomOperationDescription {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
 
         match self.distribution {
@@ -1618,14 +1638,14 @@ impl core::hash::Hash for RandomOperationDescription {
 }
 
 impl<E> core::hash::Hash for ScalarOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);
         self.out.hash(state);
     }
 }
 
 impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.mask.hash(state);
         self.out.hash(state);
@@ -1633,14 +1653,14 @@ impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
 }
 
 impl<E> core::hash::Hash for ClampOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.out.hash(state);
     }
 }
 
 impl<E> core::hash::Hash for NumericOperationDescription<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         match self {
             NumericOperationDescription::Add(desc) => desc.hash(state),
             NumericOperationDescription::AddScalar(desc) => desc.hash(state),

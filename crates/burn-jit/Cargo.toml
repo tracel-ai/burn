@@ -8,6 +8,7 @@ license.workspace = true
 name = "burn-jit"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-jit"
+documentation = "https://docs.rs/burn-jit"
 version.workspace = true
 
 [features]
@@ -27,10 +28,10 @@ std = ["cubecl/std"]
 template = []
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.15.0" }
-burn-fusion = { path = "../burn-fusion", version = "0.15.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.15.0", features = [
-  "cubecl",
+burn-common = { path = "../burn-common", version = "0.16.0" }
+burn-fusion = { path = "../burn-fusion", version = "0.16.0", optional = true }
+burn-tensor = { path = "../burn-tensor", version = "0.16.0", features = [
+  "cubecl", "repr",
 ] }
 cubecl = { workspace = true, features = ["linalg"] }
 
@@ -42,17 +43,21 @@ num-traits = { workspace = true }
 rand = { workspace = true }
 spin = { workspace = true }
 
+# Async
+futures-lite = { workspace = true, features = ["std"] }
+
 # Template
 serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
 
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.15.0", optional = true }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.16.0", optional = true }
 hashbrown = { workspace = true }
 
 # When exporting tests
-burn-autodiff = { path = "../burn-autodiff", version = "0.15.0", default-features = false, optional = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", optional = true }
+burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", default-features = false, optional = true }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true }
 serial_test = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

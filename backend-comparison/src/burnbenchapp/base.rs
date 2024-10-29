@@ -78,8 +78,17 @@ enum BackendValues {
     Wgpu,
     #[strum(to_string = "wgpu-fusion")]
     WgpuFusion,
+    #[strum(to_string = "wgpu-spirv")]
+    WgpuSpirv,
+    #[strum(to_string = "wgpu-spirv-fusion")]
+    WgpuSpirvFusion,
     #[strum(to_string = "cuda-jit")]
     CudaJit,
+    #[strum(to_string = "cuda-jit-fusion")]
+    CudaJitFusion,
+    #[cfg(target_os = "linux")]
+    #[strum(to_string = "hip-jit")]
+    HipJit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]

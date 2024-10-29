@@ -1,5 +1,4 @@
 use alloc::string::String;
-pub use burn_common::sync_type::SyncType;
 
 use crate::tensor::Element;
 use crate::{ops::*, quantization::QTensorPrimitive};
@@ -60,8 +59,8 @@ pub trait Backend:
     + ActivationOps<Self>
     + QTensorOps<Self>
     + Clone
-    + Sized
     + Default
+    + Sized
     + Send
     + Sync
     + core::fmt::Debug
@@ -74,20 +73,25 @@ pub trait Backend:
     type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
+    type IntTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive: Clone + Send + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive: QTensorPrimitive + Clone + Send + 'static + core::fmt::Debug;
+    type QuantizedTensorPrimitive: QTensorPrimitive
+        + Clone
+        + Send
+        + Sync
+        + 'static
+        + core::fmt::Debug;
     /// Quantized tensor encoding type.
     type QuantizedEncoding: Element;
 
@@ -103,7 +107,7 @@ pub trait Backend:
     fn seed(seed: u64);
 
     /// Sync the backend, ensure that all computation are finished.
-    fn sync(_device: &Self::Device, _sync_type: SyncType) {}
+    fn sync(_device: &Self::Device) {}
 }
 
 /// Trait that allows a backend to support autodiff.

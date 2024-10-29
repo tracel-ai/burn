@@ -3,7 +3,11 @@ use core::hash::{BuildHasher, Hasher};
 use alloc::string::String;
 use burn_common::id::IdGenerator;
 use data_encoding::BASE32_DNSSEC;
-use hashbrown::hash_map::DefaultHashBuilder;
+
+// Hashbrown changed its default hasher in 0.15, but there are some issues
+// https://github.com/rust-lang/hashbrown/issues/577
+// Also, `param_serde_deserialize_legacy_uuid` doesn't pass with the default hasher.
+type DefaultHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
 
 /// Parameter ID.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -55,7 +59,7 @@ impl ParamId {
                 // Backward compatibility with uuid parameter identifiers
                 Ok(id) => {
                     // Hash the 128-bit uuid to 64-bit
-                    // Though not *theoretically* unique, the probability of a collision should be extremly low
+                    // Though not *theoretically* unique, the probability of a collision should be extremely low
                     let mut hasher = DefaultHashBuilder::default().build_hasher();
                     // let mut hasher = DefaultHasher::new();
                     hasher.write(id.as_bytes());

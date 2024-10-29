@@ -30,6 +30,7 @@ include_models!(
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose1d,
     conv_transpose2d,
     conv_transpose3d,
     cos,
@@ -1506,6 +1507,28 @@ mod tests {
         // data from pyTorch
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn conv_transpose1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 22]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 
     #[test]

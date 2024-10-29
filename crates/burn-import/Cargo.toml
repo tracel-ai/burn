@@ -9,6 +9,7 @@ license.workspace = true
 name = "burn-import"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-import"
+documentation = "https://docs.rs/burn-import"
 version.workspace = true
 
 default-run = "onnx2burn"
@@ -19,8 +20,8 @@ onnx = []
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.15.0", features = ["ndarray"] }
-onnx-ir = { path = "../onnx-ir", version = "0.15.0" }
+burn = { path = "../burn", version = "0.16.0", features = ["ndarray"] }
+onnx-ir = { path = "../onnx-ir", version = "0.16.0" }
 candle-core = { workspace = true }
 derive-new = { workspace = true }
 half = { workspace = true }
@@ -40,3 +41,7 @@ zip = { workspace = true, optional = true }
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 rstest = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]

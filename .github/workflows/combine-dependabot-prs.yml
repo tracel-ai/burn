@@ -18,6 +18,6 @@ jobs:
     steps:
       - name: combine-prs
         id: combine-prs
-        uses: github/combine-prs@v5.1.0 # where X.X.X is the latest version
+        uses: github/combine-prs@v5.2.0 # where X.X.X is the latest version
         with:
           labels: dependencies,automated

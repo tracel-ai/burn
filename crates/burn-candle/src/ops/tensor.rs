@@ -203,11 +203,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        CandleTensor::new(
-            mask.tensor
-                .where_cond(&value.tensor, &tensor.tensor)
-                .unwrap(),
-        )
+        super::base::mask_where_broadcasted(tensor, mask, value)
     }
 
     fn float_mask_fill(
@@ -335,6 +331,36 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.tanh().unwrap())
+    }
+
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let inner = |tensor: FloatTensor<Self>| -> candle_core::Result<FloatTensor<Self>> {
+            // implements round_to_even for consistent behavior vs libtorch
+            // https://github.com/pytorch/pytorch/blob/main/torch/csrc/jit/runtime/register_ops_utils.h#L65-L67
+
+            let floor_a = tensor.tensor.floor()?;
+            let frac_part = tensor.tensor.sub(&floor_a)?;
+
+            let half = (candle_core::Tensor::ones_like(&tensor.tensor)? * 0.5)?;
+            let mask_half = frac_part.eq(&half)?;
+            let half_tensor = tensor.tensor.mul(&half)?;
+            let rounded_half = half_tensor.round()?;
+            let doubled =
+                rounded_half.mul(&(candle_core::Tensor::ones_like(&tensor.tensor)? * 2.0)?)?;
+            let standard_round = tensor.tensor.round()?;
+            Ok(CandleTensor::new(
+                mask_half.where_cond(&doubled, &standard_round)?,
+            ))
+        };
+        inner(tensor).unwrap()
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.floor().unwrap())
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.ceil().unwrap())
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

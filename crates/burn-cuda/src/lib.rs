@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
 extern crate alloc;
 
 use burn_jit::JitBackend;

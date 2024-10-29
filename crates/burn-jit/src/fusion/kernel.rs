@@ -40,7 +40,7 @@ pub trait FusionKernelFactory<R: JitRuntime> {
 /// An instantiation of a [kernel](Kernel) that can be executed.
 #[derive(new)]
 pub struct ExecutableKernel<R: JitRuntime> {
-    kernel: Box<dyn CubeTask>,
+    kernel: Box<dyn CubeTask<R::Compiler>>,
     cube_count: CubeCount<R::Server>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,
@@ -54,7 +54,7 @@ pub struct ExecutableKernel<R: JitRuntime> {
 /// The clone function used is defined in the trait [AutotuneOperation] instead of [Clone].
 #[derive(new)]
 pub struct AutotunableKernel<R: JitRuntime> {
-    kernel: Arc<dyn CubeTask>,
+    kernel: Arc<dyn CubeTask<R::Compiler>>,
     count: CubeCount<R::Server>,
     bindings: Vec<Binding<R::Server>>,
     client: ComputeClient<R::Server, R::Channel>,

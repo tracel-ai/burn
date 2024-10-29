@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(clippy::ptr_arg)]
 #![allow(clippy::single_match)]
 #![allow(clippy::upper_case_acronyms)]

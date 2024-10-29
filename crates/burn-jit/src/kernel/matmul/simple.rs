@@ -109,7 +109,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
     // consecutively in memory, which allows to fetch them with fewer memory instructions
     let rhs = into_contiguous(swap_dims(rhs, ndims - 1, ndims - 2));
 
-    let cube_count = simple_cube_count::<R>(
+    let cube_count = simple_cube_count(
         &lhs.shape,
         &rhs_original_shape,
         &out.shape,

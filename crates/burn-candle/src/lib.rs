@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(unused)] // TODO remove when backend filled
 
 //! Burn Candle Backend
@@ -89,6 +90,9 @@ mod tests {
     burn_tensor::testgen_argwhere_nonzero!();
     burn_tensor::testgen_sign!();
     burn_tensor::testgen_nan!();
+    burn_tensor::testgen_round!();
+    burn_tensor::testgen_floor!();
+    burn_tensor::testgen_ceil!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //
@@ -164,4 +168,7 @@ mod tests {
     burn_autodiff::testgen_ad_tanh!();
     burn_autodiff::testgen_ad_transpose!();
     burn_autodiff::testgen_ad_expand!();
+    burn_autodiff::testgen_ad_round!();
+    burn_autodiff::testgen_ad_floor!();
+    burn_autodiff::testgen_ad_ceil!();
 }

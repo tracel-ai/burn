@@ -2,6 +2,7 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Flexible and Comprehensive Deep Learning Framework in Rust"
+documentation = "https://docs.rs/burn-core"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
@@ -11,6 +12,7 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-core"
 version.workspace = true
 
 [features]
+dataset = ["burn-dataset"]
 default = [
     "std",
     "burn-candle?/default",
@@ -21,25 +23,8 @@ default = [
     "burn-tensor/default",
     "burn-wgpu?/default",
     "burn-cuda?/default",
+    "burn-hip?/default",
     "burn-autodiff?/default",
-]
-std = [
-    "burn-autodiff?/std",
-    "bincode/std",
-    "burn-candle?/std",
-    "burn-common/std",
-    "burn-ndarray?/std",
-    "burn-tensor/std",
-    "burn-wgpu?/std",
-    "burn-cuda?/std",
-    "flate2",
-    "half/std",
-    "log",
-    "rand/std",
-    "rmp-serde",
-    "serde/std",
-    "serde_json/std",
-    "num-traits/std",
 ]
 doc = [
     "std",
@@ -50,6 +35,8 @@ doc = [
     "ndarray",
     "tch",
     "wgpu",
+    "cuda-jit",
+    "hip-jit",
     "vision",
     "autodiff",
     # Doc features
@@ -61,32 +48,53 @@ doc = [
     "burn-tensor/doc",
     "burn-wgpu/doc",
     "burn-cuda/doc",
+    "burn-hip/doc",
 ]
-dataset = ["burn-dataset"]
 network = ["burn-common/network"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
+std = [
+    "burn-autodiff?/std",
+    "bincode/std",
+    "burn-candle?/std",
+    "burn-common/std",
+    "burn-ndarray?/std",
+    "burn-tensor/std",
+    "burn-wgpu?/std",
+    "burn-cuda?/std",
+    "burn-hip?/std",
+    "flate2",
+    "half/std",
+    "log",
+    "rand/std",
+    "rmp-serde",
+    "serde/std",
+    "serde_json/std",
+    "num-traits/std",
+]
 vision = ["burn-dataset?/vision", "burn-common/network"]
 
 # Backend
 autodiff = ["burn-autodiff"]
-fusion = ["burn-wgpu?/fusion"]
+fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
 
 ## Backend features
-metal = ["burn-candle?/metal"]
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
+autotune = ["burn-wgpu?/autotune"]
+blas-netlib = ["burn-ndarray?/blas-netlib"]
+metal = ["burn-candle?/metal"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
-blas-netlib = ["burn-ndarray?/blas-netlib"]
-autotune = ["burn-wgpu?/autotune"]
 template = ["burn-wgpu?/template"]
 
-ndarray = ["burn-ndarray"]
-tch = ["burn-tch"]
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
-wgpu = ["burn-wgpu"]
 cuda-jit = ["burn-cuda"]
+hip-jit = ["burn-hip"]
+ndarray = ["burn-ndarray"]
+tch = ["burn-tch"]
+wgpu = ["burn-wgpu"]
+wgpu-spirv = ["wgpu", "burn-wgpu/spirv"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror", "regex"]
@@ -97,26 +105,32 @@ experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 # Backwards compatibility with previous serialized data format.
 record-backward-compat = []
 
-test-tch = ["tch"]       # To use tch during testing, default uses ndarray.
-test-wgpu = ["wgpu"]     # To use wgpu during testing, default uses ndarray.
 test-cuda = ["cuda-jit"] # To use cuda during testing, default uses ndarray.
+test-hip = ["hip-jit"] # To use hip during testing, default uses ndarray.
+test-tch = ["tch"] # To use tch during testing, default uses ndarray.
+test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
+test-wgpu-spirv = [
+    "test-wgpu",
+    "wgpu-spirv",
+] # To use wgpu-spirv during testing, default uses ndarray.
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
-burn-dataset = { path = "../burn-dataset", version = "0.15.0", optional = true, default-features = false }
-burn-derive = { path = "../burn-derive", version = "0.15.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.15.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = false }
+burn-dataset = { path = "../burn-dataset", version = "0.16.0", optional = true, default-features = false }
+burn-derive = { path = "../burn-derive", version = "0.16.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false }
 
 # Backends
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", optional = true, default-features = false }
-burn-wgpu = { path = "../burn-wgpu", version = "0.15.0", optional = true, default-features = false }
-burn-cuda = { path = "../burn-cuda", version = "0.15.0", optional = true, default-features = false }
-burn-autodiff = { path = "../burn-autodiff", version = "0.15.0", optional = true }
-burn-tch = { path = "../burn-tch", version = "0.15.0", optional = true }
-burn-candle = { path = "../burn-candle", version = "0.15.0", optional = true }
+burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.16.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true, default-features = false }
+burn-hip = { path = "../burn-hip", version = "0.16.0", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true, default-features = false }
+burn-tch = { path = "../burn-tch", version = "0.16.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true, default-features = false }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }
@@ -132,26 +146,28 @@ hashbrown = { workspace = true, features = ["serde"] } # no_std compatible
 flate2 = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 
+ahash = { workspace = true }
 bincode = { workspace = true }
 half = { workspace = true }
+num-traits = { workspace = true }
+regex = { workspace = true, optional = true }
 rmp-serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] } #Default enables std
-thiserror = { workspace = true, optional = true }
-regex = { workspace = true, optional = true }
-num-traits = { workspace = true }
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
+thiserror = { workspace = true, optional = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
-burn-dataset = { path = "../burn-dataset", version = "0.15.0", features = [
+burn-dataset = { path = "../burn-dataset", version = "0.16.0", features = [
     "fake",
 ] }
+tempfile = { workspace = true }
 
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0", default-features = false }
-burn-autodiff = { path = "../burn-autodiff", version = "0.15.0" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.16.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
