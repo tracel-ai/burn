@@ -144,7 +144,6 @@ impl TensorData {
 
         let capacity = capacity_bytes / size_elem;
         let length = length_bytes / size_elem;
-        println!("Capacity {capacity}, length {length}");
 
         unsafe {
             let ptr = self.bytes.as_mut_ptr();
