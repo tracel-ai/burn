@@ -128,6 +128,32 @@ impl TensorData {
         Ok(self.as_slice()?.to_vec())
     }
 
+    /// Returns the tensor data as a vector of scalar values.
+    pub fn into_vec<E: Element>(mut self) -> Result<Vec<E>, DataError> {
+        if E::dtype() != self.dtype {
+            return Err(DataError::TypeMismatch(format!(
+                "Invalid target element type (expected {:?}, got {:?})",
+                self.dtype,
+                E::dtype()
+            )));
+        }
+
+        let capacity_bytes = self.bytes.capacity();
+        let length_bytes = self.bytes.len();
+        let size_elem = core::mem::size_of::<E>();
+
+        let capacity = capacity_bytes / size_elem;
+        let length = length_bytes / size_elem;
+        println!("Capacity {capacity}, length {length}");
+
+        unsafe {
+            let ptr = self.bytes.as_mut_ptr();
+            core::mem::forget(self.bytes);
+
+            Ok(Vec::from_raw_parts(ptr.cast::<E>(), length, capacity))
+        }
+    }
+
     /// Returns an iterator over the values of the tensor data.
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
@@ -1020,6 +1046,34 @@ mod tests {
     use super::*;
     use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
+
+    #[test]
+    fn into_vec_should_yield_same_value_as_iter() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        let expected = data.iter::<f32>().collect::<Vec<f32>>();
+        let actual = data.into_vec::<f32>().unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn into_vec_should_assert_wrong_dtype() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        data.into_vec::<i32>().unwrap();
+    }
 
     #[test]
     fn should_have_right_num_elements() {
