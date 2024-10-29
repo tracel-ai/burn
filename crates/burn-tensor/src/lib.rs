@@ -66,11 +66,7 @@ mod cube_wgpu {
                 WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
                 WgpuDevice::Cpu => DeviceId::new(3, 0),
                 WgpuDevice::BestAvailable => DeviceId::new(4, 0),
-                // For an existing device, use the 32 or 64 bit wgpu device ID as the burn DeviceID.
-                // We're only storing 32 bits, so wrap the the 32 or 64 bit value to 32 bits. This
-                // might collide - but a 1 in 4 billion chance seems ok given there's only a few
-                // devices in flight at any time.
-                WgpuDevice::Existing(id) => DeviceId::new(5, (*id % (u32::MAX as usize)) as u32),
+                WgpuDevice::Existing(id) => DeviceId::new(5, *id),
             }
         }
     }
