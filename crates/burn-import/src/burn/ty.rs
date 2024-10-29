@@ -120,7 +120,7 @@ impl ScalarType {
 
         let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
+            name: Ident::new(&formatted_name, Span::call_site()),
             kind,
         }
     }
@@ -164,7 +164,7 @@ impl ShapeType {
         }
         let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
+            name: Ident::new(&formatted_name, Span::call_site()),
             dim,
         }
     }
@@ -186,7 +186,6 @@ impl ShapeType {
 }
 
 impl TensorType {
-
     pub fn new<S: AsRef<str>>(
         name: S,
         dim: usize,
@@ -282,7 +281,7 @@ impl OtherType {
         }
         let formatted_name = Type::format_name(name.as_ref());
         Self {
-            name: Ident::new(formatted_name.as_ref(), Span::call_site()),
+            name: Ident::new(&formatted_name, Span::call_site()),
             ty: tokens,
         }
     }
