@@ -1,3 +1,5 @@
+use core::f64;
+
 use crate::{
     self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
@@ -10,7 +12,12 @@ use super::{
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::AutodiffBackend, Tensor};
-use burn_tensor::{backend::Backend, ElementConversion};
+use burn_tensor::{
+    backend::Backend,
+    quantization::{Quantization, QuantizationStrategy},
+    Element, ElementConversion,
+};
+use half::{bf16, f16};
 
 /// Adam configuration.
 #[derive(Config)]
@@ -129,26 +136,30 @@ impl AdaptiveMomentum {
     ) -> (Tensor<B, D>, AdaptiveMomentumState<B, D>) {
         let state = if let Some(mut state) = momentum_state {
             let factor = 1.0 - self.beta_1;
-            state.moment_1 = state
-                .moment_1
-                .mul_scalar(self.beta_1)
-                .add(grad.clone().mul_scalar(factor));
+            state.moment_1 = unzero(
+                state
+                    .moment_1
+                    .mul_scalar(self.beta_1)
+                    .add(grad.clone().mul_scalar(factor)),
+            );
 
             let factor = 1.0 - self.beta_2;
-            state.moment_2 = state
-                .moment_2
-                .mul_scalar(self.beta_2)
-                .add(grad.powf_scalar(2.0).mul_scalar(factor));
+            state.moment_2 = unzero(
+                state
+                    .moment_2
+                    .mul_scalar(self.beta_2)
+                    .add(grad.powf_scalar(2.0).mul_scalar(factor)),
+            );
 
             state.time += 1;
 
             state
         } else {
             let factor = 1.0 - self.beta_1;
-            let moment_1 = grad.clone().mul_scalar(factor);
+            let moment_1 = unzero(grad.clone().mul_scalar(factor));
 
             let factor = 1.0 - self.beta_2;
-            let moment_2 = grad.powf_scalar(2.0).mul_scalar(factor);
+            let moment_2 = unzero(grad.powf_scalar(2.0).mul_scalar(factor));
 
             AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
@@ -166,6 +177,26 @@ impl AdaptiveMomentum {
         let grad = moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon));
 
         (grad, state)
+    }
+}
+
+fn unzero<B: Backend, const D: usize>(moment: Tensor<B, D>) -> Tensor<B, D> {
+    let mask = moment.clone().bool().bool_not();
+    match <B::FloatElem as Element>::dtype() {
+        burn_tensor::DType::F64 => moment.mask_fill(mask, f64::MIN_POSITIVE),
+        burn_tensor::DType::F32 => moment.mask_fill(mask, f32::MIN_POSITIVE),
+        burn_tensor::DType::F16 => moment.mask_fill(mask, f16::MIN_POSITIVE),
+        burn_tensor::DType::BF16 => moment.mask_fill(mask, bf16::MIN_POSITIVE),
+        burn_tensor::DType::QFloat(quantization_strategy) => {
+            let min = match quantization_strategy {
+                QuantizationStrategy::PerTensorAffineInt8(q) => q.quantize(&[f32::MIN_POSITIVE])[0],
+                QuantizationStrategy::PerTensorSymmetricInt8(q) => {
+                    q.quantize(&[f32::MIN_POSITIVE])[0]
+                }
+            };
+            moment.mask_fill(mask, min)
+        }
+        _ => unreachable!(),
     }
 }
 
