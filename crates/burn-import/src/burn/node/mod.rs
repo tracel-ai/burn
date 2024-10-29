@@ -30,6 +30,7 @@ pub(crate) mod mean;
 pub(crate) mod pad;
 pub(crate) mod prelu;
 pub(crate) mod random_normal;
+pub(crate) mod random_normal_like;
 pub(crate) mod random_uniform;
 pub(crate) mod range;
 pub(crate) mod reshape;

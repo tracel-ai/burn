@@ -61,6 +61,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::PRelu => same_as_input_broadcast(node),
         NodeType::Pow => same_as_input_broadcast(node),
         NodeType::RandomNormal => random_update_output(node),
+        NodeType::RandomNormalLike => same_as_input(node),
         NodeType::RandomUniform => random_update_output(node),
         NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
