@@ -101,7 +101,7 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = { git = "https://github.com/erichdongubler-mozilla/wgpu", branch = "v23" }
+wgpu = "23.0.0"
 
 # Benchmarks and Burnbench
 arboard = "3.4.1"
@@ -152,8 +152,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "99404b1e29946832a42b72a5c26d4cf42c67692e" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "99404b1e29946832a42b72a5c26d4cf42c67692e" }
+cubecl = { git = "https://github.com/AsherJingkongChen/cubecl", default-features = false, branch = "refactor/wgpu-v23" }
+cubecl-common = { git = "https://github.com/AsherJingkongChen/cubecl", default-features = false, branch = "refactor/wgpu-v23" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

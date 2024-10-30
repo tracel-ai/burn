@@ -1429,7 +1429,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1460,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "derive-new",
  "embassy-futures",
@@ -1477,7 +1477,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1494,7 +1494,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1508,7 +1508,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1524,7 +1524,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1549,7 +1549,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1560,7 +1560,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "cubecl-common 0.4.0",
  "darling",
@@ -1575,7 +1575,7 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
@@ -1612,7 +1612,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1633,7 +1633,7 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
@@ -1646,7 +1646,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=99404b1e29946832a42b72a5c26d4cf42c67692e#99404b1e29946832a42b72a5c26d4cf42c67692e"
+source = "git+https://github.com/AsherJingkongChen/cubecl?branch=refactor/wgpu-v23#c8ff1e188687d1db04d0d12eb604241745952f38"
 dependencies = [
  "ash",
  "async-channel",
@@ -3824,7 +3824,8 @@ dependencies = [
 [[package]]
 name = "naga"
 version = "23.0.0"
-source = "git+https://github.com/erichdongubler-mozilla/wgpu?branch=v23#194b6ccfa554a73b9852cd88f69d04cb642e975a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d5941e45a15b53aad4375eedf02033adb7a28931eedc31117faffa52e6a857e"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -7317,7 +7318,8 @@ checksum = "53a85b86a771b1c87058196170769dd264f66c0782acf1ae6cc51bfd64b39082"
 [[package]]
 name = "wgpu"
 version = "23.0.0"
-source = "git+https://github.com/erichdongubler-mozilla/wgpu?branch=v23#194b6ccfa554a73b9852cd88f69d04cb642e975a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76ab52f2d3d18b70d5ab8dd270a1cff3ebe6dbe4a7d13c1cc2557138a9777fdc"
 dependencies = [
  "arrayvec",
  "cfg_aliases 0.1.1",
@@ -7341,7 +7343,8 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "23.0.0"
-source = "git+https://github.com/erichdongubler-mozilla/wgpu?branch=v23#194b6ccfa554a73b9852cd88f69d04cb642e975a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e0c68e7b6322a03ee5b83fcd92caeac5c2a932f6457818179f4652ad2a9c065"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -7365,7 +7368,8 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "23.0.0"
-source = "git+https://github.com/erichdongubler-mozilla/wgpu?branch=v23#194b6ccfa554a73b9852cd88f69d04cb642e975a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de6e7266b869de56c7e3ed72a954899f71d14fec6cc81c102b7530b92947601b"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -7409,7 +7413,8 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "23.0.0"
-source = "git+https://github.com/erichdongubler-mozilla/wgpu?branch=v23#194b6ccfa554a73b9852cd88f69d04cb642e975a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "610f6ff27778148c31093f3b03abc4840f9636d58d597ca2f5977433acfe0068"
 dependencies = [
  "bitflags 2.6.0",
  "js-sys",
