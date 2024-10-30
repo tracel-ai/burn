@@ -4,6 +4,7 @@ use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use bytemuck::AnyBitPattern;
 use half::{bf16, f16};
 
 use crate::{
@@ -126,6 +127,31 @@ impl TensorData {
     /// Returns the tensor data as a vector of scalar values.
     pub fn to_vec<E: Element>(&self) -> Result<Vec<E>, DataError> {
         Ok(self.as_slice()?.to_vec())
+    }
+
+    /// Returns the tensor data as a vector of scalar values.
+    pub fn into_vec<E: Element>(mut self) -> Result<Vec<E>, DataError> {
+        if E::dtype() != self.dtype {
+            return Err(DataError::TypeMismatch(format!(
+                "Invalid target element type (expected {:?}, got {:?})",
+                self.dtype,
+                E::dtype()
+            )));
+        }
+
+        let capacity_bytes = self.bytes.capacity();
+        let length_bytes = self.bytes.len();
+        let size_elem = core::mem::size_of::<E>();
+
+        let capacity = capacity_bytes / size_elem;
+        let length = length_bytes / size_elem;
+
+        unsafe {
+            let ptr = self.bytes.as_mut_ptr();
+            core::mem::forget(self.bytes);
+
+            Ok(Vec::from_raw_parts(ptr.cast::<E>(), length, capacity))
+        }
     }
 
     /// Returns an iterator over the values of the tensor data.
@@ -273,9 +299,45 @@ impl TensorData {
     pub fn convert<E: Element>(self) -> Self {
         if E::dtype() == self.dtype {
             self
+        } else if core::mem::size_of::<E>() == self.dtype.size()
+            && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
+        {
+            match self.dtype {
+                DType::F64 => self.convert_inplace::<f64, E>(),
+                DType::F32 => self.convert_inplace::<f32, E>(),
+                DType::F16 => self.convert_inplace::<f16, E>(),
+                DType::BF16 => self.convert_inplace::<bf16, E>(),
+                DType::I64 => self.convert_inplace::<i64, E>(),
+                DType::I32 => self.convert_inplace::<i32, E>(),
+                DType::I16 => self.convert_inplace::<i16, E>(),
+                DType::I8 => self.convert_inplace::<i8, E>(),
+                DType::U64 => self.convert_inplace::<u64, E>(),
+                DType::U32 => self.convert_inplace::<u32, E>(),
+                DType::U8 => self.convert_inplace::<u8, E>(),
+                DType::Bool | DType::QFloat(_) => unreachable!(),
+            }
         } else {
             TensorData::new(self.iter::<E>().collect(), self.shape)
         }
+    }
+
+    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element>(mut self) -> Self {
+        let step = core::mem::size_of::<Current>();
+
+        for offset in 0..(self.bytes.len() / step) {
+            let start = offset * step;
+            let end = start + step;
+
+            let slice_old = &mut self.bytes[start..end];
+            let val: Current = *bytemuck::from_bytes(slice_old);
+            let val = &val.elem::<Target>();
+            let slice_new = bytemuck::bytes_of(val);
+
+            slice_old.clone_from_slice(slice_new);
+        }
+        self.dtype = Target::dtype();
+
+        self
     }
 
     /// Returns the data as a slice of bytes.
@@ -1022,6 +1084,34 @@ mod tests {
     use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
+    fn into_vec_should_yield_same_value_as_iter() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        let expected = data.iter::<f32>().collect::<Vec<f32>>();
+        let actual = data.into_vec::<f32>().unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn into_vec_should_assert_wrong_dtype() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        data.into_vec::<i32>().unwrap();
+    }
+
+    #[test]
     fn should_have_right_num_elements() {
         let shape = Shape::new([3, 5, 6]);
         let num_elements = shape.num_elements();
@@ -1083,5 +1173,26 @@ mod tests {
         let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
         assert_eq!(data1.bytes.len(), 2 * factor);
         assert_eq!(data1.bytes.capacity(), 5 * factor);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly_inplace() {
+        fn test_precision<E: Element>() {
+            let data = TensorData::new((0..32).collect(), [32]);
+            for (i, val) in data
+                .clone()
+                .convert::<E>()
+                .into_vec::<E>()
+                .unwrap()
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(i as u32, val.elem::<u32>())
+            }
+        }
+        test_precision::<f32>();
+        test_precision::<f16>();
+        test_precision::<i64>();
+        test_precision::<i32>();
     }
 }
