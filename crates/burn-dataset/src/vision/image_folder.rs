@@ -73,7 +73,7 @@ pub enum Annotation {
 /// Segmentation mask annotation.
 /// For semantic segmentation, a mask has a single channel (C = 1).
 /// For instance segmentation, there may be multiple masks per image (C >= 1).
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SegmentationMask {
     /// Segmentation mask.
     pub mask: Vec<usize>,
