@@ -104,6 +104,20 @@ where
             _ => panic!("Fastest index is out of bound"),
         }
     }
+
+    fn should_run(&self, key: &JitAutotuneKey, index: usize) -> bool {
+        let JitAutotuneKey::ReduceDim(key) = key else {
+            unreachable!();
+        };
+
+        match index {
+            // Naive
+            0 => key.reduce_dim_length <= 8192,
+            // Shared
+            1 => key.reduce_dim_length >= 16,
+            _ => true,
+        }
+    }
 }
 
 /// Executes autotune on reduce_dim operation

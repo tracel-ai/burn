@@ -24,7 +24,7 @@ exclude = [
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.15.0"
+version = "0.16.0"
 
 [workspace.dependencies]
 atomic_float = "1"
@@ -50,7 +50,7 @@ hound = "3.5.1"
 image = "0.25.2"
 indicatif = "0.17.8"
 js-sys = "0.3.69"
-libm = "0.2.8"
+libm = "0.2.9"
 log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
 paste = "1"
@@ -159,8 +159,8 @@ portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
-# cubecl = { version="0.2.0", default-features = false }
-# cubecl-common = { version="0.2.0", default-features = false }
+# cubecl = { version = "0.3.0", default-features = false }
+# cubecl-common = { version = "0.3.0", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = { version = "~1.1" }
