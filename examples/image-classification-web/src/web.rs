@@ -8,9 +8,13 @@ use core::convert::Into;
 
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
-use burn::{backend::NdArray, prelude::*, tensor::activation::softmax};
+use burn::{
+    backend::{wgpu::init_device, NdArray},
+    prelude::*,
+    tensor::activation::softmax,
+};
 
-use burn::backend::wgpu::{init_async, AutoGraphicsApi, Wgpu, WgpuDevice};
+use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
 use burn_candle::Candle;
 
 use serde::Serialize;
@@ -106,7 +110,7 @@ impl ImageClassifier {
         log::info!("Loading the model to the Wgpu backend");
         let start = Instant::now();
         let device = WgpuDevice::default();
-        init_async::<AutoGraphicsApi>(&device, Default::default()).await;
+        init_device::<AutoGraphicsApi>(&device, Default::default()).await;
         self.model = ModelType::WithWgpuBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the Wgpu backend in {:?}", duration);

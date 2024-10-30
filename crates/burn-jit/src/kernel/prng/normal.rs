@@ -37,7 +37,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let item = output.item();
+        let item = output.item;
         let mean = args[0];
         let std = args[1];
         let two_pi = scope.create_with_value(2. * PI, float_elem);
