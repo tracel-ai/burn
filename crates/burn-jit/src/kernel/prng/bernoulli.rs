@@ -35,7 +35,14 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let prob = args[0];
+        let mut prob = args[0];
+
+        if prob.item.elem() != Elem::Float(FloatKind::F32) {
+            let prob_f32 = scope.create_local(float_elem);
+            cpa!(scope, prob_f32 = cast(prob));
+            prob = prob_f32;
+        }
+
         cpa!(
             scope,
             range(0u32, n_values_per_thread).for_each(|i, scope| {

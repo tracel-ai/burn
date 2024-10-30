@@ -356,6 +356,9 @@ impl FuseOnWriteTrace {
                     ElemwisePrecision::F16 => {
                         inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i]))
                     }
+                    ElemwisePrecision::BF16 => {
+                        inputs.s_bf16.push(ScalarArg::new(context.scalar_bf16[i]))
+                    }
                     ElemwisePrecision::I32 => {
                         inputs.s_i32.push(ScalarArg::new(context.scalar_ints[i]))
                     }
