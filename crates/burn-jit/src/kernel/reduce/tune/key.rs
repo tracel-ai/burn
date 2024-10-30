@@ -6,9 +6,9 @@ use burn_tensor::Shape;
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
-    reduce_dim_length: usize,
-    reduce_dim_stride: usize,
-    others_product: usize,
+    pub(crate) reduce_dim_length: usize,
+    pub(crate) reduce_dim_stride: usize,
+    pub(crate) others_product: usize,
 }
 
 impl Display for ReduceAutotuneKey {

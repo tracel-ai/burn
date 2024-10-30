@@ -1,6 +1,9 @@
 use cubecl::{
-    cpa, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings, Execution, InputInfo,
-    KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+    cpa,
+    ir::{Builtin, KernelDefinition, VariableKind},
+    prelude::CubeCount,
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -51,14 +54,8 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray {
-            id: 0,
-            item: item_input,
-        };
-        let output = Variable::GlobalOutputArray {
-            id: 0,
-            item: item_output,
-        };
+        let tensor = Variable::new(VariableKind::GlobalInputArray(0), item_input);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item_output);
 
         // Reduce groups are elements that are aligned along the reduce dim
         SharedReduceDimComputeShader {
@@ -112,16 +109,16 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
         let tensor = self.tensor;
         let output = self.output;
 
-        let rank = Variable::Rank;
+        let rank = Variable::builtin(Builtin::Rank);
         let dim: Variable = self.dim.into();
 
-        let cube_pos_x = Variable::CubePosX;
-        let cube_pos_y = Variable::CubePosY;
-        let cube_count_x = Variable::CubeCountX;
-        let local_invocation_id_x = Variable::UnitPosX;
-        let local_invocation_id_y = Variable::UnitPosY;
-        let cube_dim_x = Variable::CubeDimX;
-        let cube_dim_y = Variable::CubeDimY;
+        let cube_pos_x = Variable::builtin(Builtin::CubePosX);
+        let cube_pos_y = Variable::builtin(Builtin::CubePosY);
+        let cube_count_x = Variable::builtin(Builtin::CubeCountX);
+        let local_invocation_id_x = Variable::builtin(Builtin::UnitPosX);
+        let local_invocation_id_y = Variable::builtin(Builtin::UnitPosY);
+        let cube_dim_x = Variable::builtin(Builtin::CubeDimX);
+        let cube_dim_y = Variable::builtin(Builtin::CubeDimY);
 
         let stride_reduce_dim_input = scope.create_local(Elem::UInt);
         cpa!(scope, stride_reduce_dim_input = stride(tensor, dim));
@@ -162,12 +159,8 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
             })
         );
 
-        let shared_memory = RD::initialize_shared(
-            scope,
-            self.shared_memory_size as u32,
-            local_id,
-            tensor.item(),
-        );
+        let shared_memory =
+            RD::initialize_shared(scope, self.shared_memory_size as u32, local_id, tensor.item);
 
         // Load to shared memory, unrolled
         cpa!(

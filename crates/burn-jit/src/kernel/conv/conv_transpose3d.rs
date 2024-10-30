@@ -1,6 +1,8 @@
 use cubecl::{
     cpa,
-    ir::{Elem, IntKind, KernelDefinition, Scope, Variable, Visibility},
+    ir::{
+        Builtin, Elem, IntKind, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility,
+    },
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -39,7 +41,7 @@ impl<E: JitElement> Conv3dTransposeComputeShader<E> {
         let weight = self.weight;
         let bias = self.bias;
         let output = self.output;
-        let idx = Variable::AbsolutePos;
+        let idx = Variable::builtin(Builtin::AbsolutePos);
 
         let input_stride_0 = scope.create_local(Elem::UInt);
         let input_stride_1 = scope.create_local(Elem::UInt);
@@ -104,46 +106,16 @@ impl<E: JitElement> Conv3dTransposeComputeShader<E> {
         cpa!(scope, kernel_size_1 = shape(weight, 3u32));
         cpa!(scope, kernel_size_2 = shape(weight, 4u32));
 
-        let conv_stride_0 = Variable::GlobalScalar {
-            id: 0,
-            elem: Elem::UInt,
-        };
-        let conv_stride_1 = Variable::GlobalScalar {
-            id: 1,
-            elem: Elem::UInt,
-        };
-        let conv_stride_2 = Variable::GlobalScalar {
-            id: 2,
-            elem: Elem::UInt,
-        };
-        let dilation_0 = Variable::GlobalScalar {
-            id: 3,
-            elem: Elem::UInt,
-        };
-        let dilation_1 = Variable::GlobalScalar {
-            id: 4,
-            elem: Elem::UInt,
-        };
-        let dilation_2 = Variable::GlobalScalar {
-            id: 5,
-            elem: Elem::UInt,
-        };
-        let padding_0 = Variable::GlobalScalar {
-            id: 6,
-            elem: Elem::UInt,
-        };
-        let padding_1 = Variable::GlobalScalar {
-            id: 7,
-            elem: Elem::UInt,
-        };
-        let padding_2 = Variable::GlobalScalar {
-            id: 8,
-            elem: Elem::UInt,
-        };
-        let groups = Variable::GlobalScalar {
-            id: 9,
-            elem: Elem::UInt,
-        };
+        let conv_stride_0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(Elem::UInt));
+        let conv_stride_1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(Elem::UInt));
+        let conv_stride_2 = Variable::new(VariableKind::GlobalScalar(2), Item::new(Elem::UInt));
+        let dilation_0 = Variable::new(VariableKind::GlobalScalar(3), Item::new(Elem::UInt));
+        let dilation_1 = Variable::new(VariableKind::GlobalScalar(4), Item::new(Elem::UInt));
+        let dilation_2 = Variable::new(VariableKind::GlobalScalar(5), Item::new(Elem::UInt));
+        let padding_0 = Variable::new(VariableKind::GlobalScalar(6), Item::new(Elem::UInt));
+        let padding_1 = Variable::new(VariableKind::GlobalScalar(7), Item::new(Elem::UInt));
+        let padding_2 = Variable::new(VariableKind::GlobalScalar(8), Item::new(Elem::UInt));
+        let groups = Variable::new(VariableKind::GlobalScalar(9), Item::new(Elem::UInt));
 
         let stride_0_i = scope.create_local(Elem::Int(IntKind::I32));
         let stride_1_i = scope.create_local(Elem::Int(IntKind::I32));
@@ -273,9 +245,9 @@ impl<E: JitElement> Conv3dTransposeComputeShader<E> {
         cpa!(scope, index_input_b = b * input_stride_0);
         cpa!(scope, index_weight_oc = oc * weight_stride_1);
 
-        let prod = scope.create_local(output.item());
-        let prod_tmp = scope.create_local(output.item());
-        let sum = scope.create_local(output.item());
+        let prod = scope.create_local(output.item);
+        let prod_tmp = scope.create_local(output.item);
+        let sum = scope.create_local(output.item);
         cpa!(scope, sum = bias[oc_out]);
 
         let kd = scope.create_local(Elem::UInt);
@@ -391,10 +363,10 @@ impl<R: JitRuntime, E: JitElement> Kernel for Conv3dTransposeEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let weight = Variable::GlobalInputArray { id: 1, item };
-        let bias = Variable::GlobalInputArray { id: 2, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let weight = Variable::new(VariableKind::GlobalInputArray(1), item);
+        let bias = Variable::new(VariableKind::GlobalInputArray(2), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 

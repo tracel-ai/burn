@@ -4,7 +4,7 @@ use crate::{
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -27,7 +27,7 @@ impl SliceComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
         let offset_input = scope.zero(Elem::UInt);
         let offset_local = scope.create_local(Elem::UInt);
@@ -43,10 +43,10 @@ impl SliceComputeShader {
             cpa!(scope, shape_output = shape(output, i));
             cpa!(
                 scope,
-                range_start = cast(Variable::GlobalScalar {
-                    id: i as u16,
-                    elem: Elem::UInt
-                })
+                range_start = cast(Variable::new(
+                    VariableKind::GlobalScalar(i as u16),
+                    Item::new(Elem::UInt)
+                ))
             );
 
             cpa!(scope, offset_local = id / stride_output);
@@ -57,7 +57,7 @@ impl SliceComputeShader {
             cpa!(scope, offset_input += offset_local);
         }
 
-        let result = scope.create_local(input.item());
+        let result = scope.create_local(input.item);
         cpa!(scope, result = input[offset_input]);
         cpa!(scope, output[id] = result);
     }
@@ -68,8 +68,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 

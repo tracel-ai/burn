@@ -67,6 +67,7 @@ mod cube_wgpu {
                 WgpuDevice::Cpu => DeviceId::new(3, 0),
                 WgpuDevice::BestAvailable => DeviceId::new(4, 0),
                 WgpuDevice::Existing(id) => DeviceId::new(5, *id),
+                WgpuDevice::DefaultDevice => DeviceId::new(6, 0),
             }
         }
     }
