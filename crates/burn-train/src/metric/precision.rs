@@ -9,17 +9,19 @@ use burn_core::{
     tensor::cast::ToElement,
 };
 use core::marker::PhantomData;
+use std::num::NonZeroUsize;
 
+#[derive(new)]
 /// The precision metric.
 pub struct PrecisionMetric<B: Backend> {
+    #[new(default)]
     state: NumericMetricState,
     _b: PhantomData<B>,
     class_reduction: ClassReduction,
     threshold: Option<f64>,
-    top_k: Option<usize>,
+    top_k: Option<NonZeroUsize>,
 }
 
-#[allow(dead_code)]
 impl<B: Backend> PrecisionMetric<B> {
     ///convert to averaged metric, returns float
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
@@ -38,49 +40,13 @@ impl<B: Backend> PrecisionMetric<B> {
         };
         avg_tensor.into_scalar().to_f64()
     }
-
-    /// Sets the class reduction.
-    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
-        self.class_reduction = class_reduction;
-        self
-    }
-
-    /// Sets the threshold.
-    pub fn with_threshold(mut self, threshold: f64) -> Self {
-        self.threshold = Some(threshold);
-        self.top_k = None;
-        self
-    }
-
-    /// Sets the top k.
-    pub fn with_top_k(mut self, top_k: usize) -> Self {
-        self.top_k = Some(top_k);
-        self.threshold = None;
-        self
-    }
-}
-
-impl<B: Backend> Default for PrecisionMetric<B> {
-    /// Creates a new metric instance with default values.
-    fn default() -> Self {
-        Self {
-            state: NumericMetricState::default(),
-            _b: PhantomData,
-            threshold: Some(0.5),
-            class_reduction: ClassReduction::Micro,
-            top_k: None,
-        }
-    }
 }
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
     const NAME: &'static str = "Precision";
     type Input = ClassificationInput<B>;
-    fn update(
-        &mut self,
-        input: &ClassificationInput<B>,
-        _metadata: &MetricMetadata,
-    ) -> MetricEntry {
+
+    fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let (predictions, targets) = input.clone().into();
         let [sample_size, _] = input.predictions.dims();
         let cf_stats = ConfusionStats::new(
@@ -125,6 +91,7 @@ mod tests {
     use crate::TestBackend;
     use burn_core::tensor::TensorData;
     use rstest::rstest;
+    use std::num::NonZeroUsize;
 
     #[rstest]
     #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, 0.5)]
@@ -143,12 +110,11 @@ mod tests {
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&classification_type);
-        let mut metric = PrecisionMetric::<TestBackend>::default();
-        metric = match classification_type {
-            Multiclass => metric.with_top_k(top_k.unwrap()),
-            _ => metric.with_threshold(threshold.unwrap()),
-        };
-        metric = metric.with_class_reduction(class_reduction);
+        let mut metric = PrecisionMetric::new(
+            class_reduction,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+        );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)

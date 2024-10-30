@@ -52,10 +52,14 @@ where
     /// ```
     pub fn one_hot(self, num_classes: usize) -> Tensor<B, 2, Int> {
         check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
-        let [num_samples] = self.dims();
-        let indices = self.unsqueeze();
-        let values = indices.ones_like();
-        Tensor::zeros([num_samples, num_samples], &indices.device()).scatter(1, indices, values)
+        if num_classes == 1 {
+            self.unsqueeze_dim(1)
+        } else {
+            let [num_samples] = self.dims();
+            let indices = self.unsqueeze();
+            let values = indices.ones_like();
+            Tensor::zeros([num_samples, num_samples], &indices.device()).scatter(1, indices, values)
+        }
     }
 }
 

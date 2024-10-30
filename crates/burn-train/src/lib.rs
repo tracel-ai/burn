@@ -28,12 +28,9 @@ pub use learner::*;
 pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(test)]
-pub(crate) type TestDevice = burn_ndarray::NdArrayDevice;
-
-#[cfg(test)]
 pub(crate) mod tests {
-    use crate::{metric::classification::ClassificationInput, TestBackend, TestDevice};
-    use burn_core::prelude::{Bool, Tensor};
+    use crate::{metric::classification::ClassificationInput, TestBackend};
+    use burn_core::prelude::Tensor;
     use std::default::Default;
 
     /// Probability of tp before adding errors
@@ -54,24 +51,21 @@ pub(crate) mod tests {
         let (targets, predictions) = match classification_type {
             ClassificationType::Binary => {
                 (
-                    Tensor::<TestBackend, 2, Bool>::from_data(
-                        [[0], [1], [0], [0], [1]],
-                        &TestDevice::default(),
-                    ),
-                    Tensor::<TestBackend, 2>::from_data(
+                    Tensor::from_data([[0], [1], [0], [0], [1]], &Default::default()),
+                    Tensor::from_data(
                         [[0.3], [0.2], [0.7], [0.1], [0.55]],
                         //[[0],   [0],   [1],   [0],   [1]] with threshold=0.5
-                        &TestDevice::default(),
+                        &Default::default(),
                     ),
                 )
             }
             ClassificationType::Multiclass => {
                 (
-                    Tensor::<TestBackend, 2, Bool>::from_data(
+                    Tensor::from_data(
                         [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
-                        &TestDevice::default(),
+                        &Default::default(),
                     ),
-                    Tensor::<TestBackend, 2>::from_data(
+                    Tensor::from_data(
                         [
                             [0.2, 0.8, 0.0],
                             [0.3, 0.6, 0.1],
@@ -81,17 +75,17 @@ pub(crate) mod tests {
                         ],
                         //[[0,   1,   0],   [0,   1,   0],    [1,   0,   0],    [0,   0,   1],    [1,   0,    0]] with top_k=1
                         //[[1,   1,   0],   [1,   1,   0],    [1,   1,   0],    [0,   1,   1],    [1,   0,    1]] with top_k=2
-                        &TestDevice::default(),
+                        &Default::default(),
                     ),
                 )
             }
             ClassificationType::Multilabel => {
                 (
-                    Tensor::<TestBackend, 2, Bool>::from_data(
+                    Tensor::from_data(
                         [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
-                        &TestDevice::default(),
+                        &Default::default(),
                     ),
-                    Tensor::<TestBackend, 2>::from_data(
+                    Tensor::from_data(
                         [
                             [0.1, 0.7, 0.6],
                             [0.3, 0.9, 0.05],
@@ -100,7 +94,7 @@ pub(crate) mod tests {
                             [1.0, 0.3, 0.2],
                         ],
                         //[[0,   1,   1],   [0,   1,   0],    [1,   1,   0],   [1,   0,   1],   [1,   0,   0]] with threshold=0.5
-                        &TestDevice::default(),
+                        &Default::default(),
                     ),
                 )
             }

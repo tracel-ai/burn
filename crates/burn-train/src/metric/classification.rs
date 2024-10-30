@@ -10,8 +10,8 @@ pub struct ClassificationInput<B: Backend> {
 }
 
 impl<B: Backend> From<ClassificationInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bool>) {
-    fn from(val: ClassificationInput<B>) -> Self {
-        (val.predictions, val.targets)
+    fn from(input: ClassificationInput<B>) -> Self {
+        (input.predictions, input.targets)
     }
 }
 

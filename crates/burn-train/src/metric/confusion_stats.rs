@@ -1,6 +1,7 @@
 use super::classification::ClassReduction;
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
 use std::fmt::{self, Debug};
+use std::num::NonZeroUsize;
 
 #[derive(Clone)]
 pub struct ConfusionStats<B: Backend> {
@@ -34,7 +35,7 @@ impl<B: Backend> ConfusionStats<B> {
         predictions: Tensor<B, 2>,
         targets: Tensor<B, 2, Bool>,
         threshold: Option<f64>,
-        top_k: Option<usize>,
+        top_k: Option<NonZeroUsize>,
         class_reduction: ClassReduction,
     ) -> Self {
         let prediction_mask = match (threshold, top_k) {
@@ -43,8 +44,8 @@ impl<B: Backend> ConfusionStats<B> {
             },
             (None, Some(top_k)) => {
                 let mask = predictions.zeros_like();
-                let values = predictions.ones_like().narrow(1, 0, top_k);
-                let indexes = predictions.argsort_descending(1).narrow(1, 0, top_k);
+                let indexes = predictions.argsort_descending(1).narrow(1, 0, top_k.get());
+                let values = indexes.ones_like().float();
                 mask.scatter(1, indexes, values).bool()
             }
             _ => panic!("Either threshold (for binary or multilabel) or top_k (for multiclass) must be set."),
@@ -117,6 +118,7 @@ mod tests {
     };
     use burn_core::prelude::TensorData;
     use rstest::rstest;
+    use std::num::NonZeroUsize;
 
     #[rstest]
     #[should_panic]
@@ -128,7 +130,13 @@ mod tests {
         #[case] top_k: Option<usize>,
     ) {
         let (predictions, targets) = dummy_classification_input(&Binary).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, Micro);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            Micro,
+        );
     }
 
     #[rstest]
@@ -148,11 +156,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .true_positive()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .true_positive()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -172,11 +186,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .true_negative()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .true_negative()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -196,11 +216,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .false_positive()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .false_positive()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -220,11 +246,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .false_negative()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .false_negative()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -244,11 +276,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .positive()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .positive()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -268,11 +306,17 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .negative()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .negative()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
@@ -292,10 +336,16 @@ mod tests {
         #[case] expected: Vec<i64>,
     ) {
         let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(predictions, targets, threshold, top_k, class_reduction)
-            .predicted_positive()
-            .int()
-            .into_data()
-            .assert_eq(&TensorData::from(expected.as_slice()), true);
+        ConfusionStats::new(
+            predictions,
+            targets,
+            threshold,
+            top_k.map(NonZeroUsize::new).flatten(),
+            class_reduction,
+        )
+        .predicted_positive()
+        .int()
+        .into_data()
+        .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 }
