@@ -8,14 +8,19 @@ use quote::quote;
 pub struct RandomNormalLikeNode {
     pub mean: f64,
     pub scale: f64,
-    pub input: TensorType,  // Input tensor to copy shape from
+    pub input: TensorType,
     pub output: TensorType,
 }
 
 impl RandomNormalLikeNode {
     // Get shape from the input tensor
     fn get_output_shape(&self) -> TokenStream {
-        let shape_it = self.input.shape.as_ref().expect("Input tensor has no shape!").iter();
+        let shape_it = self
+            .input
+            .shape
+            .as_ref()
+            .expect("Input tensor has no shape!")
+            .iter();
         quote! { Shape::new([#(#shape_it),*]) }
     }
 
@@ -29,7 +34,7 @@ impl RandomNormalLikeNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
     fn input_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.input.clone())]  // Input tensor type
+        vec![Type::Tensor(self.input.clone())]
     }
 
     fn output_types(&self) -> Vec<Type> {
@@ -57,13 +62,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 
 #[cfg(test)]
 mod tests {
-    use burn::record::FullPrecisionSettings;
     use super::*;
-    use crate::burn::{
-        graph::BurnGraph,
-        node::test::assert_tokens,
-        TensorType, TensorKind,
-    };
+    use crate::burn::{graph::BurnGraph, node::test::assert_tokens, TensorKind, TensorType};
+    use burn::record::FullPrecisionSettings;
 
     #[test]
     fn test_random_normal_like_codegen() {
