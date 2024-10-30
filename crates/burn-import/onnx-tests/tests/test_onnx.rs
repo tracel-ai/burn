@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 
 /// Include generated models in the `model` directory in the target directory.
 macro_rules! include_models {
@@ -84,6 +84,7 @@ include_models!(
     pow_int,
     prelu,
     random_normal,
+    random_normal_like,
     random_uniform,
     range,
     recip,
@@ -2154,6 +2155,18 @@ mod tests {
         let model = random_normal::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_normal_like() {
+        let device = Default::default();
+        let model = random_normal_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
         assert_eq!(expected_shape, output.shape());
     }
 
