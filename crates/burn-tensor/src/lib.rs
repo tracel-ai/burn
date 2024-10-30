@@ -73,6 +73,7 @@ mod cube_wgpu {
                 WgpuDevice::Existing(id) => {
                     DeviceId::new(5, (id.inner() % (u32::MAX as u64)) as u32)
                 }
+                WgpuDevice::DefaultDevice => DeviceId::new(6, 0),
             }
         }
     }
