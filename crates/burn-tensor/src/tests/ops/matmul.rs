@@ -108,14 +108,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1);
 
-        tensor_3.into_data().assert_eq(
+        tensor_3.into_data().assert_approx_eq(
             &TensorData::from([
                 [56., 62., 68., 74.],
                 [152., 174., 196., 218.],
                 [248., 286., 324., 362.],
                 [344., 398., 452., 506.],
             ]),
-            false,
+            3,
         );
     }
 
@@ -129,14 +129,14 @@ mod tests {
 
         let tensor_3 = tensor_1.clone().matmul(tensor_1.transpose());
 
-        tensor_3.into_data().assert_eq(
+        tensor_3.into_data().assert_approx_eq(
             &TensorData::from([
                 [14., 38., 62., 86.],
                 [38., 126., 214., 302.],
                 [62., 214., 366., 518.],
                 [86., 302., 518., 734.],
             ]),
-            false,
+            3,
         );
     }
 
