@@ -8,8 +8,7 @@ mod tests {
 
     #[test]
     fn min_max_calibration_range() {
-        let tensor =
-            TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
+        let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
         let calibration = MinMaxCalibration {};
 
         let range = calibration.compute_range(&tensor);

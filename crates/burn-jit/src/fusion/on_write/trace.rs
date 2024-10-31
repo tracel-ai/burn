@@ -395,6 +395,7 @@ impl FuseOnWriteTrace {
                 } => match precision {
                     ElemwisePrecision::F32 => outputs.t_f32.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::F16 => outputs.t_f16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::BF16 => outputs.t_bf16.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::I32 => outputs.t_i32.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::U32 => outputs.t_u32.push(TensorArg::alias(*input_pos)),
                     _ => todo!(),
@@ -409,6 +410,7 @@ impl FuseOnWriteTrace {
                     match precision {
                         ElemwisePrecision::F32 => outputs.t_f32.push(arg),
                         ElemwisePrecision::F16 => outputs.t_f16.push(arg),
+                        ElemwisePrecision::BF16 => outputs.t_bf16.push(arg),
                         ElemwisePrecision::I32 => outputs.t_i32.push(arg),
                         ElemwisePrecision::U32 => outputs.t_u32.push(arg),
                         // Bools are encoded as u32.

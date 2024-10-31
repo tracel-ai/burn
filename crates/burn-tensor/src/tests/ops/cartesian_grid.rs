@@ -9,8 +9,7 @@ mod tests {
         let device = <TestBackend as Backend>::Device::default();
 
         // Test a single element tensor
-        let tensor: Tensor<TestBackend, 2, Int> =
-            TestTensorInt::<1>::cartesian_grid([1], &device);
+        let tensor: Tensor<TestBackend, 2, Int> = TestTensorInt::<1>::cartesian_grid([1], &device);
         tensor
             .into_data()
             .assert_eq(&TensorData::from([[0]]), false);

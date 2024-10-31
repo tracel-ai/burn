@@ -31,6 +31,15 @@ pub fn read<C: CubePrimitive>(
                 };
                 Line::cast_from(tensor[offset])
             }
+            ElemwisePrecision::BF16 => {
+                let tensor = inputs.t_bf16.index(pos);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
+                Line::cast_from(tensor[offset])
+            }
             ElemwisePrecision::U32 => {
                 let tensor = inputs.t_u32.index(pos);
                 let offset = match layout {
@@ -70,6 +79,15 @@ pub fn read<C: CubePrimitive>(
                 };
                 Line::cast_from(tensor[offset])
             }
+            ElemwisePrecision::BF16 => {
+                let tensor = outputs.t_bf16.index(pos);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
+                Line::cast_from(tensor[offset])
+            }
             ElemwisePrecision::U32 => {
                 let tensor = outputs.t_u32.index(pos);
                 let offset = match layout {
@@ -93,6 +111,7 @@ pub fn read<C: CubePrimitive>(
         Arg::Local(pos, precision) => match comptime![precision] {
             ElemwisePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
             ElemwisePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
+            ElemwisePrecision::BF16 => Line::cast_from(locals.l_bf16.find(pos)),
             ElemwisePrecision::U32 => Line::cast_from(locals.l_u32.find(pos)),
             ElemwisePrecision::I32 => Line::cast_from(locals.l_i32.find(pos)),
             ElemwisePrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
@@ -101,9 +120,9 @@ pub fn read<C: CubePrimitive>(
         Arg::Scalar(pos, precision) => match comptime![precision] {
             ElemwisePrecision::F32 => Line::cast_from(*inputs.s_f32.index(pos)),
             ElemwisePrecision::F16 => Line::cast_from(*inputs.s_f16.index(pos)),
+            ElemwisePrecision::BF16 => Line::cast_from(*inputs.s_bf16.index(pos)),
             ElemwisePrecision::U32 => Line::cast_from(*inputs.s_u32.index(pos)),
             ElemwisePrecision::I32 => Line::cast_from(*inputs.s_i32.index(pos)),
-            ElemwisePrecision::BF16 => comptime![panic!("Can't write into inputs or scalars")],
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
@@ -143,6 +162,16 @@ pub fn write<C: CubePrimitive>(
                 let tensor = outputs.t_f16.index_mut(pos);
                 tensor[offset] = Line::cast_from(value);
             }
+            ElemwisePrecision::BF16 => {
+                let tensor = outputs.t_bf16.index(pos);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+                };
+                let tensor = outputs.t_bf16.index_mut(pos);
+                tensor[offset] = Line::cast_from(value);
+            }
             ElemwisePrecision::U32 => {
                 let tensor = outputs.t_u32.index(pos);
                 let offset = match layout {
@@ -168,6 +197,7 @@ pub fn write<C: CubePrimitive>(
         Arg::Local(pos, precision) => match comptime![precision] {
             ElemwisePrecision::F32 => locals.l_f32.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),
+            ElemwisePrecision::BF16 => locals.l_bf16.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::U32 => locals.l_u32.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::I32 => locals.l_i32.insert(pos, Line::cast_from(value)),
             ElemwisePrecision::Bool => locals.l_bool.insert(pos, Line::cast_from(value)),
@@ -195,6 +225,10 @@ fn get_offset<C: CubePrimitive>(
                 let layout = inputs.t_f16.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
+            ElemwisePrecision::BF16 => {
+                let layout = inputs.t_bf16.index(index);
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
+            }
             ElemwisePrecision::U32 => {
                 let layout = inputs.t_u32.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
@@ -212,6 +246,10 @@ fn get_offset<C: CubePrimitive>(
             }
             ElemwisePrecision::F16 => {
                 let layout = outputs.t_f16.index(index);
+                index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
+            }
+            ElemwisePrecision::BF16 => {
+                let layout = outputs.t_bf16.index(index);
                 index_offset_with_layout(tensor, layout, pos, 0, config.rank, false)
             }
             ElemwisePrecision::U32 => {
