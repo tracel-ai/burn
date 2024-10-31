@@ -9,7 +9,7 @@ use core::convert::Into;
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
 use burn::{
-    backend::{wgpu::init_device, NdArray},
+    backend::{wgpu::init_setup_async, NdArray},
     prelude::*,
     tensor::activation::softmax,
 };
