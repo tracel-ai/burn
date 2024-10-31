@@ -13,21 +13,10 @@ pub struct RandomNormalLikeNode {
 }
 
 impl RandomNormalLikeNode {
-    // Get shape from the input tensor
-    fn get_output_shape(&self) -> TokenStream {
-        let shape_it = self
-            .input
-            .shape
-            .as_ref()
-            .expect("Input tensor has no shape!")
-            .iter();
-        quote! { Shape::new([#(#shape_it),*]) }
-    }
-
     // Set distribution parameters based on mean and scale
     fn get_distribution(&self) -> TokenStream {
         let mean = self.mean;
-        let std_deviation = self.scale; // Scale parameter as per ONNX specs
+        let std_deviation = self.scale;
         quote! { Distribution::Normal(#mean, #std_deviation) }
     }
 }
@@ -43,10 +32,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 
     fn forward(&self, _scope: &mut Scope, _node_position: usize) -> TokenStream {
         let output = &self.output.name;
-        let shape = self.get_output_shape();
+        let input = &self.input.name;
         let dist = self.get_distribution();
         quote! {
-            let #output = Tensor::random(#shape, #dist, &*self.device);
+            let #output = #input.random_like(#dist);
         }
     }
 
@@ -56,7 +45,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for RandomNormalLikeNode {
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
         imports.register("burn::tensor::Distribution");
-        imports.register("burn::prelude::Shape");
     }
 }
 
@@ -80,7 +68,6 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::prelude::Shape;
             use burn::tensor::Distribution;
             use burn::{
                 module::Module,
@@ -103,11 +90,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = Tensor::random(
-                        Shape::new([2usize, 3usize]),
-                        Distribution::Normal(0f64, 1f64),
-                        &*self.device,
-                    );
+                    let output = input.random_like(Distribution::Normal(0f64, 1f64));
                     output
                 }
             }
