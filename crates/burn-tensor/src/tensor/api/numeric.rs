@@ -996,7 +996,7 @@ where
     /// which is more high-level and designed for public use.
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
-    /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
+    /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
     ///
     /// # Arguments
@@ -1006,7 +1006,7 @@ where
     ///
     /// # Returns
     ///
-    /// The modulus of the input tensor with the divisor.
+    /// The modulo of the input tensor with the divisor.
     ///
     /// # Remarks
     ///
@@ -1014,11 +1014,11 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulus operation, users should prefer the [Tensor::remainder](Tensor::remainder) function,
+    /// For performing the modulo operation, users should prefer the [Tensor::remainder](Tensor::remainder) function,
     /// which is more high-level and designed for public use.
     fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
-    /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
+    /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
     ///
     /// # Arguments
@@ -1028,7 +1028,7 @@ where
     ///
     /// # Returns
     ///
-    /// The modulus of the input tensor with the divisor.
+    /// The modulo of the input tensor with the divisor.
     ///
     /// # Remarks
     ///
@@ -1036,7 +1036,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulus operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
+    /// For performing the modul operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
     /// which is more high-level and designed for public use.
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
