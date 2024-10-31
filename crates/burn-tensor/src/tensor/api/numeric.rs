@@ -65,17 +65,15 @@ where
     /// Applies element wise the remainder operation with a scalar.
     ///
     /// `y = x2 % x1`
-    #[allow(clippy::should_implement_trait)]
-    pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::remainder_scalar::<E>(self.primitive, other))
+    pub fn remainder(self, other: Self) -> Self {
+        Self::new(K::remainder(self.primitive, other.primitive))
     }
 
     /// Applies element wise the remainder operation with a scalar.
     ///
     /// `y = x2 % x1`
-    #[allow(clippy::should_implement_trait)]
-    pub fn remainder(self, other: Self) -> Self {
-        Self::new(K::remainder(self.primitive, other.primitive))
+    pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
+        Self::new(K::remainder_scalar::<E>(self.primitive, other))
     }
 
     /// Applies element wise multiplication operation.
