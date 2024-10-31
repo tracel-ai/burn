@@ -110,7 +110,7 @@ impl ImageClassifier {
         log::info!("Loading the model to the Wgpu backend");
         let start = Instant::now();
         let device = WgpuDevice::default();
-        init_device::<AutoGraphicsApi>(&device, Default::default()).await;
+        init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
         self.model = ModelType::WithWgpuBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the Wgpu backend in {:?}", duration);
