@@ -11,9 +11,10 @@ use super::{
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
-    random_uniform::RandomUniformNode, range::RangeNode, reshape::ReshapeNode, resize::ResizeNode,
-    slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode,
-    unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
+    squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode, unary::UnaryNode,
+    unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;
@@ -124,6 +125,7 @@ pub enum Node<PS: PrecisionSettings> {
     RandomNormal(RandomNormalNode),
     RandomNormalLike(RandomNormalLikeNode),
     RandomUniform(RandomUniformNode),
+    RandomUniformLike(RandomUniformLikeNode),
     ConstantOfShape(ConstantOfShapeNode),
     // For now, we have to keep the precision settings in order to correctly serialize the fields
     // into the right data types.
@@ -175,6 +177,7 @@ macro_rules! match_all {
             Node::RandomNormal(node) => $func(node),
             Node::RandomNormalLike(node) => $func(node),
             Node::RandomUniform(node) => $func(node),
+            Node::RandomUniformLike(node) => $func(node),
             Node::ConstantOfShape(node) => $func(node),
             _ => unimplemented!(),
         }
@@ -234,6 +237,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::RandomNormal(_) => "random_normal",
             Node::RandomNormalLike(_) => "random_normal_like",
             Node::RandomUniform(_) => "random_uniform",
+            Node::RandomUniformLike(_) => "random_uniform_like",
             Node::ConstantOfShape(_) => "constant_of_shape",
             _ => unimplemented!(),
         }
