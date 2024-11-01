@@ -1676,6 +1676,7 @@ dependencies = [
  "ash",
  "async-channel",
  "bytemuck",
+ "cfg-if",
  "cfg_aliases 0.2.1",
  "cubecl-common 0.4.0",
  "cubecl-core",

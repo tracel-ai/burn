@@ -60,7 +60,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         options.groups,
         out_h,
         out_w,
-        &input.device,
+        &input.client,
     ) {
         panic!(
             "Requirements for implicit GEMM not met:
@@ -84,7 +84,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let slice_size = pad_kh * pad_kw * pad_in_channels;
 
     let (cmma_m, cmma_n, cmma_k) =
-        find_cmma_size::<R, f16, F>(&input.device, gemm_m, gemm_k, gemm_n).unwrap();
+        find_cmma_size::<R, f16, F>(&input.client, gemm_m, gemm_k, gemm_n).unwrap();
 
     let cube_dim_x = 128;
     let cube_dim_y = Ord::min(gemm_n.div_ceil(16), 2);
@@ -663,7 +663,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     groups: usize,
     out_h: usize,
     out_w: usize,
-    device: &R::Device,
+    client: &ComputeClient<R::Server, R::Channel>,
 ) -> bool {
     let (in_channels, kernel_h, kernel_w) = padded_k(in_channels, kernel_size[0], kernel_size[1]);
     let batch_size = padded_batch_size(batch_size, out_h, out_w);
@@ -673,7 +673,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let size = find_cmma_size::<R, f16, E>(device, gemm_m as u32, gemm_k as u32, gemm_n as u32);
+    let size = find_cmma_size::<R, f16, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
     if let Some((cmma_m, cmma_k, cmma_n)) = size {
         let warps_per_cube = 8;
@@ -716,12 +716,12 @@ fn padded_batch_size(batch_size: usize, out_h: usize, out_w: usize) -> usize {
 }
 
 fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
-    device: &R::JitDevice,
+    client: &ComputeClient<R::Server, R::Channel>,
     gemm_m: u32,
     gemm_k: u32,
     gemm_n: u32,
 ) -> Option<(u32, u32, u32)> {
-    supported_cmma_sizes::<R, F, FAcc>(device)
+    supported_cmma_sizes::<R, F, FAcc>(client)
         .into_iter()
         .find(|(m, k, n)| {
             gemm_m % *m as u32 == 0 && gemm_k % *k as u32 == 0 && gemm_n % *n as u32 == 0
@@ -730,7 +730,7 @@ fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
 }
 
 fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
-    device: &R::JitDevice,
+    client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<(u8, u8, u8)> {
     let requested_sizes = [(16, 16, 16), (32, 16, 8), (8, 16, 32)];
 
@@ -738,16 +738,14 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
         .iter()
         .copied()
         .filter(|(m, k, n)| {
-            R::client(device)
-                .properties()
-                .feature_enabled(Feature::Cmma {
-                    a: F::as_elem(),
-                    b: F::as_elem(),
-                    c: FAcc::as_elem(),
-                    m: *m,
-                    k: *k,
-                    n: *n,
-                })
+            client.properties().feature_enabled(Feature::Cmma {
+                a: F::as_elem(),
+                b: F::as_elem(),
+                c: FAcc::as_elem(),
+                m: *m,
+                k: *k,
+                n: *n,
+            })
         })
         .collect()
 }

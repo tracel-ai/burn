@@ -524,7 +524,7 @@ impl TensorData {
             let err = (a - b).abs();
 
             if self.dtype.is_float() {
-                if let Some(err) = compare_floats(a, b, self.dtype, tolerance) {
+                if let Some((err, tolerance)) = compare_floats(a, b, self.dtype, tolerance) {
                     // Only print the first 5 different values.
                     if num_diff < max_num_diff {
                         message += format!(
@@ -952,7 +952,7 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq + Element, const D: usi
             let err = (a - b).abs();
 
             if E::dtype().is_float() {
-                if let Some(err) = compare_floats(a, b, E::dtype(), tolerance) {
+                if let Some((err, tolerance)) = compare_floats(a, b, E::dtype(), tolerance) {
                     // Only print the first 5 different values.
                     if num_diff < max_num_diff {
                         message += format!(
@@ -1111,7 +1111,7 @@ impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
     }
 }
 
-fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<f64> {
+fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(f64, f64)> {
     let epsilon_deviations = tolerance / f32::EPSILON as f64;
     let epsilon = match ty {
         DType::F64 => f32::EPSILON as f64, // Don't increase precision beyond `f32`, see below
@@ -1129,7 +1129,7 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<f
     let err = (value - other).abs();
 
     if err > tolerance_adjusted || err.is_nan() {
-        Some(err)
+        Some((err, tolerance_adjusted))
     } else {
         None
     }
