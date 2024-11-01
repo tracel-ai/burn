@@ -99,7 +99,6 @@ pub(crate) mod tests {
                 )
             }
         };
-
         ClassificationInput::new(predictions, targets)
     }
 }
