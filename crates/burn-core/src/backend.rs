@@ -7,6 +7,9 @@ pub use ndarray::NdArray;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
+#[cfg(feature = "http")]
+pub use burn_router::HttpBackend;
+
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
 

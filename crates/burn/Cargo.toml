@@ -55,6 +55,7 @@ ndarray = ["burn-core/ndarray"]
 tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 wgpu-spirv = ["burn-core/wgpu-spirv"]
+http = ["burn-core/http"]
 
 # Network utils
 network = ["burn-core/network"]

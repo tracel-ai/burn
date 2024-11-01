@@ -12,14 +12,27 @@ documentation = "https://docs.rs/burn-router"
 version.workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "http"]
 std = []
 doc = ["default"]
+http = ["std", "tokio", "axum", "reqwest", "serde_json", "serde", "tracing-subscriber"]
+wgpu = ["burn-wgpu"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false, features = ["repr"]}
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = false}
 hashbrown = { workspace = true }
 spin = { workspace = true }
+log = { workspace = true }
+
+tokio = { version = "1.37", features = ["full"], optional = true }
+axum = { version = "0.7.5", features = ["macros", "ws"], optional = true }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "registry"], optional = true }
+
+reqwest = { version = "0.12.4", features = ["json"], optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+serde_json = { workspace = true, optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", default-features = true, optional = true }
 
 
 [dev-dependencies]

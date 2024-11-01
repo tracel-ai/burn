@@ -86,6 +86,7 @@ metal = ["burn-candle?/metal"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 template = ["burn-wgpu?/template"]
+http = ["burn-router/http"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
@@ -131,6 +132,7 @@ burn-hip = { path = "../burn-hip", version = "0.16.0", optional = true, default-
 burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true, default-features = false }
 burn-tch = { path = "../burn-tch", version = "0.16.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true, default-features = false }
+burn-router = { path = "../burn-router", version = "0.16.0", default-features = false, optional=true }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }

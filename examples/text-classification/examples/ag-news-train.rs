@@ -91,6 +91,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "http")]
+mod http {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, HttpBackend};
+
+    pub fn run() {
+        launch::<Autodiff<HttpBackend>>(vec![Default::default()]);
+    }
+}
+
 #[cfg(feature = "cuda-jit")]
 mod cuda_jit {
     use crate::{launch, ElemType};
@@ -129,4 +139,6 @@ fn main() {
     cuda_jit::run();
     #[cfg(feature = "hip-jit")]
     hip_jit::run();
+    #[cfg(feature = "http")]
+    http::run();
 }
