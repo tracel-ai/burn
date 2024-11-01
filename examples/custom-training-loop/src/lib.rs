@@ -49,13 +49,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
-        .num_workers(config.num_workers)
+        // .num_workers(config.num_workers)
         .build(MnistDataset::train());
 
     let dataloader_test = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(config.seed)
-        .num_workers(config.num_workers)
+        // .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
     // Iterate over our training and validation loop for X epochs.

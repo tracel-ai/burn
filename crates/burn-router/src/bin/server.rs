@@ -5,6 +5,11 @@ fn main() {
 
 #[cfg(feature = "http")]
 fn main() {
+    #[cfg(feature = "ndarray")]
+    {
+        type Backend = burn_ndarray::NdArray;
+        burn_router::http::server::start::<Backend>(Default::default(), "0.0.0.0:3000")
+    }
     #[cfg(feature = "wgpu")]
     {
         type Backend = burn_wgpu::Wgpu;

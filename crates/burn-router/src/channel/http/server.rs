@@ -1,10 +1,11 @@
+use core::marker::PhantomData;
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::{Runner, RunnerClient};
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use burn_tensor::{
     backend::{Backend, BackendBridge},
-    repr::{ReprBackend, TensorDescription},
+    repr::{OperationDescription, ReprBackend, TensorDescription},
     Device, TensorData,
 };
 use tokio::sync::Mutex;
@@ -17,21 +18,79 @@ struct HttpServer<B: ReprBackend> {
     runner: Runner<B>,
 }
 
-enum Task {
+enum QueuedTask {
     RegisterOperation(RegisterOperation),
     RegisterOrphan(RegisterOrphan),
     Executed,
 }
 
+type Callback<M> = std::sync::mpsc::Sender<M>;
+
+enum ProcessorTask {
+    RegisterOperation(OperationDescription),
+    RegisterTensor(RegisterTensor, Callback<TensorDescription>),
+    RegisterTensorEmpty(RegisterTensorEmpty, Callback<TensorDescription>),
+    ReadTensor(ReadTensor, Callback<TensorData>),
+    Sync(Callback<()>),
+    RegisterOrphan(RegisterOrphan),
+}
+
 #[derive(Clone)]
 struct Stream<B: ReprBackend> {
-    runner: Runner<B>,
+    sender: std::sync::mpsc::Sender<ProcessorTask>,
     queue: Arc<Mutex<Queue>>,
+    _p: PhantomData<B>,
 }
 
 struct Queue {
     current_index: u64,
-    tasks: BTreeMap<u64, Task>,
+    tasks: BTreeMap<u64, QueuedTask>,
+}
+
+struct Processor<B: ReprBackend> {
+    p: PhantomData<B>,
+}
+
+impl<B: ReprBackend> Processor<B>
+where
+    // Restrict full precision backend handle to be the same
+    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
+        ReprBackend<Handle = B::Handle>,
+{
+    pub fn new(runner: Runner<B>) -> std::sync::mpsc::Sender<ProcessorTask> {
+        let (sender, rec) = std::sync::mpsc::channel();
+
+        std::thread::spawn(move || {
+            for item in rec.iter() {
+                match item {
+                    ProcessorTask::RegisterOperation(op) => {
+                        runner.register(op);
+                    }
+                    ProcessorTask::RegisterOrphan(val) => {
+                        runner.register_orphan(&val.id);
+                    }
+                    ProcessorTask::Sync(callback) => {
+                        runner.sync();
+                        callback.send(()).unwrap();
+                    }
+                    ProcessorTask::RegisterTensor(val, callback) => {
+                        let val = runner.register_tensor_data_desc(val.data);
+                        callback.send(val).unwrap();
+                    }
+                    ProcessorTask::RegisterTensorEmpty(val, callback) => {
+                        let val = runner.register_empty_tensor_desc(val.shape, val.dtype);
+                        callback.send(val).unwrap();
+                    }
+                    ProcessorTask::ReadTensor(val, callback) => {
+                        let tensor = burn_common::future::block_on(runner.read_tensor(val.tensor));
+                        callback.send(tensor).unwrap();
+                    }
+                }
+            }
+        });
+
+        sender
+    }
 }
 
 impl<B: ReprBackend> Stream<B>
@@ -41,79 +100,81 @@ where
         ReprBackend<Handle = B::Handle>,
 {
     pub fn new(runner: Runner<B>) -> Self {
+        let sender = Processor::new(runner);
         Self {
-            runner,
+            sender,
             queue: Arc::new(Mutex::new(Queue {
                 current_index: 0,
                 tasks: BTreeMap::new(),
             })),
+            _p: PhantomData,
         }
     }
 
     async fn register_operation(&self, op: RegisterOperation) {
-        println!("Register operation {}.", op.index);
-        let index = op.index;
-
-        {
-            let mut queue = self.queue.lock().await;
-            queue.tasks.insert(op.index, Task::RegisterOperation(op));
-        };
-
-        self.dequeue(index + 1).await;
+        let mut queue = self.queue.lock().await;
+        queue
+            .tasks
+            .insert(op.index, QueuedTask::RegisterOperation(op));
     }
 
     async fn register_tensor(&self, op: RegisterTensor) -> TensorDescription {
-        println!("Register tensor {}.", op.index);
-        let body = self.runner.register_tensor_data_desc(op.data);
+        let index = op.index;
+        let (sender, rec) = std::sync::mpsc::channel();
+        self.sender
+            .send(ProcessorTask::RegisterTensor(op, sender))
+            .unwrap();
+        let body = rec.recv().unwrap();
+
         let mut queue = self.queue.lock().await;
-        queue.tasks.insert(op.index, Task::Executed);
+        queue.tasks.insert(index, QueuedTask::Executed);
         body
     }
 
     async fn register_tensor_empty(&self, op: RegisterTensorEmpty) -> TensorDescription {
-        println!("Register tensor empty {}.", op.index);
+        let index = op.index;
+        let (sender, rec) = std::sync::mpsc::channel();
+        self.sender
+            .send(ProcessorTask::RegisterTensorEmpty(op, sender))
+            .unwrap();
+        let body = rec.recv().unwrap();
 
-        let body = self.runner.register_empty_tensor_desc(op.shape, op.dtype);
         let mut queue = self.queue.lock().await;
-        queue.tasks.insert(op.index, Task::Executed);
+        queue.tasks.insert(index, QueuedTask::Executed);
         body
     }
 
     async fn register_orphan(&self, op: RegisterOrphan) {
-        println!("Register orphan {}.", op.index);
-        let index = op.index;
-
-        {
-            let mut queue = self.queue.lock().await;
-            queue.tasks.insert(op.index, Task::RegisterOrphan(op));
-        };
-
-        self.dequeue(index + 1).await;
+        let mut queue = self.queue.lock().await;
+        queue.tasks.insert(op.index, QueuedTask::RegisterOrphan(op));
     }
 
     async fn read_tensor(&self, op: ReadTensor) -> TensorData {
-        println!("Register read {}.", op.index);
         self.dequeue(op.index).await;
 
-        let val = {
-            let val = self.runner.read_tensor(op.tensor).await;
+        let index = op.index;
+        let (sender, rec) = std::sync::mpsc::channel();
+        self.sender
+            .send(ProcessorTask::ReadTensor(op, sender))
+            .unwrap();
+        let val = rec.recv().unwrap();
 
+        {
             let mut queue = self.queue.lock().await;
-            queue.tasks.insert(op.index, Task::Executed);
-            val
+            queue.tasks.insert(index, QueuedTask::Executed);
         };
 
         val
     }
 
     async fn sync(&self, op: SyncBackend) {
-        println!("Register sync {}.", op.index);
-
         self.dequeue(op.index).await;
-        self.runner.sync();
+        let (sender, rec) = std::sync::mpsc::channel();
+        self.sender.send(ProcessorTask::Sync(sender)).unwrap();
+        let _val = rec.recv().unwrap();
 
         let mut queue = self.queue.lock().await;
-        queue.tasks.insert(op.index, Task::Executed);
+        queue.tasks.insert(op.index, QueuedTask::Executed);
     }
 
     // End exclude.
@@ -124,7 +185,6 @@ where
         loop {
             let mut queue = self.queue.lock().await;
             let key = queue.current_index;
-            // println!("Processing key {key:?}...");
 
             if key > end - 1 {
                 break;
@@ -135,22 +195,19 @@ where
                 Some(task) => {
                     queue.current_index += 1;
                     match task {
-                        Task::RegisterOperation(op) => {
-                            println!("Processed operation lazy {key:?}.");
-                            self.runner.register(op.op);
+                        QueuedTask::RegisterOperation(op) => {
+                            self.sender
+                                .send(ProcessorTask::RegisterOperation(op.op))
+                                .unwrap();
                         }
-                        Task::RegisterOrphan(val) => {
-                            println!("Processed orphan lazy {key:?}.");
-                            self.runner.register_orphan(&val.id);
-                        }
-                        Task::Executed => {
-                            println!("Already executed {key:?}.");
-                        }
+                        QueuedTask::RegisterOrphan(val) => self
+                            .sender
+                            .send(ProcessorTask::RegisterOrphan(val))
+                            .unwrap(),
+                        QueuedTask::Executed => {}
                     };
                 }
-                None => {
-                    println!("Key {key:?} not found. waiting ...");
-                }
+                None => {}
             }
         }
     }
@@ -167,7 +224,6 @@ where
     }
 
     async fn start(self, address: &str) {
-        println!("Start server ...");
         tracing_subscriber::fmt::init();
 
         let app = Router::new()

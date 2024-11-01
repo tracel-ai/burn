@@ -101,7 +101,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        self.runtime.block_on(fut);
+        self.runtime.spawn(fut);
     }
 
     fn read_tensor(
@@ -133,7 +133,6 @@ impl RunnerClient for HttpClient {
         };
 
         let data = runtime.block_on(fut);
-        //let fut = async move { runtime.spawn(fut).await.unwrap() };
         let fut = async move { data };
 
         fut
@@ -244,7 +243,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        self.runtime.block_on(fut);
+        self.runtime.spawn(fut);
     }
 
     fn sync(&self) {
