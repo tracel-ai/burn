@@ -61,7 +61,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for QJitTensor<R, F, I
     fn clone(&self) -> Self {
         Self {
             qtensor: self.qtensor.clone(),
-            scheme: self.scheme.clone(),
+            scheme: self.scheme,
             qparams: self.qparams.clone(),
         }
     }

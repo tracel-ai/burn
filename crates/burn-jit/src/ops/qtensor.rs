@@ -4,10 +4,9 @@ use alloc::vec::Vec;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationStrategy, QuantizationType,
+        QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
     },
-    DType, Device, ElementConversion, Shape, TensorData,
+    DType, Device, Shape, TensorData,
 };
 
 use crate::{
@@ -51,25 +50,19 @@ where
 {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
-            DType::QFloat(strategy) => match strategy {
-                QuantizationStrategy::PerTensorAffineInt8(q) => {
+            DType::QFloat(scheme) => match scheme {
+                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+                | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
                     // Convert quantized values to packed u32s
+                    let qparams = data.get_q_params().unwrap();
                     QJitTensor {
                         qtensor: packed_tensor(pack_i8s_to_u32s(&data), data.shape, device),
-                        scheme: strategy.scheme(),
+                        scheme,
                         qparams: JitQuantizationParameters::new(
-                            q.scale.elem(),
-                            Some(q.offset.elem()),
+                            qparams.scale,
+                            qparams.offset,
                             device,
                         ),
-                    }
-                }
-                QuantizationStrategy::PerTensorSymmetricInt8(q) => {
-                    // Convert quantized values to packed u32s
-                    QJitTensor {
-                        qtensor: packed_tensor(pack_i8s_to_u32s(&data), data.shape, device),
-                        scheme: strategy.scheme(),
-                        qparams: JitQuantizationParameters::new(q.scale.elem(), None, device),
                     }
                 }
             },

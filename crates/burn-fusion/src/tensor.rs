@@ -190,7 +190,7 @@ impl<R: FusionRuntime> Clone for QFusionTensor<R> {
     fn clone(&self) -> Self {
         Self {
             qtensor: self.qtensor.clone(),
-            scheme: self.scheme.clone(),
+            scheme: self.scheme,
             qparams: self.qparams.clone(),
         }
     }

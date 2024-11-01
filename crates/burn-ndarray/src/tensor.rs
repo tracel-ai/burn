@@ -1,5 +1,8 @@
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
+    quantization::{
+        AffineQuantization, QTensorPrimitive, QParams, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+    },
     Element, Shape, TensorData,
 };
 
@@ -182,8 +185,8 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     pub qtensor: NdArrayTensor<Q>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
+    /// The quantization parameters.
+    pub qparams: QParams<f32, Q>,
 }
 
 impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
@@ -192,7 +195,19 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
     }
 
     fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
+        match self.scheme {
+            QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
+                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                    self.qparams.scale,
+                    self.qparams.offset.unwrap().elem(),
+                ))
+            }
+            QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    self.qparams.scale,
+                ))
+            }
+        }
     }
 }
 

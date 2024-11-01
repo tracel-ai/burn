@@ -184,6 +184,7 @@ pub fn max_pool2d<B>(
     x: Tensor<B, 4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
+    // TODO: support asymmetric padding
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> Tensor<B, 4>

@@ -198,7 +198,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of adding the scalar to the tensor.
     fn q_add_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = lhs.scheme().clone();
+        let scheme = *lhs.scheme();
 
         let lhs_f = Self::dequantize(lhs);
         let out_f = B::float_add_scalar(lhs_f, rhs);
@@ -217,7 +217,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn q_clamp_min(tensor: QuantizedTensor<B>, min: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_clamp_min(tensor_f, min);
@@ -236,7 +236,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn q_clamp_max(tensor: QuantizedTensor<B>, max: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_clamp_max(tensor_f, max);
@@ -260,7 +260,7 @@ pub trait QTensorOps<B: Backend> {
         min: FloatElem<B>,
         max: FloatElem<B>,
     ) -> QuantizedTensor<B> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_clamp(tensor_f, min, max);
@@ -298,7 +298,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of subtracting the scalar from the tensor.
     fn q_sub_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = lhs.scheme().clone();
+        let scheme = *lhs.scheme();
 
         let lhs_f = Self::dequantize(lhs);
         let out_f = B::float_sub_scalar(lhs_f, rhs);
@@ -327,7 +327,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of multiplying the tensor by the scalar.
     fn q_mul_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = lhs.scheme().clone();
+        let scheme = *lhs.scheme();
 
         let lhs_f = Self::dequantize(lhs);
         let out_f = B::float_mul_scalar(lhs_f, rhs);
@@ -365,7 +365,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of dividing the tensor by the scalar.
     fn q_div_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = lhs.scheme().clone();
+        let scheme = *lhs.scheme();
 
         let lhs_f = Self::dequantize(lhs);
         let out_f = B::float_div_scalar(lhs_f, rhs);
@@ -402,7 +402,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The result of applying the modulus of the scalar to the tensor.
     fn q_remainder_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> QuantizedTensor<B> {
-        let scheme = lhs.scheme().clone();
+        let scheme = *lhs.scheme();
 
         let lhs_f = Self::dequantize(lhs);
         let out_f = B::float_remainder_scalar(lhs_f, rhs);
@@ -431,7 +431,7 @@ pub trait QTensorOps<B: Backend> {
 
     /// Negates a tensor element-wise.
     fn q_neg(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_neg(tensor_f);
@@ -441,7 +441,7 @@ pub trait QTensorOps<B: Backend> {
 
     /// Calculates the reciprocals element-wise
     fn q_recip(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_recip(tensor_f);
@@ -1016,7 +1016,7 @@ pub trait QTensorOps<B: Backend> {
     /// A tensor with the concatenated tensors along `dim`.
     fn q_cat(tensors: Vec<QuantizedTensor<B>>, dim: usize) -> QuantizedTensor<B> {
         // Heuristic: prioritize first tensor scheme
-        let scheme = tensors.first().unwrap().scheme().clone();
+        let scheme = *tensors.first().unwrap().scheme();
 
         let tensor_f = tensors
             .into_iter()
@@ -1204,7 +1204,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A vector of tensors
     fn q_chunk(tensor: QuantizedTensor<B>, chunks: usize, dim: usize) -> Vec<QuantizedTensor<B>> {
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_chunk(tensor_f, chunks, dim);
@@ -1323,7 +1323,7 @@ pub trait QTensorOps<B: Backend> {
         descending: bool,
     ) -> (QuantizedTensor<B>, IntTensor<B>) {
         // Default implementation. Backends can sort on the int values since qparams remain the same.
-        let scheme = tensor.scheme().clone();
+        let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let (out_f, indices) = B::float_sort_with_indices(tensor_f, dim, descending);
