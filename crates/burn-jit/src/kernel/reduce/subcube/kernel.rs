@@ -1,6 +1,6 @@
 use cubecl::{prelude::*, CubeCount, CubeDim};
 
-use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use crate::{kernel::reduce::init_reduce_output, tensor::JitTensor, JitElement, JitRuntime};
 
 use super::base::ReduceDimSubcube;
 
@@ -55,18 +55,20 @@ pub fn reduce_dim_subcube_kernel<
 
     sync_units();
 
-    let mut n_warps = warp_count;
+    let mut n_threads = warp_count;
 
-    while n_warps > 1 {
-        n_warps /= 2;
+    while n_threads > 1 {
+        n_threads /= 2;
 
-        if UNIT_POS == 0 && warp_id < n_warps {
-            let read_pos = n_warps + warp_id;
-            let mut value = RD::read_from_shared(&shared_memory, read_pos);
-            let next = RD::read_from_shared(&shared_memory, warp_id);
-            RD::update_value(&mut value, next);
-            RD::write_to_shared(&mut shared_memory, warp_id, value);
+        if UNIT_POS >= n_threads {
+            return;
         }
+
+        let read_pos = n_threads + UNIT_POS;
+        let mut value = RD::read_from_shared(&shared_memory, read_pos);
+        let next = RD::read_from_shared(&shared_memory, UNIT_POS);
+        RD::update_value(&mut value, next);
+        RD::write_to_shared(&mut shared_memory, UNIT_POS, value);
 
         sync_units();
     }
@@ -89,9 +91,10 @@ pub fn reduce_dim_subcube<
     EO: JitElement,
 >(
     input: JitTensor<R, EI>,
-    output: JitTensor<R, EO>,
     dim: usize,
 ) -> JitTensor<R, EO> {
+    let output = init_reduce_output::<R, EI, EO>(&input, dim);
+
     let num_elems_output = output.shape.num_elements();
     let cube_dim = CubeDim::default();
     let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
@@ -103,7 +106,10 @@ pub fn reduce_dim_subcube<
     let elems_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
 
+    let warp_size = 32u32;
+
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
+    let smem_size = cube_dim.num_elems() / warp_size;
 
     unsafe {
         reduce_dim_subcube_kernel::launch_unchecked::<RD, EI, EO, R>(
@@ -113,7 +119,7 @@ pub fn reduce_dim_subcube<
             input.as_tensor_arg(1),
             output.as_tensor_arg(1),
             dim as u32,
-            cube_dim.num_elems(),
+            smem_size,
             elems_per_thread,
             divisible_shape,
         )

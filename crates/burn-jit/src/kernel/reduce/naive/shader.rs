@@ -1,4 +1,6 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{
+    element::JitElement, kernel::reduce::init_reduce_output, tensor::JitTensor, JitRuntime,
+};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
@@ -37,9 +39,10 @@ pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI>, EI: Numeri
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
     input: JitTensor<R, EI>,
-    output: JitTensor<R, EO>,
     dim: usize,
 ) -> JitTensor<R, EO> {
+    let output = init_reduce_output::<R, EI, EO>(&input, dim);
+
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 

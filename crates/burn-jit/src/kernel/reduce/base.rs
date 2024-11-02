@@ -1,3 +1,5 @@
+use cubecl::prelude::Numeric;
+
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
@@ -5,12 +7,12 @@ use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use super::{
     naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
     shared::{base::ReduceDimShared, shader::reduce_dim_shared},
-    subcube::kernel::reduce_dim_subcube,
+    subcube::{base::ReduceDimSubcube, kernel::reduce_dim_subcube},
 };
 
 #[allow(dead_code)]
-pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
-    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI>
+pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
+    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI> + ReduceDimSubcube<EI, EO>
 {
 }
 
@@ -38,8 +40,12 @@ pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement>(
 #[derive(Copy, Clone, Debug)]
 #[allow(missing_docs)]
 pub enum ReduceStrategy {
+    /// Naive
     Naive,
+    /// Use shared memory as an accumulator
     SharedMemory,
+    /// Use subcube functions
+    Subcube,
     #[cfg(feature = "autotune")]
     Autotune,
 }
@@ -55,36 +61,31 @@ impl Default for ReduceStrategy {
     }
 }
 
-#[cfg(feature = "autotune")]
-#[cfg(not(feature = "autotune"))]
-impl Default for ReduceStrategy {
-    fn default() -> Self {
-        ReduceStrategy::Naive
-    }
-}
+// #[cfg(feature = "autotune")]
+// #[cfg(not(feature = "autotune"))]
+// impl Default for ReduceStrategy {
+//     fn default() -> Self {
+//         ReduceStrategy::Naive
+//     }
+// }
 
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
         #[derive(Debug)]
         pub(crate) struct $ops;
 
-        impl<EI: JitElement> ReduceDimAlgorithm<EI> for $ops {}
+        impl<EI: JitElement + Numeric, EO: JitElement> ReduceDimAlgorithm<EI, EO> for $ops {}
 
         /// Executes the reduce operation with the given strategy.
-        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(
+        pub fn $name<R: JitRuntime, EI: JitElement + Numeric, EO: JitElement>(
             tensor: JitTensor<R, EI>,
             dim: usize,
             strategy: ReduceStrategy,
         ) -> JitTensor<R, EO> {
             match strategy {
-                ReduceStrategy::Naive => {
-                    let output = init_reduce_output(&tensor, dim);
-                    reduce_dim_naive::<$ops, R, EI, EO>(tensor, output, dim)
-                }
-                ReduceStrategy::SharedMemory => {
-                    let output = init_reduce_output(&tensor, dim);
-                    reduce_dim_shared::<$ops, R, EI, EO>(tensor, output, dim)
-                }
+                ReduceStrategy::Naive => reduce_dim_naive::<$ops, R, EI, EO>(tensor, dim),
+                ReduceStrategy::SharedMemory => reduce_dim_shared::<$ops, R, EI, EO>(tensor, dim),
+                ReduceStrategy::Subcube => reduce_dim_subcube::<$ops, R, EI, EO>(tensor, dim),
                 #[cfg(feature = "autotune")]
                 ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO>(tensor, dim),
             }
@@ -98,13 +99,3 @@ reduce_operation!(mean_dim, MeanDim);
 reduce_operation!(prod_dim, ProdDim);
 reduce_operation!(argmin, Argmin);
 reduce_operation!(argmax, Argmax);
-
-/// Executes the reduce operation with the given strategy.
-pub fn argmax_cube<R: JitRuntime, EI: JitElement, EO: JitElement>(
-    tensor: JitTensor<R, EI>,
-    dim: usize,
-    _strategy: ReduceStrategy,
-) -> JitTensor<R, EO> {
-    let output = init_reduce_output(&tensor, dim);
-    reduce_dim_subcube::<Argmax, R, EI, EO>(tensor, output, dim)
-}

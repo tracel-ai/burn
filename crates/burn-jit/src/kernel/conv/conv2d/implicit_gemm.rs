@@ -9,7 +9,6 @@ use half::f16;
 use crate::{
     kernel::{into_contiguous, slice},
     ops::{
-        into_data_sync,
         numeric::{empty_device, zeros_device},
         permute,
     },

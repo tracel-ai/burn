@@ -14,5 +14,5 @@ pub trait ReduceDimSubcube<EIn: JitElement, EOut: JitElement>: Send + Sync + 'st
     fn update_value(current: &mut Self::Value, new: Self::Value);
     fn reduce_subcube(acc: &mut Self::Accumulator, pos: u32, value: Self::Value);
     fn write_to_shared(acc: &mut Self::Accumulator, pos: u32, value: Self::Value);
-    fn store(acc: &Self::Accumulator, out: &mut Tensor<EOut>, pos: u32, layout: u32);
+    fn store(acc: &Self::Accumulator, out: &mut Tensor<EOut>, pos: u32, dim_len: u32);
 }

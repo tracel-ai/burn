@@ -374,7 +374,7 @@ where
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce::argmax_cube(tensor, dim, Default::default())
+        reduce::argmax(tensor, dim, Default::default())
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {

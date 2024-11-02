@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 use crate::{
     element::JitElement,
-    kernel::{Kernel, SUBCUBE_DIM_APPROX},
+    kernel::{reduce::init_reduce_output, Kernel, SUBCUBE_DIM_APPROX},
     tensor::JitTensor,
     JitRuntime,
 };
@@ -301,9 +301,10 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
 /// Executes the shared memory kernel for reduce dim
 pub fn reduce_dim_shared<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
     input: JitTensor<R, EI>,
-    output: JitTensor<R, EO>,
     dim: usize,
 ) -> JitTensor<R, EO> {
+    let output = init_reduce_output::<R, EI, EO>(&input, dim);
+
     let num_elems_output = output.shape.num_elements();
     let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let cube_count_y = f32::ceil(num_elems_output as f32 / cube_count_x);
@@ -316,6 +317,8 @@ pub fn reduce_dim_shared<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement,
 
     let divisible_shape =
         n_invocation_per_cube as u32 * n_input_values_per_thread == reduce_group_size as u32;
+
+    let output = init_reduce_output(&input, dim);
 
     let kernel = SharedReduceDimEagerKernel::<RD, R, EI, EO>::new(
         dim,
@@ -334,6 +337,7 @@ pub fn reduce_dim_shared<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement,
 }
 
 /// Executes the shared memory kernel for reduce dim
+#[expect(unused, reason = "Need to finish implementing other ops")]
 pub fn reduce_dim_shared_cube<
     RD: ReduceDimSharedCube<EI, EO>,
     R: JitRuntime,
