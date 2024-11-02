@@ -1,0 +1,47 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Backend router decorator over websocket"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-router-websocket"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-websocket"
+documentation = "https://docs.rs/burn-router-websocket"
+version.workspace = true
+
+[features]
+default = []
+ndarray = ["burn-ndarray"]
+wgpu = ["burn-wgpu"]
+cuda = ["burn-cuda"]
+doc = []
+
+[dependencies]
+burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false, features = ["repr"]}
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = false}
+
+derive-new = {workspace = true }
+log = { workspace = true }
+
+tokio = { version = "1.37", features = ["full"] }
+tokio-tungstenite = { version = "0.24" }
+futures-util = { version = "0.3" }
+
+serde = { workspace = true, features = ["derive"] }
+serde_bytes = { workspace = true }
+rmp-serde = { workspace = true }
+
+# Server stuff
+axum = { version = "0.7.5", features = ["macros", "ws"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "registry"] }
+
+# For bin/server.rs
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]
