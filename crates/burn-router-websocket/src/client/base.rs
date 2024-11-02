@@ -58,6 +58,7 @@ impl WsSender {
                 }))
                 .await
                 .unwrap();
+            // println!("Async Took {:?}", start.elapsed());
         }
     }
 
@@ -72,7 +73,6 @@ impl WsSender {
         let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
 
         let fut = async move {
-            let start = std::time::Instant::now();
             sender
                 .send(ClientRequest::WithSyncCallback(
                     Task {
@@ -84,13 +84,12 @@ impl WsSender {
                 .await
                 .unwrap();
 
-            println!("Before wait {:?}", start.elapsed());
             let res = match callback_recv.recv().await {
                 Some(val) => val,
                 None => panic!(""),
             };
 
-            println!("Took {:?}", start.elapsed());
+            // println!("Took {:?}", start.elapsed());
             res
         };
 

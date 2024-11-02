@@ -75,7 +75,6 @@ where
 
         loop {
             let packet = socket.recv().await;
-            let start = std::time::Instant::now();
             let msg = match packet {
                 Some(msg) => msg,
                 None => {
@@ -98,10 +97,8 @@ where
                         processor
                             .send(ProcessorTask::RegisterOperation(op))
                             .unwrap();
-                        println!("Register Operation {:?} {:?}", task.id, start.elapsed());
                     }
                     TaskContent::RegisterTensor(data) => {
-                        let start = std::time::Instant::now();
                         let (sender, recv) = std::sync::mpsc::channel();
 
                         processor
@@ -111,10 +108,8 @@ where
                         let response = recv.recv().expect("A callback");
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                        println!("Register Tensor {:?} {:?}", task.id, start.elapsed());
                     }
                     TaskContent::RegisterTensorEmpty(shape, dtype) => {
-                        let start = std::time::Instant::now();
                         let (sender, recv) = std::sync::mpsc::channel();
 
                         processor
@@ -126,15 +121,11 @@ where
                         let response = recv.recv().expect("A callback");
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                        println!("Register Tensor Empty {:?} {:?}", task.id, start.elapsed());
                     }
                     TaskContent::RegisterOrphan(id) => {
-                        let start = std::time::Instant::now();
                         processor.send(ProcessorTask::RegisterOrphan(id)).unwrap();
-                        println!("Register Orphan {:?} {:?}", task.id, start.elapsed());
                     }
                     TaskContent::ReadTensor(tensor) => {
-                        let start = std::time::Instant::now();
                         let (sender, recv) = std::sync::mpsc::channel();
 
                         processor
@@ -144,10 +135,8 @@ where
                         let response = recv.recv().expect("A callback");
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                        println!("Read Tensor {:?} {:?}", task.id, start.elapsed());
                     }
                     TaskContent::SyncBackend => {
-                        let start = std::time::Instant::now();
                         let (sender, recv) = std::sync::mpsc::channel();
 
                         processor
@@ -157,7 +146,6 @@ where
                         let response = recv.recv().expect("A callback");
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                        println!("Sync Backend {:?} {:?}", task.id, start.elapsed());
                     }
                 }
             } else {
@@ -165,7 +153,6 @@ where
                 break;
             };
 
-            println!("Took {:?}", start.elapsed());
         }
         println!("Closing connection");
         processor.send(ProcessorTask::Close).unwrap();
