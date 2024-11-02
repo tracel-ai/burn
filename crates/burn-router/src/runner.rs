@@ -122,7 +122,11 @@ where
     }
 
     /// Register an empty tensor.
-    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
+    pub fn register_empty_tensor_desc(
+        &self,
+        shape: Vec<usize>,
+        dtype: DType,
+    ) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);

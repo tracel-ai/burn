@@ -1,16 +1,13 @@
 use futures_util::{SinkExt, StreamExt};
-use std::{
-    collections::HashMap,
-    sync::{mpsc::Sender, Arc},
-};
+use std::{collections::HashMap, sync::Arc};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
 
 use super::{router::WsDevice, WsClient};
 
-pub type CallbackSender = std::sync::mpsc::Sender<TaskResponseContent>;
-pub type CallbackReceiver = std::sync::mpsc::Receiver<TaskResponseContent>;
+pub type CallbackSender = tokio::sync::mpsc::Sender<TaskResponseContent>;
+pub type CallbackReceiver = tokio::sync::mpsc::Receiver<TaskResponseContent>;
 
 pub enum ClientRequest {
     WithSyncCallback(Task, CallbackSender),
@@ -23,10 +20,10 @@ pub(crate) struct ClientRunner {
 }
 
 impl ClientRunner {
-    fn on_response(&mut self, response: TaskResponse) {
+    async fn on_response(&mut self, response: TaskResponse) {
         match self.requests.remove(&response.id) {
             Some(request) => {
-                request.send(response.content).unwrap();
+                request.send(response.content).await.unwrap();
             }
             None => {
                 panic!("Can't ignore message from the server.");
@@ -34,7 +31,7 @@ impl ClientRunner {
         }
     }
 
-    fn register_callback(&mut self, id: ConnectionId, callback: Sender<TaskResponseContent>) {
+    fn register_callback(&mut self, id: ConnectionId, callback: CallbackSender) {
         self.requests.insert(id, callback);
     }
 }
@@ -43,14 +40,14 @@ impl ClientRunner {
     pub fn start(device: WsDevice) -> WsClient {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
-                .worker_threads(1)
-                .max_blocking_threads(1)
+                .worker_threads(2)
+                .max_blocking_threads(2)
                 .enable_all()
                 .build()
                 .unwrap(),
         );
 
-        let (sender, mut rec) = tokio::sync::mpsc::channel(100);
+        let (sender, mut rec) = tokio::sync::mpsc::channel(10);
 
         let address = format!("{}/{}", device.address.clone(), "ws");
         println!("Starting {address}");
@@ -58,13 +55,15 @@ impl ClientRunner {
         runtime.spawn(async move {
             println!("Connecting to {address}");
             let (ws_stream, _) = connect_async(address).await.expect("Failed to connect");
-            let (mut write, read) = ws_stream.split();
+            let (mut write, mut read) = ws_stream.split();
             let state = Arc::new(tokio::sync::Mutex::new(ClientRunner::default()));
 
             // Websocket async runner.
             let state_ws = state.clone();
             tokio::spawn(async move {
-                read.for_each(|msg| async {
+                let mut start = std::time::Instant::now();
+                while let Some(msg) = read.next().await {
+                    println!("Time since prev message {:?}", start.elapsed());
                     let msg = match msg {
                         Ok(msg) => msg,
                         Err(err) => panic!("An error happended {err:?}"),
@@ -72,15 +71,15 @@ impl ClientRunner {
 
                     match msg {
                         Message::Binary(bytes) => {
-                            let mut state = state_ws.lock().await;
                             let response: TaskResponse = rmp_serde::from_slice(&bytes).unwrap();
-                            state.on_response(response);
+                            let mut state = state_ws.lock().await;
+                            state.on_response(response).await;
                         }
                         Message::Close(_) => return,
                         _ => panic!("Unsupproted {msg:?}"),
                     };
-                })
-                .await;
+                    start = std::time::Instant::now();
+                }
             });
 
             // Channel async runner.

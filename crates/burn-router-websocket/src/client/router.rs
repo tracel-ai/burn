@@ -22,40 +22,36 @@ impl RunnerClient for WsClient {
         &self,
         tensor: burn_tensor::repr::TensorDescription,
     ) -> impl std::future::Future<Output = TensorData> + Send {
-        let (fut, callback) = self.sender.send_callback(TaskContent::ReadTensor(tensor));
+        let fut = self.sender.send_callback(TaskContent::ReadTensor(tensor));
 
-        self.runtime.block_on(fut);
-
-        let data = match callback.recv() {
-            Ok(msg) => match msg {
+        let fut = async move {
+            match fut.await {
                 TaskResponseContent::ReadTensor(data) => data,
-                _ => panic!("Invalid message type {msg:?}"),
-            },
-            Err(err) => panic!("Unable to read tensor {err:?}"),
+                _ => panic!("Invalid message type"),
+            }
         };
 
-        async move { data }
+        fut
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {
-        let (fut, callback) = self.sender.send_callback(TaskContent::RegisterTensor(data));
+        let fut = self.sender.send_callback(TaskContent::RegisterTensor(data));
 
-        self.runtime.block_on(fut);
-
-        let tensor = match callback.recv() {
-            Ok(msg) => match msg {
+        let fut = async move {
+            let tensor = match fut.await {
                 TaskResponseContent::RegisteredTensor(data) => data,
-                _ => panic!("Invalid message type {msg:?}"),
-            },
-            Err(err) => panic!("Unable to read tensor {err:?}"),
+                _ => panic!("Invalid message type"),
+            };
+
+            RouterTensor::new(
+                Arc::new(tensor.id),
+                tensor.shape,
+                tensor.dtype,
+                self.clone(),
+            )
         };
 
-        RouterTensor::new(
-            Arc::new(tensor.id),
-            tensor.shape,
-            tensor.dtype,
-            self.clone(),
-        )
+        self.runtime.block_on(fut)
     }
 
     fn register_empty_tensor(
@@ -63,26 +59,25 @@ impl RunnerClient for WsClient {
         shape: Vec<usize>,
         dtype: burn_tensor::DType,
     ) -> RouterTensor<Self> {
-        let (fut, callback) = self
+        let fut = self
             .sender
             .send_callback(TaskContent::RegisterTensorEmpty(shape, dtype));
 
-        self.runtime.block_on(fut);
-
-        let tensor = match callback.recv() {
-            Ok(msg) => match msg {
+        let fut = async move {
+            let tensor = match fut.await {
                 TaskResponseContent::RegisteredTensorEmpty(data) => data,
-                _ => panic!("Invalid message type {msg:?}"),
-            },
-            Err(err) => panic!("Unable to read tensor {err:?}"),
+                _ => panic!("Invalid message type"),
+            };
+
+            RouterTensor::new(
+                Arc::new(tensor.id),
+                tensor.shape,
+                tensor.dtype,
+                self.clone(),
+            )
         };
 
-        RouterTensor::new(
-            Arc::new(tensor.id),
-            tensor.shape,
-            tensor.dtype,
-            self.clone(),
-        )
+        self.runtime.block_on(fut)
     }
 
     fn register_float_tensor(
@@ -103,17 +98,16 @@ impl RunnerClient for WsClient {
     }
 
     fn sync(&self) {
-        let (fut, callback) = self.sender.send_callback(TaskContent::SyncBackend);
+        let fut = self.sender.send_callback(TaskContent::SyncBackend);
 
-        self.runtime.block_on(fut);
-
-        match callback.recv() {
-            Ok(msg) => match msg {
+        let fut = async move {
+            match fut.await {
                 TaskResponseContent::SyncBackend => {}
-                _ => panic!("Invalid message type {msg:?}"),
-            },
-            Err(err) => panic!("Unable to read tensor {err:?}"),
-        }
+                _ => panic!("Invalid message type"),
+            };
+        };
+
+        self.runtime.block_on(fut)
     }
 
     fn seed(&self, _seed: u64) {

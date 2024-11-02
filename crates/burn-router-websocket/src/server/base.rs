@@ -75,6 +75,7 @@ where
 
         loop {
             let packet = socket.recv().await;
+            let start = std::time::Instant::now();
             let msg = match packet {
                 Some(msg) => msg,
                 None => {
@@ -94,7 +95,6 @@ where
 
                 match task.content {
                     TaskContent::RegisterOperation(op) => {
-                        let start = std::time::Instant::now();
                         processor
                             .send(ProcessorTask::RegisterOperation(op))
                             .unwrap();
@@ -163,14 +163,16 @@ where
             } else {
                 println!("Not a binary message, closing, received {msg:?}");
                 break;
-            }
+            };
+
+            println!("Took {:?}", start.elapsed());
         }
         println!("Closing connection");
         processor.send(ProcessorTask::Close).unwrap();
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 /// Start a server.
 pub async fn start<B: ReprBackend>(device: Device<B>, address: &str)
 where

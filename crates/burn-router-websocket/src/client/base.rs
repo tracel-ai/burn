@@ -8,7 +8,7 @@ use super::{
     router::WsDevice,
     runner::{CallbackReceiver, ClientRequest, ClientRunner},
 };
-use crate::shared::{ConnectionId, Task, TaskContent};
+use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
 
 #[derive(Clone)]
 pub struct WsClient {
@@ -64,14 +64,15 @@ impl WsSender {
     pub(crate) fn send_callback(
         &self,
         content: TaskContent,
-    ) -> (impl Future<Output = ()> + Send, CallbackReceiver) {
+    ) -> impl Future<Output = TaskResponseContent> + Send {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let sender = self.sender.clone();
-        let (callback_sender, callback_recv) = std::sync::mpsc::channel();
+        let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
 
         let fut = async move {
+            let start = std::time::Instant::now();
             sender
                 .send(ClientRequest::WithSyncCallback(
                     Task {
@@ -82,8 +83,17 @@ impl WsSender {
                 ))
                 .await
                 .unwrap();
+
+            println!("Before wait {:?}", start.elapsed());
+            let res = match callback_recv.recv().await {
+                Some(val) => val,
+                None => panic!(""),
+            };
+
+            println!("Took {:?}", start.elapsed());
+            res
         };
 
-        (fut, callback_recv)
+        fut
     }
 }
