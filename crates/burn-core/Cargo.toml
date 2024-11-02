@@ -86,7 +86,7 @@ metal = ["burn-candle?/metal"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 template = ["burn-wgpu?/template"]
-http = ["burn-router/http"]
+http = ["burn-router/http-client"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]

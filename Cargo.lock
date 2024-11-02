@@ -822,6 +822,7 @@ dependencies = [
  "axum",
  "burn-autodiff",
  "burn-common",
+ "burn-cuda",
  "burn-ndarray",
  "burn-tensor",
  "burn-wgpu",

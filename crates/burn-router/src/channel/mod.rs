@@ -5,5 +5,5 @@ pub use base::*;
 pub use direct::*;
 
 /// Http channel.
-#[cfg(feature = "http")]
+#[cfg(any(feature = "http-client", feature = "http-server"))]
 pub mod http;

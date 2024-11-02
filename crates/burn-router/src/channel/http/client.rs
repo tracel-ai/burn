@@ -1,8 +1,9 @@
-use core::sync::atomic::AtomicU64;
+use core::{future::Future, sync::atomic::AtomicU64};
 use std::sync::Arc;
 
 use super::{
-    ReadTensor, RegisterOperation, RegisterOrphan, RegisterTensor, RegisterTensorEmpty, SyncBackend,
+    CloseConnection, ReadTensor, RegisterOperation, RegisterOrphan, RegisterTensor,
+    RegisterTensorEmpty, SyncBackend,
 };
 use crate::{MultiBackendBridge, RouterTensor, RunnerChannel, RunnerClient};
 use burn_tensor::{
@@ -10,6 +11,7 @@ use burn_tensor::{
     repr::{OperationDescription, TensorDescription},
     DType, TensorData,
 };
+use reqwest::Url;
 
 /// A local channel with direct connection to the backend runner clients.
 #[derive(Clone)]
@@ -18,10 +20,44 @@ pub struct HttpChannel;
 /// TODO:
 #[derive(Clone)]
 pub struct HttpClient {
-    runtime: Arc<tokio::runtime::Runtime>,
-    order: Arc<AtomicU64>,
+    state: Arc<HttpClientState>,
+}
+
+struct HttpClientState {
+    runtime: tokio::runtime::Runtime,
+    position: AtomicU64,
     client: reqwest::Client,
     url: reqwest::Url,
+    id: u64,
+}
+
+impl Drop for HttpClientState {
+    fn drop(&mut self) {
+        let client = self.client.clone();
+        let position = self
+            .position
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let id = self.id;
+        let url = self.url.join("close").unwrap();
+
+        let fut = async move {
+            let res = client
+                .post(url)
+                .json(&CloseConnection {
+                    position,
+                    client_id: id,
+                })
+                .send()
+                .await;
+
+            let res = res.unwrap();
+            let body = res.json::<burn_tensor::TensorData>().await;
+
+            body.unwrap()
+        };
+
+        self.runtime.block_on(fut);
+    }
 }
 
 /// TODO:
@@ -79,19 +115,41 @@ impl DeviceOps for HttpDevice {
     }
 }
 
+impl HttpClient {
+    fn position(&self) -> u64 {
+        self.state
+            .position
+            .fetch_add(1, core::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn url(&self, path: &str) -> Url {
+        self.state.url.join(path).unwrap()
+    }
+
+    fn spawn<F>(&self, fut: F)
+    where
+        F: Future + Send + Sync + 'static,
+        F::Output: Send + Sync + 'static,
+    {
+        self.state.runtime.spawn(fut);
+    }
+}
+
 impl RunnerClient for HttpClient {
     type Device = HttpDevice;
 
     fn register(&self, op: OperationDescription) {
         log::info!("Register Operation.");
 
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         let res = self
+            .state
             .client
-            .post(self.url.join("register-operation").unwrap())
-            .json(&RegisterOperation { op, index: order })
+            .post(self.url("register-operation"))
+            .json(&RegisterOperation {
+                op,
+                position: self.position(),
+                client_id: self.state.id,
+            })
             .send();
 
         let fut = async move {
@@ -101,27 +159,26 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        self.runtime.spawn(fut);
+        self.spawn(fut);
     }
 
     fn read_tensor(
         &self,
         tensor: TensorDescription,
     ) -> impl core::future::Future<Output = burn_tensor::TensorData> + Send {
-        let client = self.client.clone();
-        let url = self.url.join("read-tensor").unwrap();
-        let runtime = self.runtime.clone();
-
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let url = self.url("read-tensor");
+        let position = self.position();
+        let state = self.state.clone();
+        let state2 = self.state.clone();
 
         let fut = async move {
-            let res = client
+            let res = state
+                .client
                 .post(url)
                 .json(&ReadTensor {
                     tensor,
-                    index: order,
+                    position,
+                    client_id: self.state.id,
                 })
                 .send()
                 .await;
@@ -132,7 +189,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        let data = runtime.block_on(fut);
+        let data = state2.runtime.block_on(fut);
         let fut = async move { data };
 
         fut
@@ -141,15 +198,18 @@ impl RunnerClient for HttpClient {
     fn register_tensor_data(&self, data: burn_tensor::TensorData) -> RouterTensor<Self> {
         log::info!("Register Tensor.");
 
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let position = self.position();
 
         let fut = async move {
             let res = self
+                .state
                 .client
-                .post(self.url.join("register-tensor").unwrap())
-                .json(&RegisterTensor { data, index: order })
+                .post(self.url("register-tensor"))
+                .json(&RegisterTensor {
+                    data,
+                    position,
+                    client_id: self.state.id,
+                })
                 .send()
                 .await;
 
@@ -159,7 +219,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        let tensor = self.runtime.block_on(fut);
+        let tensor = self.state.runtime.block_on(fut);
 
         RouterTensor::new(
             Arc::new(tensor.id),
@@ -176,18 +236,18 @@ impl RunnerClient for HttpClient {
     ) -> RouterTensor<Self> {
         log::info!("Register Tensor Empty.");
 
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let position = self.position();
 
         let fut = async move {
             let res = self
+                .state
                 .client
-                .post(self.url.join("register-tensor-empty").unwrap())
+                .post(self.url("register-tensor-empty"))
                 .json(&RegisterTensorEmpty {
                     shape,
                     dtype,
-                    index: order,
+                    position,
+                    client_id: self.state.id,
                 })
                 .send()
                 .await;
@@ -198,7 +258,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        let tensor = self.runtime.block_on(fut);
+        let tensor = self.state.runtime.block_on(fut);
 
         RouterTensor::new(
             Arc::new(tensor.id),
@@ -218,7 +278,7 @@ impl RunnerClient for HttpClient {
 
     fn device(&self) -> Self::Device {
         HttpDevice {
-            url: self.url.clone(),
+            url: self.state.url.clone(),
         }
     }
 
@@ -226,14 +286,17 @@ impl RunnerClient for HttpClient {
         log::info!("Register Orphan.");
         let id = id.clone();
 
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let position = self.position();
 
         let res = self
+            .state
             .client
-            .post(self.url.join("register-orphan").unwrap())
-            .json(&RegisterOrphan { id, index: order })
+            .post(self.url("register-orphan"))
+            .json(&RegisterOrphan {
+                id,
+                position,
+                client_id: self.state.id,
+            })
             .send();
 
         let fut = async move {
@@ -243,19 +306,22 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        self.runtime.spawn(fut);
+        self.spawn(fut);
     }
 
     fn sync(&self) {
         log::info!("Sync");
-        let order = self
-            .order
-            .fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+        let position = self.position();
+
         let fut = async move {
             let res = self
+                .state
                 .client
-                .post(self.url.join("sync").unwrap())
-                .json(&SyncBackend { index: order })
+                .post(self.url("sync"))
+                .json(&SyncBackend {
+                    position,
+                    client_id: self.state.id,
+                })
                 .send()
                 .await;
 
@@ -265,7 +331,7 @@ impl RunnerClient for HttpClient {
             body.unwrap()
         };
 
-        self.runtime.block_on(fut);
+        self.state.runtime.block_on(fut);
     }
 
     fn seed(&self, _seed: u64) {
@@ -287,18 +353,23 @@ impl RunnerChannel for HttpChannel {
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {
-        log::info!("HERE");
         let client = reqwest::Client::new();
+        let id = burn_common::id::IdGenerator::generate();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
 
-        HttpClient {
-            runtime: Arc::new(runtime),
-            order: Arc::new(AtomicU64::new(0)),
+        let state = HttpClientState {
+            runtime,
+            position: AtomicU64::new(0),
             client,
             url: device.url.clone(),
+            id,
+        };
+
+        HttpClient {
+            state: Arc::new(state),
         }
     }
 
