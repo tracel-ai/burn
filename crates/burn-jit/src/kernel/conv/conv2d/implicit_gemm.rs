@@ -9,6 +9,7 @@ use half::f16;
 use crate::{
     kernel::{into_contiguous, slice},
     ops::{
+        into_data_sync,
         numeric::{empty_device, zeros_device},
         permute,
     },
@@ -177,6 +178,8 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
             has_bias,
         },
     );
+
+    //log::warn!("data: {}", into_data_sync(out.clone()));
 
     let out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
@@ -455,7 +458,7 @@ fn execute_gemm<F: Float, FMat: Float>(
 
         // Run CMMA
         cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
-        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_n);
+        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_k);
 
         cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
     }

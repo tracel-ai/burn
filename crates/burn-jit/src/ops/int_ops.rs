@@ -209,7 +209,7 @@ where
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmax(tensor, dim, Default::default())
+        kernel::reduce::argmax_cube(tensor, dim, Default::default())
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

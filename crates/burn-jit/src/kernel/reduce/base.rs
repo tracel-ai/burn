@@ -7,6 +7,7 @@ use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use super::{
     naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
     shared::{base::ReduceDimShared, shader::reduce_dim_shared},
+    subcube::kernel::reduce_dim_subcube,
 };
 
 #[allow(dead_code)]
@@ -99,3 +100,13 @@ reduce_operation!(mean_dim, MeanDim);
 reduce_operation!(prod_dim, ProdDim);
 reduce_operation!(argmin, Argmin);
 reduce_operation!(argmax, Argmax);
+
+/// Executes the reduce operation with the given strategy.
+pub fn argmax_cube<R: JitRuntime, EI: JitElement, EO: JitElement>(
+    tensor: JitTensor<R, EI>,
+    dim: usize,
+    _strategy: ReduceStrategy,
+) -> JitTensor<R, EO> {
+    let output = init_reduce_output(&tensor, dim);
+    reduce_dim_subcube::<Argmax, R, EI, EO>(tensor, output, dim)
+}
