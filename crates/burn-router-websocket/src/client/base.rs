@@ -8,25 +8,31 @@ use std::{
 };
 use tokio::sync::mpsc::Sender;
 
-use super::runner::{CallbackReceiver, ClientRequest, ClientRunner};
+use super::{
+    router::WsDevice,
+    runner::{CallbackReceiver, ClientRequest, ClientRunner},
+};
 use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
 
 #[derive(Clone)]
-pub struct WebSocketClient {
-    sender: Arc<WsSender>,
-    runtime: Arc<tokio::runtime::Runtime>,
+pub struct WsClient {
+    pub(crate) device: WsDevice,
+    pub(crate) sender: Arc<WsSender>,
+    pub(crate) runtime: Arc<tokio::runtime::Runtime>,
 }
 
-impl WebSocketClient {
-    pub fn init(address: &str) -> Self {
-        ClientRunner::start(address.to_string())
+impl WsClient {
+    pub fn init(device: WsDevice) -> Self {
+        ClientRunner::start(device)
     }
 
     pub(crate) fn new(
+        device: WsDevice,
         sender: Sender<ClientRequest>,
         runtime: Arc<tokio::runtime::Runtime>,
     ) -> Self {
         Self {
+            device,
             runtime,
             sender: Arc::new(WsSender {
                 sender,
@@ -37,8 +43,6 @@ impl WebSocketClient {
 
     pub fn register(&self, op: OperationDescription) {
         log::info!("Register Operation.");
-        let fut = self.sender.send(TaskContent::RegisterOperation(op));
-        self.runtime.spawn(fut);
     }
 
     pub fn read_tensor(&self, desc: TensorDescription) -> TensorData {
@@ -56,13 +60,13 @@ impl WebSocketClient {
     }
 }
 
-struct WsSender {
+pub(crate) struct WsSender {
     sender: Sender<ClientRequest>,
     position_counter: AtomicU64,
 }
 
 impl WsSender {
-    fn send(&self, content: TaskContent) -> impl Future<Output = ()> + Send {
+    pub(crate) fn send(&self, content: TaskContent) -> impl Future<Output = ()> + Send {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -79,7 +83,7 @@ impl WsSender {
         }
     }
 
-    fn send_callback(
+    pub(crate) fn send_callback(
         &self,
         content: TaskContent,
     ) -> (impl Future<Output = ()> + Send, CallbackReceiver) {

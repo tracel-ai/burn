@@ -7,7 +7,7 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
 
-use super::WebSocketClient;
+use super::{router::WsDevice, WsClient};
 
 pub type CallbackSender = std::sync::mpsc::Sender<TaskResponseContent>;
 pub type CallbackReceiver = std::sync::mpsc::Receiver<TaskResponseContent>;
@@ -40,7 +40,7 @@ impl ClientRunner {
 }
 
 impl ClientRunner {
-    pub fn start(address: String) -> WebSocketClient {
+    pub fn start(device: WsDevice) -> WsClient {
         let runtime = Arc::new(
             tokio::runtime::Builder::new_current_thread()
                 .build()
@@ -49,8 +49,11 @@ impl ClientRunner {
 
         let (sender, mut rec) = tokio::sync::mpsc::channel(100);
 
+        let address = device.address.clone();
         runtime.spawn(async move {
-            let (ws_stream, _) = connect_async(address).await.expect("Failed to connect");
+            let (ws_stream, _) = connect_async(address.as_ref())
+                .await
+                .expect("Failed to connect");
             let (mut write, read) = ws_stream.split();
             let state = Arc::new(tokio::sync::Mutex::new(ClientRunner::default()));
 
@@ -93,6 +96,6 @@ impl ClientRunner {
             });
         });
 
-        WebSocketClient::new(sender, runtime)
+        WsClient::new(device, sender, runtime)
     }
 }
