@@ -13,9 +13,9 @@ mod tests {
         let unpadded_floats: [[f32; 3]; 2] = [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]];
         let tensor = TestTensor::<2>::from(unpadded_floats);
 
-        let padded_tensor = tensor.pad((2, 2, 2, 2), FloatT::new(1.1));
+        let padded_tensor = tensor.pad((2, 2, 2, 2), FloatType::new(1.1));
 
-        let expected = TensorData::from(as_type!(FloatT: [
+        let expected = TensorData::from(as_type!(FloatType: [
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 0.0, 1.0, 2.0, 1.1, 1.1],
@@ -31,9 +31,9 @@ mod tests {
         let unpadded_floats = [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]];
         let tensor = TestTensor::<4>::from(unpadded_floats);
 
-        let padded_tensor = tensor.pad((2, 2, 2, 2), FloatT::new(1.1));
+        let padded_tensor = tensor.pad((2, 2, 2, 2), FloatType::new(1.1));
 
-        let expected = TensorData::from(as_type!(FloatT: [[[
+        let expected = TensorData::from(as_type!(FloatType: [[[
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 0.0, 1.0, 1.1, 1.1],
@@ -50,9 +50,9 @@ mod tests {
         let unpadded_floats = [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]];
         let tensor = TestTensor::<4>::from(unpadded_floats);
 
-        let padded_tensor = tensor.pad((2, 1, 4, 3), FloatT::new(1.1));
+        let padded_tensor = tensor.pad((2, 1, 4, 3), FloatType::new(1.1));
 
-        let expected = TensorData::from(as_type!(FloatT: [[[
+        let expected = TensorData::from(as_type!(FloatType: [[[
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
             [1.1, 1.1, 1.1, 1.1, 1.1],
@@ -72,7 +72,7 @@ mod tests {
         let unpadded_ints = [[[[0, 1], [2, 3], [4, 5]]]];
 
         let tensor = TestTensorInt::<4>::from(unpadded_ints);
-        let padded_tensor = tensor.pad((2, 1, 4, 3), IntT::new(6));
+        let padded_tensor = tensor.pad((2, 1, 4, 3), IntType::new(6));
 
         let padded_primitive_data_expected = [[[
             [6, 6, 6, 6, 6],
@@ -86,7 +86,7 @@ mod tests {
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],
         ]]];
-        let expected = TensorData::from(as_type!(IntT: [[[
+        let expected = TensorData::from(as_type!(IntType: [[[
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],
             [6, 6, 6, 6, 6],

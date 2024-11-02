@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};

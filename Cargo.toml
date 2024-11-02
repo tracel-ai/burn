@@ -29,7 +29,7 @@ version = "0.16.0"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.19.0"
-candle-core = { version = "0.6.0" }
+candle-core = { version = "0.7" }
 clap = { version = "4.5.20", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -118,7 +118,7 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
-derive-new = { version = "0.6.0", default-features = false }
+derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 half = { version = "2.4.1", features = [

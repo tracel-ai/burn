@@ -34,7 +34,7 @@ mod tests {
     type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
-    pub type FloatT = f32;
+    pub type FloatType = f32;
 
     // test activation
     burn_tensor::testgen_gelu!();

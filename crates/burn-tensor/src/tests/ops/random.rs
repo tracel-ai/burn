@@ -24,6 +24,6 @@ mod tests {
         let tensor =
             TestTensor::<1>::random([20], Distribution::Bernoulli(1.), &Default::default());
 
-        assert_eq!(tensor.into_data(), [FloatT::new(1f32); 20].into());
+        assert_eq!(tensor.into_data(), [FloatType::new(1f32); 20].into());
     }
 }
