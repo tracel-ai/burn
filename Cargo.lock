@@ -307,7 +307,7 @@ dependencies = [
  "clap 4.5.20",
  "colored",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "dirs 5.0.1",
  "github-device-flow",
  "half",
@@ -497,7 +497,7 @@ dependencies = [
  "burn-common",
  "burn-tensor",
  "burn-tensor-testgen",
- "derive-new",
+ "derive-new 0.7.0",
  "log",
  "spin",
 ]
@@ -510,7 +510,7 @@ dependencies = [
  "burn-tch",
  "burn-tensor",
  "candle-core",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
 ]
 
@@ -546,7 +546,7 @@ dependencies = [
  "burn-tensor",
  "burn-wgpu",
  "data-encoding",
- "derive-new",
+ "derive-new 0.7.0",
  "flate2",
  "half",
  "hashbrown 0.15.0",
@@ -573,7 +573,7 @@ dependencies = [
  "burn-tensor",
  "bytemuck",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
  "log",
  "paste",
@@ -585,7 +585,7 @@ version = "0.16.0"
 dependencies = [
  "burn-common",
  "csv",
- "derive-new",
+ "derive-new 0.7.0",
  "dirs 5.0.1",
  "fake",
  "flate2",
@@ -615,7 +615,7 @@ dependencies = [
 name = "burn-derive"
 version = "0.16.0"
 dependencies = [
- "derive-new",
+ "derive-new 0.7.0",
  "proc-macro2",
  "quote",
  "syn 2.0.86",
@@ -627,7 +627,7 @@ version = "0.16.0"
 dependencies = [
  "burn-common",
  "burn-tensor",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
  "hashbrown 0.15.0",
  "log",
@@ -644,7 +644,7 @@ dependencies = [
  "burn-tensor",
  "bytemuck",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
  "log",
 ]
@@ -655,7 +655,7 @@ version = "0.16.0"
 dependencies = [
  "burn",
  "candle-core",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
  "log",
  "onnx-ir",
@@ -686,7 +686,7 @@ dependencies = [
  "burn-tensor-testgen",
  "bytemuck",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "futures-lite",
  "half",
  "hashbrown 0.15.0",
@@ -709,7 +709,7 @@ dependencies = [
  "burn-autodiff",
  "burn-common",
  "burn-tensor",
- "derive-new",
+ "derive-new 0.7.0",
  "libm",
  "matrixmultiply",
  "ndarray 0.16.1",
@@ -763,7 +763,7 @@ dependencies = [
  "bytemuck",
  "colored",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "half",
  "hashbrown 0.15.0",
  "num-traits",
@@ -788,7 +788,7 @@ version = "0.16.0"
 dependencies = [
  "burn-core",
  "burn-ndarray",
- "derive-new",
+ "derive-new 0.7.0",
  "log",
  "nvml-wrapper",
  "ratatui",
@@ -1458,6 +1458,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1473,7 +1474,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51d402af454241d28d303a4cf4d2a861fae18404d65964c31934f746a40a6cf4"
 dependencies = [
- "derive-new",
+ "derive-new 0.6.0",
  "embassy-futures",
  "futures-lite",
  "getrandom",
@@ -1488,8 +1489,9 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
- "derive-new",
+ "derive-new 0.6.0",
  "embassy-futures",
  "futures-lite",
  "getrandom",
@@ -1504,12 +1506,13 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
  "cubecl-macros",
  "cubecl-runtime 0.4.0",
- "derive-new",
+ "derive-new 0.6.0",
  "derive_more 1.0.0",
  "half",
  "log",
@@ -1521,12 +1524,13 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
  "cubecl-core",
  "cubecl-runtime 0.4.0",
- "derive-new",
+ "derive-new 0.6.0",
  "half",
  "log",
 ]
@@ -1534,6 +1538,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1541,7 +1546,7 @@ dependencies = [
  "cubecl-cpp",
  "cubecl-runtime 0.4.0",
  "cudarc",
- "derive-new",
+ "derive-new 0.6.0",
  "half",
  "log",
 ]
@@ -1549,6 +1554,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1556,7 +1562,7 @@ dependencies = [
  "cubecl-cpp",
  "cubecl-hip-sys",
  "cubecl-runtime 0.4.0",
- "derive-new",
+ "derive-new 0.6.0",
  "half",
  "log",
 ]
@@ -1573,6 +1579,7 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1584,10 +1591,11 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "cubecl-common 0.4.0",
  "darling",
- "derive-new",
+ "derive-new 0.6.0",
  "ident_case",
  "prettyplease",
  "proc-macro2",
@@ -1598,6 +1606,7 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
@@ -1619,7 +1628,7 @@ dependencies = [
  "async-lock",
  "cfg_aliases 0.2.1",
  "cubecl-common 0.3.0",
- "derive-new",
+ "derive-new 0.6.0",
  "dirs 5.0.1",
  "hashbrown 0.14.5",
  "log",
@@ -1634,12 +1643,13 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "async-channel",
  "async-lock",
  "cfg_aliases 0.2.1",
  "cubecl-common 0.4.0",
- "derive-new",
+ "derive-new 0.6.0",
  "dirs 5.0.1",
  "hashbrown 0.14.5",
  "log",
@@ -1654,6 +1664,7 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
@@ -1667,6 +1678,7 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.4.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=8dff2cceb7a3416ec2b8f874136249584dd3027a#8dff2cceb7a3416ec2b8f874136249584dd3027a"
 dependencies = [
  "ash",
  "async-channel",
@@ -1677,7 +1689,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-runtime 0.4.0",
  "cubecl-spirv",
- "derive-new",
+ "derive-new 0.6.0",
  "hashbrown 0.14.5",
  "log",
  "web-time",
@@ -1712,7 +1724,7 @@ dependencies = [
  "burn-jit",
  "bytemuck",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "log",
  "serde",
 ]
@@ -1732,7 +1744,7 @@ version = "0.16.0"
 dependencies = [
  "burn",
  "bytemuck",
- "derive-new",
+ "derive-new 0.7.0",
  "guide",
  "log",
  "serde",
@@ -1744,7 +1756,7 @@ version = "0.16.0"
 dependencies = [
  "burn",
  "bytemuck",
- "derive-new",
+ "derive-new 0.7.0",
  "guide",
  "log",
  "serde",
@@ -1757,7 +1769,7 @@ dependencies = [
  "burn",
  "bytemuck",
  "cubecl",
- "derive-new",
+ "derive-new 0.7.0",
  "log",
  "serde",
 ]
@@ -1848,6 +1860,28 @@ name = "derive-new"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d150dea618e920167e5973d70ae6ece4385b7164e0d799fe7c122dd0a5d912ad"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.85",
+]
+
+[[package]]
+name = "derive-new"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cdc8d50f426189eef89dac62fabfa0abb27d5cc008f25bf4156a0203325becc"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.85",
+]
+
+[[package]]
+name = "derive-new"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cdc8d50f426189eef89dac62fabfa0abb27d5cc008f25bf4156a0203325becc"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6631,7 +6665,7 @@ name = "text-classification"
 version = "0.16.0"
 dependencies = [
  "burn",
- "derive-new",
+ "derive-new 0.7.0",
  "serde",
  "tokenizers",
 ]
@@ -6641,7 +6675,7 @@ name = "text-generation"
 version = "0.16.0"
 dependencies = [
  "burn",
- "derive-new",
+ "derive-new 0.7.0",
  "log",
  "serde",
  "tokenizers",

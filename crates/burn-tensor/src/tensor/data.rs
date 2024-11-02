@@ -1199,16 +1199,16 @@ mod tests {
     #[test]
     fn should_assert_appox_eq_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.01, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
 
     #[test]
     #[should_panic]
-    fn should_assert_appox_eq_above_limit() {
+    fn should_assert_approx_eq_above_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.011, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }

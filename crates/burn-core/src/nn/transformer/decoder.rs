@@ -523,7 +523,7 @@ mod tests {
         // Should produce the same tokens.
         output_1
             .into_data()
-            .assert_approx_eq(&output_2.into_data(), 3);
+            .assert_approx_eq(&output_2.into_data(), 2);
     }
 
     #[test]

@@ -5,6 +5,11 @@ mod tests {
 
     #[test]
     fn test_sort_1d_int() {
+        // Skip with u8
+        if (IntType::MAX as u32) < 1000u32 {
+            return;
+        }
+
         let tensor = TestTensorInt::<1>::from([1, 4, 7, 2, 5, 6, 3, 0, 9, 8, 2, 8, -10, 42, 1000]);
 
         // Sort along dim=0
@@ -16,6 +21,11 @@ mod tests {
 
     #[test]
     fn test_argsort_1d_int() {
+        // Skip with u8
+        if (IntType::MAX as u32) < 1000u32 {
+            return;
+        }
+
         let tensor = TestTensorInt::<1>::from([1, 4, 7, 2, 5, 6, 3, 0, 9, 8, -10, 42, 1000]);
 
         // Sort along dim=0
@@ -27,17 +37,20 @@ mod tests {
 
     #[test]
     fn test_sort_with_indices_descending_int() {
-        // 1D
-        let tensor = TestTensorInt::<1>::from([1, 4, 7, 2, 5, 6, 3, 0, 9, 8, -10, 42, 1000]);
+        // Skip with u8
+        if (IntType::MAX as u32) >= 1000u32 {
+            // 1D
+            let tensor = TestTensorInt::<1>::from([1, 4, 7, 2, 5, 6, 3, 0, 9, 8, -10, 42, 1000]);
 
-        // Sort along dim=0
-        let (values, indices) = tensor.sort_descending_with_indices(0);
+            // Sort along dim=0
+            let (values, indices) = tensor.sort_descending_with_indices(0);
 
-        let values_expected = TensorData::from([1000, 42, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -10]);
-        values.into_data().assert_eq(&values_expected, false);
+            let values_expected = TensorData::from([1000, 42, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -10]);
+            values.into_data().assert_eq(&values_expected, false);
 
-        let indices_expected = TensorData::from([12, 11, 8, 9, 2, 5, 4, 1, 6, 3, 0, 7, 10]);
-        indices.into_data().assert_eq(&indices_expected, false);
+            let indices_expected = TensorData::from([12, 11, 8, 9, 2, 5, 4, 1, 6, 3, 0, 7, 10]);
+            indices.into_data().assert_eq(&indices_expected, false);
+        }
 
         // 2D
         let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);

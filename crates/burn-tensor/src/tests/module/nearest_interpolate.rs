@@ -84,7 +84,7 @@ mod tests {
             !output
                 .clone()
                 .to_data()
-                .as_slice::<FloatT>()
+                .as_slice::<FloatType>()
                 .unwrap()
                 .iter()
                 .any(|&x| x.is_nan()),

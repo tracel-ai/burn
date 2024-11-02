@@ -114,7 +114,7 @@ macro_rules! testgen_jit {
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
         burn_tensor::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
-        burn_autodiff::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
+        burn_autodiff::testgen_all!($f_def: [$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:
         // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
@@ -153,7 +153,7 @@ macro_rules! testgen_jit_fusion {
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
         burn_tensor::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
-        burn_autodiff::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
+        burn_autodiff::testgen_all!($f_def: [$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:
         // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`

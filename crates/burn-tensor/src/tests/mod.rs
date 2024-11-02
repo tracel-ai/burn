@@ -14,9 +14,9 @@ macro_rules! testgen_all {
         pub mod tensor {
             pub use super::*;
 
-            pub type FloatT = <TestBackend as $crate::backend::Backend>::FloatElem;
-            pub type IntT = <TestBackend as $crate::backend::Backend>::IntElem;
-            pub type BoolT = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
 
             $crate::testgen_with_float_param!();
             $crate::testgen_no_param!();
@@ -26,9 +26,9 @@ macro_rules! testgen_all {
         pub mod tensor {
             pub use super::*;
 
-            pub type FloatT = $f_def;
-            pub type IntT = $i_def;
-            pub type BoolT = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type FloatType = $f_def;
+            pub type IntType = $i_def;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
@@ -39,8 +39,8 @@ macro_rules! testgen_all {
                     pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, $i_def, D>;
                     pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, $i_def, D>;
 
-                    type FloatT = $float;
-                    type IntT = $i_def;
+                    pub type FloatType = $float;
+                    pub type IntType = $i_def;
 
                     $crate::testgen_with_float_param!();
                 })*
@@ -52,9 +52,10 @@ macro_rules! testgen_all {
                     pub type TestTensorInt<const D: usize> = TestTensorInt2<$f_def, $int, D>;
                     pub type TestTensorBool<const D: usize> = TestTensorBool2<$f_def, $int, D>;
 
-                    type FloatT = $f_def;
-                    type IntT = $int;
+                    pub type FloatType = $f_def;
+                    pub type IntType = $int;
 
+                    $crate::testgen_with_int_param!();
                 })*
             }
             $crate::testgen_no_param!();

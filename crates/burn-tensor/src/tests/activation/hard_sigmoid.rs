@@ -15,7 +15,7 @@ mod tests {
 
     #[test]
     fn test_hard_sigmoid_overflow() {
-        let tensor = TestTensor::<1>::from([FloatT::MAX, FloatT::MIN]);
+        let tensor = TestTensor::<1>::from([FloatType::MAX, FloatType::MIN]);
 
         let output = activation::hard_sigmoid(tensor, 0.2, 0.5);
         let expected = TensorData::from([1.0, 0.0]);
