@@ -1,7 +1,3 @@
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription},
-    TensorData,
-};
 use std::{
     future::Future,
     sync::{atomic::AtomicU64, Arc},
@@ -12,7 +8,7 @@ use super::{
     router::WsDevice,
     runner::{CallbackReceiver, ClientRequest, ClientRunner},
 };
-use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
+use crate::shared::{ConnectionId, Task, TaskContent};
 
 #[derive(Clone)]
 pub struct WsClient {
@@ -38,24 +34,6 @@ impl WsClient {
                 sender,
                 position_counter: AtomicU64::new(0),
             }),
-        }
-    }
-
-    pub fn register(&self, op: OperationDescription) {
-        log::info!("Register Operation.");
-    }
-
-    pub fn read_tensor(&self, desc: TensorDescription) -> TensorData {
-        let (fut, callback) = self.sender.send_callback(TaskContent::ReadTensor(desc));
-
-        self.runtime.block_on(fut);
-
-        match callback.recv() {
-            Ok(msg) => match msg {
-                TaskResponseContent::ReadTensor(data) => data,
-                _ => panic!("Invalid message type {msg:?}"),
-            },
-            Err(err) => panic!("Unable to read tensor {err:?}"),
         }
     }
 }

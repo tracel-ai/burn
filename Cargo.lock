@@ -629,7 +629,7 @@ dependencies = [
  "burn-derive",
  "burn-hip",
  "burn-ndarray",
- "burn-router",
+ "burn-router-websocket",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
@@ -833,6 +833,28 @@ dependencies = [
  "serde_json",
  "spin",
  "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "burn-router-websocket"
+version = "0.16.0"
+dependencies = [
+ "axum",
+ "burn-common",
+ "burn-cuda",
+ "burn-ndarray",
+ "burn-router",
+ "burn-tensor",
+ "burn-wgpu",
+ "derive-new",
+ "futures-util",
+ "log",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "tokio",
+ "tokio-tungstenite",
  "tracing-subscriber",
 ]
 

@@ -42,18 +42,22 @@ impl ClientRunner {
 impl ClientRunner {
     pub fn start(device: WsDevice) -> WsClient {
         let runtime = Arc::new(
-            tokio::runtime::Builder::new_current_thread()
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .max_blocking_threads(1)
+                .enable_all()
                 .build()
                 .unwrap(),
         );
 
         let (sender, mut rec) = tokio::sync::mpsc::channel(100);
 
-        let address = device.address.clone();
+        let address = format!("{}/{}", device.address.clone(), "ws");
+        println!("Starting {address}");
+
         runtime.spawn(async move {
-            let (ws_stream, _) = connect_async(address.as_ref())
-                .await
-                .expect("Failed to connect");
+            println!("Connecting to {address}");
+            let (ws_stream, _) = connect_async(address).await.expect("Failed to connect");
             let (mut write, read) = ws_stream.split();
             let state = Arc::new(tokio::sync::Mutex::new(ClientRunner::default()));
 

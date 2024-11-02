@@ -58,7 +58,8 @@ where
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    pub(crate) fn new(device: B::Device) -> Self {
+    /// Create a new runner.
+    pub fn new(device: B::Device) -> Self {
         Self {
             context: Arc::new(Mutex::new(RunnerContext {
                 handles: HandleContainer::new(),
@@ -90,7 +91,8 @@ where
         RouterTensor::new(id, shape, dtype, client)
     }
 
-    pub(crate) fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
+    /// Register a tensor and returns its description.
+    pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
@@ -119,11 +121,8 @@ where
         }
     }
 
-    pub(crate) fn register_empty_tensor_desc(
-        &self,
-        shape: Vec<usize>,
-        dtype: DType,
-    ) -> TensorDescription {
+    /// Register an empty tensor.
+    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);

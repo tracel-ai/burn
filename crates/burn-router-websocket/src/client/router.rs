@@ -15,7 +15,7 @@ impl RunnerClient for WsClient {
 
     fn register(&self, op: burn_tensor::repr::OperationDescription) {
         let fut = self.sender.send(TaskContent::RegisterOperation(op));
-        self.runtime.spawn(fut);
+        self.runtime.block_on(fut);
     }
 
     fn read_tensor(
@@ -85,7 +85,11 @@ impl RunnerClient for WsClient {
         )
     }
 
-    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+    fn register_float_tensor(
+        &self,
+        shape: Vec<usize>,
+        _full_precision: bool,
+    ) -> RouterTensor<Self> {
         self.register_empty_tensor(shape, DType::F32)
     }
 
@@ -95,7 +99,7 @@ impl RunnerClient for WsClient {
 
     fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
         let fut = self.sender.send(TaskContent::RegisterOrphan(id.clone()));
-        self.runtime.spawn(fut);
+        self.runtime.block_on(fut);
     }
 
     fn sync(&self) {
@@ -112,7 +116,7 @@ impl RunnerClient for WsClient {
         }
     }
 
-    fn seed(&self, seed: u64) {
+    fn seed(&self, _seed: u64) {
         // Skip
     }
 }
@@ -125,7 +129,7 @@ pub struct WsDevice {
 impl Default for WsDevice {
     fn default() -> Self {
         Self {
-            address: Arc::new(String::from("localhost:3000/ws")),
+            address: Arc::new(String::from("ws://127.0.0.1:3000")),
         }
     }
 }

@@ -55,7 +55,7 @@ where
                     ProcessorTask::RegisterTensor(id, data, callback) => {
                         let val = runner.register_tensor_data_desc(data);
                         let response = TaskResponse {
-                            content: TaskResponseContent::RegisteredTensorEmpty(val),
+                            content: TaskResponseContent::RegisteredTensor(val),
                             id,
                         };
                         callback.send(response).unwrap();
@@ -63,7 +63,7 @@ where
                     ProcessorTask::RegisterTensorEmpty(id, shape, dtype, callback) => {
                         let val = runner.register_empty_tensor_desc(shape, dtype);
                         let response = TaskResponse {
-                            content: TaskResponseContent::RegisteredTensor(val),
+                            content: TaskResponseContent::RegisteredTensorEmpty(val),
                             id,
                         };
                         callback.send(response).unwrap();
