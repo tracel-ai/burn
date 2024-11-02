@@ -39,8 +39,8 @@ macro_rules! testgen_all {
                     pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, $i_def, D>;
                     pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, $i_def, D>;
 
-                    type FloatType = $float;
-                    type IntType = $i_def;
+                    pub type FloatType = $float;
+                    pub type IntType = $i_def;
 
                     $crate::testgen_with_float_param!();
                 })*
@@ -52,8 +52,8 @@ macro_rules! testgen_all {
                     pub type TestTensorInt<const D: usize> = TestTensorInt2<$f_def, $int, D>;
                     pub type TestTensorBool<const D: usize> = TestTensorBool2<$f_def, $int, D>;
 
-                    type FloatType = $f_def;
-                    type IntType = $int;
+                    pub type FloatType = $f_def;
+                    pub type IntType = $int;
 
                     $crate::testgen_with_int_param!();
                 })*
