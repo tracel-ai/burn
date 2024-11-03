@@ -18,8 +18,7 @@ pub type Callback<M> = Sender<M>;
 
 pub enum ProcessorTask {
     RegisterOperation(OperationDescription),
-    RegisterTensor(ConnectionId, TensorData, Callback<TaskResponse>),
-    RegisterTensorEmpty(ConnectionId, Vec<usize>, DType, Callback<TaskResponse>),
+    RegisterTensor(ConnectionId, TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     RegisterOrphan(TensorId),
@@ -52,21 +51,8 @@ where
                         };
                         callback.send(response).unwrap();
                     }
-                    ProcessorTask::RegisterTensor(id, data, callback) => {
-                        let val = runner.register_tensor_data_desc(data);
-                        let response = TaskResponse {
-                            content: TaskResponseContent::RegisteredTensor(val),
-                            id,
-                        };
-                        callback.send(response).unwrap();
-                    }
-                    ProcessorTask::RegisterTensorEmpty(id, shape, dtype, callback) => {
-                        let val = runner.register_empty_tensor_desc(shape, dtype);
-                        let response = TaskResponse {
-                            content: TaskResponseContent::RegisteredTensorEmpty(val),
-                            id,
-                        };
-                        callback.send(response).unwrap();
+                    ProcessorTask::RegisterTensor(_, id, data) => {
+                        runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
                         let tensor = burn_common::future::block_on(runner.read_tensor(tensor));

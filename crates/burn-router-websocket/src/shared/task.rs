@@ -21,8 +21,7 @@ pub struct Task {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskContent {
     RegisterOperation(OperationDescription),
-    RegisterTensor(TensorData),
-    RegisterTensorEmpty(Vec<usize>, DType),
+    RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
     ReadTensor(TensorDescription),
     SyncBackend,
@@ -38,8 +37,6 @@ pub struct TaskResponse {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TaskResponseContent {
-    RegisteredTensor(TensorDescription),
-    RegisteredTensorEmpty(TensorDescription),
     ReadTensor(TensorData),
     SyncBackend,
 }

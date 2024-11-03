@@ -1,14 +1,14 @@
+use super::{
+    router::WsDevice,
+    runner::{ClientRequest, ClientRunner},
+};
+use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
+use burn_tensor::repr::TensorId;
 use std::{
     future::Future,
     sync::{atomic::AtomicU64, Arc},
 };
 use tokio::sync::mpsc::Sender;
-
-use super::{
-    router::WsDevice,
-    runner::{CallbackReceiver, ClientRequest, ClientRunner},
-};
-use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
 
 #[derive(Clone)]
 pub struct WsClient {
@@ -33,6 +33,7 @@ impl WsClient {
             sender: Arc::new(WsSender {
                 sender,
                 position_counter: AtomicU64::new(0),
+                tensor_id_counter: AtomicU64::new(0),
             }),
         }
     }
@@ -41,6 +42,7 @@ impl WsClient {
 pub(crate) struct WsSender {
     sender: Sender<ClientRequest>,
     position_counter: AtomicU64,
+    tensor_id_counter: AtomicU64,
 }
 
 impl WsSender {
@@ -58,10 +60,15 @@ impl WsSender {
                 }))
                 .await
                 .unwrap();
-            // println!("Async Took {:?}", start.elapsed());
         }
     }
 
+    pub(crate) fn new_tensor_id(&self) -> TensorId {
+        let val = self
+            .tensor_id_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        TensorId::new(val)
+    }
     pub(crate) fn send_callback(
         &self,
         content: TaskContent,
@@ -89,7 +96,6 @@ impl WsSender {
                 None => panic!(""),
             };
 
-            // println!("Took {:?}", start.elapsed());
             res
         };
 

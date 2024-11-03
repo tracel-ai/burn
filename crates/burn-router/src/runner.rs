@@ -92,6 +92,27 @@ where
     }
 
     /// Register a tensor and returns its description.
+    pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
+        let mut ctx = self.context.lock();
+        let dtype = data.dtype;
+
+        if dtype.is_float() {
+            let tensor = B::float_from_data(data, &self.device);
+            ctx.handles.register_float_tensor::<B>(&id, tensor)
+        } else if dtype.is_int() {
+            let tensor = B::int_from_data(data, &self.device);
+            ctx.handles.register_int_tensor::<B>(&id, tensor)
+        } else if dtype.is_bool() {
+            let tensor = B::bool_from_data(data, &self.device);
+            ctx.handles.register_bool_tensor::<B>(&id, tensor)
+        } else if let DType::QFloat(_) = dtype {
+            todo!();
+        }
+
+        core::mem::drop(ctx);
+    }
+
+    /// Register a tensor and returns its description.
     pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
@@ -122,11 +143,7 @@ where
     }
 
     /// Register an empty tensor.
-    pub fn register_empty_tensor_desc(
-        &self,
-        shape: Vec<usize>,
-        dtype: DType,
-    ) -> TensorDescription {
+    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);

@@ -1,16 +1,13 @@
+use super::{router::WsDevice, WsClient};
+use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
 use tokio_tungstenite::{
-    connect_async, connect_async_with_config,
+    connect_async_with_config,
     tungstenite::protocol::{Message, WebSocketConfig},
 };
 
-use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
-
-use super::{router::WsDevice, WsClient};
-
 pub type CallbackSender = tokio::sync::mpsc::Sender<TaskResponseContent>;
-pub type CallbackReceiver = tokio::sync::mpsc::Receiver<TaskResponseContent>;
 
 pub enum ClientRequest {
     WithSyncCallback(Task, CallbackSender),
@@ -58,7 +55,7 @@ impl ClientRunner {
             let (ws_stream, _) = connect_async_with_config(
                 address,
                 Some(WebSocketConfig {
-                    max_send_queue: Some(100),
+                    max_send_queue: None,
                     write_buffer_size: 0,
                     max_write_buffer_size: usize::MAX,
                     max_message_size: Some(usize::MAX),
@@ -75,7 +72,6 @@ impl ClientRunner {
             // Websocket async runner.
             let state_ws = state.clone();
             tokio::spawn(async move {
-                let mut start = std::time::Instant::now();
                 while let Some(msg) = read.next().await {
                     let msg = match msg {
                         Ok(msg) => msg,
@@ -91,7 +87,6 @@ impl ClientRunner {
                         Message::Close(_) => return,
                         _ => panic!("Unsupproted {msg:?}"),
                     };
-                    start = std::time::Instant::now();
                 }
             });
 

@@ -98,29 +98,10 @@ where
                             .send(ProcessorTask::RegisterOperation(op))
                             .unwrap();
                     }
-                    TaskContent::RegisterTensor(data) => {
-                        let (sender, recv) = std::sync::mpsc::channel();
-
+                    TaskContent::RegisterTensor(id, data) => {
                         processor
-                            .send(ProcessorTask::RegisterTensor(task.id, data, sender))
+                            .send(ProcessorTask::RegisterTensor(task.id, id, data))
                             .unwrap();
-
-                        let response = recv.recv().expect("A callback");
-                        let bytes = rmp_serde::to_vec(&response).unwrap();
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
-                    }
-                    TaskContent::RegisterTensorEmpty(shape, dtype) => {
-                        let (sender, recv) = std::sync::mpsc::channel();
-
-                        processor
-                            .send(ProcessorTask::RegisterTensorEmpty(
-                                task.id, shape, dtype, sender,
-                            ))
-                            .unwrap();
-
-                        let response = recv.recv().expect("A callback");
-                        let bytes = rmp_serde::to_vec(&response).unwrap();
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
                     TaskContent::RegisterOrphan(id) => {
                         processor.send(ProcessorTask::RegisterOrphan(id)).unwrap();
@@ -152,7 +133,6 @@ where
                 println!("Not a binary message, closing, received {msg:?}");
                 break;
             };
-
         }
         println!("Closing connection");
         processor.send(ProcessorTask::Close).unwrap();
