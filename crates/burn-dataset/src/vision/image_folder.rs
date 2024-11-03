@@ -76,7 +76,7 @@ pub enum Annotation {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SegmentationMask {
     /// Segmentation mask.
-    pub mask: Vec<usize>,
+    pub mask: Vec<PixelDepth>,
 }
 
 /// Object detection bounding box annotation.
@@ -104,7 +104,7 @@ pub struct ImageDatasetItem {
 enum AnnotationRaw {
     Label(String),
     MultiLabel(Vec<String>),
-    SegmentationMask(Vec<String>),
+    SegmentationMask(PathBuf),
     // TODO: bounding boxes
 }
 
@@ -130,6 +130,68 @@ struct PathToImageDatasetItem {
     classes: HashMap<String, usize>,
 }
 
+fn image_path_to_vec_pixel_depth(image_path: &PathBuf) -> Vec<PixelDepth> {
+    // Load image from disk
+    let image = image::open(image_path).unwrap();
+
+    // Image as Vec<PixelDepth>
+    let img_vec = match image.color() {
+        ColorType::L8 => image
+            .into_luma8()
+            .iter()
+            .map(|&x| PixelDepth::U8(x))
+            .collect(),
+        ColorType::La8 => image
+            .into_luma_alpha8()
+            .iter()
+            .map(|&x| PixelDepth::U8(x))
+            .collect(),
+        ColorType::L16 => image
+            .into_luma16()
+            .iter()
+            .map(|&x| PixelDepth::U16(x))
+            .collect(),
+        ColorType::La16 => image
+            .into_luma_alpha16()
+            .iter()
+            .map(|&x| PixelDepth::U16(x))
+            .collect(),
+        ColorType::Rgb8 => image
+            .into_rgb8()
+            .iter()
+            .map(|&x| PixelDepth::U8(x))
+            .collect(),
+        ColorType::Rgba8 => image
+            .into_rgba8()
+            .iter()
+            .map(|&x| PixelDepth::U8(x))
+            .collect(),
+        ColorType::Rgb16 => image
+            .into_rgb16()
+            .iter()
+            .map(|&x| PixelDepth::U16(x))
+            .collect(),
+        ColorType::Rgba16 => image
+            .into_rgba16()
+            .iter()
+            .map(|&x| PixelDepth::U16(x))
+            .collect(),
+        ColorType::Rgb32F => image
+            .into_rgb32f()
+            .iter()
+            .map(|&x| PixelDepth::F32(x))
+            .collect(),
+        ColorType::Rgba32F => image
+            .into_rgba32f()
+            .iter()
+            .map(|&x| PixelDepth::F32(x))
+            .collect(),
+        _ => panic!("Unrecognized image color type"),
+    };
+
+    img_vec
+}
+
 /// Parse the image annotation to the corresponding type.
 fn parse_image_annotation(
     annotation: &AnnotationRaw,
@@ -149,12 +211,20 @@ fn parse_image_annotation(
                 .map(|name| *classes.get(name).unwrap())
                 .collect(),
         ),
-        AnnotationRaw::SegmentationMask(mask) => Annotation::SegmentationMask(SegmentationMask {
-            mask: mask
-                .iter()
-                .map(|name| *classes.get(name).unwrap())
-                .collect(),
-        }),
+        AnnotationRaw::SegmentationMask(mask_path) => {
+            let mask_image = image_path_to_vec_pixel_depth(mask_path);
+            // assume that each channel in the mask image is the same and
+            // each pixel in the first channel corresponds to a class.
+            // multi-channel image segmentation is not supported at this time.
+            Annotation::SegmentationMask(SegmentationMask {
+                mask: mask_image
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(i, _)| i % 3 == 0)
+                    .map(|(_, pixel)| pixel)
+                    .collect(),
+            })
+        }
     }
 }
 
@@ -167,6 +237,7 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
         let image = image::open(&item.image_path).unwrap();
 
         // Image as Vec<PixelDepth>
+        // NOTE: the following logic has been copied to a separate function to be used for Segmentation Masks as well
         let img_vec = match image.color() {
             ColorType::L8 => image
                 .into_luma8()
@@ -418,26 +489,20 @@ impl ImageFolderDataset {
     /// # Returns
     /// A new dataset instance.
     pub fn new_segmentation_with_items<P: AsRef<Path>, S: AsRef<str>>(
-        items: Vec<(P, SegmentationMask)>,
+        items: Vec<(P, P)>,
         classes: &[S],
     ) -> Result<Self, ImageLoaderError> {
         // Parse items and check valid image extension types
         let items = items
             .into_iter()
-            .map(|(path, segmentation_mask)| {
-                // Map image path and segmentation mask
-                let path = path.as_ref();
-                let annotation = AnnotationRaw::SegmentationMask(
-                    segmentation_mask
-                        .mask
-                        .iter()
-                        .map(|&l| classes[l].as_ref().to_string())
-                        .collect(),
-                );
+            .map(|(image_path, mask_path)| {
+                // Map image path and segmentation mask path
+                let image_path = image_path.as_ref();
+                let annotation = AnnotationRaw::SegmentationMask(mask_path.as_ref().to_path_buf());
 
-                Self::check_extension(&path.extension().unwrap().to_str().unwrap())?;
+                Self::check_extension(&image_path.extension().unwrap().to_str().unwrap())?;
 
-                Ok(ImageDatasetItemRaw::new(path, annotation))
+                Ok(ImageDatasetItemRaw::new(image_path, annotation))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -657,70 +722,65 @@ mod tests {
     }
 
     #[test]
-    pub fn parse_image_annotation_segmentation_mask_string() {
-        let classes = HashMap::from([
-            ("foo".to_string(), 0_usize),
-            ("bar".to_string(), 1_usize),
-            ("baz".to_string(), 2_usize),
-            ("qux".to_string(), 3_usize),
-        ]);
-        let anno = AnnotationRaw::SegmentationMask(vec![
-            "foo".to_string(),
-            "bar".to_string(),
-            "baz".to_string(),
-            "qux".to_string(),
-        ]);
+    pub fn segmask_image_path_to_vec_pixel_depth() {
+        let root = Path::new(SEGMASK_ROOT);
+        // test checkerboard mask
+        const TEST_CHECKERBOARD_MASK_PATTERN: [u8; 64 * 3] = [
+            1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1,
+            1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2,
+            2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2,
+            1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1,
+            1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1,
+            1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1,
+            2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 1,
+        ];
         assert_eq!(
-            parse_image_annotation(&anno, &classes),
-            Annotation::SegmentationMask(SegmentationMask {
-                mask: vec![0, 1, 2, 3],
-            })
-        )
+            TEST_CHECKERBOARD_MASK_PATTERN
+                .iter()
+                .map(|&x| PixelDepth::U8(x))
+                .collect::<Vec<PixelDepth>>(),
+            image_path_to_vec_pixel_depth(&root.join("annotations").join("mask_checkerboard.png")),
+        );
+
+        // checkerboard image
+        // TODO: investigate why the channels appear to be reversed, i.e (blue, green, red) rather than (red, green, blue)
+        const TEST_CHECKERBOARD_IMAGE_PATTERN: [u8; 64 * 3] = [
+            60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20,
+            220, 255, 255, 0, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60,
+            20, 220, 255, 255, 0, 60, 20, 220, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0,
+            60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 255, 255, 0, 60, 20, 220, 255, 255,
+            0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 60, 20, 220, 255,
+            255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0,
+            255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255,
+            0, 60, 20, 220, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220, 255,
+            255, 0, 60, 20, 220, 255, 255, 0, 255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220,
+            255, 255, 0, 60, 20, 220, 255, 255, 0, 60, 20, 220,
+        ];
+        assert_eq!(
+            TEST_CHECKERBOARD_IMAGE_PATTERN
+                .iter()
+                .map(|&x| PixelDepth::U8(x))
+                .collect::<Vec<PixelDepth>>(),
+            image_path_to_vec_pixel_depth(&root.join("images").join("image_checkerboard.png")),
+        );
     }
 
     #[test]
     pub fn segmask_folder_dataset() {
         let root = Path::new(SEGMASK_ROOT);
-        let checkerboard_annotation =
-            image::open(root.join("annotations").join("mask_checkerboard.png"))
-                .unwrap()
-                .into_luma8()
-                .iter()
-                .map(|&x| x as usize)
-                .collect();
-        let random2_annotation =
-            image::open(root.join("annotations").join("mask_random_2colors.png"))
-                .unwrap()
-                .into_luma8()
-                .iter()
-                .map(|&x| x as usize)
-                .collect();
-        let random3_annotation =
-            image::open(root.join("annotations").join("mask_random_3colors.png"))
-                .unwrap()
-                .into_luma8()
-                .iter()
-                .map(|&x| x as usize)
-                .collect();
 
         let items = vec![
             (
                 root.join("images").join("image_checkerboard.png"),
-                SegmentationMask {
-                    mask: checkerboard_annotation,
-                },
+                root.join("annotations").join("mask_checkerboard.png"),
             ),
             (
                 root.join("images").join("image_random_2colors.png"),
-                SegmentationMask {
-                    mask: random2_annotation,
-                },
+                root.join("annotations").join("mask_random_2colors.png"),
             ),
             (
                 root.join("images").join("image_random_3colors.png"),
-                SegmentationMask {
-                    mask: random3_annotation,
-                },
+                root.join("annotations").join("mask_random_3colors.png"),
             ),
         ];
         let dataset = ImageFolderDataset::new_segmentation_with_items(
@@ -739,36 +799,48 @@ mod tests {
         assert_eq!(dataset.get(3), None);
 
         // checkerboard mask
+        const TEST_CHECKERBOARD_MASK_PATTERN: [u8; 64] = [
+            1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2,
+            1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1,
+            2, 1, 2, 1, 2, 1,
+        ];
         assert_eq!(
             dataset.get(0).unwrap().annotation,
             Annotation::SegmentationMask(SegmentationMask {
-                mask: vec![
-                    1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1,
-                    2, 1, 2, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 2,
-                    1, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 1
-                ]
+                mask: TEST_CHECKERBOARD_MASK_PATTERN
+                    .iter()
+                    .map(|&x| PixelDepth::U8(x))
+                    .collect()
             })
         );
         // random 2 colors mask
+        const TEST_RANDOM2COLORS_MASK_PATTERN: [u8; 64] = [
+            1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2,
+            2, 1, 1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2, 1, 2, 1, 2, 2, 1,
+            1, 1, 1, 1, 1, 1,
+        ];
         assert_eq!(
             dataset.get(1).unwrap().annotation,
             Annotation::SegmentationMask(SegmentationMask {
-                mask: vec![
-                    1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2,
-                    2, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 1, 2,
-                    1, 2, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1
-                ]
+                mask: TEST_RANDOM2COLORS_MASK_PATTERN
+                    .iter()
+                    .map(|&x| PixelDepth::U8(x))
+                    .collect()
             })
         );
         // random 3 colors mask
+        const TEST_RANDOM3COLORS_MASK_PATTERN: [u8; 64] = [
+            3, 1, 3, 3, 1, 1, 3, 2, 3, 3, 3, 3, 1, 3, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 1, 1, 3, 3,
+            3, 2, 3, 2, 2, 3, 2, 3, 3, 1, 3, 1, 3, 3, 1, 1, 3, 2, 1, 2, 2, 2, 1, 2, 1, 2, 3, 3, 1,
+            3, 3, 2, 1, 2, 2,
+        ];
         assert_eq!(
             dataset.get(2).unwrap().annotation,
             Annotation::SegmentationMask(SegmentationMask {
-                mask: vec![
-                    3, 1, 3, 3, 1, 1, 3, 2, 3, 3, 3, 3, 1, 3, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 1, 1,
-                    1, 3, 3, 3, 2, 3, 2, 2, 3, 2, 3, 3, 1, 3, 1, 3, 3, 1, 1, 3, 2, 1, 2, 2, 2, 1,
-                    2, 1, 2, 3, 3, 1, 3, 3, 2, 1, 2, 2
-                ]
+                mask: TEST_RANDOM3COLORS_MASK_PATTERN
+                    .iter()
+                    .map(|&x| PixelDepth::U8(x))
+                    .collect()
             })
         );
     }
