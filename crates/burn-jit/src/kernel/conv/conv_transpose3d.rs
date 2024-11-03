@@ -33,7 +33,6 @@ fn conv_transpose3d_kernel<E: Numeric>(
     bias: &Tensor<E>,
     output: &mut Tensor<E>,
     args: ConvArgs,
-    #[comptime] has_bias: bool,
 ) {
     let in_channels = weight.shape(0);
     let out_c_per_group = weight.shape(1);
@@ -41,9 +40,9 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let kernel_size_1 = weight.shape(3);
     let kernel_size_2 = weight.shape(4);
 
-    let stride_0_i = i32::cast_from(args.conv_stride_0);
-    let stride_1_i = i32::cast_from(args.conv_stride_1);
-    let stride_2_i = i32::cast_from(args.conv_stride_2);
+    let stride_0_i = args.conv_stride_0 as i32;
+    let stride_1_i = args.conv_stride_1 as i32;
+    let stride_2_i = args.conv_stride_2 as i32;
 
     let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
     let out_c_out = ABSOLUTE_POS / output.stride(1) % output.shape(1);
@@ -61,28 +60,26 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let in_c_start = group * in_c_per_group;
     let in_c_end = in_c_start + in_c_per_group;
 
-    let kernel_depth = i32::cast_from(kernel_size_0 * args.dilation_0 - args.conv_stride_0);
-    let kernel_height = i32::cast_from(kernel_size_1 * args.dilation_1 - args.conv_stride_1);
-    let kernel_width = i32::cast_from(kernel_size_2 * args.dilation_2 - args.conv_stride_2);
+    let kernel_d = (kernel_size_0 * args.dilation_0 - args.conv_stride_0) as i32;
+    let kernel_h = (kernel_size_1 * args.dilation_1 - args.conv_stride_1) as i32;
+    let kernel_w = (kernel_size_2 * args.dilation_2 - args.conv_stride_2) as i32;
 
-    let z_start = (i32::cast_from(out_z + args.padding_0) - kernel_depth) / stride_0_i;
-    let y_start = (i32::cast_from(out_y + args.padding_1) - kernel_height) / stride_1_i;
-    let x_start = (i32::cast_from(out_x + args.padding_2) - kernel_width) / stride_2_i;
+    let z_start = ((out_z + args.padding_0) as i32 - kernel_d) / stride_0_i;
+    let y_start = ((out_y + args.padding_1) as i32 - kernel_h) / stride_1_i;
+    let x_start = ((out_x + args.padding_2) as i32 - kernel_w) / stride_2_i;
 
-    let z_end = Min::min(u32::cast_from(kernel_depth + z_start + 1), input.shape(2));
-    let z_start = u32::cast_from(Max::max(z_start, 0));
-    let y_end = Min::min(u32::cast_from(kernel_height + y_start + 1), input.shape(3));
-    let y_start = u32::cast_from(Max::max(y_start, 0));
-    let x_end = Min::min(u32::cast_from(kernel_width + x_start + 1), input.shape(4));
-    let x_start = u32::cast_from(Max::max(x_start, 0));
+    let z_end = Min::min(Max::max(kernel_d + z_start + 1, 0) as u32, input.shape(2));
+    let y_end = Min::min(Max::max(kernel_h + y_start + 1, 0) as u32, input.shape(3));
+    let x_end = Min::min(Max::max(kernel_w + x_start + 1, 0) as u32, input.shape(4));
+
+    let z_start = Max::max(z_start, 0) as u32;
+    let y_start = Max::max(y_start, 0) as u32;
+    let x_start = Max::max(x_start, 0) as u32;
 
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
 
-    let mut sum = E::from_int(0);
-    if has_bias {
-        sum = bias[out_c_out];
-    }
+    let mut sum = bias[out_c_out];
 
     let numerator_d_base = out_z + args.padding_0;
     let numerator_h_base = out_y + args.padding_1;
@@ -189,7 +186,6 @@ pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
         shape_out.clone(),
     );
 
-    let has_bias = bias.is_some();
     let bias = match bias {
         Some(bias) => {
             let shape = Shape::from([bias.shape.dims[0], 1, 1, 1, 1]);
@@ -224,7 +220,6 @@ pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
             ScalarArg::new(options.padding[2] as u32),
             ScalarArg::new(options.groups as u32),
         ),
-        has_bias,
     );
 
     output

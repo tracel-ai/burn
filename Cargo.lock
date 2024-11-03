@@ -1680,6 +1680,7 @@ dependencies = [
  "derive-new 0.6.0",
  "hashbrown 0.14.5",
  "log",
+ "sanitize-filename",
  "web-time",
  "wgpu",
 ]

@@ -51,14 +51,6 @@ impl Default for ReduceStrategy {
     }
 }
 
-// #[cfg(feature = "autotune")]
-// #[cfg(not(feature = "autotune"))]
-// impl Default for ReduceStrategy {
-//     fn default() -> Self {
-//         ReduceStrategy::Naive
-//     }
-// }
-
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
         #[derive(Debug)]

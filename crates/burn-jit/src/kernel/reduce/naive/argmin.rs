@@ -10,7 +10,7 @@ impl<EI: JitElement> ReduceDimNaive<EI> for Argmin {
 
     fn initialize_naive() -> Self::Accumulator {
         // TODO: switch to using f32::INFINITY when it's supported: https://github.com/tracel-ai/cubecl/issues/68
-        (comptime![EI::minimum_value()].runtime(), 0u32)
+        (comptime![EI::maximum_value()].runtime(), 0u32)
     }
 
     fn inner_loop_naive(accumulator: &mut Self::Accumulator, current_value: EI, i: u32) {
