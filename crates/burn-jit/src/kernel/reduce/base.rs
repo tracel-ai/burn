@@ -2,7 +2,7 @@ use cubecl::prelude::Numeric;
 
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{
     naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
@@ -24,17 +24,7 @@ pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement>(
     let mut shape_out = input.shape.clone();
     shape_out.dims[reduce_dim] = 1;
 
-    // Create output handle
-    let num_elems_output = shape_out.num_elements();
-    let handle = input
-        .client
-        .empty(num_elems_output * core::mem::size_of::<EO>());
-    JitTensor::new_contiguous(
-        input.client.clone(),
-        input.device.clone(),
-        shape_out.clone(),
-        handle,
-    )
+    empty_device(input.client.clone(), input.device.clone(), shape_out)
 }
 
 #[derive(Copy, Clone, Debug)]

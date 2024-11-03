@@ -21,7 +21,6 @@ pub fn reduce_dim_subcube_kernel<
     let shape_reduce_dim_input = input.shape(dim);
 
     let reduce_group_id = CUBE_POS;
-    let warp_count = CUBE_DIM / SUBCUBE_DIM;
     let warp_id = UNIT_POS / SUBCUBE_DIM;
 
     let mut shared_memory = RD::init_shared(smem_size);
@@ -55,23 +54,12 @@ pub fn reduce_dim_subcube_kernel<
 
     sync_units();
 
-    let mut n_threads = warp_count;
-
-    while n_threads > 1 {
-        n_threads /= 2;
-
-        if UNIT_POS >= n_threads {
-            return;
-        }
-
-        let read_pos = n_threads + UNIT_POS;
-        let mut value = RD::read_from_shared(&shared_memory, read_pos);
-        let next = RD::read_from_shared(&shared_memory, UNIT_POS);
-        RD::update_value(&mut value, next);
-        RD::write_to_shared(&mut shared_memory, UNIT_POS, value);
-
-        sync_units();
+    if UNIT_POS >= SUBCUBE_DIM {
+        return;
     }
+
+    let value = RD::read_from_shared(&shared_memory, UNIT_POS);
+    RD::reduce_subcube(&mut shared_memory, 0, value);
 
     if UNIT_POS == 0 {
         RD::store(
@@ -95,8 +83,14 @@ pub fn reduce_dim_subcube<
 ) -> JitTensor<R, EO> {
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
+    let warp_size = 32; // TODO: Add a method to client to query this
+
     let num_elems_output = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
+    let cube_dim = CubeDim {
+        x: warp_size,
+        y: warp_size,
+        z: 1,
+    };
     let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
     let cube_count_y = f32::ceil(num_elems_output as f32 / cube_count_x);
     let cube_count = CubeCount::Static(cube_count_x as u32, cube_count_y as u32, 1);
@@ -105,8 +99,6 @@ pub fn reduce_dim_subcube<
     let n_invocation_per_cube = cube_dim.num_elems();
     let elems_per_thread =
         f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
-
-    let warp_size = 32u32;
 
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
     let smem_size = cube_dim.num_elems() / warp_size;

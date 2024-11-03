@@ -38,10 +38,6 @@ impl<EIn: JitElement + Numeric, EOut: JitElement> ReduceDimSubcube<EIn, EOut> fo
         }
     }
 
-    fn write_to_shared(acc: &mut Self::Accumulator, write_position: u32, value: Self::Value) {
-        acc[write_position] = value;
-    }
-
     fn store(acc: &Self::Accumulator, out: &mut Tensor<EOut>, pos: u32, dim_length: u32) {
         let denom = EIn::cast_from(dim_length);
         out[pos] = EOut::cast_from(acc[0] / denom);

@@ -47,14 +47,6 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for Argmin {
         }
     }
 
-    fn write_to_shared(acc: &mut Self::Accumulator, write_position: u32, value: Self::Value) {
-        let (val, index) = value;
-        let (val_smem, index_smem) = acc;
-
-        val_smem[write_position] = val;
-        index_smem[write_position] = index;
-    }
-
     fn store(acc: &Self::Accumulator, out: &mut Tensor<EOut>, pos: u32, _layout: u32) {
         let (_, indices) = acc;
         out[pos] = EOut::cast_from(indices[0]);
