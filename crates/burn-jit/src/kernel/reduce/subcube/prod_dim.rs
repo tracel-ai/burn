@@ -5,7 +5,7 @@ use crate::{kernel::reduce::ProdDim, JitElement};
 use super::base::ReduceDimSubcube;
 
 #[cube]
-impl<EIn: JitElement + Numeric, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for ProdDim {
+impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for ProdDim {
     /// The reduction accumulator
     type Accumulator = SharedMemory<EIn>;
     type Value = EIn;

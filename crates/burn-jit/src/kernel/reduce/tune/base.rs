@@ -7,7 +7,7 @@ use crate::{
     kernel::{
         prng::random_like_uniform,
         reduce::{
-            naive::shader::reduce_dim_naive, shared::shader::reduce_dim_shared,
+            naive::shader::reduce_dim_naive, shared::kernel::reduce_dim_shared,
             subcube::kernel::reduce_dim_subcube, ReduceDimAlgorithm,
         },
     },

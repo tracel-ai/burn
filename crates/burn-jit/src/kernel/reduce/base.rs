@@ -6,13 +6,13 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 
 use super::{
     naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
-    shared::{base::ReduceDimShared, shader::reduce_dim_shared},
+    shared::{base::ReduceDimShared, kernel::reduce_dim_shared},
     subcube::{base::ReduceDimSubcube, kernel::reduce_dim_subcube},
 };
 
 #[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
-    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI> + ReduceDimSubcube<EI, EO>
+    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI, EO> + ReduceDimSubcube<EI, EO>
 {
 }
 
@@ -64,10 +64,10 @@ macro_rules! reduce_operation {
         #[derive(Debug)]
         pub(crate) struct $ops;
 
-        impl<EI: JitElement + Numeric, EO: JitElement> ReduceDimAlgorithm<EI, EO> for $ops {}
+        impl<EI: JitElement, EO: JitElement> ReduceDimAlgorithm<EI, EO> for $ops {}
 
         /// Executes the reduce operation with the given strategy.
-        pub fn $name<R: JitRuntime, EI: JitElement + Numeric, EO: JitElement>(
+        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(
             tensor: JitTensor<R, EI>,
             dim: usize,
             strategy: ReduceStrategy,
