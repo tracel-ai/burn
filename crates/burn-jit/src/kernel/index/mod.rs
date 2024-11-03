@@ -12,7 +12,7 @@ pub(crate) use repeat_dim::*;
 pub(crate) use select::*;
 pub(crate) use select_assign::*;
 pub use slice::*;
-pub use slice_assign::*;
+pub(crate) use slice_assign::*;
 
 pub(crate) use gather::*;
 pub(crate) use scatter::*;
