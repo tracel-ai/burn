@@ -20,6 +20,8 @@ pub fn reduce_dim_subcube_kernel<
     let stride_reduce_dim_input = input.stride(dim);
     let shape_reduce_dim_input = input.shape(dim);
 
+    let should_unroll = elems_per_thread <= 8;
+
     let reduce_group_id = CUBE_POS;
     let warp_id = UNIT_POS / SUBCUBE_DIM;
 
@@ -34,6 +36,7 @@ pub fn reduce_dim_subcube_kernel<
 
     let mut value = RD::init_value();
 
+    #[unroll(should_unroll)]
     for i in 0..elems_per_thread {
         let nth = i * CUBE_DIM + UNIT_POS;
         let current_pos = nth * stride_reduce_dim_input + index_offset;
