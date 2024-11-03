@@ -1,110 +1,7 @@
-use crate::{
-    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ElementConversion, Shape};
-use cubecl::{
-    cpa,
-    ir::{Builtin, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
-    prelude::*,
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
-    OutputInfo,
-};
-use std::{marker::PhantomData, ops::Range};
-
-#[derive(new)]
-struct SliceEagerKernel<R: JitRuntime, E: JitElement> {
-    rank: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
-
-pub struct SliceComputeShader {
-    input: Variable,
-    output: Variable,
-    rank: usize,
-}
-
-impl SliceComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        let input = self.input;
-        let output = self.output;
-        let id = Variable::builtin(Builtin::AbsolutePos);
-
-        let offset_input = scope.zero(u32::as_elem());
-        let offset_local = scope.create_local(u32::as_elem());
-
-        let stride_input = scope.create_local(u32::as_elem());
-        let stride_output = scope.create_local(u32::as_elem());
-        let shape_output = scope.create_local(u32::as_elem());
-        let range_start = scope.create_local(u32::as_elem());
-
-        for i in 0..self.rank {
-            cpa!(scope, stride_input = stride(input, i));
-            cpa!(scope, stride_output = stride(output, i));
-            cpa!(scope, shape_output = shape(output, i));
-            cpa!(
-                scope,
-                range_start = cast(Variable::new(
-                    VariableKind::GlobalScalar(i as u16),
-                    Item::new(u32::as_elem())
-                ))
-            );
-
-            cpa!(scope, offset_local = id / stride_output);
-            cpa!(scope, offset_local = offset_local % shape_output);
-            cpa!(scope, offset_local = offset_local + range_start);
-            cpa!(scope, offset_local = offset_local * stride_input);
-
-            cpa!(scope, offset_input += offset_local);
-        }
-
-        let result = scope.create_local(input.item);
-        cpa!(scope, result = input[offset_input]);
-        cpa!(scope, output[id] = result);
-    }
-}
-
-impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item = E::cube_elem().into();
-
-        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
-        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
-
-        scope.write_global_custom(output);
-
-        SliceComputeShader {
-            input,
-            output,
-            rank: self.rank,
-        }
-        .expand(&mut scope);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let ranges = InputInfo::Scalar {
-            elem: u32::as_elem(),
-            size: self.rank,
-        };
-        let output = OutputInfo::Array { item };
-
-        let info = KernelExpansion {
-            inputs: vec![input, ranges],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
-    }
-
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info(self.rank)
-    }
-}
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use std::ops::Range;
 
 pub(crate) fn slice<R: JitRuntime, E: JitElement>(
     tensor: JitTensor<R, E>,
@@ -145,26 +42,59 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
     }
 }
 
+#[cube(launch_unchecked)]
+fn slice_kernel<E: CubePrimitive>(
+    input: &Tensor<E>,
+    output: &mut Tensor<E>,
+    indices: Sequence<u32>,
+    #[comptime] rank: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
+
+    let mut offset_input = 0;
+
+    #[unroll]
+    for i in 0..rank {
+        let range_start = *indices.index(i);
+        let offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i) + range_start;
+
+        offset_input += offset_local * input.stride(i);
+    }
+
+    output[ABSOLUTE_POS] = input[offset_input];
+}
+
 pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
     tensor: JitTensor<R, E>,
     output: JitTensor<R, E>,
     indices: &[Range<usize>],
 ) -> JitTensor<R, E> {
     let ndims = tensor.shape.num_dims();
+    let mut indices_sequence = SequenceArg::<R, u32>::new();
     let mut scalars: Vec<i32> = Vec::with_capacity(ndims);
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
         scalars.push((start as i32).elem());
+        indices_sequence.push(ScalarArg::new(start as u32));
     }
 
-    let kernel = SliceEagerKernel::<R, E>::new(ndims);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    Execution::start(kernel, tensor.client.clone())
-        .inputs(&[tensor.as_handle_ref()])
-        .outputs(&[output.as_handle_ref()])
-        .with_scalars(&scalars)
-        .execute(CubeCountSettings::Output { pos: 0 });
+    unsafe {
+        slice_kernel::launch_unchecked::<E, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
+            indices_sequence,
+            ndims as u32,
+        )
+    };
 
     output
 }
