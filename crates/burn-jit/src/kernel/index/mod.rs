@@ -7,7 +7,7 @@ mod select_assign;
 mod slice;
 mod slice_assign;
 
-pub use flip::*;
+pub(crate) use flip::*;
 pub use repeat_dim::*;
 pub(crate) use select::*;
 pub(crate) use select_assign::*;
