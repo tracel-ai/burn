@@ -22,7 +22,7 @@ mod tests {
     }
 
     #[test]
-    fn should_support_remainder_scalar_basic() {
+    fn should_support_remainder_basic_scalar() {
         let data = TensorData::from([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
@@ -52,7 +52,7 @@ mod tests {
 
     /// Also from https://pytorch.org/docs/stable/generated/torch.remainder.html
     #[test]
-    fn should_support_remainder_scalar_float() {
+    fn should_support_remainder_float_scalar() {
         let data = TensorData::from([1.0, 2.0, 3.0, 4.0, 5.0]);
         let device = Default::default();
         let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
