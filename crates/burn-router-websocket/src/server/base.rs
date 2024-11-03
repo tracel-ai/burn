@@ -19,9 +19,10 @@ use burn_tensor::{
 //allows to extract the IP of connecting user
 use axum::extract::connect_info::ConnectInfo;
 
-use crate::shared::{Task, TaskContent};
-
-use super::processor::{Processor, ProcessorTask};
+use crate::{
+    server::stream::Stream,
+    shared::{Task, TaskContent},
+};
 
 pub struct WsServer<B: ReprBackend> {
     _p: PhantomData<B>,
@@ -71,7 +72,8 @@ where
     /// Actual websocket statemachine (one will be spawned per connection)
     async fn handle_socket(device: Device<B>, mut socket: WebSocket, _who: SocketAddr) {
         println!("On new connection");
-        let processor = Processor::new(Runner::<B>::new(device));
+        // let processor = Processor::new();
+        let stream = Stream::new(Runner::<B>::new(device));
 
         loop {
             let packet = socket.recv().await;
@@ -94,37 +96,21 @@ where
 
                 match task.content {
                     TaskContent::RegisterOperation(op) => {
-                        processor
-                            .send(ProcessorTask::RegisterOperation(op))
-                            .unwrap();
+                        stream.register_operation(op);
                     }
                     TaskContent::RegisterTensor(id, data) => {
-                        processor
-                            .send(ProcessorTask::RegisterTensor(task.id, id, data))
-                            .unwrap();
+                        stream.register_tensor(id, data);
                     }
                     TaskContent::RegisterOrphan(id) => {
-                        processor.send(ProcessorTask::RegisterOrphan(id)).unwrap();
+                        stream.register_orphan(id);
                     }
                     TaskContent::ReadTensor(tensor) => {
-                        let (sender, recv) = std::sync::mpsc::channel();
-
-                        processor
-                            .send(ProcessorTask::ReadTensor(task.id, tensor, sender))
-                            .unwrap();
-
-                        let response = recv.recv().expect("A callback");
+                        let response = stream.read_tensor(task.id, tensor);
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
                     TaskContent::SyncBackend => {
-                        let (sender, recv) = std::sync::mpsc::channel();
-
-                        processor
-                            .send(ProcessorTask::Sync(task.id, sender))
-                            .unwrap();
-
-                        let response = recv.recv().expect("A callback");
+                        let response = stream.sync(task.id);
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
@@ -135,7 +121,7 @@ where
             };
         }
         println!("Closing connection");
-        processor.send(ProcessorTask::Close).unwrap();
+        stream.close();
     }
 }
 

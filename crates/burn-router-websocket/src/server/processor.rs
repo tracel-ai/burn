@@ -2,7 +2,7 @@ use burn_router::{Runner, RunnerClient};
 use burn_tensor::{
     backend::{Backend, BackendBridge},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
-    DType, TensorData,
+    TensorData,
 };
 use core::marker::PhantomData;
 use std::sync::mpsc::Sender;
@@ -18,7 +18,7 @@ pub type Callback<M> = Sender<M>;
 
 pub enum ProcessorTask {
     RegisterOperation(OperationDescription),
-    RegisterTensor(ConnectionId, TensorId, TensorData),
+    RegisterTensor(TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     RegisterOrphan(TensorId),
@@ -51,7 +51,7 @@ where
                         };
                         callback.send(response).unwrap();
                     }
-                    ProcessorTask::RegisterTensor(_, id, data) => {
+                    ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
@@ -63,6 +63,10 @@ where
                         callback.send(response).unwrap();
                     }
                     ProcessorTask::Close => {
+                        let device = runner.device();
+                        runner.sync();
+                        core::mem::drop(runner);
+                        B::sync(&device);
                         return;
                     }
                 }

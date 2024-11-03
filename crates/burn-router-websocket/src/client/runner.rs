@@ -55,6 +55,7 @@ impl ClientRunner {
             let (ws_stream, _) = connect_async_with_config(
                 address,
                 Some(WebSocketConfig {
+                    #[allow(deprecated)]
                     max_send_queue: None,
                     write_buffer_size: 0,
                     max_write_buffer_size: usize::MAX,

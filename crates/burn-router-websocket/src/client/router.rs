@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient};
 use burn_tensor::{
     backend::{DeviceId, DeviceOps},
     DType, TensorData,
 };
+use std::sync::Arc;
 
 use crate::shared::{TaskContent, TaskResponseContent};
 
@@ -22,16 +21,15 @@ impl RunnerClient for WsClient {
         &self,
         tensor: burn_tensor::repr::TensorDescription,
     ) -> impl std::future::Future<Output = TensorData> + Send {
+        // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(TaskContent::ReadTensor(tensor));
 
-        let fut = async move {
+        async move {
             match fut.await {
                 TaskResponseContent::ReadTensor(data) => data,
                 _ => panic!("Invalid message type"),
             }
-        };
-
-        fut
+        }
     }
 
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self> {

@@ -1,11 +1,11 @@
 use burn_tensor::{
     repr::{OperationDescription, TensorDescription, TensorId},
-    DType, TensorData,
+    TensorData,
 };
 use serde::{Deserialize, Serialize};
 
 #[allow(missing_docs)]
-#[derive(new, Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(new, Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct ConnectionId {
     pub position: u64,
 }
