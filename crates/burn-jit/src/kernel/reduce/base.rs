@@ -5,7 +5,7 @@ use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{
-    naive::{base::ReduceDimNaive, shader::reduce_dim_naive},
+    naive::{base::ReduceDimNaive, kernel::reduce_dim_naive},
     shared::{base::ReduceDimShared, kernel::reduce_dim_shared},
     subcube::{base::ReduceDimSubcube, kernel::reduce_dim_subcube},
 };
