@@ -71,12 +71,6 @@ pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, F: FloatElement>(
             output.as_tensor_arg(1),
         )
     };
-    // let kernel = InterpolateBilinearEagerKernel::<R, F>::new();
-
-    // Execution::start(kernel, input.client.clone())
-    //     .inputs(&[input.as_handle_ref()])
-    //     .outputs(&[output.as_handle_ref()])
-    //     .execute(CubeCountSettings::Output { pos: 0 });
 
     output
 }

@@ -1,10 +1,10 @@
 use crate::{
-    element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
-    FloatElement, JitRuntime,
+    kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor, FloatElement,
+    JitRuntime,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},
-    Element, Shape,
+    Shape,
 };
 
 use super::{
@@ -37,7 +37,7 @@ pub fn interpolate<R: JitRuntime, E: FloatElement>(
 /// Backward interpolate operation
 ///
 /// Note: only nearest mode is supported
-pub fn interpolate_backward<R: JitRuntime, E: JitElement + Element>(
+pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R, E>,
     out_grad: JitTensor<R, E>,
     _output_size: [usize; 2],
