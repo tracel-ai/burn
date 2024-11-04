@@ -22,37 +22,35 @@ macro_rules! testgen_all {
             $crate::testgen_no_param!();
         }
     };
-    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*]) => {
         pub mod tensor {
             pub use super::*;
 
-            pub type FloatType = $f_def;
-            pub type IntType = $i_def;
+            pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
             pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<$float, $i_def>;
-                    pub type TestTensor<const D: usize> = TestTensor2<$float, $i_def, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, $i_def, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, $i_def, D>;
+                    pub type TestBackend = TestBackend2<$float, IntType>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, D>;
 
                     pub type FloatType = $float;
-                    pub type IntType = $i_def;
 
                     $crate::testgen_with_float_param!();
                 })*
                 $(mod [<$int _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<$f_def, $int>;
-                    pub type TestTensor<const D: usize> = TestTensor2<$f_def, $int, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$f_def, $int, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$f_def, $int, D>;
+                    pub type TestBackend = TestBackend2<FloatType, $int>;
+                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, $int, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, $int, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, $int, D>;
 
-                    pub type FloatType = $f_def;
                     pub type IntType = $int;
 
                     $crate::testgen_with_int_param!();

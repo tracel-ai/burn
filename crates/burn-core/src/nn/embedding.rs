@@ -69,7 +69,7 @@ impl<B: Backend> Embedding<B> {
     /// # Shapes
     ///
     /// - input: `[batch_size, seq_length]`
-    /// - output: `[batch_size, d_model]`
+    /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 3> {
         embedding(self.weight.val(), input)
     }
