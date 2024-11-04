@@ -75,6 +75,13 @@ where
         self.callback_rec.recv().unwrap()
     }
 
+    pub fn flush(&self, id: ConnectionId) -> TaskResponse {
+        self.sender
+            .send(ProcessorTask::Flush(id, self.callback_sender.clone()))
+            .unwrap();
+        self.callback_rec.recv().unwrap()
+    }
+
     pub fn close(&self) {
         self.sender.send(ProcessorTask::Close).unwrap();
     }

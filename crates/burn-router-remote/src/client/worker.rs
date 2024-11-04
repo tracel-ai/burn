@@ -57,7 +57,7 @@ impl ClientWorker {
                 address,
                 Some(WebSocketConfig {
                     max_send_queue: None,
-                    write_buffer_size: 0, // No buffering.
+                    write_buffer_size: 0,
                     max_write_buffer_size: usize::MAX,
                     max_message_size: None,
                     max_frame_size: Some(MB * 512),

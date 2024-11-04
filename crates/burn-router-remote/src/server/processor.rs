@@ -21,6 +21,7 @@ pub enum ProcessorTask {
     RegisterTensor(TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
+    Flush(ConnectionId, Callback<TaskResponse>),
     RegisterOrphan(TensorId),
     Close,
 }
@@ -68,6 +69,13 @@ where
                         core::mem::drop(runner);
                         B::sync(&device);
                         return;
+                    }
+                    ProcessorTask::Flush(id, sender) => {
+                        let response = TaskResponse {
+                            content: TaskResponseContent::FlushBackend,
+                            id,
+                        };
+                        sender.send(response).unwrap();
                     }
                 }
             }

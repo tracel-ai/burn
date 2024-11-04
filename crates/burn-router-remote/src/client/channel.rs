@@ -20,7 +20,7 @@ impl RunnerChannel for WsChannel {
     type IntElem = i32;
 
     fn name() -> String {
-        "http".into()
+        "remote".into()
     }
 
     fn init_client(device: &Self::Device) -> Self::Client {

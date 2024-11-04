@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, net::SocketAddr};
+use std::{collections::HashMap, marker::PhantomData, net::SocketAddr};
 
 use axum::{
     extract::{
@@ -65,8 +65,8 @@ where
     /// Actual websocket statemachine (one will be spawned per connection)
     async fn handle_socket(device: Device<B>, mut socket: WebSocket, _who: SocketAddr) {
         println!("On new connection");
-        // let processor = Processor::new();
-        let stream = Stream::new(Runner::<B>::new(device));
+        let runner = Runner::new(device);
+        let mut streams = HashMap::<u64, Stream<B>>::new();
 
         loop {
             let packet = socket.recv().await;
@@ -84,6 +84,19 @@ where
                     Err(err) => {
                         println!("Only bytes message in the json format are supported {err:?}");
                         break;
+                    }
+                };
+
+                let stream = match streams.get(&task.id.stream_id) {
+                    Some(stream) => {
+                        // Only when necessary.
+                        stream.flush(task.id);
+                        stream
+                    },
+                    None => {
+                        let stream = Stream::<B>::new(runner.clone());
+                        streams.insert(task.id.stream_id, stream);
+                        streams.get(&task.id.stream_id).unwrap()
                     }
                 };
 
@@ -107,14 +120,23 @@ where
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
+                    TaskContent::FlushBackend => {
+                        let response = stream.flush(task.id);
+                        let bytes = rmp_serde::to_vec(&response).unwrap();
+                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
+                    }
                 }
             } else {
                 println!("Not a binary message, closing, received {msg:?}");
                 break;
             };
         }
+
         println!("Closing connection");
-        stream.close();
+        for (id, stream) in streams.drain() {
+            println!("Closing stream {id}");
+            stream.close();
+        }
     }
 }
 

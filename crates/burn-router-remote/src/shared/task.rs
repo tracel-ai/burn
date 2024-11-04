@@ -26,6 +26,7 @@ pub enum TaskContent {
     RegisterOrphan(TensorId),
     ReadTensor(TensorDescription),
     SyncBackend,
+    FlushBackend,
 }
 
 #[allow(missing_docs)]
@@ -40,4 +41,5 @@ pub struct TaskResponse {
 pub enum TaskResponseContent {
     ReadTensor(TensorData),
     SyncBackend,
+    FlushBackend,
 }
