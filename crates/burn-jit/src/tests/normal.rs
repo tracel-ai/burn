@@ -14,8 +14,11 @@ mod tests {
         let mean = 10.;
         let tensor =
             Tensor::<TestBackend, 2>::random(shape, Distribution::Normal(mean, 2.), &device);
+        println!("data: {}", tensor.to_data());
         let empirical_mean = tensor.mean().into_data();
+        println!("{empirical_mean}");
         empirical_mean.assert_approx_eq(&TensorData::from([mean as f32]), 1);
+        panic!()
     }
 
     #[test]
@@ -29,6 +32,12 @@ mod tests {
         let tensor =
             Tensor::<TestBackend, 2>::random(shape.clone(), Distribution::Normal(mu, s), &device)
                 .into_data();
+        println!(
+            "Tensor: {:?}",
+            &tensor
+                .as_slice::<<TestBackend as Backend>::FloatElem>()
+                .unwrap()[0..100000]
+        );
 
         let stats = calculate_bin_stats(
             tensor
@@ -39,7 +48,12 @@ mod tests {
             (mu + 3. * s) as f32,
         );
         let assert_approx_eq = |count, percent| {
+            println!("percent: {percent}");
             let expected = percent * shape.num_elements() as f32 / 100.;
+            println!(
+                "Count: {count} Expected: {expected}, abs: {}",
+                f32::abs(count as f32 - expected)
+            );
             assert!(f32::abs(count as f32 - expected) < 2000.);
         };
         assert_approx_eq(stats[0].count, 2.1);

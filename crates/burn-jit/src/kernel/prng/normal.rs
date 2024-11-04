@@ -9,9 +9,10 @@ use crate::{
     JitElement, JitRuntime,
 };
 
-use super::{random, Prng, PrngRuntime};
+use super::{random, PrngArgs, PrngRuntime};
 
-pub(crate) struct Normal<E> {
+#[derive(CubeLaunch)]
+pub(crate) struct Normal<E: Numeric> {
     mean: E,
     std: E,
 }
@@ -19,7 +20,7 @@ pub(crate) struct Normal<E> {
 #[cube]
 impl<E: JitElement> PrngRuntime<E> for Normal<E> {
     fn inner_loop(
-        args: Sequence<E>,
+        args: Normal<E>,
         write_index_base: u32,
         n_invocations: u32,
         #[comptime] n_values_per_thread: u32,
@@ -29,8 +30,8 @@ impl<E: JitElement> PrngRuntime<E> for Normal<E> {
         state_3: &mut u32,
         output: &mut Tensor<E>,
     ) {
-        let mean = f32::cast_from(*args.index(0));
-        let std = f32::cast_from(*args.index(0));
+        let mean = f32::cast_from(args.mean);
+        let std = f32::cast_from(args.std);
 
         let should_unroll = n_values_per_thread <= 16;
 
@@ -73,9 +74,11 @@ impl<E: JitElement> PrngRuntime<E> for Normal<E> {
     }
 }
 
-impl<E: JitElement> Prng<E> for Normal<E> {
-    fn args(self) -> Vec<E> {
-        vec![self.mean, self.std]
+impl<E: JitElement> PrngArgs<E> for Normal<E> {
+    type Args = Self;
+
+    fn args<'a, R: Runtime>(self) -> NormalLaunch<'a, E, R> {
+        NormalLaunch::new(ScalarArg::new(self.mean), ScalarArg::new(self.std))
     }
 }
 

@@ -7,16 +7,17 @@ use crate::{
     JitElement, JitRuntime,
 };
 
-use super::{random, Prng, PrngRuntime};
+use super::{random, PrngArgs, PrngRuntime};
 
-pub(crate) struct Bernoulli<E> {
+#[derive(CubeLaunch)]
+pub(crate) struct Bernoulli<E: Numeric> {
     probability: E,
 }
 
 #[cube]
 impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
     fn inner_loop(
-        args: Sequence<E>,
+        args: Bernoulli<E>,
         write_index_base: u32,
         n_invocations: u32,
         #[comptime] n_values_per_thread: u32,
@@ -26,7 +27,7 @@ impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
         state_3: &mut u32,
         output: &mut Tensor<E>,
     ) {
-        let prob = f32::cast_from(*args.index(0));
+        let prob = f32::cast_from(args.probability);
         let should_unroll = n_values_per_thread <= 8;
 
         #[unroll(should_unroll)]
@@ -45,9 +46,11 @@ impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
     }
 }
 
-impl<E: JitElement> Prng<E> for Bernoulli<E> {
-    fn args(self) -> Vec<E> {
-        vec![self.probability]
+impl<E: JitElement> PrngArgs<E> for Bernoulli<E> {
+    type Args = Self;
+
+    fn args<'a, R: Runtime>(self) -> BernoulliLaunch<'a, E, R> {
+        BernoulliLaunch::new(ScalarArg::new(self.probability))
     }
 }
 

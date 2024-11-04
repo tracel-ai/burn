@@ -8,7 +8,7 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement>(
+pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,
@@ -16,10 +16,7 @@ pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement>(
     let client = R::client(device);
     let output = empty_device(client.clone(), device.clone(), shape);
     let seeds = get_seeds();
-    let mut args = SequenceArg::<R, E>::new();
-    for arg in prng.args() {
-        args.push(ScalarArg::new(arg));
-    }
+    let args = prng.args();
 
     let cube_dim = CubeDim::default();
     let cube_count = prng_cube_count(output.shape.num_elements(), cube_dim, N_VALUES_PER_THREAD);
@@ -66,15 +63,17 @@ pub(crate) fn get_seeds() -> [u32; 4] {
     seeds.try_into().unwrap()
 }
 
-pub(crate) trait Prng<E: JitElement>: Send + Sync + 'static + PrngRuntime<E> {
-    fn args(self) -> Vec<E>;
+pub(crate) trait PrngArgs<E: JitElement>: Send + Sync + 'static {
+    type Args: LaunchArg;
+
+    fn args<'a, R: Runtime>(self) -> <Self::Args as LaunchArg>::RuntimeArg<'a, R>;
 }
 
 #[cube]
-pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static {
+pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static + PrngArgs<E> {
     #[allow(clippy::too_many_arguments)]
     fn inner_loop(
-        args: Sequence<E>,
+        args: Self::Args,
         write_index_base: u32,
         n_invocations: u32,
         #[comptime] n_values_per_thread: u32,
@@ -93,7 +92,7 @@ fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
     seed_1: u32,
     seed_2: u32,
     seed_3: u32,
-    args: Sequence<E>,
+    args: P::Args,
     #[comptime] n_values_per_thread: u32,
 ) {
     let n_invocations = CUBE_DIM_X * CUBE_DIM_Y;

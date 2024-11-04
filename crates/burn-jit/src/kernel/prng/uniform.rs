@@ -7,9 +7,10 @@ use crate::{
     JitElement, JitRuntime,
 };
 
-use super::{random, Prng, PrngRuntime};
+use super::{random, PrngArgs, PrngRuntime};
 
-pub(crate) struct Uniform<E> {
+#[derive(CubeLaunch)]
+pub(crate) struct Uniform<E: Numeric> {
     lower_bound: E,
     upper_bound: E,
 }
@@ -17,7 +18,7 @@ pub(crate) struct Uniform<E> {
 #[cube]
 impl<E: JitElement> PrngRuntime<E> for Uniform<E> {
     fn inner_loop(
-        args: Sequence<E>,
+        args: Uniform<E>,
         write_index_base: u32,
         n_invocations: u32,
         #[comptime] n_values_per_thread: u32,
@@ -27,8 +28,8 @@ impl<E: JitElement> PrngRuntime<E> for Uniform<E> {
         state_3: &mut u32,
         output: &mut Tensor<E>,
     ) {
-        let lower_bound = *args.index(0);
-        let upper_bound = *args.index(1);
+        let lower_bound = args.lower_bound;
+        let upper_bound = args.upper_bound;
 
         let should_unroll = n_values_per_thread <= 8;
         let scale = upper_bound - lower_bound;
@@ -52,9 +53,14 @@ impl<E: JitElement> PrngRuntime<E> for Uniform<E> {
     }
 }
 
-impl<E: JitElement> Prng<E> for Uniform<E> {
-    fn args(self) -> Vec<E> {
-        vec![self.lower_bound, self.upper_bound]
+impl<E: JitElement> PrngArgs<E> for Uniform<E> {
+    type Args = Self;
+
+    fn args<'a, R: Runtime>(self) -> UniformLaunch<'a, E, R> {
+        UniformLaunch::new(
+            ScalarArg::new(self.lower_bound),
+            ScalarArg::new(self.upper_bound),
+        )
     }
 }
 
