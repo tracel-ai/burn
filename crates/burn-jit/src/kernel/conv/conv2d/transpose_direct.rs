@@ -31,6 +31,10 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     output: &mut Tensor<E>,
     args: ConvArgs,
 ) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
+
     let in_c_per_group = weight.shape(0) / args.groups;
     let out_c_per_group = weight.shape(1);
     let kernel_h = weight.shape(2);
