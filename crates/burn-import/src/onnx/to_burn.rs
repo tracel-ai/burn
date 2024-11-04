@@ -44,6 +44,7 @@ use crate::{
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
+            random_normal_like::RandomNormalLikeNode,
             random_uniform::RandomUniformNode,
             range::RangeNode,
             reshape::ReshapeNode,
@@ -345,6 +346,9 @@ impl ParsedOnnxGraph {
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
                 NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
+                NodeType::RandomNormalLike => {
+                    graph.register(Self::random_normal_like_conversion(node))
+                }
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
@@ -470,6 +474,27 @@ impl ParsedOnnxGraph {
         }
 
         RandomNormalNode::new(output_type, mean, scale)
+    }
+
+    fn random_normal_like_conversion(node: Node) -> RandomNormalLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let mean = node
+            .attrs
+            .get("mean")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let scale = node
+            .attrs
+            .get("scale")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomNormalLikeNode::new(mean, scale, input, output)
     }
 
     pub(crate) fn constant_of_shape_conversion(node: Node) -> ConstantOfShapeNode {
