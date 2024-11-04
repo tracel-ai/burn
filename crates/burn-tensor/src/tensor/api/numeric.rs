@@ -278,6 +278,10 @@ where
     ///
     /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
             dim,
@@ -303,6 +307,10 @@ where
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
@@ -326,6 +334,10 @@ where
     /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
     /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
     /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices))
@@ -339,6 +351,10 @@ where
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn select_assign(
         self,
         dim: usize,
