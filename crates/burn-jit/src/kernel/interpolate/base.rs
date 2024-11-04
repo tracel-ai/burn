@@ -1,6 +1,6 @@
 use crate::{
     element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
-    JitRuntime,
+    FloatElement, JitRuntime,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},
@@ -15,7 +15,7 @@ use super::{
 /// Interpolate operation
 ///
 /// Supports nearest, bilinear and bicubic modes
-pub fn interpolate<R: JitRuntime, E: JitElement + Element>(
+pub fn interpolate<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R, E>,
     output_size: [usize; 2],
     options: InterpolateOptions,
