@@ -1,13 +1,17 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn flip_kernel<E: CubePrimitive, Bool: Int>(
     input: &Tensor<E>,
     output: &mut Tensor<E>,
     indices: Sequence<Bool>,
     #[comptime] rank: u32,
 ) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
+
     let mut offset_input = 0;
 
     #[unroll]
@@ -54,15 +58,17 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    flip_kernel::launch::<E, u32, R>(
-        &tensor.client,
-        cube_count,
-        cube_dim,
-        tensor.as_tensor_arg(1),
-        output.as_tensor_arg(1),
-        indices_sequence,
-        ndims as u32,
-    );
+    unsafe {
+        flip_kernel::launch_unchecked::<E, u32, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
+            indices_sequence,
+            ndims as u32,
+        );
+    }
 
     output
 }

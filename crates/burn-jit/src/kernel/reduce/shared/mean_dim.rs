@@ -12,7 +12,7 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for MeanDim {
     /// Initialization for shared algorithm
     fn initialize_shared(shared_memory_size: u32, write_position: u32) -> SharedMemory<EIn> {
         let mut value_shared = SharedMemory::new(shared_memory_size);
-        value_shared[write_position] = comptime![EIn::default()].runtime();
+        value_shared[write_position] = EIn::from_int(0);
         value_shared
     }
 

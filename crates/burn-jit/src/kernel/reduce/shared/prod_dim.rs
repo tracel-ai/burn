@@ -12,13 +12,13 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for ProdDim {
     /// Initialization for shared algorithm
     fn initialize_shared(shared_memory_size: u32, write_position: u32) -> SharedMemory<EIn> {
         let mut value_shared = SharedMemory::new(shared_memory_size);
-        value_shared[write_position] = comptime![EIn::from_int(1)].runtime();
+        value_shared[write_position] = EIn::from_int(1);
         value_shared
     }
 
     /// How to write to shared memory
     fn write_to_shared(shared_memory: &mut SharedMemory<EIn>, write_position: u32, value: EIn) {
-        shared_memory[write_position] += value;
+        shared_memory[write_position] *= value;
     }
 
     /// How to read from input in shared algorithm
