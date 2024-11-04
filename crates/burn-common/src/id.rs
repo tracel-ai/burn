@@ -64,3 +64,48 @@ mod tests {
         assert_eq!(set.len(), EXPECTED_TOTAL_IDS);
     }
 }
+
+/// Unique identifier of the current thread.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub struct ThreadId {
+    /// The value representing the thread id.
+    pub value: u64,
+}
+
+impl ThreadId {
+    /// Get the current thread id.
+    pub fn current() -> Self {
+        Self { value: Self::id() }
+    }
+
+    #[cfg(feature = "std")]
+    fn id() -> u64 {
+        use core::hash::Hash;
+
+        std::thread_local! {
+            static ID: std::cell::OnceCell::<u64> = const { std::cell::OnceCell::new() };
+        };
+
+        // Getting the current thread is expensive, so we cache the value into a thread local
+        // variable, which is very fast.
+        ID.with(|cell| {
+            *cell.get_or_init(|| {
+                // A way to get a thread id encoded as u64.
+                let mut hasher = std::hash::DefaultHasher::default();
+                let id = std::thread::current().id();
+                id.hash(&mut hasher);
+                std::hash::Hasher::finish(&hasher)
+            })
+        })
+    }
+    #[cfg(not(feature = "std"))]
+    fn id() -> u64 {
+        0
+    }
+}
+
+impl core::fmt::Display for ThreadId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("ThreadId({:?})", self.value))
+    }
+}

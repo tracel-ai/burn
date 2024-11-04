@@ -7,8 +7,10 @@ pub use ndarray::NdArray;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
-#[cfg(feature = "http")]
-pub use burn_router_websocket::HttpBackend;
+#[cfg(feature = "remote")]
+pub use burn_router_remote as remote;
+#[cfg(feature = "remote")]
+pub use burn_router_remote::RemoteBackend;
 
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;

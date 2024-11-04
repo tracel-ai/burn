@@ -629,7 +629,7 @@ dependencies = [
  "burn-derive",
  "burn-hip",
  "burn-ndarray",
- "burn-router-websocket",
+ "burn-router-remote",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
@@ -822,7 +822,6 @@ dependencies = [
  "axum",
  "burn-autodiff",
  "burn-common",
- "burn-cuda",
  "burn-ndarray",
  "burn-tensor",
  "burn-wgpu",
@@ -837,7 +836,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-router-websocket"
+name = "burn-router-remote"
 version = "0.16.0"
 dependencies = [
  "axum",

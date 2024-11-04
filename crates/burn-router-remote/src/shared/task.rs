@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(new, Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct ConnectionId {
     pub position: u64,
+    pub stream_id: u64,
 }
 
 #[allow(missing_docs)]

@@ -12,15 +12,9 @@ documentation = "https://docs.rs/burn-router"
 version.workspace = true
 
 [features]
-default = ["std", "http-client", "http-server"]
+default = ["std"]
 std = []
 doc = ["default"]
-http-client = ["std", "tokio", "reqwest", "serde"]
-http-server = ["std", "tokio", "axum", "serde_json", "serde", "tracing-subscriber"]
-
-ndarray = ["burn-ndarray"]
-wgpu = ["burn-wgpu"]
-cuda = ["burn-cuda"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false, features = ["repr"]}
@@ -36,11 +30,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter", "registry"]
 reqwest = { version = "0.12.4", features = ["json"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
-
-# For bin/server.rs
-burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true }
 
 [dev-dependencies]
 burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", default-features = false, features = [

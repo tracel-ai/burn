@@ -9,6 +9,11 @@ use crate::shared::{TaskContent, TaskResponseContent};
 
 use super::WsClient;
 
+// It is very important to block on any request made with the sender, since ordering is crucial
+// when registering operation or creating tensors.
+//
+// The overhead is minimal, since we only wait for the task to be sent to the async
+// channel, but not sent to the websocket server and even less processed by the server.
 impl RunnerClient for WsClient {
     type Device = WsDevice;
 
@@ -72,6 +77,7 @@ impl RunnerClient for WsClient {
     }
 
     fn sync(&self) {
+        // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(TaskContent::SyncBackend);
 
         let fut = async move {
@@ -85,19 +91,44 @@ impl RunnerClient for WsClient {
     }
 
     fn seed(&self, _seed: u64) {
-        // Skip
+        // TODO
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+/// The device contains the connection information of the server.
 pub struct WsDevice {
     pub(crate) address: Arc<String>,
 }
 
+impl WsDevice {
+    /// Create a device from an url.
+    pub fn new(url: &str) -> Self {
+        let mut address = String::new();
+
+        if !url.starts_with("ws://") {
+            address += "ws://";
+            address += url;
+        } else {
+            address += url;
+        };
+        println!("{address}");
+
+        Self {
+            address: Arc::new(address),
+        }
+    }
+}
+
 impl Default for WsDevice {
     fn default() -> Self {
+        let address = match std::env::var("BURN_REMOTE_ADDRESS") {
+            Ok(address) => address,
+            Err(_) => String::from("ws://127.0.0.1:3000"),
+        };
+
         Self {
-            address: Arc::new(String::from("ws://127.0.0.1:3000")),
+            address: Arc::new(address),
         }
     }
 }

@@ -35,16 +35,9 @@ where
         ReprBackend<Handle = B::Handle>,
 {
     /// Start the server on the given address.
-    pub async fn start(device: Device<B>, address: &str) {
+    pub async fn start(device: Device<B>, port: u16) {
+        let address = format!("0.0.0.0:{port}");
         println!("Start server {address} on device {device:?}");
-        // tracing_subscriber::registry()
-        //     .with(
-        //         tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        //             format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-        //         }),
-        //     )
-        //     .with(tracing_subscriber::fmt::layer())
-        //     .init();
 
         // build our application with some routes
         let app = Router::new()
@@ -126,12 +119,12 @@ where
 }
 
 #[tokio::main(flavor = "current_thread")]
-/// Start a server.
-pub async fn start<B: ReprBackend>(device: Device<B>, address: &str)
+/// Start the server on the given port and [device](Device).
+pub async fn start<B: ReprBackend>(device: Device<B>, port: u16)
 where
     // Restrict full precision backend handle to be the same
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    WsServer::<B>::start(device, address).await;
+    WsServer::<B>::start(device, port).await;
 }

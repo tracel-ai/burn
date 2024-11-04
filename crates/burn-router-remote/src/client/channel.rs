@@ -2,7 +2,7 @@ use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
 use burn_tensor::repr::TensorDescription;
 
 use super::{
-    router::{WsBridge, WsDevice},
+    runner::{WsBridge, WsDevice},
     WsClient,
 };
 

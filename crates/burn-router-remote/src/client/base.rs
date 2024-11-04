@@ -1,14 +1,14 @@
-use super::{
-    router::WsDevice,
-    runner::{ClientRequest, ClientRunner},
-};
+use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
+use burn_common::id::ThreadId;
 use burn_tensor::repr::TensorId;
 use std::{
     future::Future,
     sync::{atomic::AtomicU64, Arc},
 };
 use tokio::sync::mpsc::Sender;
+
+pub use super::WsDevice;
 
 #[derive(Clone)]
 pub struct WsClient {
@@ -19,7 +19,7 @@ pub struct WsClient {
 
 impl WsClient {
     pub fn init(device: WsDevice) -> Self {
-        ClientRunner::start(device)
+        ClientWorker::start(device)
     }
 
     pub(crate) fn new(
@@ -50,13 +50,14 @@ impl WsSender {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let stream_id = ThreadId::current().value;
         let sender = self.sender.clone();
 
         async move {
             sender
                 .send(ClientRequest::WithoutCallback(Task {
                     content,
-                    id: ConnectionId::new(position),
+                    id: ConnectionId::new(position, stream_id),
                 }))
                 .await
                 .unwrap();
@@ -76,6 +77,7 @@ impl WsSender {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let stream_id = ThreadId::current().value;
         let sender = self.sender.clone();
         let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
 
@@ -84,7 +86,7 @@ impl WsSender {
                 .send(ClientRequest::WithSyncCallback(
                     Task {
                         content,
-                        id: ConnectionId::new(position),
+                        id: ConnectionId::new(position, stream_id),
                     },
                     callback_sender,
                 ))

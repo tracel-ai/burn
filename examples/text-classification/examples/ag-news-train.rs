@@ -91,13 +91,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "http")]
-mod http {
+#[cfg(feature = "remote")]
+mod remote {
     use crate::{launch, ElemType};
-    use burn::backend::{Autodiff, HttpBackend};
+    use burn::backend::{Autodiff, RemoteBackend};
 
     pub fn run() {
-        launch::<Autodiff<HttpBackend>>(vec![Default::default()]);
+        launch::<Autodiff<RemoteBackend>>(vec![Default::default()]);
     }
 }
 
@@ -139,6 +139,6 @@ fn main() {
     cuda_jit::run();
     #[cfg(feature = "hip-jit")]
     hip_jit::run();
-    #[cfg(feature = "http")]
-    http::run();
+    #[cfg(feature = "remote")]
+    remote::run();
 }
