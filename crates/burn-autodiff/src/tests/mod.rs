@@ -81,7 +81,7 @@ macro_rules! testgen_all {
             $crate::testgen_with_float_param!();
         }
     };
-    ($f_def:ident: [$($float:ident),*]) => {
+    ([$($float:ident),*]) => {
         mod autodiff {
             pub use super::*;
             type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;

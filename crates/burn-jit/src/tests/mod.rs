@@ -37,11 +37,12 @@ pub use serial_test;
 #[macro_export]
 macro_rules! testgen_all {
     () => {
-        $crate::testgen_all!(f32: [], i32: []);
+        use burn_tensor::{Float, Int};
+        $crate::testgen_all!([Float], [Int]);
     };
-    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*]) => {
         mod jit {
-            burn_jit::testgen_jit!($f_def: [$($float),*], $i_def: [$($int),*]);
+            burn_jit::testgen_jit!([$($float),*], [$($int),*]);
 
             mod kernel {
                 use super::*;
@@ -82,7 +83,7 @@ macro_rules! testgen_all {
             }
         }
         mod jit_fusion {
-            burn_jit::testgen_jit_fusion!($f_def: [$($float),*], $i_def: [$($int),*]);
+            burn_jit::testgen_jit_fusion!([$($float),*], [$($int),*]);
         }
     };
 }
@@ -90,9 +91,10 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_jit {
     () => {
-        $crate::testgen_jit!(f32: [], i32: []);
+        use burn_tensor::{Float, Int};
+        $crate::testgen_jit!([Float], [Int]);
     };
-    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*]) => {
         pub use super::*;
         use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
@@ -113,8 +115,8 @@ macro_rules! testgen_jit {
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-        burn_tensor::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
-        burn_autodiff::testgen_all!($f_def: [$($float),*]);
+        burn_tensor::testgen_all!([$($float),*], [$($int),*]);
+        burn_autodiff::testgen_all!([$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:
         // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
@@ -129,9 +131,10 @@ macro_rules! testgen_jit {
 #[macro_export]
 macro_rules! testgen_jit_fusion {
     () => {
-        $crate::testgen_jit_fusion!(f32: [], i32: []);
+        use burn_tensor::{Float, Int};
+        $crate::testgen_jit_fusion!([Float], [Int]);
     };
-    ($f_def:ident: [$($float:ident),*], $i_def:ident: [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*]) => {
         use super::*;
         use burn_jit::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
 
@@ -152,8 +155,8 @@ macro_rules! testgen_jit_fusion {
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-        burn_tensor::testgen_all!($f_def: [$($float),*], $i_def: [$($int),*]);
-        burn_autodiff::testgen_all!($f_def: [$($float),*]);
+        burn_tensor::testgen_all!([$($float),*], [$($int),*]);
+        burn_autodiff::testgen_all!([$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:
         // `q_swap_dims`, `q_permute`, `q_flip`, `q_gather`, `q_select`, `q_slice`, `q_expand`
