@@ -2,6 +2,7 @@ use burn_tensor::Shape;
 use cubecl::{
     cpa,
     ir::{Elem, FloatKind, Scope, Variable},
+    prelude::*,
 };
 
 use crate::{
@@ -34,7 +35,14 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let prob = args[0];
+        let mut prob = args[0];
+
+        if prob.item.elem() != Elem::Float(FloatKind::F32) {
+            let prob_f32 = scope.create_local(float_elem);
+            cpa!(scope, prob_f32 = cast(prob));
+            prob = prob_f32;
+        }
+
         cpa!(
             scope,
             range(0u32, n_values_per_thread).for_each(|i, scope| {
@@ -43,7 +51,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 taus_step_2(scope, state_2);
                 lcg_step(scope, state_3);
 
-                let int_random = scope.create_local(Elem::UInt);
+                let int_random = scope.create_local(u32::as_elem());
                 cpa!(scope, int_random = state_0 ^ state_1);
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
@@ -54,7 +62,7 @@ impl<E: JitElement> Prng<E> for Bernoulli<E> {
                 let bernoulli = scope.create_local(Elem::Bool);
                 cpa!(scope, bernoulli = float_random < prob);
 
-                let write_index = scope.create_local(Elem::UInt);
+                let write_index = scope.create_local(u32::as_elem());
                 cpa!(scope, write_index = i * n_invocations);
                 cpa!(scope, write_index += write_index_base);
                 cpa!(scope, output[write_index] = bernoulli);

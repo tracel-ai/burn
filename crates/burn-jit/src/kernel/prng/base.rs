@@ -1,6 +1,6 @@
 use cubecl::{
     cpa,
-    ir::{Builtin, Elem, Item, Scope, Variable, VariableKind},
+    ir::{Builtin, Item, Scope, Variable, VariableKind},
     prelude::*,
     CubeCountSettings, Execution, InputInfo, OutputInfo,
 };
@@ -60,10 +60,10 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, 
 
         let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
-        let seed0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(Elem::UInt));
-        let seed1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(Elem::UInt));
-        let seed2 = Variable::new(VariableKind::GlobalScalar(2), Item::new(Elem::UInt));
-        let seed3 = Variable::new(VariableKind::GlobalScalar(3), Item::new(Elem::UInt));
+        let seed0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(u32::as_elem()));
+        let seed1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(u32::as_elem()));
+        let seed2 = Variable::new(VariableKind::GlobalScalar(2), Item::new(u32::as_elem()));
+        let seed3 = Variable::new(VariableKind::GlobalScalar(3), Item::new(u32::as_elem()));
         let seeds = [seed0, seed1, seed2, seed3];
 
         let mut args = Vec::<Variable>::new();
@@ -80,7 +80,7 @@ impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, 
             size: P::args_length(),
         };
         let seeds = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: 4,
         };
         let out = OutputInfo::Array { item };
@@ -166,40 +166,40 @@ impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
         let cube_count_y = Variable::builtin(Builtin::CubeCountY);
         let local_index = Variable::builtin(Builtin::UnitPos);
 
-        let n_invocations = scope.create_local(Elem::UInt);
+        let n_invocations = scope.create_local(u32::as_elem());
         cpa!(scope, n_invocations = cube_dim_x);
         cpa!(scope, n_invocations *= cube_dim_y);
 
-        let cube_offset = scope.create_local(Elem::UInt);
+        let cube_offset = scope.create_local(u32::as_elem());
         cpa!(scope, cube_offset = cube_pos_x * cube_count_y);
         cpa!(scope, cube_offset += cube_pos_y);
         cpa!(scope, cube_offset *= n_invocations);
 
-        let write_index_base = scope.create_local(Elem::UInt);
+        let write_index_base = scope.create_local(u32::as_elem());
         cpa!(scope, write_index_base = cube_offset);
         cpa!(scope, write_index_base *= n_values_per_thread);
         cpa!(scope, write_index_base += local_index);
 
         // Set state with unique seeds
-        let thread_seed = scope.create_local(Elem::UInt);
+        let thread_seed = scope.create_local(u32::as_elem());
         cpa!(scope, thread_seed = cast(1000000007));
-        let thread_seed_index = scope.create_local(Elem::UInt);
+        let thread_seed_index = scope.create_local(u32::as_elem());
         cpa!(scope, thread_seed_index = cube_offset + local_index);
         cpa!(scope, thread_seed *= thread_seed_index);
 
-        let state_0 = scope.create_local(Elem::UInt);
+        let state_0 = scope.create_local(u32::as_elem());
         cpa!(scope, state_0 = thread_seed);
         cpa!(scope, state_0 += seed_0);
 
-        let state_1 = scope.create_local(Elem::UInt);
+        let state_1 = scope.create_local(u32::as_elem());
         cpa!(scope, state_1 = thread_seed);
         cpa!(scope, state_1 += seed_1);
 
-        let state_2 = scope.create_local(Elem::UInt);
+        let state_2 = scope.create_local(u32::as_elem());
         cpa!(scope, state_2 = thread_seed);
         cpa!(scope, state_2 += seed_2);
 
-        let state_3 = scope.create_local(Elem::UInt);
+        let state_3 = scope.create_local(u32::as_elem());
         cpa!(scope, state_3 = thread_seed);
         cpa!(scope, state_3 += seed_3);
 
@@ -260,7 +260,7 @@ fn taus_step(
     s3: Variable,
     m: Variable,
 ) {
-    let b = scope.create_local(Elem::UInt);
+    let b = scope.create_local(u32::as_elem());
     cpa!(scope, b = z << s1);
     cpa!(scope, b = b ^ z);
     cpa!(scope, b = b >> s2);

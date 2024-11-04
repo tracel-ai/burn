@@ -1,4 +1,7 @@
-use core::any::{Any, TypeId};
+use core::{
+    any::{Any, TypeId},
+    f32,
+};
 
 use alloc::boxed::Box;
 use alloc::format;
@@ -181,6 +184,11 @@ impl TensorData {
                         .map(|e: &i64| e.elem::<E>()),
                 ),
                 DType::U8 => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::U16 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &u16| e.elem::<E>()),
+                ),
                 DType::U32 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
@@ -313,6 +321,7 @@ impl TensorData {
                 DType::I8 => self.convert_inplace::<i8, E>(),
                 DType::U64 => self.convert_inplace::<u64, E>(),
                 DType::U32 => self.convert_inplace::<u32, E>(),
+                DType::U16 => self.convert_inplace::<u16, E>(),
                 DType::U8 => self.convert_inplace::<u8, E>(),
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
@@ -419,6 +428,7 @@ impl TensorData {
             DType::I8 => self.assert_eq_elem::<i8>(other),
             DType::U64 => self.assert_eq_elem::<u64>(other),
             DType::U32 => self.assert_eq_elem::<u32>(other),
+            DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
             DType::QFloat(q) => {
@@ -511,9 +521,21 @@ impl TensorData {
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if self.dtype.is_float() {
+                if let Some((err, tolerance)) = compare_floats(a, b, self.dtype, tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -683,6 +705,7 @@ impl core::fmt::Display for TensorData {
             DType::I8 => format!("{:?}", self.as_slice::<i8>().unwrap()),
             DType::U64 => format!("{:?}", self.as_slice::<u64>().unwrap()),
             DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(q) => match &q {
@@ -869,7 +892,7 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
 }
 
 #[allow(deprecated)]
-impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
+impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq + Element, const D: usize> Data<E, D> {
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
@@ -926,9 +949,21 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if E::dtype().is_float() {
+                if let Some((err, tolerance)) = compare_floats(a, b, E::dtype(), tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -1076,6 +1111,30 @@ impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
     }
 }
 
+fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(f64, f64)> {
+    let epsilon_deviations = tolerance / f32::EPSILON as f64;
+    let epsilon = match ty {
+        DType::F64 => f32::EPSILON as f64, // Don't increase precision beyond `f32`, see below
+        DType::F32 => f32::EPSILON as f64,
+        DType::F16 => half::f16::EPSILON.to_f64(),
+        DType::BF16 => half::bf16::EPSILON.to_f64(),
+        _ => unreachable!(),
+    };
+    let tolerance_norm = epsilon_deviations * epsilon;
+    // Clamp to 1.0 so we don't require more precision than `tolerance`. This is because literals
+    // have a fixed number of digits, so increasing precision breaks things
+    let value_abs = value.abs().max(1.0);
+    let tolerance_adjusted = tolerance_norm * value_abs;
+
+    let err = (value - other).abs();
+
+    if err > tolerance_adjusted || err.is_nan() {
+        Some((err, tolerance_adjusted))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
@@ -1140,16 +1199,16 @@ mod tests {
     #[test]
     fn should_assert_appox_eq_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.01, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
 
     #[test]
     #[should_panic]
-    fn should_assert_appox_eq_above_limit() {
+    fn should_assert_approx_eq_above_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.011, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }

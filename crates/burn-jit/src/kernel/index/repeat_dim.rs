@@ -1,7 +1,8 @@
 use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use cubecl::{
     cpa,
-    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    ir::{Builtin, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::CubePrimitive,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -28,12 +29,12 @@ impl RepeatComputeShader {
         let output = self.output;
         let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_local = scope.zero(Elem::UInt);
+        let offset_input = scope.zero(u32::as_elem());
+        let offset_local = scope.zero(u32::as_elem());
 
-        let stride_input = scope.create_local(Elem::UInt);
-        let stride_output = scope.create_local(Elem::UInt);
-        let shape = scope.create_local(Elem::UInt);
+        let stride_input = scope.create_local(u32::as_elem());
+        let stride_output = scope.create_local(u32::as_elem());
+        let shape = scope.create_local(u32::as_elem());
 
         for i in 0..self.rank {
             cpa!(scope, stride_input = stride(input, i));

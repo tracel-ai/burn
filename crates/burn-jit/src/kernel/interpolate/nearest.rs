@@ -1,6 +1,7 @@
 use cubecl::{
     cpa,
-    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    ir::{Builtin, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -27,23 +28,23 @@ impl<E: JitElement> InterpolateNearestShader<E> {
         let id = Variable::builtin(Builtin::AbsolutePos);
         let elem = E::cube_elem();
 
-        let input_stride_0 = scope.create_local(Elem::UInt);
-        let input_stride_1 = scope.create_local(Elem::UInt);
-        let input_stride_2 = scope.create_local(Elem::UInt);
-        let input_stride_3 = scope.create_local(Elem::UInt);
+        let input_stride_0 = scope.create_local(u32::as_elem());
+        let input_stride_1 = scope.create_local(u32::as_elem());
+        let input_stride_2 = scope.create_local(u32::as_elem());
+        let input_stride_3 = scope.create_local(u32::as_elem());
 
-        let input_shape_2 = scope.create_local(Elem::UInt);
-        let input_shape_3 = scope.create_local(Elem::UInt);
+        let input_shape_2 = scope.create_local(u32::as_elem());
+        let input_shape_3 = scope.create_local(u32::as_elem());
 
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
+        let output_stride_0 = scope.create_local(u32::as_elem());
+        let output_stride_1 = scope.create_local(u32::as_elem());
+        let output_stride_2 = scope.create_local(u32::as_elem());
+        let output_stride_3 = scope.create_local(u32::as_elem());
 
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
+        let output_shape_0 = scope.create_local(u32::as_elem());
+        let output_shape_1 = scope.create_local(u32::as_elem());
+        let output_shape_2 = scope.create_local(u32::as_elem());
+        let output_shape_3 = scope.create_local(u32::as_elem());
 
         cpa!(scope, input_stride_0 = stride(input, 0u32));
         cpa!(scope, input_stride_1 = stride(input, 1u32));
@@ -63,10 +64,10 @@ impl<E: JitElement> InterpolateNearestShader<E> {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let h = scope.create_local(Elem::UInt);
-        let w = scope.create_local(Elem::UInt);
+        let b = scope.create_local(u32::as_elem());
+        let c = scope.create_local(u32::as_elem());
+        let h = scope.create_local(u32::as_elem());
+        let w = scope.create_local(u32::as_elem());
 
         cpa!(scope, b = id / output_stride_0);
         cpa!(scope, b = b % output_shape_0);
@@ -85,8 +86,8 @@ impl<E: JitElement> InterpolateNearestShader<E> {
         let denominator_float = scope.create_local(elem);
         let x = scope.create_local(elem);
         let y = scope.create_local(elem);
-        let xu = scope.create_local(Elem::UInt);
-        let yu = scope.create_local(Elem::UInt);
+        let xu = scope.create_local(u32::as_elem());
+        let yu = scope.create_local(u32::as_elem());
 
         cpa!(scope, factor_float = cast(h));
         cpa!(scope, numerator_float = cast(input_shape_2));
@@ -104,8 +105,8 @@ impl<E: JitElement> InterpolateNearestShader<E> {
         cpa!(scope, x = floor(x));
         cpa!(scope, xu = cast(x));
 
-        let index = scope.create_local(Elem::UInt);
-        let index_tmp = scope.create_local(Elem::UInt);
+        let index = scope.create_local(u32::as_elem());
+        let index_tmp = scope.create_local(u32::as_elem());
         let val = scope.create_local(output.item);
 
         cpa!(scope, index = b * input_stride_0);

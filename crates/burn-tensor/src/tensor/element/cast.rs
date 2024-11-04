@@ -442,6 +442,50 @@ impl ToElement for bf16 {
     }
 }
 
+#[cfg(feature = "cubecl")]
+impl ToElement for cubecl::flex32 {
+    #[inline]
+    fn to_i64(&self) -> i64 {
+        Self::to_f32(*self).to_i64()
+    }
+    #[inline]
+    fn to_u64(&self) -> u64 {
+        Self::to_f32(*self).to_u64()
+    }
+    #[inline]
+    fn to_i8(&self) -> i8 {
+        Self::to_f32(*self).to_i8()
+    }
+    #[inline]
+    fn to_u8(&self) -> u8 {
+        Self::to_f32(*self).to_u8()
+    }
+    #[inline]
+    fn to_i16(&self) -> i16 {
+        Self::to_f32(*self).to_i16()
+    }
+    #[inline]
+    fn to_u16(&self) -> u16 {
+        Self::to_f32(*self).to_u16()
+    }
+    #[inline]
+    fn to_i32(&self) -> i32 {
+        Self::to_f32(*self).to_i32()
+    }
+    #[inline]
+    fn to_u32(&self) -> u32 {
+        Self::to_f32(*self).to_u32()
+    }
+    #[inline]
+    fn to_f32(&self) -> f32 {
+        Self::to_f32(*self)
+    }
+    #[inline]
+    fn to_f64(&self) -> f64 {
+        Self::to_f64(*self)
+    }
+}
+
 impl ToElement for bool {
     #[inline]
     fn to_i64(&self) -> i64 {

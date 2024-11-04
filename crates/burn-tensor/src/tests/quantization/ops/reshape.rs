@@ -78,7 +78,7 @@ mod tests {
 
         // May lead to zeroes being equal to [0.0, 1.0]
         zeros.dequantize().into_data().assert_eq(
-            &Tensor::<TestBackend, 1>::zeros([2], &Default::default()).to_data(),
+            &TestTensor::<1>::zeros([2], &Default::default()).to_data(),
             true,
         );
     }

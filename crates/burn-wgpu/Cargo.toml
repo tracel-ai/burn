@@ -35,6 +35,8 @@ burn-tensor = { path = "../burn-tensor", version = "0.16.0", features = [
 burn-jit = { path = "../burn-jit", version = "0.16.0", default-features = false, features = [
   "export_tests",
 ] }
+half = { workspace = true }
+paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

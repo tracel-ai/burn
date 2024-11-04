@@ -29,7 +29,7 @@ version = "0.16.0"
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.19.0"
-candle-core = { version = "0.6.0" }
+candle-core = { version = "0.7" }
 clap = { version = "4.5.20", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
@@ -53,6 +53,7 @@ js-sys = "0.3.69"
 libm = "0.2.9"
 log = { default-features = false, version = "0.4.22" }
 md5 = "0.7.0"
+paste = "1"
 percent-encoding = "2.3.1"
 polars = { version = "0.41.3", features = ["lazy"] }
 pretty_assertions = "1.4.1"
@@ -117,7 +118,7 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
-derive-new = { version = "0.6.0", default-features = false }
+derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 half = { version = "2.4.1", features = [
@@ -152,8 +153,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0dff475fec254e884f6b82e305e7a52adebf1dd7" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0dff475fec254e884f6b82e305e7a52adebf1dd7" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9460a3244aa2b42e1d6c36bd25b65f814f81ecd0" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "9460a3244aa2b42e1d6c36bd25b65f814f81ecd0" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

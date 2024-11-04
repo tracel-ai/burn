@@ -14,7 +14,7 @@ mod tests {
             QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05511811)),
         );
         let tensor = TestTensor::<2>::from_data(data, &device);
-        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+        let mask = TestTensorBool::<2>::from_bool(
             TensorData::from([[true, false], [false, true]]),
             &device,
         );
@@ -46,7 +46,7 @@ mod tests {
             QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05511811)),
         );
         let tensor = TestTensor::<2>::from_data(data, &device);
-        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+        let mask = TestTensorBool::<2>::from_bool(
             TensorData::from([[true, false], [false, true]]),
             &device,
         );

@@ -1,6 +1,7 @@
 use cubecl::{
     cpa,
-    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    ir::{Builtin, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -25,23 +26,23 @@ impl InterpolateBilinearShader {
         let output = self.output;
         let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let input_stride_0 = scope.create_local(Elem::UInt);
-        let input_stride_1 = scope.create_local(Elem::UInt);
-        let input_stride_2 = scope.create_local(Elem::UInt);
-        let input_stride_3 = scope.create_local(Elem::UInt);
+        let input_stride_0 = scope.create_local(u32::as_elem());
+        let input_stride_1 = scope.create_local(u32::as_elem());
+        let input_stride_2 = scope.create_local(u32::as_elem());
+        let input_stride_3 = scope.create_local(u32::as_elem());
 
-        let input_shape_2 = scope.create_local(Elem::UInt);
-        let input_shape_3 = scope.create_local(Elem::UInt);
+        let input_shape_2 = scope.create_local(u32::as_elem());
+        let input_shape_3 = scope.create_local(u32::as_elem());
 
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
+        let output_stride_0 = scope.create_local(u32::as_elem());
+        let output_stride_1 = scope.create_local(u32::as_elem());
+        let output_stride_2 = scope.create_local(u32::as_elem());
+        let output_stride_3 = scope.create_local(u32::as_elem());
 
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
+        let output_shape_0 = scope.create_local(u32::as_elem());
+        let output_shape_1 = scope.create_local(u32::as_elem());
+        let output_shape_2 = scope.create_local(u32::as_elem());
+        let output_shape_3 = scope.create_local(u32::as_elem());
 
         cpa!(scope, input_stride_0 = stride(input, 0u32));
         cpa!(scope, input_stride_1 = stride(input, 1u32));
@@ -61,10 +62,10 @@ impl InterpolateBilinearShader {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let h = scope.create_local(Elem::UInt);
-        let w = scope.create_local(Elem::UInt);
+        let b = scope.create_local(u32::as_elem());
+        let c = scope.create_local(u32::as_elem());
+        let h = scope.create_local(u32::as_elem());
+        let w = scope.create_local(u32::as_elem());
 
         cpa!(scope, b = id / output_stride_0);
         cpa!(scope, b = b % output_shape_0);
@@ -80,22 +81,22 @@ impl InterpolateBilinearShader {
 
         let factor_float = scope.create_local(input.item);
         let numerator_float = scope.create_local(input.item);
-        let numerator_int = scope.create_local(Elem::UInt);
+        let numerator_int = scope.create_local(u32::as_elem());
         let denominator_float = scope.create_local(input.item);
-        let denominator_int = scope.create_local(Elem::UInt);
+        let denominator_int = scope.create_local(u32::as_elem());
 
         let frac = scope.create_local(input.item);
         let v0 = scope.create_local(input.item);
         let v1 = scope.create_local(input.item);
         let one = scope.create_with_value(1f32, input.item);
 
-        let y0 = scope.create_local(Elem::UInt);
-        let y1 = scope.create_local(Elem::UInt);
+        let y0 = scope.create_local(u32::as_elem());
+        let y1 = scope.create_local(u32::as_elem());
         let yw = scope.create_local(input.item);
         let yw_ = scope.create_local(input.item);
 
-        let x0 = scope.create_local(Elem::UInt);
-        let x1 = scope.create_local(Elem::UInt);
+        let x0 = scope.create_local(u32::as_elem());
+        let x1 = scope.create_local(u32::as_elem());
         let xw = scope.create_local(input.item);
         let xw_ = scope.create_local(input.item);
 
@@ -129,13 +130,13 @@ impl InterpolateBilinearShader {
         cpa!(scope, x0 = cast(v0));
         cpa!(scope, x1 = cast(v1));
 
-        let index_base = scope.create_local(Elem::UInt);
-        let index_tmp = scope.create_local(Elem::UInt);
-        let index = scope.create_local(Elem::UInt);
-        let y0_stride = scope.create_local(Elem::UInt);
-        let y1_stride = scope.create_local(Elem::UInt);
-        let x0_stride = scope.create_local(Elem::UInt);
-        let x1_stride = scope.create_local(Elem::UInt);
+        let index_base = scope.create_local(u32::as_elem());
+        let index_tmp = scope.create_local(u32::as_elem());
+        let index = scope.create_local(u32::as_elem());
+        let y0_stride = scope.create_local(u32::as_elem());
+        let y1_stride = scope.create_local(u32::as_elem());
+        let x0_stride = scope.create_local(u32::as_elem());
+        let x1_stride = scope.create_local(u32::as_elem());
         let p_a = scope.create_local(input.item);
         let p_b = scope.create_local(input.item);
         let p_c = scope.create_local(input.item);

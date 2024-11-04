@@ -127,7 +127,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
     let vectorization_factor_rhs =
         tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
 
-    let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
+    let vectorization_factor = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
     let mut shape_out = vec![0; ndims];
     lhs.shape

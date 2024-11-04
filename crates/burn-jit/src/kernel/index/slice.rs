@@ -4,7 +4,8 @@ use crate::{
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
     cpa,
-    ir::{Builtin, Elem, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    ir::{Builtin, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -29,13 +30,13 @@ impl SliceComputeShader {
         let output = self.output;
         let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_local = scope.create_local(Elem::UInt);
+        let offset_input = scope.zero(u32::as_elem());
+        let offset_local = scope.create_local(u32::as_elem());
 
-        let stride_input = scope.create_local(Elem::UInt);
-        let stride_output = scope.create_local(Elem::UInt);
-        let shape_output = scope.create_local(Elem::UInt);
-        let range_start = scope.create_local(Elem::UInt);
+        let stride_input = scope.create_local(u32::as_elem());
+        let stride_output = scope.create_local(u32::as_elem());
+        let shape_output = scope.create_local(u32::as_elem());
+        let range_start = scope.create_local(u32::as_elem());
 
         for i in 0..self.rank {
             cpa!(scope, stride_input = stride(input, i));
@@ -45,7 +46,7 @@ impl SliceComputeShader {
                 scope,
                 range_start = cast(Variable::new(
                     VariableKind::GlobalScalar(i as u16),
-                    Item::new(Elem::UInt)
+                    Item::new(u32::as_elem())
                 ))
             );
 
@@ -85,7 +86,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
             visibility: Visibility::Read,
         };
         let ranges = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: self.rank,
         };
         let output = OutputInfo::Array { item };
