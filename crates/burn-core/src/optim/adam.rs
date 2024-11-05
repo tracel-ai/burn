@@ -1,5 +1,3 @@
-use core::f64;
-
 use crate::{
     self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
@@ -12,12 +10,7 @@ use super::{
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::AutodiffBackend, Tensor};
-use burn_tensor::{
-    backend::Backend,
-    quantization::{Quantization, QuantizationStrategy},
-    Element, ElementConversion,
-};
-use half::{bf16, f16};
+use burn_tensor::{backend::Backend, ElementConversion};
 
 /// Adam configuration.
 #[derive(Config)]
