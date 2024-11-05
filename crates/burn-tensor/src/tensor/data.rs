@@ -1,9 +1,13 @@
-use core::any::{Any, TypeId};
+use core::{
+    any::{Any, TypeId},
+    f32,
+};
 
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use bytemuck::AnyBitPattern;
 use half::{bf16, f16};
 
 use crate::{
@@ -128,6 +132,31 @@ impl TensorData {
         Ok(self.as_slice()?.to_vec())
     }
 
+    /// Returns the tensor data as a vector of scalar values.
+    pub fn into_vec<E: Element>(mut self) -> Result<Vec<E>, DataError> {
+        if E::dtype() != self.dtype {
+            return Err(DataError::TypeMismatch(format!(
+                "Invalid target element type (expected {:?}, got {:?})",
+                self.dtype,
+                E::dtype()
+            )));
+        }
+
+        let capacity_bytes = self.bytes.capacity();
+        let length_bytes = self.bytes.len();
+        let size_elem = core::mem::size_of::<E>();
+
+        let capacity = capacity_bytes / size_elem;
+        let length = length_bytes / size_elem;
+
+        unsafe {
+            let ptr = self.bytes.as_mut_ptr();
+            core::mem::forget(self.bytes);
+
+            Ok(Vec::from_raw_parts(ptr.cast::<E>(), length, capacity))
+        }
+    }
+
     /// Returns an iterator over the values of the tensor data.
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
@@ -155,6 +184,11 @@ impl TensorData {
                         .map(|e: &i64| e.elem::<E>()),
                 ),
                 DType::U8 => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::U16 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &u16| e.elem::<E>()),
+                ),
                 DType::U32 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
@@ -273,9 +307,46 @@ impl TensorData {
     pub fn convert<E: Element>(self) -> Self {
         if E::dtype() == self.dtype {
             self
+        } else if core::mem::size_of::<E>() == self.dtype.size()
+            && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
+        {
+            match self.dtype {
+                DType::F64 => self.convert_inplace::<f64, E>(),
+                DType::F32 => self.convert_inplace::<f32, E>(),
+                DType::F16 => self.convert_inplace::<f16, E>(),
+                DType::BF16 => self.convert_inplace::<bf16, E>(),
+                DType::I64 => self.convert_inplace::<i64, E>(),
+                DType::I32 => self.convert_inplace::<i32, E>(),
+                DType::I16 => self.convert_inplace::<i16, E>(),
+                DType::I8 => self.convert_inplace::<i8, E>(),
+                DType::U64 => self.convert_inplace::<u64, E>(),
+                DType::U32 => self.convert_inplace::<u32, E>(),
+                DType::U16 => self.convert_inplace::<u16, E>(),
+                DType::U8 => self.convert_inplace::<u8, E>(),
+                DType::Bool | DType::QFloat(_) => unreachable!(),
+            }
         } else {
             TensorData::new(self.iter::<E>().collect(), self.shape)
         }
+    }
+
+    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element>(mut self) -> Self {
+        let step = core::mem::size_of::<Current>();
+
+        for offset in 0..(self.bytes.len() / step) {
+            let start = offset * step;
+            let end = start + step;
+
+            let slice_old = &mut self.bytes[start..end];
+            let val: Current = *bytemuck::from_bytes(slice_old);
+            let val = &val.elem::<Target>();
+            let slice_new = bytemuck::bytes_of(val);
+
+            slice_old.clone_from_slice(slice_new);
+        }
+        self.dtype = Target::dtype();
+
+        self
     }
 
     /// Returns the data as a slice of bytes.
@@ -357,6 +428,7 @@ impl TensorData {
             DType::I8 => self.assert_eq_elem::<i8>(other),
             DType::U64 => self.assert_eq_elem::<u64>(other),
             DType::U32 => self.assert_eq_elem::<u32>(other),
+            DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
             DType::QFloat(q) => {
@@ -449,9 +521,21 @@ impl TensorData {
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if self.dtype.is_float() {
+                if let Some((err, tolerance)) = compare_floats(a, b, self.dtype, tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -621,6 +705,7 @@ impl core::fmt::Display for TensorData {
             DType::I8 => format!("{:?}", self.as_slice::<i8>().unwrap()),
             DType::U64 => format!("{:?}", self.as_slice::<u64>().unwrap()),
             DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(q) => match &q {
@@ -807,7 +892,7 @@ impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
 }
 
 #[allow(deprecated)]
-impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
+impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq + Element, const D: usize> Data<E, D> {
     /// Asserts the data is approximately equal to another data.
     ///
     /// # Arguments
@@ -864,9 +949,21 @@ impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if E::dtype().is_float() {
+                if let Some((err, tolerance)) = compare_floats(a, b, E::dtype(), tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -1014,12 +1111,64 @@ impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
     }
 }
 
+fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(f64, f64)> {
+    let epsilon_deviations = tolerance / f32::EPSILON as f64;
+    let epsilon = match ty {
+        DType::F64 => f32::EPSILON as f64, // Don't increase precision beyond `f32`, see below
+        DType::F32 => f32::EPSILON as f64,
+        DType::F16 => half::f16::EPSILON.to_f64(),
+        DType::BF16 => half::bf16::EPSILON.to_f64(),
+        _ => unreachable!(),
+    };
+    let tolerance_norm = epsilon_deviations * epsilon;
+    // Clamp to 1.0 so we don't require more precision than `tolerance`. This is because literals
+    // have a fixed number of digits, so increasing precision breaks things
+    let value_abs = value.abs().max(1.0);
+    let tolerance_adjusted = tolerance_norm * value_abs;
+
+    let err = (value - other).abs();
+
+    if err > tolerance_adjusted || err.is_nan() {
+        Some((err, tolerance_adjusted))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
     use super::*;
     use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
+
+    #[test]
+    fn into_vec_should_yield_same_value_as_iter() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        let expected = data.iter::<f32>().collect::<Vec<f32>>();
+        let actual = data.into_vec::<f32>().unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn into_vec_should_assert_wrong_dtype() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_entropy(),
+        );
+
+        data.into_vec::<i32>().unwrap();
+    }
 
     #[test]
     fn should_have_right_num_elements() {
@@ -1050,16 +1199,16 @@ mod tests {
     #[test]
     fn should_assert_appox_eq_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.01, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
 
     #[test]
     #[should_panic]
-    fn should_assert_appox_eq_above_limit() {
+    fn should_assert_approx_eq_above_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.011, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
@@ -1083,5 +1232,26 @@ mod tests {
         let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
         assert_eq!(data1.bytes.len(), 2 * factor);
         assert_eq!(data1.bytes.capacity(), 5 * factor);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly_inplace() {
+        fn test_precision<E: Element>() {
+            let data = TensorData::new((0..32).collect(), [32]);
+            for (i, val) in data
+                .clone()
+                .convert::<E>()
+                .into_vec::<E>()
+                .unwrap()
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(i as u32, val.elem::<u32>())
+            }
+        }
+        test_precision::<f32>();
+        test_precision::<f16>();
+        test_precision::<i64>();
+        test_precision::<i32>();
     }
 }

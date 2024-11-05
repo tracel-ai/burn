@@ -20,7 +20,7 @@ pub mod repr;
 
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
-mod tests;
+pub mod tests;
 
 pub use half::{bf16, f16};
 pub(crate) use tensor::check::macros::check;
@@ -30,7 +30,7 @@ pub use burn_common::reader::*; // Useful so that backends don't have to add `bu
 
 #[cfg(feature = "cubecl")]
 mod cube {
-    use cubecl::ir::{Elem, FloatKind, IntKind};
+    use cubecl::ir::{Elem, FloatKind, IntKind, UIntKind};
 
     impl From<crate::DType> for cubecl::ir::Elem {
         fn from(dtype: crate::DType) -> Self {
@@ -41,11 +41,12 @@ mod cube {
                 crate::DType::BF16 => Elem::Float(FloatKind::BF16),
                 crate::DType::I64 => Elem::Int(IntKind::I64),
                 crate::DType::I32 => Elem::Int(IntKind::I32),
-                crate::DType::I16 => panic!("i16 isn't supported yet."),
-                crate::DType::I8 => panic!("i8 isn't supported yet."),
-                crate::DType::U64 => Elem::UInt,
-                crate::DType::U32 => Elem::UInt,
-                crate::DType::U8 => panic!("u8 isn't supported yet."),
+                crate::DType::I16 => Elem::Int(IntKind::I16),
+                crate::DType::I8 => Elem::Int(IntKind::I8),
+                crate::DType::U64 => Elem::UInt(UIntKind::U64),
+                crate::DType::U32 => Elem::UInt(UIntKind::U32),
+                crate::DType::U16 => Elem::UInt(UIntKind::U16),
+                crate::DType::U8 => Elem::UInt(UIntKind::U8),
                 crate::DType::Bool => Elem::Bool,
                 crate::DType::QFloat(_) => panic!("quantized type is not supported yet."),
             }
@@ -65,7 +66,7 @@ mod cube_wgpu {
                 WgpuDevice::IntegratedGpu(index) => DeviceId::new(1, *index as u32),
                 WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
                 WgpuDevice::Cpu => DeviceId::new(3, 0),
-                WgpuDevice::BestAvailable => DeviceId::new(4, 0),
+                WgpuDevice::BestAvailable | WgpuDevice::DefaultDevice => DeviceId::new(4, 0),
                 // For an existing device, use the 64 bit wgpu device ID as the burn DeviceID.
                 // We're only storing 32 bits, so wrap the the 64 bit value to 32 bits. This
                 // might collide - but a 1 in 4 billion chance seems ok given there's only a few
@@ -84,6 +85,19 @@ mod cube_cuda {
     use cubecl::cuda::CudaDevice;
 
     impl DeviceOps for CudaDevice {
+        fn id(&self) -> DeviceId {
+            DeviceId::new(0, self.index as u32)
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[cfg(feature = "cubecl-hip")]
+mod cube_hip {
+    use crate::backend::{DeviceId, DeviceOps};
+    use cubecl::hip::HipDevice;
+
+    impl DeviceOps for HipDevice {
         fn id(&self) -> DeviceId {
             DeviceId::new(0, self.index as u32)
         }

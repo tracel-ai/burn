@@ -7,7 +7,10 @@ use crate::{
 };
 use cubecl::{
     cpa,
-    ir::{Elem, IntKind, Item, KernelDefinition, Scope, Variable, Visibility},
+    ir::{
+        Builtin, Elem, IntKind, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility,
+    },
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -32,25 +35,25 @@ impl MaxPool2dBackwardComputeShader {
         let grad = self.grad;
         let output = self.output;
         let indices = self.indices;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let grad_stride_0 = scope.create_local(Elem::UInt);
-        let grad_stride_1 = scope.create_local(Elem::UInt);
-        let grad_stride_2 = scope.create_local(Elem::UInt);
-        let grad_stride_3 = scope.create_local(Elem::UInt);
+        let grad_stride_0 = scope.create_local(u32::as_elem());
+        let grad_stride_1 = scope.create_local(u32::as_elem());
+        let grad_stride_2 = scope.create_local(u32::as_elem());
+        let grad_stride_3 = scope.create_local(u32::as_elem());
 
-        let grad_shape_2 = scope.create_local(Elem::UInt);
-        let grad_shape_3 = scope.create_local(Elem::UInt);
+        let grad_shape_2 = scope.create_local(u32::as_elem());
+        let grad_shape_3 = scope.create_local(u32::as_elem());
 
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
+        let output_stride_0 = scope.create_local(u32::as_elem());
+        let output_stride_1 = scope.create_local(u32::as_elem());
+        let output_stride_2 = scope.create_local(u32::as_elem());
+        let output_stride_3 = scope.create_local(u32::as_elem());
 
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
+        let output_shape_0 = scope.create_local(u32::as_elem());
+        let output_shape_1 = scope.create_local(u32::as_elem());
+        let output_shape_2 = scope.create_local(u32::as_elem());
+        let output_shape_3 = scope.create_local(u32::as_elem());
 
         cpa!(scope, grad_stride_0 = stride(grad, 0u32));
         cpa!(scope, grad_stride_1 = stride(grad, 1u32));
@@ -70,10 +73,10 @@ impl MaxPool2dBackwardComputeShader {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let ih = scope.create_local(Elem::UInt);
-        let iw = scope.create_local(Elem::UInt);
+        let b = scope.create_local(u32::as_elem());
+        let c = scope.create_local(u32::as_elem());
+        let ih = scope.create_local(u32::as_elem());
+        let iw = scope.create_local(u32::as_elem());
 
         cpa!(scope, b = id / output_stride_0);
         cpa!(scope, b = b % output_shape_0);
@@ -87,8 +90,8 @@ impl MaxPool2dBackwardComputeShader {
         cpa!(scope, iw = id / output_stride_3);
         cpa!(scope, iw = iw % output_shape_3);
 
-        let index_current = scope.create_local(Elem::UInt);
-        let index_current_tmp = scope.create_local(Elem::UInt);
+        let index_current = scope.create_local(u32::as_elem());
+        let index_current_tmp = scope.create_local(u32::as_elem());
 
         cpa!(scope, index_current = ih * output_stride_2);
         cpa!(scope, index_current_tmp = iw * output_stride_3);
@@ -96,15 +99,15 @@ impl MaxPool2dBackwardComputeShader {
 
         let index_select = scope.create_local(Elem::Int(IntKind::I32));
 
-        let index_max = scope.create_local(Elem::UInt);
+        let index_max = scope.create_local(u32::as_elem());
         let is_max = scope.create_local(Elem::Bool);
 
-        let index = scope.create_local(Elem::UInt);
-        let index_base = scope.create_local(Elem::UInt);
-        let index_tmp = scope.create_local(Elem::UInt);
+        let index = scope.create_local(u32::as_elem());
+        let index_base = scope.create_local(u32::as_elem());
+        let index_tmp = scope.create_local(u32::as_elem());
 
-        let grad_accumulation = scope.zero(grad.item());
-        let result = scope.create_local(grad.item());
+        let grad_accumulation = scope.zero(grad.item);
+        let result = scope.create_local(grad.item);
 
         let (oh_start, oh_end, ow_start, ow_end) = self.loop_ranges(
             scope,
@@ -160,30 +163,12 @@ impl MaxPool2dBackwardComputeShader {
         output_stride_2: Variable,
         output_stride_3: Variable,
     ) -> (Variable, Variable, Variable, Variable) {
-        let pool_stride_0 = Variable::GlobalScalar {
-            id: 0,
-            elem: Elem::UInt,
-        };
-        let pool_stride_1 = Variable::GlobalScalar {
-            id: 1,
-            elem: Elem::UInt,
-        };
-        let dilation_0 = Variable::GlobalScalar {
-            id: 2,
-            elem: Elem::UInt,
-        };
-        let dilation_1 = Variable::GlobalScalar {
-            id: 3,
-            elem: Elem::UInt,
-        };
-        let padding_0 = Variable::GlobalScalar {
-            id: 4,
-            elem: Elem::UInt,
-        };
-        let padding_1 = Variable::GlobalScalar {
-            id: 5,
-            elem: Elem::UInt,
-        };
+        let pool_stride_0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(u32::as_elem()));
+        let pool_stride_1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(u32::as_elem()));
+        let dilation_0 = Variable::new(VariableKind::GlobalScalar(2), Item::new(u32::as_elem()));
+        let dilation_1 = Variable::new(VariableKind::GlobalScalar(3), Item::new(u32::as_elem()));
+        let padding_0 = Variable::new(VariableKind::GlobalScalar(4), Item::new(u32::as_elem()));
+        let padding_1 = Variable::new(VariableKind::GlobalScalar(5), Item::new(u32::as_elem()));
 
         let [kernel_size_0, kernel_size_1] = self.kernel_size;
 
@@ -235,8 +220,8 @@ impl MaxPool2dBackwardComputeShader {
         cpa!(scope, oh_start_tmp = max(oh_start_tmp, 0i32));
         cpa!(scope, ow_start_tmp = max(ow_start_tmp, 0i32));
 
-        let oh_start = scope.create_local(Elem::UInt);
-        let ow_start = scope.create_local(Elem::UInt);
+        let oh_start = scope.create_local(u32::as_elem());
+        let ow_start = scope.create_local(u32::as_elem());
 
         cpa!(scope, oh_start = cast(oh_start_tmp));
         cpa!(scope, ow_start = cast(ow_start_tmp));
@@ -247,11 +232,11 @@ impl MaxPool2dBackwardComputeShader {
         cpa!(scope, oh_end_tmp = max(kms_0, 0i32));
         cpa!(scope, ow_end_tmp = max(kms_1, 0i32));
 
-        let oh_end = scope.create_local(Elem::UInt);
-        let ow_end = scope.create_local(Elem::UInt);
+        let oh_end = scope.create_local(u32::as_elem());
+        let ow_end = scope.create_local(u32::as_elem());
 
-        let oh_end_limit = scope.create_local(Elem::UInt);
-        let ow_end_limit = scope.create_local(Elem::UInt);
+        let oh_end_limit = scope.create_local(u32::as_elem());
+        let ow_end_limit = scope.create_local(u32::as_elem());
 
         cpa!(scope, oh_end = cast(oh_end_tmp));
         cpa!(scope, ow_end = cast(ow_end_tmp));
@@ -265,8 +250,8 @@ impl MaxPool2dBackwardComputeShader {
         cpa!(scope, oh_end = min(oh_end, oh_end_limit));
         cpa!(scope, ow_end = min(ow_end, ow_end_limit));
 
-        let index_current = scope.create_local(Elem::UInt);
-        let index_current_tmp = scope.create_local(Elem::UInt);
+        let index_current = scope.create_local(u32::as_elem());
+        let index_current_tmp = scope.create_local(u32::as_elem());
 
         cpa!(scope, index_current = ih * output_stride_2);
         cpa!(scope, index_current_tmp = iw * output_stride_3);
@@ -284,12 +269,12 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let indices = Variable::GlobalInputArray {
-            id: 0,
-            item: Item::new(Elem::Int(IntKind::I32)),
-        };
-        let grad = Variable::GlobalInputArray { id: 1, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let indices = Variable::new(
+            VariableKind::GlobalInputArray(0),
+            Item::new(Elem::Int(IntKind::I32)),
+        );
+        let grad = Variable::new(VariableKind::GlobalInputArray(1), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 
@@ -311,7 +296,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for MaxPool2dWithIndicesBackwardEagerK
             visibility: Visibility::Read,
         };
         let scalars = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: 6,
         };
         let output = OutputInfo::Array { item };

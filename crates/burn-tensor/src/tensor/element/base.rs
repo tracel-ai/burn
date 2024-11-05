@@ -1,6 +1,8 @@
 use core::cmp::Ordering;
 
 use crate::{cast::ToElement, quantization::QuantizationStrategy, Distribution};
+#[cfg(feature = "cubecl")]
+use cubecl::flex32;
 use half::{bf16, f16};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -194,6 +196,14 @@ make_element!(
 );
 
 make_element!(
+    ty u16 Precision::Half,
+    convert |elem: &dyn ToElement| elem.to_u16(),
+    random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
+    cmp |a: &u16, b: &u16| Ord::cmp(a, b),
+    dtype DType::U16
+);
+
+make_element!(
     ty i8 Precision::Other,
     convert |elem: &dyn ToElement| elem.to_i8(),
     random |distribution: Distribution, rng: &mut R| distribution.sampler(rng).sample(),
@@ -230,6 +240,18 @@ make_element!(
     dtype DType::BF16
 );
 
+#[cfg(feature = "cubecl")]
+make_element!(
+    ty flex32 Precision::Half,
+    convert |elem: &dyn ToElement| flex32::from_f32(elem.to_f32()),
+    random |distribution: Distribution, rng: &mut R| {
+        let sample: f32 = distribution.sampler(rng).sample();
+        flex32::from_elem(sample)
+    },
+    cmp |a: &flex32, b: &flex32| a.total_cmp(b),
+    dtype DType::F32
+);
+
 make_element!(
     ty bool Precision::Other,
     convert |elem: &dyn ToElement| elem.to_u8() != 0,
@@ -254,12 +276,35 @@ pub enum DType {
     I8,
     U64,
     U32,
+    U16,
     U8,
     Bool,
     QFloat(QuantizationStrategy),
 }
 
 impl DType {
+    /// Returns the size of a type in bytes.
+    pub const fn size(&self) -> usize {
+        match self {
+            DType::F64 => core::mem::size_of::<f64>(),
+            DType::F32 => core::mem::size_of::<f32>(),
+            DType::F16 => core::mem::size_of::<f16>(),
+            DType::BF16 => core::mem::size_of::<bf16>(),
+            DType::I64 => core::mem::size_of::<i64>(),
+            DType::I32 => core::mem::size_of::<i32>(),
+            DType::I16 => core::mem::size_of::<i16>(),
+            DType::I8 => core::mem::size_of::<i8>(),
+            DType::U64 => core::mem::size_of::<u64>(),
+            DType::U32 => core::mem::size_of::<u32>(),
+            DType::U16 => core::mem::size_of::<u16>(),
+            DType::U8 => core::mem::size_of::<u8>(),
+            DType::Bool => core::mem::size_of::<bool>(),
+            DType::QFloat(strategy) => match strategy {
+                QuantizationStrategy::PerTensorAffineInt8(_) => core::mem::size_of::<u8>(),
+                QuantizationStrategy::PerTensorSymmetricInt8(_) => core::mem::size_of::<u8>(),
+            },
+        }
+    }
     /// Returns true if the data type is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, DType::F64 | DType::F32 | DType::F16 | DType::BF16)

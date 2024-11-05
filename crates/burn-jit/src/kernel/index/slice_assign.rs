@@ -2,7 +2,8 @@ use crate::{element::JitElement, kernel::Kernel, tensor::JitTensor, JitRuntime};
 use burn_tensor::ElementConversion;
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
 };
 use std::{marker::PhantomData, ops::Range};
@@ -24,20 +25,20 @@ impl SliceAssignComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let value = self.value;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_value = scope.zero(Elem::UInt);
+        let offset_input = scope.zero(u32::as_elem());
+        let offset_value = scope.zero(u32::as_elem());
 
-        let offset_local = scope.create_local(Elem::UInt);
-        let offset_local_value = scope.create_local(Elem::UInt);
-        let offset_local_input = scope.create_local(Elem::UInt);
+        let offset_local = scope.create_local(u32::as_elem());
+        let offset_local_value = scope.create_local(u32::as_elem());
+        let offset_local_input = scope.create_local(u32::as_elem());
 
-        let stride_input = scope.create_local(Elem::UInt);
-        let stride_value = scope.create_local(Elem::UInt);
-        let shape_value = scope.create_local(Elem::UInt);
-        let shape_input = scope.create_local(Elem::UInt);
-        let range_start = scope.create_local(Elem::UInt);
+        let stride_input = scope.create_local(u32::as_elem());
+        let stride_value = scope.create_local(u32::as_elem());
+        let shape_value = scope.create_local(u32::as_elem());
+        let shape_input = scope.create_local(u32::as_elem());
+        let range_start = scope.create_local(u32::as_elem());
 
         for i in 0..self.rank {
             cpa!(scope, stride_input = stride(input, i));
@@ -46,10 +47,10 @@ impl SliceAssignComputeShader {
             cpa!(scope, shape_input = shape(input, i));
             cpa!(
                 scope,
-                range_start = cast(Variable::GlobalScalar {
-                    id: i as u16,
-                    elem: Elem::UInt
-                })
+                range_start = cast(Variable::new(
+                    VariableKind::GlobalScalar(i as u16),
+                    Item::new(u32::as_elem())
+                ))
             );
 
             cpa!(scope, offset_local = id / stride_value);
@@ -66,7 +67,7 @@ impl SliceAssignComputeShader {
             cpa!(scope, offset_input += offset_local_input);
         }
 
-        let result = scope.create_local(input.item());
+        let result = scope.create_local(input.item);
         cpa!(scope, result = value[offset_value]);
         cpa!(scope, input[offset_input] = result);
     }
@@ -77,8 +78,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let value = Variable::GlobalInputArray { id: 1, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let value = Variable::new(VariableKind::GlobalInputArray(1), item);
 
         scope.write_global_custom(input);
 
@@ -98,7 +99,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceAssignEagerKernel<R, E> {
             visibility: Visibility::Read,
         };
         let ranges = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: self.rank,
         };
 

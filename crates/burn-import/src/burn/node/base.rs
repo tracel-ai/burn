@@ -15,6 +15,7 @@ use super::{
     range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
     squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
+
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::backend::NdArray;

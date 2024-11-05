@@ -1,6 +1,10 @@
 use cubecl::{
-    cpa, ir::KernelDefinition, prelude::CubeCount, CubeCountSettings, Execution, InputInfo,
-    KernelExpansion, KernelIntegrator, KernelSettings, OutputInfo,
+    cpa,
+    ir::{Builtin, KernelDefinition, VariableKind},
+    prelude::CubeCount,
+    prelude::*,
+    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
+    OutputInfo,
 };
 use std::marker::PhantomData;
 
@@ -51,14 +55,8 @@ impl<RD: ReduceDimShared<EI>, R: JitRuntime, EI: JitElement, EO: JitElement> Ker
         let item_input = EI::cube_elem().into();
         let item_output = EO::cube_elem().into();
 
-        let tensor = Variable::GlobalInputArray {
-            id: 0,
-            item: item_input,
-        };
-        let output = Variable::GlobalOutputArray {
-            id: 0,
-            item: item_output,
-        };
+        let tensor = Variable::new(VariableKind::GlobalInputArray(0), item_input);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item_output);
 
         // Reduce groups are elements that are aligned along the reduce dim
         SharedReduceDimComputeShader {
@@ -112,49 +110,49 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
         let tensor = self.tensor;
         let output = self.output;
 
-        let rank = Variable::Rank;
+        let rank = Variable::builtin(Builtin::Rank);
         let dim: Variable = self.dim.into();
 
-        let cube_pos_x = Variable::CubePosX;
-        let cube_pos_y = Variable::CubePosY;
-        let cube_count_x = Variable::CubeCountX;
-        let local_invocation_id_x = Variable::UnitPosX;
-        let local_invocation_id_y = Variable::UnitPosY;
-        let cube_dim_x = Variable::CubeDimX;
-        let cube_dim_y = Variable::CubeDimY;
+        let cube_pos_x = Variable::builtin(Builtin::CubePosX);
+        let cube_pos_y = Variable::builtin(Builtin::CubePosY);
+        let cube_count_x = Variable::builtin(Builtin::CubeCountX);
+        let local_invocation_id_x = Variable::builtin(Builtin::UnitPosX);
+        let local_invocation_id_y = Variable::builtin(Builtin::UnitPosY);
+        let cube_dim_x = Variable::builtin(Builtin::CubeDimX);
+        let cube_dim_y = Variable::builtin(Builtin::CubeDimY);
 
-        let stride_reduce_dim_input = scope.create_local(Elem::UInt);
+        let stride_reduce_dim_input = scope.create_local(u32::as_elem());
         cpa!(scope, stride_reduce_dim_input = stride(tensor, dim));
-        let shape_reduce_dim_input = scope.create_local(Elem::UInt);
+        let shape_reduce_dim_input = scope.create_local(u32::as_elem());
         cpa!(scope, shape_reduce_dim_input = shape(tensor, dim));
 
         // To determine which reduce_group (not position, but absolute id)
-        let reduce_group_id = scope.create_local(Elem::UInt);
+        let reduce_group_id = scope.create_local(u32::as_elem());
         cpa!(scope, reduce_group_id = cube_pos_y * cube_count_x);
         cpa!(scope, reduce_group_id += cube_pos_x);
 
         // nth thread in the cube
-        let local_id = scope.create_local(Elem::UInt);
+        let local_id = scope.create_local(u32::as_elem());
         cpa!(scope, local_id = local_invocation_id_y * cube_dim_x);
         cpa!(scope, local_id += local_invocation_id_x);
 
-        let n_threads = scope.create_local(Elem::UInt);
+        let n_threads = scope.create_local(u32::as_elem());
         cpa!(scope, n_threads = cube_dim_x * cube_dim_y);
 
-        let index_offset = scope.zero(Elem::UInt);
+        let index_offset = scope.zero(u32::as_elem());
 
         cpa!(
             scope,
             range(0u32, rank).for_each(|i, scope| {
-                let stride_input = scope.create_local(Elem::UInt);
-                let stride_output = scope.create_local(Elem::UInt);
-                let shape_output = scope.create_local(Elem::UInt);
+                let stride_input = scope.create_local(u32::as_elem());
+                let stride_output = scope.create_local(u32::as_elem());
+                let shape_output = scope.create_local(u32::as_elem());
 
                 cpa!(scope, stride_input = stride(tensor, i));
                 cpa!(scope, stride_output = stride(output, i));
                 cpa!(scope, shape_output = shape(output, i));
 
-                let num_block = scope.create_local(Elem::UInt);
+                let num_block = scope.create_local(u32::as_elem());
                 cpa!(scope, num_block = reduce_group_id / stride_output);
                 cpa!(scope, num_block = num_block % shape_output);
                 cpa!(scope, num_block = num_block * stride_input);
@@ -162,25 +160,21 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
             })
         );
 
-        let shared_memory = RD::initialize_shared(
-            scope,
-            self.shared_memory_size as u32,
-            local_id,
-            tensor.item(),
-        );
+        let shared_memory =
+            RD::initialize_shared(scope, self.shared_memory_size as u32, local_id, tensor.item);
 
         // Load to shared memory, unrolled
         cpa!(
             scope,
             range(0u32, self.n_input_values_per_thread).for_each(|i, scope| {
-                let nth = scope.create_local(Elem::UInt);
+                let nth = scope.create_local(u32::as_elem());
                 cpa!(scope, nth = i * n_threads);
                 cpa!(scope, nth += local_id);
 
                 let within_shape = scope.create_local(Elem::Bool);
 
                 if self.divisible_shape {
-                    let current_position = scope.create_local(Elem::UInt);
+                    let current_position = scope.create_local(u32::as_elem());
                     cpa!(scope, current_position = nth * stride_reduce_dim_input);
                     cpa!(scope, current_position += index_offset);
 
@@ -189,7 +183,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
                 } else {
                     cpa!(scope, within_shape = nth < shape_reduce_dim_input);
                     cpa!(scope, if(within_shape).then(|scope|{
-                        let current_position = scope.create_local(Elem::UInt);
+                        let current_position = scope.create_local(u32::as_elem());
                         cpa!(scope, current_position = nth * stride_reduce_dim_input);
                         cpa!(scope, current_position += index_offset);
 
@@ -215,7 +209,7 @@ impl<E: JitElement, RD: ReduceDimShared<E>> SharedReduceDimComputeShader<E, RD> 
             let updating_thread = scope.create_local(Elem::Bool);
             cpa!(scope, updating_thread = local_id < n_threads);
             cpa!(scope, if(updating_thread).then(|scope|{
-                let read_position = scope.create_local(Elem::UInt);
+                let read_position = scope.create_local(u32::as_elem());
                 cpa!(scope, read_position = n_threads + local_id);
 
                 let read_value = RD::read_from_shared(scope, shared_memory, read_position);

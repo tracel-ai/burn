@@ -1,22 +1,23 @@
 use serde::{Deserialize, Serialize};
 use std::{cmp::min, fmt::Display};
 
-use burn_tensor::Shape;
+use burn_tensor::{DType, Shape};
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
-    reduce_dim_length: usize,
-    reduce_dim_stride: usize,
-    others_product: usize,
+    pub(crate) reduce_dim_length: usize,
+    pub(crate) reduce_dim_stride: usize,
+    pub(crate) others_product: usize,
+    dtype: DType,
 }
 
 impl Display for ReduceAutotuneKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
-                "Reduce - reduce_dim_length: {:?} reduce_dim_stride: {:?} others_product: {:?}",
-                self.reduce_dim_length, self.reduce_dim_stride, self.others_product
+                "Reduce - reduce_dim_length: {:?} reduce_dim_stride: {:?} others_product: {:?} dtype: {:?}",
+                self.reduce_dim_length, self.reduce_dim_stride, self.others_product, self.dtype
             )
             .as_str(),
         )
@@ -25,7 +26,7 @@ impl Display for ReduceAutotuneKey {
 
 impl ReduceAutotuneKey {
     /// Create a reduce autotune key from the input shape and reduce dim
-    pub fn new(shape: &Shape, strides: &[usize], reduce_dim: usize) -> Self {
+    pub fn new(shape: &Shape, strides: &[usize], reduce_dim: usize, dtype: DType) -> Self {
         let ndims = strides.len();
         let reduce_dim_length = shape.dims[reduce_dim];
         let reduce_dim_stride = strides[reduce_dim];
@@ -39,6 +40,7 @@ impl ReduceAutotuneKey {
             reduce_dim_length: anchor(reduce_dim_length, None),
             reduce_dim_stride: anchor(reduce_dim_stride, None),
             others_product: anchor(others_product, None),
+            dtype,
         }
     }
 }

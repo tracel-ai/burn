@@ -9,7 +9,7 @@ use super::{
 
 #[allow(dead_code)]
 pub(crate) trait ReduceDimAlgorithm<EI: JitElement>:
-    ReduceDimNaive<EI> + ReduceDimShared<EI>
+    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI>
 {
 }
 
@@ -64,7 +64,9 @@ impl Default for ReduceStrategy {
 
 macro_rules! reduce_operation {
     ($name:ident, $ops:ident) => {
+        #[derive(Debug)]
         pub(crate) struct $ops;
+
         impl<EI: JitElement> ReduceDimAlgorithm<EI> for $ops {}
 
         /// Executes the reduce operation with the given strategy.

@@ -101,6 +101,16 @@ mod cuda_jit {
     }
 }
 
+#[cfg(feature = "hip-jit")]
+mod hip_jit {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, HipJit};
+
+    pub fn run() {
+        launch::<Autodiff<HipJit<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -117,4 +127,6 @@ fn main() {
     wgpu::run();
     #[cfg(feature = "cuda-jit")]
     cuda_jit::run();
+    #[cfg(feature = "hip-jit")]
+    hip_jit::run();
 }

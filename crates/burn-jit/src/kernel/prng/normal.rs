@@ -1,6 +1,7 @@
 use cubecl::{
     cpa,
     ir::{Elem, FloatKind, Scope, Variable},
+    prelude::*,
 };
 use std::f32::consts::PI;
 
@@ -37,7 +38,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let item = output.item();
+        let item = output.item;
         let mean = args[0];
         let std = args[1];
         let two_pi = scope.create_with_value(2. * PI, float_elem);
@@ -47,7 +48,7 @@ impl<E: JitElement> Prng<E> for Normal<E> {
         cpa!(
             scope,
             range(0u32, n_values_per_thread / 2).for_each(|i, scope| {
-                let int_random = scope.create_local(Elem::UInt);
+                let int_random = scope.create_local(u32::as_elem());
 
                 // First random uniform integer
                 taus_step_0(scope, state_0);
@@ -95,9 +96,9 @@ impl<E: JitElement> Prng<E> for Normal<E> {
                 cpa!(scope, normal_1 += mean);
 
                 // Write to output
-                let write_index_0 = scope.create_local(Elem::UInt);
-                let write_index_1 = scope.create_local(Elem::UInt);
-                let iteration_offset = scope.create_local(Elem::UInt);
+                let write_index_0 = scope.create_local(u32::as_elem());
+                let write_index_1 = scope.create_local(u32::as_elem());
+                let iteration_offset = scope.create_local(u32::as_elem());
                 cpa!(scope, write_index_0 = write_index_base);
                 cpa!(scope, iteration_offset = two * i);
                 cpa!(scope, iteration_offset *= n_invocations);

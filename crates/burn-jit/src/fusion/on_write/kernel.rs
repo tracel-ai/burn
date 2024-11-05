@@ -19,8 +19,14 @@ pub fn fuse_on_write<E: CubePrimitive>(
         l_f32: Registry::<u32, Line<f32>>::new(),
         l_f16: Registry::<u32, Line<f16>>::new(),
         l_bf16: Registry::<u32, Line<bf16>>::new(),
+        l_i64: Registry::<u32, Line<i64>>::new(),
         l_i32: Registry::<u32, Line<i32>>::new(),
+        l_i16: Registry::<u32, Line<i16>>::new(),
+        l_i8: Registry::<u32, Line<i8>>::new(),
+        l_u64: Registry::<u32, Line<u64>>::new(),
         l_u32: Registry::<u32, Line<u32>>::new(),
+        l_u16: Registry::<u32, Line<u16>>::new(),
+        l_u8: Registry::<u32, Line<u8>>::new(),
         l_bool: Registry::<u32, Line<bool>>::new(),
     };
 
@@ -48,11 +54,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     add::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    add::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     add::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    add::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    add::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    add::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     add::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    add::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    add::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -66,11 +90,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     div::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    div::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     div::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    div::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    div::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    div::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     div::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    div::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    div::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -84,11 +126,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     sub::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    sub::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     sub::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    sub::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    sub::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    sub::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     sub::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    sub::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    sub::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -102,11 +162,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     mul::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    mul::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     mul::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    mul::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    mul::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    mul::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     mul::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    mul::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    mul::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -144,11 +222,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     abs::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::U64 => {
+                    assign::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     assign::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::U16 => {
+                    assign::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    assign::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I64 => {
+                    abs::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     abs::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I16 => {
+                    abs::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    abs::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -198,16 +294,33 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     assign::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    assign::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     assign::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I16 => {
+                    assign::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    assign::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    assign::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 ElemwisePrecision::U32 => {
                     assign::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::U16 => {
+                    assign::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    assign::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::Bool => {
                     assign::<bool>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
             },
             ElemwiseOp::Exp(op) => match op.out.precision() {
                 ElemwisePrecision::F32 => {
@@ -267,11 +380,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -285,11 +416,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     greater::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    greater::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     greater::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    greater::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    greater::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    greater::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     greater::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    greater::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    greater::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -303,11 +452,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     greater_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    greater_equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     greater_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    greater_equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    greater_equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    greater_equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     greater_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    greater_equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    greater_equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -321,11 +488,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     lower::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    lower::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     lower::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    lower::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    lower::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    lower::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     lower::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    lower::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    lower::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -339,11 +524,29 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::BF16 => {
                     lower_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I64 => {
+                    lower_equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::I32 => {
                     lower_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
+                ElemwisePrecision::I16 => {
+                    lower_equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::I8 => {
+                    lower_equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U64 => {
+                    lower_equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
                 ElemwisePrecision::U32 => {
                     lower_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U16 => {
+                    lower_equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
+                ElemwisePrecision::U8 => {
+                    lower_equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
@@ -386,6 +589,17 @@ pub fn fuse_on_write<E: CubePrimitive>(
                     out,
                     config,
                 ),
+                ElemwisePrecision::I64 => conditional_assign::<i64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
                 ElemwisePrecision::I32 => conditional_assign::<i32>(
                     inputs,
                     outputs,
@@ -397,7 +611,62 @@ pub fn fuse_on_write<E: CubePrimitive>(
                     out,
                     config,
                 ),
+                ElemwisePrecision::I16 => conditional_assign::<i16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                ElemwisePrecision::I8 => conditional_assign::<i8>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                ElemwisePrecision::U64 => conditional_assign::<u64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
                 ElemwisePrecision::U32 => conditional_assign::<u32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                ElemwisePrecision::U16 => conditional_assign::<u16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    cond,
+                    lhs,
+                    rhs,
+                    out,
+                    config,
+                ),
+                ElemwisePrecision::U8 => conditional_assign::<u8>(
                     inputs,
                     outputs,
                     &mut locals,

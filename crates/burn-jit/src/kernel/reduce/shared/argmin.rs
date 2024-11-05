@@ -2,6 +2,7 @@ use burn_tensor::cast::ToElement;
 use cubecl::{
     cpa,
     ir::{Elem, Item, Scope, Variable},
+    prelude::*,
 };
 
 use crate::{kernel::reduce::Argmin, JitElement};
@@ -18,7 +19,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         input_item: Item,
     ) -> Self::Accumulator {
         let value_shared_memory = scope.create_shared(input_item, shared_memory_size);
-        let index_shared_memory = scope.create_shared(Elem::UInt, shared_memory_size);
+        let index_shared_memory = scope.create_shared(u32::as_elem(), shared_memory_size);
         let min = input_item
             .elem()
             .constant_from_f64(ToElement::to_f64(&E::maximum_value()));
@@ -33,7 +34,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         (value, index): Self::Accumulator,
     ) {
         let (value_shared_memory, index_shared_memory) = shared_memory;
-        let current_value = scope.create_local(value.item());
+        let current_value = scope.create_local(value.item);
         cpa!(scope, current_value = value_shared_memory[write_position]);
 
         let condition = scope.create_local(Elem::Bool);
@@ -50,7 +51,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         read_position: Variable,
         i: Variable,
     ) -> Self::Accumulator {
-        let value = scope.create_local(input.item());
+        let value = scope.create_local(input.item);
         cpa!(scope, value = input[read_position]);
         (value, i)
     }
@@ -61,9 +62,9 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         read_position: Variable,
     ) -> Self::Accumulator {
         let (value_shared_memory, index_shared_memory) = shared_memory;
-        let value = scope.create_local(value_shared_memory.item());
+        let value = scope.create_local(value_shared_memory.item);
         cpa!(scope, value = value_shared_memory[read_position]);
-        let index = scope.create_local(index_shared_memory.item());
+        let index = scope.create_local(index_shared_memory.item);
         cpa!(scope, index = index_shared_memory[read_position]);
         (value, index)
     }
@@ -76,7 +77,7 @@ impl<E: JitElement> ReduceDimShared<E> for Argmin {
         _shape_reduce_dim: Variable,
     ) {
         let (_, index_shared_memory) = shared_memory;
-        let final_value = scope.create_local(output.item());
+        let final_value = scope.create_local(index_shared_memory.item);
         cpa!(scope, final_value = index_shared_memory[0]);
         cpa!(scope, output[write_position] = final_value);
     }

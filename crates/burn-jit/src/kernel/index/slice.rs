@@ -4,7 +4,8 @@ use crate::{
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -27,15 +28,15 @@ impl SliceComputeShader {
     pub fn expand(self, scope: &mut Scope) {
         let input = self.input;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_local = scope.create_local(Elem::UInt);
+        let offset_input = scope.zero(u32::as_elem());
+        let offset_local = scope.create_local(u32::as_elem());
 
-        let stride_input = scope.create_local(Elem::UInt);
-        let stride_output = scope.create_local(Elem::UInt);
-        let shape_output = scope.create_local(Elem::UInt);
-        let range_start = scope.create_local(Elem::UInt);
+        let stride_input = scope.create_local(u32::as_elem());
+        let stride_output = scope.create_local(u32::as_elem());
+        let shape_output = scope.create_local(u32::as_elem());
+        let range_start = scope.create_local(u32::as_elem());
 
         for i in 0..self.rank {
             cpa!(scope, stride_input = stride(input, i));
@@ -43,10 +44,10 @@ impl SliceComputeShader {
             cpa!(scope, shape_output = shape(output, i));
             cpa!(
                 scope,
-                range_start = cast(Variable::GlobalScalar {
-                    id: i as u16,
-                    elem: Elem::UInt
-                })
+                range_start = cast(Variable::new(
+                    VariableKind::GlobalScalar(i as u16),
+                    Item::new(u32::as_elem())
+                ))
             );
 
             cpa!(scope, offset_local = id / stride_output);
@@ -57,7 +58,7 @@ impl SliceComputeShader {
             cpa!(scope, offset_input += offset_local);
         }
 
-        let result = scope.create_local(input.item());
+        let result = scope.create_local(input.item);
         cpa!(scope, result = input[offset_input]);
         cpa!(scope, output[id] = result);
     }
@@ -68,8 +69,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let input = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         scope.write_global_custom(output);
 
@@ -85,7 +86,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for SliceEagerKernel<R, E> {
             visibility: Visibility::Read,
         };
         let ranges = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: self.rank,
         };
         let output = OutputInfo::Array { item };
@@ -110,21 +111,23 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
     indices: &[Range<usize>],
 ) -> JitTensor<R, E> {
     let mut dims = tensor.shape.dims.clone();
-    let mut offset_start = 0;
-    let mut offset_end = 0;
+    let mut offset_start = 0u64;
+    let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += tensor.strides[i] * indices[i].start;
-        offset_end += tensor.strides[i] * (dims[i] - indices[i].end);
+        offset_start += (tensor.strides[i] * indices[i].start) as u64;
+        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
         dims[i] = indices[i].end - indices[i].start;
     }
 
-    let offset_start = offset_start * E::cube_elem().size();
-    let offset_end = offset_end * E::cube_elem().size();
+    let offset_start = offset_start * E::cube_elem().size() as u64;
+    let offset_end = offset_end * E::cube_elem().size() as u64;
 
     let memory_offset_alignment = tensor.client.properties().memory_properties().alignment;
 
-    if offset_start % memory_offset_alignment == 0 && offset_end % memory_offset_alignment == 0 {
+    if offset_start % memory_offset_alignment == 0u64
+        && offset_end % memory_offset_alignment == 0u64
+    {
         JitTensor::new(
             tensor.client,
             tensor

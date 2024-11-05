@@ -1,6 +1,7 @@
 use cubecl::{
     cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
+    ir::{Builtin, Elem, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -24,27 +25,27 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
     fn expand(self, scope: &mut Scope) {
         let grad = self.out_grad;
         let output = self.output;
-        let id = Variable::AbsolutePos;
+        let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let grad_stride_0 = scope.create_local(Elem::UInt);
-        let grad_stride_1 = scope.create_local(Elem::UInt);
-        let grad_stride_2 = scope.create_local(Elem::UInt);
-        let grad_stride_3 = scope.create_local(Elem::UInt);
+        let grad_stride_0 = scope.create_local(u32::as_elem());
+        let grad_stride_1 = scope.create_local(u32::as_elem());
+        let grad_stride_2 = scope.create_local(u32::as_elem());
+        let grad_stride_3 = scope.create_local(u32::as_elem());
 
-        let grad_shape_0 = scope.create_local(Elem::UInt);
-        let grad_shape_1 = scope.create_local(Elem::UInt);
-        let grad_shape_2 = scope.create_local(Elem::UInt);
-        let grad_shape_3 = scope.create_local(Elem::UInt);
+        let grad_shape_0 = scope.create_local(u32::as_elem());
+        let grad_shape_1 = scope.create_local(u32::as_elem());
+        let grad_shape_2 = scope.create_local(u32::as_elem());
+        let grad_shape_3 = scope.create_local(u32::as_elem());
 
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
+        let output_stride_0 = scope.create_local(u32::as_elem());
+        let output_stride_1 = scope.create_local(u32::as_elem());
+        let output_stride_2 = scope.create_local(u32::as_elem());
+        let output_stride_3 = scope.create_local(u32::as_elem());
 
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
+        let output_shape_0 = scope.create_local(u32::as_elem());
+        let output_shape_1 = scope.create_local(u32::as_elem());
+        let output_shape_2 = scope.create_local(u32::as_elem());
+        let output_shape_3 = scope.create_local(u32::as_elem());
 
         cpa!(scope, grad_stride_0 = stride(grad, 0u32));
         cpa!(scope, grad_stride_1 = stride(grad, 1u32));
@@ -66,10 +67,10 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         cpa!(scope, output_shape_2 = shape(output, 2u32));
         cpa!(scope, output_shape_3 = shape(output, 3u32));
 
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let oh = scope.create_local(Elem::UInt);
-        let ow = scope.create_local(Elem::UInt);
+        let b = scope.create_local(u32::as_elem());
+        let c = scope.create_local(u32::as_elem());
+        let oh = scope.create_local(u32::as_elem());
+        let ow = scope.create_local(u32::as_elem());
 
         cpa!(scope, b = id / output_stride_0);
         cpa!(scope, b = b % output_shape_0);
@@ -88,18 +89,18 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let gw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
         let gw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
 
-        let result = scope.create_local(grad.item());
+        let result = scope.create_local(grad.item);
 
-        let index_grad = scope.create_local(Elem::UInt);
-        let index_grad_0 = scope.create_local(Elem::UInt);
-        let index_grad_1 = scope.create_local(Elem::UInt);
-        let index_grad_2 = scope.create_local(Elem::UInt);
-        let index_grad_3 = scope.create_local(Elem::UInt);
+        let index_grad = scope.create_local(u32::as_elem());
+        let index_grad_0 = scope.create_local(u32::as_elem());
+        let index_grad_1 = scope.create_local(u32::as_elem());
+        let index_grad_2 = scope.create_local(u32::as_elem());
+        let index_grad_3 = scope.create_local(u32::as_elem());
 
         cpa!(scope, index_grad_0 = b * grad_stride_0);
         cpa!(scope, index_grad_1 = c * grad_stride_1);
 
-        let sum = scope.zero(output.item());
+        let sum = scope.zero(output.item);
 
         cpa!(
             scope,
@@ -135,7 +136,7 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
-        let index = scope.create_local(Elem::UInt);
+        let index = scope.create_local(u32::as_elem());
 
         cpa!(scope, index = input_index * output_size);
         cpa!(scope, numerator_float = cast(index));
@@ -156,9 +157,9 @@ impl<E: JitElement> InterpolateNearestBackwardShader<E> {
         let elem = E::cube_elem();
         let numerator_float = scope.create_local(elem);
         let div = scope.create_local(elem);
-        let index = scope.create_local(Elem::UInt);
+        let index = scope.create_local(u32::as_elem());
         let min = scope.create_local(Elem::Bool);
-        let end_index = scope.create_local(Elem::UInt);
+        let end_index = scope.create_local(u32::as_elem());
 
         cpa!(scope, index = input_index + 1u32);
         cpa!(scope, index *= output_size);
@@ -184,8 +185,8 @@ impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKer
         let mut scope = Scope::root();
         let item = E::cube_elem().into();
 
-        let out_grad = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
+        let out_grad = Variable::new(VariableKind::GlobalInputArray(0), item);
+        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
 
         InterpolateNearestBackwardShader {
             out_grad,

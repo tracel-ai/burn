@@ -2,9 +2,10 @@
 
 In this section, you will learn how to create your own custom operation by writing your own kernel
 with the WGPU backend. We will take the example of a common workflow in the deep learning field,
-where we create a kernel to fuse multiple operations together. We will fuse a matmul kernel followed
-by an addition and the ReLU activation function, which is commonly found in various models. All the
-code can be found under the
+where we create a kernel to fuse multiple operations together. Note that `burn` does this
+automatically, but a manual implementation might be more efficient in some cases. We will fuse a
+matmul kernel followed by an addition and the ReLU activation function, which is commonly found in
+various models. All the code can be found under the
 [examples directory](https://github.com/tracel-ai/burn/tree/main/examples/custom-wgpu-kernel).
 
 ## Custom Backend Trait
@@ -15,9 +16,6 @@ encapsulates the underlying tensor implementation of the backend, we will use a 
 the ugly disambiguation with associated types.
 
 ```rust, ignore
-/// We use a type alias for better readability.
-pub type FloatTensor<B, const D: usize> = <B as burn::tensor::backend::Backend>::TensorPrimitive<D>;
-
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {
     fn fused_matmul_add_relu(
@@ -78,7 +76,7 @@ we'll create a straightforward matmul kernel without employing any intricate tec
 won't delve into the details of the WGSL syntax, as it falls beyond the scope of this guide, we
 still provide the implementation below for readers who are curious. The actual matmul, add and relu
 computations are found at the end, after an extensive overhead whose use is to correctly map each
-thread to the data it is responsible of, with support for batches.
+compute unit to the data it is responsible of, with support for batches.
 
 ```wgsl, ignore
 @group(0)
@@ -451,7 +449,5 @@ While extending a backend may be harder than working with straightforward tensor
 be worth it. This approach enables the crafting of custom models with greater control over
 execution, which can potentially greatly enhance the performance of your models.
 
-It is worth noting that while the manual fusion of operations can be valuable, our future plans
-include the development of a backend extension that will automate this process. As we conclude this
-guide, we hope that you have gained insights into Burn's world of backend extensions, and that it
-will help you to unleash the full potential of your projects.
+As we conclude this guide, we hope that you have gained insights into Burn's world of backend
+extensions, and that it will help you to unleash the full potential of your projects.

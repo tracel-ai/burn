@@ -31,9 +31,7 @@ mod tests {
 
     #[test]
     fn cast_bool_to_float_tensor() {
-        let tensor =
-            Tensor::<TestBackend, 2, Bool>::from([[true, false, true], [false, false, true]])
-                .float();
+        let tensor = TestTensorBool::<2>::from([[true, false, true], [false, false, true]]).float();
 
         let expected = TensorData::from([[1., 0., 1.], [0., 0., 1.]]);
 

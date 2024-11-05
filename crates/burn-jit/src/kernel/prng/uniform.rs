@@ -2,6 +2,7 @@ use burn_tensor::Shape;
 use cubecl::{
     cpa,
     ir::{Elem, FloatKind, Scope, Variable},
+    prelude::*,
 };
 
 use crate::{
@@ -35,7 +36,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
         output: Variable,
     ) {
         let float_elem = Elem::Float(FloatKind::F32);
-        let item = output.item();
+        let item = output.item;
         let lower_bound = args[0];
         let upper_bound = args[1];
         let scale = scope.create_local(item);
@@ -49,7 +50,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
                 taus_step_2(scope, state_2);
                 lcg_step(scope, state_3);
 
-                let int_random = scope.create_local(Elem::UInt);
+                let int_random = scope.create_local(u32::as_elem());
                 cpa!(scope, int_random = state_0 ^ state_1);
                 cpa!(scope, int_random = int_random ^ state_2);
                 cpa!(scope, int_random = int_random ^ state_3);
@@ -65,7 +66,7 @@ impl<E: JitElement> Prng<E> for Uniform<E> {
                 cpa!(scope, uniform = cast(uniform_float));
                 cpa!(scope, uniform += lower_bound);
 
-                let write_index = scope.create_local(Elem::UInt);
+                let write_index = scope.create_local(u32::as_elem());
                 cpa!(scope, write_index = i * n_invocations);
                 cpa!(scope, write_index += write_index_base);
                 cpa!(scope, output[write_index] = uniform);

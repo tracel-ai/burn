@@ -139,14 +139,14 @@ seeing what completions are suggested will take you far. If you are having troub
 to do it from the docs for that backend,
 [try searching github for relevant function calls](https://docs.github.com/en/search-github/github-code-search/understanding-github-code-search-syntax).
 
-## Adding the Op to fusion, JIT and wgpu backends
+## Adding the Op to fusion, JIT and cubecl backends
 
 Adding an operator to these backends can be fairly straightforward, though due to what these
 backends are for, involves a bit more indirection. Fusion and jit, like autodiff, are not target
 backends as much as backends that enable certain functionality for other backends, in this case
-kernel fusion or just-in-time compilation (only available for `burn-wgpu` backend at the moment).
-Adding the operator won't involve doing any calculation, you'll just be describing how the generated
-code should look. Most of this can be copy/pasted/adjusted from other functions.
+kernel fusion or just-in-time compilation. Adding the operator won't involve doing any calculation,
+you'll just be describing how the generated code should look. Most of this can be
+copy/pasted/adjusted from other functions.
 
 Here's how powf was added to `burn-fusion`:
 
@@ -157,41 +157,47 @@ Here's how powf was added to `burn-fusion`:
 3. Added powf to the implementations of `NumericOperationDescription` enum under
    [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/context.rs#L771)
 
-The way wgpu handles tensor-scalar operations is by transforming both into a sequence of vectorized
-scalar operations. Since powf already existed in burn-wgpu, it was pretty easy to reuse the existing
-implementation for the situation where both sides of the operation were tensors. The `burn-wgpu`
-crate is primarily concerned with how the operation is compiled and executed by the gpu. The actual
-implementation is defined in `burn-jit`.
+The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
+vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
+the existing implementation for the situation where both sides of the operation were tensors. The
+`cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
+The actual implementation is defined in `burn-jit`.
 
-Here is where code was added for powf in `burn-jit` and `burn-wgpu`:
+Here is where code was added for powf in `burn-jit` and `cubecl`:
 
 1. to the implementation of
-   [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-jit/src/ops/float_ops.rs#L491)
+   [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/float_ops.rs#L410)
 2. the function being called was added to
-   [crates/burn-jit/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-jit/src/ops/numeric.rs#L229)
+   [crates/burn-jit/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/numeric.rs#L147)
 3. the operator was defined in
-   [`crates/burn-jit/src/codegen/dialect/gpu/operation.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-jit/src/codegen/dialect/gpu/operation.rs#L37)
-4. the vectorization was added to
-   [`crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-jit/src/codegen/dialect/gpu/vectorization.rs#L55)
-5. how the operation looks to the gpu was added to
-   [`crates/burn-jit/src/fusion/tracing/builder.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-jit/src/fusion/tracing/builder.rs#L279)
-6. the mapping between the gpu operation and the WGSL instruction was added to
-   [`crates/burn-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L455)
-7. the WGSL instruction itself was added to the
-   [instruction op enum in `crates/burn-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L103),
+   [`cubecl-core/src/ir/operation.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-core/src/ir/operation.rs#L68)
+4. how the operation looks to the gpu was added to
+   [`crates/burn-jit/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/fusion/on_write/ir.rs#L52)
+5. the mappings between the gpu operation and the CPP, WGSL and SPIR-V instructions were added to
+   [`cubecl-cpp/src/shared/base.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/base.rs#L456),
+   [`cubecl-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L652)
+   and
+   [`cubecl-spirv/src/instruction.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-spirv/src/instruction.rs#L408)
+6. the instructions themselves were added for WGSL to
+   [instruction op enum in `cubecl-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L124),
    and the actual
-   [instruction in wgsl here](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-wgpu/src/compiler/wgsl/instructions.rs#L273)
+   [instruction in wgsl here](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L547-L555),
+   for CPP in the enum here
+   [`cubecl-cpp/src/shared/instruction.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/instruction.rs#L127)
+   and the actual instruction here
+   [`cubecl-cpp/src/shared/binary.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/binary.rs#L137)
 
-We needed to generate some custom WGSL code for powf, primarily due to issues with proper case
-handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an even
-power being positive. We reused as much as the existing logic as possible, and then branched at the
-last point based off the var type of the rhs.
-[See here](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-wgpu/src/compiler/wgsl/compiler.rs#L596).
-For most operations, you shouldn't need to add to `crates/burn-wgpu/src/compiler/wgsl/extension.rs`
+We needed to generate some custom WGSL code for powf in WGSL, primarily due to issues with proper
+case handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an
+even power being positive. We reused as much as the existing logic as possible, and then branched at
+the last point based off the var type of the rhs.
+[See here](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L911).
+For most operations, you shouldn't need to add to `cubecl-wgpu/src/compiler/wgsl/extension.rs`
 unless the operation isn't native to WGSL.
 
-For functions that need a complex kernel without a direct mapping to a base instruction, it is not
-as straightforward. An easier manner of implementing them is underway.
+For functions that need a complex kernel without a direct mapping to a base instruction, simply use
+the `cube` macro (see
+[the `cubecl` book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book)).
 
 ## Adding the Op to burn-import
 

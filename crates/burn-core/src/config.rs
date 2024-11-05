@@ -28,9 +28,7 @@ impl core::fmt::Display for ConfigError {
     }
 }
 
-// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
-#[cfg(feature = "std")]
-impl std::error::Error for ConfigError {}
+impl core::error::Error for ConfigError {}
 
 /// Configuration trait.
 pub trait Config: serde::Serialize + serde::de::DeserializeOwned {
