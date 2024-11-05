@@ -7,7 +7,7 @@ use cubecl::prelude::*;
 use super::base::ReduceDimNaive;
 
 #[cube(launch_unchecked)]
-pub(crate) fn naive_reduce_dim_compute_shader<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
+pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
     dim: u32,
@@ -47,7 +47,7 @@ pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, E
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        naive_reduce_dim_compute_shader::launch_unchecked::<RD, EI, EO, R>(
+        naive_reduce_dim_kernel::launch_unchecked::<RD, EI, EO, R>(
             &input.client,
             cube_count,
             cube_dim,

@@ -58,15 +58,17 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
     let begin_w = iw + padding_1;
 
     for oh in oh_start..oh_end {
-        let ih_start = Max::max(oh * stride_0, padding_0);
+        let ih_start = oh * stride_0;
         let ih_end = Min::min(ih_start + kernel_size_0, border_bottom);
+        let ih_start = Max::max(ih_start, padding_0);
 
         if begin_h >= ih_start && ih < ih_end {
             for ow in ow_start..ow_end {
                 let index = index_base + oh * grad.stride(2) + ow * grad.stride(3);
 
-                let iw_start = Max::max(ow * stride_1, padding_1);
+                let iw_start = ow * stride_1;
                 let iw_end = Min::min(iw_start + kernel_size_1, border_right);
+                let iw_start = Max::max(iw_start, padding_1);
 
                 if begin_w >= iw_start && iw < iw_end {
                     if count_include_pad {

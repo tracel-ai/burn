@@ -37,6 +37,14 @@ impl<E: JitElement> PrngRuntime<E> for Normal<E> {
 
         #[unroll(should_unroll)]
         for i in 0..n_values_per_thread / 2 {
+            let iteration_offset = 2 * i * n_invocations;
+            let write_index_0 = write_index_base + iteration_offset;
+            let write_index_1 = write_index_0 + n_invocations;
+
+            if write_index_1 >= output.len() {
+                break;
+            }
+
             // First random uniform integer
             *state_0 = taus_step_0(*state_0);
             *state_1 = taus_step_1(*state_1);
@@ -62,11 +70,6 @@ impl<E: JitElement> PrngRuntime<E> for Normal<E> {
 
             let normal_0 = f32::cos(trigo_arg) * coeff + mean;
             let normal_1 = f32::sin(trigo_arg) * coeff + mean;
-
-            // Write to output
-            let iteration_offset = 2 * i * n_invocations;
-            let write_index_0 = write_index_base + iteration_offset;
-            let write_index_1 = write_index_0 + n_invocations;
 
             output[write_index_0] = E::cast_from(normal_0);
             output[write_index_1] = E::cast_from(normal_1);
