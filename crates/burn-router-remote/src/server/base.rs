@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData, net::SocketAddr};
+use std::{marker::PhantomData, net::SocketAddr};
 
 use axum::{
     extract::{
@@ -16,11 +16,10 @@ use burn_tensor::{
     repr::ReprBackend,
     Device,
 };
-//allows to extract the IP of connecting user
-use axum::extract::connect_info::ConnectInfo;
+use tracing_core::LevelFilter;
 
 use crate::{
-    server::stream::Stream,
+    server::stream::StreamManager,
     shared::{Task, TaskContent},
 };
 
@@ -36,8 +35,12 @@ where
 {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
+        tracing_subscriber::fmt()
+            .with_max_level(LevelFilter::DEBUG)
+            .init();
+
         let address = format!("0.0.0.0:{port}");
-        println!("Start server {address} on device {device:?}");
+        log::info!("Start server {address} on device {device:?}");
 
         // build our application with some routes
         let app = Router::new()
@@ -57,23 +60,22 @@ where
     async fn ws_handler(
         ws: WebSocketUpgrade,
         State(device): State<Device<B>>,
-        ConnectInfo(addr): ConnectInfo<SocketAddr>,
     ) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| Self::handle_socket(device, socket, addr))
+        ws.on_upgrade(move |socket| Self::handle_socket(device, socket))
     }
 
-    /// Actual websocket statemachine (one will be spawned per connection)
-    async fn handle_socket(device: Device<B>, mut socket: WebSocket, _who: SocketAddr) {
-        println!("On new connection");
+    async fn handle_socket(device: Device<B>, mut socket: WebSocket) {
+        log::info!("On new connection");
         let runner = Runner::new(device);
-        let mut streams = HashMap::<u64, Stream<B>>::new();
+
+        let mut streams = StreamManager::<B>::new(runner);
 
         loop {
             let packet = socket.recv().await;
             let msg = match packet {
                 Some(msg) => msg,
                 None => {
-                    println!("Still no message");
+                    log::info!("Still no message");
                     continue;
                 }
             };
@@ -82,23 +84,11 @@ where
                 let task = match rmp_serde::from_slice::<Task>(&bytes) {
                     Ok(val) => val,
                     Err(err) => {
-                        println!("Only bytes message in the json format are supported {err:?}");
+                        log::info!("Only bytes message in the json format are supported {err:?}");
                         break;
                     }
                 };
-
-                let stream = match streams.get(&task.id.stream_id) {
-                    Some(stream) => {
-                        // Only when necessary.
-                        stream.flush(task.id);
-                        stream
-                    },
-                    None => {
-                        let stream = Stream::<B>::new(runner.clone());
-                        streams.insert(task.id.stream_id, stream);
-                        streams.get(&task.id.stream_id).unwrap()
-                    }
-                };
+                let stream = streams.select(&task);
 
                 match task.content {
                     TaskContent::RegisterOperation(op) => {
@@ -111,32 +101,32 @@ where
                         stream.register_orphan(id);
                     }
                     TaskContent::ReadTensor(tensor) => {
-                        let response = stream.read_tensor(task.id, tensor);
+                        let id = task.id.clone();
+                        let response = stream.read_tensor(id, tensor);
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
                     TaskContent::SyncBackend => {
-                        let response = stream.sync(task.id);
+                        let id = task.id.clone();
+                        let response = stream.sync(id);
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
                     TaskContent::FlushBackend => {
-                        let response = stream.flush(task.id);
+                        let id = task.id.clone();
+                        let response = stream.flush(id);
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
                 }
             } else {
-                println!("Not a binary message, closing, received {msg:?}");
+                log::info!("Not a binary message, closing, received {msg:?}");
                 break;
             };
         }
 
-        println!("Closing connection");
-        for (id, stream) in streams.drain() {
-            println!("Closing stream {id}");
-            stream.close();
-        }
+        log::info!("Closing connection");
+        streams.close();
     }
 }
 

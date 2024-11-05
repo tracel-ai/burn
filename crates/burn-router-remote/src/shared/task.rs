@@ -1,5 +1,7 @@
 use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
+    repr::{
+        BaseOperationDescription, OperationDescription, TensorDescription, TensorId, TensorStatus,
+    },
     TensorData,
 };
 use serde::{Deserialize, Serialize};
@@ -42,4 +44,25 @@ pub enum TaskResponseContent {
     ReadTensor(TensorData),
     SyncBackend,
     FlushBackend,
+}
+
+impl TaskContent {
+    pub fn tensors(&self) -> Vec<(TensorId, TensorStatus)> {
+        fn from_descriptions(desc: &[&TensorDescription]) -> Vec<(TensorId, TensorStatus)> {
+            desc.iter().map(|t| (t.id, t.status.clone())).collect()
+        }
+
+        match self {
+            TaskContent::RegisterOperation(op) => from_descriptions(&op.nodes()),
+            TaskContent::RegisterTensor(tensor_id, _tensor_data) => {
+                vec![(*tensor_id, TensorStatus::NotInit)]
+            }
+            TaskContent::RegisterOrphan(tensor_id) => {
+                vec![(*tensor_id, TensorStatus::ReadWrite)]
+            }
+            TaskContent::ReadTensor(tensor_description) => from_descriptions(&[tensor_description]),
+            TaskContent::SyncBackend => vec![],
+            TaskContent::FlushBackend => vec![],
+        }
+    }
 }

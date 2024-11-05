@@ -12,7 +12,7 @@ documentation = "https://docs.rs/burn-cuda"
 version.workspace = true
 
 [features]
-default = ["fusion", "burn-jit/default", "cubecl/default"]
+default = ["fusion", "autotune", "burn-jit/default", "cubecl/default"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 autotune = ["burn-jit/autotune"]
 doc = ["burn-jit/doc"]

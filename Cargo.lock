@@ -854,6 +854,7 @@ dependencies = [
  "serde_bytes",
  "tokio",
  "tokio-tungstenite",
+ "tracing-core",
  "tracing-subscriber",
 ]
 
