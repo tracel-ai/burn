@@ -1,4 +1,8 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{mpsc::Receiver, Arc},
+};
 
 use axum::{
     extract::{
@@ -17,11 +21,13 @@ use burn_tensor::{
     Device,
 };
 use tokio::sync::Mutex;
-use tracing_core::LevelFilter;
+use tracing_core::{Level, LevelFilter};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{filter::filter_fn, registry};
 
 use crate::{
     server::stream::StreamManager,
-    shared::{Task, TaskContent},
+    shared::{Task, TaskContent, TaskResponse},
 };
 
 use super::stream::Stream;
@@ -49,6 +55,22 @@ where
         }
     }
 
+    pub async fn register_writer(&self, session_id: u64) -> Receiver<Receiver<TaskResponse>> {
+        log::info!("Register writer {session_id}");
+        let mut sessions = self.sessions.lock().await;
+        self.register_session(&mut sessions, session_id);
+
+        let session = sessions.get_mut(&session_id).unwrap();
+        session.init_writer()
+    }
+
+    fn register_session(&self, sessions: &mut HashMap<u64, StreamManager<B>>, id: u64) {
+        if !sessions.contains_key(&id) {
+            log::info!("Create session {id}");
+            let session = StreamManager::new(self.runner.clone());
+            sessions.insert(id, session);
+        }
+    }
     pub async fn stream(&self, session_id: &mut Option<u64>, task: &Task) -> Option<Stream<B>> {
         let mut sessions = self.sessions.lock().await;
 
@@ -56,11 +78,9 @@ where
             Some(id) => *id,
             None => match task.content {
                 TaskContent::Init(id) => {
+                    log::info!("Init session receiver {id}");
                     *session_id = Some(id);
-                    if !sessions.contains_key(&id) {
-                        let session = StreamManager::new(self.runner.clone());
-                        sessions.insert(id, session);
-                    }
+                    self.register_session(&mut sessions, id);
                     return None;
                 }
                 _ => panic!("The first message should be init the session"),
@@ -93,9 +113,18 @@ where
 {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
-        tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::DEBUG)
-            .init();
+        let layer = tracing_subscriber::fmt::layer()
+            .with_filter(LevelFilter::INFO)
+            .with_filter(filter_fn(|m| {
+                if let Some(path) = m.module_path() {
+                    // The wgpu crate is logging too much, so we skip `info` level.
+                    if path.starts_with("wgpu") && *m.level() >= Level::INFO {
+                        return false;
+                    }
+                }
+                true
+            }));
+        registry().with(layer).init();
 
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
@@ -107,7 +136,8 @@ where
 
         // build our application with some routes
         let app = Router::new()
-            .route("/ws", any(Self::ws_handler))
+            .route("/load", any(Self::ws_load_handler))
+            .route("/ops", any(Self::ws_ops_handler))
             .with_state(state);
 
         // run it with hyper
@@ -120,12 +150,66 @@ where
         .unwrap();
     }
 
-    async fn ws_handler(ws: WebSocketUpgrade, State(session): State<Self>) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| session.handle_socket(socket))
+    async fn ws_load_handler(
+        ws: WebSocketUpgrade,
+        State(session): State<Self>,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| session.handle_socket_load(socket))
+    }
+    async fn ws_ops_handler(
+        ws: WebSocketUpgrade,
+        State(session): State<Self>,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| session.handle_socket_ops(socket))
     }
 
-    async fn handle_socket(self, mut socket: WebSocket) {
-        log::info!("On new connection");
+    async fn handle_socket_load(self, mut socket: WebSocket) {
+        log::info!("On new load connection.");
+
+        let packet = socket.recv().await;
+        let msg = match packet {
+            Some(msg) => msg,
+            None => {
+                log::info!("Still no message");
+                panic!("");
+            }
+        };
+
+        if let Ok(ws::Message::Binary(bytes)) = msg {
+            let task = match rmp_serde::from_slice::<Task>(&bytes) {
+                Ok(val) => val,
+                Err(err) => {
+                    log::info!("Only bytes message in the json format are supported {err:?}");
+                    panic!("");
+                }
+            };
+            let id = match task.content {
+                TaskContent::Init(id) => id,
+                _ => panic!(""),
+            };
+
+            let receiver = self.sessions.register_writer(id).await;
+
+            log::info!("Load connection activated.");
+            let handler = tokio::runtime::Handle::current();
+
+            // Without the thread we might deadlock with tokio.
+            std::thread::spawn(move || {
+                while let Ok(callback) = receiver.recv() {
+                    let response = callback.recv().unwrap();
+                    let bytes = rmp_serde::to_vec(&response).unwrap();
+
+                    handler
+                        .block_on(async { socket.send(ws::Message::Binary(bytes)).await.unwrap() });
+                }
+            });
+        } else {
+            panic!("");
+        }
+    }
+
+    async fn handle_socket_ops(self, mut socket: WebSocket) {
+        log::info!("On new ops connection.");
         let mut session_id = None;
 
         loop {
@@ -149,7 +233,10 @@ where
 
                 let stream = match self.sessions.stream(&mut session_id, &task).await {
                     Some(val) => val,
-                    None => continue,
+                    None => {
+                        log::info!("Ops session activated {session_id:?}");
+                        continue;
+                    }
                 };
 
                 match task.content {
@@ -163,22 +250,13 @@ where
                         stream.register_orphan(id);
                     }
                     TaskContent::ReadTensor(tensor) => {
-                        let id = task.id.clone();
-                        let response = stream.read_tensor(id, tensor);
-                        let bytes = rmp_serde::to_vec(&response).unwrap();
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
+                        stream.read_tensor(task.id, tensor);
                     }
                     TaskContent::SyncBackend => {
-                        let id = task.id.clone();
-                        let response = stream.sync(id);
-                        let bytes = rmp_serde::to_vec(&response).unwrap();
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
+                        stream.sync(task.id);
                     }
                     TaskContent::FlushBackend => {
-                        let id = task.id.clone();
-                        let response = stream.flush(id);
-                        let bytes = rmp_serde::to_vec(&response).unwrap();
-                        socket.send(ws::Message::Binary(bytes)).await.unwrap();
+                        stream.flush(task.id);
                     }
                     TaskContent::Init(_) => {}
                 }

@@ -1,5 +1,8 @@
 use core::marker::PhantomData;
-use std::{collections::HashMap, sync::mpsc::Sender};
+use std::{
+    collections::HashMap,
+    sync::mpsc::{Receiver, Sender},
+};
 
 use crate::shared::{ConnectionId, Task, TaskResponse};
 
@@ -17,6 +20,8 @@ pub struct StreamManager<B: ReprBackend> {
     runner: Runner<B>,
     tensors: HashMap<TensorId, StreamId>,
     streams: HashMap<StreamId, Stream<B>>,
+    sender: Sender<Receiver<TaskResponse>>,
+    receiver: Option<Receiver<Receiver<TaskResponse>>>,
 }
 
 impl<B: ReprBackend> StreamManager<B>
@@ -26,11 +31,21 @@ where
         ReprBackend<Handle = B::Handle>,
 {
     pub fn new(runner: Runner<B>) -> Self {
+        let (sender, reveiver) = std::sync::mpsc::channel();
         Self {
             runner,
             tensors: Default::default(),
             streams: Default::default(),
+            sender,
+            receiver: Some(reveiver),
         }
+    }
+    pub fn init_writer(&mut self) -> Receiver<Receiver<TaskResponse>> {
+        log::info!("Init writer");
+        let mut receiver = None;
+        core::mem::swap(&mut receiver, &mut self.receiver);
+
+        receiver.expect("Only init one time")
     }
     pub fn select(&mut self, task: &Task) -> Stream<B> {
         let stream_id = task.id.stream_id;
@@ -57,14 +72,14 @@ where
 
         for stream_id in flushes {
             if let Some(stream) = self.streams.get(&stream_id) {
-                stream.flush(task.id);
+                stream.flush_sync(task.id);
             }
         }
 
         match self.streams.get(&stream_id) {
             Some(stream) => stream.clone(),
             None => {
-                let stream = Stream::<B>::new(self.runner.clone());
+                let stream = Stream::<B>::new(self.runner.clone(), self.sender.clone());
                 self.streams.insert(stream_id, stream.clone());
                 stream
             }
@@ -82,7 +97,8 @@ where
 /// server, protentially waiting to reconstruct consistency.
 #[derive(Clone)]
 pub struct Stream<B: ReprBackend> {
-    sender: Sender<ProcessorTask>,
+    compute_sender: Sender<ProcessorTask>,
+    writer_sender: Sender<Receiver<TaskResponse>>,
     _p: PhantomData<B>,
 }
 
@@ -92,64 +108,75 @@ where
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    pub fn new(runner: Runner<B>) -> Self {
+    pub fn new(runner: Runner<B>, writer_sender: Sender<Receiver<TaskResponse>>) -> Self {
         let sender = Processor::new(runner);
 
         Self {
-            sender,
+            compute_sender: sender,
+            writer_sender,
             _p: PhantomData,
         }
     }
 
     pub fn register_operation(&self, op: OperationDescription) {
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::RegisterOperation(op))
             .unwrap();
     }
 
     pub fn register_tensor(&self, tensor_id: TensorId, data: TensorData) {
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::RegisterTensor(tensor_id, data))
             .unwrap()
     }
 
     pub fn register_orphan(&self, tensor_id: TensorId) {
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::RegisterOrphan(tensor_id))
             .unwrap()
     }
 
-    pub fn read_tensor(&self, id: ConnectionId, desc: TensorDescription) -> TaskResponse {
+    pub fn read_tensor(&self, id: ConnectionId, desc: TensorDescription) {
         let (callback_sender, callback_rec) = std::sync::mpsc::channel();
 
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::ReadTensor(id, desc, callback_sender))
             .unwrap();
 
-        callback_rec.recv().unwrap()
+        self.writer_sender.send(callback_rec).unwrap();
     }
 
-    pub fn sync(&self, id: ConnectionId) -> TaskResponse {
+    pub fn sync(&self, id: ConnectionId) {
         let (callback_sender, callback_rec) = std::sync::mpsc::channel();
 
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::Sync(id, callback_sender))
             .unwrap();
 
-        callback_rec.recv().unwrap()
+        self.writer_sender.send(callback_rec).unwrap();
     }
 
-    pub fn flush(&self, id: ConnectionId) -> TaskResponse {
+    pub fn flush(&self, id: ConnectionId) {
         let (callback_sender, callback_rec) = std::sync::mpsc::channel();
 
-        self.sender
+        self.compute_sender
             .send(ProcessorTask::Flush(id, callback_sender.clone()))
             .unwrap();
 
-        callback_rec.recv().unwrap()
+        self.writer_sender.send(callback_rec).unwrap();
+    }
+
+    pub fn flush_sync(&self, id: ConnectionId) {
+        let (callback_sender, callback_rec) = std::sync::mpsc::channel();
+
+        self.compute_sender
+            .send(ProcessorTask::Flush(id, callback_sender.clone()))
+            .unwrap();
+
+        callback_rec.recv().unwrap();
     }
 
     pub fn close(&self) {
-        self.sender.send(ProcessorTask::Close).unwrap();
+        self.compute_sender.send(ProcessorTask::Close).unwrap();
     }
 }
