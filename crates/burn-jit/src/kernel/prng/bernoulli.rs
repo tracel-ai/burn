@@ -32,12 +32,6 @@ impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
 
         #[unroll(should_unroll)]
         for i in 0..n_values_per_thread {
-            let write_index = i * n_invocations + write_index_base;
-
-            if write_index >= output.len() {
-                break;
-            }
-
             *state_0 = taus_step_0(*state_0);
             *state_1 = taus_step_1(*state_1);
             *state_2 = taus_step_2(*state_2);
@@ -45,6 +39,7 @@ impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
 
             let int_random = *state_0 ^ *state_1 ^ *state_2 ^ *state_3;
             let float_random = cast_uint_to_float(int_random);
+            let write_index = i * n_invocations + write_index_base;
 
             output[write_index] = E::cast_from(float_random < prob);
         }

@@ -36,12 +36,6 @@ impl<E: JitElement> PrngRuntime<E> for Uniform<E> {
 
         #[unroll(should_unroll)]
         for i in 0..n_values_per_thread {
-            let write_index = i * n_invocations + write_index_base;
-
-            if write_index >= output.len() {
-                break;
-            }
-
             *state_0 = taus_step_0(*state_0);
             *state_1 = taus_step_1(*state_1);
             *state_2 = taus_step_2(*state_2);
@@ -52,6 +46,8 @@ impl<E: JitElement> PrngRuntime<E> for Uniform<E> {
             let random = E::cast_from(f32_random);
 
             let uniform = random * scale + lower_bound;
+
+            let write_index = i * n_invocations + write_index_base;
 
             output[write_index] = uniform;
         }
