@@ -70,7 +70,7 @@ where
             }
         }
     }
-    pub fn close(mut self) {
+    pub fn close(&mut self) {
         for (id, stream) in self.streams.drain() {
             println!("Closing stream {id}");
             stream.close();

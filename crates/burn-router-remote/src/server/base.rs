@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{
@@ -16,6 +16,7 @@ use burn_tensor::{
     repr::ReprBackend,
     Device,
 };
+use tokio::sync::Mutex;
 use tracing_core::LevelFilter;
 
 use crate::{
@@ -23,8 +24,65 @@ use crate::{
     shared::{Task, TaskContent},
 };
 
+use super::stream::Stream;
+
+#[derive(Clone)]
 pub struct WsServer<B: ReprBackend> {
-    _p: PhantomData<B>,
+    sessions: Arc<SessionManager<B>>,
+}
+
+pub struct SessionManager<B: ReprBackend> {
+    runner: Runner<B>,
+    sessions: tokio::sync::Mutex<HashMap<u64, StreamManager<B>>>,
+}
+
+impl<B: ReprBackend> SessionManager<B>
+where
+    // Restrict full precision backend handle to be the same
+    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
+        ReprBackend<Handle = B::Handle>,
+{
+    pub fn new(device: Device<B>) -> Self {
+        Self {
+            runner: Runner::new(device),
+            sessions: Mutex::new(Default::default()),
+        }
+    }
+
+    pub async fn stream(&self, session_id: &mut Option<u64>, task: &Task) -> Option<Stream<B>> {
+        let mut sessions = self.sessions.lock().await;
+
+        let session_id = match session_id {
+            Some(id) => *id,
+            None => match task.content {
+                TaskContent::Init(id) => {
+                    *session_id = Some(id);
+                    if !sessions.contains_key(&id) {
+                        let session = StreamManager::new(self.runner.clone());
+                        sessions.insert(id, session);
+                    }
+                    return None;
+                }
+                _ => panic!("The first message should be init the session"),
+            },
+        };
+
+        match sessions.get_mut(&session_id) {
+            Some(session) => Some(session.select(task)),
+            None => {
+                panic!("To be initialized");
+            }
+        }
+    }
+
+    pub async fn close(&self, session_id: Option<u64>) {
+        if let Some(id) = session_id {
+            let mut sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get_mut(&id) {
+                session.close();
+            }
+        }
+    }
 }
 
 impl<B: ReprBackend> WsServer<B>
@@ -42,10 +100,15 @@ where
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
 
+        let sessions = SessionManager::<B>::new(device);
+        let state = Self {
+            sessions: Arc::new(sessions),
+        };
+
         // build our application with some routes
         let app = Router::new()
             .route("/ws", any(Self::ws_handler))
-            .with_state(device);
+            .with_state(state);
 
         // run it with hyper
         let listener = tokio::net::TcpListener::bind(address).await.unwrap();
@@ -57,18 +120,13 @@ where
         .unwrap();
     }
 
-    async fn ws_handler(
-        ws: WebSocketUpgrade,
-        State(device): State<Device<B>>,
-    ) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| Self::handle_socket(device, socket))
+    async fn ws_handler(ws: WebSocketUpgrade, State(session): State<Self>) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| session.handle_socket(socket))
     }
 
-    async fn handle_socket(device: Device<B>, mut socket: WebSocket) {
+    async fn handle_socket(self, mut socket: WebSocket) {
         log::info!("On new connection");
-        let runner = Runner::new(device);
-
-        let mut streams = StreamManager::<B>::new(runner);
+        let mut session_id = None;
 
         loop {
             let packet = socket.recv().await;
@@ -88,7 +146,11 @@ where
                         break;
                     }
                 };
-                let stream = streams.select(&task);
+
+                let stream = match self.sessions.stream(&mut session_id, &task).await {
+                    Some(val) => val,
+                    None => continue,
+                };
 
                 match task.content {
                     TaskContent::RegisterOperation(op) => {
@@ -118,6 +180,7 @@ where
                         let bytes = rmp_serde::to_vec(&response).unwrap();
                         socket.send(ws::Message::Binary(bytes)).await.unwrap();
                     }
+                    TaskContent::Init(_) => {}
                 }
             } else {
                 log::info!("Not a binary message, closing, received {msg:?}");
@@ -126,7 +189,7 @@ where
         }
 
         log::info!("Closing connection");
-        streams.close();
+        self.sessions.close(session_id).await;
     }
 }
 

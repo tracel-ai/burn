@@ -1,7 +1,5 @@
 use burn_tensor::{
-    repr::{
-        BaseOperationDescription, OperationDescription, TensorDescription, TensorId, TensorStatus,
-    },
+    repr::{OperationDescription, TensorDescription, TensorId, TensorStatus},
     TensorData,
 };
 use serde::{Deserialize, Serialize};
@@ -29,6 +27,7 @@ pub enum TaskContent {
     ReadTensor(TensorDescription),
     SyncBackend,
     FlushBackend,
+    Init(u64),
 }
 
 #[allow(missing_docs)]
@@ -63,6 +62,7 @@ impl TaskContent {
             TaskContent::ReadTensor(tensor_description) => from_descriptions(&[tensor_description]),
             TaskContent::SyncBackend => vec![],
             TaskContent::FlushBackend => vec![],
+            TaskContent::Init(_) => vec![],
         }
     }
 }

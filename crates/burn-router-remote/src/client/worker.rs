@@ -1,5 +1,6 @@
 use super::{runner::WsDevice, WsClient};
 use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
+use burn_common::id::IdGenerator;
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
 use tokio_tungstenite::{
@@ -53,7 +54,21 @@ impl ClientWorker {
         #[allow(deprecated)]
         runtime.spawn(async move {
             log::info!("Connecting to {address} ...");
-            let (ws_stream, _) = connect_async_with_config(
+            let (stream_async, _) = connect_async_with_config(
+                address.clone(),
+                Some(WebSocketConfig {
+                    max_send_queue: None,
+                    write_buffer_size: 0,
+                    max_write_buffer_size: usize::MAX,
+                    max_message_size: None,
+                    max_frame_size: Some(MB * 512),
+                    accept_unmasked_frames: true,
+                }),
+                true,
+            )
+            .await
+            .expect("Failed to connect");
+            let (stream_sync, _) = connect_async_with_config(
                 address,
                 Some(WebSocketConfig {
                     max_send_queue: None,
@@ -67,8 +82,20 @@ impl ClientWorker {
             )
             .await
             .expect("Failed to connect");
-            let (mut write, mut read) = ws_stream.split();
+
+            let (mut write_sync, mut read) = stream_sync.split();
+            let (mut write_async, mut _read) = stream_async.split();
             let state = Arc::new(tokio::sync::Mutex::new(ClientWorker::default()));
+
+            // Init the connection.
+            let session_id = IdGenerator::generate();
+            let bytes = rmp_serde::to_vec(&Task{
+                content: crate::shared::TaskContent::Init(session_id),
+                id: ConnectionId { position: 0, stream_id: 0 },
+            }).expect("Can serialize tasks to bytes.");
+
+            write_sync.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
+            write_async.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
 
             // Websocket async worker.
             let state_ws = state.clone();
@@ -97,16 +124,17 @@ impl ClientWorker {
             // Channel async worker.
             tokio::spawn(async move {
                 while let Some(req) = rec.recv().await {
-                    let task = match req {
+                    let (writer, task) = match req {
                         ClientRequest::WithSyncCallback(task, callback) => {
                             let mut state = state.lock().await;
                             state.register_callback(task.id, callback);
-                            task
+                            (&mut write_sync, task)
                         }
-                        ClientRequest::WithoutCallback(task) => task,
+                        ClientRequest::WithoutCallback(task) => (&mut write_async,task),
+
                     };
                     let bytes = rmp_serde::to_vec(&task).expect("Can serialize tasks to bytes.");
-                    write.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
+                    writer.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
                 }
             });
         });
