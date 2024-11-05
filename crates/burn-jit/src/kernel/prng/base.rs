@@ -21,20 +21,18 @@ pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
     let cube_dim = CubeDim::default();
     let cube_count = prng_cube_count(output.shape.num_elements(), cube_dim, N_VALUES_PER_THREAD);
 
-    unsafe {
-        prng_kernel::launch_unchecked::<P, E, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            output.as_tensor_arg(1),
-            ScalarArg::new(seeds[0]),
-            ScalarArg::new(seeds[1]),
-            ScalarArg::new(seeds[2]),
-            ScalarArg::new(seeds[3]),
-            args,
-            N_VALUES_PER_THREAD as u32,
-        )
-    };
+    prng_kernel::launch::<P, E, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        output.as_tensor_arg(1),
+        ScalarArg::new(seeds[0]),
+        ScalarArg::new(seeds[1]),
+        ScalarArg::new(seeds[2]),
+        ScalarArg::new(seeds[3]),
+        args,
+        N_VALUES_PER_THREAD as u32,
+    );
 
     output
 }
@@ -85,7 +83,7 @@ pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static + PrngArgs<E>
     );
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch)]
 fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
     output: &mut Tensor<E>,
     seed_0: u32,
@@ -95,14 +93,12 @@ fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
     args: P::Args,
     #[comptime] n_values_per_thread: u32,
 ) {
-    let n_invocations = CUBE_DIM_X * CUBE_DIM_Y;
-    let cube_offset = (CUBE_POS_X * CUBE_COUNT_Y + CUBE_POS_Y) * n_invocations;
+    let cube_offset = CUBE_POS * CUBE_DIM;
 
     let write_index_base = cube_offset * n_values_per_thread + UNIT_POS;
 
-    let thread_seed_index = cube_offset + UNIT_POS;
     #[allow(arithmetic_overflow)]
-    let thread_seed = 1000000007u32 * thread_seed_index;
+    let thread_seed = 1000000007u32 * ABSOLUTE_POS;
 
     let mut state_0 = thread_seed + seed_0;
     let mut state_1 = thread_seed + seed_1;
@@ -113,7 +109,7 @@ fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
     P::inner_loop(
         args,
         write_index_base,
-        n_invocations,
+        CUBE_DIM,
         n_values_per_thread,
         &mut state_0,
         &mut state_1,

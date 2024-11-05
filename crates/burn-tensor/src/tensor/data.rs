@@ -577,6 +577,26 @@ impl TensorData {
             }
         }
     }
+
+    /// Asserts each value is within a given inclusive range.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range.
+    ///
+    /// # Panics
+    ///
+    /// If any value is not within the half-open range bounded inclusively (`start..=end`).
+    pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
+        let start = range.start().elem::<f32>();
+        let end = range.end().elem::<f32>();
+
+        for elem in self.iter::<f32>() {
+            if elem < start || elem > end {
+                panic!("Element ({elem:?}) is not within range {range:?}");
+            }
+        }
+    }
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {
