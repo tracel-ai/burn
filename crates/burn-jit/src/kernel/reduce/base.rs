@@ -43,11 +43,11 @@ pub enum ReduceStrategy {
 impl Default for ReduceStrategy {
     fn default() -> Self {
         // if autotune is enabled, default to autotune
-        // #[cfg(feature = "autotune")]
-        // return ReduceStrategy::Autotune;
+        #[cfg(feature = "autotune")]
+        return ReduceStrategy::Autotune;
 
-        // #[cfg(not(feature = "autotune"))]
-        ReduceStrategy::SharedMemory
+        #[cfg(not(feature = "autotune"))]
+        ReduceStrategy::Naive
     }
 }
 
