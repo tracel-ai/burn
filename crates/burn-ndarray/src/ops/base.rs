@@ -210,7 +210,6 @@ where
     }
 
     pub fn remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
-        // let array = ((lhs.array % rhs.array.clone()) + rhs.array.clone()) % rhs.array;
         let array = lhs.array.clone()
             - (lhs.array / rhs.array.clone()).mapv_into(|a| (a.to_f64()).floor().elem())
                 * rhs.array;
