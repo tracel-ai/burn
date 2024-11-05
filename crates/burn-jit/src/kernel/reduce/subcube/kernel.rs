@@ -1,6 +1,10 @@
-use cubecl::{prelude::*, CubeCount, CubeDim};
+use cubecl::{prelude::*, CubeCount, CubeDim, Feature};
 
-use crate::{kernel::reduce::init_reduce_output, tensor::JitTensor, JitElement, JitRuntime};
+use crate::{
+    kernel::reduce::{init_reduce_output, shared::kernel::reduce_dim_shared, ReduceDimAlgorithm},
+    tensor::JitTensor,
+    JitElement, JitRuntime,
+};
 
 use super::base::ReduceDimSubcube;
 
@@ -76,7 +80,7 @@ pub fn reduce_dim_subcube_kernel<
 
 /// Executes the shared memory kernel for reduce dim
 pub fn reduce_dim_subcube<
-    RD: ReduceDimSubcube<EI, EO>,
+    RD: ReduceDimAlgorithm<EI, EO>,
     R: JitRuntime,
     EI: JitElement,
     EO: JitElement,
@@ -84,6 +88,10 @@ pub fn reduce_dim_subcube<
     input: JitTensor<R, EI>,
     dim: usize,
 ) -> JitTensor<R, EO> {
+    if !input.client.properties().feature_enabled(Feature::Subcube) {
+        return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
+    }
+
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let warp_size = 32; // TODO: Add a method to client to query this
