@@ -7,6 +7,7 @@ mod tests {
     #[test]
     fn should_support_round_ops() {
         let data = TensorData::quantized(
+            // [[24.0423, 87.9478, 76.1838], [59.6929, 43.8169, 94.8826]]
             vec![-63, 108, 76, 32, -10, 127],
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
@@ -25,6 +26,7 @@ mod tests {
     #[test]
     fn should_round_ties_even() {
         let data = TensorData::quantized(
+            // [1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
             vec![-69i8, -30, 9, 48, 87, 127],
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(

@@ -6,6 +6,7 @@ mod tests {
     #[test]
     fn should_support_floor_ops() {
         let data = TensorData::quantized(
+            // [[24.0423, 87.9478, 76.1838], [59.6929, 43.8169, 94.8826]]
             vec![-63, 108, 76, 32, -10, 127],
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
