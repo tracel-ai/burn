@@ -85,7 +85,7 @@ where
     }
 
     async fn handle_socket_response(self, mut socket: WebSocket) {
-        log::info!("On new load connection.");
+        log::info!("[Response Handler] On new connection.");
 
         let packet = socket.recv().await;
         let msg = match packet {
@@ -130,7 +130,7 @@ where
     }
 
     async fn handle_socket_request(self, mut socket: WebSocket) {
-        log::info!("On new ops connection.");
+        log::info!("[Request Handler] On new connection.");
         let mut session_id = None;
 
         loop {

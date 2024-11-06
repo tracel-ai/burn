@@ -47,16 +47,16 @@ impl ClientWorker {
         );
 
         let (sender, mut rec) = tokio::sync::mpsc::channel(10);
-        let address_ops = format!("{}/{}", device.address.as_str(), "ops");
-        let address_load = format!("{}/{}", device.address.as_str(), "load");
+        let address_request = format!("{}/{}", device.address.as_str(), "request");
+        let address_response = format!("{}/{}", device.address.as_str(), "response");
 
         const MB: usize = 1024 * 1024;
 
         #[allow(deprecated)]
         runtime.spawn(async move {
-            log::info!("Connecting to {address_ops} ...");
-            let (mut stream_ops, _) = connect_async_with_config(
-                address_ops.clone(),
+            log::info!("Connecting to {address_request} ...");
+            let (mut stream_request, _) = connect_async_with_config(
+                address_request.clone(),
                 Some(WebSocketConfig {
                     max_send_queue: None,
                     write_buffer_size: 0,
@@ -69,8 +69,8 @@ impl ClientWorker {
             )
             .await
             .expect("Failed to connect");
-            let (mut stream_load, _) = connect_async_with_config(
-                address_load,
+            let (mut stream_response, _) = connect_async_with_config(
+                address_response,
                 Some(WebSocketConfig {
                     max_send_queue: None,
                     write_buffer_size: 0,
@@ -93,13 +93,13 @@ impl ClientWorker {
                 id: ConnectionId { position: 0, stream_id: 0 },
             }).expect("Can serialize tasks to bytes.");
 
-            stream_ops.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
-            stream_load.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
+            stream_request.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
+            stream_response.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
 
             // Websocket async worker loading callback from the server.
             let state_ws = state.clone();
             tokio::spawn(async move {
-                while let Some(msg) = stream_load.next().await {
+                while let Some(msg) = stream_response.next().await {
                     let msg = match msg {
                         Ok(msg) => msg,
                         Err(err) => panic!("An error happened while receiving messages from the websocket: {err:?}"),
@@ -133,7 +133,7 @@ impl ClientWorker {
 
                     };
                     let bytes = rmp_serde::to_vec(&task).expect("Can serialize tasks to bytes.");
-                    stream_ops.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
+                    stream_request.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
                 }
             });
         });
