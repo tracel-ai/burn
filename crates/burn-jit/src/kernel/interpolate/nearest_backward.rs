@@ -52,11 +52,7 @@ fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u
     let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
     let index = u32::cast_from(div);
 
-    if output_size < index {
-        output_size
-    } else {
-        index
-    }
+    Min::min(output_size, index)
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: FloatElement>(

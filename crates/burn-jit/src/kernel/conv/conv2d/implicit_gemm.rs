@@ -178,8 +178,6 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         },
     );
 
-    //log::warn!("data: {}", into_data_sync(out.clone()));
-
     let out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW

@@ -1,5 +1,5 @@
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_tensor::{ElementConversion, Shape};
+use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
@@ -73,11 +73,9 @@ pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R, E> {
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
-    let mut scalars: Vec<i32> = Vec::with_capacity(ndims);
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        scalars.push((start as i32).elem());
         indices_sequence.push(ScalarArg::new(start as u32));
     }
 

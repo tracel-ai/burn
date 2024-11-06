@@ -45,9 +45,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
             let index = index_base + oh * grad.stride(2) + ow * grad.stride(3);
             let index_max = u32::cast_from(indices[index]);
 
-            if index_max == index_current {
-                grad_acc += grad[index];
-            }
+            grad_acc += select(index_max == index_current, grad[index], E::from_int(0));
         }
     }
 
