@@ -81,7 +81,7 @@ impl WsSender {
         let sender = self.sender.clone();
         let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
 
-        let fut = async move {
+        async move {
             sender
                 .send(ClientRequest::WithSyncCallback(
                     Task::Compute(task, ConnectionId::new(position, stream_id)),
@@ -90,14 +90,10 @@ impl WsSender {
                 .await
                 .unwrap();
 
-            let res = match callback_recv.recv().await {
+            match callback_recv.recv().await {
                 Some(val) => val,
                 None => panic!(""),
-            };
-
-            res
-        };
-
-        fut
+            }
+        }
     }
 }

@@ -36,7 +36,7 @@ where
         }
     }
 
-    pub fn register_operation(&self, op: OperationDescription) {
+    pub fn register_operation(&self, op: Box<OperationDescription>) {
         self.compute_sender
             .send(ProcessorTask::RegisterOperation(op))
             .unwrap();

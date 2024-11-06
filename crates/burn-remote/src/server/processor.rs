@@ -17,7 +17,7 @@ pub struct Processor<B: ReprBackend> {
 pub type Callback<M> = Sender<M>;
 
 pub enum ProcessorTask {
-    RegisterOperation(OperationDescription),
+    RegisterOperation(Box<OperationDescription>),
     RegisterTensor(TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
@@ -39,7 +39,7 @@ where
             for item in rec.iter() {
                 match item {
                     ProcessorTask::RegisterOperation(op) => {
-                        runner.register(op);
+                        runner.register(*op);
                     }
                     ProcessorTask::RegisterOrphan(id) => {
                         runner.register_orphan(&id);

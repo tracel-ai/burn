@@ -72,7 +72,7 @@ impl RunnerClient for WsClient {
     }
 
     fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
-        let fut = self.sender.send(ComputeTask::RegisterOrphan(id.clone()));
+        let fut = self.sender.send(ComputeTask::RegisterOrphan(*id));
         self.runtime.block_on(fut);
     }
 

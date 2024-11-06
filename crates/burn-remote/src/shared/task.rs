@@ -27,7 +27,7 @@ impl Display for SessionId {
 }
 
 impl SessionId {
-    /// Create a new session.
+    /// Create a new [session id](SessionId).
     pub fn new() -> Self {
         Self {
             id: IdGenerator::generate(),
@@ -45,7 +45,7 @@ pub enum Task {
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ComputeTask {
-    RegisterOperation(OperationDescription),
+    RegisterOperation(Box<OperationDescription>),
     RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
     ReadTensor(TensorDescription),

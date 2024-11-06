@@ -106,11 +106,11 @@ where
     }
 
     fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B>>, id: SessionId) {
-        if !sessions.contains_key(&id) {
+        sessions.entry(id).or_insert_with(|| {
             log::info!("Creating a new session {id}");
-            let session = Session::new(self.runner.clone());
-            sessions.insert(id, session);
-        }
+
+            Session::new(self.runner.clone())
+        });
     }
 }
 
@@ -162,7 +162,7 @@ where
 
             if !current_stream_already_synced {
                 // We only need to sync to the first stream that created the tensor.
-                if let Some(id) = tensor_stream_ids.into_iter().next() {
+                if let Some(id) = tensor_stream_ids.iter().next() {
                     fences.push(*id);
                 }
             }
@@ -180,7 +180,7 @@ where
 
         // Cleanup orphans.
         if let ComputeTask::RegisterOrphan(tensor_id) = task {
-            self.tensors.remove(&tensor_id);
+            self.tensors.remove(tensor_id);
         }
 
         // We have to wait for the streams to be updated.
