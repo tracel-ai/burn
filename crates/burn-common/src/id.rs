@@ -1,4 +1,5 @@
 use crate::rand::gen_random;
+use serde::{Deserialize, Serialize};
 
 /// Simple ID generator.
 pub struct IdGenerator {}
@@ -65,21 +66,23 @@ mod tests {
     }
 }
 
-/// Unique identifier of the current thread.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct ThreadId {
+/// Unique identifier that can represent a stream based on the current thread id.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct StreamId {
     /// The value representing the thread id.
     pub value: u64,
 }
 
-impl ThreadId {
+impl StreamId {
     /// Get the current thread id.
     pub fn current() -> Self {
-        Self { value: Self::id() }
+        Self {
+            value: Self::from_current_thread(),
+        }
     }
 
     #[cfg(feature = "std")]
-    fn id() -> u64 {
+    fn from_current_thread() -> u64 {
         use core::hash::Hash;
 
         std::thread_local! {
@@ -104,7 +107,7 @@ impl ThreadId {
     }
 }
 
-impl core::fmt::Display for ThreadId {
+impl core::fmt::Display for StreamId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("ThreadId({:?})", self.value))
     }

@@ -74,16 +74,6 @@ where
         self.writer_sender.send(callback_rec).unwrap();
     }
 
-    pub fn flush(&self, id: ConnectionId) {
-        let (callback_sender, callback_rec) = std::sync::mpsc::channel();
-
-        self.compute_sender
-            .send(ProcessorTask::Flush(id, callback_sender.clone()))
-            .unwrap();
-
-        self.writer_sender.send(callback_rec).unwrap();
-    }
-
     // Ensure that all tasks are sent to the backend.
     //
     // It doesn't mean that the computation is done, but it means the backend has received the

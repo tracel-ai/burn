@@ -21,7 +21,6 @@ pub enum ProcessorTask {
     RegisterTensor(TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
-    Flush(ConnectionId, Callback<TaskResponse>),
     Fence(Callback<()>),
     RegisterOrphan(TensorId),
     Close,
@@ -72,14 +71,6 @@ where
                         core::mem::drop(runner);
                         B::sync(&device);
                         return;
-                    }
-                    ProcessorTask::Flush(id, sender) => {
-                        sender
-                            .send(TaskResponse {
-                                content: TaskResponseContent::FlushBackend,
-                                id,
-                            })
-                            .unwrap();
                     }
                     ProcessorTask::Fence(sender) => {
                         sender.send(()).unwrap();

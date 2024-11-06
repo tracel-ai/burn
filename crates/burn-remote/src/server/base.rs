@@ -19,7 +19,7 @@ use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
 
-use crate::shared::{Task, TaskContent};
+use crate::shared::{ComputeTask, Task};
 
 use super::session::SessionManager;
 
@@ -104,8 +104,8 @@ where
                     panic!("");
                 }
             };
-            let id = match task.content {
-                TaskContent::Init(id) => id,
+            let id = match task {
+                Task::Init(id) => id,
                 _ => panic!(""),
             };
 
@@ -152,34 +152,31 @@ where
                     }
                 };
 
-                let stream = match self.state.stream(&mut session_id, &task).await {
-                    Some(val) => val,
-                    None => {
-                        log::info!("Ops session activated {session_id:?}");
-                        continue;
-                    }
-                };
+                let (stream, connection_id, task) =
+                    match self.state.stream(&mut session_id, task).await {
+                        Some(val) => val,
+                        None => {
+                            log::info!("Ops session activated {session_id:?}");
+                            continue;
+                        }
+                    };
 
-                match task.content {
-                    TaskContent::RegisterOperation(op) => {
+                match task {
+                    ComputeTask::RegisterOperation(op) => {
                         stream.register_operation(op);
                     }
-                    TaskContent::RegisterTensor(id, data) => {
+                    ComputeTask::RegisterTensor(id, data) => {
                         stream.register_tensor(id, data);
                     }
-                    TaskContent::RegisterOrphan(id) => {
+                    ComputeTask::RegisterOrphan(id) => {
                         stream.register_orphan(id);
                     }
-                    TaskContent::ReadTensor(tensor) => {
-                        stream.read_tensor(task.id, tensor);
+                    ComputeTask::ReadTensor(tensor) => {
+                        stream.read_tensor(connection_id, tensor);
                     }
-                    TaskContent::SyncBackend => {
-                        stream.sync(task.id);
+                    ComputeTask::SyncBackend => {
+                        stream.sync(connection_id);
                     }
-                    TaskContent::FlushBackend => {
-                        stream.flush(task.id);
-                    }
-                    TaskContent::Init(_) => {}
                 }
             } else {
                 log::info!("Not a binary message, closing, received {msg:?}");

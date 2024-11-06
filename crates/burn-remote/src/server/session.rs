@@ -1,3 +1,4 @@
+use burn_common::id::StreamId;
 use burn_router::Runner;
 use burn_tensor::{
     backend::{Backend, BackendBridge},
@@ -10,11 +11,9 @@ use std::{
 };
 use tokio::sync::Mutex;
 
-use crate::shared::{Task, TaskContent, TaskResponse};
+use crate::shared::{ComputeTask, ConnectionId, SessionId, Task, TaskResponse};
 
 use super::stream::Stream;
-
-type StreamId = u64;
 
 /// A session manager control the creation of sessions.
 ///
@@ -22,7 +21,7 @@ type StreamId = u64;
 /// a native backend would have.
 pub struct SessionManager<B: ReprBackend> {
     runner: Runner<B>,
-    sessions: tokio::sync::Mutex<HashMap<u64, Session<B>>>,
+    sessions: tokio::sync::Mutex<HashMap<SessionId, Session<B>>>,
 }
 
 struct Session<B: ReprBackend> {
@@ -48,7 +47,10 @@ where
 
     /// Register a new responder for the session. Only one responder can exist for a session for
     /// now.
-    pub async fn register_responder(&self, session_id: u64) -> Receiver<Receiver<TaskResponse>> {
+    pub async fn register_responder(
+        &self,
+        session_id: SessionId,
+    ) -> Receiver<Receiver<TaskResponse>> {
         log::info!("Register responder for session {session_id}");
         let mut sessions = self.sessions.lock().await;
         self.register_session(&mut sessions, session_id);
@@ -58,13 +60,17 @@ where
     }
 
     /// Get the stream for the current session and task.
-    pub async fn stream(&self, session_id: &mut Option<u64>, task: &Task) -> Option<Stream<B>> {
+    pub async fn stream(
+        &self,
+        session_id: &mut Option<SessionId>,
+        task: Task,
+    ) -> Option<(Stream<B>, ConnectionId, ComputeTask)> {
         let mut sessions = self.sessions.lock().await;
 
         let session_id = match session_id {
             Some(id) => *id,
-            None => match task.content {
-                TaskContent::Init(id) => {
+            None => match task {
+                Task::Init(id) => {
                     log::info!("Init requester for session {id}");
                     *session_id = Some(id);
                     self.register_session(&mut sessions, id);
@@ -75,7 +81,14 @@ where
         };
 
         match sessions.get_mut(&session_id) {
-            Some(session) => Some(session.select(task)),
+            Some(session) => {
+                let (task, connection_id) = match task {
+                    Task::Compute(task, connection_id) => (task, connection_id),
+                    _ => panic!("Only support compute tasks."),
+                };
+                let stream = session.select(connection_id.stream_id, &task);
+                Some((stream, connection_id, task))
+            }
             None => {
                 panic!("To be initialized");
             }
@@ -83,7 +96,7 @@ where
     }
 
     /// Close the session with the given id.
-    pub async fn close(&self, session_id: Option<u64>) {
+    pub async fn close(&self, session_id: Option<SessionId>) {
         if let Some(id) = session_id {
             let mut sessions = self.sessions.lock().await;
             if let Some(session) = sessions.get_mut(&id) {
@@ -92,7 +105,7 @@ where
         }
     }
 
-    fn register_session(&self, sessions: &mut HashMap<u64, Session<B>>, id: u64) {
+    fn register_session(&self, sessions: &mut HashMap<SessionId, Session<B>>, id: SessionId) {
         if !sessions.contains_key(&id) {
             log::info!("Creating a new session {id}");
             let session = Session::new(self.runner.clone());
@@ -125,16 +138,14 @@ where
     }
 
     /// Select the current [stream](Stream) based on the given task.
-    fn select(&mut self, task: &Task) -> Stream<B> {
-        let stream_id = task.id.stream_id;
-
+    fn select(&mut self, stream_id: StreamId, task: &ComputeTask) -> Stream<B> {
         // We have to check every streams involved in the last operation, making
         // sure the backend is up-to-date with those operations.
         //
         // 1. We update the tensor status of all tensors in the task.
         // 2. We don't keep track of tensors that are used for the last time.
         let mut fences = Vec::new();
-        for (tensor_id, status) in task.content.tensors_info() {
+        for (tensor_id, status) in task.tensors_info() {
             let tensor_stream_ids = match self.tensors.get(&tensor_id) {
                 Some(val) => val,
                 None => {
@@ -168,7 +179,7 @@ where
         }
 
         // Cleanup orphans.
-        if let TaskContent::RegisterOrphan(tensor_id) = task.content {
+        if let ComputeTask::RegisterOrphan(tensor_id) = task {
             self.tensors.remove(&tensor_id);
         }
 
@@ -210,24 +221,22 @@ where
     }
 }
 
-impl TaskContent {
+impl ComputeTask {
     fn tensors_info(&self) -> Vec<(TensorId, TensorStatus)> {
         fn from_descriptions(desc: &[&TensorDescription]) -> Vec<(TensorId, TensorStatus)> {
             desc.iter().map(|t| (t.id, t.status.clone())).collect()
         }
 
         match self {
-            TaskContent::RegisterOperation(op) => from_descriptions(&op.nodes()),
-            TaskContent::RegisterTensor(tensor_id, _tensor_data) => {
+            ComputeTask::RegisterOperation(op) => from_descriptions(&op.nodes()),
+            ComputeTask::RegisterTensor(tensor_id, _tensor_data) => {
                 vec![(*tensor_id, TensorStatus::NotInit)]
             }
-            TaskContent::RegisterOrphan(tensor_id) => {
+            ComputeTask::RegisterOrphan(tensor_id) => {
                 vec![(*tensor_id, TensorStatus::ReadWrite)]
             }
-            TaskContent::ReadTensor(tensor_description) => from_descriptions(&[tensor_description]),
-            TaskContent::SyncBackend => vec![],
-            TaskContent::FlushBackend => vec![],
-            TaskContent::Init(_) => vec![],
+            ComputeTask::ReadTensor(tensor_description) => from_descriptions(&[tensor_description]),
+            ComputeTask::SyncBackend => vec![],
         }
     }
 }

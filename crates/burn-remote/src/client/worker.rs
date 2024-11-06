@@ -1,6 +1,5 @@
 use super::{runner::WsDevice, WsClient};
-use crate::shared::{ConnectionId, Task, TaskResponse, TaskResponseContent};
-use burn_common::id::IdGenerator;
+use crate::shared::{ConnectionId, SessionId, Task, TaskResponse, TaskResponseContent};
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
 use tokio_tungstenite::{
@@ -87,12 +86,8 @@ impl ClientWorker {
             let state = Arc::new(tokio::sync::Mutex::new(ClientWorker::default()));
 
             // Init the connection.
-            let session_id = IdGenerator::generate();
-            let bytes = rmp_serde::to_vec(&Task{
-                content: crate::shared::TaskContent::Init(session_id),
-                id: ConnectionId { position: 0, stream_id: 0 },
-            }).expect("Can serialize tasks to bytes.");
-
+            let session_id = SessionId::new();
+            let bytes = rmp_serde::to_vec(&Task::Init(session_id)).expect("Can serialize tasks to bytes.");
             stream_request.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
             stream_response.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
 
@@ -126,7 +121,9 @@ impl ClientWorker {
                     let task = match req {
                         ClientRequest::WithSyncCallback(task, callback) => {
                             let mut state = state.lock().await;
-                            state.register_callback(task.id, callback);
+                            if let Task::Compute(_content, id) = &task {
+                                state.register_callback(*id, callback);
+                            }
                             task
                         }
                         ClientRequest::WithoutCallback(task) => task,

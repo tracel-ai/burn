@@ -1,3 +1,6 @@
+use std::fmt::Display;
+
+use burn_common::id::{IdGenerator, StreamId};
 use burn_tensor::{
     repr::{OperationDescription, TensorDescription, TensorId},
     TensorData,
@@ -8,26 +11,45 @@ use serde::{Deserialize, Serialize};
 #[derive(new, Serialize, Deserialize, Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct ConnectionId {
     pub position: u64,
-    pub stream_id: u64,
+    pub stream_id: StreamId,
+}
+
+/// Unique identifier that can represent a session.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct SessionId {
+    id: u64,
+}
+
+impl Display for SessionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "session<{}>", self.id)
+    }
+}
+
+impl SessionId {
+    /// Create a new session.
+    pub fn new() -> Self {
+        Self {
+            id: IdGenerator::generate(),
+        }
+    }
 }
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Task {
-    pub content: TaskContent,
-    pub id: ConnectionId,
+pub enum Task {
+    Compute(ComputeTask, ConnectionId),
+    Init(SessionId),
 }
 
 #[allow(missing_docs)]
 #[derive(Serialize, Deserialize, Debug)]
-pub enum TaskContent {
+pub enum ComputeTask {
     RegisterOperation(OperationDescription),
     RegisterTensor(TensorId, TensorData),
     RegisterOrphan(TensorId),
     ReadTensor(TensorDescription),
     SyncBackend,
-    FlushBackend,
-    Init(u64),
 }
 
 #[allow(missing_docs)]

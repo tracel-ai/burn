@@ -1,6 +1,6 @@
 use super::worker::{ClientRequest, ClientWorker};
-use crate::shared::{ConnectionId, Task, TaskContent, TaskResponseContent};
-use burn_common::id::ThreadId;
+use crate::shared::{ComputeTask, ConnectionId, Task, TaskResponseContent};
+use burn_common::id::StreamId;
 use burn_tensor::repr::TensorId;
 use std::{
     future::Future,
@@ -46,19 +46,19 @@ pub(crate) struct WsSender {
 }
 
 impl WsSender {
-    pub(crate) fn send(&self, content: TaskContent) -> impl Future<Output = ()> + Send {
+    pub(crate) fn send(&self, task: ComputeTask) -> impl Future<Output = ()> + Send {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let stream_id = ThreadId::current().value;
+        let stream_id = StreamId::current();
         let sender = self.sender.clone();
 
         async move {
             sender
-                .send(ClientRequest::WithoutCallback(Task {
-                    content,
-                    id: ConnectionId::new(position, stream_id),
-                }))
+                .send(ClientRequest::WithoutCallback(Task::Compute(
+                    task,
+                    ConnectionId::new(position, stream_id),
+                )))
                 .await
                 .unwrap();
         }
@@ -72,22 +72,19 @@ impl WsSender {
     }
     pub(crate) fn send_callback(
         &self,
-        content: TaskContent,
+        task: ComputeTask,
     ) -> impl Future<Output = TaskResponseContent> + Send {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let stream_id = ThreadId::current().value;
+        let stream_id = StreamId::current();
         let sender = self.sender.clone();
         let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
 
         let fut = async move {
             sender
                 .send(ClientRequest::WithSyncCallback(
-                    Task {
-                        content,
-                        id: ConnectionId::new(position, stream_id),
-                    },
+                    Task::Compute(task, ConnectionId::new(position, stream_id)),
                     callback_sender,
                 ))
                 .await

@@ -5,7 +5,7 @@ use burn_tensor::{
 };
 use std::sync::Arc;
 
-use crate::shared::{TaskContent, TaskResponseContent};
+use crate::shared::{ComputeTask, TaskResponseContent};
 
 use super::WsClient;
 
@@ -18,7 +18,7 @@ impl RunnerClient for WsClient {
     type Device = WsDevice;
 
     fn register(&self, op: burn_tensor::repr::OperationDescription) {
-        let fut = self.sender.send(TaskContent::RegisterOperation(op));
+        let fut = self.sender.send(ComputeTask::RegisterOperation(op));
         self.runtime.block_on(fut);
     }
 
@@ -27,7 +27,7 @@ impl RunnerClient for WsClient {
         tensor: burn_tensor::repr::TensorDescription,
     ) -> impl std::future::Future<Output = TensorData> + Send {
         // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(TaskContent::ReadTensor(tensor));
+        let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));
 
         async move {
             match fut.await {
@@ -42,7 +42,7 @@ impl RunnerClient for WsClient {
         let shape = data.shape.clone();
         let dtype = data.dtype;
 
-        let fut = self.sender.send(TaskContent::RegisterTensor(id, data));
+        let fut = self.sender.send(ComputeTask::RegisterTensor(id, data));
 
         self.runtime.block_on(fut);
 
@@ -72,13 +72,13 @@ impl RunnerClient for WsClient {
     }
 
     fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
-        let fut = self.sender.send(TaskContent::RegisterOrphan(id.clone()));
+        let fut = self.sender.send(ComputeTask::RegisterOrphan(id.clone()));
         self.runtime.block_on(fut);
     }
 
     fn sync(&self) {
         // Important for ordering to call the creation of the future sync.
-        let fut = self.sender.send_callback(TaskContent::SyncBackend);
+        let fut = self.sender.send_callback(ComputeTask::SyncBackend);
 
         let fut = async move {
             match fut.await {

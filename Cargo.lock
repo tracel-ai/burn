@@ -611,6 +611,7 @@ dependencies = [
  "indicatif",
  "rayon",
  "reqwest 0.12.9",
+ "serde",
  "tokio",
  "web-time",
 ]
