@@ -1573,7 +1573,6 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1604,7 +1603,6 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "derive-new",
  "embassy-futures",
@@ -1621,13 +1619,13 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
  "cubecl-macros",
  "cubecl-runtime 0.4.0",
  "derive-new",
+ "derive_more 1.0.0",
  "half",
  "log",
  "num-traits",
@@ -1638,7 +1636,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1652,7 +1649,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1668,7 +1664,6 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "bytemuck",
  "cubecl-common 0.4.0",
@@ -1693,7 +1688,6 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1704,7 +1698,6 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "cubecl-common 0.4.0",
  "darling",
@@ -1719,7 +1712,6 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
@@ -1756,7 +1748,6 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1777,12 +1768,12 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "cubecl-common 0.4.0",
  "cubecl-core",
  "cubecl-opt",
  "cubecl-runtime 0.4.0",
+ "half",
  "hashbrown 0.14.5",
  "rspirv",
 ]
@@ -1790,7 +1781,6 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.4.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=0dff475fec254e884f6b82e305e7a52adebf1dd7#0dff475fec254e884f6b82e305e7a52adebf1dd7"
 dependencies = [
  "ash",
  "async-channel",
@@ -2038,6 +2028,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.85",
+]
+
+[[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.85",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -7112,7 +7123,7 @@ checksum = "8ccb5ec9f8b6fc08dd896cc0f5c35d9ebc2d746edd790d63fea7fe283db74ffd"
 dependencies = [
  "anyhow",
  "clap 4.5.20",
- "derive_more",
+ "derive_more 0.99.18",
  "env_logger",
  "log",
  "rand",
