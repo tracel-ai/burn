@@ -124,7 +124,7 @@ mod tests {
 
             x_grad
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.into_data(), 3);
+                .assert_approx_eq(&x_grad_actual.into_data(), 4);
         }
     }
 }

@@ -55,7 +55,7 @@ mod tests {
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, 126)),
         );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.powf_scalar(2.0);
         let expected = TensorData::from([[0., 1., 4.], [9., 16., 25.]]);
@@ -75,7 +75,7 @@ mod tests {
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, 126)),
         );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.powf_scalar(3.0);
         let expected = TensorData::from([[0.0, -1.0, -8.0], [-27.0, -64.0, -64.0]]);

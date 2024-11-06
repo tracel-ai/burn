@@ -11,7 +11,7 @@ mod tests {
             [true, false, true],
             [true, true, false],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([3, 3], 0, &device);
+        let tensor = TestTensorBool::<2>::diag_mask([3, 3], 0, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -20,7 +20,7 @@ mod tests {
         let device = Default::default();
         let data_expected =
             TensorData::from([[true, false, true], [true, true, false], [true, true, true]]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([3, 3], 1, &device);
+        let tensor = TestTensorBool::<2>::diag_mask([3, 3], 1, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -32,7 +32,7 @@ mod tests {
             [true, false, false],
             [true, true, false],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::triu_mask([3, 3], 0, &device);
+        let tensor = TestTensorBool::<2>::triu_mask([3, 3], 0, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -44,7 +44,7 @@ mod tests {
             [true, true, false],
             [true, true, true],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::triu_mask([3, 3], 1, &device);
+        let tensor = TestTensorBool::<2>::triu_mask([3, 3], 1, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -57,7 +57,7 @@ mod tests {
             [false, false, true],
             [false, false, false],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::tril_mask([3, 3], 0, &device);
+        let tensor = TestTensorBool::<2>::tril_mask([3, 3], 0, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -70,7 +70,7 @@ mod tests {
             [false, true, true],
             [false, false, true],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::tril_mask([3, 3], -1, &device);
+        let tensor = TestTensorBool::<2>::tril_mask([3, 3], -1, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 
@@ -82,7 +82,7 @@ mod tests {
             [true, false, true, true],
             [true, true, false, true],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([3, 4], 0, &device);
+        let tensor = TestTensorBool::<2>::diag_mask([3, 4], 0, &device);
         tensor.into_data().assert_eq(&data_expected, true);
 
         let data_expected = TensorData::from([
@@ -91,7 +91,7 @@ mod tests {
             [true, true, false],
             [true, true, true],
         ]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::diag_mask([4, 3], 0, &device);
+        let tensor = TestTensorBool::<2>::diag_mask([4, 3], 0, &device);
         tensor.into_data().assert_eq(&data_expected, true);
     }
 }

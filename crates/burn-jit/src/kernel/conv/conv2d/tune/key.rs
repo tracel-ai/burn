@@ -1,3 +1,4 @@
+use burn_tensor::DType;
 use cubecl::AutotuneKey;
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +21,7 @@ pub struct Conv2dAutotuneKey {
     #[autotune(anchor)]
     pub batch_size: usize,
     pub has_bias: bool,
+    pub dtype: DType,
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
@@ -42,4 +44,5 @@ pub struct ConvTranspose2dAutotuneKey {
     #[autotune(anchor)]
     pub batch_size: usize,
     pub has_bias: bool,
+    pub dtype: DType,
 }

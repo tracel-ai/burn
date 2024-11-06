@@ -44,6 +44,7 @@ impl<RD: ReduceDimAlgorithm<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>
                 &input.shape,
                 &input.strides,
                 reduce_dim,
+                EI::dtype(),
             )),
             input,
             output,

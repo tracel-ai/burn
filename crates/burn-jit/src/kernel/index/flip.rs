@@ -5,6 +5,7 @@ use burn_tensor::ElementConversion;
 use cubecl::{
     cpa,
     ir::{Builtin, Elem, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
+    prelude::*,
     CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
     OutputInfo,
 };
@@ -29,12 +30,12 @@ impl FlipComputeShader {
         let output = self.output;
         let id = Variable::builtin(Builtin::AbsolutePos);
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_local = scope.create_local(Elem::UInt);
+        let offset_input = scope.zero(u32::as_elem());
+        let offset_local = scope.create_local(u32::as_elem());
 
-        let stride = scope.create_local(Elem::UInt);
-        let shape = scope.create_local(Elem::UInt);
-        let flip = scope.create_local(Elem::UInt);
+        let stride = scope.create_local(u32::as_elem());
+        let shape = scope.create_local(u32::as_elem());
+        let flip = scope.create_local(u32::as_elem());
         let flip_bool = scope.create_local(Elem::Bool);
 
         for i in 0..self.rank {
@@ -44,7 +45,7 @@ impl FlipComputeShader {
                 scope,
                 flip = cast(Variable::new(
                     VariableKind::GlobalScalar(i as u16),
-                    Item::new(Elem::UInt)
+                    Item::new(u32::as_elem())
                 ))
             );
             cpa!(scope, flip_bool = flip == 1u32);
@@ -89,7 +90,7 @@ impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
             visibility: Visibility::Read,
         };
         let flip_dims = InputInfo::Scalar {
-            elem: Elem::UInt,
+            elem: u32::as_elem(),
             size: self.rank,
         };
         let output = OutputInfo::Array { item };

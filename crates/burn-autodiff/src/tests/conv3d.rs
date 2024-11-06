@@ -512,15 +512,15 @@ mod tests {
             expected_grads
                 .bias
                 .to_data()
-                .assert_approx_eq(&bias_grad_actual.to_data(), 3);
+                .assert_approx_eq(&bias_grad_actual.to_data(), 5);
             expected_grads
                 .x
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.to_data(), 3);
+                .assert_approx_eq(&x_grad_actual.to_data(), 5);
             expected_grads
                 .weight
                 .to_data()
-                .assert_approx_eq(&weight_grad_actual.to_data(), 3);
+                .assert_approx_eq(&weight_grad_actual.to_data(), 5);
         }
     }
 }

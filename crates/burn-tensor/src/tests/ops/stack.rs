@@ -19,8 +19,8 @@ mod tests {
     #[test]
     fn should_support_stack_ops_int() {
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
+        let tensor_1 = TestTensorInt::<2>::from_data([[1, 2, 3]], &device);
+        let tensor_2 = TestTensorInt::<2>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[1, 2, 3]], [[4, 5, 6]]]);
@@ -31,8 +31,8 @@ mod tests {
     #[test]
     fn should_support_stack_ops_bool() {
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data([[false, true, true]], &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
+        let tensor_1 = TestTensorBool::<2>::from_data([[false, true, true]], &device);
+        let tensor_2 = TestTensorBool::<2>::from_data([[true, true, false]], &device);
 
         let output = Tensor::stack::<3>(vec![tensor_1, tensor_2], 0);
         let expected = TensorData::from([[[false, true, true]], [[true, true, false]]]);
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn should_generate_row_major_layout() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(1..25, &device).reshape([4, 6]);
+        let tensor = TestTensorInt::<1>::arange(1..25, &device).reshape([4, 6]);
         let zeros: Tensor<TestBackend, 2, Int> = Tensor::zeros([4, 6], &device);
         let intersperse =
             Tensor::stack::<3>([tensor.clone(), zeros.clone()].to_vec(), 2).reshape([4, 12]);

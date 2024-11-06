@@ -11,6 +11,7 @@ pub use burn_jit::{
 
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 pub use burn_jit::{FloatElement, IntElement};
+pub use cubecl::flex32;
 pub use cubecl::ir::CubeDim;
 pub use cubecl::wgpu::*;
 
@@ -95,7 +96,14 @@ pub type Wgpu<F = f32, I = i32, C = Compiler> = JitBackend<cubecl::wgpu::WgpuRun
 #[cfg(test)]
 mod tests {
     use burn_jit::JitBackend;
+    #[cfg(feature = "spirv")]
+    pub use half::f16;
     pub type TestRuntime = cubecl::wgpu::WgpuRuntime<super::Compiler>;
 
-    burn_jit::testgen_all!();
+    // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
+    // breaks a lot of tests from precision issues
+    #[cfg(feature = "spirv")]
+    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64]);
+    #[cfg(not(feature = "spirv"))]
+    burn_jit::testgen_all!([f32], [i32]);
 }

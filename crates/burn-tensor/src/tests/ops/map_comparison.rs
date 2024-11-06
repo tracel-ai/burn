@@ -133,8 +133,8 @@ mod tests {
         let data_1 = TensorData::from([[0.0, 1.0, 2.0], [f32::INFINITY, 4.0, f32::NEG_INFINITY]]);
         let data_2 = TensorData::from([[1.0, 1.0, 1.0], [f32::INFINITY, 3.0, f32::NEG_INFINITY]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
 
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
@@ -149,8 +149,8 @@ mod tests {
         let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, f32::INFINITY, 5.0]]);
         let data_2 = TensorData::from([[1.0, 1.0, 1.0], [f32::INFINITY, 3.0, f32::NEG_INFINITY]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
 
         let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
@@ -375,8 +375,8 @@ mod tests {
         let data_1 = TensorData::from([[false, true, true], [true, false, true]]);
         let data_2 = TensorData::from([[false, false, true], [false, true, true]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2, &device);
+        let tensor_1 = TestTensorBool::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorBool::<2>::from_data(data_2, &device);
 
         let data_actual_cloned = tensor_1.clone().equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.equal(tensor_2);
@@ -391,8 +391,8 @@ mod tests {
         let data_1 = TensorData::from([[false, true, true], [true, false, true]]);
         let data_2 = TensorData::from([[false, false, true], [false, true, true]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data(data_2, &device);
+        let tensor_1 = TestTensorBool::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorBool::<2>::from_data(data_2, &device);
 
         let data_actual_cloned = tensor_1.clone().not_equal(tensor_2.clone());
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn should_support_bool_not() {
         let data_1 = TensorData::from([[false, true, true], [true, true, false]]);
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data(data_1, &Default::default());
+        let tensor_1 = TestTensorBool::<2>::from_data(data_1, &Default::default());
 
         let data_actual_cloned = tensor_1.clone().bool_not();
         let data_actual_inplace = tensor_1.bool_not();
