@@ -5,46 +5,57 @@ description = "Backend router decorator over websocket."
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
-name = "burn-router-remote"
+name = "burn-remote"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-remote"
 documentation = "https://docs.rs/burn-router-remote"
 version.workspace = true
 
 [features]
-default = ["client", "server", "burn-wgpu?/default", "burn-cuda?/default", "burn-ndarray?/default"]
+default = ["burn-wgpu?/default", "burn-cuda?/default", "burn-ndarray?/default"]
+doc = []
+client = ["tokio-tungstenite"]
+server = ["axum", "tracing-core", "tracing-subscriber"]
+# Backend, only useful when server is activated.
 ndarray = ["burn-ndarray"]
 wgpu = ["burn-wgpu"]
+wgpu-spirv = ["wgpu", "burn-wgpu/spirv"]
 cuda = ["burn-cuda"]
-doc = []
-client = []
-server = []
+
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = true, features = ["repr"]}
 burn-common = { path = "../burn-common", version = "0.16.0", default-features = true}
 burn-router = { path = "../burn-router", version = "0.16.0", default-features = true}
 
+# Basic dependencies
 derive-new = {workspace = true }
 log = { workspace = true }
-tracing-subscriber = { workspace = true }
-tracing-core = { workspace = true }
 
+# Shared dependencies
 tokio = { version = "1.37", features = ["full"] }
-tokio-tungstenite = { version = "0.24" }
-futures-util = { version = "0.3" }
-
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
+futures-util = { version = "0.3" }
 
-# Server stuff
-axum = { version = "0.7.5", features = ["macros", "ws"] }
+# Client dependencies
+tokio-tungstenite = { version = "0.24", optional = true }
 
-# For bin/server.rs
+# Server dependencies
+axum = { version = "0.7.5", features = ["macros", "ws"], optional = true }
+tracing-core = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+
+# bin/server.rs dependencies
+cfg-if = { workspace = true }
 burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true }
+
+[dev-dependencies]
+# We activate the features client and server during dev.
+burn-remote = { path = ".", version = "0.16.0", features=["client", "server"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

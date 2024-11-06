@@ -629,7 +629,7 @@ dependencies = [
  "burn-derive",
  "burn-hip",
  "burn-ndarray",
- "burn-router-remote",
+ "burn-remote",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
@@ -818,36 +818,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-router"
-version = "0.16.0"
-dependencies = [
- "axum",
- "burn-autodiff",
- "burn-common",
- "burn-ndarray",
- "burn-tensor",
- "burn-wgpu",
- "hashbrown 0.15.0",
- "log",
- "reqwest 0.12.9",
- "serde",
- "serde_json",
- "spin",
- "tokio",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "burn-router-remote"
+name = "burn-remote"
 version = "0.16.0"
 dependencies = [
  "axum",
  "burn-common",
  "burn-cuda",
  "burn-ndarray",
+ "burn-remote",
  "burn-router",
  "burn-tensor",
  "burn-wgpu",
+ "cfg-if",
  "derive-new 0.7.0",
  "futures-util",
  "log",
@@ -858,6 +840,20 @@ dependencies = [
  "tokio-tungstenite",
  "tracing-core",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "burn-router"
+version = "0.16.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-common",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-wgpu",
+ "hashbrown 0.15.0",
+ "log",
+ "spin",
 ]
 
 [[package]]
@@ -6307,6 +6303,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.87",
+]
+
+[[package]]
+name = "server"
+version = "0.16.0"
+dependencies = [
+ "burn",
+ "cfg-if",
 ]
 
 [[package]]

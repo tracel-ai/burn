@@ -56,6 +56,7 @@ tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 wgpu-spirv = ["burn-core/wgpu-spirv"]
 remote = ["burn-core/remote"]
+server = ["burn-core/server"]
 
 # Network utils
 network = ["burn-core/network"]

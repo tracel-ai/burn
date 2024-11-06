@@ -8,9 +8,9 @@ pub use ndarray::NdArray;
 pub use burn_autodiff as autodiff;
 
 #[cfg(feature = "remote")]
-pub use burn_router_remote as remote;
+pub use burn_remote as remote;
 #[cfg(feature = "remote")]
-pub use burn_router_remote::RemoteBackend;
+pub use burn_remote::RemoteBackend;
 
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;

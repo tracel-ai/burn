@@ -96,7 +96,7 @@ impl ClientWorker {
             stream_ops.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
             stream_load.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
 
-            // Websocket async worker.
+            // Websocket async worker loading callback from the server.
             let state_ws = state.clone();
             tokio::spawn(async move {
                 while let Some(msg) = stream_load.next().await {
@@ -120,7 +120,7 @@ impl ClientWorker {
                 }
             });
 
-            // Channel async worker.
+            // Channel async worker sending operations to the server.
             tokio::spawn(async move {
                 while let Some(req) = rec.recv().await {
                     let task = match req {

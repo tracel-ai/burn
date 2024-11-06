@@ -22,6 +22,7 @@ pub enum ProcessorTask {
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     Flush(ConnectionId, Callback<TaskResponse>),
+    Fence(Callback<()>),
     RegisterOrphan(TensorId),
     Close,
 }
@@ -46,22 +47,24 @@ where
                     }
                     ProcessorTask::Sync(id, callback) => {
                         runner.sync();
-                        let response = TaskResponse {
-                            content: TaskResponseContent::SyncBackend,
-                            id,
-                        };
-                        callback.send(response).unwrap();
+                        callback
+                            .send(TaskResponse {
+                                content: TaskResponseContent::SyncBackend,
+                                id,
+                            })
+                            .unwrap();
                     }
                     ProcessorTask::RegisterTensor(id, data) => {
                         runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
                         let tensor = burn_common::future::block_on(runner.read_tensor(tensor));
-                        let response = TaskResponse {
-                            content: TaskResponseContent::ReadTensor(tensor),
-                            id,
-                        };
-                        callback.send(response).unwrap();
+                        callback
+                            .send(TaskResponse {
+                                content: TaskResponseContent::ReadTensor(tensor),
+                                id,
+                            })
+                            .unwrap();
                     }
                     ProcessorTask::Close => {
                         let device = runner.device();
@@ -71,11 +74,15 @@ where
                         return;
                     }
                     ProcessorTask::Flush(id, sender) => {
-                        let response = TaskResponse {
-                            content: TaskResponseContent::FlushBackend,
-                            id,
-                        };
-                        sender.send(response).unwrap();
+                        sender
+                            .send(TaskResponse {
+                                content: TaskResponseContent::FlushBackend,
+                                id,
+                            })
+                            .unwrap();
+                    }
+                    ProcessorTask::Fence(sender) => {
+                        sender.send(()).unwrap();
                     }
                 }
             }

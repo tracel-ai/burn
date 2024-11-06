@@ -27,10 +27,6 @@ pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backen
 
 extern crate alloc;
 
-#[cfg(feature = "http-client")]
-/// Backend for remote execution.
-pub type HttpBackend = BackendRouter<crate::http::HttpChannel>;
-
 #[cfg(test)]
 mod tests {
     use alloc::format;

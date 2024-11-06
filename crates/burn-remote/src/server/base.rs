@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    net::SocketAddr,
-    sync::{mpsc::Receiver, Arc},
-};
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{
     extract::{
@@ -14,95 +10,22 @@ use axum::{
     Router,
 };
 
-use burn_router::Runner;
 use burn_tensor::{
     backend::{Backend, BackendBridge},
     repr::ReprBackend,
     Device,
 };
-use tokio::sync::Mutex;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
 
-use crate::{
-    server::stream::StreamManager,
-    shared::{Task, TaskContent, TaskResponse},
-};
+use crate::shared::{Task, TaskContent};
 
-use super::stream::Stream;
+use super::session::SessionManager;
 
 #[derive(Clone)]
 pub struct WsServer<B: ReprBackend> {
-    sessions: Arc<SessionManager<B>>,
-}
-
-pub struct SessionManager<B: ReprBackend> {
-    runner: Runner<B>,
-    sessions: tokio::sync::Mutex<HashMap<u64, StreamManager<B>>>,
-}
-
-impl<B: ReprBackend> SessionManager<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
-    pub fn new(device: Device<B>) -> Self {
-        Self {
-            runner: Runner::new(device),
-            sessions: Mutex::new(Default::default()),
-        }
-    }
-
-    pub async fn register_writer(&self, session_id: u64) -> Receiver<Receiver<TaskResponse>> {
-        log::info!("Register writer {session_id}");
-        let mut sessions = self.sessions.lock().await;
-        self.register_session(&mut sessions, session_id);
-
-        let session = sessions.get_mut(&session_id).unwrap();
-        session.init_writer()
-    }
-
-    fn register_session(&self, sessions: &mut HashMap<u64, StreamManager<B>>, id: u64) {
-        if !sessions.contains_key(&id) {
-            log::info!("Create session {id}");
-            let session = StreamManager::new(self.runner.clone());
-            sessions.insert(id, session);
-        }
-    }
-    pub async fn stream(&self, session_id: &mut Option<u64>, task: &Task) -> Option<Stream<B>> {
-        let mut sessions = self.sessions.lock().await;
-
-        let session_id = match session_id {
-            Some(id) => *id,
-            None => match task.content {
-                TaskContent::Init(id) => {
-                    log::info!("Init session receiver {id}");
-                    *session_id = Some(id);
-                    self.register_session(&mut sessions, id);
-                    return None;
-                }
-                _ => panic!("The first message should be init the session"),
-            },
-        };
-
-        match sessions.get_mut(&session_id) {
-            Some(session) => Some(session.select(task)),
-            None => {
-                panic!("To be initialized");
-            }
-        }
-    }
-
-    pub async fn close(&self, session_id: Option<u64>) {
-        if let Some(id) = session_id {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(&id) {
-                session.close();
-            }
-        }
-    }
+    state: Arc<SessionManager<B>>,
 }
 
 impl<B: ReprBackend> WsServer<B>
@@ -129,15 +52,15 @@ where
         let address = format!("0.0.0.0:{port}");
         log::info!("Start server {address} on device {device:?}");
 
-        let sessions = SessionManager::<B>::new(device);
+        let state = SessionManager::<B>::new(device);
         let state = Self {
-            sessions: Arc::new(sessions),
+            state: Arc::new(state),
         };
 
         // build our application with some routes
         let app = Router::new()
-            .route("/load", any(Self::ws_load_handler))
-            .route("/ops", any(Self::ws_ops_handler))
+            .route("/response", any(Self::handler_response))
+            .route("/request", any(Self::handler_request))
             .with_state(state);
 
         // run it with hyper
@@ -150,20 +73,18 @@ where
         .unwrap();
     }
 
-    async fn ws_load_handler(
+    async fn handler_response(
         ws: WebSocketUpgrade,
-        State(session): State<Self>,
+        State(state): State<Self>,
     ) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| session.handle_socket_load(socket))
-    }
-    async fn ws_ops_handler(
-        ws: WebSocketUpgrade,
-        State(session): State<Self>,
-    ) -> impl IntoResponse {
-        ws.on_upgrade(move |socket| session.handle_socket_ops(socket))
+        ws.on_upgrade(move |socket| state.handle_socket_response(socket))
     }
 
-    async fn handle_socket_load(self, mut socket: WebSocket) {
+    async fn handler_request(ws: WebSocketUpgrade, State(state): State<Self>) -> impl IntoResponse {
+        ws.on_upgrade(move |socket| state.handle_socket_request(socket))
+    }
+
+    async fn handle_socket_response(self, mut socket: WebSocket) {
         log::info!("On new load connection.");
 
         let packet = socket.recv().await;
@@ -188,7 +109,7 @@ where
                 _ => panic!(""),
             };
 
-            let receiver = self.sessions.register_writer(id).await;
+            let receiver = self.state.register_responder(id).await;
 
             log::info!("Load connection activated.");
             let handler = tokio::runtime::Handle::current();
@@ -208,7 +129,7 @@ where
         }
     }
 
-    async fn handle_socket_ops(self, mut socket: WebSocket) {
+    async fn handle_socket_request(self, mut socket: WebSocket) {
         log::info!("On new ops connection.");
         let mut session_id = None;
 
@@ -231,7 +152,7 @@ where
                     }
                 };
 
-                let stream = match self.sessions.stream(&mut session_id, &task).await {
+                let stream = match self.state.stream(&mut session_id, &task).await {
                     Some(val) => val,
                     None => {
                         log::info!("Ops session activated {session_id:?}");
@@ -267,7 +188,7 @@ where
         }
 
         log::info!("Closing connection");
-        self.sessions.close(session_id).await;
+        self.state.close(session_id).await;
     }
 }
 

@@ -13,7 +13,7 @@ version.workspace = true
 
 [features]
 default = ["std"]
-std = []
+std = ["burn-tensor/std", "burn-common/std"]
 doc = ["default"]
 
 [dependencies]
@@ -22,14 +22,6 @@ burn-common = { path = "../burn-common", version = "0.16.0", default-features = 
 hashbrown = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
-
-tokio = { version = "1.37", features = ["full"], optional = true }
-axum = { version = "0.7.5", features = ["macros", "ws"], optional = true }
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "registry"], optional = true }
-
-reqwest = { version = "0.12.4", features = ["json"], optional = true }
-serde = { workspace = true, features = ["derive"], optional = true }
-serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", default-features = false, features = [
