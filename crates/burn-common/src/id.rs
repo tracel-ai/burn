@@ -77,7 +77,10 @@ impl StreamId {
     /// Get the current thread id.
     pub fn current() -> Self {
         Self {
+            #[cfg(feature = "std")]
             value: Self::from_current_thread(),
+            #[cfg(not(feature = "std"))]
+            value: 0,
         }
     }
 
@@ -101,14 +104,10 @@ impl StreamId {
             })
         })
     }
-    #[cfg(not(feature = "std"))]
-    fn id() -> u64 {
-        0
-    }
 }
 
 impl core::fmt::Display for StreamId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_fmt(format_args!("StreamId({:?})", self.value))
     }
 }

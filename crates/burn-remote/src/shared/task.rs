@@ -65,5 +65,4 @@ pub struct TaskResponse {
 pub enum TaskResponseContent {
     ReadTensor(TensorData),
     SyncBackend,
-    FlushBackend,
 }
