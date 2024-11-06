@@ -22,12 +22,13 @@ pub struct SessionId {
 
 impl Display for SessionId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "session<{}>", self.id)
+        writeln!(f, "SessionId({})", self.id)
     }
 }
 
 impl SessionId {
     /// Create a new [session id](SessionId).
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             id: IdGenerator::generate(),

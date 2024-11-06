@@ -18,7 +18,9 @@ impl RunnerClient for WsClient {
     type Device = WsDevice;
 
     fn register(&self, op: burn_tensor::repr::OperationDescription) {
-        let fut = self.sender.send(ComputeTask::RegisterOperation(op));
+        let fut = self
+            .sender
+            .send(ComputeTask::RegisterOperation(Box::new(op)));
         self.runtime.block_on(fut);
     }
 

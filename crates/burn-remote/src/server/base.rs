@@ -111,19 +111,14 @@ where
 
             let receiver = self.state.register_responder(id).await;
 
-            log::info!("Load connection activated.");
-            let handler = tokio::runtime::Handle::current();
+            log::info!("Response handler connection active");
 
-            // Without the thread we might deadlock with tokio.
-            std::thread::spawn(move || {
-                while let Ok(callback) = receiver.recv() {
-                    let response = callback.recv().unwrap();
-                    let bytes = rmp_serde::to_vec(&response).unwrap();
+            while let Ok(callback) = receiver.recv() {
+                let response = callback.recv().unwrap();
+                let bytes = rmp_serde::to_vec(&response).unwrap();
 
-                    handler
-                        .block_on(async { socket.send(ws::Message::Binary(bytes)).await.unwrap() });
-                }
-            });
+                socket.send(ws::Message::Binary(bytes)).await.unwrap();
+            }
         } else {
             panic!("");
         }
@@ -189,7 +184,7 @@ where
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 /// Start the server on the given port and [device](Device).
 pub async fn start<B: ReprBackend>(device: Device<B>, port: u16)
 where

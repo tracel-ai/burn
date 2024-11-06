@@ -109,6 +109,6 @@ impl StreamId {
 
 impl core::fmt::Display for StreamId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("ThreadId({:?})", self.value))
+        f.write_fmt(format_args!("StreamId({:?})", self.value))
     }
 }
