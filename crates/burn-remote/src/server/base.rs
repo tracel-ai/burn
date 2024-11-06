@@ -100,7 +100,7 @@ where
             let task = match rmp_serde::from_slice::<Task>(&bytes) {
                 Ok(val) => val,
                 Err(err) => {
-                    log::info!("Only bytes message in the json format are supported {err:?}");
+                    log::info!("Only bytes messages are supported {err:?}");
                     panic!("");
                 }
             };

@@ -114,7 +114,6 @@ impl WsDevice {
         } else {
             address += url;
         };
-        println!("{address}");
 
         Self {
             address: Arc::new(address),

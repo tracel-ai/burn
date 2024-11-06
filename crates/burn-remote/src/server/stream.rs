@@ -27,7 +27,7 @@ where
         ReprBackend<Handle = B::Handle>,
 {
     pub fn new(runner: Runner<B>, writer_sender: Sender<Receiver<TaskResponse>>) -> Self {
-        let sender = Processor::new(runner);
+        let sender = Processor::start(runner);
 
         Self {
             compute_sender: sender,

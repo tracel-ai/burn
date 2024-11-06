@@ -32,7 +32,7 @@ where
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    pub fn new(runner: Runner<B>) -> Sender<ProcessorTask> {
+    pub fn start(runner: Runner<B>) -> Sender<ProcessorTask> {
         let (sender, rec) = std::sync::mpsc::channel();
 
         std::thread::spawn(move || {
