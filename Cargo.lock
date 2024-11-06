@@ -813,13 +813,9 @@ version = "0.16.0"
 dependencies = [
  "axum",
  "burn-common",
- "burn-cuda",
- "burn-ndarray",
  "burn-remote",
  "burn-router",
  "burn-tensor",
- "burn-wgpu",
- "cfg-if",
  "derive-new 0.7.0",
  "futures-util",
  "log",

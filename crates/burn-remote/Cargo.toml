@@ -12,15 +12,10 @@ documentation = "https://docs.rs/burn-router-remote"
 version.workspace = true
 
 [features]
-default = ["burn-wgpu?/default", "burn-cuda?/default", "burn-ndarray?/default"]
+default = []
 doc = []
 client = ["tokio-tungstenite"]
 server = ["axum", "tracing-core", "tracing-subscriber"]
-# Backend, only useful when server is activated.
-ndarray = ["burn-ndarray"]
-wgpu = ["burn-wgpu"]
-wgpu-spirv = ["wgpu", "burn-wgpu/spirv"]
-cuda = ["burn-cuda"]
 
 
 [dependencies]
@@ -46,12 +41,6 @@ tokio-tungstenite = { version = "0.24", optional = true }
 axum = { version = "0.7.5", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-
-# bin/server.rs dependencies
-cfg-if = { workspace = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true }
 
 [dev-dependencies]
 # We activate the features client and server during dev.
