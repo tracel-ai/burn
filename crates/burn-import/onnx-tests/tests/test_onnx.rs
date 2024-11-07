@@ -86,6 +86,7 @@ include_models!(
     random_normal,
     random_normal_like,
     random_uniform,
+    random_uniform_like,
     range,
     recip,
     reduce_max,
@@ -2146,6 +2147,18 @@ mod tests {
         let model = random_uniform::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_uniform_like() {
+        let device = Default::default();
+        let model = random_uniform_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
         assert_eq!(expected_shape, output.shape());
     }
 

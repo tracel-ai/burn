@@ -77,6 +77,7 @@ fn main() {
         .input("tests/random_normal/random_normal.onnx")
         .input("tests/random_normal_like/random_normal_like.onnx")
         .input("tests/random_uniform/random_uniform.onnx")
+        .input("tests/random_uniform_like/random_uniform_like.onnx")
         .input("tests/range/range.onnx")
         .input("tests/recip/recip.onnx")
         .input("tests/reduce_max/reduce_max.onnx")

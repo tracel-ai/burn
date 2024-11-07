@@ -32,6 +32,7 @@ pub(crate) mod prelu;
 pub(crate) mod random_normal;
 pub(crate) mod random_normal_like;
 pub(crate) mod random_uniform;
+pub(crate) mod random_uniform_like;
 pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod resize;

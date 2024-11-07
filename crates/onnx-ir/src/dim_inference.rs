@@ -61,8 +61,9 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::PRelu => same_as_input_broadcast(node),
         NodeType::Pow => same_as_input_broadcast(node),
         NodeType::RandomNormal => random_update_output(node),
-        NodeType::RandomNormalLike => random_normal_like_update_output(node),
+        NodeType::RandomNormalLike => random_like_update_output(node),
         NodeType::RandomUniform => random_update_output(node),
+        NodeType::RandomUniformLike => random_like_update_output(node),
         NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
@@ -206,7 +207,8 @@ fn random_update_output(node: &mut Node) {
 }
 
 /// Reads & interprets an optional `dtype` attribute
-fn random_normal_like_update_output(node: &mut Node) {
+/// This includes the `RandomUniformLike` and `RandomNormalLike` operators
+fn random_like_update_output(node: &mut Node) {
     let dtype = node
         .attrs
         .get("dtype")
