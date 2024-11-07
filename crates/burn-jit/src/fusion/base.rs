@@ -209,7 +209,7 @@ impl<R: JitRuntime> Clone for JitFusionHandle<R> {
             handle: self.handle.clone(),
             device: self.device.clone(),
             strides: self.strides.clone(),
-            dtype: self.dtype.clone(),
+            dtype: self.dtype,
         }
     }
 }
