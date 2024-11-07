@@ -12,31 +12,28 @@ mod tests {
         let lhs = TestTensor::<1>::from_data(
             // [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]
             TensorData::quantized(
-                vec![-128i8, -85, -42, 42, 85, 127],
+                vec![-127i8, -85, -42, 42, 85, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.023529, 0)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.023622047244094488,
+                )),
             ),
             &device,
         );
         let rhs = TestTensor::<1>::from_data(
             // [2.0, 3.0, 1.0, 2.0, 1.0, 3.0]
             TensorData::quantized(
-                vec![42i8, 127, -43, 42, -43, 127],
+                vec![85i8, 127, 42, 85, 42, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.011749, -128)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.023622047244094488,
+                )),
             ),
             &device,
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            0.983006477355957,
-            0.9960784912109375,
-            0.010457515716552734,
-            0.9882352948188782,
-            0.0026143789291381836,
-            2.9882352352142334,
-        ]);
+        let expected = TensorData::from([1., 1., 0., 1., 0., 0.]);
         output
             .dequantize()
             .into_data()
@@ -86,13 +83,7 @@ mod tests {
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            1.0007842779159546,
-            2.001568555831909,
-            0.05992525815963745,
-            0.06563401222229004,
-            0.2960371971130371,
-        ]);
+        let expected = TensorData::from([1., 2., 0.0949, 0.0698, 0.2824]);
         output
             .dequantize()
             .into_data()
@@ -176,31 +167,28 @@ mod tests {
         let lhs = TestTensor::<1>::from_data(
             // [-1.4843, 1.135, -2.1563, 1.0862, 0.5034, 3.6587]
             TensorData::quantized(
-                vec![-98i8, 17, -128, 15, -11, 127],
+                vec![-52i8, 39, -75, 38, 17, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.022804, -33)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.028808661333219274,
+                )),
             ),
             &device,
         );
         let rhs = TestTensor::<1>::from_data(
             // [1.4843, 1.135, 2.1563, 1.0862, 0.5034, 3.6587]
             TensorData::quantized(
-                vec![-25i8, -49, 22, -52, -93, 127],
+                vec![52i8, 39, 75, 38, 17, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.014363, -128)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.028808661333219274,
+                )),
             ),
             &device,
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            1.4765695333480835,
-            0.005501270294189453,
-            2.142595052719116,
-            0.00298309326171875,
-            0.5016862750053406,
-            3.648627281188965,
-        ]);
+        let expected = TensorData::from([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
 
         output
             .dequantize()
@@ -251,12 +239,7 @@ mod tests {
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            -1.9837141036987305,
-            -0.9029989242553711,
-            -1.0223296880722046,
-            -0.49019575119018555,
-        ]);
+        let expected = TensorData::from([-2., -0.9, -1., -0.5]);
 
         output
             .dequantize()
@@ -327,16 +310,7 @@ mod tests {
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            8.960784912109375,
-            1.0,
-            8.454902648925781,
-            1.4941176176071167,
-            -1.0,
-            -8.960784912109375,
-            -1.5058823823928833,
-            -8.466667175292969,
-        ]);
+        let expected = TensorData::from([9., 1., 8.5, 1.5, -1., -9., -1.5, -8.5]);
 
         output
             .dequantize()
@@ -369,31 +343,28 @@ mod tests {
         let lhs = TestTensor::<1>::from_data(
             // [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]
             TensorData::quantized(
-                vec![-128i8, -85, -42, 42, 85, 127],
+                vec![-127i8, -85, -42, 42, 85, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.023529, 0)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.023622047244094488,
+                )),
             ),
             &device,
         );
         let rhs = TestTensor::<1>::from_data(
             // [2.0, 3.0, 1.0, 2.0, 1.0, 3.0]
             TensorData::quantized(
-                vec![42i8, 127, -43, 42, -43, 127],
+                vec![85i8, 127, 42, 85, 42, 127],
                 [6],
-                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.011749, -128)),
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    0.023622047244094488,
+                )),
             ),
             &device,
         );
 
         let output = lhs.remainder(rhs);
-        let expected = TensorData::from([
-            0.983006477355957,
-            0.9960784912109375,
-            0.010457515716552734,
-            0.9882352948188782,
-            0.0026143789291381836,
-            2.9882352352142334,
-        ]);
+        let expected = TensorData::from([1., 1., 0., 1., 0., 0.]);
 
         output
             .dequantize()
