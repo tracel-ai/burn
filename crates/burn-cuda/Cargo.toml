@@ -12,8 +12,8 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cuda"
 version.workspace = true
 
 [features]
+default = ["fusion", "autotune", "burn-jit/default", "cubecl/default"]
 autotune = ["burn-jit/autotune"]
-default = ["fusion", "burn-jit/default", "cubecl/default"]
 doc = ["burn-jit/doc"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
 std = ["burn-jit/std", "cubecl/std"]

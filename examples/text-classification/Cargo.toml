@@ -17,6 +17,7 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
+remote = ["burn/remote"]
 cuda-jit = ["burn/cuda-jit"]
 hip-jit = ["burn/hip-jit"]
 

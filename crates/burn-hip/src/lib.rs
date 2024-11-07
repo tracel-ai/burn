@@ -24,6 +24,7 @@ mod tests {
     use burn_jit::JitBackend;
 
     pub type TestRuntime = cubecl::hip::HipRuntime;
+    pub use half::{bf16, f16};
 
     burn_jit::testgen_all!();
 }

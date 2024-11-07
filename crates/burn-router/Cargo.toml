@@ -13,14 +13,15 @@ version.workspace = true
 
 [features]
 default = ["std"]
-std = []
+std = ["burn-tensor/std", "burn-common/std"]
 doc = ["default"]
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false, features = ["repr"]}
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = false}
 hashbrown = { workspace = true }
 spin = { workspace = true }
-
+log = { workspace = true }
 
 [dev-dependencies]
 burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", default-features = false, features = [
@@ -31,7 +32,7 @@ burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = 
 ] }
 
 burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
-burn-wgpu = { path = "../burn-wgpu", version = "0.16.0" }
+burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", default-features = false }
 
 
 [package.metadata.docs.rs]
