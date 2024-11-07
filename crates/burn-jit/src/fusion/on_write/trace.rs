@@ -285,6 +285,7 @@ impl FuseOnWriteTrace {
                     handle: client.empty(size),
                     device: device.clone(),
                     strides,
+                    dtype,
                 };
 
                 analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
