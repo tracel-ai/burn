@@ -8,6 +8,7 @@ use crate::{
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::quantization::QuantizationScheme;
 use burn_tensor::repr::{QuantizedKind, TensorHandle};
+use burn_tensor::DType;
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
@@ -187,6 +188,7 @@ pub struct JitFusionHandle<R: JitRuntime> {
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.
     pub device: R::Device,
+    pub(crate) dtype: DType,
     pub(crate) strides: Vec<usize>,
 }
 
@@ -207,6 +209,7 @@ impl<R: JitRuntime> Clone for JitFusionHandle<R> {
             handle: self.handle.clone(),
             device: self.device.clone(),
             strides: self.strides.clone(),
+            dtype: self.dtype.clone(),
         }
     }
 }
@@ -232,6 +235,7 @@ impl<R: JitRuntime> JitFusionHandle<R> {
             strides: &self.strides,
             shape,
             runtime: PhantomData,
+            elem_size: self.dtype.size(),
         }
     }
     /// Return the reference to a tensor argument.
@@ -239,7 +243,13 @@ impl<R: JitRuntime> JitFusionHandle<R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
 
         unsafe {
-            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
+            TensorArg::from_raw_parts_and_size(
+                handle.handle,
+                handle.strides,
+                handle.shape,
+                vectorisation,
+                self.dtype.size(),
+            )
         }
     }
 }
@@ -251,6 +261,7 @@ impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for JitFusionHandle<R> 
             handle: value.handle,
             device: value.device,
             strides: value.strides,
+            dtype: E::dtype(),
         }
     }
 }
