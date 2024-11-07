@@ -1,16 +1,6 @@
-use cubecl::{
-    cpa,
-    ir::{Builtin, Item, Scope, Variable, VariableKind},
-    prelude::*,
-    CubeCountSettings, Execution, InputInfo, OutputInfo,
-};
-use std::marker::PhantomData;
+use cubecl::prelude::*;
 
-use crate::{
-    kernel::{Kernel, SUBCUBE_DIM_APPROX},
-    tensor::JitTensor,
-    JitElement, JitRuntime, SEED,
-};
+use crate::{ops::numeric::empty_device, tensor::JitTensor, JitElement, JitRuntime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
@@ -18,93 +8,42 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: Prng<E>, R: JitRuntime, E: JitElement>(
+pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,
 ) -> JitTensor<R, E> {
     let client = R::client(device);
-    let kernel: PrngEagerKernel<P, R, E> = PrngEagerKernel::new();
-    let num_elems = shape.num_elements();
-    let buffer = client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new_contiguous(client.clone(), device.clone(), shape.clone(), buffer);
+    let output = empty_device(client.clone(), device.clone(), shape);
     let seeds = get_seeds();
+    let args = prng.args();
 
-    Execution::start(kernel, client)
-        .outputs(&[output.as_handle_ref()])
-        .with_scalars(&seeds)
-        .with_scalars(&prng.args())
-        .execute(CubeCountSettings::Custom(prng_cube_count(
-            num_elems,
-            SUBCUBE_DIM_APPROX,
-            N_VALUES_PER_THREAD,
-        )));
+    let cube_dim = CubeDim::default();
+    let cube_count = prng_cube_count(output.shape.num_elements(), cube_dim, N_VALUES_PER_THREAD);
+
+    prng_kernel::launch::<P, E, R>(
+        &client,
+        cube_count,
+        cube_dim,
+        output.as_tensor_arg(1),
+        ScalarArg::new(seeds[0]),
+        ScalarArg::new(seeds[1]),
+        ScalarArg::new(seeds[2]),
+        ScalarArg::new(seeds[3]),
+        args,
+        N_VALUES_PER_THREAD as u32,
+    );
 
     output
 }
 
-fn prng_cube_count(num_elems: usize, cube_dim: usize, n_values_per_thread: usize) -> CubeCount {
+fn prng_cube_count(num_elems: usize, cube_dim: CubeDim, n_values_per_thread: usize) -> CubeCount {
     let num_threads = f32::ceil(num_elems as f32 / n_values_per_thread as f32);
-    let num_elems_per_cube = cube_dim * cube_dim;
-    let num_invocations = f32::ceil(num_threads / num_elems_per_cube as f32);
+    let num_invocations = f32::ceil(num_threads / cube_dim.num_elems() as f32);
     let cubes_x = f32::ceil(f32::sqrt(num_invocations));
     let cubes_y = f32::ceil(num_invocations / cubes_x);
 
     CubeCount::Static(cubes_x as u32, cubes_y as u32, 1)
-}
-
-impl<P: Prng<E>, R: JitRuntime, E: JitElement> Kernel for PrngEagerKernel<P, R, E> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item = E::cube_elem().into();
-
-        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
-
-        let seed0 = Variable::new(VariableKind::GlobalScalar(0), Item::new(u32::as_elem()));
-        let seed1 = Variable::new(VariableKind::GlobalScalar(1), Item::new(u32::as_elem()));
-        let seed2 = Variable::new(VariableKind::GlobalScalar(2), Item::new(u32::as_elem()));
-        let seed3 = Variable::new(VariableKind::GlobalScalar(3), Item::new(u32::as_elem()));
-        let seeds = [seed0, seed1, seed2, seed3];
-
-        let mut args = Vec::<Variable>::new();
-        for i in 0..P::args_length() {
-            args.push(Variable::new(VariableKind::GlobalScalar(i as u16), item));
-        }
-
-        PrngShader::<P, E>::new(output, N_VALUES_PER_THREAD, seeds, args).expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let args = InputInfo::Scalar {
-            elem: E::cube_elem(),
-            size: P::args_length(),
-        };
-        let seeds = InputInfo::Scalar {
-            elem: u32::as_elem(),
-            size: 4,
-        };
-        let out = OutputInfo::Array { item };
-
-        let info = KernelExpansion {
-            inputs: vec![args, seeds],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
-    }
-
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>()
-    }
-}
-
-#[derive(new)]
-pub(crate) struct PrngEagerKernel<P: Prng<E>, R: JitRuntime, E: JitElement> {
-    _prng: PhantomData<P>,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
 }
 
 pub(crate) fn get_seeds() -> [u32; 4] {
@@ -122,164 +61,100 @@ pub(crate) fn get_seeds() -> [u32; 4] {
     seeds.try_into().unwrap()
 }
 
-pub(crate) trait Prng<E>: Send + Sync + 'static {
-    fn args(self) -> Vec<E>;
+pub(crate) trait PrngArgs<E: JitElement>: Send + Sync + 'static {
+    type Args: LaunchArg;
 
-    fn args_length() -> usize;
+    fn args<'a, R: Runtime>(self) -> <Self::Args as LaunchArg>::RuntimeArg<'a, R>;
+}
 
+#[cube]
+pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static + PrngArgs<E> {
     #[allow(clippy::too_many_arguments)]
     fn inner_loop(
-        scope: &mut Scope,
-        args: Vec<Variable>,
-        write_index_base: Variable,
-        n_invocations: Variable,
-        n_values_per_thread: usize,
-        state_0: Variable,
-        state_1: Variable,
-        state_2: Variable,
-        state_3: Variable,
-        output: Variable,
+        args: Self::Args,
+        write_index_base: u32,
+        n_invocations: u32,
+        #[comptime] n_values_per_thread: u32,
+        state_0: &mut u32,
+        state_1: &mut u32,
+        state_2: &mut u32,
+        state_3: &mut u32,
+        output: &mut Tensor<E>,
     );
 }
 
-#[derive(new)]
-pub(crate) struct PrngShader<P: Prng<E>, E: JitElement> {
-    output: Variable,
-    n_values_per_thread: usize,
-    seeds: [Variable; 4],
-    args: Vec<Variable>,
-    _prng: PhantomData<P>,
-    _elem: PhantomData<E>,
-}
-
-impl<P: Prng<E>, E: JitElement> PrngShader<P, E> {
-    pub(crate) fn expand(self, scope: &mut Scope) {
-        let output = self.output;
-        let [seed_0, seed_1, seed_2, seed_3] = self.seeds;
-        let n_values_per_thread: Variable = self.n_values_per_thread.into();
-        let args = self.args;
-
-        let cube_dim_x = Variable::builtin(Builtin::CubeDimX);
-        let cube_dim_y = Variable::builtin(Builtin::CubeDimY);
-        let cube_pos_x = Variable::builtin(Builtin::CubePosX);
-        let cube_pos_y = Variable::builtin(Builtin::CubePosY);
-        let cube_count_y = Variable::builtin(Builtin::CubeCountY);
-        let local_index = Variable::builtin(Builtin::UnitPos);
-
-        let n_invocations = scope.create_local(u32::as_elem());
-        cpa!(scope, n_invocations = cube_dim_x);
-        cpa!(scope, n_invocations *= cube_dim_y);
-
-        let cube_offset = scope.create_local(u32::as_elem());
-        cpa!(scope, cube_offset = cube_pos_x * cube_count_y);
-        cpa!(scope, cube_offset += cube_pos_y);
-        cpa!(scope, cube_offset *= n_invocations);
-
-        let write_index_base = scope.create_local(u32::as_elem());
-        cpa!(scope, write_index_base = cube_offset);
-        cpa!(scope, write_index_base *= n_values_per_thread);
-        cpa!(scope, write_index_base += local_index);
-
-        // Set state with unique seeds
-        let thread_seed = scope.create_local(u32::as_elem());
-        cpa!(scope, thread_seed = cast(1000000007));
-        let thread_seed_index = scope.create_local(u32::as_elem());
-        cpa!(scope, thread_seed_index = cube_offset + local_index);
-        cpa!(scope, thread_seed *= thread_seed_index);
-
-        let state_0 = scope.create_local(u32::as_elem());
-        cpa!(scope, state_0 = thread_seed);
-        cpa!(scope, state_0 += seed_0);
-
-        let state_1 = scope.create_local(u32::as_elem());
-        cpa!(scope, state_1 = thread_seed);
-        cpa!(scope, state_1 += seed_1);
-
-        let state_2 = scope.create_local(u32::as_elem());
-        cpa!(scope, state_2 = thread_seed);
-        cpa!(scope, state_2 += seed_2);
-
-        let state_3 = scope.create_local(u32::as_elem());
-        cpa!(scope, state_3 = thread_seed);
-        cpa!(scope, state_3 += seed_3);
-
-        // Creation of n_values_per_thread values, specific to the distribution
-        P::inner_loop(
-            scope,
-            args,
-            write_index_base,
-            n_invocations,
-            self.n_values_per_thread,
-            state_0,
-            state_1,
-            state_2,
-            state_3,
-            output,
-        );
-    }
-}
-
-pub(crate) fn taus_step_0(scope: &mut Scope, z: Variable) {
-    taus_step(
-        scope,
-        z,
-        13u32.into(),
-        19u32.into(),
-        12u32.into(),
-        4294967294u32.into(),
-    );
-}
-
-pub(crate) fn taus_step_1(scope: &mut Scope, z: Variable) {
-    taus_step(
-        scope,
-        z,
-        2u32.into(),
-        25u32.into(),
-        4u32.into(),
-        4294967288u32.into(),
-    );
-}
-
-pub(crate) fn taus_step_2(scope: &mut Scope, z: Variable) {
-    taus_step(
-        scope,
-        z,
-        3u32.into(),
-        11u32.into(),
-        17u32.into(),
-        4294967280u32.into(),
-    );
-}
-
-fn taus_step(
-    scope: &mut Scope,
-    z: Variable,
-    s1: Variable,
-    s2: Variable,
-    s3: Variable,
-    m: Variable,
+#[cube(launch)]
+fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
+    output: &mut Tensor<E>,
+    seed_0: u32,
+    seed_1: u32,
+    seed_2: u32,
+    seed_3: u32,
+    args: P::Args,
+    #[comptime] n_values_per_thread: u32,
 ) {
-    let b = scope.create_local(u32::as_elem());
-    cpa!(scope, b = z << s1);
-    cpa!(scope, b = b ^ z);
-    cpa!(scope, b = b >> s2);
-    cpa!(scope, z = z & m);
-    cpa!(scope, z = z << s3);
-    cpa!(scope, z = z ^ b);
+    let cube_offset = CUBE_POS * CUBE_DIM;
+
+    let write_index_base = cube_offset * n_values_per_thread + UNIT_POS;
+
+    #[allow(arithmetic_overflow)]
+    let thread_seed = 1000000007u32 * ABSOLUTE_POS;
+
+    let mut state_0 = thread_seed + seed_0;
+    let mut state_1 = thread_seed + seed_1;
+    let mut state_2 = thread_seed + seed_2;
+    let mut state_3 = thread_seed + seed_3;
+
+    // Creation of n_values_per_thread values, specific to the distribution
+    P::inner_loop(
+        args,
+        write_index_base,
+        CUBE_DIM,
+        n_values_per_thread,
+        &mut state_0,
+        &mut state_1,
+        &mut state_2,
+        &mut state_3,
+        output,
+    );
 }
 
-pub(crate) fn lcg_step(scope: &mut Scope, z: Variable) {
-    let a: Variable = 1664525u32.into();
-    let b: Variable = 1013904223u32.into();
-    cpa!(scope, z *= a);
-    cpa!(scope, z += b);
+#[cube]
+pub(crate) fn taus_step_0(z: u32) -> u32 {
+    taus_step(z, 13u32, 19u32, 12u32, 4294967294u32)
 }
 
-pub(crate) fn cast_uint_to_float(scope: &mut Scope, int_random: Variable, float_random: Variable) {
-    let tmp: Variable = 2.328_306_4e-10f32.into();
-    cpa!(scope, float_random = cast(int_random));
-    cpa!(scope, float_random *= tmp);
+#[cube]
+pub(crate) fn taus_step_1(z: u32) -> u32 {
+    taus_step(z, 2u32, 25u32, 4u32, 4294967288u32)
+}
+
+#[cube]
+pub(crate) fn taus_step_2(z: u32) -> u32 {
+    taus_step(z, 3u32, 11u32, 17u32, 4294967280u32)
+}
+
+#[cube]
+fn taus_step(z: u32, s1: u32, s2: u32, s3: u32, m: u32) -> u32 {
+    let b = z << s1;
+    let b = b ^ z;
+    let b = b >> s2;
+    let z = (z & m) << s3;
+    z ^ b
+}
+
+#[cube]
+pub(crate) fn lcg_step(z: u32) -> u32 {
+    let a = 1664525u32;
+    let b = 1013904223u32;
+
+    z * a + b
+}
+
+#[cube]
+pub(crate) fn cast_uint_to_float(int_random: u32) -> f32 {
+    let tmp = 2.328_306_4e-10f32;
+    f32::cast_from(int_random) * tmp
 }
 
 #[allow(missing_docs)]

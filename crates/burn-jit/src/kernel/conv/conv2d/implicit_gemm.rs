@@ -455,7 +455,7 @@ fn execute_gemm<F: Float, FMat: Float>(
 
         // Run CMMA
         cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
-        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_n);
+        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_k);
 
         cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
     }

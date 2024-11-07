@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(random)]
 mod tests {
     use super::*;
-    use burn_tensor::{tests::Float, Distribution, Tensor};
+    use burn_tensor::{cast::ToElement, tests::Float, Distribution, Tensor};
 
     #[test]
     fn rand_default() {
@@ -16,7 +16,12 @@ mod tests {
         let tensor =
             TestTensor::<1>::random([20], Distribution::Uniform(4., 5.), &Default::default());
 
-        tensor.into_data().assert_within_range(4.0..5.0);
+        // the conversion can ceil the value if `FloatType` is less precise than f32
+        if FloatType::EPSILON.to_f32() > f32::EPSILON {
+            tensor.into_data().assert_within_range_inclusive(4.0..=5.0);
+        } else {
+            tensor.into_data().assert_within_range(4.0..5.0);
+        }
     }
 
     #[test]

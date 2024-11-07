@@ -1,7 +1,8 @@
-use super::base::ReduceDimNaive;
+use cubecl::prelude::*;
+
 use crate::kernel::reduce::SumDim;
-use cubecl::cube;
-use cubecl::prelude::{Cast, Numeric, Tensor, ABSOLUTE_POS};
+
+use super::base::ReduceDimNaive;
 
 #[cube]
 impl<EI: Numeric> ReduceDimNaive<EI> for SumDim {

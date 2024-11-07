@@ -1,6 +1,6 @@
+use cubecl::prelude::*;
+
 use crate::kernel::reduce::ProdDim;
-use cubecl::cube;
-use cubecl::prelude::{Cast, Numeric, Tensor, ABSOLUTE_POS};
 
 use super::base::ReduceDimNaive;
 
