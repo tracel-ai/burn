@@ -7,8 +7,10 @@ publish = false
 version.workspace = true
 
 [features]
+default = ["wgpu"]
 cuda-jit = ["burn/cuda-jit"]
 wgpu = ["burn/wgpu"]
+wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
 ndarray = ["burn/ndarray"]
 
 [dependencies]

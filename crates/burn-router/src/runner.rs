@@ -91,7 +91,7 @@ where
         RouterTensor::new(id, shape, dtype, client)
     }
 
-    /// Register a tensor and returns its description.
+    /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
         let mut ctx = self.context.lock();
         let dtype = data.dtype;
@@ -142,7 +142,7 @@ where
         }
     }
 
-    /// Register an empty tensor.
+    /// Register an empty tensor and returns its description.
     pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
