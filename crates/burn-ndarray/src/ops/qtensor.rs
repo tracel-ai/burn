@@ -3,9 +3,8 @@ use core::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        AffineQuantization, QTensorPrimitive, QParams,
-        QuantizationParametersPrimitive, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QTensorPrimitive, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
     DType, Shape, TensorData,
 };
@@ -96,8 +95,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         let shape = tensor.qtensor.shape();
         let strategy = tensor.strategy();
-        let data =
-            TensorData::quantized(tensor.qtensor.array.into_iter().collect(), shape, strategy);
+        let values = tensor.qtensor.array.into_iter().collect();
+        println!("Quantized values: {values:?}");
+        let data = TensorData::quantized(values, shape, strategy);
         NdArrayTensor::<E>::from_data(data.dequantize().unwrap())
     }
 

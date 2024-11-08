@@ -1,7 +1,7 @@
 use burn_tensor::{
     quantization::{
-        AffineQuantization, QTensorPrimitive, QParams, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
     },
     Element, Shape, TensorData,
 };
