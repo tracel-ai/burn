@@ -71,7 +71,7 @@ mod tests {
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, 126)),
         );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
         // Quantized [[4.0, 2.0, 4.0], [2.0, 4.0, 2.0]] (with range [2., 5.] to reduce quantization errors)
         let data = TensorData::quantized(
             vec![76i8, -26, 76, -26, 76, -26],
@@ -99,7 +99,7 @@ mod tests {
             [2, 3],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, 126)),
         );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
         // Quantized [[3.0, 3.0, 3.0], [3.0, 3.0, 3.0]]
         let data = TensorData::quantized(
             vec![127i8, 127, 127, 127, 127, 127],

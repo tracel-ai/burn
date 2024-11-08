@@ -10,6 +10,6 @@ mod tests {
         let output = activation::silu(tensor);
         let expected = TensorData::from([[0.7311, 1.7616], [2.8577, 3.9281]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 }

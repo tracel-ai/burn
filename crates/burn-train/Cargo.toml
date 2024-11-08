@@ -18,7 +18,7 @@ metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.15.0", features = [
+burn-core = { path = "../burn-core", version = "0.16.0", features = [
     "dataset",
     "std",
 ], default-features = false }
@@ -44,7 +44,7 @@ rstest.workspace = true
 
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

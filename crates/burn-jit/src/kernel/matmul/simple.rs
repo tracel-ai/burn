@@ -128,7 +128,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
             cube_count,
             CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
             lhs.as_tensor_arg(vectorization_factor),
-            TensorArg::from_raw_parts(
+            TensorArg::from_raw_parts::<E>(
                 &rhs.handle,
                 &rhs.strides,
                 &rhs_original_shape.dims, // We need the original shape.

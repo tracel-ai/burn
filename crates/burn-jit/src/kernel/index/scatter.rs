@@ -2,15 +2,15 @@ use crate::{
     element::JitElement,
     kernel::{self},
     tensor::JitTensor,
-    JitRuntime,
+    IntElement, JitRuntime,
 };
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
 #[cube(launch_unchecked)]
-fn scatter_kernel<T: Numeric>(
+fn scatter_kernel<T: Numeric, I: Int>(
     input: &mut Tensor<T>,
-    indices: &Tensor<i32>,
+    indices: &Tensor<I>,
     value: &Tensor<T>,
     dim: &u32,
 ) {
@@ -65,7 +65,7 @@ fn scatter_kernel<T: Numeric>(
     }
 }
 
-pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement>(
+pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
     dim: usize,
     tensor: JitTensor<R, E>,
     indices: JitTensor<R, I>,
@@ -105,7 +105,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement>(
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<E, R>(
+        scatter_kernel::launch_unchecked::<E, I, R>(
             &indices.client.clone(),
             cube_count,
             cube_dim,

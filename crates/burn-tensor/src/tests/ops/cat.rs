@@ -18,8 +18,8 @@ mod tests {
     #[test]
     fn should_support_cat_ops_int() {
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data([[4, 5, 6]], &device);
+        let tensor_1 = TestTensorInt::<2>::from_data([[1, 2, 3]], &device);
+        let tensor_2 = TestTensorInt::<2>::from_data([[4, 5, 6]], &device);
 
         let output = Tensor::cat(vec![tensor_1, tensor_2], 0);
 
@@ -31,8 +31,8 @@ mod tests {
     #[test]
     fn should_support_cat_ops_bool() {
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Bool>::from_data([[false, true, true]], &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Bool>::from_data([[true, true, false]], &device);
+        let tensor_1 = TestTensorBool::<2>::from_data([[false, true, true]], &device);
+        let tensor_2 = TestTensorBool::<2>::from_data([[true, true, false]], &device);
 
         let output = Tensor::cat(vec![tensor_1, tensor_2], 0);
 

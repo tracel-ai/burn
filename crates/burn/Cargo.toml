@@ -55,6 +55,8 @@ ndarray = ["burn-core/ndarray"]
 tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 wgpu-spirv = ["burn-core/wgpu-spirv"]
+remote = ["burn-core/remote"]
+server = ["burn-core/server"]
 
 # Network utils
 network = ["burn-core/network"]
@@ -70,5 +72,5 @@ record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.15.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.15.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.16.0", default-features = false }
+burn-train = { path = "../burn-train", version = "0.16.0", optional = true, default-features = false }

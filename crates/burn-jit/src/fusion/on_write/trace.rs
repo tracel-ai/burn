@@ -285,6 +285,7 @@ impl FuseOnWriteTrace {
                     handle: client.empty(size),
                     device: device.clone(),
                     strides,
+                    dtype,
                 };
 
                 analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
@@ -333,6 +334,18 @@ impl FuseOnWriteTrace {
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
         );
 
         for hi in handle_inputs.iter() {
@@ -341,8 +354,14 @@ impl FuseOnWriteTrace {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),
                 ElemwisePrecision::BF16 => inputs.t_bf16.push(arg),
+                ElemwisePrecision::I64 => inputs.t_i64.push(arg),
                 ElemwisePrecision::I32 => inputs.t_i32.push(arg),
+                ElemwisePrecision::I16 => inputs.t_i16.push(arg),
+                ElemwisePrecision::I8 => inputs.t_i8.push(arg),
+                ElemwisePrecision::U64 => inputs.t_u64.push(arg),
                 ElemwisePrecision::U32 => inputs.t_u32.push(arg),
+                ElemwisePrecision::U16 => inputs.t_u16.push(arg),
+                ElemwisePrecision::U8 => inputs.t_u8.push(arg),
                 _ => panic!("Unsupported input precision {:?}", hi.precision),
             };
         }
@@ -356,10 +375,30 @@ impl FuseOnWriteTrace {
                     ElemwisePrecision::F16 => {
                         inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i]))
                     }
-                    ElemwisePrecision::I32 => {
-                        inputs.s_i32.push(ScalarArg::new(context.scalar_ints[i]))
+                    ElemwisePrecision::BF16 => {
+                        inputs.s_bf16.push(ScalarArg::new(context.scalar_bf16[i]))
                     }
-                    _ => todo!(),
+                    ElemwisePrecision::I64 => {
+                        inputs.s_i64.push(ScalarArg::new(context.scalar_i64[i]))
+                    }
+                    ElemwisePrecision::I32 => {
+                        inputs.s_i32.push(ScalarArg::new(context.scalar_i32[i]))
+                    }
+                    ElemwisePrecision::I16 => {
+                        inputs.s_i16.push(ScalarArg::new(context.scalar_i16[i]))
+                    }
+                    ElemwisePrecision::I8 => inputs.s_i8.push(ScalarArg::new(context.scalar_i8[i])),
+                    ElemwisePrecision::U64 => {
+                        inputs.s_u64.push(ScalarArg::new(context.scalar_u64[i]))
+                    }
+                    ElemwisePrecision::U32 => {
+                        inputs.s_u32.push(ScalarArg::new(context.scalar_u32[i]))
+                    }
+                    ElemwisePrecision::U16 => {
+                        inputs.s_u16.push(ScalarArg::new(context.scalar_u16[i]))
+                    }
+                    ElemwisePrecision::U8 => inputs.s_u8.push(ScalarArg::new(context.scalar_u8[i])),
+                    ElemwisePrecision::Bool => todo!(),
                 }
             }
         }
@@ -383,6 +422,18 @@ impl FuseOnWriteTrace {
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
+            SequenceArg::new(),
         );
         for item in handle_outputs.iter() {
             match item {
@@ -392,8 +443,15 @@ impl FuseOnWriteTrace {
                 } => match precision {
                     ElemwisePrecision::F32 => outputs.t_f32.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::F16 => outputs.t_f16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::BF16 => outputs.t_bf16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::I64 => outputs.t_i64.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::I32 => outputs.t_i32.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::I16 => outputs.t_i16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::I8 => outputs.t_i8.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::U64 => outputs.t_u64.push(TensorArg::alias(*input_pos)),
                     ElemwisePrecision::U32 => outputs.t_u32.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::U16 => outputs.t_u16.push(TensorArg::alias(*input_pos)),
+                    ElemwisePrecision::U8 => outputs.t_u8.push(TensorArg::alias(*input_pos)),
                     _ => todo!(),
                 },
                 HandleOutput::Owned {
@@ -406,11 +464,17 @@ impl FuseOnWriteTrace {
                     match precision {
                         ElemwisePrecision::F32 => outputs.t_f32.push(arg),
                         ElemwisePrecision::F16 => outputs.t_f16.push(arg),
+                        ElemwisePrecision::BF16 => outputs.t_bf16.push(arg),
+                        ElemwisePrecision::I64 => outputs.t_i64.push(arg),
                         ElemwisePrecision::I32 => outputs.t_i32.push(arg),
+                        ElemwisePrecision::I16 => outputs.t_i16.push(arg),
+                        ElemwisePrecision::I8 => outputs.t_i8.push(arg),
+                        ElemwisePrecision::U64 => outputs.t_u64.push(arg),
                         ElemwisePrecision::U32 => outputs.t_u32.push(arg),
+                        ElemwisePrecision::U16 => outputs.t_u16.push(arg),
+                        ElemwisePrecision::U8 => outputs.t_u8.push(arg),
                         // Bools are encoded as u32.
                         ElemwisePrecision::Bool => outputs.t_u32.push(arg),
-                        _ => todo!(),
                     };
                 }
             }

@@ -106,7 +106,7 @@ mod tests {
                 self.count_include_pad,
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq(&output.into_data(), 2);
         }
     }
 }

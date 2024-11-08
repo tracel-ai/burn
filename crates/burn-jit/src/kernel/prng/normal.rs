@@ -1,7 +1,4 @@
-use cubecl::{
-    cpa,
-    ir::{Elem, FloatKind, Scope, Variable},
-};
+use cubecl::prelude::*;
 use std::f32::consts::PI;
 
 use burn_tensor::Shape;
@@ -12,106 +9,75 @@ use crate::{
     JitElement, JitRuntime,
 };
 
-use super::{random, Prng};
+use super::{random, PrngArgs, PrngRuntime};
 
-pub(crate) struct Normal<E> {
+#[derive(CubeLaunch)]
+pub(crate) struct Normal<E: Numeric> {
     mean: E,
     std: E,
 }
 
-impl<E: JitElement> Prng<E> for Normal<E> {
-    fn args(self) -> Vec<E> {
-        vec![self.mean, self.std]
-    }
-
+#[cube]
+impl<E: JitElement> PrngRuntime<E> for Normal<E> {
     fn inner_loop(
-        scope: &mut Scope,
-        args: Vec<Variable>,
-        write_index_base: Variable,
-        n_invocations: Variable,
-        n_values_per_thread: usize,
-        state_0: Variable,
-        state_1: Variable,
-        state_2: Variable,
-        state_3: Variable,
-        output: Variable,
+        args: Normal<E>,
+        write_index_base: u32,
+        n_invocations: u32,
+        #[comptime] n_values_per_thread: u32,
+        state_0: &mut u32,
+        state_1: &mut u32,
+        state_2: &mut u32,
+        state_3: &mut u32,
+        output: &mut Tensor<E>,
     ) {
-        let float_elem = Elem::Float(FloatKind::F32);
-        let item = output.item();
-        let mean = args[0];
-        let std = args[1];
-        let two_pi = scope.create_with_value(2. * PI, float_elem);
-        let t_neg = scope.create_with_value(-2.0, item);
-        let two: Variable = 2u32.into();
+        let mean = f32::cast_from(args.mean);
+        let std = f32::cast_from(args.std);
 
-        cpa!(
-            scope,
-            range(0u32, n_values_per_thread / 2).for_each(|i, scope| {
-                let int_random = scope.create_local(Elem::UInt);
+        let should_unroll = n_values_per_thread <= 16;
 
-                // First random uniform integer
-                taus_step_0(scope, state_0);
-                taus_step_1(scope, state_1);
-                taus_step_2(scope, state_2);
-                lcg_step(scope, state_3);
+        #[unroll(should_unroll)]
+        for i in 0..n_values_per_thread / 2 {
+            // First random uniform integer
+            *state_0 = taus_step_0(*state_0);
+            *state_1 = taus_step_1(*state_1);
+            *state_2 = taus_step_2(*state_2);
+            *state_3 = lcg_step(*state_3);
 
-                cpa!(scope, int_random = state_0 ^ state_1);
-                cpa!(scope, int_random = int_random ^ state_2);
-                cpa!(scope, int_random = int_random ^ state_3);
+            let int_random = *state_0 ^ *state_1 ^ *state_2 ^ *state_3;
+            let unit_0 = cast_uint_to_float(int_random);
 
-                let unit_0 = scope.create_local(float_elem);
-                cast_uint_to_float(scope, int_random, unit_0);
+            // Second random uniform integer
+            *state_0 = taus_step_0(*state_0);
+            *state_1 = taus_step_1(*state_1);
+            *state_2 = taus_step_2(*state_2);
+            *state_3 = lcg_step(*state_3);
 
-                // Second random uniform integer
-                taus_step_0(scope, state_0);
-                taus_step_1(scope, state_1);
-                taus_step_2(scope, state_2);
-                lcg_step(scope, state_3);
+            let int_random = *state_0 ^ *state_1 ^ *state_2 ^ *state_3;
+            let unit_1 = cast_uint_to_float(int_random);
 
-                cpa!(scope, int_random = state_0 ^ state_1);
-                cpa!(scope, int_random = int_random ^ state_2);
-                cpa!(scope, int_random = int_random ^ state_3);
+            // Box-Muller transform
+            let coeff = Log::log(unit_0) * -2.0;
+            let coeff = Sqrt::sqrt(coeff) * std;
+            let trigo_arg = 2.0 * PI * unit_1;
 
-                let unit_1 = scope.create_local(float_elem);
-                cast_uint_to_float(scope, int_random, unit_1);
+            let normal_0 = f32::cos(trigo_arg) * coeff + mean;
+            let normal_1 = f32::sin(trigo_arg) * coeff + mean;
 
-                // Box-Muller transform
-                let coeff = scope.create_local(item);
-                cpa!(scope, coeff = log(unit_0));
-                cpa!(scope, coeff *= t_neg);
-                cpa!(scope, coeff = sqrt(coeff));
-                cpa!(scope, coeff *= std);
+            let iteration_offset = 2 * i * n_invocations;
+            let write_index_0 = write_index_base + iteration_offset;
+            let write_index_1 = write_index_0 + n_invocations;
 
-                let trigo_arg = scope.create_local(item);
-                cpa!(scope, trigo_arg = two_pi * unit_1);
-
-                let normal_0 = scope.create_local(item);
-                let normal_1 = scope.create_local(item);
-                cpa!(scope, normal_0 = cos(trigo_arg));
-                cpa!(scope, normal_0 *= coeff);
-                cpa!(scope, normal_0 += mean);
-                cpa!(scope, normal_1 = sin(trigo_arg));
-                cpa!(scope, normal_1 *= coeff);
-                cpa!(scope, normal_1 += mean);
-
-                // Write to output
-                let write_index_0 = scope.create_local(Elem::UInt);
-                let write_index_1 = scope.create_local(Elem::UInt);
-                let iteration_offset = scope.create_local(Elem::UInt);
-                cpa!(scope, write_index_0 = write_index_base);
-                cpa!(scope, iteration_offset = two * i);
-                cpa!(scope, iteration_offset *= n_invocations);
-                cpa!(scope, write_index_0 += iteration_offset);
-                cpa!(scope, write_index_1 = write_index_0 + n_invocations);
-
-                cpa!(scope, output[write_index_0] = normal_0);
-                cpa!(scope, output[write_index_1] = normal_1);
-            })
-        );
+            output[write_index_0] = E::cast_from(normal_0);
+            output[write_index_1] = E::cast_from(normal_1);
+        }
     }
+}
 
-    fn args_length() -> usize {
-        2
+impl<E: JitElement> PrngArgs<E> for Normal<E> {
+    type Args = Self;
+
+    fn args<'a, R: Runtime>(self) -> NormalLaunch<'a, E, R> {
+        NormalLaunch::new(ScalarArg::new(self.mean), ScalarArg::new(self.std))
     }
 }
 

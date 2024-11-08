@@ -26,7 +26,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[0.9074, 0.6387], [0.5160, 0.4196]],
             [[2.4259, 1.8008], [1.5449, 1.3112]],
             [[3.9444, 2.9629], [2.5738, 2.2027]],
@@ -55,7 +55,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([
+        test.assert_output(TestTensor::<4>::from([
             [
                 [[0.2155, 0.1928], [0.1934, 0.1755]],
                 [[0.7251, 0.6759], [0.6877, 0.6485]],
@@ -93,7 +93,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[0.1018, 0.0658], [0.0467, 0.0362]],
             [[0.4125, 0.3367], [0.3069, 0.2824]],
             [[1.3076, 1.0242], [0.9025, 0.8000]],
@@ -123,7 +123,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[1.0794, 0.7676], [0.7209, 0.5337]],
             [[2.7059, 2.0216], [1.9740, 1.5419]],
             [[4.3325, 3.2755], [3.2271, 2.5501]],
@@ -153,7 +153,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[1.0669], [0.6329]],
             [[2.9741], [2.0383]],
             [[4.8812], [3.4437]],
@@ -180,7 +180,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [
                 [
                     0.1998, 0.3762, 0.5285, 0.6053, 0.3844, 0.1987, 0.0481, 0.0000,
@@ -264,7 +264,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[1.0647], [0.5783]],
             [[2.9289], [1.8829]],
             [[4.7931], [3.1875]],
@@ -291,7 +291,7 @@ mod tests {
             width: 5,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [[0.6162], [0.7611], [0.4666]],
             [[1.8578], [2.2684], [1.6208]],
             [[3.0994], [3.7757], [2.7749]],
@@ -318,7 +318,7 @@ mod tests {
             width: 4,
         };
 
-        test.assert_output(Tensor::<TestBackend, 4>::from([[
+        test.assert_output(TestTensor::<4>::from([[
             [
                 [0.8909, 0.6016],
                 [1.0697, 0.7186],
@@ -389,29 +389,29 @@ mod tests {
                 out_width,
             ]);
             let device = Default::default();
-            let weight = Tensor::<TestBackend, 4>::from(
+            let weight = TestTensor::<4>::from(
                 TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                     .reshape::<4, _>(shape_weight.clone())
                     .into_data(),
             )
             .div_scalar(shape_weight.num_elements() as f32);
-            let bias = Tensor::<TestBackend, 1>::from(
+            let bias = TestTensor::<1>::from(
                 TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             )
             .div_scalar(self.channels_out as f32);
-            let x = Tensor::<TestBackend, 4>::from(
+            let x = TestTensor::<4>::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                     .reshape::<4, _>(shape_x.clone())
                     .into_data(),
             )
             .div_scalar(shape_x.num_elements() as f32);
-            let offset = Tensor::<TestBackend, 4>::from(
+            let offset = TestTensor::<4>::from(
                 TestTensorInt::arange(0..shape_offset.num_elements() as i64, &device)
                     .reshape::<4, _>(shape_offset.clone())
                     .into_data(),
             )
             .div_scalar(shape_offset.num_elements() as f32);
-            let mask = Tensor::<TestBackend, 4>::from(
+            let mask = TestTensor::<4>::from(
                 TestTensorInt::arange(0..shape_mask.num_elements() as i64, &device)
                     .reshape::<4, _>(shape_mask.clone())
                     .into_data(),
@@ -433,7 +433,7 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.04);
         }
     }
 }

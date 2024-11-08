@@ -134,6 +134,7 @@ where
             strides: &self.strides,
             shape: &self.shape.dims,
             runtime: PhantomData,
+            elem_size: E::dtype().size(),
         }
     }
 
@@ -142,7 +143,12 @@ where
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
+            TensorArg::from_raw_parts::<E>(
+                handle.handle,
+                handle.strides,
+                handle.shape,
+                vectorisation,
+            )
         }
     }
 
