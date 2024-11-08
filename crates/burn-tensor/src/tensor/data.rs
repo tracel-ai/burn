@@ -467,7 +467,7 @@ impl TensorData {
                         CheckedCastError::PodCastError(_) => {
                             // Fallback to manual copy
                             let mut aligned_bytes = vec![0u8; core::mem::size_of::<T>()];
-                            aligned_bytes.copy_from_slice(&bytes);
+                            aligned_bytes.copy_from_slice(bytes);
                             Ok(*bytemuck::checked::from_bytes(&aligned_bytes))
                         }
                         _ => Err(err),
