@@ -7,6 +7,7 @@ throughout the training process. We currently offer a restricted range of metric
 | ---------------- | ------------------------------------------------------- |
 | Accuracy         | Calculate the accuracy in percentage                    |
 | TopKAccuracy     | Calculate the top-k accuracy in percentage              |
+| ROC AUC          | Calculate the area under curve of ROC in percentage     |
 | Loss             | Output the loss used for the backward pass              |
 | CPU Temperature  | Fetch the temperature of CPUs                           |
 | CPU Usage        | Fetch the CPU utilization                               |
