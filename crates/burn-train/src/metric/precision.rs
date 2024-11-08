@@ -17,9 +17,10 @@ pub struct PrecisionMetric<B: Backend> {
     #[new(default)]
     state: NumericMetricState,
     _b: PhantomData<B>,
+    #[new(default)]
     class_reduction: ClassReduction,
     threshold: Option<f64>,
-    top_k: Option<NonZeroUsize>,
+    top_k: Option<usize>,
 }
 
 impl<B: Backend> PrecisionMetric<B> {
@@ -40,6 +41,11 @@ impl<B: Backend> PrecisionMetric<B> {
         };
         avg_tensor.into_scalar().to_f64()
     }
+
+    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
+        self.class_reduction = class_reduction;
+        self
+    }
 }
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
@@ -53,7 +59,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
             predictions,
             targets,
             self.threshold,
-            self.top_k,
+            self.top_k.map(NonZeroUsize::new).flatten(),
             self.class_reduction,
         );
         let metric =
@@ -88,10 +94,8 @@ mod tests {
         ClassificationType::{self, *},
         THRESHOLD,
     };
-    use crate::TestBackend;
     use burn_core::tensor::TensorData;
     use rstest::rstest;
-    use std::num::NonZeroUsize;
 
     #[rstest]
     #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, 0.5)]
@@ -111,9 +115,8 @@ mod tests {
     ) {
         let input = dummy_classification_input(&classification_type);
         let mut metric = PrecisionMetric::new(
-            class_reduction,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k
         );
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
