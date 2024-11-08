@@ -11,20 +11,39 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-#[derive(new)]
+#[derive(Default)]
 /// The precision metric.
 pub struct PrecisionMetric<B: Backend> {
-    #[new(default)]
     state: NumericMetricState,
     _b: PhantomData<B>,
-    #[new(default)]
     class_reduction: ClassReduction,
     threshold: Option<f64>,
     top_k: Option<usize>,
 }
 
 impl<B: Backend> PrecisionMetric<B> {
-    ///convert to averaged metric, returns float
+    /// Initiate metric with threshold, used for Binary and Multilabel Classification.
+    pub fn new_with_threshold(threshold: f64) -> Self {
+        Self {
+            threshold: Some(threshold),
+            ..Default::default()
+        }
+    }
+
+    /// Initiate metric with top_k, used for Multiclass Classification.
+    pub fn new_with_top_k(top_k: usize) -> Self {
+        Self {
+            top_k: Some(top_k),
+            ..Default::default()
+        }
+    }
+
+    /// Set class reduction.
+    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
+        self.class_reduction = class_reduction;
+        self
+    }
+
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
         use ClassReduction::*;
         let avg_tensor = match self.class_reduction {
@@ -41,11 +60,6 @@ impl<B: Backend> PrecisionMetric<B> {
         };
         avg_tensor.into_scalar().to_f64()
     }
-
-    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
-        self.class_reduction = class_reduction;
-        self
-    }
 }
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
@@ -59,7 +73,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
             predictions,
             targets,
             self.threshold,
-            self.top_k.map(NonZeroUsize::new).flatten(),
+            self.top_k.and_then(NonZeroUsize::new),
             self.class_reduction,
         );
         let metric =
@@ -114,10 +128,12 @@ mod tests {
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&classification_type);
-        let mut metric = PrecisionMetric::new(
-            threshold,
-            top_k
-        );
+        let mut metric = match classification_type {
+            Binary => PrecisionMetric::new_with_threshold(threshold.unwrap()),
+            Multiclass => PrecisionMetric::new_with_top_k(top_k.unwrap()),
+            Multilabel => PrecisionMetric::new_with_threshold(threshold.unwrap()),
+        }
+        .with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)

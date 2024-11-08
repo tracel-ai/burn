@@ -1,7 +1,7 @@
+use crate::metric::classification::ClassificationInput;
 use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
-use crate::metric::classification::ClassificationInput;
 
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]
@@ -31,7 +31,10 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
 impl<B: Backend> Adaptor<ClassificationInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> ClassificationInput<B> {
         let [_, num_classes] = self.output.dims();
-        ClassificationInput::new(self.output.clone(), self.targets.clone().one_hot(num_classes).bool())
+        ClassificationInput::new(
+            self.output.clone(),
+            self.targets.clone().one_hot(num_classes).bool(),
+        )
     }
 }
 

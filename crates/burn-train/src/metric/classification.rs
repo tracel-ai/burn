@@ -16,8 +16,7 @@ impl<B: Backend> From<ClassificationInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bo
 }
 
 /// Class Averaging types for Classification metrics.
-#[derive(Copy, Clone)]
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub enum ClassReduction {
     ///Computes the statistics over all classes before averaging
     #[default]
