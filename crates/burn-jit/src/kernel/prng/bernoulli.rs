@@ -1,8 +1,5 @@
 use burn_tensor::Shape;
-use cubecl::{
-    cpa,
-    ir::{Elem, FloatKind, Scope, Variable},
-};
+use cubecl::prelude::*;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
@@ -10,60 +7,50 @@ use crate::{
     JitElement, JitRuntime,
 };
 
-use super::{random, Prng};
+use super::{random, PrngArgs, PrngRuntime};
 
-pub(crate) struct Bernoulli<E> {
+#[derive(CubeLaunch)]
+pub(crate) struct Bernoulli<E: Numeric> {
     probability: E,
 }
 
-impl<E: JitElement> Prng<E> for Bernoulli<E> {
-    fn args(self) -> Vec<E> {
-        vec![self.probability]
-    }
-
+#[cube]
+impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
     fn inner_loop(
-        scope: &mut Scope,
-        args: Vec<Variable>,
-        write_index_base: Variable,
-        n_invocations: Variable,
-        n_values_per_thread: usize,
-        state_0: Variable,
-        state_1: Variable,
-        state_2: Variable,
-        state_3: Variable,
-        output: Variable,
+        args: Bernoulli<E>,
+        write_index_base: u32,
+        n_invocations: u32,
+        #[comptime] n_values_per_thread: u32,
+        state_0: &mut u32,
+        state_1: &mut u32,
+        state_2: &mut u32,
+        state_3: &mut u32,
+        output: &mut Tensor<E>,
     ) {
-        let float_elem = Elem::Float(FloatKind::F32);
-        let prob = args[0];
-        cpa!(
-            scope,
-            range(0u32, n_values_per_thread).for_each(|i, scope| {
-                taus_step_0(scope, state_0);
-                taus_step_1(scope, state_1);
-                taus_step_2(scope, state_2);
-                lcg_step(scope, state_3);
+        let prob = f32::cast_from(args.probability);
+        let should_unroll = n_values_per_thread <= 8;
 
-                let int_random = scope.create_local(Elem::UInt);
-                cpa!(scope, int_random = state_0 ^ state_1);
-                cpa!(scope, int_random = int_random ^ state_2);
-                cpa!(scope, int_random = int_random ^ state_3);
+        #[unroll(should_unroll)]
+        for i in 0..n_values_per_thread {
+            *state_0 = taus_step_0(*state_0);
+            *state_1 = taus_step_1(*state_1);
+            *state_2 = taus_step_2(*state_2);
+            *state_3 = lcg_step(*state_3);
 
-                let float_random = scope.create_local(float_elem);
-                cast_uint_to_float(scope, int_random, float_random);
+            let int_random = *state_0 ^ *state_1 ^ *state_2 ^ *state_3;
+            let float_random = cast_uint_to_float(int_random);
+            let write_index = i * n_invocations + write_index_base;
 
-                let bernoulli = scope.create_local(Elem::Bool);
-                cpa!(scope, bernoulli = float_random < prob);
-
-                let write_index = scope.create_local(Elem::UInt);
-                cpa!(scope, write_index = i * n_invocations);
-                cpa!(scope, write_index += write_index_base);
-                cpa!(scope, output[write_index] = bernoulli);
-            })
-        );
+            output[write_index] = E::cast_from(float_random < prob);
+        }
     }
+}
 
-    fn args_length() -> usize {
-        1
+impl<E: JitElement> PrngArgs<E> for Bernoulli<E> {
+    type Args = Self;
+
+    fn args<'a, R: Runtime>(self) -> BernoulliLaunch<'a, E, R> {
+        BernoulliLaunch::new(ScalarArg::new(self.probability))
     }
 }
 

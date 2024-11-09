@@ -23,7 +23,7 @@ Some other dependencies have to be added
 ```toml
 [dependencies]
 embedded-alloc = "0.5.1" # Only if there is no default allocator for your chip
-burn = { version = "0.15", default-features = false, features = ["ndarray"] } # Backend must be ndarray
+burn = { version = "0.16", default-features = false, features = ["ndarray"] } # Backend must be ndarray
 
 [build-dependencies]
 burn-import = { version = "0.14" } # Used to auto generate the rust code to import the model

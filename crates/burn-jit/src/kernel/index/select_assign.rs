@@ -82,7 +82,7 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement>(
             cube_dim,
             tensor.as_tensor_arg(1),
             // Ignored shape + custom strides.
-            TensorArg::from_raw_parts(&indices.handle, &strides, &strides, 1),
+            TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
             value.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         );

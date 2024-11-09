@@ -51,7 +51,7 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
             cube_dim,
             tensor.as_tensor_arg(1),
             // Ignore shape and stride
-            TensorArg::from_raw_parts(&indices.handle, &dummy_array, &dummy_array, 1),
+            TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
             output.as_tensor_arg(1),
             ScalarArg::new(dim as u32),
         )

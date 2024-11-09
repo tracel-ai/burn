@@ -34,9 +34,58 @@ mod utils {
             E: FloatNdArrayElement,
         {
             let shape = self.shape();
-            let values = self.array.into_iter().collect();
 
-            TensorData::new(values, shape)
+            let vec = if self.is_contiguous() {
+                match self.array.try_into_owned_nocopy() {
+                    Ok(owned) => {
+                        let (vec, _offset) = owned.into_raw_vec_and_offset();
+                        vec
+                    }
+                    Err(array) => array.into_iter().collect(),
+                }
+            } else {
+                self.array.into_iter().collect()
+            };
+
+            TensorData::new(vec, shape)
+        }
+
+        pub(crate) fn is_contiguous(&self) -> bool {
+            let shape = self.array.shape();
+            let strides = self.array.strides();
+
+            if shape.is_empty() {
+                return true;
+            }
+
+            if shape.len() == 1 {
+                return strides[0] == 1;
+            }
+
+            let mut prev_stride = 1;
+            let mut current_num_elems_shape = 1;
+
+            for (i, (stride, shape)) in strides.iter().zip(shape).rev().enumerate() {
+                let stride = if *stride <= 0 {
+                    return false;
+                } else {
+                    *stride as usize
+                };
+                if i > 0 {
+                    if current_num_elems_shape != stride {
+                        return false;
+                    }
+
+                    if prev_stride >= stride {
+                        return false;
+                    }
+                }
+
+                current_num_elems_shape *= shape;
+                prev_stride = stride;
+            }
+
+            true
         }
     }
 }
@@ -104,8 +153,17 @@ where
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
     pub fn from_data(data: TensorData) -> NdArrayTensor<E> {
         let shape: Shape = data.shape.clone().into();
-        let to_array = |data: TensorData| Array::from_iter(data.iter()).into_shared();
-        let array = to_array(data);
+        let into_array = |data: TensorData| match data.into_vec::<E>() {
+            Ok(vec) => Array::from_vec(vec).into_shared(),
+            Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
+        };
+        let to_array = |data: TensorData| Array::from_iter(data.iter::<E>()).into_shared();
+
+        let array = if data.dtype == E::dtype() {
+            into_array(data)
+        } else {
+            to_array(data)
+        };
         let ndims = shape.num_dims();
 
         reshape!(

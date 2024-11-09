@@ -23,7 +23,7 @@ pub struct MatmulAutotuneOperationSet<R: JitRuntime, E: FloatElement> {
 impl<R: JitRuntime, E: FloatElement> MatmulAutotuneOperationSet<R, E> {
     fn new(lhs: JitTensor<R, E>, rhs: JitTensor<R, E>, out: JitTensor<R, E>) -> Self {
         Self {
-            key: JitAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape)),
+            key: JitAutotuneKey::Matmul(MatmulAutotuneKey::new(&lhs.shape, &rhs.shape, E::dtype())),
             lhs,
             rhs,
             out,

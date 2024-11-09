@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn should_support_transpose_ops_int() {
-        let tensor = Tensor::<TestBackend, 3, Int>::from_data(
+        let tensor = TestTensorInt::<3>::from_data(
             [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
             &Default::default(),
         );
@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn should_support_swap_dims_int() {
-        let tensor = Tensor::<TestBackend, 3, Int>::from_data(
+        let tensor = TestTensorInt::<3>::from_data(
             [[[0, 1, 2], [3, 4, 5]], [[6, 7, 8], [9, 10, 11]]],
             &Default::default(),
         );
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn should_support_transpose_bool() {
-        let tensor = Tensor::<TestBackend, 3, Bool>::from_data(
+        let tensor = TestTensorBool::<3>::from_data(
             [
                 [[false, true, false], [false, false, false]],
                 [[false, false, true], [false, false, true]],
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn should_support_swap_dims_bool() {
-        let tensor = Tensor::<TestBackend, 3, Bool>::from_data(
+        let tensor = TestTensorBool::<3>::from_data(
             [
                 [[false, true, false], [false, false, false]],
                 [[false, false, true], [false, false, true]],

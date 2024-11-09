@@ -11,7 +11,7 @@ mod tests {
     #[test]
     fn should_support_quantize_affine_int8() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+        let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let qparams = QuantizationParameters {
             scale: Tensor::from_floats([0.009_019_608], &device),
@@ -32,7 +32,7 @@ mod tests {
     #[test]
     fn should_support_quantize_symmetric_int8() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+        let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
         let scheme = QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8);
         let qparams = QuantizationParameters {
             scale: Tensor::from_floats([0.014_173_228], &device),
@@ -63,7 +63,7 @@ mod tests {
                 0.014_173_228,
             )),
         );
-        let x_q = Tensor::<TestBackend, 1>::from_data(data, &device);
+        let x_q = TestTensor::<1>::from_data(data, &device);
 
         let x = x_q.dequantize();
 
@@ -77,7 +77,7 @@ mod tests {
         let device = Default::default();
         // NOTE: we use fully representable values since different backend implementations could differ slightly
         // due to rounding discrepancies
-        let tensor = Tensor::<TestBackend, 1>::from_floats([5., 0., 4., -10.], &device);
+        let tensor = TestTensor::<1>::from_floats([5., 0., 4., -10.], &device);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
 
         let x_q = tensor.quantize_dynamic(&scheme);

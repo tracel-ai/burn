@@ -1,5 +1,5 @@
 use crate::tune::anchor;
-use burn_tensor::Shape;
+use burn_tensor::{DType, Shape};
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use std::{cmp::max, fmt::Display, hash::Hash};
@@ -13,19 +13,21 @@ pub struct MatmulAutotuneKey {
     anchored_k: usize,
     anchored_n: usize,
     anchored_batch: usize,
+    dtype: DType,
 }
 
 impl Display for MatmulAutotuneKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(
             format!(
-                "Matmul - Round:{:?} Broadcast:{:?} m:{:?} k:{:?} n:{:?} batch:{:?}",
+                "Matmul - Round:{:?} Broadcast:{:?} m:{:?} k:{:?} n:{:?} batch:{:?} dtype:{:?}",
                 self.round,
                 self.broadcast,
                 self.anchored_m,
                 self.anchored_k,
                 self.anchored_n,
-                self.anchored_batch
+                self.anchored_batch,
+                self.dtype
             )
             .as_str(),
         )
@@ -34,7 +36,7 @@ impl Display for MatmulAutotuneKey {
 
 impl MatmulAutotuneKey {
     /// Create a matmul autotune key from the input shapes
-    pub fn new(lhs_shape: &Shape, rhs_shape: &Shape) -> Self {
+    pub fn new(lhs_shape: &Shape, rhs_shape: &Shape, dtype: DType) -> Self {
         let ndims = lhs_shape.num_dims();
         let m = lhs_shape.dims[ndims - 2];
         let k = lhs_shape.dims[ndims - 1];
@@ -62,6 +64,7 @@ impl MatmulAutotuneKey {
             anchored_k: anchor(k, None),
             anchored_n: anchor(n, None),
             anchored_batch: anchor(batch_product, Some(256)),
+            dtype,
         }
     }
 }
@@ -74,7 +77,7 @@ mod tests {
     fn matmul_autotune_key_all_same_and_round() {
         let lhs_shape: Shape = [4, 512, 512].into();
         let rhs_shape: Shape = [4, 512, 512].into();
-        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
+        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape, DType::F32);
 
         assert!(key.round);
         assert!(!key.broadcast);
@@ -87,7 +90,7 @@ mod tests {
     fn matmul_autotune_key_all_different() {
         let lhs_shape: Shape = [2, 3, 511, 512].into();
         let rhs_shape: Shape = [3, 2, 512, 513].into();
-        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
+        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape, DType::F32);
 
         assert!(!key.round);
         assert!(key.broadcast);
@@ -101,7 +104,7 @@ mod tests {
     fn matmul_autotune_key_large_batch() {
         let lhs_shape: Shape = [128, 512, 511, 512].into();
         let rhs_shape: Shape = [200, 400, 512, 513].into();
-        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape);
+        let key = MatmulAutotuneKey::new(&lhs_shape, &rhs_shape, DType::F32);
 
         assert!(key.anchored_batch == 256);
     }

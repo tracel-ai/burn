@@ -2,20 +2,25 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science", "no-std", "embedded", "wasm"]
 description = "Tensor library with user-friendly APIs and automatic differentiation support"
+documentation = "https://docs.rs/burn-tensor"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "tensor", "pytorch", "ndarray"]
 license.workspace = true
 name = "burn-tensor"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor"
-documentation = "https://docs.rs/burn-tensor"
 version.workspace = true
 
 [features]
+cubecl = ["dep:cubecl"]
+cubecl-cuda = ["cubecl", "cubecl/cuda"]
+cubecl-hip = ["cubecl", "cubecl/hip"]
+cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
 default = ["std", "repr"]
 doc = ["default"]
 experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen"]
+export_tests = ["burn-tensor-testgen", "cubecl"]
+repr = []
 std = [
     "rand/std",
     "half/std",
@@ -24,24 +29,19 @@ std = [
     "burn-common/rayon",
     "colored",
 ]
-repr = []
-cubecl = ["dep:cubecl"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.15.0", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.15.0", optional = true }
-cubecl = { workspace = true, optional = true }
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = false }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.16.0", optional = true }
+cubecl = { workspace = true, optional = true, default-features = true }
 
+bytemuck = { workspace = true }
+colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true }
 rand_distr = { workspace = true }                    # use instead of statrs because it supports no_std
-bytemuck = { workspace = true }
-colored = { workspace = true, optional = true }
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = { workspace = true } # no_std compatible
@@ -49,6 +49,7 @@ hashbrown = { workspace = true } # no_std compatible
 # Serialization
 serde = { workspace = true }
 serde_bytes = { workspace = true }
+
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
