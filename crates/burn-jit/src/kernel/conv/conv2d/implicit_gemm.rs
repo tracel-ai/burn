@@ -262,7 +262,7 @@ struct Matrices<F: Float, FAcc: Float> {
 }
 
 #[allow(clippy::collapsible_else_if)]
-#[cube(launch_unchecked, launch)]
+#[cube(launch)]
 fn implicit_gemm_kernel<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     weight: &Tensor<Line<F>>,
