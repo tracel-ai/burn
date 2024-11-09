@@ -20,6 +20,43 @@ use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, Tensor
 use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
+/// Indexing into a tensor is done using the `slice` method.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use burn_tensor::backend::Backend;
+/// use burn_tensor::Tensor;
+/// 
+/// fn example<B: Backend>() {
+///   let device = Default::default();
+///   let tensor = Tensor::<B, 2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
+///   
+///   // Slice the tensor to get the second and third rows
+///   let first_row = tensor.slice([1..3]);
+///   // The resulting tensor will have dimensions (2, 3).
+///   println!("{:?}", first_row.shape());
+///   // Shape { dims: [2, 3] }
+/// 
+///   println!("{:?}", first_row);
+///   // Tensor { data: [
+///   //    [2.0, 1.9, 3.0],
+///   //    [6.0, 1.5, 7.0]
+///   // ], ... }
+/// 
+///   // Slice the tensor to get the first two rows and the first 2 columnst
+///   let second_row = tensor.slice([0..2, 0..2]);
+///   // The resulting tensor will have dimensions (2, 2).
+///   println!("{:?}", second_row.shape());
+///   // Shape { dims: [2, 2] }
+/// 
+///   println!("{:?}", second_row);
+///   // Tensor { data: [
+///   //    [3.0, 4.9],
+///   //    [2.0, 1.9]
+///   // ], ... }
+/// }
+/// ```
 #[derive(new, Clone, Debug)]
 pub struct Tensor<B, const D: usize, K = Float>
 where
