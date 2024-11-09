@@ -202,7 +202,8 @@ where
         is_contiguous(&self.shape.dims, &self.strides)
     }
 
-    /// Check if the current tensor is contiguous.
+    /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
+    /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
         self.shape.num_elements() * E::as_elem().size() == self.handle.size() as usize
     }
