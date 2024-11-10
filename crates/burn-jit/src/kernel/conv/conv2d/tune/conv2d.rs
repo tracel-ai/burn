@@ -9,7 +9,10 @@ use cubecl::{
 
 use crate::{
     kernel::{
-        conv::{batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col},
+        conv::{
+            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col,
+            conv2d_implicit_gemm,
+        },
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -39,7 +42,7 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 #[tune(
-    operations(conv2d_direct, conv2d_im2col),
+    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm),
     create_key = create_key,
     should_run = should_run
 )]

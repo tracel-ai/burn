@@ -431,11 +431,14 @@ fn execute_gemm<F: Float, FMat: Float>(
 
     let matrices = make_matrices::<FMat, F>(g_settings, has_bias);
     if has_bias {
-        let mut smem_bias = SharedMemory::new(cmma_m * cmma_n * warps_per_cube);
-        load_bias_tile(bias, &mut smem_bias, pos, g_settings);
+        let acc_tile_size = cmma_m * cmma_n;
+        let mut smem_bias = SharedMemory::new(acc_tile_size * warps_per_cube);
+        let bias_tile_start = pos.cube_linear_warp_idx * acc_tile_size;
+        let bias_tile = smem_bias.slice_mut(bias_tile_start, bias_tile_start + acc_tile_size);
+        load_bias_tile(bias, bias_tile, pos, g_settings);
         cmma::load_with_layout(
             &matrices.acc,
-            smem_bias.as_slice(),
+            bias_tile.as_slice(),
             cmma_n,
             MatrixLayout::RowMajor,
         );
@@ -623,7 +626,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
 #[cube]
 fn load_bias_tile<F: Float>(
     bias: &Tensor<Line<F>>,
-    tile: &mut SharedMemory<F>,
+    tile: &mut SliceMut<F>,
     pos: &Positions,
     #[comptime] gemm_settings: GemmSettings,
 ) {
@@ -638,7 +641,6 @@ fn load_bias_tile<F: Float>(
     let cmma_acc_tile_size = cmma_m * cmma_n;
     let elems_per_thread = cmma_acc_tile_size / warp_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
-    let bias_tile_start = pos.cube_linear_warp_idx * cmma_acc_tile_size;
 
     #[unroll]
     for n in range_stepped(0, elems_per_thread, vec) {
@@ -649,7 +651,7 @@ fn load_bias_tile<F: Float>(
 
         #[unroll]
         for i in 0..vec {
-            tile[bias_tile_start + n + i] = value[i];
+            tile[n + i] = value[i];
         }
     }
 }
