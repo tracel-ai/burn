@@ -96,7 +96,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let shape = tensor.qtensor.shape();
         let strategy = tensor.strategy();
         let values = tensor.qtensor.array.into_iter().collect();
-        println!("Quantized values: {values:?}");
         let data = TensorData::quantized(values, shape, strategy);
         NdArrayTensor::<E>::from_data(data.dequantize().unwrap())
     }
