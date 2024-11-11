@@ -35,9 +35,17 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, F>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R, F> {
+    let is_tf32 = F::as_elem() == Elem::Float(FloatKind::F32)
+        && input
+            .client
+            .properties()
+            .feature_enabled(Feature::Type(Elem::Float(FloatKind::TF32)));
+
+    let k_target = if is_tf32 { 8 } else { 16 };
+
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
-    let (pad_in_channels, pad_kh, pad_kw) = padded_k(in_channels, kernel_h, kernel_w);
+    let (pad_in_channels, pad_kh, pad_kw) = padded_k(in_channels, kernel_h, kernel_w, k_target);
     let padded_out_channels = out_channels.div_ceil(16) * 16;
 
     let out_h = calculate_conv_output_size(
@@ -87,10 +95,10 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let gemm_n = padded_out_channels as u32;
     let gemm_k = (pad_in_channels * pad_kh * pad_kw) as u32;
 
-    let slice_size = pad_kh * pad_kw * pad_in_channels;
-
     let (cmma_m, cmma_n, cmma_k) =
-        find_cmma_size::<R, f16, F>(&input.client, gemm_m, gemm_k, gemm_n).unwrap();
+        find_cmma_size::<R, F>(&input.client, gemm_m, gemm_k, gemm_n).unwrap();
+
+    let slice_size = pad_kh * pad_kw * pad_in_channels;
 
     let cube_dim_x = 128;
     let cube_dim_y = Ord::min(gemm_n.div_ceil(16), 2);
@@ -154,12 +162,13 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let weight_compat =
         F::as_elem() == Elem::Float(FloatKind::F16) && !settings.check_n && !settings.check_k;
 
-    let launch = match weight_compat {
-        true => implicit_gemm_kernel::launch::<F, f16, UncheckedWeightLoader, R>,
-        false => implicit_gemm_kernel::launch::<F, f16, CheckedWeightLoader, R>,
+    let launch = match (weight_compat, is_tf32) {
+        (true, false) => implicit_gemm_kernel::launch::<F, f16, UncheckedWeightLoader, R>,
+        (false, false) => implicit_gemm_kernel::launch::<F, f16, CheckedWeightLoader, R>,
+        (_, true) => implicit_gemm_kernel::launch::<F, tf32, CheckedWeightLoader, R>,
     };
 
-    let weight_vectorization = if weight_compat {
+    let weight_vectorization = if weight_compat && !is_tf32 {
         1
     } else {
         weight_vectorization
@@ -696,7 +705,18 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     out_w: usize,
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> bool {
-    let (in_channels, kernel_h, kernel_w) = padded_k(in_channels, kernel_size[0], kernel_size[1]);
+    let cmma_k = match (
+        E::as_elem(),
+        client
+            .properties()
+            .feature_enabled(Feature::Type(tf32::as_elem())),
+    ) {
+        (Elem::Float(FloatKind::F32), true) => 8,
+        _ => 16,
+    };
+
+    let (in_channels, kernel_h, kernel_w) =
+        padded_k(in_channels, kernel_size[0], kernel_size[1], cmma_k);
     let batch_size = padded_batch_size(batch_size, out_h, out_w);
     let out_channels = out_channels.div_ceil(16) * 16;
 
@@ -704,7 +724,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let size = find_cmma_size::<R, f16, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
+    let size = find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
     println!(
         "Size: {:?}, gemm_m: {gemm_m}, gemm_n: {gemm_n}, gemm_k: {gemm_k}",
@@ -724,8 +744,12 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     }
 }
 
-fn padded_k(in_channels: usize, kernel_h: usize, kernel_w: usize) -> (usize, usize, usize) {
-    let target = 16;
+fn padded_k(
+    in_channels: usize,
+    kernel_h: usize,
+    kernel_w: usize,
+    target: usize,
+) -> (usize, usize, usize) {
     if in_channels * kernel_h * kernel_w % target == 0 {
         return (in_channels, kernel_h, kernel_w);
     }
@@ -753,13 +777,13 @@ fn padded_batch_size(batch_size: usize, out_h: usize, out_w: usize) -> usize {
     batch_size.div_ceil(target) * target
 }
 
-fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
+fn find_cmma_size<R: JitRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
     gemm_m: u32,
     gemm_k: u32,
     gemm_n: u32,
 ) -> Option<(u32, u32, u32)> {
-    supported_cmma_sizes::<R, F, FAcc>(client)
+    supported_cmma_sizes::<R, F>(client)
         .into_iter()
         .find(|(m, k, n)| {
             gemm_m % *m as u32 == 0 && gemm_k % *k as u32 == 0 && gemm_n % *n as u32 == 0
@@ -767,19 +791,27 @@ fn find_cmma_size<R: JitRuntime, F: Float, FAcc: Float>(
         .map(|(m, k, n)| (m as u32, n as u32, k as u32))
 }
 
-fn supported_cmma_sizes<R: JitRuntime, F: Float, FAcc: Float>(
+fn supported_cmma_sizes<R: JitRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<(u8, u8, u8)> {
-    let requested_sizes = [(16, 16, 16), (32, 16, 8), (8, 16, 32)];
+    let (requested_sizes, matrix_elem) = match (
+        F::as_elem(),
+        client
+            .properties()
+            .feature_enabled(Feature::Type(tf32::as_elem())),
+    ) {
+        (Elem::Float(FloatKind::F32), true) => (vec![(16, 8, 16)], tf32::as_elem()),
+        _ => (vec![(16, 16, 16), (32, 16, 8), (8, 16, 32)], f16::as_elem()),
+    };
 
     requested_sizes
         .iter()
         .copied()
         .filter(|(m, k, n)| {
             client.properties().feature_enabled(Feature::Cmma {
-                a: F::as_elem(),
-                b: F::as_elem(),
-                c: FAcc::as_elem(),
+                a: matrix_elem,
+                b: matrix_elem,
+                c: F::as_elem(),
                 m: *m,
                 k: *k,
                 n: *n,
