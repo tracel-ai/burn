@@ -6,6 +6,7 @@ use core::{
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
+use alloc::vec;
 use alloc::vec::Vec;
 use bytemuck::{checked::CheckedCastError, AnyBitPattern};
 use half::{bf16, f16};
@@ -1308,7 +1309,6 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(
 #[allow(deprecated)]
 mod tests {
     use super::*;
-    use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
