@@ -16,11 +16,16 @@ pub fn reduce_dim_shared_kernel<
     #[comptime] smem_size: u32,
     #[comptime] elems_per_thread: u32,
     #[comptime] divisible_shape: bool,
+    #[comptime] check_out: bool,
 ) {
+    let reduce_group_id = CUBE_POS;
+
+    if check_out && reduce_group_id >= output.len() {
+        return;
+    }
+
     let stride_reduce_dim_input = input.stride(dim);
     let shape_reduce_dim_input = input.shape(dim);
-
-    let reduce_group_id = CUBE_POS;
 
     let mut shared_memory = RD::initialize_shared(smem_size, UNIT_POS);
 
@@ -100,6 +105,7 @@ pub fn reduce_dim_shared<
         f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
 
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
+    let check_out = (cube_count_x * cube_count_y) as usize != num_elems_output;
 
     unsafe {
         reduce_dim_shared_kernel::launch_unchecked::<RD, EI, EO, R>(
@@ -112,6 +118,7 @@ pub fn reduce_dim_shared<
             cube_dim.num_elems(),
             elems_per_thread,
             divisible_shape,
+            check_out,
         )
     };
 

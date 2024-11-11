@@ -1721,9 +1721,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_expand(input, self.desc.shape.into());
-                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_expand(input, self.desc.shape.into());
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
