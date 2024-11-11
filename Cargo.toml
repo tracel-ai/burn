@@ -118,8 +118,8 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 # The following packages disable the "std" feature for no_std compatibility
 #
-derive-new = { version = "0.7.0", default-features = false }
 cfg-if = "1.0.0"
+derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 half = { version = "2.4.1", features = [
@@ -154,8 +154,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.2", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3882ed25b47506d49562c501a179b7468e61702e" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "3882ed25b47506d49562c501a179b7468e61702e" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ed5e43e5081967dc865c70ec432863d5570cd655" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ed5e43e5081967dc865c70ec432863d5570cd655" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

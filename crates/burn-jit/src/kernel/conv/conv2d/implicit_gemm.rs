@@ -159,6 +159,12 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         false => implicit_gemm_kernel::launch::<F, f16, CheckedWeightLoader, R>,
     };
 
+    let weight_vectorization = if weight_compat {
+        1
+    } else {
+        weight_vectorization
+    };
+
     launch(
         &input.client,
         cube_count,
