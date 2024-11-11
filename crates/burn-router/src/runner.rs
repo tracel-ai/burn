@@ -442,6 +442,9 @@ where
                 NumericOperationDescription::DivScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_div_scalar)
                 }
+                NumericOperationDescription::Rem(desc) => {
+                    binary_float_ops!(handles, desc, B::float_remainder)
+                }
                 NumericOperationDescription::RemScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_remainder_scalar)
                 }
@@ -620,6 +623,9 @@ where
                 }
                 NumericOperationDescription::DivScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_div_scalar)
+                }
+                NumericOperationDescription::Rem(desc) => {
+                    binary_int_ops!(handles, desc, B::int_remainder)
                 }
                 NumericOperationDescription::RemScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_remainder_scalar)

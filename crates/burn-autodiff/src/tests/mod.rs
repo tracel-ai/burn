@@ -50,6 +50,7 @@ mod permute;
 mod pow;
 mod recip;
 mod relu;
+mod remainder;
 mod repeat_dim;
 mod reshape;
 mod round;
@@ -153,6 +154,7 @@ macro_rules! testgen_with_float_param {
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
         burn_autodiff::testgen_ad_div!();
+        burn_autodiff::testgen_ad_remainder!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_slice!();

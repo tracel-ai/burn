@@ -501,6 +501,33 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        binary_float_ops!(ModOps, B::float_remainder);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::FloatElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationDescription::NumericFloat(
+                FloatElem::<Self>::dtype(),
+                NumericOperationDescription::Rem(desc.clone()),
+            ),
+            ModOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         scalar_float_ops!(ModOps, B::float_remainder_scalar);
 

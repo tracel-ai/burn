@@ -105,6 +105,10 @@ where
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        numeric::remainder(lhs, rhs)
+    }
+
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::remainder_scalar(lhs, rhs)
     }

@@ -985,6 +985,33 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(ModOps, B::int_remainder);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::Rem(desc.clone()),
+            ),
+            ModOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         scalar_int_ops!(ModOps, B::int_remainder_scalar);
 

@@ -176,6 +176,10 @@ where
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::remainder(lhs, rhs)
+    }
+
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         numeric::remainder_scalar(lhs, rhs)
     }

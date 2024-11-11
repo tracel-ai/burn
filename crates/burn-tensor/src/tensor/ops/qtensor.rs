@@ -373,6 +373,25 @@ pub trait QTensorOps<B: Backend> {
         Self::quantize_dynamic(out_f, &scheme)
     }
 
+    /// Computes the remainder of division between two tensors element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise remainder when dividing `lhs` by `rhs`.
+    fn q_remainder(lhs: QuantizedTensor<B>, rhs: QuantizedTensor<B>) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |lhs, rhs| B::float_remainder(lhs, rhs),
+            lhs,
+            rhs
+        )
+    }
+
     /// Computes the modulus of a tensor given a scalar.
     ///
     /// # Arguments
