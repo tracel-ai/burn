@@ -21,35 +21,35 @@ use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
 /// Indexing into a tensor is done using the `slice` method.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use burn_tensor::backend::Backend;
 /// use burn_tensor::Tensor;
-/// 
+///
 /// fn example<B: Backend>() {
 ///   let device = Default::default();
 ///   let tensor = Tensor::<B, 2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
 ///   
 ///   // Slice the tensor to get the second and third rows
-///   let first_row = tensor.slice([1..3]);
+///   let first_row = tensor.clone().slice([1..3]);
 ///   // The resulting tensor will have dimensions (2, 3).
 ///   println!("{:?}", first_row.shape());
 ///   // Shape { dims: [2, 3] }
-/// 
+///
 ///   println!("{:?}", first_row);
 ///   // Tensor { data: [
 ///   //    [2.0, 1.9, 3.0],
 ///   //    [6.0, 1.5, 7.0]
 ///   // ], ... }
-/// 
+///
 ///   // Slice the tensor to get the first two rows and the first 2 columnst
 ///   let second_row = tensor.slice([0..2, 0..2]);
 ///   // The resulting tensor will have dimensions (2, 2).
 ///   println!("{:?}", second_row.shape());
 ///   // Shape { dims: [2, 2] }
-/// 
+///
 ///   println!("{:?}", second_row);
 ///   // Tensor { data: [
 ///   //    [3.0, 4.9],
@@ -93,36 +93,30 @@ where
     }
 
     /// Create an empty tensor of the given shape.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - shape: The shape of the tensor.
     /// - device: The device where the tensor will be created.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<B, 3>::empty([2, 3, 4], &device);
     ///    // The resulting tensor will have dimensions (2, 3, 4)
     ///    println!("{:?}", tensor.shape());
     ///    // Shape { dims: [2, 3] }
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 3>::empty([2, 3], &device);
-    ///   // The resulting tensor will have dimensions (2, 3), filled with zeros.
-    ///   println!("{:?}", tensor);
-    ///   // Tensor { data: [
-    ///   //    [0.0, 0.0, 0.0],
-    ///   //    [0.0, 0.0, 0.0]
-    ///   // ], ... }
-    /// 
+    ///    let tensor_two = Tensor::<B, 2>::empty([2, 3], &device);
+    ///    // The resulting tensor will have dimensions (2, 3)
+    ///    println!("{:?}", tensor_two);
+    ///    // Tensor { data: [
+    ///    //    [0.0, 0.0, 0.0],
+    ///    //    [0.0, 0.0, 0.0]
+    ///    // ], shape: Shape { dims: [2, 3] }, ... }
     /// }
     /// ```
     pub fn empty<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
@@ -134,12 +128,12 @@ where
     /// Returns the dimensions of the current tensor.
     ///
     /// Equivalent to `tensor.shape().dims`.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
@@ -154,12 +148,12 @@ where
     }
 
     /// Returns the shape of the current tensor.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///    let device = Default::default();
     ///    let tensor = Tensor::<B, 3>::ones([2, 3, 4], &device);
@@ -193,7 +187,7 @@ where
     /// - If the shape does not match the number of elements of the original shape.
     ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
@@ -205,16 +199,7 @@ where
     ///    let reshaped_tensor: Tensor::<B, 2> = tensor.reshape([2, -1]);
     ///    // The resulting tensor will have dimensions (2, 12).
     ///    println!("{:?}", reshaped_tensor.shape());
-    /// }
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 2>::ones([2, 4], &device);
-    ///   // Given a 3D tensor with dimensions (2, 4), reshape it to (2, 2, 2)
-    ///   let reshaped_tensor: Tensor::<B, 3> = tensor.reshape([2, 2, 2]);
-    ///   // The resulting tensor will have dimensions (2, 2, 2).
-    ///   println!("{:?}", reshaped_tensor.dims());
-    ///   // [2, 2, 2]
+    ///    // Shape { dims: [2, 12] }
     /// }
     /// ```
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
@@ -232,23 +217,23 @@ where
     /// # Returns
     ///
     /// The transposed tensor.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[ 1.0, -2.0, 3.0 ],[ 5.0, 9.0, 6.0 ]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), transpose it
     ///   let transposed_tensor = tensor.transpose();
     ///  // The resulting tensor will have dimensions (3, 2).
     ///  println!("{:?}", transposed_tensor.shape());
     ///  // Shape { dims: [3, 2] }
-    /// 
+    ///
     ///  println!("{:?}", transposed_tensor);
     ///  // Tensor { data: [
     ///  //    [1.0, 5.0],
@@ -272,23 +257,23 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///  let device = Default::default();
     ///  let tensor = Tensor::<B,2>::from_data([[0.34,3.4,2.0],[1.9,5.2,4.3]], &device);
     ///  // Given a 2D tensor with dimensions (2, 3), swap the dimensions 0 and 1
-    /// 
+    ///
     ///  let swapped = tensor.swap_dims(0,1);
     ///  // The resulting tensor will have dimensions (3, 2).
     ///  println!("{:?}", swapped.shape());
     ///  // Shape { dims: [3, 2] }
-    /// 
+    ///
     ///  println!("{:?}", swapped);
     ///  // Tensor { data: [
     ///  //    [0.34, 1.9],
@@ -314,20 +299,20 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions permuted.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[ 0.4, 5.9, 4.0 ], [ 3.9, 2.2, 9.3 ]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), permute the dimensions
     ///   let permuted_tensor = tensor.permute([1, 0]);
-    ///   // The resulting tensor will have dimensions (3, 2). 
+    ///   // The resulting tensor will have dimensions (3, 2).
     ///   println!("{:?}", permuted_tensor.shape());
     ///   // Shape { dims: [3, 2] }
     ///  
@@ -337,24 +322,6 @@ where
     ///   //    [5.9, 2.2],
     ///   //    [4.0, 9.3]
     ///   // ], ... }
-    /// }
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///  let device = Default::default();
-    ///  let tensor = Tensor::<B, 2>::from_data([[3.0,4.9,2.0]], &device);
-    ///  // Given a 2D tensor with dimensions (1, 3), permute the dimensions
-    ///  let permuted_tensor = tensor.permute([1, 0]);
-    ///  // The resulting tensor will have dimensions (3, 1).
-    /// 
-    ///  println!("{:?}", permuted_tensor.shape());
-    ///  // Shape { dims: [3, 1] }
-    /// 
-    ///  println!("{:?}", permuted_tensor);
-    ///  // Tensor { data: [
-    ///  //    [3.0],
-    ///  //    [4.9],
-    ///  //    [2.0]
-    ///  // ], ... }
     /// }
     /// ```
     pub fn permute(self, axes: [isize; D]) -> Tensor<B, D, K> {
@@ -395,22 +362,22 @@ where
     /// # Returns
     ///
     /// The tensor with the dimensions moved.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///  let device = Default::default();
     ///  let tensor = Tensor::<B, 3>::from_data([[3.0,4.9,2.0]], &device);
     ///  // Given a 2D tensor with dimensions (1, 3), move the dimensions 0 to 1
-    /// 
+    ///
     ///  // Src and Dst can be of types Vec<usize>, Vec<isize>, or usize or i32
     ///  let moved_tensor = tensor.movedim(vec![0],vec![1]);
     ///   // The resulting tensor will have dimensions (3, 1).
-    /// 
+    ///
     ///  println!("{:?}", moved_tensor.shape());
     ///  // Shape { dims: [3, 1] }
     ///  
@@ -420,25 +387,6 @@ where
     ///  //    [4.9],
     ///  //    [2.0]
     ///  // ], ... }
-    /// }
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 3>::from_data([[3.0,4.9,2.0],[3.9,2.0,1.5]], &device);
-    ///   // Given a 2D tensor with dimensions (2, 3), move the dimensions 0 to 1
-    /// 
-    ///   let moved_tensor = tensor.movedim(0,1);
-    ///   // The resulting tensor will have dimensions (3, 2).
-    /// 
-    ///   println!("{:?}", moved_tensor.shape());
-    ///   // Shape { dims: [3, 2] }
-    ///   
-    ///   println!("{:?}", moved_tensor);
-    ///   // Tensor { data: [
-    ///   //    [3.0, 3.9],
-    ///   //    [4.9, 2.0],
-    ///   //    [2.0, 1.5]
-    ///   // ], ... }
     /// }
     /// ```
     // This is a semantic sugar for `permute`. It is used widely enough, so we define a separate Op
@@ -484,48 +432,29 @@ where
     /// # Returns
     ///
     /// The tensor with the axes flipped.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 3>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0],[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
     ///   // Given a 2D tensor with dimensions (4, 3), flip the dimensions 0 and 1
     ///   // The resulting tensor will have dimensions (4, 3).
-    /// 
+    ///
     ///   let flipped_tensor = tensor.flip([0, 1]);
     ///   println!("{:?}", flipped_tensor.shape());
     ///   // Shape { dims: [4, 3] }
-    /// 
+    ///
     ///   println!("{:?}", flipped_tensor);
     ///   // Tensor { data: [
     ///   //    [6.0, 5.8, 1.4],
     ///   //    [8.0, 5.9, 4.0],
     ///   //    [3.0, 1.9, 2.0],
     ///   //    [2.0, 4.9, 3.0]
-    ///   // ], ... }
-    /// }
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 3>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0],[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
-    ///   // Given a 2D tensor with dimensions (4, 3), flip the dimensions 0
-    /// 
-    ///   let flipped_tensor = tensor.flip([0]);
-    ///   // The resulting tensor will have dimensions (4, 3).
-    ///   println!("{:?}", flipped_tensor.shape());
-    ///   // Shape { dims: [4, 3] }
-    /// 
-    ///   println!("{:?}", flipped_tensor);
-    ///   // Tensor { data: [
-    ///   //    [1.4, 5.8, 6.0],
-    ///   //    [4.0, 5.9, 8.0],
-    ///   //    [2.0, 1.9, 3.0],
-    ///   //    [3.0, 4.9, 2.0]
     ///   // ], ... }
     /// }
     /// ```
@@ -581,24 +510,6 @@ where
     ///     // The resulting tensor will have dimensions (2, 12).
     ///    println!("{:?}", flattened_tensor.shape());
     /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<MyBackend,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0],[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
-    /// 
-    ///   // Given a 2D tensor with dimensions (4, 3), flatten the dimensions between indices 0 and 1:
-    ///   let flattened_tensor: Tensor::<B, 2> = tensor.flatten(0, 1);
-    ///   // The resulting tensor will have dimensions (12).
-    ///   println!("{:?}", flattened_tensor.shape());
-    ///   // Shape { dims: [12] }
-    /// 
-    ///   println!("{:?}", flattened_tensor);
-    ///   // Tensor { data: [
-    ///   //    [3.0, 4.9, 2.0, 2.0, 1.9, 3.0, 4.0, 5.9, 8.0, 1.4, 5.8, 6.0]
-    ///   // ], ... }
-    /// }
-    ///
     /// ```
     pub fn flatten<const D2: usize>(self, start_dim: usize, end_dim: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::flatten::<D, D2>(start_dim, end_dim));
@@ -641,34 +552,22 @@ where
     /// use burn_tensor::{Tensor, Shape};
     ///
     /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 1, 4]), &device);
-    ///
-    ///     // Given a 3D tensor with dimensions (2, 1, 4), squeeze the dimension 1
-    ///     let squeezed_tensor: Tensor::<B, 2> = tensor.squeeze(1);
-    ///
-    ///     // Resulting tensor will have dimensions (2, 4)
-    ///     println!("{:?}", squeezed_tensor.shape());
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
     ///   let device = Default::default();
     ///   let data = [
     ///         [[3.0,4.9,2.0]],
     ///         [[2.0,1.9,3.0]],
     ///         [[4.0,5.9,8.0]]
     ///    ];
-    /// 
+    ///
     ///   let tensor = Tensor::<B,3>::from_data(data, &device);
     ///   // Given a 3D tensor with dimensions (3, 1, 3), squeeze the dimension 1
-    /// 
+    ///
     ///   let squeezed_tensor = tensor.squeeze::<2>(1);
     ///   // The resulting tensor will have dimensions (3, 3).
-    /// 
+    ///
     ///   println!("{:?}", squeezed_tensor.shape());
     ///   // Shape { dims: [3, 3] }
-    /// 
+    ///
     ///   println!("{:?}", squeezed_tensor);
     ///   // Tensor { data: [
     ///   //    [3.0, 4.9, 2.0],
@@ -724,26 +623,6 @@ where
     ///
     ///     // Resulting tensor will have dimensions (2, 4)
     ///     println!("{:?}", squeezed_tensor.shape());
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let data = [
-    ///      [[3.0,4.9,2.0]],
-    ///  ];
-    /// 
-    ///  let tensor = Tensor::<B,3>::from_data(data, &device);
-    ///  // Given a 3D tensor with dimensions (1, 1, 3), squeeze the dimensions 0 and 1
-    /// 
-    ///  let squeezed_tensor = tensor.squeeze_dims::<1>(&[0, 1]);
-    ///  // The resulting tensor will have dimensions (3).
-    ///  
-    ///  println!("{:?}", squeezed_tensor.shape());
-    ///  // Shape { dims: [3] }
-    ///  
-    ///  println!("{:?}", squeezed_tensor);
-    ///  // Tensor { data: [3.0, 4.9, 2.0], ... }
     /// }
     /// ```
     pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
@@ -1084,31 +963,31 @@ where
     }
 
     /// Repeat the tensor along the given dimension.
-    /// 
-    /// 
+    ///
+    ///
     /// # Arguments
     /// - `dim`: The dimension to repeat.
     /// - `times`: The number of times to repeat the tensor along the given dimension in the new tensor.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new tensor with the given dimension repeated `times` times.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
     ///   // Given a 2D tensor with dimensions (3, 2), repeat the tensor along the dimension 0, 2 times.
-    /// 
+    ///
     ///   let repeated_tensor = tensor.repeat_dim(0, 2);
     ///   println!("{:?}", repeated_tensor.shape());
     ///   // Shape { dims: [6, 2] }
-    /// 
+    ///
     ///   println!("{:?}", repeated_tensor);
     ///   // Tensor { data: [
     ///   //    [3.0, 4.9],
@@ -1127,28 +1006,28 @@ where
     /// Repeat the tensor along the given dimensions.
     /// # Arguments
     /// - `sizes`: Borrowed slice of the number of times to repeat each dimension.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A new tensor with the given dimensions repeated `times` times.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
-    /// 
+    ///
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
-    /// 
+    ///
     ///  // Given a 2D tensor with dimensions (3, 2), repeat the tensor along the dimensions 0 and 1, 2 times.
     ///  let repeated_tensor = tensor.repeat(&[2, 2]);
-    /// 
+    ///
     ///  println!("{:?}", repeated_tensor.shape());
     ///  // Shape { dims: [6, 4] }
-    /// 
+    ///
     ///  println!("{:?}", repeated_tensor);
     ///  // Tensor { data: [
     ///  //    [3.0, 4.9, 3.0, 4.9],
@@ -1175,34 +1054,18 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
-    ///   let other = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
-    /// 
-    ///   // Given two 2D tensors with dimensions (3, 2), apply element-wise equal comparison.
-    ///   let equal_tensor = tensor.equal(other);
-    ///   println!("{:?}", equal_tensor);
-    ///   // Tensor { data: [
-    ///   //    [true, true],
-    ///   //    [true, true],
-    ///   //    [true, true]
-    ///   // ], ... }
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[2.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
     ///   let other = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
-    /// 
+    ///
     ///   // Given two 2D tensors with dimensions (3, 2), apply element-wise equal comparison.
     ///   let equal_tensor = tensor.equal(other);
     ///   println!("{:?}", equal_tensor);
@@ -1223,22 +1086,22 @@ where
     /// # Panics
     ///
     /// If the two tensors don't have the same shape.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[2.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
     ///   let other = Tensor::<B, 2>::from_data([[3.0,4.9],[2.0,1.9],[4.0,5.9]], &device);
-    /// 
+    ///
     ///   // Given two 2D tensors with dimensions (3, 2), apply element-wise non-equality comparison.
     ///   let not_equal_tensor = tensor.not_equal(other);
     ///   println!("{:?}", not_equal_tensor);
-    /// 
+    ///
     ///   // Tensor { data: [  
     ///   //    [true, false],
     ///   //    [false, false],
@@ -1256,47 +1119,27 @@ where
     /// # Panics
     ///
     /// If all tensors don't have the same shape.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor_one = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0]], &device);
     ///   let tensor_two = Tensor::<B,2>::from_data([[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
-    /// 
+    ///
     ///   // Given two 2D tensors with dimensions (2, 3), concatenate them along the dimension 1.
     ///   let concatenated_tensor = Tensor::cat(vec![tensor_one, tensor_two], 1);
     ///   println!("{:?}", concatenated_tensor.shape());
     ///   // Shape { dims: [2, 6] }
-    /// 
+    ///
     ///   println!("{:?}", concatenated_tensor);
     ///   // Tensor { data: [
     ///   //    [3.0, 4.9, 2.0, 4.0, 5.9, 8.0],
     ///   //    [2.0, 1.9, 3.0, 1.4, 5.8, 6.0]
-    ///   // ], ... }
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor_one = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0]], &device);
-    ///   let tensor_two = Tensor::<B,2>::from_data([[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
-    /// 
-    ///   // Given two 2D tensors with dimensions (2, 3), concatenate them along the dimension 0.
-    ///   let concatenated_tensor = Tensor::cat(vec![tensor_one, tensor_two], 0);
-    ///   println!("{:?}", concatenated_tensor.shape());
-    ///   // Shape { dims: [4, 3] }
-    /// 
-    ///   println!("{:?}", concatenated_tensor);
-    ///   // Tensor { data: [
-    ///   //    [3.0, 4.9, 2.0],
-    ///   //    [2.0, 1.9, 3.0],
-    ///   //    [4.0, 5.9, 8.0],
-    ///   //    [1.4, 5.8, 6.0]
     ///   // ], ... }
     /// }
     /// ```
@@ -1315,24 +1158,24 @@ where
     ///
     /// If all tensors don't have the same shape.
     /// Given dimension is not with range of 0..D2
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor_one = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0]], &device);
     ///   let tensor_two = Tensor::<B,2>::from_data([[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
     ///   let tensor_three = Tensor::<B,2>::from_data([[4.0,5.9,8.0], [1.4,5.8,6.0]], &device);
-    /// 
-    ///  // Given two 2D tensors with dimensions (2, 3), concatenate them along a new dimension, 0.
-    ///  let concatenated_tensor = Tensor::stack(vec![tensor_one, tensor_two, tensor_three], 0);
+    ///
+    ///  // Given three 2D tensors with dimensions (2, 3), concatenate them along a new dimension, 0.
+    ///  let concatenated_tensor: Tensor<B,3> = Tensor::stack::<3>(vec![tensor_one, tensor_two, tensor_three], 0);
     ///  println!("{:?}", concatenated_tensor.shape());
     ///  // Shape { dims: [3, 2, 3] }
-    /// 
+    ///
     ///  println!("{:?}", concatenated_tensor);
     ///  // Tensor { data: [
     ///  //    [[3.0, 4.9, 2.0], [2.0, 1.9, 3.0]],
@@ -1356,12 +1199,12 @@ where
     /// # Returns
     ///
     /// A tensor iterator.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// 
+    /// use burn_tensor::Tensor;
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0]], &device);
@@ -1389,17 +1232,17 @@ where
     /// # Returns
     ///
     /// A new tensor with the given dimension narrowed to the given range.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (4, 3), narrow the tensor along the dimension 0, from index 1 to 3.
     ///   let narrowed_tensor = tensor.narrow(0, 1, 3);
     ///   println!("{:?}", narrowed_tensor.shape());
@@ -1410,25 +1253,6 @@ where
     ///   //    [2.0, 1.9, 3.0],
     ///   //    [6.0, 1.5, 7.0],
     ///   //    [3.0, 4.9, 9.0]
-    ///   // ], ... }
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
-    /// 
-    ///   // Given a 2D tensor with dimensions (4, 3), narrow the tensor along the dimension 1, from index 1 to 3.
-    ///   let narrowed_tensor = tensor.narrow(1, 1, 3);
-    ///   println!("{:?}", narrowed_tensor.shape());
-    ///   // Shape { dims: [4, 2] }
-    /// 
-    ///   println!("{:?}", narrowed_tensor);
-    ///   // Tensor { data: [
-    ///   //    [4.9, 2.0],
-    ///   //    [1.9, 3.0],
-    ///   //    [1.5, 7.0],
-    ///   //    [4.9, 9.0]
     ///   // ], ... }
     /// }
     /// ```
@@ -1450,21 +1274,21 @@ where
     ///
     /// # Returns
     /// A vector of tensors.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
     ///   // Given a 2D tensor with dimensions (4, 3), split the tensor along the dimension 1 into 2 chunks.
-    /// 
+    ///
     ///   let chunks = tensor.chunk(2, 1);
     ///   println!("{:?}", chunks);
-    ///   // [Tensor { data: 
+    ///   // [Tensor { data:
     ///   //   [ [3.0, 4.9],
     ///   //     [2.0, 1.9],
     ///   //     [6.0, 1.5],
@@ -1496,23 +1320,23 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` containing a single element, True if any element in the input tensor
     /// evaluates to True, False otherwise.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,false,true],[false,true,false]], &device);
     ///   let tensor_two = Tensor::<B,2, Bool>::from_data([[false,false,false],[false,false,false]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
     ///   let any_tensor = tensor.any();
     ///   println!("{:?}", any_tensor);
     ///   // Tensor { data: [true], ... }
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True.
     ///   let any_tensor_two = tensor_two.any();
     ///   println!("{:?}", any_tensor_two);
@@ -1535,19 +1359,19 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,false,false],[false,true,false]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True along the dimension 1.
-    ///   let any_tensor = tensor.any_dim(1);
+    ///   let any_tensor = tensor.clone().any_dim(1);
     ///   println!("{:?}", any_tensor.shape());
     ///   // Shape { dims: [2, 1] }
     ///   println!("{:?}", any_tensor);
@@ -1555,9 +1379,9 @@ where
     ///   //    [true], Across the columns, Row 0 has a True value at index 0
     ///   //    [true] Across the columns, Row 1 has a True value at index 1
     ///   // ], ... }
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if any element in the tensor evaluates to True along the dimension 0.
-    ///   let any_tensor_two = tensor.any_dim(0);
+    ///   let any_tensor_two = tensor.clone().any_dim(0);
     ///   println!("{:?}", any_tensor_two.shape());
     ///   // Shape { dims: [1, 3] }
     ///   println!("{:?}", any_tensor_two);
@@ -1579,23 +1403,23 @@ where
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,true,true],[true,true,true]], &device);
     ///   let tensor_two = Tensor::<B,2, Bool>::from_data([[true,false,true],[true,true,true]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if all elements in the tensor evaluate to True.
     ///   let all_tensor = tensor.all();
     ///   println!("{:?}", all_tensor);
     ///   // Tensor { data: [true], ... }
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if all elements in the tensor evaluate to True.
     ///   let all_tensor_two = tensor_two.all();
     ///   println!("{:?}", all_tensor_two);
@@ -1618,19 +1442,19 @@ where
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Bool};
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2, Bool>::from_data([[true,true,false],[true,true,true]], &device);
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if all elements in the tensor evaluate to True along the dimension 1.
-    ///   let all_tensor = tensor.all_dim(1);
+    ///   let all_tensor = tensor.clone().all_dim(1);
     ///   println!("{:?}", all_tensor.shape());
     ///   // Shape { dims: [2, 1] }
     ///   println!("{:?}", all_tensor);
@@ -1638,7 +1462,7 @@ where
     ///   //    [false], Across the columns, Row 0 has a False value at index 2
     ///   //    [true] Across the columns, Row 1 has all True values
     ///   // ], ... }
-    /// 
+    ///
     ///   // Given a 2D tensor with dimensions (2, 3), test if all elements in the tensor evaluate to True along the dimension 0.
     ///   let all_tensor_two = tensor.all_dim(0);
     ///   println!("{:?}", all_tensor_two.shape());
@@ -1658,21 +1482,21 @@ where
     ///
     /// If the tensor doesn't have one element.
     /// If the backend fails to read the tensor data synchronously.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The scalar value of the tensor.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 1>::from_data([3.0], &device);
-    /// 
+    ///
     ///   // Given a 1D tensor with dimensions (1), convert the tensor into a scalar.
     ///   let scalar = tensor.into_scalar();
     ///   println!("{:?}", scalar);
@@ -1719,44 +1543,25 @@ where
     /// # Returns
     ///
     /// A new tensor with the given shape.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
-    /// 
+    ///
     /// fn example<B: Backend>() {
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B,2>::from_data([[3.0,4.9,2.0],[2.0,1.9,3.0], [6.0,1.5,7.0], [3.0,4.9,9.0]], &device);
-    /// 
+    ///
     ///   // Given a 1D tensor with dimensions (1), broadcast the tensor to a new shape (2, 1).
     ///   let broadcasted_tensor = tensor.expand::<3, _>([1,4,3]);
     ///   println!("{:?}", broadcasted_tensor.shape());
     ///   // Shape { dims: [1, 4, 3] }
-    /// 
+    ///
     ///   println!("{:?}", broadcasted_tensor);
     ///   // Tensor { data: [
     ///   //    [[3.0, 4.9, 2.0], [2.0, 1.9, 3.0], [6.0, 1.5, 7.0], [3.0, 4.9, 9.0]]
-    ///   // ], ... }
-    /// }
-    /// 
-    /// 
-    /// fn example_two<B: Backend>() {
-    ///   let device = Default::default();
-    ///   let tensor = Tensor::<B,2>::from_data([[1.0, 2.0, 3.0]], &device);
-    /// 
-    ///   // Given a 2D tensor with dimensions (1,3), broadcast the tensor to a new shape (4, 3).
-    ///   let broadcasted_tensor = tensor.expand([4, 3]);
-    ///   println!("{:?}", broadcasted_tensor.shape());
-    ///   // Shape { dims: [4, 3] }
-    ///   
-    ///   println!("{:?}", broadcasted_tensor);
-    ///   // Tensor { data: [
-    ///   //    [1.0, 2.0, 3.0],
-    ///   //    [1.0, 2.0, 3.0],
-    ///   //    [1.0, 2.0, 3.0],
-    ///   //    [1.0, 2.0, 3.0]
     ///   // ], ... }
     /// }
     /// ```
