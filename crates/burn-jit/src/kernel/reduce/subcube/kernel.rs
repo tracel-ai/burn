@@ -17,7 +17,7 @@ pub fn reduce_dim_subcube_kernel<
     input: &Tensor<EIn>,
     output: &mut Tensor<EOut>,
     #[comptime] dim: u32,
-    #[comptime] smem_size: u32,
+    #[comptime] subcube_size: u32,
     #[comptime] elems_per_thread: u32,
     #[comptime] divisible_shape: bool,
     #[comptime] check_out: bool,
@@ -35,7 +35,7 @@ pub fn reduce_dim_subcube_kernel<
 
     let warp_id = UNIT_POS / SUBCUBE_DIM;
 
-    let mut shared_memory = RD::init_shared(smem_size);
+    let mut shared_memory = RD::init_shared(subcube_size);
 
     let mut index_offset = 0;
 
@@ -94,18 +94,22 @@ pub fn reduce_dim_subcube<
     input: JitTensor<R, EI>,
     dim: usize,
 ) -> JitTensor<R, EO> {
-    if !input.client.properties().feature_enabled(Feature::Subcube) {
+    let topology = input.client.properties().topology_properties();
+
+    if !input.client.properties().feature_enabled(Feature::Subcube)
+        || topology.subcube_size_min < 32
+    {
         return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
     }
 
-    let output = init_reduce_output::<R, EI, EO>(&input, dim);
+    let subcube_size = topology.subcube_size_min;
 
-    let warp_size = 32; // TODO: Add a method to client to query this
+    let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let num_elems_output = output.shape.num_elements();
     let cube_dim = CubeDim {
-        x: warp_size,
-        y: warp_size,
+        x: subcube_size,
+        y: subcube_size,
         z: 1,
     };
     let cube_count_x = f32::ceil(f32::sqrt(num_elems_output as f32));
@@ -119,7 +123,6 @@ pub fn reduce_dim_subcube<
 
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
     let check_out = (cube_count_x * cube_count_y) as usize != num_elems_output;
-    let smem_size = cube_dim.num_elems() / warp_size;
 
     unsafe {
         reduce_dim_subcube_kernel::launch_unchecked::<RD, EI, EO, R>(
@@ -129,7 +132,7 @@ pub fn reduce_dim_subcube<
             input.as_tensor_arg(1),
             output.as_tensor_arg(1),
             dim as u32,
-            smem_size,
+            subcube_size,
             elems_per_thread,
             divisible_shape,
             check_out,
