@@ -73,7 +73,7 @@ the issue or issues that your changes address.
 
 - [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 - [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-- [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates)
+- [fill-labs.dependi](https://marketplace.visualstudio.com/items?itemName=fill-labs.dependi)
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 
 2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
