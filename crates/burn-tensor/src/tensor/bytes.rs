@@ -1,7 +1,6 @@
 //! A version of [`bytemuck::BoxBytes`] that is cloneable and allows trailing uninitialized elements.
 
 use alloc::alloc::{Layout, LayoutError};
-use alloc::borrow::Cow;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
@@ -78,7 +77,7 @@ impl<'de> serde::Deserialize<'de> for Bytes {
             // align is a power of 2, hence a multiple has the lower bits unset. Mask them off to find the largest multiple
             let max_length = (isize::MAX as usize) & !(align - 1);
             E::custom(core::format_args!(
-                "length too large: {len}. Expected at most {max_length}"
+                "length too large: {len}. Expected at most {max_length} bytes"
             ))
         }
 
@@ -86,23 +85,15 @@ impl<'de> serde::Deserialize<'de> for Bytes {
         // We might not be able to predict the length of the data, hence it's far more convenient to let `Vec` handle the growth and re-allocations.
         // Further, on a lot of systems, the allocator naturally aligns data to some reasonably large alignment, where no further copy is then
         // necessary.
-        let data: Cow<'de, [u8]> = serde_bytes::deserialize(deserializer)?;
+        let data: Vec<u8> = serde_bytes::deserialize(deserializer)?;
         // When deserializing, we over-align the data. This saves us from having to encode the alignment (which is platform-dependent in any case).
         // If we had more context information here, we could enforce some (smaller) alignment per data type. But this information is only available
         // in `TensorData`. Moreover it depends on the Deserializer there whether the datatype or data comes first.
         let align = MAX_ALIGN;
-        let bytes = match data {
-            Cow::Borrowed(data) => {
-                Bytes::try_from_data(align, data).map_err(|_| too_large(data.len(), align))?
-            }
-            Cow::Owned(data) => {
-                let mut bytes = Self::from_elems(data);
-                bytes
-                    .try_enforce_runtime_align(align)
-                    .map_err(|_| too_large(bytes.len(), align))?;
-                bytes
-            }
-        };
+        let mut bytes = Self::from_elems(data);
+        bytes
+            .try_enforce_runtime_align(align)
+            .map_err(|_| too_large(bytes.len(), align))?;
         Ok(bytes)
     }
 }
