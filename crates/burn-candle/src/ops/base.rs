@@ -162,10 +162,7 @@ pub fn narrow(tensor: CandleTensor, dim: usize, start: usize, length: usize) -> 
 pub fn chunk(tensor: CandleTensor, chunks: usize, dim: usize) -> Vec<CandleTensor> {
     let tensors = tensor.tensor.chunk(chunks, dim);
     match tensors {
-        Ok(tensors) => tensors
-            .into_iter()
-            .map(|tensor| CandleTensor::new(tensor))
-            .collect(),
+        Ok(tensors) => tensors.into_iter().map(CandleTensor::new).collect(),
         Err(e) => panic!("error chunk from Candle"),
     }
 }
