@@ -736,6 +736,7 @@ dependencies = [
 name = "burn-tensor"
 version = "0.15.0"
 dependencies = [
+ "bincode",
  "burn-common",
  "burn-tensor-testgen",
  "bytemuck",

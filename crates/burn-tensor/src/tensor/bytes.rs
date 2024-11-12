@@ -218,7 +218,10 @@ impl Bytes {
         let Some(capacity) = self.layout.size().checked_div(size_of::<E>()) else {
             return Err(self);
         };
-        if self.layout.align() != core::mem::align_of::<E>() {
+        if capacity * size_of::<E>() != self.layout.size() {
+            return Err(self);
+        }
+        if self.layout.align() != align_of::<E>() {
             return Err(self);
         }
         let Ok(data) = bytemuck::checked::try_cast_slice_mut::<_, E>(&mut self) else {
@@ -268,6 +271,7 @@ unsafe impl Sync for Bytes {}
 #[cfg(test)]
 mod tests {
     use super::Bytes;
+    use alloc::{vec, vec::Vec};
 
     const _CONST_ASSERTS: fn() = || {
         fn test_send<T: Send>() {}
@@ -275,4 +279,49 @@ mod tests {
         test_send::<Bytes>();
         test_sync::<Bytes>();
     };
+
+    fn test_serialization_roundtrip(bytes: &Bytes) {
+        let config = bincode::config::standard();
+        let serialized =
+            bincode::serde::encode_to_vec(bytes, config).expect("serialization to succeed");
+        let (roundtripped, _) = bincode::serde::decode_from_slice(&serialized, config)
+            .expect("deserialization to succeed");
+        assert_eq!(
+            bytes, &roundtripped,
+            "roundtripping through serialization didn't lead to equal Bytes"
+        );
+    }
+
+    #[test]
+    fn test_serialization() {
+        test_serialization_roundtrip(&Bytes::from_elems::<i32>(vec![]));
+        test_serialization_roundtrip(&Bytes::from_elems(vec![0xdead, 0xbeaf]));
+    }
+
+    #[test]
+    fn test_into_vec() {
+        // We test an edge case here, where the capacity (but not actual size) makes it impossible to convert to a vec
+        let mut bytes = Vec::with_capacity(6);
+        let actual_cap = bytes.capacity();
+        bytes.extend_from_slice(&[0, 1, 2, 3]);
+        let mut bytes = Bytes::from_elems::<u8>(bytes);
+
+        bytes = bytes
+            .try_into_vec::<[u8; 0]>()
+            .expect_err("Conversion should not succeed for a zero-sized type");
+        if actual_cap % 4 != 0 {
+            // We most likely get actual_cap == 6, we can't force Vec to actually do that. Code coverage should complain if the actual test misses this
+            bytes = bytes.try_into_vec::<[u8; 4]>().err().unwrap_or_else(|| {
+                panic!("Conversion should not succeed due to capacity {actual_cap} not fitting a whole number of elements");
+            });
+        }
+        bytes = bytes
+            .try_into_vec::<u16>()
+            .expect_err("Conversion should not succeed due to mismatched alignment");
+        bytes = bytes.try_into_vec::<[u8; 3]>().expect_err(
+            "Conversion should not succeed due to size not fitting a whole number of elements",
+        );
+        let bytes = bytes.try_into_vec::<[u8; 2]>().expect("Conversion should succeed for bit-convertible types of equal alignment and compatible size");
+        assert_eq!(bytes, &[[0, 1], [2, 3]]);
+    }
 }
