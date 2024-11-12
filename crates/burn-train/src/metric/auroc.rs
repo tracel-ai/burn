@@ -7,34 +7,34 @@ use crate::metric::{Metric, Numeric};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
-/// The ROC AUC metric for binary classification.
+/// The Area Under the Receiver Operating Characteristic Curve (AUROC, also referred to as [ROC AUC](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)) for binary classification.
 #[derive(Default)]
-pub struct ROCAUCMetric<B: Backend> {
+pub struct AurocMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
 }
 
-/// The [ROC AUC metric](ROCAUCMetric) input type.
+/// The [AUROC metric](AurocMetric) input type.
 #[derive(new)]
-pub struct ROCAUCInput<B: Backend> {
+pub struct AurocInput<B: Backend> {
     outputs: Tensor<B, 2>,
     targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> ROCAUCMetric<B> {
+impl<B: Backend> AurocMetric<B> {
     /// Creates the metric.
     pub fn new() -> Self {
         Self::default()
     }
 
-    fn binary_roc_auc(&self, probabilities: &Tensor<B, 1>, targets: &Tensor<B, 1, Int>) -> f64 {
+    fn binary_auroc(&self, probabilities: &Tensor<B, 1>, targets: &Tensor<B, 1, Int>) -> f64 {
         let n = targets.dims()[0];
 
         let n_pos = targets.clone().sum().into_scalar().elem::<u64>() as usize;
 
         // Early return if we don't have both positive and negative samples
         if n_pos == 0 || n_pos == n {
-            return 0.0;
+            return f64::NAN;
         }
 
         let pos_mask = targets.clone().equal_elem(1).int().reshape([n, 1]);
@@ -61,11 +61,11 @@ impl<B: Backend> ROCAUCMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for ROCAUCMetric<B> {
-    const NAME: &'static str = "ROC-AUC";
-    type Input = ROCAUCInput<B>;
+impl<B: Backend> Metric for AurocMetric<B> {
+    const NAME: &'static str = "Area Under the Receiver Operating Characteristic Curve";
+    type Input = AurocInput<B>;
 
-    fn update(&mut self, input: &ROCAUCInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
+    fn update(&mut self, input: &AurocInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
         let [batch_size, num_classes] = input.outputs.dims();
 
         assert_eq!(
@@ -81,7 +81,7 @@ impl<B: Backend> Metric for ROCAUCMetric<B> {
                 .squeeze(1)
         };
 
-        let area_under_curve = self.binary_roc_auc(&probabilities, &input.targets);
+        let area_under_curve = self.binary_auroc(&probabilities, &input.targets);
 
         self.state.update(
             100.0 * area_under_curve,
@@ -95,7 +95,7 @@ impl<B: Backend> Metric for ROCAUCMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for ROCAUCMetric<B> {
+impl<B: Backend> Numeric for AurocMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -107,11 +107,11 @@ mod tests {
     use crate::TestBackend;
 
     #[test]
-    fn test_roc_auc() {
+    fn test_auroc() {
         let device = Default::default();
-        let mut metric = ROCAUCMetric::<TestBackend>::new();
+        let mut metric = AurocMetric::<TestBackend>::new();
 
-        let input = ROCAUCInput::new(
+        let input = AurocInput::new(
             Tensor::from_data(
                 [
                     [0.1, 0.9], // High confidence positive
@@ -129,11 +129,11 @@ mod tests {
     }
 
     #[test]
-    fn test_roc_auc_perfect_separation() {
+    fn test_auroc_perfect_separation() {
         let device = Default::default();
-        let mut metric = ROCAUCMetric::<TestBackend>::new();
+        let mut metric = AurocMetric::<TestBackend>::new();
 
-        let input = ROCAUCInput::new(
+        let input = AurocInput::new(
             Tensor::from_data([[0.0, 1.0], [1.0, 0.0], [1.0, 0.0], [0.0, 1.0]], &device),
             Tensor::from_data([1, 0, 0, 1], &device),
         );
@@ -143,11 +143,11 @@ mod tests {
     }
 
     #[test]
-    fn test_roc_auc_random() {
+    fn test_auroc_random() {
         let device = Default::default();
-        let mut metric = ROCAUCMetric::<TestBackend>::new();
+        let mut metric = AurocMetric::<TestBackend>::new();
 
-        let input = ROCAUCInput::new(
+        let input = AurocInput::new(
             Tensor::from_data(
                 [
                     [0.5, 0.5], // Random predictions
@@ -165,11 +165,11 @@ mod tests {
     }
 
     #[test]
-    fn test_roc_auc_all_one_class() {
+    fn test_auroc_all_one_class() {
         let device = Default::default();
-        let mut metric = ROCAUCMetric::<TestBackend>::new();
+        let mut metric = AurocMetric::<TestBackend>::new();
 
-        let input = ROCAUCInput::new(
+        let input = AurocInput::new(
             Tensor::from_data(
                 [
                     [0.1, 0.9], // All positives perdictions
@@ -183,16 +183,16 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert_eq!(metric.value(), 0.0);
+        assert!(metric.value().is_nan());
     }
 
     #[test]
     #[should_panic(expected = "Currently only binary classification is supported")]
-    fn test_roc_auc_multiclass_error() {
+    fn test_auroc_multiclass_error() {
         let device = Default::default();
-        let mut metric = ROCAUCMetric::<TestBackend>::new();
+        let mut metric = AurocMetric::<TestBackend>::new();
 
-        let input = ROCAUCInput::new(
+        let input = AurocInput::new(
             Tensor::from_data(
                 [
                     [0.1, 0.2, 0.7], // More than 2 classes not supported

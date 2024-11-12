@@ -2,6 +2,7 @@
 pub mod state;
 
 mod acc;
+mod auroc;
 mod base;
 #[cfg(feature = "metrics")]
 mod cpu_temp;
@@ -14,12 +15,12 @@ mod learning_rate;
 mod loss;
 #[cfg(feature = "metrics")]
 mod memory_use;
-mod roc_auc;
 
 #[cfg(feature = "metrics")]
 mod top_k_acc;
 
 pub use acc::*;
+pub use auroc::*;
 pub use base::*;
 #[cfg(feature = "metrics")]
 pub use cpu_temp::*;
@@ -32,7 +33,6 @@ pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
 pub use memory_use::*;
-pub use roc_auc::*;
 #[cfg(feature = "metrics")]
 pub use top_k_acc::*;
 
