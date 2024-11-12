@@ -34,7 +34,12 @@ impl<B: Backend> AurocMetric<B> {
 
         // Early return if we don't have both positive and negative samples
         if n_pos == 0 || n_pos == n {
-            return f64::NAN;
+            if n_pos == 0 {
+                log::warn!("Metric cannot be computed because all target values are negative.")
+            } else {
+                log::warn!("Metric cannot be computed because all target values are positive.")
+            }
+            return 0.0;
         }
 
         let pos_mask = targets.clone().equal_elem(1).int().reshape([n, 1]);
@@ -183,7 +188,7 @@ mod tests {
         );
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
-        assert!(metric.value().is_nan());
+        assert_eq!(metric.value(), 0.0);
     }
 
     #[test]
