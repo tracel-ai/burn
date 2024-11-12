@@ -228,7 +228,7 @@ impl Bytes {
             return Err(self);
         };
         let length = data.len();
-        let data = data.as_mut_ptr();
+        let data = self.ptr.as_ptr().cast();
         core::mem::forget(self);
         // SAFETY:
         // - data was allocated by the global allocator as per type-invariant
@@ -253,7 +253,7 @@ impl Deref for Bytes {
 impl DerefMut for Bytes {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: see type invariants
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_mut(), self.len) }
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
     }
 }
 
