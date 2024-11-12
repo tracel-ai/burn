@@ -53,7 +53,7 @@ pub struct TensorData {
     pub dtype: DType,
 }
 
-fn value_into_bytes<E>(mut value: Vec<E>) -> Vec<u8> {
+fn into_bytes<E>(mut value: Vec<E>) -> Vec<u8> {
     // Ensure `E` satisfies the `Pod` trait requirements
     assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
 
@@ -70,8 +70,8 @@ fn value_into_bytes<E>(mut value: Vec<E>) -> Vec<u8> {
 impl TensorData {
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S) -> Self {
-        let shape: Vec<usize> = shape.into();
         // Ensure shape is valid
+        let shape = shape.into();
         let shape_numel = Self::numel(&shape);
         value.truncate(shape_numel);
         let numel = value.len();
@@ -93,7 +93,7 @@ impl TensorData {
         shape: S,
         strategy: QuantizationStrategy,
     ) -> Self {
-        let mut value = value_into_bytes(value);
+        let mut value = into_bytes(value);
 
         // Notes on quantization data representation:
         // 1) The quantized values are packed into 32-bit unsigned integers. For example, int8
@@ -136,7 +136,7 @@ impl TensorData {
     /// Initializes a new tensor data structure from the provided values.
     fn init<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S, dtype: DType) -> Self {
         Self {
-            bytes: value_into_bytes(value),
+            bytes: into_bytes(value),
             shape: shape.into(),
             dtype,
         }
