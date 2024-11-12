@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 
 use super::Learner;
 use crate::checkpoint::{
@@ -11,7 +12,7 @@ use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
 use crate::learner::EarlyStoppingStrategy;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{FullEventProcessor, Metrics};
+use crate::metric::processor::{AsyncProcessor, FullEventProcessor, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
@@ -302,7 +303,7 @@ where
             AsyncCheckpointer<M::Record, B>,
             AsyncCheckpointer<O::Record, B>,
             AsyncCheckpointer<S::Record<B>, B>,
-            FullEventProcessor<T, V>,
+            AsyncProcessor<FullEventProcessor<T, V>>,
             Box<dyn CheckpointingStrategy>,
         >,
     >
@@ -327,8 +328,12 @@ where
                 .register_logger_valid(FileMetricLogger::new(self.directory.join("valid")));
         }
 
-        let event_store = Rc::new(EventStoreClient::new(self.event_store));
-        let event_processor = FullEventProcessor::new(self.metrics, renderer, event_store.clone());
+        let event_store = Arc::new(EventStoreClient::new(self.event_store));
+        let event_processor = AsyncProcessor::new(FullEventProcessor::new(
+            self.metrics,
+            renderer,
+            event_store.clone(),
+        ));
 
         let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
             LearnerCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
