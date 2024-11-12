@@ -16,6 +16,14 @@ use crate::{
 
 use super::{QuantizationParametersDescription, QuantizedTensorDescription};
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct CustomOp {}
+impl CustomOp {
+    fn nodes(&self) -> Vec<&TensorDescription> {
+        todo!()
+    }
+}
+
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum OperationDescription {
@@ -37,6 +45,8 @@ pub enum OperationDescription {
     Float(DType, FloatOperationDescription),
     /// Module operation.
     Module(ModuleOperationDescription),
+    /// A custom operation.
+    Custom,
 }
 
 /// Operation description specific to a float tensor.
@@ -1269,6 +1279,7 @@ impl OperationDescription {
             OperationDescription::Int(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
+            OperationDescription::Custom => vec![],
         }
     }
 }

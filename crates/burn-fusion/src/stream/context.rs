@@ -177,6 +177,7 @@ impl RelativeOps for OperationDescription {
             OperationDescription::Module(ops) => {
                 OperationDescription::Module(ops.to_relative(converter))
             }
+            OperationDescription::Custom => OperationDescription::Custom,
         }
     }
 }
