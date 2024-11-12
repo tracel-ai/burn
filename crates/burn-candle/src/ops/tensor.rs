@@ -470,4 +470,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         sign(tensor)
     }
+
+    fn float_cast(
+        _tensor: FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> FloatTensor<Self> {
+        todo!()
+    }
 }

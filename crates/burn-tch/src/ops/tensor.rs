@@ -3,7 +3,7 @@ use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShap
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
-    Distribution, ElementConversion, Shape, TensorData,
+    Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use half::{bf16, f16};
 use std::ops::Range;
@@ -451,5 +451,22 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
 
     fn float_argsort(tensor: TchTensor, dim: usize, descending: bool) -> IntTensor<Self> {
         TchOps::argsort(tensor, dim, descending)
+    }
+
+    fn float_cast(tensor: TchTensor, dtype: FloatDType) -> TchTensor {
+        // NOTE: when dtypes of inputs to an arithmetic operation differ, tch handles type
+        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html
+        let kind = match dtype {
+            FloatDType::F64 => tch::Kind::Double,
+            FloatDType::F32 => tch::Kind::Float,
+            FloatDType::F16 => tch::Kind::Half,
+            FloatDType::BF16 => tch::Kind::BFloat16,
+        };
+
+        if tensor.tensor.kind() == kind {
+            tensor
+        } else {
+            TchTensor::new(tensor.tensor.to_kind(kind))
+        }
     }
 }

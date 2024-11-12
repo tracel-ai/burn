@@ -426,4 +426,11 @@ where
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         kernel::flip(tensor, axes)
     }
+
+    fn float_cast(
+        _tensor: FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> FloatTensor<Self> {
+        todo!()
+    }
 }

@@ -1477,4 +1477,8 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         out
     }
+
+    fn float_cast(_tensor: FloatTensor<Self>, _dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+        todo!()
+    }
 }
