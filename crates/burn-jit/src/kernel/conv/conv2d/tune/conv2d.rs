@@ -111,7 +111,7 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
             op.options.groups,
             out_h,
             out_w,
-            &op.input.device,
+            &op.input.client,
         ),
         _ => true,
     }
@@ -143,5 +143,6 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         width,
         batch_size,
         bias.is_some(),
+        E::dtype(),
     ))
 }

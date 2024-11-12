@@ -17,6 +17,7 @@ tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
+remote = ["burn/remote"]
 cuda-jit = ["burn/cuda-jit"]
 hip-jit = ["burn/hip-jit"]
 
@@ -33,7 +34,7 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.20.1", default-features = false, features = [
+tokenizers = { version = "0.20.3", default-features = false, features = [
   "onig",
   "http",
 ] }

@@ -1,112 +1,34 @@
-use crate::{
-    element::JitElement, kernel::Kernel, ops::numeric::empty_device, tensor::JitTensor, JitRuntime,
-};
-use burn_tensor::ElementConversion;
-use cubecl::{
-    cpa,
-    ir::{Builtin, Elem, Item, KernelDefinition, Scope, Variable, VariableKind, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
-    OutputInfo,
-};
-use std::marker::PhantomData;
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[derive(new)]
-struct FlipEagerKernel<R: JitRuntime, E: JitElement> {
-    rank: usize,
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
+#[cube(launch_unchecked)]
+fn flip_kernel<E: CubePrimitive, Bool: Int>(
+    input: &Tensor<E>,
+    output: &mut Tensor<E>,
+    indices: Sequence<Bool>,
+    #[comptime] rank: u32,
+) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
+    }
 
-pub struct FlipComputeShader {
-    input: Variable,
-    output: Variable,
-    rank: usize,
-}
+    let mut offset_input = 0;
 
-impl FlipComputeShader {
-    pub fn expand(self, scope: &mut Scope) {
-        let input = self.input;
-        let output = self.output;
-        let id = Variable::builtin(Builtin::AbsolutePos);
+    #[unroll]
+    for i in 0..rank {
+        let stride = input.stride(i);
+        let shape = output.shape(i);
+        let flip = *indices.index(i) == Bool::from_int(1);
+        let mut offset_local = ABSOLUTE_POS / stride % shape;
 
-        let offset_input = scope.zero(Elem::UInt);
-        let offset_local = scope.create_local(Elem::UInt);
-
-        let stride = scope.create_local(Elem::UInt);
-        let shape = scope.create_local(Elem::UInt);
-        let flip = scope.create_local(Elem::UInt);
-        let flip_bool = scope.create_local(Elem::Bool);
-
-        for i in 0..self.rank {
-            cpa!(scope, stride = stride(input, i));
-            cpa!(scope, shape = shape(output, i));
-            cpa!(
-                scope,
-                flip = cast(Variable::new(
-                    VariableKind::GlobalScalar(i as u16),
-                    Item::new(Elem::UInt)
-                ))
-            );
-            cpa!(scope, flip_bool = flip == 1u32);
-
-            cpa!(scope, offset_local = id / stride);
-            cpa!(scope, offset_local = offset_local % shape);
-
-            cpa!(scope, if(flip_bool).then(|scope| {
-                cpa!(scope, offset_local = shape - offset_local);
-                cpa!(scope, offset_local = offset_local - 1u32);
-            }));
-            cpa!(scope, offset_local = offset_local * stride);
-
-            cpa!(scope, offset_input += offset_local);
+        if flip {
+            offset_local = shape - offset_local - 1;
         }
 
-        let result = scope.create_local(input.item);
-        cpa!(scope, result = input[offset_input]);
-        cpa!(scope, output[id] = result);
-    }
-}
-
-impl<R: JitRuntime, E: JitElement> Kernel for FlipEagerKernel<R, E> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item = E::cube_elem().into();
-
-        let input = Variable::new(VariableKind::GlobalInputArray(0), item);
-        let output = Variable::new(VariableKind::GlobalOutputArray(0), item);
-
-        scope.write_global_custom(output);
-
-        FlipComputeShader {
-            input,
-            output,
-            rank: self.rank,
-        }
-        .expand(&mut scope);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-        let flip_dims = InputInfo::Scalar {
-            elem: Elem::UInt,
-            size: self.rank,
-        };
-        let output = OutputInfo::Array { item };
-
-        let info = KernelExpansion {
-            inputs: vec![input, flip_dims],
-            outputs: vec![output],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
+        offset_input += offset_local * stride;
     }
 
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>().info(self.rank)
-    }
+    output[ABSOLUTE_POS] = input[offset_input];
 }
 
 pub(crate) fn flip<R: JitRuntime, E: JitElement>(
@@ -127,19 +49,26 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
     indices: &[usize],
 ) -> JitTensor<R, E> {
     let ndims = tensor.shape.num_dims();
-    let mut scalars: Vec<u32> = Vec::with_capacity(ndims);
+    let mut indices_sequence = SequenceArg::<'_, R, u32>::new();
 
     for i in 0..ndims {
-        scalars.push((indices.contains(&i) as u32).elem());
+        indices_sequence.push(ScalarArg::new(indices.contains(&i) as u32));
     }
 
-    let kernel = FlipEagerKernel::<R, E>::new(ndims);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    Execution::start(kernel, tensor.client.clone())
-        .inputs(&[tensor.as_handle_ref()])
-        .outputs(&[output.as_handle_ref()])
-        .with_scalars(&scalars)
-        .execute(CubeCountSettings::Output { pos: 0 });
+    unsafe {
+        flip_kernel::launch_unchecked::<E, u32, R>(
+            &tensor.client,
+            cube_count,
+            cube_dim,
+            tensor.as_tensor_arg(1),
+            output.as_tensor_arg(1),
+            indices_sequence,
+            ndims as u32,
+        );
+    }
 
     output
 }

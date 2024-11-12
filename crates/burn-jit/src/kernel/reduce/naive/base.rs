@@ -1,12 +1,10 @@
-use cubecl::cube;
-use cubecl::frontend::CubeType;
-use cubecl::prelude::{Numeric, Tensor};
+use cubecl::prelude::*;
 
 /// Specifies the reduce dim algorithm in use
 #[cube]
 pub trait ReduceDimNaive<EI: Numeric>: Send + Sync + 'static {
     /// The reduction accumulator
-    type Accumulator: Copy + CubeType;
+    type Accumulator: CubeType;
 
     /// Initialization for naive algorithm
     fn initialize_naive() -> Self::Accumulator;

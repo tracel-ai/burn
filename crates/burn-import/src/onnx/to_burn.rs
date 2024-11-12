@@ -44,7 +44,9 @@ use crate::{
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
+            random_normal_like::RandomNormalLikeNode,
             random_uniform::RandomUniformNode,
+            random_uniform_like::RandomUniformLikeNode,
             range::RangeNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
@@ -342,9 +344,15 @@ impl ParsedOnnxGraph {
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::RandomUniformLike => {
+                    graph.register(Self::random_uniform_like_conversion(node))
+                }
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
                 NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
+                NodeType::RandomNormalLike => {
+                    graph.register(Self::random_normal_like_conversion(node))
+                }
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
@@ -450,6 +458,27 @@ impl ParsedOnnxGraph {
         RandomUniformNode::new(output_type, low, high)
     }
 
+    fn random_uniform_like_conversion(node: Node) -> RandomUniformLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64); // default is 0.0
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64); // default is 1.0
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomUniformLikeNode::new(low, high, input, output)
+    }
+
     fn random_normal_conversion(node: Node) -> RandomNormalNode {
         let output = node.outputs.first().unwrap();
         let output_type = TensorType::from(output);
@@ -470,6 +499,27 @@ impl ParsedOnnxGraph {
         }
 
         RandomNormalNode::new(output_type, mean, scale)
+    }
+
+    fn random_normal_like_conversion(node: Node) -> RandomNormalLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let mean = node
+            .attrs
+            .get("mean")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let scale = node
+            .attrs
+            .get("scale")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomNormalLikeNode::new(mean, scale, input, output)
     }
 
     pub(crate) fn constant_of_shape_conversion(node: Node) -> ConstantOfShapeNode {

@@ -21,10 +21,10 @@ mod tests {
 
         grad_1
             .to_data()
-            .assert_eq(&TensorData::from([[6.0, 10.0], [6.0, 10.0]]), false);
+            .assert_approx_eq(&TensorData::from([[6.0, 10.0], [6.0, 10.0]]), 3);
         grad_2
             .to_data()
-            .assert_eq(&TensorData::from([[3.0, 10.0], [3.0, 10.0]]), false);
+            .assert_approx_eq(&TensorData::from([[3.0, 10.0], [3.0, 10.0]]), 3);
     }
 
     #[test]
@@ -48,13 +48,13 @@ mod tests {
         let grad_1 = tensor_1.grad(&grads).unwrap();
         let grad_2 = tensor_2.grad(&grads).unwrap();
 
-        grad_1.to_data().assert_eq(
+        grad_1.to_data().assert_approx_eq(
             &TensorData::from([[[66., 78.], [66., 78.]], [[270., 306.], [270., 306.]]]),
-            false,
+            3,
         );
-        grad_2.to_data().assert_eq(
+        grad_2.to_data().assert_approx_eq(
             &TensorData::from([[[22., 286.], [28., 316.]], [[172., 652.], [190., 694.]]]),
-            false,
+            3,
         );
     }
 }

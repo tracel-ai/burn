@@ -8,7 +8,7 @@ mod tests {
         let device = Default::default();
         // test float tensor
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
 
         let output = tensor.clamp_min(2.0);
 
@@ -18,7 +18,7 @@ mod tests {
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
+        let tensor = TestTensorInt::<2>::from_data(data, &device);
         let output = tensor.clamp_min(2);
 
         output
@@ -31,7 +31,7 @@ mod tests {
         let device = Default::default();
         // test float tensor
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
 
         let output = tensor.clamp_max(2.0);
 
@@ -41,7 +41,7 @@ mod tests {
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
+        let tensor = TestTensorInt::<2>::from_data(data, &device);
         let output = tensor.clamp_max(4);
 
         output
@@ -54,7 +54,7 @@ mod tests {
         let device = Default::default();
         // test float tensor
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
         let output = tensor.clamp(1.0, 4.0);
 
         output
@@ -63,7 +63,7 @@ mod tests {
 
         // test int tensor
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &device);
+        let tensor = TestTensorInt::<2>::from_data(data, &device);
         let output = tensor.clamp(1, 4);
 
         output

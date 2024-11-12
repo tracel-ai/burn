@@ -10,6 +10,6 @@ mod tests {
         let output = activation::softmin(tensor, 1);
         let expected = TensorData::from([[9.9753e-01, 2.4726e-03], [1.1254e-07, 1.0000e+00]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 }

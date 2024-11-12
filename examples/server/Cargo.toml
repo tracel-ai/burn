@@ -1,0 +1,18 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "server"
+publish = false
+version.workspace = true
+
+[features]
+default = ["wgpu"]
+cuda-jit = ["burn/cuda-jit"]
+wgpu = ["burn/wgpu"]
+wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
+ndarray = ["burn/ndarray"]
+
+[dependencies]
+cfg-if = { workspace = true }
+burn = { path = "../../crates/burn", version = "0.16.0", features = ["server"] }

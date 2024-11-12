@@ -7,6 +7,11 @@ pub use ndarray::NdArray;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
+#[cfg(feature = "remote")]
+pub use burn_remote as remote;
+#[cfg(feature = "remote")]
+pub use burn_remote::RemoteBackend;
+
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
 

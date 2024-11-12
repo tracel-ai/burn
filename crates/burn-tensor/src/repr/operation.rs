@@ -1,3 +1,4 @@
+use core::hash::Hash;
 use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
@@ -267,8 +268,13 @@ pub enum NumericOperationDescription<E> {
     DivScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [div](crate::ops::FloatTensorOps::float_remainder_scalar).
-    /// Int => [div](crate::ops::IntTensorOps::int_remainder_scalar).
+    /// Float => [rem](crate::ops::FloatTensorOps::float_remainder).
+    /// Int => [rem](crate::ops::IntTensorOps::int_remainder).
+    Rem(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Float => [rem scalar](crate::ops::FloatTensorOps::float_remainder_scalar).
+    /// Int => [rem scalar](crate::ops::IntTensorOps::int_remainder_scalar).
     RemScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
@@ -1334,6 +1340,9 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::DivScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
+            NumericOperationDescription::Rem(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
             NumericOperationDescription::RemScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
@@ -1668,6 +1677,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::SubScalar(desc) => desc.hash(state),
             NumericOperationDescription::Div(desc) => desc.hash(state),
             NumericOperationDescription::DivScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Rem(desc) => desc.hash(state),
             NumericOperationDescription::RemScalar(desc) => desc.hash(state),
             NumericOperationDescription::Mul(desc) => desc.hash(state),
             NumericOperationDescription::MulScalar(desc) => desc.hash(state),

@@ -34,6 +34,7 @@ derive-new = { workspace = true }
 burn-jit = { path = "../burn-jit", version = "0.16.0", default-features = false, features = [
   "export_tests",
 ] }
+paste = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

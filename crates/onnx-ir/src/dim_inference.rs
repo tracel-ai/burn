@@ -61,7 +61,9 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::PRelu => same_as_input_broadcast(node),
         NodeType::Pow => same_as_input_broadcast(node),
         NodeType::RandomNormal => random_update_output(node),
+        NodeType::RandomNormalLike => random_like_update_output(node),
         NodeType::RandomUniform => random_update_output(node),
+        NodeType::RandomUniformLike => random_like_update_output(node),
         NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
@@ -202,6 +204,35 @@ fn random_update_output(node: &mut Node) {
                 .unwrap(),
         ),
     })
+}
+
+/// Reads & interprets an optional `dtype` attribute
+/// This includes the `RandomUniformLike` and `RandomNormalLike` operators
+fn random_like_update_output(node: &mut Node) {
+    let dtype = node
+        .attrs
+        .get("dtype")
+        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+        .unwrap_or(DataType::FLOAT);
+
+    let elem_type = match dtype {
+        DataType::FLOAT => ElementType::Float32,
+        DataType::FLOAT16 => ElementType::Float16,
+        DataType::DOUBLE => ElementType::Float64,
+        _ => panic!("Tensor with type {dtype:?} not supported for random output"),
+    };
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].clone().ty {
+        if let Some(shape) = tensor.shape.clone() {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                dim: shape.len(),
+                shape: Some(shape),
+            })
+        }
+    } else {
+        panic!("Only tensor input is valid");
+    }
 }
 
 /// Infer the shape of the output tensor of a Conv2d node

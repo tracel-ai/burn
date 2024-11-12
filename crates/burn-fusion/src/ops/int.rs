@@ -985,6 +985,33 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(ModOps, B::int_remainder);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::Rem(desc.clone()),
+            ),
+            ModOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         scalar_int_ops!(ModOps, B::int_remainder_scalar);
 
@@ -1694,9 +1721,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ExpandOps<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_expand(input, self.desc.shape.into());
-                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+                let input = handles.get_int_tensor::<B>(&self.desc.input);
+                let output = B::int_expand(input, self.desc.shape.into());
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
 

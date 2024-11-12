@@ -217,11 +217,9 @@ fn col2im_kernel<F: Float>(
     args: &Col2ImArgs,
     #[comptime] has_bias: bool,
 ) {
-    if ABSOLUTE_POS > image.len() {
+    if ABSOLUTE_POS >= image.len() {
         return;
     }
-
-    let _ = bias[0]; // Keep in bind group
 
     let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w;
     let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h;

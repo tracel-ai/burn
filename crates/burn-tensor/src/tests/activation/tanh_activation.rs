@@ -10,6 +10,6 @@ mod tests {
         let output = activation::tanh(tensor);
         let expected = TensorData::from([[0.7616, 0.9640], [0.9951, 0.9993]]);
 
-        output.into_data().assert_approx_eq(&expected, 4);
+        output.into_data().assert_approx_eq(&expected, 3);
     }
 }

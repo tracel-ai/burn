@@ -91,6 +91,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "remote")]
+mod remote {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, RemoteBackend};
+
+    pub fn run() {
+        launch::<Autodiff<RemoteBackend>>(vec![Default::default()]);
+    }
+}
+
 #[cfg(feature = "cuda-jit")]
 mod cuda_jit {
     use crate::{launch, ElemType};
@@ -129,4 +139,6 @@ fn main() {
     cuda_jit::run();
     #[cfg(feature = "hip-jit")]
     hip_jit::run();
+    #[cfg(feature = "remote")]
+    remote::run();
 }

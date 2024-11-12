@@ -43,6 +43,9 @@ pub mod tensor;
 /// Backend module.
 pub mod backend;
 
+#[cfg(feature = "server")]
+pub use burn_remote::server;
+
 extern crate alloc;
 
 #[cfg(all(

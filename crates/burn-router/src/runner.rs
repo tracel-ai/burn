@@ -58,7 +58,8 @@ where
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    pub(crate) fn new(device: B::Device) -> Self {
+    /// Create a new runner.
+    pub fn new(device: B::Device) -> Self {
         Self {
             context: Arc::new(Mutex::new(RunnerContext {
                 handles: HandleContainer::new(),
@@ -90,7 +91,29 @@ where
         RouterTensor::new(id, shape, dtype, client)
     }
 
-    pub(crate) fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
+    /// Register a tensor from its data and id.
+    pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
+        let mut ctx = self.context.lock();
+        let dtype = data.dtype;
+
+        if dtype.is_float() {
+            let tensor = B::float_from_data(data, &self.device);
+            ctx.handles.register_float_tensor::<B>(&id, tensor)
+        } else if dtype.is_int() {
+            let tensor = B::int_from_data(data, &self.device);
+            ctx.handles.register_int_tensor::<B>(&id, tensor)
+        } else if dtype.is_bool() {
+            let tensor = B::bool_from_data(data, &self.device);
+            ctx.handles.register_bool_tensor::<B>(&id, tensor)
+        } else if let DType::QFloat(_) = dtype {
+            todo!();
+        }
+
+        core::mem::drop(ctx);
+    }
+
+    /// Register a tensor and returns its description.
+    pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
@@ -119,11 +142,8 @@ where
         }
     }
 
-    pub(crate) fn register_empty_tensor_desc(
-        &self,
-        shape: Vec<usize>,
-        dtype: DType,
-    ) -> TensorDescription {
+    /// Register an empty tensor and returns its description.
+    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
         let mut ctx = self.context.lock();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);
@@ -422,6 +442,9 @@ where
                 NumericOperationDescription::DivScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_div_scalar)
                 }
+                NumericOperationDescription::Rem(desc) => {
+                    binary_float_ops!(handles, desc, B::float_remainder)
+                }
                 NumericOperationDescription::RemScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_remainder_scalar)
                 }
@@ -600,6 +623,9 @@ where
                 }
                 NumericOperationDescription::DivScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_div_scalar)
+                }
+                NumericOperationDescription::Rem(desc) => {
+                    binary_int_ops!(handles, desc, B::int_remainder)
                 }
                 NumericOperationDescription::RemScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_remainder_scalar)

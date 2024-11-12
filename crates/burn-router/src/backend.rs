@@ -11,7 +11,7 @@ use burn_tensor::{
 
 use super::{get_client, set_seed, RouterTensor, RunnerChannel, RunnerClient};
 
-/// A backend that forwards the tensor operations to the appropiate backend (given multiple backends).
+/// A backend that forwards the tensor operations to the appropriate backend (given multiple backends).
 pub struct BackendRouter<R: RunnerChannel> {
     r: PhantomData<R>,
 }
