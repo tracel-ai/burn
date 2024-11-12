@@ -13,6 +13,8 @@ pub struct Bytes {
     ///  - If `layout.size() > 0`, `ptr` points to a valid allocation from the global allocator
     ///    of the specified layout. The first `len` bytes are initialized.
     ///  - If `layout.size() == 0`, `ptr` is aligned to `layout.align()` and `len` is 0.
+    ///    `ptr` is further suitable to be used as the argument for `Vec::from_raw_parts` see [buffer alloc]
+    ///    for more details.
     ptr: NonNull<u8>,
     len: usize,
     layout: Layout,
@@ -70,17 +72,45 @@ impl<'de> serde::Deserialize<'de> for Bytes {
     where
         D: serde::Deserializer<'de>,
     {
+        #[cold]
+        fn too_large<E: serde::de::Error>(len: usize, align: usize) -> E {
+            // max_length = largest multiple of align that is <= isize::MAX
+            // align is a power of 2, hence a multiple has the lower bits unset. Mask them off to find the largest multiple
+            let max_length = (isize::MAX as usize) & !(align - 1);
+            E::custom(core::format_args!(
+                "length too large: {len}. Expected at most {max_length}"
+            ))
+        }
+
+        // TODO: we can possibly avoid one copy here by deserializing into an existing, correctly aligned, slice of bytes.
+        // We might not be able to predict the length of the data, hence it's far more convenient to let `Vec` handle the growth and re-allocations.
+        // Further, on a lot of systems, the allocator naturally aligns data to some reasonably large alignment, where no further copy is then
+        // necessary.
+        let data: Cow<'de, [u8]> = serde_bytes::deserialize(deserializer)?;
         // When deserializing, we over-align the data. This saves us from having to encode the alignment (which is platform-dependent in any case).
-        let data: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-        Self::try_from_data(MAX_ALIGN, Cow::Owned(data))
-            .map_err(|_| serde::de::Error::custom("alignment is invalid, or length too large"))
+        // If we had more context information here, we could enforce some (smaller) alignment per data type. But this information is only available
+        // in `TensorData`. Moreover it depends on the Deserializer there whether the datatype or data comes first.
+        let align = MAX_ALIGN;
+        let bytes = match data {
+            Cow::Borrowed(data) => {
+                Bytes::try_from_data(align, data).map_err(|_| too_large(data.len(), align))?
+            }
+            Cow::Owned(data) => {
+                let mut bytes = Self::from_elems(data);
+                bytes
+                    .try_enforce_runtime_align(align)
+                    .map_err(|_| too_large(bytes.len(), align))?;
+                bytes
+            }
+        };
+        Ok(bytes)
     }
 }
 
 impl Clone for Bytes {
     fn clone(&self) -> Self {
         // unwrap here: the layout is always valid as it has the alignment & size of self
-        Self::try_from_data(self.layout.align(), Cow::Borrowed(self.deref())).unwrap()
+        Self::try_from_data(self.layout.align(), self.deref()).unwrap()
     }
 }
 
@@ -92,24 +122,64 @@ impl PartialEq for Bytes {
 
 impl Eq for Bytes {}
 
+// Allocate a pointer that can be passed to Vec::from_raw_parts
+fn buffer_alloc(layout: Layout) -> NonNull<u8> {
+    // [buffer alloc]: The current docs of Vec::from_raw_parts(ptr, ...) say:
+    //   > ptr must have been allocated using the global allocator
+    // Yet, an empty Vec is guaranteed to not allocate (it is even illegal! to allocate with a zero-sized layout)
+    // Hence, we slightly re-interpret the above to only needing to hold if `capacity > 0`. Still, the pointer
+    // must be non-zero. So in case we need a pointer for an empty vec, use a correctly aligned, dangling one.
+    if layout.size() == 0 {
+        // we would use NonNull:dangling() but we don't have a concrete type for the requested alignment
+        let raw = core::ptr::null_mut::<u8>().wrapping_add(layout.align());
+        // SAFETY: layout.align() is never 0
+        unsafe { NonNull::new_unchecked(raw) }
+    } else {
+        // SAFETY: layout has non-zero size.
+        let ptr = unsafe { alloc::alloc::alloc(layout) };
+        NonNull::new(ptr).unwrap_or_else(|| alloc::alloc::handle_alloc_error(layout))
+    }
+}
+
+// Deallocate a buffer of a Vec
+fn buffer_dealloc(layout: Layout, buffer: NonNull<u8>) {
+    if layout.size() != 0 {
+        // SAFETY: buffer comes from a Vec or from [`buffer_alloc`].
+        // The layout is the same as per type-invariants
+        unsafe {
+            alloc::alloc::dealloc(buffer.as_ptr(), layout);
+        }
+    } else {
+        // An empty Vec does not allocate, hence nothing to dealloc
+    }
+}
+
 impl Bytes {
-    /// Convert from possibly owned data to Bytes.
-    fn try_from_data(align: usize, data: Cow<'_, [u8]>) -> Result<Self, LayoutError> {
+    /// Copy an existing slice of data into Bytes that are aligned to `align`
+    fn try_from_data(align: usize, data: &[u8]) -> Result<Self, LayoutError> {
         let len = data.len();
         let layout = Layout::from_size_align(len, align)?;
-        // TODO: we can possibly avoid a copy here (or even earlier by replacing serde_bytes::deserialize) by deserializing into an existing,
-        // correctly aligned, slice of bytes. Since we might not be able to fully predict the length and align ahead of time, this does currently
-        // not seem worth the hassle.
-        let bytes = unsafe {
-            let mem = alloc::alloc::alloc(layout);
-            core::ptr::copy_nonoverlapping(data.as_ref().as_ptr(), mem, len);
-            NonNull::new_unchecked(mem)
+        let mem = buffer_alloc(layout);
+        unsafe {
+            // SAFETY:
+            // - data and mem are distinct allocations of `len` bytes
+            core::ptr::copy_nonoverlapping::<u8>(data.as_ref().as_ptr(), mem.as_ptr(), len);
         };
         Ok(Self {
-            ptr: bytes,
+            ptr: mem,
             len,
             layout,
         })
+    }
+
+    /// Ensure the contained buffer is aligned to `align` by possibly moving it to a new buffer.
+    fn try_enforce_runtime_align(&mut self, align: usize) -> Result<(), LayoutError> {
+        if self.ptr.align_offset(align) == 0 {
+            // data is already aligned correctly
+            return Ok(());
+        }
+        *self = Self::try_from_data(align, self)?;
+        Ok(())
     }
 
     /// Erase the element type of a vector by converting into a sequence of [Bytes].
@@ -131,7 +201,7 @@ impl Bytes {
         //  we have taken ownership of the data!
         unsafe { elems.set_len(0) };
         let data = elems.spare_capacity_mut();
-        // We do this to get one contiguous slice of data to pass to Layout::for_value.
+        // We now have one contiguous slice of data to pass to Layout::for_value.
         let layout = Layout::for_value(data);
         // SAFETY: data is the allocation of a vec, hence can not be null. We use unchecked to avoid a panic-path.
         let ptr = unsafe { NonNull::new_unchecked(data.as_mut_ptr().cast()) };
@@ -195,11 +265,7 @@ impl DerefMut for Bytes {
 
 impl Drop for Bytes {
     fn drop(&mut self) {
-        if self.layout.size() != 0 {
-            unsafe {
-                alloc::alloc::dealloc(self.ptr.as_ptr(), self.layout);
-            }
-        }
+        buffer_dealloc(self.layout, self.ptr);
     }
 }
 
