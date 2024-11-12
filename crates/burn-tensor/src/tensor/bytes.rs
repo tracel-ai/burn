@@ -113,7 +113,11 @@ impl Bytes {
     }
 
     /// Erase the element type of a vector by converting into a sequence of [Bytes].
-    pub fn from_elems<E: bytemuck::NoUninit + Copy>(mut elems: Vec<E>) -> Self {
+    pub fn from_elems<E>(mut elems: Vec<E>) -> Self
+    where
+        // NoUninit implies Copy
+        E: bytemuck::NoUninit + Send + Sync,
+    {
         let _: () = const {
             assert!(
                 core::mem::align_of::<E>() <= MAX_ALIGN,
@@ -130,7 +134,7 @@ impl Bytes {
         // We do this to get one contiguous slice of data to pass to Layout::for_value.
         let layout = Layout::for_value(data);
         // SAFETY: data is the allocation of a vec, hence can not be null. We use unchecked to avoid a panic-path.
-        let ptr = unsafe { NonNull::new_unchecked(data.as_mut_ptr() as *mut u8) };
+        let ptr = unsafe { NonNull::new_unchecked(data.as_mut_ptr().cast()) };
         // Now we manage the memory manually, forget the vec.
         core::mem::forget(elems);
         Self {
@@ -197,4 +201,21 @@ impl Drop for Bytes {
             }
         }
     }
+}
+
+// SAFETY: Bytes behaves like a Box<[u8]> and can contain only elements that are themselves Send
+unsafe impl Send for Bytes {}
+// SAFETY: Bytes behaves like a Box<[u8]> and can contain only elements that are themselves Sync
+unsafe impl Sync for Bytes {}
+
+#[cfg(test)]
+mod tests {
+    use super::Bytes;
+
+    const _CONST_ASSERTS: fn() = || {
+        fn test_send<T: Send>() {}
+        fn test_sync<T: Sync>() {}
+        test_send::<Bytes>();
+        test_sync::<Bytes>();
+    };
 }
