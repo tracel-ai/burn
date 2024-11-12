@@ -56,7 +56,33 @@ pub fn into_data(tensor: CandleTensor) -> TensorData {
                 .unwrap(),
             tensor.shape(),
         ),
-        _ => panic!("Not a valid float kind"),
+        candle_core::DType::U8 => TensorData::new(
+            tensor
+                .tensor
+                .flatten_all()
+                .unwrap()
+                .to_vec1::<u8>()
+                .unwrap(),
+            tensor.shape(),
+        ),
+        candle_core::DType::U32 => TensorData::new(
+            tensor
+                .tensor
+                .flatten_all()
+                .unwrap()
+                .to_vec1::<u32>()
+                .unwrap(),
+            tensor.shape(),
+        ),
+        candle_core::DType::I64 => TensorData::new(
+            tensor
+                .tensor
+                .flatten_all()
+                .unwrap()
+                .to_vec1::<i64>()
+                .unwrap(),
+            tensor.shape(),
+        ),
     }
 }
 
