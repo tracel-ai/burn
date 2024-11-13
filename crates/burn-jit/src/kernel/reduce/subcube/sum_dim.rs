@@ -31,9 +31,9 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for SumDim {
     }
 
     fn reduce_subcube(acc: &mut Self::Accumulator, write_position: u32, value: Self::Value) {
-        let sum = subcube_sum(value);
+        let sum = plane_sum(value);
 
-        if UNIT_POS % SUBCUBE_DIM == 0 {
+        if UNIT_POS % PLANE_DIM == 0 {
             acc[write_position] = sum;
         }
     }

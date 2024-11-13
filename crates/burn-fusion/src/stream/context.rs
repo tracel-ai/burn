@@ -177,6 +177,9 @@ impl RelativeOps for OperationDescription {
             OperationDescription::Module(ops) => {
                 OperationDescription::Module(ops.to_relative(converter))
             }
+            OperationDescription::Custom(ops) => {
+                OperationDescription::Custom(ops.to_relative(converter))
+            }
         }
     }
 }
@@ -622,6 +625,26 @@ impl RelativeOps for IntOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+        }
+    }
+}
+
+impl RelativeOps for CustomOpDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpDescription {
+        let id = self.id.clone();
+
+        CustomOpDescription {
+            id,
+            inputs: self
+                .inputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
+            outputs: self
+                .outputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }

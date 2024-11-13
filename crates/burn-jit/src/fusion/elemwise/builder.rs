@@ -15,8 +15,12 @@ pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
 
 impl<R: JitRuntime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device) -> Self {
+        let client = R::client(&device);
+        let props = client.properties();
+        let max_bindings = props.hardware_properties().max_bindings;
+
         Self {
-            builder: FuseOnWriteBuilder::new(),
+            builder: FuseOnWriteBuilder::new(max_bindings),
             device,
         }
     }

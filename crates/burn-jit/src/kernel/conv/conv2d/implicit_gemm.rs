@@ -294,22 +294,22 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
 
     let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
     let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
-    let input_tile =
+    let mut input_tile =
         smem_input_tile.slice_mut(input_tile_start, input_tile_start + cmma_input_tile_size);
-    let weight_tile =
+    let mut weight_tile =
         smem_weight_tile.slice_mut(weight_tile_start, weight_tile_start + cmma_filter_tile_size);
 
     let out_pos = pos.global_n + pos.global_m * dims.gemm_n;
-    let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
+    let mut out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
     if conv_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
         execute_gemm(
             input,
             weight,
             bias,
-            out,
-            input_tile,
-            weight_tile,
+            &mut out,
+            &mut input_tile,
+            &mut weight_tile,
             dims,
             &pos,
             args,
@@ -424,7 +424,7 @@ fn execute_gemm<F: Float, FMat: Float>(
     if has_bias {
         let n = UNIT_POS_Y * cmma_n + pos.global_n;
         let bias_tile = bias.slice(n, n + cmma_n);
-        cmma::load_with_layout(&matrices.acc, bias_tile, 0, MatrixLayout::RowMajor);
+        cmma::load_with_layout(&matrices.acc, &bias_tile, 0, MatrixLayout::RowMajor);
     }
 
     // Loop over the K-dimension
@@ -440,8 +440,8 @@ fn execute_gemm<F: Float, FMat: Float>(
         load_weight_tile(weight, weight_tile, dims, pos, k, g_settings, k_settings);
 
         // Run CMMA
-        cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
-        cmma::load(&matrices.b, weight_tile.as_slice(), cmma_k);
+        cmma::load(&matrices.a, &input_tile.to_slice(), cmma_k);
+        cmma::load(&matrices.b, &weight_tile.to_slice(), cmma_k);
 
         cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
     }
