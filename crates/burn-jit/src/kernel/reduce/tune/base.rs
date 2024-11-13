@@ -83,11 +83,7 @@ fn should_run<
         // Shared
         1 => key.reduce_dim_length >= 16,
         // Subcube
-        2 => op
-            .input
-            .client
-            .properties()
-            .feature_enabled(Feature::Subcube),
+        2 => op.input.client.properties().feature_enabled(Feature::Plane),
         _ => true,
     }
 }

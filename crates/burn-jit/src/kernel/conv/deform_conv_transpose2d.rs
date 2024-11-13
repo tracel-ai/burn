@@ -324,7 +324,7 @@ fn deform_col2img_coord_kernel<F: Float>(
         let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w + offset_x;
 
         let weight = get_coordinate_weight(
-            image.slice(image_base_idx, image.len()),
+            &image.slice(image_base_idx, image.len()),
             height,
             width,
             y,
@@ -360,7 +360,7 @@ fn deform_col2img_coord_kernel<F: Float>(
 
 #[cube]
 fn get_coordinate_weight<F: Float>(
-    input: &Slice<'_, F>,
+    input: &Slice<F>,
     height: u32,
     width: u32,
     y: F,
