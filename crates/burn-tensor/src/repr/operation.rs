@@ -2,8 +2,9 @@ use core::hash::Hash;
 use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 
 use crate::{
     ops::{
