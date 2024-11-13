@@ -2,6 +2,7 @@
 pub mod state;
 
 mod acc;
+mod auroc;
 mod base;
 #[cfg(feature = "metrics")]
 mod cpu_temp;
@@ -19,6 +20,7 @@ mod memory_use;
 mod top_k_acc;
 
 pub use acc::*;
+pub use auroc::*;
 pub use base::*;
 #[cfg(feature = "metrics")]
 pub use cpu_temp::*;
