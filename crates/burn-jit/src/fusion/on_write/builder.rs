@@ -20,13 +20,13 @@ pub(crate) struct FuseOnWriteBuilder {
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     num_ops: usize,
-    num_tensors: usize,
     max_bindings: u32,
 }
 
 struct TryFuseBuilder {
     builder: FuseOnWriteTraceBuilder,
     max_bindings: u32,
+    added_ops: bool,
 }
 
 impl TryFuseBuilder {
@@ -34,12 +34,20 @@ impl TryFuseBuilder {
         Self {
             builder: FuseOnWriteTraceBuilder::new(),
             max_bindings,
+            added_ops: false,
         }
     }
 
-    fn register(&mut self, build: impl FnOnce(&mut FuseOnWriteTraceBuilder)) -> bool {
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder)) -> bool {
+        // Always allow the first operation to be added.
+        if !self.added_ops {
+            self.added_ops = true;
+            add_ops(&mut self.builder);
+            return true;
+        }
+
         let mut cloned = self.builder.clone();
-        build(&mut cloned);
+        add_ops(&mut cloned);
         if cloned.estimate_bindings() > self.max_bindings {
             return false;
         }
@@ -57,7 +65,6 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
-
 
         match op {
             OperationDescription::BaseFloat(ops) => {
@@ -134,7 +141,6 @@ impl FuseOnWriteBuilder {
         Self {
             builder: TryFuseBuilder::new(max_bindings),
             num_ops: 0,
-            num_tensors: 0,
             max_bindings,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
