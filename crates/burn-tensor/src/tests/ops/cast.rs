@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(cast)]
 mod tests {
     use super::*;
-    use burn_tensor::{Bool, FloatDType, Tensor, TensorData};
+    use burn_tensor::{Bool, DType, Tensor, TensorData};
 
     #[test]
     fn cast_float_to_int() {
@@ -42,8 +42,11 @@ mod tests {
     #[test]
     fn cast_float_precision() {
         let data = TensorData::from([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
-        let tensor = TestTensor::<2>::from(data.clone()).cast(FloatDType::F16);
+        let tensor = TestTensor::<2>::from(data.clone());
 
-        tensor.into_data().assert_eq(&data, false);
+        let output = tensor.cast(DType::F16).into_data();
+
+        assert_eq!(output.dtype, DType::F16);
+        output.assert_eq(&data, false);
     }
 }
