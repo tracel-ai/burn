@@ -38,8 +38,10 @@ impl FuseOnWriteTraceBuilder {
     // but should never return less.
     pub fn estimate_bindings(&self) -> u32 {
         let meta = 1;
-        let inputs = self.inputs.iter().count() as u32;
-        let outputs = self.output_tensors().iter().count() as u32;
+        let inputs = self.inputs.len() as u32;
+        let outputs = self.output_tensors().len() as u32;
+        // In the future, scalars could be packed into 1 bufer or into the metadata, but currently take up
+        // one slot per scalar.
         let scalar = self.scalars.len() as u32;
         meta + inputs + outputs + scalar
     }
