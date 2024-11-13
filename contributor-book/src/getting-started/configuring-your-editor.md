@@ -11,7 +11,7 @@ Install the following extensions:
   for Rust syntax and semantic analysis
 - [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
   for TOML syntax and semantic analysis
-- [serayuzgur.crates](https://marketplace.visualstudio.com/items?itemName=serayuzgur.crates) for
+- [fill-labs.dependi](https://marketplace.visualstudio.com/items?itemName=fill-labs.dependi) for
   managing dependencies
 - [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) for
   debugging

@@ -20,14 +20,20 @@ pub fn reduce_dim_subcube_kernel<
     #[comptime] smem_size: u32,
     #[comptime] elems_per_thread: u32,
     #[comptime] divisible_shape: bool,
+    #[comptime] check_out: bool,
 ) {
+    let reduce_group_id = CUBE_POS;
+
+    if check_out && reduce_group_id >= output.len() {
+        return;
+    }
+
     let stride_reduce_dim_input = input.stride(dim);
     let shape_reduce_dim_input = input.shape(dim);
 
     let should_unroll = elems_per_thread <= 8;
 
-    let reduce_group_id = CUBE_POS;
-    let warp_id = UNIT_POS / SUBCUBE_DIM;
+    let warp_id = UNIT_POS / PLANE_DIM;
 
     let mut shared_memory = RD::init_shared(smem_size);
 
@@ -61,7 +67,7 @@ pub fn reduce_dim_subcube_kernel<
 
     sync_units();
 
-    if UNIT_POS >= SUBCUBE_DIM {
+    if UNIT_POS >= PLANE_DIM {
         return;
     }
 
@@ -88,7 +94,7 @@ pub fn reduce_dim_subcube<
     input: JitTensor<R, EI>,
     dim: usize,
 ) -> JitTensor<R, EO> {
-    if !input.client.properties().feature_enabled(Feature::Subcube) {
+    if !input.client.properties().feature_enabled(Feature::Plane) {
         return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
     }
 
@@ -112,6 +118,7 @@ pub fn reduce_dim_subcube<
         f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
 
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
+    let check_out = (cube_count_x * cube_count_y) as usize != num_elems_output;
     let smem_size = cube_dim.num_elems() / warp_size;
 
     unsafe {
@@ -125,6 +132,7 @@ pub fn reduce_dim_subcube<
             smem_size,
             elems_per_thread,
             divisible_shape,
+            check_out,
         )
     };
 

@@ -103,7 +103,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(tensor: FloatTensor<B>)
+        -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -300,6 +301,18 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The result of dividing the tensor by the scalar.
     fn float_div_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+
+    /// Computes the remainder of division between two tensors element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise remainder when dividing `lhs` by `rhs`.
+    fn float_remainder(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Computes the modulus of a tensor given a scalar.
     ///

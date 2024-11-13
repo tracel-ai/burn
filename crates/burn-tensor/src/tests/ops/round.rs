@@ -12,7 +12,10 @@ mod tests {
         let expected = TensorData::from([[24., 88., 76.], [60., 44., 95.]]);
 
         output.into_data().assert_approx_eq(&expected, 3);
+    }
 
+    #[test]
+    fn should_round_ties_even() {
         let data = TensorData::from([1.5, 2.5, 3.5, 4.5, 5.5, 6.5]);
         let tensor = TestTensor::<1>::from_data(data, &Default::default());
 

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_vectorization_factor, unexpanded,
@@ -66,7 +66,7 @@ where
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let is_contiguous = tensor.is_contiguous();
 
-    if tensor.can_mut() && is_contiguous {
+    if tensor.can_mut() && tensor.is_contiguous_buffer() {
         unary_kernel::launch::<E, O, R>(
             &client,
             cube_count,
@@ -80,12 +80,10 @@ where
 
         tensor
     } else {
-        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new_contiguous(
+        let output = empty_device(
             tensor.client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
-            buffer,
         );
 
         unary_kernel::launch::<E, O, R>(

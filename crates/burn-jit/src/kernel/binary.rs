@@ -1,9 +1,11 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_vectorization_factor,
 };
+
+use super::into_contiguous;
 
 #[cube]
 pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
@@ -66,9 +68,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
     scalar: C,
     output: &mut Tensor<Line<C>>,
 ) {
-    let offset_output = ABSOLUTE_POS;
-
-    if offset_output >= output.len() {
+    if ABSOLUTE_POS >= output.len() {
         return;
     }
 
@@ -176,9 +176,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 
         rhs
     } else {
-        let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
@@ -199,9 +197,13 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 }
 
 pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    tensor: JitTensor<R, E>,
+    mut tensor: JitTensor<R, E>,
     scalar: E,
 ) -> JitTensor<R, E> {
+    if !tensor.is_contiguous_buffer() {
+        tensor = into_contiguous(tensor);
+    }
+
     // Vectorization is only enabled when the last dimension is contiguous.
     let ndims = tensor.shape.num_dims();
     let vectorization_factor =
@@ -225,13 +227,10 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 
         tensor
     } else {
-        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new(
+        let output = empty_device(
             tensor.client.clone(),
-            buffer,
-            tensor.shape.clone(),
             tensor.device.clone(),
-            tensor.strides.clone(),
+            tensor.shape.clone(),
         );
 
         kernel_scalar_binop::launch::<E, O, R>(

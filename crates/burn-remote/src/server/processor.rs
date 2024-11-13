@@ -9,7 +9,7 @@ use std::sync::mpsc::Sender;
 
 use crate::shared::{ConnectionId, TaskResponse, TaskResponseContent};
 
-/// The goal of the processor is to asynchonously process compute tasks on it own thread.
+/// The goal of the processor is to asynchronously process compute tasks on it own thread.
 pub struct Processor<B: ReprBackend> {
     p: PhantomData<B>,
 }

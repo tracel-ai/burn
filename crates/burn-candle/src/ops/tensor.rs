@@ -108,6 +108,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
     }
 
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(
+            (lhs.tensor.clone()
+                - lhs
+                    .tensor
+                    .broadcast_div(&rhs.tensor)
+                    .unwrap()
+                    .floor()
+                    .unwrap()
+                    .broadcast_mul(&rhs.tensor)
+                    .unwrap())
+            .unwrap(),
+        )
+    }
+
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         // In PyTorch, remainder can also be defined as torch.remainder(a, b) == a - a.div(b, rounding_mode="floor") * b
         let rhs_val = rhs.elem::<f64>();

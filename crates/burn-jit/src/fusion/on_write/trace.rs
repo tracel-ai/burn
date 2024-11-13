@@ -496,6 +496,10 @@ impl RegisteredTensors {
         })
     }
 
+    pub fn len(&self) -> usize {
+        self.tensors.values().map(|v| v.len()).sum()
+    }
+
     pub fn get_index(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<usize> {
         self.tensors.get(&precision).and_then(|items| {
             items
