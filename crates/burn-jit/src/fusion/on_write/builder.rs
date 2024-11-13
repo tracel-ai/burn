@@ -58,12 +58,6 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
             return;
         }
 
-        // TODO: If tensors are re-used, we should count them only once.
-        self.num_tensors += op.nodes().len();
-        if self.num_tensors >= 10 {
-            self.status = OptimizationStatus::Closed;
-            return;
-        }
 
         match op {
             OperationDescription::BaseFloat(ops) => {
