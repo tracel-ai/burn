@@ -34,6 +34,16 @@ impl FuseOnWriteTraceBuilder {
         self.ops.push(op);
     }
 
+    // Estimate how many bindings are in use right now. This can return more than the actual number
+    // but should never return less.
+    pub fn estimate_bindings(&self) -> u32 {
+        let meta = 1;
+        let inputs = self.inputs.iter().count() as u32;
+        let outputs = self.output_tensors().iter().count() as u32;
+        let scalar = self.scalars.len() as u32;
+        meta + inputs + outputs + scalar
+    }
+
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
         let precision = tensor.dtype.into();
 
@@ -86,10 +96,6 @@ impl FuseOnWriteTraceBuilder {
                 out
             }
         }
-    }
-
-    pub fn clear(&mut self) {
-        *self = Self::new();
     }
 
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
