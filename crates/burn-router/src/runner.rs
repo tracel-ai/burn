@@ -1202,7 +1202,7 @@ where
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Custom => {
+            OperationDescription::Custom(_) => {
                 panic!("Can't execute custom operation here")
             }
         }

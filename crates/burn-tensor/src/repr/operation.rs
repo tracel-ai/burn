@@ -16,11 +16,18 @@ use crate::{
 
 use super::{QuantizationParametersDescription, QuantizedTensorDescription};
 
+/// Custom operation in fusion stream, declaring it's inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct CustomOp {}
-impl CustomOp {
+pub struct CustomOpDescription {
+    /// Input tensors used in this the custom operation.
+    pub inputs: Vec<TensorDescription>,
+    /// Output tensors used in this the custom operation.
+    pub outputs: Vec<TensorDescription>,
+}
+
+impl CustomOpDescription {
     fn nodes(&self) -> Vec<&TensorDescription> {
-        todo!()
+        self.inputs.iter().chain(self.outputs.iter()).collect()
     }
 }
 
@@ -46,7 +53,7 @@ pub enum OperationDescription {
     /// Module operation.
     Module(ModuleOperationDescription),
     /// A custom operation.
-    Custom,
+    Custom(CustomOpDescription),
 }
 
 /// Operation description specific to a float tensor.
@@ -1279,7 +1286,7 @@ impl OperationDescription {
             OperationDescription::Int(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
-            OperationDescription::Custom => vec![],
+            OperationDescription::Custom(ops) => ops.nodes(),
         }
     }
 }
