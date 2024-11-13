@@ -631,7 +631,10 @@ impl RelativeOps for IntOperationDescription {
 
 impl RelativeOps for CustomOpDescription {
     fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpDescription {
+        let id = self.id.clone();
+
         CustomOpDescription {
+            id,
             inputs: self
                 .inputs
                 .iter()
