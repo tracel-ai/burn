@@ -214,7 +214,7 @@ where
 
     QJitTensor {
         qtensor,
-        scheme: scheme.clone(),
+        scheme: *scheme,
         qparams,
     }
 }
