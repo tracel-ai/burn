@@ -67,6 +67,18 @@ where
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.
+    fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Change the client of the given float tensor.
+    fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Change the client of the given float tensor.
+    fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Change the client of the given float tensor.
     fn change_client_float<B>(
         &self,
         tensor: TensorDescription,

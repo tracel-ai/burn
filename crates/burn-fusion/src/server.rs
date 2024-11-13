@@ -128,6 +128,27 @@ where
         id
     }
 
+    pub fn resolve_server_float<B>(&mut self, tensor: &TensorDescription) -> B::FloatTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_float_tensor::<B>(tensor)
+    }
+
+    pub fn resolve_server_int<B>(&mut self, tensor: &TensorDescription) -> B::IntTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_int_tensor::<B>(tensor)
+    }
+
+    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorDescription) -> B::BoolTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_bool_tensor::<B>(tensor)
+    }
+
     pub fn change_server_int<B>(
         &mut self,
         tensor: &TensorDescription,

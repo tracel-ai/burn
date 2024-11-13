@@ -246,4 +246,31 @@ where
     fn register_orphan(&self, id: &TensorId) {
         self.server.lock().drop_tensor_handle(*id);
     }
+
+    fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let mut server = self.server.lock();
+        server.drain_stream(tensor.stream);
+        server.resolve_server_float::<B>(&tensor.into_description())
+    }
+
+    fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let mut server = self.server.lock();
+        server.drain_stream(tensor.stream);
+        server.resolve_server_int::<B>(&tensor.into_description())
+    }
+
+    fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let mut server = self.server.lock();
+        server.drain_stream(tensor.stream);
+        server.resolve_server_bool::<B>(&tensor.into_description())
+    }
 }
