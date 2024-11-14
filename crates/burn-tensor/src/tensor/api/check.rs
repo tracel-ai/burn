@@ -1001,6 +1001,76 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn split<const D: usize>(tensor_size: usize, split_size: usize, dim: usize) -> Self {
+        let mut check = Self::Ok;
+        let op = "split";
+
+        if dim >= D {
+            check = check.register(
+                op,
+                TensorError::new("Given dimension is greater than or equal to the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dim}'")),
+            );
+        }
+
+        // Checks for a split_size of 0 and negative split_size
+        if split_size == 0 {
+            if tensor_size != 0 {
+                check = check.register(
+                    op,
+                    TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
+                        .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+                );
+            }
+        } else if split_size < 0 {
+            check = check.register(
+                op,
+                TensorError::new("split_size must be greater than 0.")
+                    .details(format!("split_size: '{split_size}'.")),
+            );
+        }
+
+        check
+    }
+
+    pub(crate) fn split_with_sizes<const D: usize>(
+        tensor_size: usize,
+        split_sizes: &[usize],
+        dim: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+        let op = "split_with_sizes";
+
+        if dim >= D {
+            check = check.register(
+                op,
+                TensorError::new("Given dimension is greater than or equal to the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dim}'.")),
+            );
+        }
+
+        // Validate split_sizes add up to size of dimension to split along
+        let total_split_size: usize = split_sizes.iter().sum();
+        if total_split_size != tensor_size {
+            check = check.register(
+                op,
+                TensorError::new("The sum of split_sizes must equal the tensor size along the specified dimension.")
+                    .details(format!("Sum of split_sizes: '{total_split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+            );
+        }
+
+        // Check for negative sizes
+        if let Some(&size) = split_sizes.iter().find(|&&size| size < 0) {
+            check = check.register(
+                op,
+                TensorError::new("split_sizes must contain non-negative integers.")
+                    .details(format!("Found negative size: '{size}' in split_sizes.")),
+            );
+        }
+
+        check
+    }
+
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
     /// important when an error occurred, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.
