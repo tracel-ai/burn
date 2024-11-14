@@ -17,6 +17,8 @@ mod loss;
 mod memory_use;
 
 #[cfg(feature = "metrics")]
+mod iteration;
+#[cfg(feature = "metrics")]
 mod top_k_acc;
 
 pub use acc::*;
@@ -29,6 +31,8 @@ pub use cpu_use::*;
 #[cfg(feature = "metrics")]
 pub use cuda::*;
 pub use hamming::*;
+#[cfg(feature = "metrics")]
+pub use iteration::*;
 pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]
