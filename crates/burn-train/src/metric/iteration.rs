@@ -28,7 +28,7 @@ impl Metric for IterationSpeedMetric {
             Some(val) => metadata.iteration as f64 / val.elapsed().as_secs_f64(),
             None => {
                 self.instant = Some(std::time::Instant::now());
-                01024.0
+                0.0
             }
         };
 
