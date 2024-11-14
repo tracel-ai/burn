@@ -23,4 +23,4 @@ pub use kind::*;
 pub use narrow::narrow;
 pub use numeric::*;
 pub use sort::{argsort, sort, sort_with_indices};
-pub use split::{split, split_with_size};
+pub use split::{split, split_with_sizes};

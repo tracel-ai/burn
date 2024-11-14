@@ -2,7 +2,7 @@ use super::narrow::narrow;
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
-/// Splits the tensor along the given dimension into equally sized chunks (is possible)
+/// Splits the tensor along the given dimension into equally sized chunks (if possible)
 /// with size `split_size`. Last chunk will be smaller if the tensor size along the given
 /// dimension `dim` is not divisible by `split_size`.
 ///
@@ -56,7 +56,7 @@ pub fn split<B: Backend, K: TensorKind<B> + BasicOps<B>>(
 /// # Remarks
 ///
 /// Fallback solution for backends with no equivalent functionality.
-pub fn split_with_size<B: Backend, K: TensorKind<B> + BasicOps<B>>(
+pub fn split_with_sizes<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     tensor: K::Primitive,
     split_sizes: Vec<usize>,
     dim: usize,
