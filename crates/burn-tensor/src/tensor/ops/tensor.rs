@@ -5,7 +5,9 @@ use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
 use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
-use crate::{tensor::api::chunk, tensor::api::narrow};
+use crate::{
+    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_size,
+};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -1179,7 +1181,10 @@ pub trait FloatTensorOps<B: Backend> {
     }
 
     fn float_split(tensor: FloatTensor<B>, split_size: usize, dim: usize) -> Vec<FloatTensor<B>> {
-        todo!()
+        split::<B, Float>(TensorPrimitive::Float(tensor), split_size, dim)
+            .into_iter()
+            .map(|t| t.tensor())
+            .collect()
     }
 
     fn float_split_with_sizes(
@@ -1187,7 +1192,10 @@ pub trait FloatTensorOps<B: Backend> {
         split_sizes: Vec<usize>,
         dim: usize,
     ) -> Vec<FloatTensor<B>> {
-        todo!()
+        split_with_size::<B, Float>(TensorPrimitive::Float(tensor), split_sizes, dim)
+            .into_iter()
+            .map(|t| t.tensor())
+            .collect()
     }
 
     /// Tests if any element in the float `tensor` evaluates to True.
