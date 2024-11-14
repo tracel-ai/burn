@@ -1014,14 +1014,12 @@ impl TensorCheck {
         }
 
         // Checks for a split_size of 0 and negative split_size
-        if split_size == 0 {
-            if tensor_size != 0 {
-                check = check.register(
-                    op,
-                    TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
-                        .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
-                );
-            }
+        if split_size == 0 && tensor_size != 0 {
+            check = check.register(
+                op,
+                TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
+                    .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+            );
         }
 
         check
