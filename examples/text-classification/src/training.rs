@@ -18,7 +18,9 @@ use burn::{
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        metric::{AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric},
+        metric::{
+            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
+        },
         LearnerBuilder,
     },
 };
