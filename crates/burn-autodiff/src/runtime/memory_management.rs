@@ -84,7 +84,10 @@ impl GraphMemoryManagement {
         for (id, parents) in self.nodes.iter() {
             let is_useful = matches!(self.statuses.get(id), Some(NodeMemoryStatus::Useful));
 
-            if !is_useful && Arc::strong_count(id) == 1 && parents.is_empty() {
+            let parents_absent =
+                parents.is_empty() || parents.iter().all(|p| !self.nodes.contains_key(p));
+
+            if !is_useful && Arc::strong_count(id) == 1 && parents_absent {
                 to_delete.push(*id.as_ref())
             }
         }
