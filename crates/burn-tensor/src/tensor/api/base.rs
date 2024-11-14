@@ -1250,6 +1250,10 @@ where
             split_size,
             dim
         ));
+        K::split(self.primitive, split_size, dim)
+            .into_iter()
+            .map(Self::new)
+            .collect()
     }
 
     /// Splits the tensor into chunks with the specified sizes along a given dimension.
@@ -1263,6 +1267,10 @@ where
             &split_sizes,
             dim
         ));
+        K::split_with_sizes(self.primitive, split_sizes, dim)
+            .into_iter()
+            .map(Self::new)
+            .collect()
     }
 
     /// Tests if any element in the `tensor` evaluates to True.
@@ -2501,6 +2509,18 @@ impl<B: Backend> BasicOps<B> for Float {
                 .collect(),
         }
     }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        todo!()
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        todo!()
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -2600,6 +2620,18 @@ impl<B: Backend> BasicOps<B> for Int {
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::int_chunk(tensor, chunks, dim)
     }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        todo!()
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        todo!()
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -2698,6 +2730,18 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::bool_chunk(tensor, chunks, dim)
+    }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        todo!()
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        todo!()
     }
 }
 

@@ -960,6 +960,18 @@ pub trait IntTensorOps<B: Backend> {
         chunk::<B, Int>(tensor, chunks, dim)
     }
 
+    fn int_split(tensor: IntTensor<B>, split_size: usize, dim: usize) -> Vec<IntTensor<B>> {
+        todo!()
+    }
+
+    fn int_split_with_sizes(
+        tensor: IntTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<IntTensor<B>> {
+        todo!()
+    }
+
     /// Creates a new int tensor with random values.
     ///
     ///  # Arguments

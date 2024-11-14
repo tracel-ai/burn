@@ -1178,6 +1178,18 @@ pub trait FloatTensorOps<B: Backend> {
             .collect()
     }
 
+    fn float_split(tensor: FloatTensor<B>, split_size: usize, dim: usize) -> Vec<FloatTensor<B>> {
+        todo!()
+    }
+
+    fn float_split_with_sizes(
+        tensor: FloatTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<FloatTensor<B>> {
+        todo!()
+    }
+
     /// Tests if any element in the float `tensor` evaluates to True.
     ///
     /// # Arguments

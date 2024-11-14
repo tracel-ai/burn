@@ -289,6 +289,18 @@ pub trait BoolTensorOps<B: Backend> {
         chunk::<B, Bool>(tensor, chunks, dim)
     }
 
+    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
+        todo!()
+    }
+
+    fn bool_split_with_sizes(
+        tensor: BoolTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<BoolTensor<B>> {
+        todo!()
+    }
+
     /// Tests if any element in the boolean `tensor` evaluates to True.
     ///
     /// # Arguments
