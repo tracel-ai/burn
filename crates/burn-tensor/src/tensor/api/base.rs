@@ -1191,7 +1191,7 @@ where
         Self::new(narrow::<B, K>(self.primitive, dim, start, length))
     }
 
-    /// Attempts to split the tensor along the given dimension into chunks.
+    /// Attempts to split the tensor into a specified number of chunks along a given dimension.
     /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
@@ -1237,6 +1237,32 @@ where
             .into_iter()
             .map(Self::new)
             .collect()
+    }
+
+    /// Splits the tensor into chunks of a specified size along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// If the tensor size along the given dimension is not divisible by `split_size`,
+    /// then the last chunk will be smaller.
+    pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::split::<D>(
+            self.shape().dims[dim],
+            split_size,
+            dim
+        ));
+    }
+
+    /// Splits the tensor into chunks with the specified sizes along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// If the tensor size along the given dimension is not divisible by `split_size`,
+    /// then the last chunk will be smaller.
+    pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::split_with_sizes::<D>(
+            self.shape().dims[dim],
+            &split_sizes,
+            dim
+        ));
     }
 
     /// Tests if any element in the `tensor` evaluates to True.
@@ -2101,9 +2127,57 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// To split a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
+    /// To chunk a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
     /// which is more high-level and designed for public use.
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive>;
+
+    /// Splits the tensor into chunks of a specified size along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the dimension to split along is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// To split a tensor, users should prefer the [Tensor::split](Tensor::split) function,
+    /// which is more high-level and designed for public use.
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive>;
+
+    /// Splits the tensor into chunks with the specified sizes along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
+    /// in `split_sizes` must equal the size of the tensor along the specified dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the dimension to split along is greater than the number of dimensions of the tensor or
+    /// if the sum of `dim_sizes` does not equal the size of the tensor along `dim`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// To split a tensor, users should prefer the [Tensor::split_with_sizes](Tensor::split_with_sizes) function,
+    /// which is more high-level and designed for public use.
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive>;
 
     /// Equates the given tensors.
     ///
