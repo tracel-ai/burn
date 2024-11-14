@@ -26,10 +26,10 @@ fn slice_assign_kernel<E: CubePrimitive>(
 }
 
 pub(crate) fn slice_assign<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     indices: &[Range<usize>],
-    value: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    value: JitTensor<R>,
+) -> JitTensor<R> {
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
@@ -49,8 +49,8 @@ pub(crate) fn slice_assign<R: JitRuntime, E: JitElement>(
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg(1),
-        value.as_tensor_arg(1),
+        tensor.as_tensor_arg::<E>(1),
+        value.as_tensor_arg::<E>(1),
         indices_sequence,
         ndims as u32,
     );

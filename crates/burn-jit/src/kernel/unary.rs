@@ -45,9 +45,9 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
 }
 
 pub(crate) fn launch_unary<R: JitRuntime, E: JitElement, O: UnaryOp<E>, F>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     options: F,
-) -> JitTensor<R, E>
+) -> JitTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
@@ -71,7 +71,7 @@ where
             &client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg::<E>(vectorization_factor),
             TensorArg::alias(0),
             options(&()),
             None,
@@ -80,7 +80,7 @@ where
 
         tensor
     } else {
-        let output = empty_device(
+        let output = empty_device::<R, E>(
             tensor.client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
@@ -90,8 +90,8 @@ where
             &client,
             cube_count,
             CubeDim::default(),
-            tensor.as_tensor_arg(vectorization_factor),
-            output.as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg::<E>(vectorization_factor),
+            output.as_tensor_arg::<E>(vectorization_factor),
             options(&()),
             Some(ndims as u32),
             !is_contiguous,

@@ -79,9 +79,9 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
 }
 
 pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E>,
-    out_grad: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    x: JitTensor<R>,
+    out_grad: JitTensor<R>,
+) -> JitTensor<R> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
@@ -90,6 +90,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
         x.device.clone(),
         output_shape,
         output_buffer,
+        x.dtype,
     );
 
     let cube_dim = CubeDim::default();
@@ -99,8 +100,8 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
         &x.client,
         cube_count,
         cube_dim,
-        out_grad.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        out_grad.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
     );
 
     output

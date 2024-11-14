@@ -23,7 +23,7 @@ use super::create_key;
 /// dim to reduce, and product of others
 #[tune(
     operations(reduce_dim_naive, reduce_dim_shared, reduce_dim_subcube),
-    create_key = create_key,
+    create_key = create_key::<R, EI>,
     should_run = should_run
 )]
 pub fn reduce_dim_operations<
@@ -33,9 +33,9 @@ pub fn reduce_dim_operations<
     EO: JitElement + Element,
 >(
     key: JitAutotuneKey,
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     reduce_dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let random_bounds: (EI, EI) = ((-10.0).elem::<EI>(), (10.0).elem::<EI>());
     let input = random_like_uniform(input, random_bounds.0, random_bounds.1);
 
@@ -49,9 +49,9 @@ pub(crate) fn reduce_dim_autotune<
     EI: JitElement + Element,
     EO: JitElement + Element,
 >(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     reduce_dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let client = input.client.clone();
 
     let id = JitTuneId::new::<R>(&input.device);

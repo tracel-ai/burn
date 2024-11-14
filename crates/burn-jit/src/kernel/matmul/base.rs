@@ -35,14 +35,14 @@ impl Default for MatmulStrategy {
 
 /// Launch a matmul kernel using the given strategy.
 pub fn matmul<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
     strategy: MatmulStrategy,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     match strategy {
         MatmulStrategy::Simple { grid_x, grid_y } => {
-            let out = init_matmul_output(&lhs, &rhs);
-            matmul_simple(lhs, rhs, out, grid_x, grid_y)
+            let out = init_matmul_output::<R, E>(&lhs, &rhs);
+            matmul_simple::<R, E>(lhs, rhs, out, grid_x, grid_y)
         }
         MatmulStrategy::Cube => {
             let out = init_matmul_output::<R, E>(&lhs, &rhs);
@@ -56,7 +56,7 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             out
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => matmul_autotune(lhs, rhs),
+        MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs),
     }
 }
 

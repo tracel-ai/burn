@@ -115,20 +115,20 @@ pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> 
 }
 
 fn im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
+    input: JitTensor<R>,
     options: ConvOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,
     out_w: usize,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let input = into_contiguous(input);
     let [batch_size, in_channels, _, _] = input.shape.dims();
 
     let col_shape_0 = in_channels * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let shape_col = Shape::new([col_shape_0, col_shape_1]);
-    let columns = empty_device(
+    let columns = empty_device::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_col.clone(),
@@ -179,11 +179,11 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
@@ -216,16 +216,16 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
     let mut out = if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
         let out_shape = Shape::new([runs, out_channels, batches_per_run, out_h, out_w]);
-        let out = empty_device(input.client.clone(), input.device.clone(), out_shape);
+        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
         let in_shape = Shape::new([runs, batches_per_run, in_channels, in_height, in_width]);
-        let input = reshape(input, in_shape);
+        let input = reshape::<R, E>(input, in_shape);
         let in_shape_run = Shape::new([batches_per_run, in_channels, in_height, in_width]);
         for run in 0..runs {
             let input = JitBackend::<R, E, I>::float_narrow(input.clone(), 0, run, 1);
-            let input = reshape(input, in_shape_run.clone());
+            let input = reshape::<R, E>(input, in_shape_run.clone());
             let out_slice = JitBackend::<R, E, I>::float_narrow(out.clone(), 0, run, 1);
-            let out_slice = reshape(out_slice, matmul_shape.clone());
-            execute(
+            let out_slice = reshape::<R, E>(out_slice, matmul_shape.clone());
+            execute::<R, E>(
                 input,
                 weight.clone(),
                 out_slice,
@@ -234,53 +234,53 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
                 out_w,
             );
         }
-        let out = swap_dims(out, 1, 2);
-        reshape(out, Shape::new([batch_size, out_channels, out_h, out_w]))
+        let out = swap_dims::<R, E>(out, 1, 2);
+        reshape::<R, E>(out, Shape::new([batch_size, out_channels, out_h, out_w]))
     } else {
-        let out = empty_device(input.client.clone(), input.device.clone(), matmul_shape);
-        execute(input, weight, out.clone(), options, out_h, out_w);
-        let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
-        swap_dims(out, 0, 1)
+        let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
+        execute::<R, E>(input, weight, out.clone(), options, out_h, out_w);
+        let out = reshape::<R, E>(out, Shape::new([out_channels, batch_size, out_h, out_w]));
+        swap_dims::<R, E>(out, 0, 1)
     };
 
     if let Some(bias) = bias {
-        let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
+        let bias = reshape::<R, E>(bias, Shape::new([1, out_channels, 1, 1]));
         out = JitBackend::<R, E, I>::float_add(out, bias)
     }
     out
 }
 
 fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [batch_size, _, height, width] = input.shape.dims();
     let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
     let groups = options.groups;
     let out_c_per_grp = out_channels / groups;
 
-    let input = swap_dims(input, 0, 1); // [CNHW]
+    let input = swap_dims::<R, E>(input, 0, 1); // [CNHW]
 
-    let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
+    let weight = reshape::<R, E>(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
     let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
-    let input = reshape(input, in_shape);
+    let input = reshape::<R, E>(input, in_shape);
     let out = JitBackend::<R, E, I>::float_matmul(weight, input);
-    let mut out = reshape(out, Shape::new([out_channels, batch_size, height, width]));
+    let mut out = reshape::<R, E>(out, Shape::new([out_channels, batch_size, height, width]));
 
     if let Some(bias) = bias {
-        let bias = reshape(bias, Shape::new([out_channels, 1, 1, 1]));
+        let bias = reshape::<R, E>(bias, Shape::new([out_channels, 1, 1, 1]));
         out = JitBackend::<R, E, I>::float_add(out, bias)
     }
 
-    swap_dims(out, 0, 1)
+    swap_dims::<R, E>(out, 0, 1)
 }
 
 fn execute<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    out: JitTensor<R, E>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    out: JitTensor<R>,
     options: ConvOptions<2>,
     out_h: usize,
     out_w: usize,
@@ -289,13 +289,13 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
 
-    let columns = im2col(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
+    let columns = im2col::<R, E>(input, options.clone(), kernel_h, kernel_w, out_h, out_w);
     let [col_shape_0, col_shape_1] = columns.shape.dims();
     let col_shape_0 = col_shape_0 / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
-    let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
+    let columns = reshape::<R, E>(columns, Shape::new([groups, col_shape_0, col_shape_1]));
+    let weight = reshape::<R, E>(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
     matmul::launch_ref::<R, E>(
         &client,

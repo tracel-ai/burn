@@ -21,11 +21,11 @@ use super::batches_per_run;
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let groups = options.groups;
@@ -60,28 +60,28 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
         .expect("Image too large to run even one batch at once");
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
 
-    let weight = reshape(
+    let weight = reshape::<R, E>(
         weight.clone(),
         Shape::new([groups, input_ch_per_group, col_shape_0]),
     );
-    let weight = into_contiguous(swap_dims(weight, 1, 2));
+    let weight = into_contiguous(swap_dims::<R, E>(weight, 1, 2));
 
     if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
 
         let im_shape = Shape::new([runs, batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device(input.client.clone(), input.device.clone(), im_shape);
+        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
 
         let input_shape = Shape::new([runs, batches_per_run, input_channels, input_h, input_w]);
-        let input = reshape(input, input_shape);
+        let input = reshape::<R, E>(input, input_shape);
         let input_shape_run = Shape::new([batches_per_run, input_channels, input_h, input_w]);
 
         for run in 0..runs {
             let input = JitBackend::<R, E, I>::float_narrow(input.clone(), 0, run, 1);
-            let input = reshape(input, input_shape_run.clone());
+            let input = reshape::<R, E>(input, input_shape_run.clone());
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
             let image_slice = JitBackend::<R, E, I>::float_narrow(image.clone(), 0, run, 1);
-            let image_slice = reshape(image_slice, im_shape);
+            let image_slice = reshape::<R, E>(image_slice, im_shape);
             execute::<R, E, I>(
                 input,
                 weight.clone(),
@@ -92,10 +92,10 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
                 kernel_w,
             );
         }
-        reshape(image, Shape::new([batch_size, im_channels, im_h, im_w]))
+        reshape::<R, E>(image, Shape::new([batch_size, im_channels, im_h, im_w]))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-        let image = empty_device(input.client.clone(), input.device.clone(), im_shape);
+        let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
         execute::<R, E, I>(
             input,
             weight,
@@ -111,10 +111,10 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 #[allow(clippy::too_many_arguments)]
 fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
-    image: JitTensor<R, E>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
+    image: JitTensor<R>,
     options: ConvTransposeOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
@@ -124,23 +124,23 @@ fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let col_shape_1 = batch_size * input_h * input_w;
 
-    let input = swap_dims(input, 0, 1);
+    let input = swap_dims::<R, E>(input, 0, 1);
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
-    let input = reshape(input, input_shape);
+    let input = reshape::<R, E>(input, input_shape);
 
     let columns = JitBackend::<R, E, I>::float_matmul(weight, input);
-    let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
+    let columns = reshape::<R, E>(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    col2im(
+    col2im::<R, E>(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
     );
 }
 
 #[allow(clippy::too_many_arguments)]
 fn col2im<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
-    out: JitTensor<R, E>,
+    columns: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
+    out: JitTensor<R>,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,
@@ -152,7 +152,7 @@ fn col2im<R: JitRuntime, E: FloatElement>(
     let columns = into_contiguous(columns);
     let has_bias = bias.is_some();
     let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device(
+        empty_device::<R, E>(
             columns.client.clone(),
             columns.device.clone(),
             Shape::new([1]),
@@ -170,9 +170,9 @@ fn col2im<R: JitRuntime, E: FloatElement>(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_tensor_arg(vectorization),
-            bias.as_tensor_arg(vectorization),
-            out.as_tensor_arg(vectorization),
+            columns.as_tensor_arg::<E>(vectorization),
+            bias.as_tensor_arg::<E>(vectorization),
+            out.as_tensor_arg::<E>(vectorization),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h as u32),
                 ScalarArg::new(out_w as u32),

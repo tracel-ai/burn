@@ -15,7 +15,7 @@ where
     I: IntElement,
 {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        super::empty(shape, device)
+        super::empty::<R, I>(shape, device)
     }
 
     fn int_shape(tensor: &IntTensor<Self>) -> Shape {
@@ -23,11 +23,11 @@ where
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
-        super::into_data(tensor).await
+        super::into_data::<R, I>(tensor).await
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::from_data(data, device)
+        super::from_data::<R, I>(data, device)
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -39,11 +39,11 @@ where
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        super::reshape(tensor, shape)
+        super::reshape::<R, I>(tensor, shape)
     }
 
     fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
-        kernel::slice(tensor, ranges)
+        kernel::slice::<R, I>(tensor, ranges)
     }
 
     fn int_slice_assign(
@@ -51,7 +51,7 @@ where
         ranges: &[Range<usize>],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::slice_assign(tensor, ranges, value)
+        kernel::slice_assign::<R, I>(tensor, ranges, value)
     }
 
     fn int_mask_where(
@@ -59,7 +59,7 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_where_auto(tensor, mask, value)
+        kernel::mask_where_auto::<R, I>(tensor, mask, value)
     }
 
     fn int_mask_fill(
@@ -75,7 +75,7 @@ where
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::gather(dim, tensor, indices)
+        kernel::gather::<R, I, I>(dim, tensor, indices)
     }
 
     fn int_scatter(
@@ -84,7 +84,7 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::scatter(dim, tensor, indices, value)
+        kernel::scatter::<R, I, I>(dim, tensor, indices, value)
     }
 
     fn int_select(
@@ -92,7 +92,7 @@ where
         dim: usize,
         indices: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::select(tensor, dim, indices)
+        kernel::select::<R, I, I>(tensor, dim, indices)
     }
 
     fn int_select_assign(
@@ -101,123 +101,123 @@ where
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::select_assign(tensor, dim, indices, value)
+        kernel::select_assign::<R, I, I>(tensor, dim, indices, value)
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal(lhs, rhs)
+        kernel::equal::<R, I>(lhs, rhs)
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem(lhs, rhs)
+        kernel::equal_elem::<R, I>(lhs, rhs)
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater(lhs, rhs)
+        kernel::greater::<R, I>(lhs, rhs)
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_elem(lhs, rhs)
+        kernel::greater_elem::<R, I>(lhs, rhs)
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal(lhs, rhs)
+        kernel::greater_equal::<R, I>(lhs, rhs)
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal_elem(lhs, rhs)
+        kernel::greater_equal_elem::<R, I>(lhs, rhs)
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower(lhs, rhs)
+        kernel::lower::<R, I>(lhs, rhs)
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_elem(lhs, rhs)
+        kernel::lower_elem::<R, I>(lhs, rhs)
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal(lhs, rhs)
+        kernel::lower_equal::<R, I>(lhs, rhs)
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal_elem(lhs, rhs)
+        kernel::lower_equal_elem::<R, I>(lhs, rhs)
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::add(lhs, rhs)
+        numeric::add::<R, I>(lhs, rhs)
     }
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        numeric::add_scalar(lhs, rhs)
+        numeric::add_scalar::<R, I>(lhs, rhs)
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::sub(lhs, rhs)
+        numeric::sub::<R, I>(lhs, rhs)
     }
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        numeric::sub_scalar(lhs, rhs)
+        numeric::sub_scalar::<R, I>(lhs, rhs)
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::mul(lhs, rhs)
+        numeric::mul::<R, I>(lhs, rhs)
     }
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        numeric::mul_scalar(lhs, rhs)
+        numeric::mul_scalar::<R, I>(lhs, rhs)
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::div(lhs, rhs)
+        numeric::div::<R, I>(lhs, rhs)
     }
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        numeric::div_scalar(lhs, rhs)
+        numeric::div_scalar::<R, I>(lhs, rhs)
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        numeric::remainder(lhs, rhs)
+        numeric::remainder::<R, I>(lhs, rhs)
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        numeric::remainder_scalar(lhs, rhs)
+        numeric::remainder_scalar::<R, I>(lhs, rhs)
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::zeros(shape, device)
+        numeric::zeros::<R, I>(shape, device)
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::ones(shape, device)
+        numeric::ones::<R, I>(shape, device)
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::sum(tensor, Default::default())
+        kernel::reduce::sum::<R, I>(tensor, Default::default())
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::sum_dim(tensor, dim, Default::default())
+        kernel::reduce::sum_dim::<R, I, I>(tensor, dim, Default::default())
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::prod(tensor, Default::default())
+        kernel::reduce::prod::<R, I>(tensor, Default::default())
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::prod_dim(tensor, dim, Default::default())
+        kernel::reduce::prod_dim::<R, I, I>(tensor, dim, Default::default())
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::mean_dim(tensor, dim, Default::default())
+        kernel::reduce::mean_dim::<R, I, I>(tensor, dim, Default::default())
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmax(tensor, dim, Default::default())
+        kernel::reduce::argmax::<R, I, I>(tensor, dim, Default::default())
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmin(tensor, dim, Default::default())
+        kernel::reduce::argmin::<R, I, I>(tensor, dim, Default::default())
     }
 
     fn int_clamp(
@@ -225,7 +225,7 @@ where
         min: IntElem<Self>,
         max: IntElem<Self>,
     ) -> IntTensor<Self> {
-        kernel::clamp(tensor, min, max)
+        kernel::clamp::<R, I>(tensor, min, max)
     }
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -239,7 +239,7 @@ where
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        kernel::cast(tensor)
+        kernel::cast::<R, I, F>(tensor)
     }
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
@@ -250,7 +250,7 @@ where
     }
 
     fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
-        kernel::repeat_dim(tensor, dim, times)
+        kernel::repeat_dim::<R, I>(tensor, dim, times)
     }
 
     fn int_random(
@@ -259,28 +259,28 @@ where
         device: &Device<Self>,
     ) -> IntTensor<Self> {
         let float_tensor = match distribution {
-            Distribution::Default => random_uniform(shape, device, 0.elem::<f32>(), 255.elem()),
+            Distribution::Default => random_uniform(shape, device, 0.elem::<F>(), 255.elem()),
             Distribution::Uniform(low, high) => {
-                random_uniform(shape, device, low.elem(), high.elem())
+                random_uniform(shape, device, low.elem::<F>(), high.elem())
             }
-            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem()),
+            Distribution::Bernoulli(prob) => random_bernoulli(shape, device, prob.elem::<F>()),
             Distribution::Normal(mean, std) => {
-                random_normal(shape, device, mean.elem(), std.elem())
+                random_normal(shape, device, mean.elem::<F>(), std.elem())
             }
         };
 
-        kernel::cast(float_tensor)
+        kernel::cast::<R, F, I>(float_tensor)
     }
 
     fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        permute(tensor, axes)
+        permute::<R, I>(tensor, axes)
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        expand(tensor, shape)
+        expand::<R, I>(tensor, shape)
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        kernel::flip(tensor, axes)
+        kernel::flip::<R, I>(tensor, axes)
     }
 }

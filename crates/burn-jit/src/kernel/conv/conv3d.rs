@@ -140,11 +140,11 @@ fn conv3d_kernel<F: Float>(
 }
 
 pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<3>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();
@@ -174,7 +174,7 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
 
     let shape_out = Shape::new([batch_size, out_channels, out_0, out_1, out_2]);
 
-    let output = empty_device(
+    let output = empty_device::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
@@ -183,11 +183,11 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
     let bias = match bias {
         Some(bias) => {
             let shape = Shape::from([bias.shape.dims[0], 1, 1, 1, 1]);
-            reshape(bias, shape)
+            reshape::<R, E>(bias, shape)
         }
         None => {
             let shape = Shape::from([output.shape.dims[0], 1, 1, 1, 1]);
-            zeros_device(input.client.clone(), input.device.clone(), shape)
+            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };
 
@@ -198,10 +198,10 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        weight.as_tensor_arg(1),
-        bias.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<E>(1),
+        weight.as_tensor_arg::<E>(1),
+        bias.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
         Conv3dArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),

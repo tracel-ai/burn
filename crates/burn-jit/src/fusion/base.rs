@@ -68,28 +68,31 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
     type Handle = JitFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        handle.handle.into_tensor::<F>(handle.shape)
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::IntTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        handle.handle.into_tensor::<I>(handle.shape)
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::BoolTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        handle.handle.into_tensor::<u32>(handle.shape)
     }
 
     fn quantized_tensor(
         handles: QuantizedKind<TensorHandle<Self::Handle>>,
         scheme: QuantizationScheme,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
-        let qtensor = handles.tensor.handle.into_tensor(handles.tensor.shape);
-        let scale = handles.scale.handle.into_tensor(handles.scale.shape);
+        let qtensor = handles
+            .tensor
+            .handle
+            .into_tensor::<u32>(handles.tensor.shape);
+        let scale = handles.scale.handle.into_tensor::<F>(handles.scale.shape);
         let offset = handles.offset;
 
         let qparams = JitQuantizationParameters {
             scale,
-            offset: offset.map(|h| h.handle.into_tensor(h.shape)),
+            offset: offset.map(|h| h.handle.into_tensor::<I>(h.shape)),
         };
 
         QJitTensor {
@@ -155,7 +158,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
         fn cast<R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: JitTensor<R, F>,
+            tensor: JitTensor<R>,
         ) -> JitFusionHandle<R> {
             JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
@@ -219,14 +222,14 @@ unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
 unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
 
 impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor<E: JitElement>(self, shape: Shape) -> JitTensor<R, E> {
+    pub(crate) fn into_tensor<E: JitElement>(self, shape: Shape) -> JitTensor<R> {
         JitTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
             shape,
             strides: self.strides,
-            elem: PhantomData,
+            dtype: self.dtype,
         }
     }
     /// Return the reference to a tensor handle.
@@ -255,14 +258,14 @@ impl<R: JitRuntime> JitFusionHandle<R> {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for JitFusionHandle<R> {
-    fn from(value: JitTensor<R, E>) -> Self {
+impl<R: JitRuntime> From<JitTensor<R>> for JitFusionHandle<R> {
+    fn from(value: JitTensor<R>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,
             device: value.device,
             strides: value.strides,
-            dtype: E::dtype(),
+            dtype: value.dtype,
         }
     }
 }

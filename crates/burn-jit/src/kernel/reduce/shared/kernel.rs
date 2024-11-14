@@ -88,9 +88,9 @@ pub fn reduce_dim_shared<
     EI: JitElement,
     EO: JitElement,
 >(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let num_elems_output = output.shape.num_elements();
@@ -112,8 +112,8 @@ pub fn reduce_dim_shared<
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            input.as_tensor_arg::<EI>(1),
+            output.as_tensor_arg::<EO>(1),
             dim as u32,
             cube_dim.num_elems(),
             elems_per_thread,

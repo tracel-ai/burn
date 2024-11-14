@@ -20,11 +20,11 @@ fn packed_tensor<R: JitRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
     device: &R::Device,
-) -> JitTensor<R, u32> {
+) -> JitTensor<R> {
     let client = R::client(device);
     let buffer = client.create(data);
 
-    JitTensor::new_contiguous(client, device.clone(), shape.into(), buffer)
+    JitTensor::new_contiguous(client, device.clone(), shape.into(), buffer, DType::U32)
 }
 
 impl<R, F, I> QTensorOps<Self> for JitBackend<R, F, I>
@@ -39,7 +39,7 @@ where
                 QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
                 | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
                     // Convert quantized values to packed u32s
-                    let qparams = data.get_q_params().unwrap();
+                    let qparams = data.get_q_params::<F, i8>().unwrap();
                     QJitTensor {
                         qtensor: packed_tensor(data.values_as_bytes(), data.shape.clone(), device),
                         scheme,
@@ -63,11 +63,11 @@ where
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        kernel::quantization::quantize(tensor, scheme, qparams.into())
+        kernel::quantization::quantize::<R, F, I>(tensor, scheme, qparams.into())
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        kernel::quantization::dequantize(tensor)
+        kernel::quantization::dequantize::<R, F, I>(tensor)
     }
 
     fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
@@ -89,7 +89,7 @@ where
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         QJitTensor {
-            qtensor: super::reshape(tensor.qtensor, shape),
+            qtensor: super::reshape::<R, u32>(tensor.qtensor, shape),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }

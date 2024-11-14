@@ -56,9 +56,9 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
 }
 
 pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, F: FloatElement>(
-    input: JitTensor<R, F>,
-    output: JitTensor<R, F>,
-) -> JitTensor<R, F> {
+    input: JitTensor<R>,
+    output: JitTensor<R>,
+) -> JitTensor<R> {
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
@@ -67,8 +67,8 @@ pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, F: FloatElement>(
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            input.as_tensor_arg::<F>(1),
+            output.as_tensor_arg::<F>(1),
         )
     };
 

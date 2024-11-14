@@ -91,9 +91,9 @@ pub fn reduce_dim_subcube<
     EI: JitElement,
     EO: JitElement,
 >(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     if !input.client.properties().feature_enabled(Feature::Plane) {
         return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
     }
@@ -126,8 +126,8 @@ pub fn reduce_dim_subcube<
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            input.as_tensor_arg::<EI>(1),
+            output.as_tensor_arg::<EO>(1),
             dim as u32,
             smem_size,
             elems_per_thread,

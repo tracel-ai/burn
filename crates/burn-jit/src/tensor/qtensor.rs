@@ -12,17 +12,17 @@ use super::JitTensor;
 
 /// A quantized tensor primitive.
 #[derive(Debug)]
-pub struct QJitTensor<R: JitRuntime, F: FloatElement, I: IntElement> {
+pub struct QJitTensor<R: JitRuntime> {
     /// The quantized tensor.
     /// Values are stored as multiple packed quantized values in u32.
-    pub qtensor: JitTensor<R, u32>,
+    pub qtensor: JitTensor<R>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization parameters.
-    pub qparams: JitQuantizationParameters<R, F, I>,
+    pub qparams: JitQuantizationParameters<R>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> QTensorPrimitive for QJitTensor<R, F, I> {
+impl<R: JitRuntime> QTensorPrimitive for QJitTensor<R> {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
@@ -31,14 +31,15 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> QTensorPrimitive for QJitTen
         match &self.scheme {
             QuantizationScheme::PerTensorAffine(dtype) => match dtype {
                 QuantizationType::QInt8 => {
-                    let scale = read_sync(into_data(self.qparams.scale.clone()))
+                    let scale = read_sync(into_data::<R, f32>(self.qparams.scale.clone()))
                         .iter()
                         .next()
                         .unwrap();
-                    let offset = read_sync(into_data(self.qparams.offset.clone().unwrap()))
-                        .iter()
-                        .next()
-                        .unwrap();
+                    let offset =
+                        read_sync(into_data::<R, i8>(self.qparams.offset.clone().unwrap()))
+                            .iter()
+                            .next()
+                            .unwrap();
                     QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
                         scale, offset,
                     ))
@@ -46,7 +47,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> QTensorPrimitive for QJitTen
             },
             QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
                 QuantizationType::QInt8 => {
-                    let scale = read_sync(into_data(self.qparams.scale.clone()))
+                    let scale = read_sync(into_data::<R, f32>(self.qparams.scale.clone()))
                         .iter()
                         .next()
                         .unwrap();
@@ -57,7 +58,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> QTensorPrimitive for QJitTen
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for QJitTensor<R, F, I> {
+impl<R: JitRuntime> Clone for QJitTensor<R> {
     fn clone(&self) -> Self {
         Self {
             qtensor: self.qtensor.clone(),
@@ -69,14 +70,14 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for QJitTensor<R, F, I
 
 /// The quantization parameters.
 #[derive(Debug)]
-pub struct JitQuantizationParameters<R: JitRuntime, F: FloatElement, I: IntElement> {
+pub struct JitQuantizationParameters<R: JitRuntime> {
     /// The scaling factor.
-    pub scale: JitTensor<R, F>,
+    pub scale: JitTensor<R>,
     /// The zero-point offset.
-    pub offset: Option<JitTensor<R, I>>,
+    pub offset: Option<JitTensor<R>>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for JitQuantizationParameters<R, F, I> {
+impl<R: JitRuntime> Clone for JitQuantizationParameters<R> {
     fn clone(&self) -> Self {
         Self {
             scale: self.scale.clone(),
@@ -86,8 +87,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for JitQuantizationPar
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement>
-    From<QuantizationParametersPrimitive<JitBackend<R, F, I>>>
-    for JitQuantizationParameters<R, F, I>
+    From<QuantizationParametersPrimitive<JitBackend<R, F, I>>> for JitQuantizationParameters<R>
 {
     fn from(value: QuantizationParametersPrimitive<JitBackend<R, F, I>>) -> Self {
         JitQuantizationParameters {
@@ -97,11 +97,16 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement>
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> JitQuantizationParameters<R, F, I> {
-    pub fn new(scale: F, offset: Option<I>, device: &R::Device) -> Self {
+impl<R: JitRuntime> JitQuantizationParameters<R> {
+    pub fn new<F: FloatElement, I: IntElement>(
+        scale: F,
+        offset: Option<I>,
+        device: &R::Device,
+    ) -> Self {
         Self {
-            scale: crate::ops::from_data(TensorData::new(vec![scale], [1]), device),
-            offset: offset.map(|o| crate::ops::from_data(TensorData::new(vec![o], [1]), device)),
+            scale: crate::ops::from_data::<R, F>(TensorData::new(vec![scale], [1]), device),
+            offset: offset
+                .map(|o| crate::ops::from_data::<R, I>(TensorData::new(vec![o], [1]), device)),
         }
     }
 }

@@ -449,7 +449,10 @@ mod reduction {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(sum(
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(sum::<
+            _,
+            <TestBackend as Backend>::FloatElem,
+        >(
             tensor.into_primitive().tensor(),
             ReduceStrategy::default(),
         )));
@@ -465,7 +468,10 @@ mod reduction {
         let tensor_ref =
             Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
 
-        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(prod(
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(prod::<
+            _,
+            <TestBackend as Backend>::FloatElem,
+        >(
             tensor.into_primitive().tensor(),
             ReduceStrategy::default(),
         )));
