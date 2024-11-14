@@ -2511,7 +2511,16 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        todo!()
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_split(tensor, split_size, dim)
+                .into_iter()
+                .map(TensorPrimitive::Float)
+                .collect(),
+            TensorPrimitive::QFloat(tensor) => B::q_split(tensor, split_size, dim)
+                .into_iter()
+                .map(TensorPrimitive::QFloat)
+                .collect(),
+        }
     }
 
     fn split_with_sizes(
@@ -2519,7 +2528,16 @@ impl<B: Backend> BasicOps<B> for Float {
         split_sizes: Vec<usize>,
         dim: usize,
     ) -> Vec<Self::Primitive> {
-        todo!()
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_split_with_sizes(tensor, split_sizes, dim)
+                .into_iter()
+                .map(TensorPrimitive::Float)
+                .collect(),
+            TensorPrimitive::QFloat(tensor) => B::q_split_with_sizes(tensor, split_sizes, dim)
+                .into_iter()
+                .map(TensorPrimitive::QFloat)
+                .collect(),
+        }
     }
 }
 
@@ -2622,7 +2640,7 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        todo!()
+        B::int_split(tensor, split_size, dim)
     }
 
     fn split_with_sizes(
@@ -2630,7 +2648,7 @@ impl<B: Backend> BasicOps<B> for Int {
         split_sizes: Vec<usize>,
         dim: usize,
     ) -> Vec<Self::Primitive> {
-        todo!()
+        B::int_split_with_sizes(tensor, split_sizes, dim)
     }
 }
 
@@ -2733,7 +2751,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        todo!()
+        B::bool_split(tensor, split_size, dim)
     }
 
     fn split_with_sizes(
@@ -2741,7 +2759,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         split_sizes: Vec<usize>,
         dim: usize,
     ) -> Vec<Self::Primitive> {
-        todo!()
+        B::bool_split_with_sizes(tensor, split_sizes, dim)
     }
 }
 
