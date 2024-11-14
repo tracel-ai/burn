@@ -39,7 +39,7 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for Argmax {
     fn reduce_subcube(acc: &mut Self::Accumulator, write_position: u32, value: Self::Value) {
         let (val, index) = value;
         let (val_smem, index_smem) = acc;
-        let max = subcube_max(val);
+        let max = plane_max(val);
 
         if max == val {
             val_smem[write_position] = val;

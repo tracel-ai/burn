@@ -33,7 +33,7 @@ pub fn reduce_dim_subcube_kernel<
 
     let should_unroll = elems_per_thread <= 8;
 
-    let warp_id = UNIT_POS / SUBCUBE_DIM;
+    let warp_id = UNIT_POS / PLANE_DIM;
 
     let mut shared_memory = RD::init_shared(subcube_size);
 
@@ -67,7 +67,7 @@ pub fn reduce_dim_subcube_kernel<
 
     sync_units();
 
-    if UNIT_POS >= SUBCUBE_DIM {
+    if UNIT_POS >= PLANE_DIM {
         return;
     }
 
@@ -94,15 +94,13 @@ pub fn reduce_dim_subcube<
     input: JitTensor<R, EI>,
     dim: usize,
 ) -> JitTensor<R, EO> {
-    let topology = input.client.properties().topology_properties();
+    let topology = input.client.properties().hardware_properties();
 
-    if !input.client.properties().feature_enabled(Feature::Subcube)
-        || topology.subcube_size_min < 32
-    {
+    if !input.client.properties().feature_enabled(Feature::Plane) || topology.plane_size_min < 32 {
         return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
     }
 
-    let subcube_size = topology.subcube_size_min;
+    let subcube_size = topology.plane_size_min;
 
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 

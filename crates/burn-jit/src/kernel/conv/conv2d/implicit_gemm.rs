@@ -106,8 +106,8 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let input_tile_size = cmma_m * cmma_k;
     let weight_tile_size = cmma_k * cmma_n;
 
-    let topology = input.client.properties().topology_properties();
-    let warp_size = topology.subcube_size_min;
+    let topology = input.client.properties().hardware_properties();
+    let warp_size = topology.plane_size_min;
     let warps_per_cube = (cube_dim_y * cube_dim_x) / warp_size;
 
     let supported_vecs = R::supported_line_sizes();
@@ -330,22 +330,22 @@ fn implicit_gemm_kernel<F: Float, FMat: Float, W: WeightLoader>(
 
     let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
     let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
-    let input_tile =
+    let mut input_tile =
         smem_input_tile.slice_mut(input_tile_start, input_tile_start + cmma_input_tile_size);
-    let weight_tile =
+    let mut weight_tile =
         smem_weight_tile.slice_mut(weight_tile_start, weight_tile_start + cmma_filter_tile_size);
 
     let out_pos = pos.global_n + pos.global_m * dims.gemm_n;
-    let out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
+    let mut out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
     if conv_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
         execute_gemm::<F, FMat, W>(
             input,
             weight,
             bias,
-            out,
-            input_tile,
-            weight_tile,
+            &mut out,
+            &mut input_tile,
+            &mut weight_tile,
             dims,
             &pos,
             args,
@@ -459,7 +459,7 @@ fn execute_gemm<F: Float, FMat: Float, W: WeightLoader>(
     let matrices = make_matrices::<FMat, F>(g_settings, has_bias);
     if has_bias {
         let bias_tile = bias.slice(pos.global_n, pos.global_n + cmma_n);
-        cmma::load_with_layout(&matrices.acc, bias_tile, 0, MatrixLayout::RowMajor);
+        cmma::load_with_layout(&matrices.acc, &bias_tile, 0, MatrixLayout::RowMajor);
     }
 
     // Loop over the K-dimension
@@ -484,7 +484,7 @@ fn execute_gemm<F: Float, FMat: Float, W: WeightLoader>(
         );
 
         // Run CMMA
-        cmma::load(&matrices.a, input_tile.as_slice(), cmma_k);
+        cmma::load(&matrices.a, &input_tile.to_slice(), cmma_k);
 
         cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
     }
@@ -669,7 +669,7 @@ impl WeightLoader for CheckedWeightLoader {
             }
         }
 
-        cmma::load(&matrices.b, tile.as_slice(), cmma_n);
+        cmma::load(&matrices.b, &tile.to_slice(), cmma_n);
     }
 }
 
@@ -690,7 +690,7 @@ impl WeightLoader for UncheckedWeightLoader {
         let start_idx = k * weight.stride(2) + pos.global_n;
         let slice = weight.slice(start_idx, weight.len());
 
-        cmma::load(&matrices.b, slice, weight.stride(2));
+        cmma::load(&matrices.b, &slice, weight.stride(2));
     }
 }
 
@@ -730,8 +730,8 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
         let warps_per_cube = 8;
 
         let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
-        let topology = client.properties().topology_properties();
-        let not_intel = topology.subcube_size_min >= 32;
+        let topology = client.properties().hardware_properties();
+        let not_intel = topology.plane_size_min >= 32;
 
         <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && groups == 1 && not_intel
     } else {

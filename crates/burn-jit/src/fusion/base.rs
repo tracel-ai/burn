@@ -139,6 +139,7 @@ impl<R: JitRuntime> FusionRuntime for FusionJitRuntime<R> {
     }
 }
 
+/// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
 pub struct FusionJitRuntime<R: JitRuntime> {
     _b: PhantomData<R>,
@@ -168,7 +169,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend
     }
 }
 
-pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
+pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     let mut strides = vec![0; shape.len()];
 
     let mut current = 1;

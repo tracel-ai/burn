@@ -45,7 +45,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Creates a tensor from the data structure.
     ///

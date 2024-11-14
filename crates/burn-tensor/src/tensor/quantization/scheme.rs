@@ -5,14 +5,14 @@ use crate::{backend::Backend, Tensor, TensorPrimitive};
 use super::{CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive};
 
 /// Quantization data type.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationType {
     /// 8-bit signed integer.
     QInt8,
 }
 
 /// Quantization scheme.
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationScheme {
     /// Per-tensor affine/asymmetric quantization.
     PerTensorAffine(QuantizationType),
