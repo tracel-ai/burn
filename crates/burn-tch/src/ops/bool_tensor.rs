@@ -98,6 +98,18 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchOps::chunk(tensor, chunks, dim)
     }
 
+    fn bool_split(tensor: TchTensor<bool>, split_size: usize, dim: usize) -> Vec<TchTensor<bool>> {
+        TchOps::split(tensor, split_size, dim)
+    }
+
+    fn bool_split_with_sizes(
+        tensor: TchTensor<bool>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor<bool>> {
+        TchOps::split_with_sizes(tensor, split_sizes, dim)
+    }
+
     fn bool_permute(tensor: TchTensor<bool>, axes: &[usize]) -> TchTensor<bool> {
         TchOps::permute(tensor, axes)
     }

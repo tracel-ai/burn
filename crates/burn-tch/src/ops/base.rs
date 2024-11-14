@@ -439,6 +439,29 @@ impl<E: tch::kind::Element + Copy + Default> TchOps<E> {
             .collect()
     }
 
+    pub fn split(tensor: TchTensor<E>, split_size: usize, dim: usize) -> Vec<TchTensor<E>> {
+        tensor
+            .tensor
+            .split(split_size as i64, dim as i64)
+            .into_iter()
+            .map(|tensor| TchTensor::new(tensor))
+            .collect()
+    }
+
+    pub fn split_with_sizes(
+        tensor: TchTensor<E>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor<E>> {
+        let split_sizes_i64: Vec<i64> = split_sizes.iter().map(|&s| s as i64).collect();
+        tensor
+            .tensor
+            .split_with_sizes(split_sizes_i64, dim as i64)
+            .into_iter()
+            .map(|tensor| TchTensor::new(tensor))
+            .collect()
+    }
+
     pub fn powf(tensor: TchTensor<E>, exponent: TchTensor<E>) -> TchTensor<E> {
         TchTensor::binary_ops_tensor(
             tensor,
