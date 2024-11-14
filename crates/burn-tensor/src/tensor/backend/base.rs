@@ -74,7 +74,7 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all float operations.
     type FloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
-    /// Float element type.
+    /// Default float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
