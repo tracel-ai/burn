@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{backend::Backend, Element, Shape, TensorData};
+use candle_core::WithDType;
 use half::{bf16, f16};
 
 use crate::{
@@ -19,70 +20,21 @@ pub fn from_data<E: CandleElement>(data: TensorData, device: &CandleDevice) -> C
     CandleTensor::from_data::<E>(data, device.clone())
 }
 pub fn into_data(tensor: CandleTensor) -> TensorData {
+    fn tensor_data_from_dtype<T: WithDType + Element>(tensor: &CandleTensor) -> TensorData {
+        TensorData::new(
+            tensor.tensor.flatten_all().unwrap().to_vec1::<T>().unwrap(),
+            tensor.shape(),
+        )
+    }
+
     match tensor.tensor.dtype() {
-        candle_core::DType::BF16 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<bf16>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::F16 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<f16>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::F32 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<f32>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::F64 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<f64>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::U8 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<u8>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::U32 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<u32>()
-                .unwrap(),
-            tensor.shape(),
-        ),
-        candle_core::DType::I64 => TensorData::new(
-            tensor
-                .tensor
-                .flatten_all()
-                .unwrap()
-                .to_vec1::<i64>()
-                .unwrap(),
-            tensor.shape(),
-        ),
+        candle_core::DType::BF16 => tensor_data_from_dtype::<bf16>(&tensor),
+        candle_core::DType::F16 => tensor_data_from_dtype::<f16>(&tensor),
+        candle_core::DType::F32 => tensor_data_from_dtype::<f32>(&tensor),
+        candle_core::DType::F64 => tensor_data_from_dtype::<f64>(&tensor),
+        candle_core::DType::U8 => tensor_data_from_dtype::<u8>(&tensor),
+        candle_core::DType::U32 => tensor_data_from_dtype::<u32>(&tensor),
+        candle_core::DType::I64 => tensor_data_from_dtype::<i64>(&tensor),
     }
 }
 
