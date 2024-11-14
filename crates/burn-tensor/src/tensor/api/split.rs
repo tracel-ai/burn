@@ -14,7 +14,7 @@ use alloc::vec::Vec;
 ///
 /// # Returns
 ///
-/// A vector of tensors
+/// A vector of tensors.
 ///
 /// # Remarks
 ///
