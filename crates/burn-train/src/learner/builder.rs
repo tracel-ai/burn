@@ -59,6 +59,7 @@ where
     early_stopping: Option<Box<dyn EarlyStoppingStrategy>>,
     summary_metrics: HashSet<String>,
     summary: bool,
+    manual_quit: bool,
 }
 
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
@@ -106,6 +107,7 @@ where
             early_stopping: None,
             summary_metrics: HashSet::new(),
             summary: false,
+            manual_quit: false,
         }
     }
 
@@ -275,6 +277,12 @@ where
         self
     }
 
+    /// Enable manual quit mode for renderer.
+    pub fn with_manual_quit(mut self) -> Self {
+        self.manual_quit = true;
+        self
+    }
+
     /// Enable the training summary report.
     ///
     /// The summary will be displayed at the end of `.fit()`.
@@ -316,9 +324,12 @@ where
                 log::warn!("Failed to install the experiment logger: {}", e);
             }
         }
-        let renderer = self
+        let mut renderer = self
             .renderer
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), self.checkpoint));
+        if self.manual_quit {
+            renderer.enable_manual_quit();
+        }
 
         if self.num_loggers == 0 {
             self.event_store

@@ -31,6 +31,14 @@ pub trait MetricsRenderer: Send + Sync {
     ///
     /// * `item` - The validation progress.
     fn render_valid(&mut self, item: TrainingProgress);
+
+    /// Enable manual quit. Default implementation warn that this feature is not implemented.
+    ///
+    fn enable_manual_quit(&mut self) {
+        log::warn!(
+            "Manual quit option will be ignored since it's not implemented for this renderer."
+        )
+    }
 }
 
 /// The state of a metric.

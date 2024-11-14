@@ -44,6 +44,7 @@ pub struct TuiMetricsRenderer {
     interuptor: TrainingInterrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
+    manual_quit: bool,
 }
 
 impl MetricsRenderer for TuiMetricsRenderer {
@@ -84,6 +85,10 @@ impl MetricsRenderer for TuiMetricsRenderer {
         self.status.update_valid(item);
         self.render().unwrap();
     }
+
+    fn enable_manual_quit(&mut self) {
+        self.manual_quit = true;
+    }
 }
 
 impl TuiMetricsRenderer {
@@ -116,6 +121,7 @@ impl TuiMetricsRenderer {
             interuptor,
             popup: PopupState::Empty,
             previous_panic_hook: Some(previous_panic_hook),
+            manual_quit: false,
         }
     }
 
@@ -230,6 +236,19 @@ impl Drop for TuiMetricsRenderer {
         // Reset the terminal back to raw mode. This can be skipped during
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
+            if self.manual_quit {
+                // Wait for 'q' key press before closing
+                loop {
+                    if let Ok(true) = event::poll(Duration::from_millis(100)) {
+                        if let Ok(Event::Key(key)) = event::read() {
+                            if let KeyCode::Char('q') = key.code {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             disable_raw_mode().ok();
             execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
             self.terminal.show_cursor().ok();
