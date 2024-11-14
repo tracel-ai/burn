@@ -1,4 +1,4 @@
-use crate::{kernel_with_dtype, tensor::JitTensor, JitRuntime};
+use crate::{execute_with_dtype, tensor::JitTensor, JitRuntime};
 
 /// Make a jit tensor contiguous.
 pub fn into_contiguous<R: JitRuntime>(tensor: JitTensor<R>) -> JitTensor<R> {
@@ -6,7 +6,7 @@ pub fn into_contiguous<R: JitRuntime>(tensor: JitTensor<R>) -> JitTensor<R> {
         return tensor;
     }
 
-    kernel_with_dtype!(tensor.dtype, |E| {
+    execute_with_dtype!(tensor.dtype, E, {
         let output =
             cubecl::linalg::tensor::into_contiguous::<R, E>(&tensor.client, tensor.as_handle_ref());
 

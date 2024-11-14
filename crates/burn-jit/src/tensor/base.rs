@@ -63,67 +63,103 @@ where
     }
 }
 
-/// Macro to execute a kernel (body) for a given element type.
+/// Macro to execute a kernel/operation for a given element type.
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
-macro_rules! kernel_with_dtype {
-    ($dtype:expr, |$element:ident| $body:block) => {{
+macro_rules! execute_with_dtype {
+    (float($dtype:expr), $element:ident, $op:expr) => {{
         match $dtype {
             burn_tensor::DType::F64 => {
                 type $element = f64;
-                $body
+                $op
             }
             burn_tensor::DType::F32 => {
                 type $element = f32;
-                $body
+                $op
             }
             burn_tensor::DType::F16 => {
                 type $element = half::f16;
-                $body
+                $op
             }
             burn_tensor::DType::BF16 => {
                 type $element = half::bf16;
-                $body
+                $op
+            }
+            _ => unimplemented!("Unsupported dtype"),
+        }
+    }};
+
+    (float($lhs_dtype:expr, $rhs_dtype:expr), $element:ident, $op:expr) => {{
+        // NOTE: might be better for floating point binary operations to return a Result instead?
+        if $lhs_dtype != $rhs_dtype {
+            panic!(
+                "Data type mismatch (lhs: {:?}, rhs: {:?})",
+                $lhs_dtype, $rhs_dtype
+            );
+        }
+        execute_with_dtype!(float($lhs_dtype), $element, $op)
+    }};
+    ($dtype:expr, $element:ident, $op:expr) => {{
+        match $dtype {
+            burn_tensor::DType::F64 => {
+                type $element = f64;
+                $op
+            }
+            burn_tensor::DType::F32 => {
+                type $element = f32;
+                $op
+            }
+            burn_tensor::DType::F16 => {
+                type $element = half::f16;
+                $op
+            }
+            burn_tensor::DType::BF16 => {
+                type $element = half::bf16;
+                $op
             }
             burn_tensor::DType::U64 => {
                 type $element = u64;
-                $body
+                $op
             }
             burn_tensor::DType::U32 => {
                 type $element = u32;
-                $body
+                $op
             }
             burn_tensor::DType::U16 => {
                 type $element = u16;
-                $body
+                $op
             }
             burn_tensor::DType::U8 => {
                 type $element = u8;
-                $body
+                $op
             }
             burn_tensor::DType::I64 => {
                 type $element = i64;
-                $body
+                $op
             }
             burn_tensor::DType::I32 => {
                 type $element = i32;
-                $body
+                $op
             }
             burn_tensor::DType::I16 => {
                 type $element = i16;
-                $body
+                $op
             }
             burn_tensor::DType::I8 => {
                 type $element = i8;
-                $body
+                $op
             }
             // NOTE: bool and qfloat dtypes are actually represented as u32
             // burn_tensor::DType::Bool => {
             //     type $element = u32;
-            //     $body
+            //     $op
             // }
             // burn_tensor::DType::QFloat(_) => {
             //     type $element = u32;
-            //     $body
+            //     $op
             // }
             _ => unimplemented!("Unsupported dtype"),
         }
@@ -234,7 +270,7 @@ where
 
     /// Copy the current tensor.
     pub fn copy(&self) -> Self {
-        kernel_with_dtype!(self.dtype, |E| {
+        execute_with_dtype!(self.dtype, E, {
             unary_op!(numeric(self.clone()) => |context, tensor| {
                 #[cube]
                 fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
