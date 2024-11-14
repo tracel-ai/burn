@@ -1022,12 +1022,6 @@ impl TensorCheck {
                         .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
                 );
             }
-        } else if split_size < 0 {
-            check = check.register(
-                op,
-                TensorError::new("split_size must be greater than 0.")
-                    .details(format!("split_size: '{split_size}'.")),
-            );
         }
 
         check
@@ -1056,15 +1050,6 @@ impl TensorCheck {
                 op,
                 TensorError::new("The sum of split_sizes must equal the tensor size along the specified dimension.")
                     .details(format!("Sum of split_sizes: '{total_split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
-            );
-        }
-
-        // Check for negative sizes
-        if let Some(&size) = split_sizes.iter().find(|&&size| size < 0) {
-            check = check.register(
-                op,
-                TensorError::new("split_sizes must contain non-negative integers.")
-                    .details(format!("Found negative size: '{size}' in split_sizes.")),
             );
         }
 
