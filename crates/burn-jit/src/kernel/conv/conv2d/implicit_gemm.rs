@@ -726,11 +726,6 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
 
     let size = find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
 
-    println!(
-        "Size: {:?}, gemm_m: {gemm_m}, gemm_n: {gemm_n}, gemm_k: {gemm_k}",
-        size
-    );
-
     if let Some((cmma_m, cmma_k, cmma_n)) = size {
         let warps_per_cube = 8;
 
@@ -769,7 +764,7 @@ fn padded_k(
 
 fn padded_batch_size(batch_size: usize, out_h: usize, out_w: usize) -> usize {
     let out_size = out_h * out_w;
-    let target = if out_size.is_power_of_two() {
+    let target = if out_size.is_power_of_two() || out_size % 16 == 0 {
         (16usize).div_ceil(out_size)
     } else {
         16
