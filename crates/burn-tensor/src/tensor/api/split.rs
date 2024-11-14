@@ -22,14 +22,13 @@ pub fn split<B: Backend, K: TensorKind<B> + BasicOps<B>>(
 
 pub fn split_with_size<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     tensor: K::Primitive,
-    split_sizes: &[usize],
+    split_sizes: Vec<usize>,
     dim: usize,
 ) -> Vec<K::Primitive> {
-    let size = K::shape(&tensor).dims[dim];
-
     let mut tensors = Vec::new();
+
     let mut start = 0;
-    for &length in split_sizes {
+    for length in split_sizes {
         if length == 0 {
             continue;
         }
