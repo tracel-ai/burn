@@ -455,7 +455,9 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
 
     fn float_cast(tensor: TchTensor, dtype: FloatDType) -> TchTensor {
         // NOTE: when dtypes of inputs to an arithmetic operation differ, tch handles type
-        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html
+        // promotion based on a set of rules: https://pytorch.org/docs/stable/tensor_attributes.html#type-promotion-doc
+
+        // Type promotion is not automatic on all backends so this behavior might differ
         let kind = match dtype {
             FloatDType::F64 => tch::Kind::Double,
             FloatDType::F32 => tch::Kind::Float,
