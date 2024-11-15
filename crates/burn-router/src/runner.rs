@@ -1264,8 +1264,12 @@ where
         self.context.lock().unwrap().drop_tensor_handle(*id)
     }
 
-    fn sync(&self) {
-        B::sync(&self.device);
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
+        let device = self.device.clone();
+
+        async move {
+            B::sync(&device);
+        }
     }
 
     fn seed(&self, seed: u64) {

@@ -3,7 +3,7 @@ use burn_tensor::{
     backend::{DeviceId, DeviceOps},
     DType, TensorData,
 };
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use crate::shared::{ComputeTask, TaskResponseContent};
 
@@ -73,18 +73,17 @@ impl RunnerClient for WsClient {
         self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) {
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
+        let runtime = self.runtime.clone();
 
-        let fut = async move {
-            match fut.await {
+        async move {
+            match runtime.block_on(fut) {
                 TaskResponseContent::SyncBackend => {}
                 _ => panic!("Invalid message type"),
             };
-        };
-
-        self.runtime.block_on(fut)
+        }
     }
 
     fn seed(&self, _seed: u64) {

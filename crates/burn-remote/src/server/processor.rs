@@ -44,7 +44,8 @@ where
                         runner.register_orphan(&id);
                     }
                     ProcessorTask::Sync(id, callback) => {
-                        runner.sync();
+                        let fut = runner.sync();
+                        burn_common::future::block_on(fut);
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::SyncBackend,
@@ -67,7 +68,8 @@ where
                     }
                     ProcessorTask::Close => {
                         let device = runner.device();
-                        runner.sync();
+                        let fut = runner.sync();
+                        burn_common::future::block_on(fut);
                         core::mem::drop(runner);
                         B::sync(&device);
                         return;
