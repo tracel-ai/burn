@@ -97,7 +97,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(
+        expected = "split_size must be greater than 0 unless the tensor size along the dimension is 0."
+    )]
     fn test_split_with_zero_split_size_non_zero_tensor() {
         let device = Default::default();
         let tensors = TestTensor::<1>::from_data([0, 1, 2, 3, 4], &device);
@@ -106,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Given dimension is greater than or equal to the tensor rank.")]
     fn test_split_invalid_dim() {
         let device = Default::default();
         let tensors = TestTensor::<1>::from_data([0, 1, 2], &device);
@@ -144,10 +146,7 @@ mod tests {
     fn test_split_3d_tensor_along_dim1() {
         let device = Default::default();
         let tensors = TestTensor::<3>::from_data(
-            [
-                [[0, 1], [2, 3], [4, 5]],
-                [[6, 7], [8, 9], [10, 11]],
-            ],
+            [[[0, 1], [2, 3], [4, 5]], [[6, 7], [8, 9], [10, 11]]],
             &device,
         );
 
@@ -163,5 +162,4 @@ mod tests {
             tensor.to_data().assert_eq(&expected[index], false);
         }
     }
-
 }
