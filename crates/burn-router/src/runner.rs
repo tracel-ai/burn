@@ -2,7 +2,7 @@ use alloc::{sync::Arc, vec::Vec};
 use spin::Mutex;
 
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
+    backend::Backend,
     ops::FullPrecisionBackend,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
@@ -55,8 +55,7 @@ pub struct Runner<B: ReprBackend> {
 impl<B: ReprBackend> Runner<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
@@ -173,8 +172,7 @@ where
 impl<B: ReprBackend> RunnerClient for Runner<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     type Device = B::Device;
 

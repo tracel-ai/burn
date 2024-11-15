@@ -9,7 +9,7 @@ use super::{
 };
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, Tensor};
+use crate::tensor::{backend::AutodiffBackend, ops::Device, Tensor};
 use burn_tensor::backend::Backend;
 
 /// Configuration to create the [RmsProp](RmsProp) optimizer.
@@ -125,10 +125,7 @@ impl<B: Backend> SimpleOptimizer<B> for RmsProp<B> {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(
-        mut state: Self::State<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::State<D> {
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
         state.square_avg = state.square_avg.to_device(device);
         state.centered = state.centered.to_device(device);
         state.momentum = state.momentum.map(|momentum| momentum.to_device(device));

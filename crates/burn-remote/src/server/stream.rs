@@ -6,7 +6,7 @@ use crate::shared::{ConnectionId, TaskResponse};
 use super::processor::{Processor, ProcessorTask};
 use burn_router::Runner;
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
+    ops::FullPrecisionBackend,
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
     TensorData,
 };
@@ -23,8 +23,7 @@ pub struct Stream<B: ReprBackend> {
 impl<B: ReprBackend> Stream<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     pub fn new(runner: Runner<B>, writer_sender: Sender<Receiver<TaskResponse>>) -> Self {
         let sender = Processor::start(runner);

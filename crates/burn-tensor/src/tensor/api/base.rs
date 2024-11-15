@@ -16,7 +16,9 @@ use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
+use crate::{
+    backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
+};
 use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
@@ -2308,14 +2310,14 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
             TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_to_device(tensor, device))
@@ -2465,11 +2467,11 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_slice_assign(tensor, ranges, value)
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         B::int_device(tensor)
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         B::int_to_device(tensor, device)
     }
 
@@ -2564,11 +2566,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_slice_assign(tensor, ranges, value)
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         B::bool_device(tensor)
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         B::bool_to_device(tensor, device)
     }
 

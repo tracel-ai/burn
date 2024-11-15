@@ -1,7 +1,7 @@
 use burn_common::id::StreamId;
 use burn_router::Runner;
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
+    ops::FullPrecisionBackend,
     repr::{ReprBackend, TensorDescription, TensorId, TensorStatus},
     Device,
 };
@@ -35,8 +35,7 @@ struct Session<B: ReprBackend> {
 impl<B: ReprBackend> SessionManager<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     pub fn new(device: Device<B>) -> Self {
         Self {
@@ -117,8 +116,7 @@ where
 impl<B: ReprBackend> Session<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     fn new(runner: Runner<B>) -> Self {
         let (sender, reveiver) = std::sync::mpsc::channel();

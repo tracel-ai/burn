@@ -10,7 +10,7 @@ use super::{
 use crate::config::Config;
 use crate::optim::adaptor::OptimizerAdaptor;
 use crate::tensor::{backend::AutodiffBackend, Tensor};
-use burn_tensor::{backend::Backend, ElementConversion};
+use burn_tensor::{backend::Backend, ops::Device, ElementConversion};
 
 /// Adam configuration.
 #[derive(Config)]
@@ -71,10 +71,7 @@ impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
         (tensor - delta, Some(state))
     }
 
-    fn to_device<const D: usize>(
-        mut state: Self::State<D>,
-        device: &<B as Backend>::Device,
-    ) -> Self::State<D> {
+    fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
         state.momentum = state.momentum.to_device(device);
         state
     }
