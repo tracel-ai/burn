@@ -42,3 +42,4 @@ tokenizers = { version = "0.20.3", default-features = false, features = [
 # Utils
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+log = { workspace = true }

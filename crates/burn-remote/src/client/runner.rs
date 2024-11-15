@@ -18,10 +18,8 @@ impl RunnerClient for WsClient {
     type Device = WsDevice;
 
     fn register(&self, op: burn_tensor::repr::OperationDescription) {
-        let fut = self
-            .sender
+        self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
-        self.runtime.block_on(fut);
     }
 
     fn read_tensor(
@@ -44,9 +42,7 @@ impl RunnerClient for WsClient {
         let shape = data.shape.clone();
         let dtype = data.dtype;
 
-        let fut = self.sender.send(ComputeTask::RegisterTensor(id, data));
-
-        self.runtime.block_on(fut);
+        self.sender.send(ComputeTask::RegisterTensor(id, data));
 
         RouterTensor::new(Arc::new(id), shape, dtype, self.clone())
     }
@@ -74,8 +70,7 @@ impl RunnerClient for WsClient {
     }
 
     fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
-        let fut = self.sender.send(ComputeTask::RegisterOrphan(*id));
-        self.runtime.block_on(fut);
+        self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
     fn sync(&self) {

@@ -805,6 +805,7 @@ dependencies = [
 name = "burn-remote"
 version = "0.16.0"
 dependencies = [
+ "async-channel",
  "axum",
  "burn-common",
  "burn-remote",
@@ -6775,6 +6776,7 @@ version = "0.16.0"
 dependencies = [
  "burn",
  "derive-new 0.7.0",
+ "log",
  "serde",
  "tokenizers",
 ]

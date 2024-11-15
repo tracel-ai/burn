@@ -109,7 +109,7 @@ where
                 _ => panic!(""),
             };
 
-            let receiver = self.state.register_responder(id).await;
+            let receiver = self.state.register_responder(id);
 
             log::info!("Response handler connection active");
 
@@ -147,14 +147,13 @@ where
                     }
                 };
 
-                let (stream, connection_id, task) =
-                    match self.state.stream(&mut session_id, task).await {
-                        Some(val) => val,
-                        None => {
-                            log::info!("Ops session activated {session_id:?}");
-                            continue;
-                        }
-                    };
+                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
+                    Some(val) => val,
+                    None => {
+                        log::info!("Ops session activated {session_id:?}");
+                        continue;
+                    }
+                };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -180,7 +179,7 @@ where
         }
 
         log::info!("Closing connection");
-        self.state.close(session_id).await;
+        self.state.close(session_id);
     }
 }
 

@@ -7,7 +7,7 @@ use tokio_tungstenite::{
     tungstenite::protocol::{Message, WebSocketConfig},
 };
 
-pub type CallbackSender = tokio::sync::mpsc::Sender<TaskResponseContent>;
+pub type CallbackSender = async_channel::Sender<TaskResponseContent>;
 
 pub enum ClientRequest {
     WithSyncCallback(Task, CallbackSender),
@@ -45,7 +45,7 @@ impl ClientWorker {
                 .unwrap(),
         );
 
-        let (sender, mut rec) = tokio::sync::mpsc::channel(10);
+        let (sender, rec) = async_channel::bounded(10);
         let address_request = format!("{}/{}", device.address.as_str(), "request");
         let address_response = format!("{}/{}", device.address.as_str(), "response");
 
@@ -103,7 +103,9 @@ impl ClientWorker {
                     match msg {
                         Message::Binary(bytes) => {
                             let response: TaskResponse = rmp_serde::from_slice(&bytes).expect("Can deserialize messages from the websocket.");
+                            log::info!("On response lock");
                             let mut state = state_ws.lock().await;
+                            log::info!("On response");
                             state.on_response(response).await;
                         }
                         Message::Close(_) => {
@@ -117,12 +119,14 @@ impl ClientWorker {
 
             // Channel async worker sending operations to the server.
             tokio::spawn(async move {
-                while let Some(req) = rec.recv().await {
+                while let Ok(req) = rec.recv().await {
                     let task = match req {
                         ClientRequest::WithSyncCallback(task, callback) => {
-                            let mut state = state.lock().await;
                             if let Task::Compute(_content, id) = &task {
+                            log::info!("With sync callback lock..");
+                                let mut state = state.lock().await;
                                 state.register_callback(*id, callback);
+                            log::info!("With sync callback done");
                             }
                             task
                         }
