@@ -366,3 +366,14 @@ impl From<DType> for FloatDType {
         }
     }
 }
+
+impl From<FloatDType> for DType {
+    fn from(value: FloatDType) -> Self {
+        match value {
+            FloatDType::F64 => DType::F64,
+            FloatDType::F32 => DType::F32,
+            FloatDType::F16 => DType::F16,
+            FloatDType::BF16 => DType::BF16,
+        }
+    }
+}
