@@ -6,7 +6,7 @@ use crate::tensor::cast::ToElement;
 use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{
-    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_size,
+    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_sizes,
 };
 use alloc::vec::Vec;
 use core::future::Future;
@@ -1180,6 +1180,17 @@ pub trait FloatTensorOps<B: Backend> {
             .collect()
     }
 
+    /// Split the tensor along the given dimension into chunks of `split_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_size` - The size of a single chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
     fn float_split(tensor: FloatTensor<B>, split_size: usize, dim: usize) -> Vec<FloatTensor<B>> {
         split::<B, Float>(TensorPrimitive::Float(tensor), split_size, dim)
             .into_iter()
@@ -1187,12 +1198,24 @@ pub trait FloatTensorOps<B: Backend> {
             .collect()
     }
 
+    /// Split the tensor along the given dimension into chunks with sizes in
+    /// `dim` according to `split_sizes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_sizes` - Vector of sizes for each chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
     fn float_split_with_sizes(
         tensor: FloatTensor<B>,
         split_sizes: Vec<usize>,
         dim: usize,
     ) -> Vec<FloatTensor<B>> {
-        split_with_size::<B, Float>(TensorPrimitive::Float(tensor), split_sizes, dim)
+        split_with_sizes::<B, Float>(TensorPrimitive::Float(tensor), split_sizes, dim)
             .into_iter()
             .map(|t| t.tensor())
             .collect()
