@@ -1271,7 +1271,7 @@ where
     /// ```
     pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split::<D>(
-            self.shape().dims[dim],
+            self.shape().dims.as_ref(),
             split_size,
             dim
         ));
@@ -1314,7 +1314,7 @@ where
     /// ```
     pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split_with_sizes::<D>(
-            self.shape().dims[dim],
+            self.shape().dims.as_ref(),
             &split_sizes,
             dim
         ));

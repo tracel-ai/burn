@@ -1001,11 +1001,16 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn split<const D: usize>(tensor_size: usize, split_size: usize, dim: usize) -> Self {
+    pub(crate) fn split<const D: usize>(
+        tensor_dims: &[usize],
+        split_size: usize,
+        dim: usize,
+    ) -> Self {
         let mut check = Self::Ok;
         let op = "split";
+        let tensor_rank = tensor_dims.len();
 
-        if dim >= D {
+        if dim >= tensor_rank {
             check = check.register(
                 op,
                 TensorError::new("Given dimension is greater than or equal to the tensor rank.")
@@ -1013,6 +1018,7 @@ impl TensorCheck {
             );
         }
 
+        let tensor_size = tensor_dims[dim];
         // Checks for a split_size of 0
         if split_size == 0 && tensor_size != 0 {
             check = check.register(
@@ -1026,14 +1032,15 @@ impl TensorCheck {
     }
 
     pub(crate) fn split_with_sizes<const D: usize>(
-        tensor_size: usize,
+        tensor_dims: &[usize],
         split_sizes: &[usize],
         dim: usize,
     ) -> Self {
         let mut check = Self::Ok;
         let op = "split_with_sizes";
+        let tensor_rank = tensor_dims.len();
 
-        if dim >= D {
+        if dim >= tensor_rank {
             check = check.register(
                 op,
                 TensorError::new("Given dimension is greater than or equal to the tensor rank.")
@@ -1042,6 +1049,7 @@ impl TensorCheck {
         }
 
         // Validate split_sizes add up to size of dimension to split along
+        let tensor_size = tensor_dims[dim];
         let total_split_size: usize = split_sizes.iter().sum();
         if total_split_size != tensor_size {
             check = check.register(
