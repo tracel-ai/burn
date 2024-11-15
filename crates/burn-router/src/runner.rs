@@ -1,8 +1,5 @@
-use core::{future::Future, pin::Pin};
-
 use alloc::{sync::Arc, vec::Vec};
-use std::sync::Mutex;
-
+use burn_common::stub::Mutex;
 use burn_tensor::{
     backend::{Backend, BackendBridge},
     ops::FullPrecisionBackend,
@@ -14,6 +11,7 @@ use burn_tensor::{
     },
     DType, Element, ElementConversion, Shape, TensorData,
 };
+use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{

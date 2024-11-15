@@ -15,14 +15,11 @@ impl<P: EventProcessor + 'static> Worker<P> {
         let mut worker = Self { processor, rec };
 
         std::thread::spawn(move || {
-            let id = std::thread::current().id();
             while let Ok(msg) = worker.rec.recv_blocking() {
-                log::info!("Start processor .. {id:?}");
                 match msg {
                     Message::Train(event) => worker.processor.process_train(event),
                     Message::Valid(event) => worker.processor.process_valid(event),
                 }
-                log::info!("processor {id:?}");
             }
         });
     }

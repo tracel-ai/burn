@@ -23,8 +23,8 @@ default = [
     "burn-tensor/default",
     "burn-wgpu?/default",
     "burn-cuda?/default",
-    "burn-hip?/default",
     "burn-autodiff?/default",
+    "burn-hip?/default",
 ]
 doc = [
     "std",

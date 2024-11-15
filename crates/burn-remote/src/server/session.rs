@@ -1,11 +1,11 @@
 use burn_common::id::StreamId;
+use burn_common::stub::Mutex;
 use burn_router::Runner;
 use burn_tensor::{
     backend::{Backend, BackendBridge},
     repr::ReprBackend,
     Device,
 };
-use std::sync::Mutex;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, SyncSender},
@@ -85,9 +85,7 @@ where
                 let stream = session.select(connection_id.stream_id);
                 Some((stream, connection_id, task))
             }
-            None => {
-                panic!("To be initialized");
-            }
+            None => panic!("To be initialized"),
         }
     }
 
