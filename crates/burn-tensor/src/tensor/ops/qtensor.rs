@@ -1262,7 +1262,7 @@ pub trait QTensorOps<B: Backend> {
         let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
-        let out_f = B::float_split_with_sizes(tensor, split_sizes, dim);
+        let out_f = B::float_split_with_sizes(tensor_f, split_sizes, dim);
 
         out_f
             .into_iter()

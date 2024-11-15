@@ -1013,7 +1013,7 @@ impl TensorCheck {
             );
         }
 
-        // Checks for a split_size of 0 and negative split_size
+        // Checks for a split_size of 0
         if split_size == 0 && tensor_size != 0 {
             check = check.register(
                 op,
