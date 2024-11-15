@@ -27,7 +27,7 @@ impl<P: EventProcessor + 'static> Worker<P> {
 
 impl<P: EventProcessor + 'static> AsyncProcessor<P> {
     pub fn new(processor: P) -> Self {
-        let (sender, rec) = async_channel::bounded(8);
+        let (sender, rec) = async_channel::bounded(1);
 
         Worker::start(processor, rec);
 

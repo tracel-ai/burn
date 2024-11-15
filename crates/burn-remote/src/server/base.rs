@@ -132,7 +132,6 @@ where
                     continue;
                 }
             };
-            log::info!("On Message");
 
             if let Ok(ws::Message::Binary(bytes)) = msg {
                 let task = match rmp_serde::from_slice::<Task>(&bytes) {
