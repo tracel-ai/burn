@@ -1259,8 +1259,9 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
+    ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0]);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks of size 2 along dimension 0
     ///     let chunks = tensor.split(2, 0);
     ///     // The result is a vector of tensors:
@@ -1301,8 +1302,9 @@ where
     /// use burn_tensor::Tensor;
     ///
     /// fn example<B: Backend>() {
+    ///     let device = Default::default();
     ///     // Create a 1D tensor with 5 elements
-    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0]);
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
     ///     // Split the tensor into chunks with sizes [2, 3] along dimension 0
     ///     let chunks = tensor.split_with_sizes(vec![2, 3], 0);
     ///     // The result is a vector of tensors:
