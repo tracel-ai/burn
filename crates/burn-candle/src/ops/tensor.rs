@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Device, Distribution, ElementConversion, Shape, TensorData,
+    Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
@@ -471,10 +471,18 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         sign(tensor)
     }
 
-    fn float_cast(
-        _tensor: FloatTensor<Self>,
-        _dtype: burn_tensor::FloatDType,
-    ) -> FloatTensor<Self> {
-        todo!()
+    fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = match dtype {
+            FloatDType::F64 => candle_core::DType::F64,
+            FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::F16 => candle_core::DType::F16,
+            FloatDType::BF16 => candle_core::DType::BF16,
+        };
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
     }
 }
