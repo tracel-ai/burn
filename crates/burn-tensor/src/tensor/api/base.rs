@@ -1244,6 +1244,30 @@ where
     ///
     /// If the tensor size along the given dimension is not divisible by `split_size`,
     /// then the last chunk will be smaller.
+    ///
+    /// # Panics
+    ///
+    /// If the specified dimension to split along is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     // Create a 1D tensor with 5 elements
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0]);
+    ///     // Split the tensor into chunks of size 2 along dimension 0
+    ///     let chunks = tensor.split(2, 0);
+    ///     // The result is a vector of tensors:
+    ///     // [Tensor([0.0, 1.0]), Tensor([2.0, 3.0]), Tensor([4.0])]
+    ///     println!("{:?}", chunks);
+    /// }
+    /// ```
     pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split::<D>(
             self.shape().dims[dim],
@@ -1259,8 +1283,33 @@ where
     /// Splits the tensor into chunks with the specified sizes along a given dimension.
     /// Each chunk is a view of the original tensor.
     ///
-    /// If the tensor size along the given dimension is not divisible by `split_size`,
-    /// then the last chunk will be smaller.
+    /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
+    /// in `split_sizes` must equal the size of the tensor along the specified dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the specified dimension to split along is greater than the number of dimensions of the tensor or
+    /// if the sum of `dim_sizes` does not equal the size of the tensor along `dim`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     // Create a 1D tensor with 5 elements
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0]);
+    ///     // Split the tensor into chunks with sizes [2, 3] along dimension 0
+    ///     let chunks = tensor.split_with_sizes(vec![2, 3], 0);
+    ///     // The result is a vector of tensors:
+    ///     // [Tensor([0.0, 1.0]), Tensor([2.0, 3.0, 4.0])]
+    ///     println!("{:?}", chunks);
+    /// }
+    /// ```
     pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split_with_sizes::<D>(
             self.shape().dims[dim],
