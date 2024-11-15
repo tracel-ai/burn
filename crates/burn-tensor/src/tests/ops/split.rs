@@ -162,4 +162,49 @@ mod tests {
             tensor.to_data().assert_eq(&expected[index], false);
         }
     }
+
+    #[test]
+    fn test_split_with_sizes() {
+        let device = Default::default();
+        let tensors = TestTensor::<1>::from_data([0, 1, 2, 3, 4, 5], &device);
+
+        let split_tensors = tensors.split_with_sizes(vec![2, 3, 1], 0);
+        assert_eq!(split_tensors.len(), 3);
+
+        let expected = vec![
+            TensorData::from([0, 1]),
+            TensorData::from([2, 3, 4]),
+            TensorData::from([5]),
+        ];
+
+        for (index, tensor) in split_tensors.iter().enumerate() {
+            tensor.to_data().assert_eq(&expected[index], false);
+        }
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "The sum of split_sizes must equal the tensor size along the specified dimension."
+    )]
+    fn test_split_with_sizes_invalid_sum() {
+        let device = Default::default();
+        let tensors = TestTensor::<1>::from_data([0, 1, 2, 3, 4, 5], &device);
+
+        let _split_tensors = tensors.split_with_sizes(vec![2, 2, 1], 0);
+    }
+
+    #[test]
+    fn test_split_with_sizes_zero_length() {
+        let device = Default::default();
+        let tensors = TestTensor::<1>::from_data([0, 1, 2], &device);
+
+        let split_tensors = tensors.split_with_sizes(vec![0, 1, 2], 0);
+        assert_eq!(split_tensors.len(), 2);
+
+        let expected = vec![TensorData::from([0]), TensorData::from([1, 2])];
+
+        for (index, tensor) in split_tensors.iter().enumerate() {
+            tensor.to_data().assert_eq(&expected[index], false);
+        }
+    }
 }
