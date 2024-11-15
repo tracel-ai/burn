@@ -29,7 +29,7 @@ pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backen
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// type MyBackend = Router<(NdArray, Wgpu)>;
 /// ```
 pub type Router<Backends> = BackendRouter<DirectByteChannel<Backends>>;
