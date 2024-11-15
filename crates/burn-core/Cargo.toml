@@ -22,9 +22,10 @@ default = [
     "burn-tch?/default",
     "burn-tensor/default",
     "burn-wgpu?/default",
+    "burn-router?/default",
     "burn-cuda?/default",
-    "burn-hip?/default",
     "burn-autodiff?/default",
+    "burn-hip?/default",
 ]
 doc = [
     "std",
@@ -40,6 +41,7 @@ doc = [
     "vision",
     "autodiff",
     "remote",
+    "router",
     "server",
     # Doc features
     "burn-candle/doc",
@@ -49,6 +51,7 @@ doc = [
     "burn-tch/doc",
     "burn-tensor/doc",
     "burn-wgpu/doc",
+    "burn-router/doc",
     "burn-cuda/doc",
     "burn-hip/doc",
 ]
@@ -63,6 +66,7 @@ std = [
     "burn-ndarray?/std",
     "burn-tensor/std",
     "burn-wgpu?/std",
+    "burn-router?/std",
     "burn-cuda?/std",
     "burn-hip?/std",
     "flate2",
@@ -89,6 +93,7 @@ openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
 template = ["burn-wgpu?/template"]
 remote = ["burn-remote/client"]
+router = ["burn-router"]
 server = ["burn-remote/server"]
 
 candle = ["burn-candle"]
@@ -136,6 +141,7 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true, 
 burn-tch = { path = "../burn-tch", version = "0.16.0", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true, default-features = false }
 burn-remote = { path = "../burn-remote", version = "0.16.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.16.0", default-features = false, optional = true }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }

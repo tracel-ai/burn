@@ -613,6 +613,7 @@ dependencies = [
  "burn-hip",
  "burn-ndarray",
  "burn-remote",
+ "burn-router",
  "burn-tch",
  "burn-tensor",
  "burn-wgpu",
@@ -805,6 +806,7 @@ dependencies = [
 name = "burn-remote"
 version = "0.16.0"
 dependencies = [
+ "async-channel",
  "axum",
  "burn-common",
  "burn-remote",

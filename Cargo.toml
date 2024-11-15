@@ -17,7 +17,6 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico", # will cause dependency building issues otherwise
-    # "crates/burn-cuda",     # comment this line to work on burn-cuda
 ]
 
 [workspace.package]
@@ -168,4 +167,3 @@ tracel-xtask = { version = "~1.1" }
 
 [profile.dev]
 debug = 0     # Speed up compilation time and not necessary.
-opt-level = 2
