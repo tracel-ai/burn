@@ -103,9 +103,7 @@ impl ClientWorker {
                     match msg {
                         Message::Binary(bytes) => {
                             let response: TaskResponse = rmp_serde::from_slice(&bytes).expect("Can deserialize messages from the websocket.");
-                            log::info!("On response lock");
                             let mut state = state_ws.lock().await;
-                            log::info!("On response");
                             state.on_response(response).await;
                         }
                         Message::Close(_) => {
@@ -123,10 +121,8 @@ impl ClientWorker {
                     let task = match req {
                         ClientRequest::WithSyncCallback(task, callback) => {
                             if let Task::Compute(_content, id) = &task {
-                            log::info!("With sync callback lock..");
                                 let mut state = state.lock().await;
                                 state.register_callback(*id, callback);
-                            log::info!("With sync callback done");
                             }
                             task
                         }

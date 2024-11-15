@@ -6777,7 +6777,6 @@ version = "0.16.0"
 dependencies = [
  "burn",
  "derive-new 0.7.0",
- "log",
  "serde",
  "tokenizers",
 ]
