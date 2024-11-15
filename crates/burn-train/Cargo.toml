@@ -41,9 +41,6 @@ derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
 
-# CPU backend
-burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
-
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
 
