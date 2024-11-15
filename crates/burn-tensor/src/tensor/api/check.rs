@@ -1016,16 +1016,15 @@ impl TensorCheck {
                 TensorError::new("Given dimension is greater than or equal to the tensor rank.")
                     .details(format!("Tensor rank: '{D}', given dimension: '{dim}'")),
             );
-        }
-
-        let tensor_size = tensor_dims[dim];
-        // Checks for a split_size of 0
-        if split_size == 0 && tensor_size != 0 {
-            check = check.register(
-                op,
-                TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
-                    .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
-            );
+        } else {
+            let tensor_size = tensor_dims[dim];
+            if split_size == 0 && tensor_size != 0 {
+                check = check.register(
+                    op,
+                    TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
+                        .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+                );
+            }
         }
 
         check
@@ -1046,17 +1045,17 @@ impl TensorCheck {
                 TensorError::new("Given dimension is greater than or equal to the tensor rank.")
                     .details(format!("Tensor rank: '{D}', given dimension: '{dim}'.")),
             );
-        }
-
-        // Validate split_sizes add up to size of dimension to split along
-        let tensor_size = tensor_dims[dim];
-        let total_split_size: usize = split_sizes.iter().sum();
-        if total_split_size != tensor_size {
-            check = check.register(
-                op,
-                TensorError::new("The sum of split_sizes must equal the tensor size along the specified dimension.")
-                    .details(format!("Sum of split_sizes: '{total_split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
-            );
+        } else {
+            // Validate split_sizes add up to size of dimension to split along
+            let tensor_size = tensor_dims[dim];
+            let total_split_size: usize = split_sizes.iter().sum();
+            if total_split_size != tensor_size {
+                check = check.register(
+                    op,
+                    TensorError::new("The sum of split_sizes must equal the tensor size along the specified dimension.")
+                        .details(format!("Sum of split_sizes: '{total_split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+                );
+            }
         }
 
         check
