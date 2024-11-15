@@ -244,6 +244,10 @@ where
     }
 
     /// Converts a tensor to the specified floating point data type.
+    ///
+    /// # Warning
+    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
+    /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
     pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_cast(
             self.primitive.tensor(),
