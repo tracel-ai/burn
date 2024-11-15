@@ -113,4 +113,55 @@ mod tests {
 
         let _split_tensors = tensors.split(1, 2);
     }
+
+    #[test]
+    fn test_split_3d_tensor_along_dim0() {
+        let device = Default::default();
+        let tensors = TestTensor::<3>::from_data(
+            [
+                [[0, 1], [2, 3]],
+                [[4, 5], [6, 7]],
+                [[8, 9], [10, 11]],
+                [[12, 13], [14, 15]],
+            ],
+            &device,
+        );
+
+        let split_tensors = tensors.split(2, 0);
+        assert_eq!(split_tensors.len(), 2);
+
+        let expected = vec![
+            TensorData::from([[[0, 1], [2, 3]], [[4, 5], [6, 7]]]),
+            TensorData::from([[[8, 9], [10, 11]], [[12, 13], [14, 15]]]),
+        ];
+
+        for (index, tensor) in split_tensors.iter().enumerate() {
+            tensor.to_data().assert_eq(&expected[index], false);
+        }
+    }
+
+    #[test]
+    fn test_split_3d_tensor_along_dim1() {
+        let device = Default::default();
+        let tensors = TestTensor::<3>::from_data(
+            [
+                [[0, 1], [2, 3], [4, 5]],
+                [[6, 7], [8, 9], [10, 11]],
+            ],
+            &device,
+        );
+
+        let split_tensors = tensors.split(2, 1);
+        assert_eq!(split_tensors.len(), 2);
+
+        let expected = vec![
+            TensorData::from([[[0, 1], [2, 3]], [[6, 7], [8, 9]]]),
+            TensorData::from([[[4, 5]], [[10, 11]]]),
+        ];
+
+        for (index, tensor) in split_tensors.iter().enumerate() {
+            tensor.to_data().assert_eq(&expected[index], false);
+        }
+    }
+
 }
