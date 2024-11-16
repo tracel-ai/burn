@@ -31,10 +31,17 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
 impl<B: Backend> Adaptor<ClassificationInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> ClassificationInput<B> {
         let [_, num_classes] = self.output.dims();
-        ClassificationInput::new(
-            self.output.clone(),
-            self.targets.clone().one_hot(num_classes).bool(),
-        )
+        if num_classes > 1 {
+            ClassificationInput::new(
+                self.output.clone(),
+                self.targets.clone().one_hot(num_classes).bool(),
+            )
+        } else {
+            ClassificationInput::new(
+                self.output.clone(),
+                self.targets.clone().unsqueeze_dim(1).bool(),
+            )
+        }
     }
 }
 

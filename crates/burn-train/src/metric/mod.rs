@@ -39,6 +39,8 @@ pub(crate) mod processor;
 pub mod store;
 
 pub(crate) mod classification;
+#[cfg(feature = "metrics")]
+pub use crate::metric::classification::ClassReduction;
 mod confusion_stats;
 #[cfg(feature = "metrics")]
 mod precision;
