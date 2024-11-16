@@ -159,19 +159,10 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         && gemm_n / (cmma_n * cube_dim_y) == cube_count_y;
 
     let cube_count = CubeCount::Static(cube_count_x, cube_count_y, 1);
-    let weight_compat =
-        F::as_elem() == Elem::Float(FloatKind::F16) && !settings.check_n && !settings.check_k;
 
-    let launch = match (weight_compat, is_tf32) {
-        (true, false) => implicit_gemm_kernel::launch::<F, f16, UncheckedWeightLoader, R>,
-        (false, false) => implicit_gemm_kernel::launch::<F, f16, CheckedWeightLoader, R>,
-        (_, true) => implicit_gemm_kernel::launch::<F, tf32, CheckedWeightLoader, R>,
-    };
-
-    let weight_vectorization = if weight_compat && !is_tf32 {
-        1
-    } else {
-        weight_vectorization
+    let launch = match is_tf32 {
+        false => implicit_gemm_kernel::launch::<F, f16, R>,
+        true => implicit_gemm_kernel::launch::<F, tf32, R>,
     };
 
     launch(
@@ -296,7 +287,7 @@ struct Matrices<F: Float, FAcc: Float> {
 
 #[allow(clippy::collapsible_else_if)]
 #[cube(launch)]
-fn implicit_gemm_kernel<F: Float, FMat: Float, W: WeightLoader>(
+fn implicit_gemm_kernel<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     weight: &Tensor<Line<F>>,
     bias: &Tensor<F>,
@@ -339,7 +330,7 @@ fn implicit_gemm_kernel<F: Float, FMat: Float, W: WeightLoader>(
     let mut out = out.slice_mut(out_pos, out_pos + cmma_out_tile_size);
 
     if conv_settings.aligned || pos.global_m < dims.gemm_m && pos.global_n < dims.gemm_n {
-        execute_gemm::<F, FMat, W>(
+        execute_gemm::<F, FMat>(
             input,
             weight,
             bias,
@@ -440,7 +431,7 @@ fn make_matrices<F: Float, FAcc: Float>(
 }
 
 #[cube]
-fn execute_gemm<F: Float, FMat: Float, W: WeightLoader>(
+fn execute_gemm<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     weight: &Tensor<Line<F>>,
     bias: &Tensor<F>,
@@ -472,18 +463,10 @@ fn execute_gemm<F: Float, FMat: Float, W: WeightLoader>(
             input, args, input_tile, dims, pos, k, g_settings, k_settings,
         );
 
-        W::load_weight_tile(
-            weight,
-            weight_tile,
-            dims,
-            pos,
-            &matrices,
-            k,
-            g_settings,
-            k_settings,
-        );
+        load_weight_tile(weight, weight_tile, dims, pos, k, g_settings, k_settings);
 
         // Run CMMA
+        cmma::load(&matrices.b, &weight_tile.to_slice(), cmma_n);
         cmma::load(&matrices.a, &input_tile.to_slice(), cmma_k);
 
         cmma::execute::<FMat, FMat, F, F>(&matrices.a, &matrices.b, &matrices.acc, &matrices.acc);
@@ -590,107 +573,64 @@ fn load_input_tile<F: Float, FMat: Float>(
 }
 
 #[cube]
-trait WeightLoader: Send + Sync + 'static {
-    fn load_weight_tile<F: Float, FMat: Float>(
-        weight: &Tensor<Line<F>>,
-        tile: &mut SliceMut<FMat>,
-        dims: &Dimensions,
-        pos: &Positions,
-        matrices: &Matrices<FMat, F>,
-        k: u32,
-        #[comptime] gemm_settings: GemmSettings,
-        #[comptime] kernel_settings: ConvSettings,
-    );
-}
+fn load_weight_tile<F: Float, FMat: Float>(
+    weight: &Tensor<Line<F>>,
+    tile: &mut SliceMut<FMat>,
+    dims: &Dimensions,
+    pos: &Positions,
+    k: u32,
+    #[comptime] gemm_settings: GemmSettings,
+    #[comptime] kernel_settings: ConvSettings,
+) {
+    let GemmSettings {
+        cmma_n,
+        cmma_k,
+        warp_size,
+        check_n,
+        check_k,
+        ..
+    } = gemm_settings;
 
-struct CheckedWeightLoader;
+    let ConvSettings {
+        kernel_w, kernel_h, ..
+    } = kernel_settings;
 
-#[cube]
-impl WeightLoader for CheckedWeightLoader {
-    fn load_weight_tile<F: Float, FMat: Float>(
-        weight: &Tensor<Line<F>>,
-        tile: &mut SliceMut<FMat>,
-        dims: &Dimensions,
-        pos: &Positions,
-        matrices: &Matrices<FMat, F>,
-        k: u32,
-        #[comptime] gemm_settings: GemmSettings,
-        #[comptime] kernel_settings: ConvSettings,
-    ) {
-        let GemmSettings {
-            cmma_n,
-            cmma_k,
-            warp_size,
-            check_n,
-            check_k,
-            ..
-        } = gemm_settings;
+    let vec = vectorization_of(weight);
+    let cmma_filter_tile_size = cmma_k * cmma_n;
+    let elems_per_thread = cmma_filter_tile_size / warp_size;
+    let start = pos.intra_warp_unit_idx * elems_per_thread;
 
-        let ConvSettings {
-            kernel_w, kernel_h, ..
-        } = kernel_settings;
+    let global_k = start / cmma_n + k;
 
-        let vec = vectorization_of(weight);
-        let cmma_filter_tile_size = cmma_k * cmma_n;
-        let elems_per_thread = cmma_filter_tile_size / warp_size;
-        let start = pos.intra_warp_unit_idx * elems_per_thread;
+    let (k_idx, k_in_bounds) = if check_k {
+        let channel = global_k % dims.pad_channels;
+        let kernel_x = global_k / dims.pad_channels % dims.pad_kw;
+        let kernel_y = global_k / (dims.pad_channels * dims.pad_kw);
+        let k_in_bounds =
+            !check_k || (channel < weight.shape(2) && kernel_x < kernel_w && kernel_y < kernel_h);
+        let idx =
+            kernel_y * weight.stride(0) + kernel_x * weight.stride(1) + channel * weight.stride(2);
+        (idx, k_in_bounds)
+    } else {
+        (global_k * weight.stride(2), true)
+    };
 
-        let global_k = start / cmma_n + k;
+    #[unroll]
+    for n in range_stepped(0, elems_per_thread, vec) {
+        let n = n + start;
 
-        let (k_idx, k_in_bounds) = if check_k {
-            let channel = global_k % dims.pad_channels;
-            let kernel_x = global_k / dims.pad_channels % dims.pad_kw;
-            let kernel_y = global_k / (dims.pad_channels * dims.pad_kw);
-            let k_in_bounds = !check_k
-                || (channel < weight.shape(2) && kernel_x < kernel_w && kernel_y < kernel_h);
-            let idx = kernel_y * weight.stride(0)
-                + kernel_x * weight.stride(1)
-                + channel * weight.stride(2);
-            (idx, k_in_bounds)
-        } else {
-            (global_k * weight.stride(2), true)
-        };
+        let global_n = (n % cmma_n) + pos.global_n;
+        let n_in_bounds = !check_n || global_n < weight.shape(3);
+
+        let idx = k_idx + global_n;
+
+        let value = FMat::cast_from(weight[idx / vec]);
+        let value = select(k_in_bounds && n_in_bounds, value, FMat::new(0.0));
 
         #[unroll]
-        for n in range_stepped(0, elems_per_thread, vec) {
-            let n = n + start;
-
-            let global_n = (n % cmma_n) + pos.global_n;
-            let n_in_bounds = !check_n || global_n < weight.shape(3);
-
-            let idx = k_idx + global_n;
-
-            let value = FMat::cast_from(weight[idx / vec]);
-            let value = select(k_in_bounds && n_in_bounds, value, FMat::new(0.0));
-
-            #[unroll]
-            for i in 0..vec {
-                tile[n + i] = value[i];
-            }
+        for i in 0..vec {
+            tile[n + i] = value[i];
         }
-
-        cmma::load(&matrices.b, &tile.to_slice(), cmma_n);
-    }
-}
-
-struct UncheckedWeightLoader;
-
-#[cube]
-impl WeightLoader for UncheckedWeightLoader {
-    fn load_weight_tile<F: Float, FMat: Float>(
-        weight: &Tensor<Line<F>>,
-        _tile: &mut SliceMut<FMat>,
-        _dims: &Dimensions,
-        pos: &Positions,
-        matrices: &Matrices<FMat, F>,
-        k: u32,
-        #[comptime] _gemm_settings: GemmSettings,
-        #[comptime] _kernel_settings: ConvSettings,
-    ) {
-        let start_idx = k * weight.stride(2) + pos.global_n;
-        let slice = weight.slice(start_idx, weight.len());
-
-        cmma::load(&matrices.b, &slice, weight.stride(2));
     }
 }
 
