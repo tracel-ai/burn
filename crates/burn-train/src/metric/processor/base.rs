@@ -10,11 +10,11 @@ pub enum Event<T> {
 }
 
 /// Process events happening during training and validation.
-pub trait EventProcessor {
+pub trait EventProcessor: Send {
     /// The training item.
-    type ItemTrain;
+    type ItemTrain: Send;
     /// The validation item.
-    type ItemValid;
+    type ItemValid: Send;
 
     /// Collect a training event.
     fn process_train(&mut self, event: Event<Self::ItemTrain>);

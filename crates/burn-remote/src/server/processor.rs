@@ -5,7 +5,7 @@ use burn_tensor::{
     TensorData,
 };
 use core::marker::PhantomData;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, SyncSender};
 
 use crate::shared::{ConnectionId, TaskResponse, TaskResponseContent};
 
@@ -21,7 +21,6 @@ pub enum ProcessorTask {
     RegisterTensor(TensorId, TensorData),
     ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
-    Fence(Callback<()>),
     RegisterOrphan(TensorId),
     Close,
 }
@@ -32,8 +31,8 @@ where
     <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
         ReprBackend<Handle = B::Handle>,
 {
-    pub fn start(runner: Runner<B>) -> Sender<ProcessorTask> {
-        let (sender, rec) = std::sync::mpsc::channel();
+    pub fn start(runner: Runner<B>) -> SyncSender<ProcessorTask> {
+        let (sender, rec) = std::sync::mpsc::sync_channel(1);
 
         std::thread::spawn(move || {
             for item in rec.iter() {
@@ -45,7 +44,8 @@ where
                         runner.register_orphan(&id);
                     }
                     ProcessorTask::Sync(id, callback) => {
-                        runner.sync();
+                        let fut = runner.sync();
+                        burn_common::future::block_on(fut);
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::SyncBackend,
@@ -57,7 +57,8 @@ where
                         runner.register_tensor_data_id(id, data);
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
-                        let tensor = burn_common::future::block_on(runner.read_tensor(tensor));
+                        let fut = runner.read_tensor(tensor);
+                        let tensor = burn_common::future::block_on(fut);
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::ReadTensor(tensor),
@@ -67,13 +68,11 @@ where
                     }
                     ProcessorTask::Close => {
                         let device = runner.device();
-                        runner.sync();
+                        let fut = runner.sync();
+                        burn_common::future::block_on(fut);
                         core::mem::drop(runner);
                         B::sync(&device);
                         return;
-                    }
-                    ProcessorTask::Fence(sender) => {
-                        sender.send(()).unwrap();
                     }
                 }
             }

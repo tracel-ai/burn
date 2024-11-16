@@ -9,10 +9,10 @@ pub fn start() {
     cfg_if::cfg_if! {
         if #[cfg(feature = "ndarray")]{
             burn::server::start::<burn::backend::NdArray>(Default::default(), port);
-        } else if #[cfg(feature = "wgpu")] {
-            burn::server::start::<burn::backend::Wgpu>(Default::default(), port);
         } else if #[cfg(feature = "cuda-jit")]{
             burn::server::start::<burn::backend::CudaJit>(Default::default(), port);
+        } else if #[cfg(feature = "wgpu")] {
+            burn::server::start::<burn::backend::Wgpu>(Default::default(), port);
         } else {
             panic!("No backend selected, can't start server on port {port}");
         }

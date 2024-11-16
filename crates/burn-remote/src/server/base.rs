@@ -1,5 +1,3 @@
-use std::{net::SocketAddr, sync::Arc};
-
 use axum::{
     extract::{
         ws::{self, WebSocket, WebSocketUpgrade},
@@ -9,6 +7,7 @@ use axum::{
     routing::any,
     Router,
 };
+use std::{net::SocketAddr, sync::Arc};
 
 use burn_tensor::{
     backend::{Backend, BackendBridge},
@@ -90,37 +89,33 @@ where
         let packet = socket.recv().await;
         let msg = match packet {
             Some(msg) => msg,
-            None => {
-                log::info!("Still no message");
-                panic!("");
-            }
+            None => panic!("Still no message"),
         };
 
-        if let Ok(ws::Message::Binary(bytes)) = msg {
-            let task = match rmp_serde::from_slice::<Task>(&bytes) {
-                Ok(val) => val,
-                Err(err) => {
-                    log::info!("Only bytes messages are supported {err:?}");
-                    panic!("");
+        match msg {
+            Ok(ws::Message::Binary(bytes)) => {
+                let task = match rmp_serde::from_slice::<Task>(&bytes) {
+                    Ok(val) => val,
+                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
+                };
+                let id = match task {
+                    Task::Init(id) => id,
+                    _ => panic!("Response handler not initialized."),
+                };
+
+                let receiver = self.state.register_responder(id);
+
+                log::info!("Response handler connection active");
+
+                while let Ok(callback) = receiver.recv() {
+                    let response = callback.recv().unwrap();
+                    let bytes = rmp_serde::to_vec(&response).unwrap();
+
+                    socket.send(ws::Message::Binary(bytes)).await.unwrap();
                 }
-            };
-            let id = match task {
-                Task::Init(id) => id,
-                _ => panic!(""),
-            };
-
-            let receiver = self.state.register_responder(id).await;
-
-            log::info!("Response handler connection active");
-
-            while let Ok(callback) = receiver.recv() {
-                let response = callback.recv().unwrap();
-                let bytes = rmp_serde::to_vec(&response).unwrap();
-
-                socket.send(ws::Message::Binary(bytes)).await.unwrap();
             }
-        } else {
-            panic!("");
+            Err(err) => panic!("Can't start the response handler {err:?}"),
+            _ => panic!("Unsupported message type"),
         }
     }
 
@@ -147,14 +142,13 @@ where
                     }
                 };
 
-                let (stream, connection_id, task) =
-                    match self.state.stream(&mut session_id, task).await {
-                        Some(val) => val,
-                        None => {
-                            log::info!("Ops session activated {session_id:?}");
-                            continue;
-                        }
-                    };
+                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
+                    Some(val) => val,
+                    None => {
+                        log::info!("Ops session activated {session_id:?}");
+                        continue;
+                    }
+                };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -180,7 +174,7 @@ where
         }
 
         log::info!("Closing connection");
-        self.state.close(session_id).await;
+        self.state.close(session_id);
     }
 }
 
