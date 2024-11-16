@@ -36,7 +36,8 @@ mod tune_key;
 pub use tune_key::JitAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
-mod fusion;
+/// Module for interacting with fusion
+pub mod fusion;
 
 #[cfg(feature = "template")]
 /// Module for compiling custom non-jit kernels

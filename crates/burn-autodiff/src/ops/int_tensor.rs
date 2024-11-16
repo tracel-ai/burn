@@ -103,6 +103,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_div_scalar(lhs, rhs)
     }
 
+    fn int_remainder(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
+        B::int_remainder(lhs, rhs)
+    }
+
     fn int_remainder_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
         B::int_remainder_scalar(lhs, rhs)
     }

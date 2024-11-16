@@ -45,7 +45,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn int_into_data(tensor: IntTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -596,6 +596,17 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The result of the division.
     fn int_div_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Element-wise modulus.
+    ///
+    /// # Arguments
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side scalar.
+    ///
+    /// # Returns
+    ///
+    /// The result of applying the modulus of the scalar to the tensor.
+    fn int_remainder(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Element-wise modulus with a scalar.
     ///

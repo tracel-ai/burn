@@ -16,10 +16,48 @@ use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FuseOnWriteBuilder {
-    builder: FuseOnWriteTraceBuilder,
+    builder: TryFuseBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
-    num_added: usize,
+    num_ops: usize,
+    max_bindings: u32,
+}
+
+struct TryFuseBuilder {
+    builder: FuseOnWriteTraceBuilder,
+    max_bindings: u32,
+    added_ops: bool,
+}
+
+impl TryFuseBuilder {
+    fn new(max_bindings: u32) -> Self {
+        Self {
+            builder: FuseOnWriteTraceBuilder::new(),
+            max_bindings,
+            added_ops: false,
+        }
+    }
+
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder)) -> bool {
+        // Always allow the first operation to be added.
+        if !self.added_ops {
+            self.added_ops = true;
+            add_ops(&mut self.builder);
+            return true;
+        }
+
+        let mut cloned = self.builder.clone();
+        add_ops(&mut cloned);
+        if cloned.estimate_bindings() > self.max_bindings {
+            return false;
+        }
+        self.builder = cloned;
+        true
+    }
+
+    fn build(&self) -> FuseOnWriteTrace {
+        self.builder.build()
+    }
 }
 
 impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
@@ -66,7 +104,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
         };
 
         self.status = OptimizationStatus::Open;
-        self.num_added += 1;
+        self.num_ops += 1;
     }
 
     fn build(&self) -> FuseOnWriteTrace {
@@ -74,13 +112,13 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn len(&self) -> usize {
-        self.num_added
+        self.num_ops
     }
 
     fn reset(&mut self) {
-        self.num_added = 0;
+        self.num_ops = 0;
         self.status = OptimizationStatus::Open;
-        self.builder.clear();
+        self.builder = TryFuseBuilder::new(self.max_bindings);
         self.current_output_shape.clear();
     }
 
@@ -89,20 +127,21 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = self.num_added > 0;
+        let ready = self.num_ops > 0;
 
         OptimizationProperties {
             ready,
-            score: self.num_added as u64,
+            score: self.num_ops as u64,
         }
     }
 }
 
 impl FuseOnWriteBuilder {
-    pub fn new() -> Self {
+    pub fn new(max_bindings: u32) -> Self {
         Self {
-            builder: FuseOnWriteTraceBuilder::new(),
-            num_added: 0,
+            builder: TryFuseBuilder::new(max_bindings),
+            num_ops: 0,
+            max_bindings,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
         }
@@ -236,40 +275,38 @@ impl FuseOnWriteBuilder {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask);
-                let lhs = self.builder.input(&desc.value);
-                let rhs = self.builder.input(&desc.tensor);
-                let out = self.builder.output(&desc.out);
+                self.builder.register(|build| {
+                    let cond = build.input(&desc.mask);
+                    let lhs = build.input(&desc.value);
+                    let rhs = build.input(&desc.tensor);
+                    let out = build.output(&desc.out);
 
-                self.builder
-                    .register_operation(ElemwiseOp::ConditionalAssign {
+                    build.register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    });
-
-                true
+                    })
+                })
             }
             NumericOperationDescription::MaskFill(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
 
-                let cond = self.builder.input(&desc.mask);
-                let lhs = self.builder.scalar(&desc.value, desc.out.dtype);
-                let rhs = self.builder.input(&desc.tensor);
-                let out = self.builder.output(&desc.out);
+                self.builder.register(|build| {
+                    let cond = build.input(&desc.mask);
+                    let lhs = build.scalar(&desc.value, desc.out.dtype);
+                    let rhs = build.input(&desc.tensor);
+                    let out = build.output(&desc.out);
 
-                self.builder
-                    .register_operation(ElemwiseOp::ConditionalAssign {
+                    build.register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
                         lhs,
                         rhs,
                         out,
-                    });
-
-                true
+                    })
+                })
             }
             NumericOperationDescription::Ones(desc) => {
                 if !self.output_is_compatible(desc) {
@@ -279,12 +316,12 @@ impl FuseOnWriteBuilder {
                 let elem: Elem = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(1, precision);
-                let out = self.builder.output(desc);
 
-                self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+                self.builder.register(|build| {
+                    let out = build.output(desc);
 
-                true
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                })
             }
             NumericOperationDescription::Zeros(desc) => {
                 if !self.output_is_compatible(desc) {
@@ -294,25 +331,24 @@ impl FuseOnWriteBuilder {
                 let elem: Elem = desc.dtype.into();
                 let precision = elem.into();
                 let input = Arg::Literal(0, precision);
-                let out = self.builder.output(desc);
 
-                self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+                self.builder.register(|build| {
+                    let out = build.output(desc);
 
-                true
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                })
             }
             NumericOperationDescription::Full((desc, elem)) => {
                 if !self.output_is_compatible(desc) {
                     return false;
                 }
 
-                let input = self.builder.scalar(elem, desc.dtype);
-                let out = self.builder.output(desc);
+                self.builder.register(|build| {
+                    let input = build.scalar(elem, desc.dtype);
+                    let out = build.output(desc);
 
-                self.builder
-                    .register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
-
-                true
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                })
             }
             _ => false,
         }
@@ -326,13 +362,13 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        let lhs = self.builder.input(&desc.lhs);
-        let rhs = self.builder.input(&desc.rhs);
-        let out = self.builder.output(&desc.out);
+        self.builder.register(|build| {
+            let lhs = build.input(&desc.lhs);
+            let rhs = build.input(&desc.rhs);
+            let out = build.output(&desc.out);
 
-        self.builder.register_operation(func(lhs, rhs, out));
-
-        true
+            build.register_operation(func(lhs, rhs, out))
+        })
     }
 
     fn register_unary_ops<Func>(&mut self, desc: &UnaryOperationDescription, func: Func) -> bool
@@ -343,12 +379,11 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        let input = self.builder.input(&desc.input);
-        let out = self.builder.output(&desc.out);
-
-        self.builder.register_operation(func(input, out));
-
-        true
+        self.builder.register(|build| {
+            let input = build.input(&desc.input);
+            let out = build.output(&desc.out);
+            build.register_operation(func(input, out))
+        })
     }
 
     fn register_scalar_ops<Func, E: Element>(
@@ -363,14 +398,14 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        let elem = desc.lhs.dtype;
-        let lhs = self.builder.input(&desc.lhs);
-        let rhs = self.builder.scalar(&desc.rhs, elem);
-        let out = self.builder.output(&desc.out);
+        self.builder.register(|build| {
+            let elem = desc.lhs.dtype;
+            let lhs = build.input(&desc.lhs);
+            let rhs = build.scalar(&desc.rhs, elem);
+            let out = build.output(&desc.out);
 
-        self.builder.register_operation(func(lhs, rhs, out));
-
-        true
+            build.register_operation(func(lhs, rhs, out))
+        })
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {

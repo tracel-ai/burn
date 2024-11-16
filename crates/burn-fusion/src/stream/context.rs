@@ -177,6 +177,9 @@ impl RelativeOps for OperationDescription {
             OperationDescription::Module(ops) => {
                 OperationDescription::Module(ops.to_relative(converter))
             }
+            OperationDescription::Custom(ops) => {
+                OperationDescription::Custom(ops.to_relative(converter))
+            }
         }
     }
 }
@@ -544,7 +547,7 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                             .as_ref()
                             .map(|x| x.to_relative(converter)),
                     },
-                    scheme: desc.scheme.clone(),
+                    scheme: desc.scheme,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -561,7 +564,7 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                                 .as_ref()
                                 .map(|x| x.to_relative(converter)),
                         },
-                        scheme: desc.qtensor.scheme.clone(),
+                        scheme: desc.qtensor.scheme,
                     },
                     out: desc.out.to_relative(converter),
                 })
@@ -626,6 +629,26 @@ impl RelativeOps for IntOperationDescription {
     }
 }
 
+impl RelativeOps for CustomOpDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpDescription {
+        let id = self.id.clone();
+
+        CustomOpDescription {
+            id,
+            inputs: self
+                .inputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
+            outputs: self
+                .outputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
+        }
+    }
+}
+
 impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
     fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
@@ -671,6 +694,13 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                 NumericOperationDescription::DivScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::Rem(desc) => {
+                NumericOperationDescription::Rem(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }

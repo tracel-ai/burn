@@ -219,6 +219,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         panic!("Not supported by Candle")
     }
 
+    fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        CandleTensor::new(
+            (lhs.tensor.clone()
+                - lhs
+                    .tensor
+                    .broadcast_div(&rhs.tensor)
+                    .unwrap()
+                    .broadcast_mul(&rhs.tensor)
+                    .unwrap())
+            .unwrap(),
+        )
+    }
+
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         // Same problem as int_div_scalar.
         panic!("Not supported by Candle")
