@@ -69,3 +69,9 @@ impl<B: Backend> Adaptor<LossInput<B>> for MultiLabelClassificationOutput<B> {
         LossInput::new(self.loss.clone())
     }
 }
+
+impl<B: Backend> Adaptor<ClassificationInput<B>> for MultiLabelClassificationOutput<B> {
+    fn adapt(&self) -> ClassificationInput<B> {
+        ClassificationInput::new(self.output.clone(), self.targets.clone().bool())
+    }
+}
