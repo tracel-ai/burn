@@ -17,7 +17,7 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     let denominator = F::cast_from(Max::max(output.shape(2) - 1, 1));
     let factor = F::cast_from(y);
 
-    let frac = factor * numerator / denominator;
+    let frac = factor * (numerator / denominator);
 
     let v0 = Floor::floor(frac);
     let v1: F = Ceil::ceil(frac);
@@ -29,7 +29,7 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     let numerator = F::cast_from(input.shape(3) - 1);
     let denominator = F::cast_from(Max::max(output.shape(3) - 1, 1));
     let factor = F::cast_from(x);
-    let frac = factor * numerator / denominator;
+    let frac = factor * (numerator / denominator);
     let v0 = Floor::floor(frac);
     let v1: F = Ceil::ceil(frac);
     let xw = frac - v0;

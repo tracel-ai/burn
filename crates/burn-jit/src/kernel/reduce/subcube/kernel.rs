@@ -8,7 +8,7 @@ use crate::{
 
 use super::base::ReduceDimSubcube;
 
-#[cube(launch_unchecked)]
+#[cube(launch)]
 pub fn reduce_dim_subcube_kernel<
     RD: ReduceDimSubcube<EIn, EOut>,
     EIn: JitElement,
@@ -20,13 +20,8 @@ pub fn reduce_dim_subcube_kernel<
     #[comptime] subcube_size: u32,
     #[comptime] elems_per_thread: u32,
     #[comptime] divisible_shape: bool,
-    #[comptime] check_out: bool,
 ) {
     let reduce_group_id = CUBE_POS;
-
-    if check_out && reduce_group_id >= output.len() {
-        return;
-    }
 
     let stride_reduce_dim_input = input.stride(dim);
     let shape_reduce_dim_input = input.shape(dim);
@@ -120,22 +115,18 @@ pub fn reduce_dim_subcube<
         f32::ceil(reduce_group_size as f32 / n_invocation_per_cube as f32) as u32;
 
     let divisible_shape = n_invocation_per_cube * elems_per_thread == reduce_group_size as u32;
-    let check_out = (cube_count_x * cube_count_y) as usize != num_elems_output;
 
-    unsafe {
-        reduce_dim_subcube_kernel::launch_unchecked::<RD, EI, EO, R>(
-            &input.client,
-            cube_count,
-            cube_dim,
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
-            dim as u32,
-            subcube_size,
-            elems_per_thread,
-            divisible_shape,
-            check_out,
-        )
-    };
+    reduce_dim_subcube_kernel::launch::<RD, EI, EO, R>(
+        &input.client,
+        cube_count,
+        cube_dim,
+        input.as_tensor_arg(1),
+        output.as_tensor_arg(1),
+        dim as u32,
+        subcube_size,
+        elems_per_thread,
+        divisible_shape,
+    );
 
     output
 }
