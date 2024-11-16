@@ -55,7 +55,7 @@ where
         let [num_samples] = self.dims();
         let indices = self.unsqueeze_dim(1);
         let values = indices.ones_like();
-        Tensor::zeros([num_samples, num_samples], &indices.device()).scatter(1, indices, values)
+        Tensor::zeros([num_samples, num_classes], &indices.device()).scatter(1, indices, values)
     }
 }
 
