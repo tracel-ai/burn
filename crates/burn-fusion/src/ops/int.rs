@@ -1823,4 +1823,184 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseAndOps, B::bitwise_and);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseAnd(desc.clone()),
+            ),
+            BitwiseAndOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseAndOps, B::bitwise_and_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseAndScalar(desc.clone()),
+            ),
+            BitwiseAndOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseOrOps, B::bitwise_or);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseOr(desc.clone()),
+            ),
+            BitwiseOrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseOrOps, B::bitwise_or_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseOrScalar(desc.clone()),
+            ),
+            BitwiseOrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseXorOps, B::bitwise_xor);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseXor(desc.clone()),
+            ),
+            BitwiseXorOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseXorOps, B::bitwise_xor_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseXorScalar(desc.clone()),
+            ),
+            BitwiseXorOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_int_ops!(BitwiseNotOps, B::bitwise_not);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::NumericInt(
+                IntElem::<Self>::dtype(),
+                NumericOperationDescription::BitwiseNot(desc.clone()),
+            ),
+            BitwiseNotOps::<B>::new(desc),
+        );
+
+        out
+    }
 }

@@ -970,6 +970,54 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            NumericOperationDescription::BitwiseAnd(desc) => {
+                NumericOperationDescription::BitwiseAnd(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseAndScalar(desc) => {
+                NumericOperationDescription::BitwiseAndScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseOr(desc) => {
+                NumericOperationDescription::BitwiseOr(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseOrScalar(desc) => {
+                NumericOperationDescription::BitwiseOrScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseXor(desc) => {
+                NumericOperationDescription::BitwiseXor(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseXorScalar(desc) => {
+                NumericOperationDescription::BitwiseXorScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::BitwiseNot(desc) => {
+                NumericOperationDescription::BitwiseNot(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

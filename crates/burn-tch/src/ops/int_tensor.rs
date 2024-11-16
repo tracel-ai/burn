@@ -431,4 +431,41 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         TchOps::argsort(tensor, dim, descending)
     }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_and(lhs, rhs)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_or(lhs, rhs)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_xor(lhs, rhs)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_not(tensor)
+    }
+
+    fn bitwise_and_scalar(
+        lhs: IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> IntTensor<Self> {
+        TchOps::bitwise_and_scalar(lhs, rhs)
+    }
+
+    fn bitwise_or_scalar(
+        lhs: IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> IntTensor<Self> {
+        TchOps::bitwise_or_scalar(lhs, rhs)
+    }
+
+    fn bitwise_xor_scalar(
+        lhs: IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> IntTensor<Self> {
+        TchOps::bitwise_xor_scalar(lhs, rhs)
+    }
 }
