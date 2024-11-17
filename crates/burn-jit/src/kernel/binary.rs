@@ -19,6 +19,10 @@ pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
 pub(crate) struct PowOp;
+pub(crate) struct BitwiseAndOp;
+pub(crate) struct BitwiseOrOp;
+pub(crate) struct BitwiseXorOp;
+pub(crate) struct BitwiseNotOp;
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
@@ -59,6 +63,35 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 impl<N: Float> BinaryOp<N> for PowOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         Line::powf(lhs, rhs)
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for BitwiseAndOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        //lhs + rhs
+        lhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for BitwiseOrOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        lhs + rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for BitwiseXorOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        lhs + rhs
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for BitwiseNotOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        lhs + rhs
     }
 }
 
