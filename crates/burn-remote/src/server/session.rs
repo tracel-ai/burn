@@ -2,9 +2,9 @@ use burn_common::id::StreamId;
 use burn_common::stub::Mutex;
 use burn_router::Runner;
 use burn_tensor::{
+    backend::{Backend, BackendBridge},
     ops::FullPrecisionBackend,
     repr::{ReprBackend, TensorDescription, TensorId, TensorStatus},
-    backend::{Backend, BackendBridge},
     Device,
 };
 use std::{
