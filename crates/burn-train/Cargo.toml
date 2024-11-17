@@ -40,6 +40,7 @@ ratatui = { workspace = true, optional = true, features = ["all-widgets", "cross
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }

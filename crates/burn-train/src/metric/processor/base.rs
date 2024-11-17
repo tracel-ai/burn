@@ -9,12 +9,19 @@ pub enum Event<T> {
     EndEpoch(usize),
 }
 
+/// A lazy item mean that it won't necessary be ready to be process on the CPU.
+pub trait LazyItem: Send {
+    type Output: Send;
+
+    fn load(self) -> Self::Output;
+}
+
 /// Process events happening during training and validation.
 pub trait EventProcessor: Send {
     /// The training item.
-    type ItemTrain: Send;
+    type ItemTrain: LazyItem;
     /// The validation item.
-    type ItemValid: Send;
+    type ItemValid: LazyItem;
 
     /// Collect a training event.
     fn process_train(&mut self, event: Event<Self::ItemTrain>);
@@ -42,4 +49,19 @@ pub struct LearnerItem<T> {
 
     /// The learning rate.
     pub lr: Option<LearningRate>,
+}
+
+impl<T: LazyItem> LazyItem for LearnerItem<T> {
+    type Output = LearnerItem<T::Output>;
+
+    fn load(self) -> Self::Output {
+        LearnerItem {
+            item: self.item.load(),
+            progress: self.progress,
+            epoch: self.epoch,
+            epoch_total: self.epoch_total,
+            iteration: self.iteration,
+            lr: self.lr,
+        }
+    }
 }

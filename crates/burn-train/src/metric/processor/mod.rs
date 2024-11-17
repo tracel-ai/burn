@@ -21,6 +21,16 @@ pub(crate) mod test_utils {
     };
     use burn_core::tensor::{backend::Backend, ElementConversion, Tensor};
 
+    use super::LazyItem;
+
+    impl LazyItem for f64 {
+        type Output = f64;
+
+        fn load(self) -> Self::Output {
+            self
+        }
+    }
+
     impl<B: Backend> Adaptor<LossInput<B>> for f64 {
         fn adapt(&self) -> LossInput<B> {
             let device = B::Device::default();
