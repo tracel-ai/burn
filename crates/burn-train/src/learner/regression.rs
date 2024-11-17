@@ -32,9 +32,9 @@ impl<B: Backend> LazyItem for RegressionOutput<B> {
         let shape_targets = self.targets.shape();
         let shape_loss = self.loss.shape();
 
-        let n_items_output: usize = shape_output.dims.iter().sum();
-        let n_items_targets: usize = shape_targets.dims.iter().sum();
-        let n_items_loss: usize = shape_loss.dims.iter().sum();
+        let n_items_output: usize = shape_output.dims.iter().product();
+        let n_items_targets: usize = shape_targets.dims.iter().product();
+        let n_items_loss: usize = shape_loss.dims.iter().product();
 
         let index_output = n_items_output;
         let index_targets = index_output + n_items_targets;
