@@ -3,7 +3,7 @@ use burn_tensor::{
     backend::{DeviceId, DeviceOps},
     DType, TensorData,
 };
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use crate::shared::{ComputeTask, TaskResponseContent};
 
@@ -18,10 +18,8 @@ impl RunnerClient for WsClient {
     type Device = WsDevice;
 
     fn register(&self, op: burn_tensor::repr::OperationDescription) {
-        let fut = self
-            .sender
+        self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
-        self.runtime.block_on(fut);
     }
 
     fn read_tensor(
@@ -44,9 +42,7 @@ impl RunnerClient for WsClient {
         let shape = data.shape.clone();
         let dtype = data.dtype;
 
-        let fut = self.sender.send(ComputeTask::RegisterTensor(id, data));
-
-        self.runtime.block_on(fut);
+        self.sender.send(ComputeTask::RegisterTensor(id, data));
 
         RouterTensor::new(Arc::new(id), shape, dtype, self.clone())
     }
@@ -74,22 +70,20 @@ impl RunnerClient for WsClient {
     }
 
     fn register_orphan(&self, id: &burn_tensor::repr::TensorId) {
-        let fut = self.sender.send(ComputeTask::RegisterOrphan(*id));
-        self.runtime.block_on(fut);
+        self.sender.send(ComputeTask::RegisterOrphan(*id));
     }
 
-    fn sync(&self) {
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::SyncBackend);
+        let runtime = self.runtime.clone();
 
-        let fut = async move {
-            match fut.await {
+        async move {
+            match runtime.block_on(fut) {
                 TaskResponseContent::SyncBackend => {}
                 _ => panic!("Invalid message type"),
             };
-        };
-
-        self.runtime.block_on(fut)
+        }
     }
 
     fn seed(&self, _seed: u64) {

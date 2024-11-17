@@ -1,12 +1,12 @@
 use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ComputeTask, ConnectionId, Task, TaskResponseContent};
+use async_channel::Sender;
 use burn_common::id::StreamId;
 use burn_tensor::repr::TensorId;
 use std::{
     future::Future,
     sync::{atomic::AtomicU64, Arc},
 };
-use tokio::sync::mpsc::Sender;
 
 pub use super::WsDevice;
 
@@ -46,22 +46,19 @@ pub(crate) struct WsSender {
 }
 
 impl WsSender {
-    pub(crate) fn send(&self, task: ComputeTask) -> impl Future<Output = ()> + Send {
+    pub(crate) fn send(&self, task: ComputeTask) {
         let position = self
             .position_counter
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let stream_id = StreamId::current();
         let sender = self.sender.clone();
 
-        async move {
-            sender
-                .send(ClientRequest::WithoutCallback(Task::Compute(
-                    task,
-                    ConnectionId::new(position, stream_id),
-                )))
-                .await
-                .unwrap();
-        }
+        sender
+            .send_blocking(ClientRequest::WithoutCallback(Task::Compute(
+                task,
+                ConnectionId::new(position, stream_id),
+            )))
+            .unwrap();
     }
 
     pub(crate) fn new_tensor_id(&self) -> TensorId {
@@ -79,20 +76,18 @@ impl WsSender {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let stream_id = StreamId::current();
         let sender = self.sender.clone();
-        let (callback_sender, mut callback_recv) = tokio::sync::mpsc::channel(1);
+        let (callback_sender, callback_recv) = async_channel::bounded(1);
+        sender
+            .send_blocking(ClientRequest::WithSyncCallback(
+                Task::Compute(task, ConnectionId::new(position, stream_id)),
+                callback_sender,
+            ))
+            .unwrap();
 
         async move {
-            sender
-                .send(ClientRequest::WithSyncCallback(
-                    Task::Compute(task, ConnectionId::new(position, stream_id)),
-                    callback_sender,
-                ))
-                .await
-                .unwrap();
-
             match callback_recv.recv().await {
-                Some(val) => val,
-                None => panic!(""),
+                Ok(val) => val,
+                Err(err) => panic!("{err:?}"),
             }
         }
     }
