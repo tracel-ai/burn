@@ -11,6 +11,9 @@ use crate::{config::Config, LearningRate};
 /// the same value has been given for `step_size` times. Then it multiplies the learning rate by
 /// `gamma` before repeating the process.
 ///
+/// Gamma values out of range (0.0, 1.0) and non-positive initial learning rates are acceptable, but
+/// a warning log will be output for such a value in case of mistyping.
+///
 /// ## Notes
 ///
 /// The [step](StepLrScheduler::step) method of the scheduler panics if it is called more than
@@ -30,23 +33,35 @@ pub struct StepLrSchedulerConfig {
 impl StepLrSchedulerConfig {
     /// Initializes a [step learning rate scheduler](StepLrScheduler).
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// An error will be returned if any field is out of the acceptable range.
-    pub fn init(&self) -> Result<StepLrScheduler, String> {
-        // `initial_lr` and `gamma` are not checked because atypical values such as zero and
-        // negative values might be useful in some cases like debugging (e.g.,
-        // https://datascience.stackexchange.com/q/89518).
-        if self.step_size == 0 {
-            return Err("Step size must be greater than 0".into());
+    /// Panics if `step_size` is 0.
+    pub fn init(&self) -> StepLrScheduler {
+        assert!(self.step_size > 0, "Step size must be greater than 0.");
+
+        // Atypical values of `initial_lr` and `gamma` are not rejected because they might be useful
+        // in some cases like debugging (e.g., https://datascience.stackexchange.com/q/89518).
+        if self.initial_lr <= 0.0 {
+            log::warn!(
+                "Initial learning rate value of {} is not a positive number. Ignore this warning \
+                 if it is intended.",
+                self.initial_lr
+            );
+        }
+        if self.gamma <= 0.0 || self.gamma >= 1.0 {
+            log::warn!(
+                "Gamma value of {} is out of range (0.0, 1.0). Ignore this warning if it is \
+                 intended.",
+                self.gamma
+            );
         }
 
-        Ok(StepLrScheduler {
+        StepLrScheduler {
             init_lr: self.initial_lr,
             step_size: self.step_size,
             gamma: self.gamma,
             iter_idx: -1,
-        })
+        }
     }
 }
 
@@ -92,14 +107,33 @@ mod tests {
     use super::*;
     use crate::TestBackend;
 
+    // Warning logs for initial LR and gamma are not tested because there seems no straightforward
+    // way to do it.
+    //
+    // Creating a mock logger that collects logs into `String` for later examination seems a possible
+    // solution, but unit tests run in the same process in parallel, where the single logger would
+    // be shared by multiple tests, so logs from different tests would be mixed up with no easy way
+    // to separate them.
+    // Using "--test-threads=1" could prevent mixup, but whether the ability to test logging is
+    // worth the slowdown would be a question. Also, using a primitive provided by `std` to
+    // synchronize the logger across tests is not an option since we need to support `no-std`.
+    // Maybe the mocking approach can be reconsidered after we are given an option to run tests in
+    // separate processes like what the issue below is proposing:
+    //     https://github.com/rust-lang/rust/issues/47506
+    //
+    // As a side note, a helper crate exists for the exact purpose:
+    //     https://crates.io/crates/testing_logger
+    // but the crate has been unmaintained and using it would introduce another dependency.
+
     #[test]
+    #[should_panic]
     fn test_config_step_size_zero() {
-        assert!(StepLrSchedulerConfig::new(1.0, 0).init().is_err());
+        StepLrSchedulerConfig::new(1.0, 0).init();
     }
 
     #[test]
     fn test_config_step_size_nonzero() {
-        assert!(StepLrSchedulerConfig::new(1.0, 1).init().is_ok());
+        StepLrSchedulerConfig::new(1.0, 1).init();
     }
 
     #[test]
@@ -161,7 +195,7 @@ mod tests {
         scheduler.step();
     }
 
-    // Create a scheduler with valid parameters (so no boilerplate code for error handling needed).
+    // Create a scheduler with valid parameters
     fn create_scheduler_unchecked(
         init_lr: LearningRate,
         step_size: usize,
@@ -171,8 +205,6 @@ mod tests {
         if let Some(g) = gamma {
             config = config.with_gamma(g);
         }
-        config
-            .init()
-            .expect("A scheduler should be created successfully")
+        config.init()
     }
 }
