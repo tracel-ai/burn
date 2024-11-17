@@ -1,11 +1,7 @@
 use burn_common::id::StreamId;
 use burn_common::stub::Mutex;
 use burn_router::Runner;
-use burn_tensor::{
-    ops::FullPrecisionBackend,
-    repr::ReprBackend,
-    Device,
-};
+use burn_tensor::{ops::FullPrecisionBackend, repr::ReprBackend, Device};
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, SyncSender},
