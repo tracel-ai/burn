@@ -23,6 +23,7 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     let v1: F = Ceil::ceil(frac);
     let yw = frac - v0;
     let yw_ = F::new(1.0) - yw;
+    let y0_ok = v0 >= F::new(0.0);
     let y0 = u32::cast_from(v0);
     let y1 = u32::cast_from(v1);
 
@@ -34,6 +35,7 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     let v1: F = Ceil::ceil(frac);
     let xw = frac - v0;
     let xw_ = F::new(1.0) - xw;
+    let x0_ok = v0 >= F::new(0.0);
     let x0 = u32::cast_from(v0);
     let x1 = u32::cast_from(v1);
 
@@ -47,10 +49,32 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     let x0_stride = x0 * in_stride_x;
     let x1_stride = x1 * in_stride_x;
 
-    let p_a = input[index_base + y0_stride + x0_stride] * xw_ * yw_;
-    let p_b = input[index_base + y0_stride + x1_stride] * xw * yw_;
-    let p_c = input[index_base + y1_stride + x0_stride] * xw_ * yw;
-    let p_d = input[index_base + y1_stride + x1_stride] * xw * yw;
+    let height = input.shape(2);
+    let width = input.shape(3);
+
+    let y1_ok = y1 < height;
+    let x1_ok = x1 < width;
+
+    let p_a = select(
+        x0_ok && y0_ok,
+        input[index_base + y0_stride + x0_stride] * xw_ * yw_,
+        F::new(0.0),
+    );
+    let p_b = select(
+        x1_ok && y0_ok,
+        input[index_base + y0_stride + x1_stride] * xw * yw_,
+        F::new(0.0),
+    );
+    let p_c = select(
+        x0_ok && y1_ok,
+        input[index_base + y1_stride + x0_stride] * xw_ * yw,
+        F::new(0.0),
+    );
+    let p_d = select(
+        x1_ok && y1_ok,
+        input[index_base + y1_stride + x1_stride] * xw * yw,
+        F::new(0.0),
+    );
 
     output[ABSOLUTE_POS] = p_a + p_b + p_c + p_d;
 }
