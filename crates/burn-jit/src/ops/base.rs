@@ -56,7 +56,7 @@ pub(crate) fn empty<R: JitRuntime, E: JitElement>(
     JitTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
 }
 
-pub(crate) fn swap_dims<R: JitRuntime, E: JitElement>(
+pub(crate) fn swap_dims<R: JitRuntime>(
     mut tensor: JitTensor<R>,
     dim1: usize,
     dim2: usize,
@@ -67,10 +67,7 @@ pub(crate) fn swap_dims<R: JitRuntime, E: JitElement>(
     tensor
 }
 
-pub(crate) fn permute<R: JitRuntime, E: JitElement>(
-    mut tensor: JitTensor<R>,
-    axes: &[usize],
-) -> JitTensor<R> {
+pub(crate) fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
@@ -79,10 +76,7 @@ pub(crate) fn permute<R: JitRuntime, E: JitElement>(
 
     tensor
 }
-pub(crate) fn expand<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R>,
-    target_shape: Shape,
-) -> JitTensor<R> {
+pub(crate) fn expand<R: JitRuntime>(tensor: JitTensor<R>, target_shape: Shape) -> JitTensor<R> {
     let ndims_in = tensor.shape.num_dims();
     let ndims_out = target_shape.num_dims();
 
@@ -132,10 +126,7 @@ pub(crate) fn expand<R: JitRuntime, E: JitElement>(
     }
 }
 
-pub(crate) fn reshape<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R>,
-    shape: Shape,
-) -> JitTensor<R> {
+pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
@@ -144,6 +135,6 @@ pub(crate) fn reshape<R: JitRuntime, E: JitElement>(
         tensor.device,
         shape,
         tensor.handle,
-        E::dtype(),
+        tensor.dtype,
     )
 }

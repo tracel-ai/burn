@@ -58,7 +58,7 @@ where
             shape: self.shape.clone(),
             device: self.device.clone(),
             strides: self.strides.clone(),
-            dtype: self.dtype.clone(),
+            dtype: self.dtype,
         }
     }
 }
@@ -231,7 +231,7 @@ where
             shape: self.shape.clone(),
             strides: self.strides.clone(),
             device,
-            dtype: self.dtype.clone(),
+            dtype: self.dtype,
         }
     }
 

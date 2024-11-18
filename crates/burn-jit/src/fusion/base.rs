@@ -1,10 +1,7 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::tensor::{JitQuantizationParameters, QJitTensor};
-use crate::{
-    element::JitElement, kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend,
-    JitRuntime,
-};
+use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::quantization::QuantizationScheme;
 use burn_tensor::repr::{QuantizedKind, TensorHandle};
@@ -68,31 +65,28 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
     type Handle = JitFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
-        handle.handle.into_tensor::<F>(handle.shape)
+        handle.handle.into_tensor(handle.shape)
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::IntTensor<Self> {
-        handle.handle.into_tensor::<I>(handle.shape)
+        handle.handle.into_tensor(handle.shape)
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::BoolTensor<Self> {
-        handle.handle.into_tensor::<u32>(handle.shape)
+        handle.handle.into_tensor(handle.shape)
     }
 
     fn quantized_tensor(
         handles: QuantizedKind<TensorHandle<Self::Handle>>,
         scheme: QuantizationScheme,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
-        let qtensor = handles
-            .tensor
-            .handle
-            .into_tensor::<u32>(handles.tensor.shape);
-        let scale = handles.scale.handle.into_tensor::<F>(handles.scale.shape);
+        let qtensor = handles.tensor.handle.into_tensor(handles.tensor.shape);
+        let scale = handles.scale.handle.into_tensor(handles.scale.shape);
         let offset = handles.offset;
 
         let qparams = JitQuantizationParameters {
             scale,
-            offset: offset.map(|h| h.handle.into_tensor::<I>(h.shape)),
+            offset: offset.map(|h| h.handle.into_tensor(h.shape)),
         };
 
         QJitTensor {
@@ -222,7 +216,7 @@ unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
 unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
 
 impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor<E: JitElement>(self, shape: Shape) -> JitTensor<R> {
+    pub(crate) fn into_tensor(self, shape: Shape) -> JitTensor<R> {
         JitTensor {
             client: self.client,
             handle: self.handle,

@@ -45,12 +45,11 @@ where
             FTarget::dtype(),
         );
 
-        let tensor = if let Some(device) = &device {
+        if let Some(device) = &device {
             to_device(tensor, device)
         } else {
             tensor
-        };
-        tensor
+        }
     }
 
     fn from_target(
