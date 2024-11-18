@@ -14,7 +14,9 @@ pub struct CandleTensor {
 impl Primitive for CandleTensor {
     fn dtype(&self) -> DType {
         match self.tensor.dtype() {
-            candle_core::DType::U8 => DType::U8,
+            // NOTE: bool tensors are stored as u32, we currently make this assumption
+            // since `Primitive::dtype()` is used for display purposes only at this time.
+            candle_core::DType::U8 => DType::Bool,
             candle_core::DType::U32 => DType::U32,
             candle_core::DType::I64 => DType::I64,
             candle_core::DType::BF16 => DType::BF16,
