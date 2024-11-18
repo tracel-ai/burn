@@ -71,14 +71,14 @@ impl<B: Backend> MulticlassPrecisionMetric<B> {
     }
 
     /// Set top_k.
-    pub fn with_top_k(self, top_k: NonZeroUsize) -> Self {
+    pub fn with_top_k(self, top_k: usize) -> Self {
         Self(self.0.with_top_k(top_k))
     }
 }
 
 impl<B: Backend> Default for MulticlassPrecisionMetric<B> {
     fn default() -> Self {
-        Self(Default::default()).with_top_k(NonZeroUsize::new(1).unwrap())
+        Self(Default::default()).with_top_k(1)
     }
 }
 
@@ -166,8 +166,8 @@ impl<B: Backend> PrecisionMetric<B> {
         self
     }
 
-    fn with_top_k(mut self, top_k: NonZeroUsize) -> Self {
-        self.top_k = Some(top_k);
+    fn with_top_k(mut self, top_k: usize) -> Self {
+        self.top_k = Some(NonZeroUsize::new(top_k).expect("top_k must be non-zero"));
         self
     }
 
@@ -234,7 +234,6 @@ mod tests {
     use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
     use rstest::rstest;
-    use std::num::NonZeroUsize;
 
     #[rstest]
     #[case::binary_micro(Micro, THRESHOLD, 0.5)]
@@ -265,7 +264,7 @@ mod tests {
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass);
         let mut metric = MulticlassPrecisionMetric::new()
-            .with_top_k(NonZeroUsize::new(top_k).unwrap())
+            .with_top_k(top_k)
             .with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
