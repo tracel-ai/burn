@@ -23,15 +23,16 @@ pub(super) mod test_utils {
     use super::*;
     use crate::TestBackend;
 
+    // A small tolerance for learning rate comparisons. Depending on how learning rates are
+    // computed, floating-point arithmetic error might exceed f64::EPSILON, so a larger value is
+    // used here.
+    const LOOSE_EPSILON: LearningRate = 1e-10;
+
     pub fn check_lr_sequence<I, S>(mut scheduler: S, expected_lrs: I)
     where
         I: IntoIterator<Item = LearningRate>,
         S: LrScheduler,
     {
-        // Depending on how learning rates are computed by the scheduler, floating-point arithmetic
-        // error might exceed f64::EPSILON, so we use a larger epsilon here.
-        const LOOSE_EPSILON: f64 = 1e-10;
-
         expected_lrs
             .into_iter()
             .enumerate()
@@ -61,15 +62,19 @@ pub(super) mod test_utils {
         scheduler = scheduler.load_record::<TestBackend>(rec);
 
         // Validate that the scheduler resumes from where it left off.
-        (save_at_step..2 * save_at_step).for_each(|i| {
-            let expected = truth.step();
-            let lr = scheduler.step();
-            // The two schedulers run with the exact same settings and code,
-            // so the difference, if any, should be small enough to fit in f64::EPSILON.
+        compare_steps(&mut scheduler, &mut truth, save_at_step);
+    }
+
+    // Check if two schedulers produce the same learning rate sequences over the specified number of
+    // steps.
+    pub fn compare_steps<S: LrScheduler>(a: &mut S, b: &mut S, num_steps: usize) {
+        (0..num_steps).for_each(|i| {
+            let lr_a = a.step();
+            let lr_b = b.step();
             assert!(
-                (lr - expected).abs() < f64::EPSILON,
-                "Scheduled learning rate {lr} is not approximately equal to the expected value \
-                 {expected} at step {i}",
+                (lr_a - lr_b).abs() < LOOSE_EPSILON,
+                "The two learning rates ({lr_a}, {lr_b}) at position {i} in the remaining \
+                 sequences are not approximately equal",
             );
         });
     }

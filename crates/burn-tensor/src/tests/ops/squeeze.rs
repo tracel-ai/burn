@@ -149,6 +149,14 @@ mod tests {
     }
 
     #[test]
+    fn should_unsqueeze_dims_multiple_trailing_negatives() {
+        let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
+        let output_tensor: Tensor<TestBackend, 6> = input_tensor.unsqueeze_dims(&[0, -1, -1]);
+        let expected_shape = Shape::new([1, 3, 4, 5, 1, 1]);
+        assert_eq!(output_tensor.shape(), expected_shape);
+    }
+
+    #[test]
     #[should_panic]
     fn should_unsqueeze_dims_panic() {
         let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
