@@ -3,22 +3,24 @@ use core::future::Future;
 use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{backend::Backend, TensorData};
 
+#[derive(Default)]
 pub struct Transaction<B: Backend> {
-    floats: Vec<FloatTensor<B>>,
-    qfloats: Vec<QuantizedTensor<B>>,
-    ints: Vec<IntTensor<B>>,
-    bools: Vec<BoolTensor<B>>,
+    pub floats: Vec<FloatTensor<B>>,
+    pub qfloats: Vec<QuantizedTensor<B>>,
+    pub ints: Vec<IntTensor<B>>,
+    pub bools: Vec<BoolTensor<B>>,
 }
 
+#[derive(Default)]
 pub struct TransactionResult {
-    floats: Vec<TensorData>,
-    qfloats: Vec<TensorData>,
-    ints: Vec<TensorData>,
-    bools: Vec<TensorData>,
+    pub floats: Vec<TensorData>,
+    pub qfloats: Vec<TensorData>,
+    pub ints: Vec<TensorData>,
+    pub bools: Vec<TensorData>,
 }
 
 pub trait TransactionOps<B: Backend> {
-    fn execute(
+    fn tr_execute(
         transaction: Transaction<B>,
     ) -> impl Future<Output = TransactionResult> + 'static + Send {
         async move {
