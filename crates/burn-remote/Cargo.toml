@@ -28,7 +28,7 @@ derive-new = {workspace = true }
 log = { workspace = true }
 
 # Shared dependencies
-tokio = { version = "1.37", features = ["rt-multi-thread"] }
+tokio = { version = "1.41", features = ["rt-multi-thread"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
