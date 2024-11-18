@@ -85,10 +85,6 @@ impl MetricsRenderer for TuiMetricsRenderer {
         self.status.update_valid(item);
         self.render().unwrap();
     }
-
-    fn enable_manual_quit(&mut self) {
-        self.manual_quit = true;
-    }
 }
 
 impl TuiMetricsRenderer {
@@ -123,6 +119,11 @@ impl TuiMetricsRenderer {
             previous_panic_hook: Some(previous_panic_hook),
             manual_quit: false,
         }
+    }
+
+    /// Enable manual quit after training.
+    pub fn enable_manual_quit(&mut self) {
+        self.manual_quit = true;
     }
 
     fn render(&mut self) -> Result<(), Box<dyn Error>> {
@@ -206,6 +207,49 @@ impl TuiMetricsRenderer {
 
         Ok(())
     }
+
+    fn handle_post_training(&mut self) -> Result<(), Box<dyn Error>> {
+        self.popup = PopupState::Full(
+            "Training is done".to_string(),
+            vec![Callback::new(
+                "Training Done",
+                "Press 'x' to close this popup.  Press 'q' to exit the application after the \
+                popup is closed.",
+                'x',
+                PopupCancel,
+            )],
+        );
+
+        self.draw().ok();
+
+        loop {
+            if let Ok(true) = event::poll(Duration::from_millis(MAX_REFRESH_RATE_MILLIS)) {
+                match event::read() {
+                    Ok(event @ Event::Key(key)) => {
+                        if self.popup.is_empty() {
+                            self.metrics_numeric.on_event(&event);
+                            if let KeyCode::Char('q') = key.code {
+                                break;
+                            }
+                        } else {
+                            self.popup.on_event(&event);
+                        }
+                        self.draw().ok();
+                    }
+
+                    Ok(Event::Resize(..)) => {
+                        self.draw().ok();
+                    }
+                    Err(err) => {
+                        eprintln!("Error reading event: {}", err);
+                        break;
+                    }
+                    _ => continue,
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 struct QuitPopupAccept(TrainingInterrupter);
@@ -237,15 +281,8 @@ impl Drop for TuiMetricsRenderer {
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
             if self.manual_quit {
-                // Wait for 'q' key press before closing
-                loop {
-                    if let Ok(true) = event::poll(Duration::from_millis(100)) {
-                        if let Ok(Event::Key(key)) = event::read() {
-                            if let KeyCode::Char('q') = key.code {
-                                break;
-                            }
-                        }
-                    }
+                if let Err(err) = self.handle_post_training() {
+                    eprintln!("Error in post-training handling: {}", err);
                 }
             }
 

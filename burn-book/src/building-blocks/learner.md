@@ -32,7 +32,6 @@ The learner builder provides numerous options when it comes to configurations.
 | Devices                | Set the devices to be used                                                     |
 | Checkpoint             | Restart training from a checkpoint                                             |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                   |
-| Manual quit            | Configure the renderer to wait for user to quit after the training             |
 
 When the builder is configured at your liking, you can then move forward to build the learner. The
 build method requires three inputs: the model, the optimizer and the learning rate scheduler. Note
