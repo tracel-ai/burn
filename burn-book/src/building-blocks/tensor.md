@@ -255,6 +255,7 @@ Those operations are only available for `Float` tensors.
 | Burn API                                      | PyTorch Equivalent                 |
 |-----------------------------------------------| ---------------------------------- |
 | `Tensor::one_hot(index, num_classes, device)` | N/A                                |
+| `tensor.cast(dtype)`                          | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                               | `tensor.ceil()`                    |
 | `tensor.cos()`                                | `tensor.cos()`                     |
 | `tensor.erf()`                                | `tensor.erf()`                     |

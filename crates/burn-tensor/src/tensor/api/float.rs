@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use crate::check;
 use crate::check::TensorCheck;
 use crate::ops::FullPrecisionBackend;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
@@ -9,6 +8,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, Shape, TensorData};
 use crate::Tensor;
+use crate::{check, FloatDType};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
@@ -241,6 +241,14 @@ where
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
+    }
+
+    /// Converts a tensor to the specified floating point data type.
+    pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_cast(
+            self.primitive.tensor(),
+            dtype.into(),
+        )))
     }
 
     /// Returns a tensor with full precision based on the selected backend.
