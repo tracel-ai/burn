@@ -49,7 +49,7 @@ pub trait Primitive: Clone + Send + Sync + core::fmt::Debug {
 /// A type-level representation of the kind of a tensor.
 pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
-    type Primitive: Clone + core::fmt::Debug + Send + Sync + Primitive;
+    type Primitive: Primitive;
 
     /// The name of the tensor kind.
     fn name() -> &'static str;
