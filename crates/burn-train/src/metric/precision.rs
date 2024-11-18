@@ -1,148 +1,46 @@
 use super::{
-    classification::{ClassReduction, ClassificationInput},
+    classification::ClassReduction,
     confusion_stats::ConfusionStats,
     state::{FormatOptions, NumericMetricState},
     Metric, MetricEntry, MetricMetadata, Numeric,
 };
 use burn_core::{
     prelude::{Backend, Tensor},
-    tensor::cast::ToElement,
+    tensor::{cast::ToElement, Bool},
 };
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-/// PrecisionMetric for binary classification task
-pub struct BinaryPrecisionMetric<B: Backend>(PrecisionMetric<B>);
-impl<B: Backend> BinaryPrecisionMetric<B> {
-    /// Initialize PrecisionMetric for binary classification task.
-    /// Uses default threshold @ 0.5
-    pub fn new() -> Self {
-        Default::default()
-    }
+/// Input for precision metric.
+#[derive(new, Debug, Clone)]
+pub struct PrecisionInput<B: Backend> {
+    /// Sample x Class Non thresholded normalized predictions.
+    pub predictions: Tensor<B, 2>,
+    /// Sample x Class one-hot encoded target.
+    pub targets: Tensor<B, 2, Bool>,
+}
 
-    /// Set class reduction.
-    pub fn with_class_reduction(self, reduction: ClassReduction) -> Self {
-        Self(self.0.with_class_reduction(reduction))
-    }
-
-    /// Set threshold.
-    pub fn with_threshold(self, threshold: f64) -> Self {
-        Self(self.0.with_threshold(threshold))
+impl<B: Backend> From<PrecisionInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bool>) {
+    fn from(input: PrecisionInput<B>) -> Self {
+        (input.predictions, input.targets)
     }
 }
 
-impl<B: Backend> Default for BinaryPrecisionMetric<B> {
+impl<B: Backend> From<(Tensor<B, 2>, Tensor<B, 2, Bool>)> for PrecisionInput<B> {
+    fn from(value: (Tensor<B, 2>, Tensor<B, 2, Bool>)) -> Self {
+        Self::new(value.0, value.1)
+    }
+}
+
+enum PrecisionConfig {
+    Binary { threshold: f64 },
+    Multiclass { top_k: NonZeroUsize },
+    Multilabel { threshold: f64 },
+}
+
+impl Default for PrecisionConfig {
     fn default() -> Self {
-        Self(Default::default()).with_threshold(0.5)
-    }
-}
-
-impl<B: Backend> Metric for BinaryPrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
-    type Input = ClassificationInput<B>;
-
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
-        self.0.update(item, metadata)
-    }
-
-    fn clear(&mut self) {
-        self.0.clear()
-    }
-}
-
-impl<B: Backend> Numeric for BinaryPrecisionMetric<B> {
-    fn value(&self) -> f64 {
-        self.0.value()
-    }
-}
-
-/// PrecisionMetric for multiclass classification task
-pub struct MulticlassPrecisionMetric<B: Backend>(PrecisionMetric<B>);
-impl<B: Backend> MulticlassPrecisionMetric<B> {
-    /// Initialize PrecisionMetric for multiclass classification task
-    /// Uses default top_k @ 1 and Macro average
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Set class reduction.
-    pub fn with_class_reduction(self, reduction: ClassReduction) -> Self {
-        Self(self.0.with_class_reduction(reduction))
-    }
-
-    /// Set top_k.
-    pub fn with_top_k(self, top_k: usize) -> Self {
-        Self(self.0.with_top_k(top_k))
-    }
-}
-
-impl<B: Backend> Default for MulticlassPrecisionMetric<B> {
-    fn default() -> Self {
-        Self(Default::default()).with_top_k(1)
-    }
-}
-
-impl<B: Backend> Metric for MulticlassPrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
-    type Input = ClassificationInput<B>;
-
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
-        self.0.update(item, metadata)
-    }
-
-    fn clear(&mut self) {
-        self.0.clear()
-    }
-}
-
-impl<B: Backend> Numeric for MulticlassPrecisionMetric<B> {
-    fn value(&self) -> f64 {
-        self.0.value()
-    }
-}
-
-/// PrecisionMetric for multilabel classification task
-pub struct MultilabelPrecisionMetric<B: Backend>(PrecisionMetric<B>);
-impl<B: Backend> MultilabelPrecisionMetric<B> {
-    /// Initialize PrecisionMetric for multilabel classification task
-    /// Uses default threshold @ 0.5
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Set class reduction.
-    pub fn with_class_reduction(self, reduction: ClassReduction) -> Self {
-        Self(self.0.with_class_reduction(reduction))
-    }
-
-    /// Set threshold.
-    pub fn with_threshold(self, threshold: f64) -> Self {
-        Self(self.0.with_threshold(threshold))
-    }
-}
-
-impl<B: Backend> Default for MultilabelPrecisionMetric<B> {
-    fn default() -> Self {
-        Self(Default::default()).with_threshold(0.5)
-    }
-}
-
-impl<B: Backend> Metric for MultilabelPrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
-    type Input = ClassificationInput<B>;
-
-    fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
-        self.0.update(item, metadata)
-    }
-
-    fn clear(&mut self) {
-        self.0.clear()
-    }
-}
-
-impl<B: Backend> Numeric for MultilabelPrecisionMetric<B> {
-    fn value(&self) -> f64 {
-        self.0.value()
+        Self::Binary { threshold: 0.5 }
     }
 }
 
@@ -151,23 +49,55 @@ struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
     class_reduction: ClassReduction,
-    threshold: Option<f64>,
-    top_k: Option<NonZeroUsize>,
+    config: PrecisionConfig,
 }
 
 impl<B: Backend> PrecisionMetric<B> {
-    fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
+    /// Precision metric for binary classification.
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - The threshold to transform a probability into a binary prediction.
+    #[allow(dead_code)]
+    pub fn binary(threshold: f64) -> Self {
+        Self {
+            config: PrecisionConfig::Binary { threshold },
+            ..Default::default()
+        }
+    }
+
+    /// Precision metric for multiclass classification.
+    ///
+    /// # Arguments
+    ///
+    /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
+    #[allow(dead_code)]
+    pub fn multiclass(top_k: usize) -> Self {
+        Self {
+            config: PrecisionConfig::Multiclass {
+                top_k: NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
+            },
+            ..Default::default()
+        }
+    }
+
+    /// Precision metric for multi-label classification.
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - The threshold to transform a probability into a binary prediction.
+    #[allow(dead_code)]
+    pub fn multilabel(threshold: f64) -> Self {
+        Self {
+            config: PrecisionConfig::Multilabel { threshold },
+            ..Default::default()
+        }
+    }
+
+    /// Sets the class reduction method.
+    #[allow(dead_code)]
+    pub fn with_class_reduction(mut self, class_reduction: ClassReduction) -> Self {
         self.class_reduction = class_reduction;
-        self
-    }
-
-    fn with_threshold(mut self, threshold: f64) -> Self {
-        self.threshold = Some(threshold);
-        self
-    }
-
-    fn with_top_k(mut self, top_k: usize) -> Self {
-        self.top_k = Some(NonZeroUsize::new(top_k).expect("top_k must be non-zero"));
         self
     }
 
@@ -191,18 +121,21 @@ impl<B: Backend> PrecisionMetric<B> {
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
     const NAME: &'static str = "Precision";
-    type Input = ClassificationInput<B>;
+    type Input = PrecisionInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let (predictions, targets) = input.clone().into();
         let [sample_size, _] = input.predictions.dims();
-        let cf_stats = ConfusionStats::new(
-            predictions,
-            targets,
-            self.threshold,
-            self.top_k,
-            self.class_reduction,
-        );
+
+        let (threshold, top_k) = match self.config {
+            PrecisionConfig::Binary { threshold } | PrecisionConfig::Multilabel { threshold } => {
+                (Some(threshold), None)
+            }
+            PrecisionConfig::Multiclass { top_k } => (None, Some(top_k)),
+        };
+
+        let cf_stats =
+            ConfusionStats::new(predictions, targets, threshold, top_k, self.class_reduction);
         let metric =
             self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
 
@@ -227,9 +160,8 @@ impl<B: Backend> Numeric for PrecisionMetric<B> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryPrecisionMetric,
         ClassReduction::{self, *},
-        Metric, MetricMetadata, MulticlassPrecisionMetric, MultilabelPrecisionMetric, Numeric,
+        Metric, MetricMetadata, Numeric, PrecisionMetric,
     };
     use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
@@ -243,10 +175,8 @@ mod tests {
         #[case] threshold: f64,
         #[case] expected: f64,
     ) {
-        let input = dummy_classification_input(&ClassificationType::Binary);
-        let mut metric = BinaryPrecisionMetric::new()
-            .with_threshold(threshold)
-            .with_class_reduction(class_reduction);
+        let input = dummy_classification_input(&ClassificationType::Binary).into();
+        let mut metric = PrecisionMetric::binary(threshold).with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
@@ -262,10 +192,8 @@ mod tests {
         #[case] top_k: usize,
         #[case] expected: f64,
     ) {
-        let input = dummy_classification_input(&ClassificationType::Multiclass);
-        let mut metric = MulticlassPrecisionMetric::new()
-            .with_top_k(top_k)
-            .with_class_reduction(class_reduction);
+        let input = dummy_classification_input(&ClassificationType::Multiclass).into();
+        let mut metric = PrecisionMetric::multiclass(top_k).with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
@@ -279,10 +207,9 @@ mod tests {
         #[case] threshold: f64,
         #[case] expected: f64,
     ) {
-        let input = dummy_classification_input(&ClassificationType::Multilabel);
-        let mut metric = MultilabelPrecisionMetric::new()
-            .with_threshold(threshold)
-            .with_class_reduction(class_reduction);
+        let input = dummy_classification_input(&ClassificationType::Multilabel).into();
+        let mut metric =
+            PrecisionMetric::multilabel(threshold).with_class_reduction(class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)

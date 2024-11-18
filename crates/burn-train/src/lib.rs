@@ -29,8 +29,8 @@ pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{metric::classification::ClassificationInput, TestBackend};
-    use burn_core::prelude::Tensor;
+    use crate::TestBackend;
+    use burn_core::{prelude::Tensor, tensor::Bool};
     use std::default::Default;
 
     /// Probability of tp before adding errors
@@ -47,8 +47,8 @@ pub(crate) mod tests {
     /// classification metrics testing
     pub fn dummy_classification_input(
         classification_type: &ClassificationType,
-    ) -> ClassificationInput<TestBackend> {
-        let (targets, predictions) = match classification_type {
+    ) -> (Tensor<TestBackend, 2>, Tensor<TestBackend, 2, Bool>) {
+        match classification_type {
             ClassificationType::Binary => {
                 (
                     Tensor::from_data([[0], [1], [0], [0], [1]], &Default::default()),
@@ -98,7 +98,6 @@ pub(crate) mod tests {
                     ),
                 )
             }
-        };
-        ClassificationInput::new(predictions, targets)
+        }
     }
 }
