@@ -5,11 +5,11 @@ use crate::{
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{quantization::Calibration, Bool, Int, Tensor};
+use burn_tensor::{ops::Device, quantization::Calibration, Bool, Int, Tensor};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
-pub type Devices<B> = Vec<<B as Backend>::Device>;
+pub type Devices<B> = Vec<Device<B>>;
 
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.

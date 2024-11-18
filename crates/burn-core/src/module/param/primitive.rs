@@ -5,7 +5,10 @@ use crate::module::{
 
 use alloc::{format, vec::Vec};
 
-use burn_tensor::backend::{AutodiffBackend, Backend};
+use burn_tensor::{
+    backend::{AutodiffBackend, Backend},
+    ops::Device,
+};
 use core::fmt::Debug;
 
 impl<T, B> Module<B> for Option<T>
@@ -40,11 +43,11 @@ where
         self.map(Module::into_record)
     }
 
-    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+    fn to_device(self, device: &Device<B>) -> Self {
         self.map(|module| module.to_device(device))
     }
 
-    fn fork(self, device: &<B as Backend>::Device) -> Self {
+    fn fork(self, device: &Device<B>) -> Self {
         self.map(|module| module.fork(device))
     }
 
@@ -125,13 +128,13 @@ where
             .collect()
     }
 
-    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+    fn to_device(self, device: &Device<B>) -> Self {
         self.into_iter()
             .map(|module| module.to_device(device))
             .collect()
     }
 
-    fn fork(self, device: &<B as Backend>::Device) -> Self {
+    fn fork(self, device: &Device<B>) -> Self {
         self.into_iter().map(|module| module.fork(device)).collect()
     }
 
@@ -218,11 +221,11 @@ where
         self.map(Module::into_record)
     }
 
-    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+    fn to_device(self, device: &Device<B>) -> Self {
         self.map(|module| module.to_device(device))
     }
 
-    fn fork(self, device: &<B as Backend>::Device) -> Self {
+    fn fork(self, device: &Device<B>) -> Self {
         self.map(|module| module.fork(device))
     }
 }
@@ -276,11 +279,11 @@ macro_rules! impl_module_tuple {
                 devices
             }
 
-            fn fork(self, device: &<B as Backend>::Device) -> Self {
+            fn fork(self, device: &Device<B>) -> Self {
                 ($(self.$i.fork(device),)*)
             }
 
-            fn to_device(self, device: &<B as Backend>::Device) -> Self {
+            fn to_device(self, device: &Device<B>) -> Self {
                 ($(self.$i.to_device(device),)*)
             }
 
