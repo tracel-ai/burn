@@ -51,20 +51,16 @@ pub(crate) mod tests {
         match classification_type {
             ClassificationType::Binary => {
                 (
-                    Tensor::from_data([[0], [1], [0], [0], [1]], &Default::default()),
                     Tensor::from_data(
                         [[0.3], [0.2], [0.7], [0.1], [0.55]],
                         //[[0],   [0],   [1],   [0],   [1]] with threshold=0.5
                         &Default::default(),
                     ),
+                    Tensor::from_data([[0], [1], [0], [0], [1]], &Default::default()),
                 )
             }
             ClassificationType::Multiclass => {
                 (
-                    Tensor::from_data(
-                        [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
-                        &Default::default(),
-                    ),
                     Tensor::from_data(
                         [
                             [0.2, 0.8, 0.0],
@@ -77,14 +73,14 @@ pub(crate) mod tests {
                         //[[1,   1,   0],   [1,   1,   0],    [1,   1,   0],    [0,   1,   1],    [1,   0,    1]] with top_k=2
                         &Default::default(),
                     ),
+                    Tensor::from_data(
+                        [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
+                        &Default::default(),
+                    ),
                 )
             }
             ClassificationType::Multilabel => {
                 (
-                    Tensor::from_data(
-                        [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
-                        &Default::default(),
-                    ),
                     Tensor::from_data(
                         [
                             [0.1, 0.7, 0.6],
@@ -94,6 +90,10 @@ pub(crate) mod tests {
                             [1.0, 0.3, 0.2],
                         ],
                         //[[0,   1,   1],   [0,   1,   0],    [1,   1,   0],   [1,   0,   1],   [1,   0,   0]] with threshold=0.5
+                        &Default::default(),
+                    ),
+                    Tensor::from_data(
+                        [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
                         &Default::default(),
                     ),
                 )
