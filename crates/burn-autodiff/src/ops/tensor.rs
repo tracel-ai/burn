@@ -2558,6 +2558,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+        AutodiffTensor::new(B::float_cast(tensor.primitive, dtype))
+    }
+
     // TODO: Implement float_prod and float_sum
     // https://github.com/tracel-ai/burn/issues/1458
 }

@@ -83,7 +83,12 @@ fn should_run<
         // Shared
         1 => key.reduce_dim_length >= 16,
         // Subcube
-        2 => op.input.client.properties().feature_enabled(Feature::Plane),
+        2 => {
+            let props = op.input.client.properties();
+            let hardware = props.hardware_properties();
+            props.feature_enabled(Feature::Plane)
+                && hardware.plane_size_min == hardware.plane_size_max
+        }
         _ => true,
     }
 }

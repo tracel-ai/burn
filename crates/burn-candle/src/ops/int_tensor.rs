@@ -12,7 +12,7 @@ use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F, I> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::empty(shape, device)
+        super::base::empty(shape, device, I::DTYPE)
     }
 
     fn int_shape(tensor: &IntTensor<Self>) -> Shape {
@@ -24,7 +24,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::from_data(data, device)
+        super::base::from_data::<I>(data, device)
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -251,7 +251,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<I>().unwrap();
-        CandleTensor::from_data(
+        CandleTensor::from_data::<I>(
             TensorData::new([sum].into(), [1]),
             Self::int_device(&tensor),
         )

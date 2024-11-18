@@ -12,7 +12,7 @@ use super::base::{expand, permute};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        super::base::empty(shape, device)
+        super::base::empty(shape, device, candle_core::DType::U8)
     }
 
     fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
@@ -27,7 +27,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let data: TensorData = TensorData::new(data.iter::<bool>().collect(), data.shape);
-        super::base::from_data(data, device)
+        super::base::from_data::<u8>(data, device)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

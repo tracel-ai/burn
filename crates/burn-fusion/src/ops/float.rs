@@ -2196,4 +2196,11 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn float_cast(
+        _tensor: FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> FloatTensor<Self> {
+        todo!()
+    }
 }
