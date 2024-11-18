@@ -39,7 +39,7 @@ async-channel = { workspace = true, optional = true }
 tokio-tungstenite = { version = "0.24", optional = true }
 
 # Server dependencies
-axum = { version = "0.7.5", features = ["ws"], optional = true }
+axum = { version = "0.7.9", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
