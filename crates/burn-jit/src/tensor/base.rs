@@ -1,7 +1,7 @@
 use crate::element::JitElement;
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::JitRuntime;
-use burn_tensor::{DType, Shape};
+use burn_tensor::{DType, Primitive, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::linalg::tensor::TensorHandle;
@@ -60,6 +60,12 @@ where
             strides: self.strides.clone(),
             dtype: self.dtype.clone(),
         }
+    }
+}
+
+impl<R: JitRuntime> Primitive for JitTensor<R> {
+    fn dtype(&self) -> DType {
+        self.dtype
     }
 }
 

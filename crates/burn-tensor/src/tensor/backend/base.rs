@@ -1,6 +1,7 @@
 use alloc::string::String;
 
 use crate::tensor::Element;
+use crate::Primitive;
 use crate::{ops::*, quantization::QTensorPrimitive};
 
 use super::{BackendBridge, DeviceOps};
@@ -73,25 +74,20 @@ pub trait Backend:
     type FullPrecisionBridge: BackendBridge<Self> + 'static;
 
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type FloatTensorPrimitive: Primitive + 'static;
     /// Default float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type IntTensorPrimitive: Primitive + 'static;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive: Primitive + 'static;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive: QTensorPrimitive
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + core::fmt::Debug;
+    type QuantizedTensorPrimitive: Primitive + QTensorPrimitive + 'static;
     /// Quantized tensor encoding type.
     type QuantizedEncoding: Element;
 

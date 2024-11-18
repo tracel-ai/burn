@@ -7,7 +7,7 @@ use burn_tensor::{
         QuantizationParametersDescription, QuantizedTensorDescription, TensorDescription, TensorId,
         TensorStatus,
     },
-    DType, Shape, TensorData,
+    DType, Primitive, Shape, TensorData,
 };
 use std::sync::Arc;
 
@@ -55,6 +55,12 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
             )
             .as_str(),
         )
+    }
+}
+
+impl<R: FusionRuntime> Primitive for FusionTensor<R> {
+    fn dtype(&self) -> DType {
+        self.dtype
     }
 }
 
@@ -194,6 +200,12 @@ impl<R: FusionRuntime> Clone for QFusionTensor<R> {
             scheme: self.scheme,
             qparams: self.qparams.clone(),
         }
+    }
+}
+
+impl<R: FusionRuntime> Primitive for QFusionTensor<R> {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
     }
 }
 

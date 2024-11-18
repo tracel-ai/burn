@@ -21,6 +21,8 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
+use super::Primitive;
+
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
@@ -1774,7 +1776,7 @@ where
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
-        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
+        writeln!(f, "  dtype:  {:?},", self.primitive.dtype().name())?;
         write!(f, "}}")
     }
 }
@@ -2160,6 +2162,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
+    }
+
+    /// Returns the tensor data type.
+    fn dtype(tensor: &Self::Primitive) -> DType {
+        tensor.dtype()
     }
 
     /// Tests if any element in the `tensor` evaluates to True.

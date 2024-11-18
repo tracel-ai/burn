@@ -1,6 +1,6 @@
 use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    Element, Shape, TensorData,
+    DType, Element, Primitive, Shape, TensorData,
 };
 
 use crate::{element::CandleElement, CandleDevice};
@@ -9,6 +9,20 @@ use crate::{element::CandleElement, CandleDevice};
 #[derive(Debug, Clone)]
 pub struct CandleTensor {
     pub(crate) tensor: candle_core::Tensor,
+}
+
+impl Primitive for CandleTensor {
+    fn dtype(&self) -> DType {
+        match self.tensor.dtype() {
+            candle_core::DType::U8 => DType::U8,
+            candle_core::DType::U32 => DType::U32,
+            candle_core::DType::I64 => DType::I64,
+            candle_core::DType::BF16 => DType::BF16,
+            candle_core::DType::F16 => DType::F16,
+            candle_core::DType::F32 => DType::F32,
+            candle_core::DType::F64 => DType::F64,
+        }
+    }
 }
 
 impl CandleTensor {
@@ -59,5 +73,11 @@ impl QTensorPrimitive for CandleQTensor {
 
     fn strategy(&self) -> QuantizationStrategy {
         todo!()
+    }
+}
+
+impl Primitive for CandleQTensor {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
     }
 }

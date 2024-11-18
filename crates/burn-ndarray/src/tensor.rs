@@ -3,7 +3,7 @@ use burn_tensor::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    Element, Shape, TensorData,
+    DType, Element, Primitive, Shape, TensorData,
 };
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
@@ -15,6 +15,12 @@ use crate::element::QuantElement;
 pub struct NdArrayTensor<E> {
     /// Dynamic array that contains the data of type E.
     pub array: ArcArray<E, IxDyn>,
+}
+
+impl<E: Element> Primitive for NdArrayTensor<E> {
+    fn dtype(&self) -> DType {
+        E::dtype()
+    }
 }
 
 impl<E> NdArrayTensor<E> {
@@ -208,6 +214,12 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
                 ))
             }
         }
+    }
+}
+
+impl<Q: QuantElement> Primitive for NdArrayQTensor<Q> {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
     }
 }
 
