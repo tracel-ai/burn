@@ -2,7 +2,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 
-#[cube(launch_unchecked)]
+#[cube(launch)]
 fn interpolate_bicubic_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -128,15 +128,13 @@ pub(crate) fn interpolate_bicubic_launch<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    unsafe {
-        interpolate_bicubic_kernel::launch_unchecked::<E, R>(
-            &input.client,
-            cube_count,
-            cube_dim,
-            input.as_tensor_arg::<E>(1),
-            output.as_tensor_arg::<E>(1),
-        )
-    };
+    interpolate_bicubic_kernel::launch::<E, R>(
+        &input.client,
+        cube_count,
+        cube_dim,
+        input.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
+    );
 
     output
 }
