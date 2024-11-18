@@ -1,4 +1,4 @@
-use crate::metric::processor::LazyItem;
+use crate::metric::processor::ItemLazy;
 use crate::metric::{Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::Tensor;
@@ -23,10 +23,10 @@ impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {
     }
 }
 
-impl<B: Backend> LazyItem for RegressionOutput<B> {
-    type Output = RegressionOutput<NdArray>;
+impl<B: Backend> ItemLazy for RegressionOutput<B> {
+    type ItemSync = RegressionOutput<NdArray>;
 
-    fn load(self) -> Self::Output {
+    fn sync(self) -> Self::ItemSync {
         let device = self.output.device();
         let shape_output = self.output.shape();
         let shape_targets = self.targets.shape();

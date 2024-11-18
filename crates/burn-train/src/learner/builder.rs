@@ -11,7 +11,7 @@ use crate::components::LearnerComponentsMarker;
 use crate::learner::base::TrainingInterrupter;
 use crate::learner::EarlyStoppingStrategy;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{AsyncProcessor, FullEventProcessor, LazyItem, Metrics};
+use crate::metric::processor::{AsyncProcessor, FullEventProcessor, ItemLazy, Metrics};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric};
 use crate::renderer::{default_renderer, MetricsRenderer};
@@ -28,8 +28,8 @@ use burn_core::tensor::backend::AutodiffBackend;
 /// Struct to configure and create a [learner](Learner).
 pub struct LearnerBuilder<B, T, V, M, O, S>
 where
-    T: LazyItem + 'static,
-    V: LazyItem + 'static,
+    T: ItemLazy + 'static,
+    V: ItemLazy + 'static,
     B: AutodiffBackend,
     M: AutodiffModule<B>,
     O: Optimizer<M, B>,
@@ -64,8 +64,8 @@ where
 impl<B, T, V, M, O, S> LearnerBuilder<B, T, V, M, O, S>
 where
     B: AutodiffBackend,
-    T: LazyItem + 'static,
-    V: LazyItem + 'static,
+    T: ItemLazy + 'static,
+    V: ItemLazy + 'static,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     S: LrScheduler,
@@ -151,7 +151,7 @@ where
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        T::Output: Adaptor<Me::Input>,
+        T::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -160,7 +160,7 @@ where
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        V::Output: Adaptor<Me::Input>,
+        V::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -185,7 +185,7 @@ where
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + crate::metric::Numeric + 'static,
-        T::Output: Adaptor<Me::Input>,
+        T::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -198,7 +198,7 @@ where
         metric: Me,
     ) -> Self
     where
-        V::Output: Adaptor<Me::Input>,
+        V::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(Me::NAME.to_string());
         self.metrics.register_valid_metric_numeric(metric);

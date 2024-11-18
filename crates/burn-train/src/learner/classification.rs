@@ -1,4 +1,4 @@
-use crate::metric::processor::LazyItem;
+use crate::metric::processor::ItemLazy;
 use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
@@ -17,10 +17,10 @@ pub struct ClassificationOutput<B: Backend> {
     pub targets: Tensor<B, 1, Int>,
 }
 
-impl<B: Backend> LazyItem for ClassificationOutput<B> {
-    type Output = ClassificationOutput<NdArray>;
+impl<B: Backend> ItemLazy for ClassificationOutput<B> {
+    type ItemSync = ClassificationOutput<NdArray>;
 
-    fn load(self) -> Self::Output {
+    fn sync(self) -> Self::ItemSync {
         let device = self.output.device();
         let shape_output = self.output.shape();
         let shape_targets = self.targets.shape();

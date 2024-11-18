@@ -1,17 +1,17 @@
-use super::{LazyItem, LearnerItem};
+use super::{ItemLazy, LearnerItem};
 use crate::{
     metric::{store::MetricsUpdate, Adaptor, Metric, MetricEntry, MetricMetadata, Numeric},
     renderer::TrainingProgress,
 };
 
-pub(crate) struct Metrics<T: LazyItem, V: LazyItem> {
-    train: Vec<Box<dyn MetricUpdater<T::Output>>>,
-    valid: Vec<Box<dyn MetricUpdater<V::Output>>>,
-    train_numeric: Vec<Box<dyn NumericMetricUpdater<T::Output>>>,
-    valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::Output>>>,
+pub(crate) struct Metrics<T: ItemLazy, V: ItemLazy> {
+    train: Vec<Box<dyn MetricUpdater<T::ItemSync>>>,
+    valid: Vec<Box<dyn MetricUpdater<V::ItemSync>>>,
+    train_numeric: Vec<Box<dyn NumericMetricUpdater<T::ItemSync>>>,
+    valid_numeric: Vec<Box<dyn NumericMetricUpdater<V::ItemSync>>>,
 }
 
-impl<T: LazyItem, V: LazyItem> Default for Metrics<T, V> {
+impl<T: ItemLazy, V: ItemLazy> Default for Metrics<T, V> {
     fn default() -> Self {
         Self {
             train: Vec::default(),
@@ -22,11 +22,11 @@ impl<T: LazyItem, V: LazyItem> Default for Metrics<T, V> {
     }
 }
 
-impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
+impl<T: ItemLazy, V: ItemLazy> Metrics<T, V> {
     /// Register a training metric.
     pub(crate) fn register_train_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        T::Output: Adaptor<Me::Input> + 'static,
+        T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.train.push(Box::new(metric))
@@ -35,7 +35,7 @@ impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
     /// Register a validation metric.
     pub(crate) fn register_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        V::Output: Adaptor<Me::Input> + 'static,
+        V::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.valid.push(Box::new(metric))
@@ -46,7 +46,7 @@ impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
         &mut self,
         metric: Me,
     ) where
-        T::Output: Adaptor<Me::Input> + 'static,
+        T::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.train_numeric.push(Box::new(metric))
@@ -57,7 +57,7 @@ impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
         &mut self,
         metric: Me,
     ) where
-        V::Output: Adaptor<Me::Input> + 'static,
+        V::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.valid_numeric.push(Box::new(metric))
@@ -66,7 +66,7 @@ impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
     /// Update the training information from the training item.
     pub(crate) fn update_train(
         &mut self,
-        item: &LearnerItem<T::Output>,
+        item: &LearnerItem<T::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.train.len());
@@ -88,7 +88,7 @@ impl<T: LazyItem, V: LazyItem> Metrics<T, V> {
     /// Update the training information from the validation item.
     pub(crate) fn update_valid(
         &mut self,
-        item: &LearnerItem<V::Output>,
+        item: &LearnerItem<V::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.valid.len());

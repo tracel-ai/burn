@@ -21,12 +21,12 @@ pub(crate) mod test_utils {
     };
     use burn_core::tensor::{backend::Backend, ElementConversion, Tensor};
 
-    use super::LazyItem;
+    use super::ItemLazy;
 
-    impl LazyItem for f64 {
-        type Output = f64;
+    impl ItemLazy for f64 {
+        type ItemSync = f64;
 
-        fn load(self) -> Self::Output {
+        fn sync(self) -> Self::ItemSync {
             self
         }
     }
