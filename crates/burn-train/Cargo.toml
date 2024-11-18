@@ -15,10 +15,10 @@ version.workspace = true
 default = ["metrics", "tui"]
 doc = ["default"]
 metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
-tui = ["ratatui", "crossterm"]
+tui = ["ratatui"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.15.0", features = [
+burn-core = { path = "../burn-core", version = "0.16.0", features = [
     "dataset",
     "std",
 ], default-features = false }
@@ -34,15 +34,15 @@ sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }
 
 # Text UI
-ratatui = { workspace = true, optional = true, features = ["all-widgets"] }
-crossterm = { workspace = true, optional = true }
+ratatui = { workspace = true, optional = true, features = ["all-widgets", "crossterm"] }
 
 # Utilities
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+async-channel = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

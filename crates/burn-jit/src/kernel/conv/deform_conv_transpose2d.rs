@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, cube, prelude::*, CubeDim, CubeLaunch};
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{cast, into_contiguous},
     ops::{
         numeric::{empty_device, ones_device, zeros_device},
         reshape, swap_dims,
@@ -324,7 +324,7 @@ fn deform_col2img_coord_kernel<F: Float>(
         let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w + offset_x;
 
         let weight = get_coordinate_weight(
-            image.slice(image_base_idx, image.len()),
+            &image.slice(image_base_idx, image.len()),
             height,
             width,
             y,
@@ -360,7 +360,7 @@ fn deform_col2img_coord_kernel<F: Float>(
 
 #[cube]
 fn get_coordinate_weight<F: Float>(
-    input: &Slice<'_, F>,
+    input: &Slice<F>,
     height: u32,
     width: u32,
     y: F,
@@ -426,7 +426,8 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
 
-    let grad_in = zeros_device::<R, E>(
+    // Force `f32` to enable bitcasting as `u32`
+    let grad_in = zeros_device::<R, f32>(
         client.clone(),
         device.clone(),
         Shape::new([batch_size, in_channels, height, width]),
@@ -466,7 +467,7 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
         use_mask,
     );
 
-    grad_in
+    cast(grad_in)
 }
 
 #[derive(CubeLaunch)]
@@ -564,19 +565,19 @@ fn deform_col2img_kernel<F: Float>(
 
                 let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
 
-                float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
+                float_atomic_add(&mut grad_input[gradient_pos], f32::cast_from(value));
             }
         }
     }
 }
 
 #[cube]
-fn float_atomic_add<F: Float>(ptr: &mut AtomicU32, value: F) {
-    if value != F::new(0.0) {
+fn float_atomic_add(ptr: &mut AtomicU32, value: f32) {
+    if value != 0.0 {
         let mut v = AtomicU32::load(ptr);
         loop {
             let prev = v;
-            let v_float = F::bitcast_from(v);
+            let v_float = f32::bitcast_from(v);
             let new = u32::bitcast_from(v_float + value);
             v = AtomicU32::compare_and_swap(ptr, v, new);
             if prev == v {

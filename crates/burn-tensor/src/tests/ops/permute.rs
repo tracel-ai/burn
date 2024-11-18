@@ -7,7 +7,7 @@ mod tests {
     #[test]
     fn permute_int() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         let permuted = tensor.clone().permute([2, 1, 0]);
 
@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn permute_float() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn permute_bool() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .greater_elem(10);
 
@@ -93,7 +93,7 @@ mod tests {
     #[should_panic]
     fn edge_repeated_axes() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with a repeated axis
         let _ = tensor.clone().permute([0, 0, 1]);
@@ -103,7 +103,7 @@ mod tests {
     #[should_panic]
     fn edge_out_of_bound_axis() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with a repeated axis
         let _ = tensor.clone().permute([3, 0, 1]);

@@ -9,7 +9,7 @@ fn speech_command() {
 
     println!("Item: {:?}", item);
     println!("Item Length: {:?}", item.audio_samples.len());
-    println!("Label: {}", item.label.to_string());
+    println!("Label: {}", item.label);
 
     assert_eq!(test.len(), 4890);
     assert_eq!(item.label.to_string(), "Yes");

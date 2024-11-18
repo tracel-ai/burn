@@ -1,8 +1,10 @@
+use core::hash::Hash;
 use core::ops::Range;
 use serde::{Deserialize, Serialize};
 
+use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 
 use crate::{
     ops::{
@@ -14,6 +16,50 @@ use crate::{
 };
 
 use super::{QuantizationParametersDescription, QuantizedTensorDescription};
+
+/// Custom operation in fusion stream, declaring it's inputs and outputs.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub struct CustomOpDescription {
+    /// Unique identifier of the operation.
+    pub id: String,
+    /// Input tensors used in this the custom operation.
+    pub inputs: Vec<TensorDescription>,
+    /// Output tensors used in this the custom operation.
+    pub outputs: Vec<TensorDescription>,
+}
+
+impl CustomOpDescription {
+    /// Create a new custom operation description.
+    pub fn new(
+        id: &'static str,
+        inputs: &[TensorDescription],
+        outputs: &[TensorDescription],
+    ) -> Self {
+        Self {
+            id: id.to_owned(),
+            inputs: inputs.to_vec(),
+            outputs: outputs.to_vec(),
+        }
+    }
+
+    /// Consume the description, and get the in and output tensors.
+    pub fn consume<const N_IN: usize, const N_OUT: usize>(
+        self,
+    ) -> ([TensorDescription; N_IN], [TensorDescription; N_OUT]) {
+        (
+            self.inputs.try_into().expect(
+                "Wrong number of inputs expected (expected {D}, is {}), check your implementation",
+            ),
+            self.outputs.try_into().expect(
+                "Wrong number of outputs expected (expected {D}, is {}), check your implementation",
+            ),
+        )
+    }
+
+    fn nodes(&self) -> Vec<&TensorDescription> {
+        self.inputs.iter().chain(self.outputs.iter()).collect()
+    }
+}
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -36,6 +82,8 @@ pub enum OperationDescription {
     Float(DType, FloatOperationDescription),
     /// Module operation.
     Module(ModuleOperationDescription),
+    /// A custom operation.
+    Custom(CustomOpDescription),
 }
 
 /// Operation description specific to a float tensor.
@@ -267,8 +315,13 @@ pub enum NumericOperationDescription<E> {
     DivScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Float => [div](crate::ops::FloatTensorOps::float_remainder_scalar).
-    /// Int => [div](crate::ops::IntTensorOps::int_remainder_scalar).
+    /// Float => [rem](crate::ops::FloatTensorOps::float_remainder).
+    /// Int => [rem](crate::ops::IntTensorOps::int_remainder).
+    Rem(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Float => [rem scalar](crate::ops::FloatTensorOps::float_remainder_scalar).
+    /// Int => [rem scalar](crate::ops::IntTensorOps::int_remainder_scalar).
     RemScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
@@ -1263,6 +1316,7 @@ impl OperationDescription {
             OperationDescription::Int(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
+            OperationDescription::Custom(ops) => ops.nodes(),
         }
     }
 }
@@ -1333,6 +1387,9 @@ impl<E: Element> NumericOperationDescription<E> {
             }
             NumericOperationDescription::DivScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
+            }
+            NumericOperationDescription::Rem(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
             }
             NumericOperationDescription::RemScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
@@ -1668,6 +1725,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::SubScalar(desc) => desc.hash(state),
             NumericOperationDescription::Div(desc) => desc.hash(state),
             NumericOperationDescription::DivScalar(desc) => desc.hash(state),
+            NumericOperationDescription::Rem(desc) => desc.hash(state),
             NumericOperationDescription::RemScalar(desc) => desc.hash(state),
             NumericOperationDescription::Mul(desc) => desc.hash(state),
             NumericOperationDescription::MulScalar(desc) => desc.hash(state),

@@ -16,7 +16,11 @@ fn main() {
     );
 
     text_generation::training::train::<Backend, DbPediaDataset>(
-        Default::default(),
+        if cfg!(target_os = "macos") {
+            burn::tensor::Device::<Backend>::Mps
+        } else {
+            burn::tensor::Device::<Backend>::Cuda(0)
+        },
         DbPediaDataset::train(),
         DbPediaDataset::test(),
         config,

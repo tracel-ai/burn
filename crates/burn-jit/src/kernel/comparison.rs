@@ -1,9 +1,11 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_vectorization_factor,
 };
+
+use super::into_contiguous;
 
 #[cube]
 pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
@@ -119,7 +121,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
     let vectorization_factor_rhs =
         tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
 
-    let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
+    let vectorization_factor = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
 
     let mut shape_out = vec![0; ndims];
     lhs.shape
@@ -169,9 +171,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
 
         JitTensor::new(rhs.client, rhs.handle, rhs.shape, rhs.device, rhs.strides)
     } else {
-        let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = empty_device(lhs.client.clone(), lhs.device.clone(), shape_out);
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
@@ -192,9 +192,13 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
 }
 
 pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
-    tensor: JitTensor<R, E>,
+    mut tensor: JitTensor<R, E>,
     scalar: E,
 ) -> JitTensor<R, u32> {
+    if !tensor.is_contiguous_buffer() {
+        tensor = into_contiguous(tensor);
+    }
+
     let ndims = tensor.shape.num_dims();
     // Vectorization is only enabled when the last dimension is contiguous.
     let vectorization_factor =
@@ -225,13 +229,10 @@ pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>
             tensor.strides,
         )
     } else {
-        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new(
+        let output = empty_device(
             tensor.client.clone(),
-            buffer,
-            tensor.shape.clone(),
             tensor.device.clone(),
-            tensor.strides.clone(),
+            tensor.shape.clone(),
         );
 
         kernel_scalar_cmp::launch::<E, O, R>(

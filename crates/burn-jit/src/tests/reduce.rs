@@ -145,6 +145,28 @@ mod reduction {
     }
 
     #[test]
+    fn reduction_sum_dim_subcube_small() {
+        let tensor =
+            Tensor::<TestBackend, 1>::random([700], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 1>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 0;
+
+        let val = Tensor::<TestBackend, 1>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
+        )));
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
     fn reduction_sum_dim_shared_memory_medium_divisible() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
@@ -167,6 +189,28 @@ mod reduction {
     }
 
     #[test]
+    fn reduction_sum_dim_subcube_medium_divisible() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
+        )));
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
     fn reduction_sum_dim_shared_memory_medium_not_divisible() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1025], Distribution::Default, &Default::default());
@@ -182,6 +226,28 @@ mod reduction {
             tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
+        )));
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
+    fn reduction_sum_dim_subcube_medium_not_divisible() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1025], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
         )));
         let val_ref = tensor_ref.sum_dim(reduce_dim);
 
@@ -214,6 +280,31 @@ mod reduction {
     }
 
     #[test]
+    fn reduction_sum_dim_subcube_large() {
+        let tensor = Tensor::<TestBackend, 3>::random(
+            [4, 1024, 50],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(sum_dim::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
+        )));
+        let val_ref = tensor_ref.sum_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
     fn reduction_mean_dim_shared_memory_medium() {
         let tensor =
             Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
@@ -229,6 +320,28 @@ mod reduction {
             tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
+        )));
+        let val_ref = tensor_ref.mean_dim(reduce_dim);
+
+        val_ref.into_data().assert_approx_eq(&val.into_data(), 2);
+    }
+
+    #[test]
+    fn reduction_mean_dim_subcube_medium() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 0;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(mean_dim::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
         )));
         let val_ref = tensor_ref.mean_dim(reduce_dim);
 
@@ -258,6 +371,28 @@ mod reduction {
     }
 
     #[test]
+    fn reduction_argmin_subcube_medium() {
+        let tensor =
+            Tensor::<TestBackend, 2>::random([6, 1024], Distribution::Default, &Default::default());
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(argmin::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
+        )));
+        let val_ref = tensor_ref.argmin(reduce_dim);
+
+        val_ref.into_data().assert_eq(&val.into_data(), false);
+    }
+
+    #[test]
     fn reduction_argmax_shared_memory_medium() {
         let tensor = Tensor::<TestBackend, 2>::random(
             [10, 3000],
@@ -276,6 +411,31 @@ mod reduction {
             tensor.into_primitive().tensor(),
             reduce_dim,
             ReduceStrategy::SharedMemory,
+        )));
+        let val_ref = tensor_ref.argmax(reduce_dim);
+
+        val_ref.into_data().assert_eq(&val.into_data(), false);
+    }
+
+    #[test]
+    fn reduction_argmax_subcube_medium() {
+        let tensor = Tensor::<TestBackend, 2>::random(
+            [10, 3000],
+            Distribution::Default,
+            &Default::default(),
+        );
+        let tensor_ref =
+            Tensor::<ReferenceBackend, 2>::from_data(tensor.to_data(), &Default::default());
+        let reduce_dim = 1;
+
+        let val = Tensor::<TestBackend, 2>::from_primitive(TensorPrimitive::Float(argmax::<
+            TestRuntime,
+            f32,
+            f32,
+        >(
+            tensor.into_primitive().tensor(),
+            reduce_dim,
+            ReduceStrategy::Subcube,
         )));
         let val_ref = tensor_ref.argmax(reduce_dim);
 

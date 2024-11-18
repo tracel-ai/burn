@@ -2,7 +2,7 @@
 //!
 //! Each local unit will compute a single element of the output matrix.
 use crate::{
-    kernel::{into_contiguous, SUBCUBE_DIM_APPROX},
+    kernel::{into_contiguous, PLANE_DIM_APPROX},
     ops::swap_dims,
     tensor::JitTensor,
     FloatElement, JitRuntime,
@@ -88,7 +88,7 @@ pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement>(
     rhs: JitTensor<R, E>,
     out: JitTensor<R, E>,
 ) -> JitTensor<R, E> {
-    matmul_simple::<R, E>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
+    matmul_simple::<R, E>(lhs, rhs, out, PLANE_DIM_APPROX, PLANE_DIM_APPROX)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom cube dimensions
@@ -128,7 +128,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
             cube_count,
             CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
             lhs.as_tensor_arg(vectorization_factor),
-            TensorArg::from_raw_parts(
+            TensorArg::from_raw_parts::<E>(
                 &rhs.handle,
                 &rhs.strides,
                 &rhs_original_shape.dims, // We need the original shape.

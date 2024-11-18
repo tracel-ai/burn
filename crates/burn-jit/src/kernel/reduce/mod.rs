@@ -2,6 +2,7 @@ mod base;
 mod naive;
 mod prod;
 mod shared;
+mod subcube;
 mod sum;
 mod tune;
 

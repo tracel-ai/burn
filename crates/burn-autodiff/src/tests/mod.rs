@@ -50,6 +50,7 @@ mod permute;
 mod pow;
 mod recip;
 mod relu;
+mod remainder;
 mod repeat_dim;
 mod reshape;
 mod round;
@@ -67,11 +68,54 @@ mod transpose;
 
 #[macro_export]
 macro_rules! testgen_all {
+    // Avoid using paste dependency with no parameters
     () => {
-        type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-        type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+        mod autodiff {
+            pub use super::*;
+            type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+            type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
 
-        // Behavior
+            pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
+            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolTensorPrimitive;
+
+            $crate::testgen_with_float_param!();
+        }
+    };
+    ([$($float:ident),*]) => {
+        mod autodiff {
+            pub use super::*;
+            type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+            type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+
+            pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
+            pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
+            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolTensorPrimitive;
+
+            ::paste::paste! {
+                $(mod [<$float _ty>] {
+                    pub use super::*;
+
+                    pub type TestBackend = TestBackend2<$float, IntType>;
+                    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+                    pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, D>;
+
+                    type FloatType = $float;
+
+                    $crate::testgen_with_float_param!();
+                })*
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! testgen_with_float_param {
+    () => {
+        // Behaviour
         burn_autodiff::testgen_ad_broadcast!();
         burn_autodiff::testgen_gradients!();
         burn_autodiff::testgen_bridge!();
@@ -110,6 +154,7 @@ macro_rules! testgen_all {
         burn_autodiff::testgen_ad_cos!();
         burn_autodiff::testgen_ad_cross_entropy_loss!();
         burn_autodiff::testgen_ad_div!();
+        burn_autodiff::testgen_ad_remainder!();
         burn_autodiff::testgen_ad_erf!();
         burn_autodiff::testgen_ad_exp!();
         burn_autodiff::testgen_ad_slice!();

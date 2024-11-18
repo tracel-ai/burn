@@ -1,7 +1,7 @@
 use super::{Event, EventProcessor, Metrics};
 use crate::metric::store::EventStoreClient;
 use crate::renderer::{MetricState, MetricsRenderer};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
@@ -9,14 +9,14 @@ use std::rc::Rc;
 pub struct FullEventProcessor<T, V> {
     metrics: Metrics<T, V>,
     renderer: Box<dyn MetricsRenderer>,
-    store: Rc<EventStoreClient>,
+    store: Arc<EventStoreClient>,
 }
 
 impl<T, V> FullEventProcessor<T, V> {
     pub(crate) fn new(
         metrics: Metrics<T, V>,
         renderer: Box<dyn MetricsRenderer>,
-        store: Rc<EventStoreClient>,
+        store: Arc<EventStoreClient>,
     ) -> Self {
         Self {
             metrics,
@@ -26,7 +26,7 @@ impl<T, V> FullEventProcessor<T, V> {
     }
 }
 
-impl<T, V> EventProcessor for FullEventProcessor<T, V> {
+impl<T: Send, V: Send> EventProcessor for FullEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 

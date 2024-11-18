@@ -13,7 +13,7 @@ pub use contiguous::*;
 pub use mask::*;
 pub(crate) use unary::*;
 
-pub use cubecl::{Kernel, SUBCUBE_DIM_APPROX};
+pub use cubecl::{Kernel, PLANE_DIM_APPROX};
 
 /// Convolution kernels
 pub mod conv;

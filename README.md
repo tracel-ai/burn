@@ -325,17 +325,16 @@ WGPU (WebGPU): Cross-Platform GPU Backend 🌐
 Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
 backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
 shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/), or optionally
-[SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web Assembly
-to run in the browser while leveraging the GPU, see
+[SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
+Assembly to run in the browser while leveraging the GPU, see
 [this demo](https://antimora.github.io/image-classification/). For more information on the benefits
 of this backend, see [this blog](https://burn.dev/blog/cross-platform-gpu-backend).
 
 The WGPU backend is our first "in-house backend", which means we have complete control over its
 implementation details. It is fully optimized with the
 [performance characteristics mentioned earlier](#performance), as it serves as our research
-playground for a variety of optimizations.
-We've since added CUDA, ROCm and SPIR-V support using the same compiler infrastructure, so a kernel
-written for burn once, can run anywhere.
+playground for a variety of optimizations. We've since added CUDA, ROCm and SPIR-V support using the
+same compiler infrastructure, so a kernel written for burn once, can run anywhere.
 
 See the [WGPU Backend README](./crates/burn-wgpu/README.md) and
 [CUDA Backend README](./crates/burn-cuda/README.md) for more details.
@@ -486,9 +485,9 @@ The Burn Book 🔥
 
 To begin working effectively with Burn, it is crucial to understand its key components and
 philosophy. This is why we highly recommend new users to read the first sections of
-[The Burn Book 🔥](https://burn.dev/burn-book/). It provides detailed examples and explanations covering
-every facet of the framework, including building blocks like tensors, modules, and optimizers, all
-the way to advanced usage, like coding your own GPU kernels.
+[The Burn Book 🔥](https://burn.dev/burn-book/). It provides detailed examples and explanations
+covering every facet of the framework, including building blocks like tensors, modules, and
+optimizers, all the way to advanced usage, like coding your own GPU kernels.
 
 > The project is constantly evolving, and we try as much as possible to keep the book up to date
 > with new additions. However, we might miss some details sometimes, so if you see something weird,
@@ -545,8 +544,8 @@ Additional examples:
 
 - [Custom CSV Dataset](./examples/custom-csv-dataset) : Implements a dataset to parse CSV data for a
   regression task.
-- [Regression](./examples/simple-regression) : Trains a simple MLP on the CSV dataset for the
-  regression task.
+- [Regression](./examples/simple-regression) : Trains a simple MLP on the California Housing dataset
+  to predict the median house value for a district.
 - [Custom Image Dataset](./examples/custom-image-dataset) : Trains a simple CNN on custom image
   dataset following a simple folder structure.
 - [Custom Renderer](./examples/custom-renderer) : Implements a custom renderer to display the

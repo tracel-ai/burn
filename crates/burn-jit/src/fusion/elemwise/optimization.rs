@@ -68,15 +68,29 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
             Arg::Input(index, precision, _) => match precision {
                 ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
                 ElemwisePrecision::F16 => inputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::BF16 => inputs.t_bf16.values.get(index as usize),
+                ElemwisePrecision::U64 => inputs.t_u64.values.get(index as usize),
                 ElemwisePrecision::U32 => inputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::U16 => inputs.t_u16.values.get(index as usize),
+                ElemwisePrecision::U8 => inputs.t_u8.values.get(index as usize),
+                ElemwisePrecision::I64 => inputs.t_i64.values.get(index as usize),
                 ElemwisePrecision::I32 => inputs.t_i32.values.get(index as usize),
+                ElemwisePrecision::I16 => inputs.t_i16.values.get(index as usize),
+                ElemwisePrecision::I8 => inputs.t_i8.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             Arg::Output(index, precision, _) => match precision {
                 ElemwisePrecision::F32 => outputs.t_f32.values.get(index as usize),
                 ElemwisePrecision::F16 => outputs.t_f16.values.get(index as usize),
+                ElemwisePrecision::BF16 => outputs.t_bf16.values.get(index as usize),
+                ElemwisePrecision::U64 => outputs.t_u64.values.get(index as usize),
                 ElemwisePrecision::U32 => outputs.t_u32.values.get(index as usize),
+                ElemwisePrecision::U16 => outputs.t_u16.values.get(index as usize),
+                ElemwisePrecision::U8 => outputs.t_u8.values.get(index as usize),
+                ElemwisePrecision::I64 => outputs.t_i64.values.get(index as usize),
                 ElemwisePrecision::I32 => outputs.t_i32.values.get(index as usize),
+                ElemwisePrecision::I16 => outputs.t_i16.values.get(index as usize),
+                ElemwisePrecision::I8 => outputs.t_i8.values.get(index as usize),
                 _ => panic!("Invalid value"),
             },
             _ => panic!("Invalid value"),
@@ -142,11 +156,11 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
         let mut output = u8::MAX;
 
         for (handle, tensor) in handles_inputs.zip(inputs) {
-            output = u8::min(vectorization_input(handle, tensor), output);
+            output = Ord::min(vectorization_input(handle, tensor), output);
         }
 
         for tensor in outputs {
-            output = u8::min(vectorization_output(tensor), output);
+            output = Ord::min(vectorization_output(tensor), output);
         }
 
         output
@@ -168,15 +182,29 @@ fn elemwise_fuse(
         Arg::Input(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
             ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),
+            ElemwisePrecision::BF16 => inputs.t_bf16.index(index).len(),
+            ElemwisePrecision::U64 => inputs.t_u64.index(index).len(),
             ElemwisePrecision::U32 => inputs.t_u32.index(index).len(),
+            ElemwisePrecision::U16 => inputs.t_u16.index(index).len(),
+            ElemwisePrecision::U8 => inputs.t_u8.index(index).len(),
+            ElemwisePrecision::I64 => inputs.t_i64.index(index).len(),
             ElemwisePrecision::I32 => inputs.t_i32.index(index).len(),
+            ElemwisePrecision::I16 => inputs.t_i16.index(index).len(),
+            ElemwisePrecision::I8 => inputs.t_i8.index(index).len(),
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Output(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => outputs.t_f32.index(index).len(),
             ElemwisePrecision::F16 => outputs.t_f16.index(index).len(),
+            ElemwisePrecision::BF16 => outputs.t_bf16.index(index).len(),
+            ElemwisePrecision::U64 => outputs.t_u64.index(index).len(),
             ElemwisePrecision::U32 => outputs.t_u32.index(index).len(),
+            ElemwisePrecision::U16 => outputs.t_u16.index(index).len(),
+            ElemwisePrecision::U8 => outputs.t_u8.index(index).len(),
+            ElemwisePrecision::I64 => outputs.t_i64.index(index).len(),
             ElemwisePrecision::I32 => outputs.t_i32.index(index).len(),
+            ElemwisePrecision::I16 => outputs.t_i16.index(index).len(),
+            ElemwisePrecision::I8 => outputs.t_i8.index(index).len(),
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         _ => comptime![panic!("Invalid ref layout.")],

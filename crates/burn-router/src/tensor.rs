@@ -21,7 +21,8 @@ pub struct RouterTensor<C: RunnerClient> {
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
-    pub(crate) fn new(id: Arc<TensorId>, shape: Vec<usize>, dtype: DType, client: C) -> Self {
+    /// Create a new router tensor.
+    pub fn new(id: Arc<TensorId>, shape: Vec<usize>, dtype: DType, client: C) -> Self {
         Self {
             id,
             shape,

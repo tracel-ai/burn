@@ -1,233 +1,76 @@
-use cubecl::{
-    cpa,
-    ir::{Elem, KernelDefinition, Scope, Variable, Visibility},
-    CubeCountSettings, Execution, InputInfo, KernelExpansion, KernelIntegrator, KernelSettings,
-    OutputInfo,
-};
-use std::marker::PhantomData;
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{kernel::Kernel, tensor::JitTensor, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 
-#[derive(new)]
-struct InterpolateNearestBackwardEagerKernel<R, E> {
-    _runtime: PhantomData<R>,
-    _elem: PhantomData<E>,
-}
-
-struct InterpolateNearestBackwardShader<E> {
-    out_grad: Variable,
-    output: Variable,
-    _elem: PhantomData<E>,
-}
-
-impl<E: JitElement> InterpolateNearestBackwardShader<E> {
-    fn expand(self, scope: &mut Scope) {
-        let grad = self.out_grad;
-        let output = self.output;
-        let id = Variable::AbsolutePos;
-
-        let grad_stride_0 = scope.create_local(Elem::UInt);
-        let grad_stride_1 = scope.create_local(Elem::UInt);
-        let grad_stride_2 = scope.create_local(Elem::UInt);
-        let grad_stride_3 = scope.create_local(Elem::UInt);
-
-        let grad_shape_0 = scope.create_local(Elem::UInt);
-        let grad_shape_1 = scope.create_local(Elem::UInt);
-        let grad_shape_2 = scope.create_local(Elem::UInt);
-        let grad_shape_3 = scope.create_local(Elem::UInt);
-
-        let output_stride_0 = scope.create_local(Elem::UInt);
-        let output_stride_1 = scope.create_local(Elem::UInt);
-        let output_stride_2 = scope.create_local(Elem::UInt);
-        let output_stride_3 = scope.create_local(Elem::UInt);
-
-        let output_shape_0 = scope.create_local(Elem::UInt);
-        let output_shape_1 = scope.create_local(Elem::UInt);
-        let output_shape_2 = scope.create_local(Elem::UInt);
-        let output_shape_3 = scope.create_local(Elem::UInt);
-
-        cpa!(scope, grad_stride_0 = stride(grad, 0u32));
-        cpa!(scope, grad_stride_1 = stride(grad, 1u32));
-        cpa!(scope, grad_stride_2 = stride(grad, 2u32));
-        cpa!(scope, grad_stride_3 = stride(grad, 3u32));
-
-        cpa!(scope, grad_shape_0 = shape(grad, 0u32));
-        cpa!(scope, grad_shape_1 = shape(grad, 1u32));
-        cpa!(scope, grad_shape_2 = shape(grad, 2u32));
-        cpa!(scope, grad_shape_3 = shape(grad, 3u32));
-
-        cpa!(scope, output_stride_0 = stride(output, 0u32));
-        cpa!(scope, output_stride_1 = stride(output, 1u32));
-        cpa!(scope, output_stride_2 = stride(output, 2u32));
-        cpa!(scope, output_stride_3 = stride(output, 3u32));
-
-        cpa!(scope, output_shape_0 = shape(output, 0u32));
-        cpa!(scope, output_shape_1 = shape(output, 1u32));
-        cpa!(scope, output_shape_2 = shape(output, 2u32));
-        cpa!(scope, output_shape_3 = shape(output, 3u32));
-
-        let b = scope.create_local(Elem::UInt);
-        let c = scope.create_local(Elem::UInt);
-        let oh = scope.create_local(Elem::UInt);
-        let ow = scope.create_local(Elem::UInt);
-
-        cpa!(scope, b = id / output_stride_0);
-        cpa!(scope, b = b % output_shape_0);
-
-        cpa!(scope, c = id / output_stride_1);
-        cpa!(scope, c = c % output_shape_1);
-
-        cpa!(scope, oh = id / output_stride_2);
-        cpa!(scope, oh = oh % output_shape_2);
-
-        cpa!(scope, ow = id / output_stride_3);
-        cpa!(scope, ow = ow % output_shape_3);
-
-        let gh_start = Self::start_index(scope, oh, grad_shape_2, output_shape_2);
-        let gh_end = Self::end_index(scope, oh, grad_shape_2, output_shape_2);
-        let gw_start = Self::start_index(scope, ow, grad_shape_3, output_shape_3);
-        let gw_end = Self::end_index(scope, ow, grad_shape_3, output_shape_3);
-
-        let result = scope.create_local(grad.item());
-
-        let index_grad = scope.create_local(Elem::UInt);
-        let index_grad_0 = scope.create_local(Elem::UInt);
-        let index_grad_1 = scope.create_local(Elem::UInt);
-        let index_grad_2 = scope.create_local(Elem::UInt);
-        let index_grad_3 = scope.create_local(Elem::UInt);
-
-        cpa!(scope, index_grad_0 = b * grad_stride_0);
-        cpa!(scope, index_grad_1 = c * grad_stride_1);
-
-        let sum = scope.zero(output.item());
-
-        cpa!(
-            scope,
-            range(gh_start, gh_end).for_each(|gh, scope| {
-                cpa!(
-                    scope,
-                    range(gw_start, gw_end).for_each(|gw, scope| {
-                        cpa!(scope, index_grad_2 = gh * grad_stride_2);
-                        cpa!(scope, index_grad_3 = gw * grad_stride_3);
-
-                        cpa!(scope, index_grad = index_grad_0);
-                        cpa!(scope, index_grad += index_grad_1);
-                        cpa!(scope, index_grad += index_grad_2);
-                        cpa!(scope, index_grad += index_grad_3);
-
-                        cpa!(scope, result = grad[index_grad]);
-
-                        cpa!(scope, sum += result);
-                    })
-                );
-            })
-        );
-
-        cpa!(scope, output[id] = sum);
+#[cube(launch_unchecked)]
+fn interpolate_nearest_backward_kernel<F: Float>(grad: &Tensor<F>, output: &mut Tensor<F>) {
+    if ABSOLUTE_POS >= output.len() {
+        return;
     }
 
-    fn start_index(
-        scope: &mut Scope,
-        input_index: Variable,
-        output_size: Variable,
-        input_size: Variable,
-    ) -> Variable {
-        let elem = E::cube_elem();
-        let numerator_float = scope.create_local(elem);
-        let div = scope.create_local(elem);
-        let index = scope.create_local(Elem::UInt);
+    let out_h = output.shape(2);
+    let out_w = output.shape(3);
+    let grad_h = grad.shape(2);
+    let grad_w = grad.shape(3);
 
-        cpa!(scope, index = input_index * output_size);
-        cpa!(scope, numerator_float = cast(index));
-        cpa!(scope, div = cast(input_size));
-        cpa!(scope, div = numerator_float / div);
-        cpa!(scope, div = ceil(div));
-        cpa!(scope, index = cast(div));
+    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
+    let channel = ABSOLUTE_POS / output.stride(1) % output.shape(1);
+    let oh = ABSOLUTE_POS / output.stride(2) % out_h;
+    let ow = ABSOLUTE_POS / output.stride(3) % out_w;
 
-        index
-    }
+    let gh_start = start_index::<F>(oh, grad_h, out_h);
+    let gh_end = end_index::<F>(oh, grad_h, out_h);
+    let gw_start = start_index::<F>(ow, grad_w, out_w);
+    let gw_end = end_index::<F>(ow, grad_w, out_w);
 
-    fn end_index(
-        scope: &mut Scope,
-        input_index: Variable,
-        output_size: Variable,
-        input_size: Variable,
-    ) -> Variable {
-        let elem = E::cube_elem();
-        let numerator_float = scope.create_local(elem);
-        let div = scope.create_local(elem);
-        let index = scope.create_local(Elem::UInt);
-        let min = scope.create_local(Elem::Bool);
-        let end_index = scope.create_local(Elem::UInt);
+    let index_grad_base = batch * grad.stride(0) + channel * grad.stride(1);
 
-        cpa!(scope, index = input_index + 1u32);
-        cpa!(scope, index *= output_size);
-        cpa!(scope, numerator_float = cast(index));
-        cpa!(scope, div = cast(input_size));
-        cpa!(scope, div = numerator_float / div);
-        cpa!(scope, div = ceil(div));
-        cpa!(scope, index = cast(div));
+    let mut sum = F::new(0.0);
 
-        cpa!(scope, min = output_size < index);
-        cpa!(scope, if(min).then(|scope|{
-            cpa!(scope, end_index = output_size);
-        }).else(|scope|{
-            cpa!(scope, end_index = index);
-        }));
+    for gh in gh_start..gh_end {
+        for gw in gw_start..gw_end {
+            let index_grad = index_grad_base + gh * grad.stride(2) + gw * grad.stride(3);
 
-        end_index
-    }
-}
-
-impl<R: JitRuntime, E: JitElement> Kernel for InterpolateNearestBackwardEagerKernel<R, E> {
-    fn define(&self) -> KernelDefinition {
-        let mut scope = Scope::root();
-        let item = E::cube_elem().into();
-
-        let out_grad = Variable::GlobalInputArray { id: 0, item };
-        let output = Variable::GlobalOutputArray { id: 0, item };
-
-        InterpolateNearestBackwardShader {
-            out_grad,
-            output,
-            _elem: PhantomData::<E>,
+            sum += grad[index_grad];
         }
-        .expand(&mut scope);
-
-        scope.write_global_custom(output);
-
-        let input = InputInfo::Array {
-            item,
-            visibility: Visibility::Read,
-        };
-
-        let out = OutputInfo::Array { item };
-
-        let info = KernelExpansion {
-            inputs: vec![input],
-            outputs: vec![out],
-            scope,
-        };
-
-        let settings = KernelSettings::default();
-        KernelIntegrator::new(info).integrate(settings)
     }
 
-    fn id(&self) -> cubecl::KernelId {
-        cubecl::KernelId::new::<Self>()
-    }
+    output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: JitElement>(
+#[cube]
+fn start_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+    let numerator = F::cast_from(input_index * output_size);
+    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
+
+    u32::cast_from(div)
+}
+
+#[cube]
+fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+    let numerator = F::cast_from((input_index + 1) * output_size);
+    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
+    let index = u32::cast_from(div);
+
+    Min::min(output_size, index)
+}
+
+pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: FloatElement>(
     out_grad: JitTensor<R, E>,
     output: JitTensor<R, E>,
 ) -> JitTensor<R, E> {
-    let kernel = InterpolateNearestBackwardEagerKernel::<R, E>::new();
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    Execution::start(kernel, out_grad.client.clone())
-        .inputs(&[out_grad.as_handle_ref()])
-        .outputs(&[output.as_handle_ref()])
-        .execute(CubeCountSettings::Output { pos: 0 });
+    unsafe {
+        interpolate_nearest_backward_kernel::launch_unchecked::<E, R>(
+            &out_grad.client,
+            cube_count,
+            cube_dim,
+            out_grad.as_tensor_arg(1),
+            output.as_tensor_arg(1),
+        )
+    };
 
     output
 }

@@ -84,7 +84,9 @@ include_models!(
     pow_int,
     prelu,
     random_normal,
+    random_normal_like,
     random_uniform,
+    random_uniform_like,
     range,
     recip,
     reduce_max,
@@ -1526,7 +1528,7 @@ mod tests {
         // because the output tensor is too large to compare with the expected tensor.
         let output_sum = output.sum().into_scalar();
 
-        let expected_sum = 33.810329; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
@@ -2149,11 +2151,35 @@ mod tests {
     }
 
     #[test]
+    fn random_uniform_like() {
+        let device = Default::default();
+        let model = random_uniform_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn random_normal() {
         let device = Default::default();
         let model = random_normal::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_normal_like() {
+        let device = Default::default();
+        let model = random_normal_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
         assert_eq!(expected_shape, output.shape());
     }
 

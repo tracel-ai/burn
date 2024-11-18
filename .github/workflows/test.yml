@@ -179,7 +179,7 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
         if: matrix.rust == 'stable'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
