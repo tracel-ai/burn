@@ -91,7 +91,9 @@ pub fn reduce_dim_subcube<
 ) -> JitTensor<R, EO> {
     let topology = input.client.properties().hardware_properties();
 
-    if !input.client.properties().feature_enabled(Feature::Plane) || topology.plane_size_min < 32 {
+    if !input.client.properties().feature_enabled(Feature::Plane)
+        || topology.plane_size_min != topology.plane_size_max
+    {
         return reduce_dim_shared::<RD, R, EI, EO>(input, dim);
     }
 
