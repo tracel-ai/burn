@@ -2,7 +2,7 @@ use crate::{ops::TchOps, LibTorch, QuantElement, TchElement, TchTensor};
 use burn_tensor::{backend::BackendBridge, ops::FloatTensor, Device};
 use std::marker::PhantomData;
 
-/// Handle precision conversion for the candle backend.
+/// Handle precision conversion for the tch backend.
 #[derive(Debug)]
 pub struct PrecisionBridge<E: TchElement> {
     _e: PhantomData<E>,

@@ -447,4 +447,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     fn float_expand(tensor: NdArrayTensor<E>, shape: Shape) -> NdArrayTensor<E> {
         NdArrayOps::expand(tensor, shape)
     }
+
+    fn float_cast(
+        _tensor: burn_tensor::ops::FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> burn_tensor::ops::FloatTensor<Self> {
+        todo!()
+    }
 }

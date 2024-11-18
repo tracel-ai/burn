@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Device, Distribution, ElementConversion, Shape, TensorData,
+    Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
@@ -14,8 +14,8 @@ use crate::{
 use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
-    fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor<F> {
-        CandleTensor::from_data(data, device.clone())
+    fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
+        CandleTensor::from_data::<F>(data, device.clone())
     }
 
     fn float_random(
@@ -52,28 +52,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         }
     }
 
-    fn float_shape(tensor: &CandleTensor<F>) -> Shape {
+    fn float_shape(tensor: &CandleTensor) -> Shape {
         super::base::shape(tensor)
     }
 
-    async fn float_into_data(tensor: CandleTensor<F>) -> TensorData {
+    async fn float_into_data(tensor: CandleTensor) -> TensorData {
         super::base::into_data(tensor)
     }
 
-    fn float_device(tensor: &CandleTensor<F>) -> Device<Self> {
+    fn float_device(tensor: &CandleTensor) -> Device<Self> {
         super::base::device(tensor)
     }
 
-    fn float_to_device(tensor: CandleTensor<F>, device: &Device<Self>) -> CandleTensor<F> {
+    fn float_to_device(tensor: CandleTensor, device: &Device<Self>) -> CandleTensor {
         super::base::to_device(tensor, device)
     }
 
-    fn float_into_int(tensor: CandleTensor<F>) -> IntTensor<Self> {
+    fn float_into_int(tensor: CandleTensor) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::base::empty(shape, device)
+        super::base::empty(shape, device, F::DTYPE)
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -298,7 +298,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<F>().unwrap();
-        CandleTensor::from_data(
+        CandleTensor::from_data::<F>(
             TensorData::new([sum].into(), [1]),
             Self::float_device(&tensor),
         )
@@ -469,5 +469,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         sign(tensor)
+    }
+
+    fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = match dtype {
+            FloatDType::F64 => candle_core::DType::F64,
+            FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::F16 => candle_core::DType::F16,
+            FloatDType::BF16 => candle_core::DType::BF16,
+        };
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
     }
 }

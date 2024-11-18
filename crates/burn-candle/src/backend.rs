@@ -163,13 +163,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
 
     type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive = CandleTensor<Self::FloatElem>;
+    type FloatTensorPrimitive = CandleTensor;
     type FloatElem = F;
 
-    type IntTensorPrimitive = CandleTensor<Self::IntElem>;
+    type IntTensorPrimitive = CandleTensor;
     type IntElem = I;
 
-    type BoolTensorPrimitive = CandleTensor<u8>;
+    type BoolTensorPrimitive = CandleTensor;
 
     type QuantizedTensorPrimitive = CandleQTensor;
     type QuantizedEncoding = u8;
