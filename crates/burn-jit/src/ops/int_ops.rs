@@ -39,7 +39,7 @@ where
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        super::reshape::<R, I>(tensor, shape)
+        super::reshape(tensor, shape)
     }
 
     fn int_slice(tensor: IntTensor<Self>, ranges: &[Range<usize>]) -> IntTensor<Self> {
@@ -273,11 +273,11 @@ where
     }
 
     fn int_permute(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        permute::<R, I>(tensor, axes)
+        permute(tensor, axes)
     }
 
     fn int_expand(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        expand::<R, I>(tensor, shape)
+        expand(tensor, shape)
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {

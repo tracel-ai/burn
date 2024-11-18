@@ -84,8 +84,8 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         );
     }
 
-    let input = into_contiguous(permute::<R, F>(input, &[0, 2, 3, 1]));
-    let weight = into_contiguous(permute::<R, F>(weight, &[2, 3, 1, 0]));
+    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
+    let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);
     let out = empty_device::<R, F>(input.client.clone(), input.device.clone(), out_shape);
@@ -205,7 +205,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let out = slice::<R, F>(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
-    permute::<R, F>(out, &[0, 3, 1, 2])
+    permute(out, &[0, 3, 1, 2])
 }
 
 fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {

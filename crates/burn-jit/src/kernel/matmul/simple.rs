@@ -107,7 +107,7 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
     // we swap the dimensions to achieve memory-coalescing:
     // consecutive elements of a column in the original rhs tensor will now be stored
     // consecutively in memory, which allows to fetch them with fewer memory instructions
-    let rhs = into_contiguous(swap_dims::<R, E>(rhs, ndims - 1, ndims - 2));
+    let rhs = into_contiguous(swap_dims(rhs, ndims - 1, ndims - 2));
 
     let cube_count = simple_cube_count(
         &lhs.shape,

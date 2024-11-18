@@ -183,7 +183,7 @@ pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
     let bias = match bias {
         Some(bias) => {
             let shape = Shape::from([bias.shape.dims[0], 1, 1, 1, 1]);
-            reshape::<R, E>(bias, shape)
+            reshape(bias, shape)
         }
         None => {
             let shape = Shape::from([output.shape.dims[0], 1, 1, 1, 1]);

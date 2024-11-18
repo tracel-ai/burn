@@ -167,11 +167,11 @@ where
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
-        super::swap_dims::<R, F>(tensor, dim1, dim2)
+        super::swap_dims(tensor, dim1, dim2)
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        super::reshape::<R, F>(tensor, shape)
+        super::reshape(tensor, shape)
     }
 
     fn float_gather(
@@ -629,11 +629,11 @@ where
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, permute::<R, E>(tensor, axes))
+        permute(tensor, axes)
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, expand::<R, E>(tensor, shape))
+        expand(tensor, shape)
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
@@ -641,7 +641,7 @@ where
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        let out = match (tensor.dtype, dtype) {
+        match (tensor.dtype, dtype) {
             (DType::F64, FloatDType::F64)
             | (DType::F32, FloatDType::F32)
             | (DType::BF16, FloatDType::BF16)
@@ -659,8 +659,6 @@ where
             (DType::BF16, FloatDType::F32) => kernel::cast::<R, bf16, f32>(tensor),
             (DType::BF16, FloatDType::F16) => kernel::cast::<R, bf16, f16>(tensor),
             _ => unimplemented!("Unsupported floating point type cast"),
-        };
-
-        out
+        }
     }
 }

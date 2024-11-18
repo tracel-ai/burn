@@ -89,7 +89,7 @@ where
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         QJitTensor {
-            qtensor: super::reshape::<R, u32>(tensor.qtensor, shape),
+            qtensor: super::reshape(tensor.qtensor, shape),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }

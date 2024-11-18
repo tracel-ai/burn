@@ -292,15 +292,15 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 
-    let weight = reshape::<R, E>(weight, Shape::new([groups, out_c_per_group, col_size_0]));
-    let columns = reshape::<R, E>(columns, Shape::new([groups, col_size_0, col_size_1]));
+    let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
+    let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
 
-    let out = reshape::<R, E>(out, Shape::new([out_channels, batch_size, out_h, out_w]));
-    let out = swap_dims::<R, E>(out, 0, 1);
+    let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
+    let out = swap_dims(out, 0, 1);
 
     if let Some(bias) = bias {
-        let bias = reshape::<R, E>(bias, Shape::new([1, out_channels, 1, 1]));
+        let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
         JitBackend::<R, E, I>::float_add(out, bias)
     } else {
         out
@@ -313,5 +313,5 @@ pub(crate) fn index<R: JitRuntime, E: FloatElement, I: IntElement>(
 ) -> JitTensor<R> {
     let [_, shape_0, shape_1] = tensor.shape.dims();
     let tensor = JitBackend::<R, E, I>::float_narrow(tensor, 0, index, 1);
-    reshape::<R, E>(tensor, Shape::new([shape_0, shape_1]))
+    reshape(tensor, Shape::new([shape_0, shape_1]))
 }

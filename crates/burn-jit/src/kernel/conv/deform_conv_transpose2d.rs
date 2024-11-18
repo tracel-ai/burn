@@ -35,7 +35,7 @@ pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntEleme
         let grad = JitBackend::<R, E, I>::float_sum_dim(grad, 2);
         let grad = JitBackend::<R, E, I>::float_sum_dim(grad, 3);
 
-        reshape::<R, E>(grad, bias.shape)
+        reshape(grad, bias.shape)
     });
 
     let input = into_contiguous(input);
@@ -92,11 +92,11 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
-    let out_grad = swap_dims::<R, E>(out_grad, 0, 1);
-    let out_grad = reshape::<R, E>(out_grad, Shape::new([groups, out_c_per_group, col_size_1]));
+    let out_grad = swap_dims(out_grad, 0, 1);
+    let out_grad = reshape(out_grad, Shape::new([groups, out_c_per_group, col_size_1]));
 
-    let columns = reshape::<R, E>(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let columns = swap_dims::<R, E>(columns, 1, 2);
+    let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
+    let columns = swap_dims(columns, 1, 2);
 
     let grad_weight = JitBackend::<R, E, I>::float_matmul(out_grad, columns);
 
@@ -131,17 +131,17 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
     let mut columns = empty_device::<R, E>(client, device, col_shape);
 
-    let weight = reshape::<R, E>(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
+    let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-    let out_grad = swap_dims::<R, E>(out_grad, 0, 1);
+    let out_grad = swap_dims(out_grad, 0, 1);
     let out_grad_shape = Shape::new([groups, out_c_per_group, col_shape_1]);
-    let out_grad = reshape::<R, E>(out_grad, out_grad_shape);
+    let out_grad = reshape(out_grad, out_grad_shape);
 
     for group in 0..groups {
-        let weight = swap_dims::<R, E>(index::<R, E, I>(weight.clone(), group), 0, 1);
+        let weight = swap_dims(index::<R, E, I>(weight.clone(), group), 0, 1);
         let out_grad = index::<R, E, I>(out_grad.clone(), group);
         let values = JitBackend::<R, E, I>::float_matmul(weight, out_grad);
-        let values = reshape::<R, E>(values, Shape::new([1, col_shape_0, col_shape_1]));
+        let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
         columns = JitBackend::<R, E, I>::float_slice_assign(
             columns,
             &[group..group + 1, 0..col_shape_0, 0..col_shape_1],
@@ -149,7 +149,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
         );
     }
 
-    let columns = reshape::<R, E>(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
+    let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     let input_shape = image.shape.clone();
     let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient::<R, E>(

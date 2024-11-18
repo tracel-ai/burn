@@ -41,7 +41,7 @@ where
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        super::reshape::<R, u32>(tensor, shape)
+        super::reshape(tensor, shape)
     }
 
     fn bool_slice(tensor: BoolTensor<Self>, ranges: &[Range<usize>]) -> BoolTensor<Self> {
@@ -80,11 +80,11 @@ where
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        permute::<R, u32>(tensor, axes)
+        permute(tensor, axes)
     }
 
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        expand::<R, u32>(tensor, shape)
+        expand(tensor, shape)
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
