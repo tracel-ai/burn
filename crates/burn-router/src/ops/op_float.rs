@@ -1478,10 +1478,19 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn float_cast(
-        _tensor: FloatTensor<Self>,
-        _dtype: burn_tensor::FloatDType,
-    ) -> FloatTensor<Self> {
-        todo!()
+    fn float_cast(tensor: FloatTensor<Self>, dtype: burn_tensor::FloatDType) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let out = client.register_float_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::BaseFloat(
+            BaseOperationDescription::Cast(desc),
+        ));
+
+        out
     }
 }
