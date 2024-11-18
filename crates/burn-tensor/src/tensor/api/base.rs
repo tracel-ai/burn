@@ -732,12 +732,18 @@ where
         //for checking if the dimension is in the acceptable range
 
         //part 1: convert the negative indices to positive
+        let mut neg_offset = D2;
         let mut dim_indices = axes
             .iter()
             .map(|d| {
                 // check if the dimension is in the acceptable range
                 check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
-                (if *d < 0 { d + D2 as isize } else { *d }) as usize
+                (if *d < 0 {
+                    neg_offset -= 1; // handle multiple negative indices (decrease dim value in reverse)
+                    d + neg_offset as isize + 1
+                } else {
+                    *d
+                }) as usize
             })
             .collect::<Vec<usize>>();
 
