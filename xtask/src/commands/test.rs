@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use strum::IntoEnumIterator;
 use tracel_xtask::prelude::*;
 
@@ -8,6 +10,14 @@ pub struct BurnTestCmdArgs {
     /// Test in CI mode which excludes unsupported crates.
     #[arg(long)]
     pub ci: bool,
+}
+
+#[cfg(target_os = "linux")]
+fn linux_space_left_on_device() {
+    Command::new("df")
+        .arg("-h")
+        .status()
+        .expect("Should run df -h");
 }
 
 pub(crate) fn handle_command(
@@ -44,10 +54,16 @@ pub(crate) fn handle_command(
                 args.exclude.extend(vec!["burn-wgpu".to_string()]);
             };
 
+            #[cfg(target_os = "linux")]
+            linux_space_left_on_device();
+
             // test workspace
             base_commands::test::handle_command(args.try_into().unwrap())?;
 
             // Specific additional commands to test specific features
+
+            #[cfg(target_os = "linux")]
+            linux_space_left_on_device();
 
             // burn-dataset
             helpers::custom_crates_tests(
@@ -58,6 +74,9 @@ pub(crate) fn handle_command(
                 "std all features",
             )?;
 
+            #[cfg(target_os = "linux")]
+            linux_space_left_on_device();
+
             // burn-core
             helpers::custom_crates_tests(
                 vec!["burn-core"],
@@ -67,6 +86,9 @@ pub(crate) fn handle_command(
                 "std with features: test-tch,record-item-custom-serde",
             )?;
 
+            #[cfg(target_os = "linux")]
+            linux_space_left_on_device();
+
             if std::env::var("DISABLE_WGPU").is_err() {
                 helpers::custom_crates_tests(
                     vec!["burn-core"],
@@ -75,6 +97,10 @@ pub(crate) fn handle_command(
                     None,
                     "std wgpu",
                 )?;
+
+                #[cfg(target_os = "linux")]
+                linux_space_left_on_device();
+
                 // Vulkan isn't available on MacOS
                 #[cfg(not(target_os = "macos"))]
                 if std::env::var("DISABLE_WGPU_SPIRV").is_err() {
@@ -86,6 +112,9 @@ pub(crate) fn handle_command(
                         "std wgpu-spirv",
                     )?;
                 }
+
+                #[cfg(target_os = "linux")]
+                linux_space_left_on_device();
             }
 
             // MacOS specific tests
