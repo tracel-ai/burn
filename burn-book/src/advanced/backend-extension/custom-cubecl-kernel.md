@@ -171,8 +171,14 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        // Create the output tensor primitive.
+        let output = JitTensor::new_contiguous(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            buffer,
+            F::dtype(),
+        );
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
@@ -186,10 +192,10 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
             &lhs.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(1),
-            rhs.as_tensor_arg(1),
-            bias.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            lhs.as_tensor_arg::<F>(1),
+            rhs.as_tensor_arg::<F>(1),
+            bias.as_tensor_arg::<F>(1),
+            output.as_tensor_arg::<F>(1),
         );
 
         // Return the output tensor.

@@ -239,14 +239,19 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new_contiguous(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            buffer,
+            F::dtype(),
+        );
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info(&[&lhs, &rhs, &output]);
+        let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.

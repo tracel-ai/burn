@@ -47,7 +47,7 @@ macro_rules! binary_float_ops {
         impl<B: FusionBackend> $name<B> {
             fn new(desc: BinaryOperationDescription) -> Self {
                 Self {
-                    desc: crate::ops::binary::check_binary_op(desc).unwrap(),
+                    desc: $crate::ops::binary::check_binary_op(desc).unwrap(),
                     _b: PhantomData,
                 }
             }
@@ -105,7 +105,7 @@ macro_rules! binary_int_cmp_ops {
         impl<B: FusionBackend> $name<B> {
             fn new(desc: BinaryOperationDescription) -> Self {
                 Self {
-                    desc: crate::ops::binary::check_binary_op(desc).unwrap(),
+                    desc: $crate::ops::binary::check_binary_op(desc).unwrap(),
                     _b: PhantomData,
                 }
             }
