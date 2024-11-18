@@ -65,7 +65,12 @@ where
 
 impl<R: JitRuntime> Primitive for JitTensor<R> {
     fn dtype(&self) -> DType {
-        self.dtype
+        match self.dtype {
+            // NOTE: bool tensors are stored as u32, we currently make this assumption
+            // since `Primitive::dtype()` is used for display purposes only at this time.
+            DType::U32 => DType::Bool,
+            _ => self.dtype,
+        }
     }
 }
 
