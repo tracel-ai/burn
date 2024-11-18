@@ -1,6 +1,7 @@
 mod base;
 mod col2im;
 mod direct;
+mod gemm;
 mod im2col;
 mod implicit_gemm;
 mod transpose_direct;
