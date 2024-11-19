@@ -928,14 +928,14 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::{Tensor, Shape, Bool};
     ///
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::<B, 2>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
     ///   let value = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///   let tensor = tensor.mask_fill(mask, value);
+    ///   let tensor = tensor.mask_where(mask, value);
     ///   println!("{}", tensor);
     ///   // [
     ///   //   [2.0, -2.0, 4.0],
@@ -960,13 +960,13 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::{Tensor, Shape, Bool};
     ///
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let mask = Tensor::<B, 2>::from_data([[true, false, true], [false, true, false]], &device);
-    ///   let tensor = tensor.mask_fill_elem(mask, 3.0);
+    ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
+    ///   let tensor = tensor.mask_fill(mask, 3.0);
     ///   println!("{}", tensor);
     ///   // [
     ///   //   [3.0, -2.0, 3.0],
@@ -1055,12 +1055,12 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
+    /// use burn_tensor::{Tensor, Shape, Int};
     ///
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 3>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1>::from_data([0], &device);
+    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
     ///   let tensor = tensor.select(0, indices);
     ///   println!("{}", tensor);
     ///   //  [[1.0, -2.0, 3.0]]
@@ -1777,7 +1777,7 @@ where
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
-    ///   let tensor = tensor.nonzero();
+    ///   let tensor = tensor.bool();
     ///   println!("{}", tensor);
     ///   // [
     ///   //   [true, true, true],
@@ -2105,10 +2105,10 @@ where
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Shape};
     ///
-    /// fn example<B: Backend>() {
+    /// fn example<B: Backend<FloatElem: From<f32>>>() {
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
-    ///    let tensor = tensor.pad((1, 1, 1, 1), 0.0);
+    ///    let tensor = tensor.pad((1, 1, 1, 1), 0.0.into());
     ///    println!("{}", tensor);
     ///    // [
     ///    //   [0.0, 0.0, 0.0, 0.0, 0.0],
