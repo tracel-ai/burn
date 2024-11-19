@@ -157,3 +157,56 @@ pub fn pow<R: JitRuntime, E: FloatElement>(
 ) -> JitTensor<R, E> {
     launch_binop::<R, E, PowOp>(lhs, rhs)
 }
+
+pub fn bitwise_and<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    //launch_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_and_scalar<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: E,
+) -> JitTensor<R, E> {
+    //launch_scalar_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_or<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    //launch_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_or_scalar<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: E,
+) -> JitTensor<R, E> {
+    //launch_scalar_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_xor<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: JitTensor<R, E>,
+) -> JitTensor<R, E> {
+    //launch_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_xor_scalar<R: JitRuntime, E: JitElement>(
+    _lhs: JitTensor<R, E>,
+    _rhs: E,
+) -> JitTensor<R, E> {
+    //launch_scalar_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+    todo!();
+}
+
+pub fn bitwise_not<R: JitRuntime, E: JitElement>(_lhs: JitTensor<R, E>) -> JitTensor<R, E> {
+    //launch_unop::<R, E, BitwiseNotOp>(lhs)
+    todo!();
+}

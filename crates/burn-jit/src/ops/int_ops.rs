@@ -283,4 +283,46 @@ where
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         kernel::flip(tensor, axes)
     }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_and(lhs, rhs)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_and_scalar(lhs, rhs)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_or(lhs, rhs)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_or_scalar(lhs, rhs)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_xor(lhs, rhs)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_xor_scalar(lhs, rhs)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        // not implemented
+        //todo!()
+        numeric::bitwise_not(tensor)
+    }
 }

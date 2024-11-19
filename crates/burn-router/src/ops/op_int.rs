@@ -1175,4 +1175,136 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         out
     }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseAnd(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseOr(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseXor(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseNot(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseAndScalar(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseOrScalar(desc),
+        ));
+
+        out
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        let client = lhs.client.clone();
+        let dtype = lhs.dtype;
+        let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::BitwiseXorScalar(desc),
+        ));
+
+        out
+    }
 }
