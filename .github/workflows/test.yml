@@ -88,7 +88,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -121,7 +121,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -148,7 +148,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -197,7 +197,7 @@ jobs:
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
@@ -229,7 +229,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
@@ -258,7 +258,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@v1.7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
