@@ -7,8 +7,8 @@ use core::ptr::NonNull;
 
 use alloc::vec::Vec;
 
-/// A sort of `Box<[u8]>` that remembers the original alignment and can contain trailing uninitialized bytes.
-pub struct Bytes {
+/// Internally used to avoid accidentally leaking an allocation or using the wrong layout.
+struct Allocation {
     /// SAFETY:
     ///  - If `layout.size() > 0`, `ptr` points to a valid allocation from the global allocator
     ///    of the specified layout. The first `len` bytes are initialized.
@@ -16,8 +16,14 @@ pub struct Bytes {
     ///    `ptr` is further suitable to be used as the argument for `Vec::from_raw_parts` see [buffer alloc]
     ///    for more details.
     ptr: NonNull<u8>,
-    len: usize,
     layout: Layout,
+}
+
+/// A sort of `Box<[u8]>` that remembers the original alignment and can contain trailing uninitialized bytes.
+pub struct Bytes {
+    alloc: Allocation,
+    // SAFETY: The first `len` bytes of the allocation are initialized
+    len: usize,
 }
 
 /// The maximum supported alignment. The limit exists to not have to store alignment when serializing. Instead,
@@ -53,7 +59,7 @@ impl core::fmt::Debug for Bytes {
         };
         f.debug_struct("Bytes")
             .field("data", &debug_from_fn(fmt_data))
-            .field("layout", &self.layout)
+            .field("len", &self.len)
             .finish()
     }
 }
@@ -101,8 +107,8 @@ impl<'de> serde::Deserialize<'de> for Bytes {
 
 impl Clone for Bytes {
     fn clone(&self) -> Self {
-        // unwrap here: the layout is always valid as it has the alignment & size of self
-        Self::try_from_data(self.layout.align(), self.deref()).unwrap()
+        // unwrap here: the layout is valid as it has the alignment & size of self
+        Self::try_from_data(MAX_ALIGN, self.deref()).unwrap()
     }
 }
 
@@ -113,6 +119,71 @@ impl PartialEq for Bytes {
 }
 
 impl Eq for Bytes {}
+
+impl Allocation {
+    // Wrap the allocation of a vector without copying
+    fn from_vec<E: Copy>(vec: Vec<E>) -> Self {
+        let mut elems = core::mem::ManuallyDrop::new(vec);
+        // Set the length to 0, then all data is in the "spare capacity".
+        // SAFETY: Data is Copy, so in particular does not need to be dropped. In any case, try not to panic until
+        //  we have taken ownership of the data!
+        unsafe { elems.set_len(0) };
+        let data = elems.spare_capacity_mut();
+        // We now have one contiguous slice of data to pass to Layout::for_value.
+        let layout = Layout::for_value(data);
+        // SAFETY: data is the allocation of a vec, hence can not be null. We use unchecked to avoid a panic-path.
+        let ptr = unsafe { NonNull::new_unchecked(elems.as_mut_ptr().cast()) };
+        Self { ptr, layout }
+    }
+    // Create a new allocation with the specified layout
+    fn new(layout: Layout) -> Self {
+        let ptr = buffer_alloc(layout);
+        Self { ptr, layout }
+    }
+    // Reallocate to fit at least the size and align of min_layout
+    fn realloc(&mut self, min_layout: Layout) {
+        (self.layout, self.ptr) = buffer_realloc(self.layout, self.ptr, min_layout);
+    }
+    // Returns a mutable view of the memory of the whole allocation
+    fn memory_mut(&mut self) -> &mut [MaybeUninit<u8>] {
+        // SAFETY: See type invariants
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr().cast(), self.layout.size()) }
+    }
+    // Return a pointer to the underlying allocation. This pointer is valid for reads and writes until the allocation is dropped or reallocated.
+    fn as_mut_ptr(&self) -> *mut u8 {
+        self.ptr.as_ptr()
+    }
+    // Try to convert the allocation to a Vec. The Vec has a length of 0 when returned, but correct capacity and pointer!
+    fn try_into_vec<E>(self) -> Result<Vec<E>, Self> {
+        let byte_capacity = self.layout.size();
+        let Some(capacity) = byte_capacity.checked_div(size_of::<E>()) else {
+            return Err(self);
+        };
+        if capacity * size_of::<E>() != byte_capacity {
+            return Err(self);
+        };
+        if self.layout.align() != align_of::<E>() {
+            return Err(self);
+        }
+        // Okay, let's commit
+        let ptr = self.ptr.as_ptr().cast();
+        core::mem::forget(self);
+        // SAFETY:
+        // - ptr was allocated by the global allocator as per type-invariant
+        // - `E` has the same alignment as indicated by the stored layout.
+        // - capacity * size_of::<E> == layout.size()
+        // - 0 <= capacity
+        // - no bytes are claimed to be initialized
+        // - the layout represents a valid allocation, hence has allocation size less than isize::MAX
+        Ok(unsafe { Vec::from_raw_parts(ptr, 0, capacity) })
+    }
+}
+
+impl Drop for Allocation {
+    fn drop(&mut self) {
+        buffer_dealloc(self.layout, self.ptr);
+    }
+}
 
 // Allocate a pointer that can be passed to Vec::from_raw_parts
 fn buffer_alloc(layout: Layout) -> NonNull<u8> {
@@ -146,14 +217,13 @@ fn alloc_overflow() -> ! {
 }
 
 // Grow the buffer while keeping alignment
-fn buffer_grow(
+fn buffer_realloc(
     old_layout: Layout,
     buffer: NonNull<u8>,
-    new_size: usize,
-    new_min_align: usize,
+    min_layout: Layout,
 ) -> (Layout, NonNull<u8>) {
-    let new_min_align = new_min_align.max(old_layout.align()); // Don't let data become less aligned
-    let new_size = new_size.next_multiple_of(new_min_align);
+    let new_align = min_layout.align().max(old_layout.align()); // Don't let data become less aligned
+    let new_size = min_layout.size().next_multiple_of(new_align);
     if new_size > isize::MAX as usize {
         alloc_overflow();
     }
@@ -161,7 +231,7 @@ fn buffer_grow(
     assert!(new_size > old_layout.size(), "size must actually grow");
     if old_layout.size() == 0 {
         expect_dangling(old_layout.align(), buffer);
-        let new_layout = Layout::from_size_align(new_size, new_min_align).unwrap();
+        let new_layout = Layout::from_size_align(new_size, new_align).unwrap();
         let buffer = buffer_alloc(new_layout);
         return (new_layout, buffer);
     };
@@ -175,7 +245,7 @@ fn buffer_grow(
         let ptr = unsafe { alloc::alloc::realloc(buffer.as_ptr(), old_layout, new_layout.size()) };
         (new_layout, ptr)
     };
-    if new_min_align <= old_layout.align() {
+    if new_align == old_layout.align() {
         // happy path. We can just realloc.
         let (new_layout, ptr) = realloc();
         let buffer = NonNull::new(ptr);
@@ -216,7 +286,7 @@ fn buffer_grow(
     if alignment_assumption::speculate() {
         let (realloc_layout, ptr) = realloc();
         if let Some(buffer) = NonNull::new(ptr) {
-            if buffer.align_offset(new_min_align) == 0 {
+            if buffer.align_offset(new_align) == 0 {
                 return (realloc_layout, buffer);
             }
             // Speculating hasn't succeeded, but access now has to go through the reallocated buffer
@@ -228,7 +298,7 @@ fn buffer_grow(
         }
     }
     // realloc but change alignment. This requires a mem copy as pointed out above
-    let new_layout = Layout::from_size_align(new_size, new_min_align).unwrap();
+    let new_layout = Layout::from_size_align(new_size, new_align).unwrap();
     let new_buffer = buffer_alloc(new_layout);
     // SAFETY: two different memory allocations, and old buffer's size is smaller than new_size
     unsafe {
@@ -257,22 +327,18 @@ impl Bytes {
     fn try_from_data(align: usize, data: &[u8]) -> Result<Self, LayoutError> {
         let len = data.len();
         let layout = Layout::from_size_align(len, align)?;
-        let mem = buffer_alloc(layout);
+        let alloc = Allocation::new(layout);
         unsafe {
             // SAFETY:
-            // - data and mem are distinct allocations of `len` bytes
-            core::ptr::copy_nonoverlapping::<u8>(data.as_ref().as_ptr(), mem.as_ptr(), len);
+            // - data and alloc are distinct allocations of `len` bytes
+            core::ptr::copy_nonoverlapping::<u8>(data.as_ref().as_ptr(), alloc.as_mut_ptr(), len);
         };
-        Ok(Self {
-            ptr: mem,
-            len,
-            layout,
-        })
+        Ok(Self { alloc, len })
     }
 
     /// Ensure the contained buffer is aligned to `align` by possibly moving it to a new buffer.
     fn try_enforce_runtime_align(&mut self, align: usize) -> Result<(), LayoutError> {
-        if self.ptr.align_offset(align) == 0 {
+        if self.as_mut_ptr().align_offset(align) == 0 {
             // data is already aligned correctly
             return Ok(());
         }
@@ -281,7 +347,7 @@ impl Bytes {
     }
 
     /// Erase the element type of a vector by converting into a sequence of [Bytes].
-    pub fn from_elems<E>(mut elems: Vec<E>) -> Self
+    pub fn from_elems<E>(elems: Vec<E>) -> Self
     where
         // NoUninit implies Copy
         E: bytemuck::NoUninit + Send + Sync,
@@ -294,27 +360,11 @@ impl Bytes {
         };
         // Note: going through a Box as in Vec::into_boxed_slice would re-allocate on excess capacity. Avoid that.
         let byte_len = elems.len() * core::mem::size_of::<E>();
-        // Set the length to 0, then all data is in the "spare capacity".
-        // SAFETY: Data is Copy, so in particular does not need to be dropped. In any case, try not to panic until
-        //  we have taken ownership of the data!
-        unsafe { elems.set_len(0) };
-        let data = elems.spare_capacity_mut();
-        // We now have one contiguous slice of data to pass to Layout::for_value.
-        let layout = Layout::for_value(data);
-        // SAFETY: data is the allocation of a vec, hence can not be null. We use unchecked to avoid a panic-path.
-        let ptr = unsafe { NonNull::new_unchecked(data.as_mut_ptr().cast()) };
-        // Now we manage the memory manually, forget the vec.
-        core::mem::forget(elems);
+        let alloc = Allocation::from_vec(elems);
         Self {
-            ptr,
+            alloc,
             len: byte_len,
-            layout,
         }
-    }
-
-    fn memory_mut(&mut self) -> &mut [MaybeUninit<u8>] {
-        // SAFETY: See class invariants
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr().cast(), self.layout.size()) }
     }
 
     fn reserve(&mut self, additional: usize) {
@@ -322,14 +372,16 @@ impl Bytes {
         if !needs_to_grow {
             return;
         }
-        let required_cap = self
-            .len()
-            .checked_add(additional)
-            .unwrap_or_else(|| alloc_overflow());
+        let Some(required_cap) = self.len().checked_add(additional) else {
+            alloc_overflow()
+        };
         // guarantee exponential growth for amortization
         let new_cap = required_cap.max(self.capacity() * 2);
         let new_cap = new_cap.max(MAX_ALIGN); // Small allocations would be pointless
-        (self.layout, self.ptr) = buffer_grow(self.layout, self.ptr, new_cap, MAX_ALIGN);
+        let Ok(new_layout) = Layout::from_size_align(new_cap, MAX_ALIGN) else {
+            alloc_overflow()
+        };
+        self.alloc.realloc(new_layout);
     }
 
     /// Extend the byte buffer from a slice of bytes
@@ -337,8 +389,8 @@ impl Bytes {
         let additional = bytes.len();
         self.reserve(additional);
         let len = self.len();
-        let new_cap = len.wrapping_add(additional); // Can not overflow, as we've just reserved sufficient space for it
-        let uninit_spare = &mut self.memory_mut()[len..new_cap];
+        let new_cap = len.wrapping_add(additional); // Can not overflow, as we've just successfully reserved sufficient space for it
+        let uninit_spare = &mut self.alloc.memory_mut()[len..new_cap];
         // SAFETY: reinterpreting the slice as a MaybeUninit<u8>.
         // See also #![feature(maybe_uninit_write_slice)], which would replace this with safe code
         uninit_spare.copy_from_slice(unsafe {
@@ -349,7 +401,7 @@ impl Bytes {
 
     /// Get the total capacity, in bytes, of the wrapped allocation.
     pub fn capacity(&self) -> usize {
-        self.layout.size()
+        self.alloc.layout.size()
     }
 
     /// Convert the bytes back into a vector. This requires that the type has the same alignment as the element
@@ -358,29 +410,24 @@ impl Bytes {
     pub fn try_into_vec<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         mut self,
     ) -> Result<Vec<E>, Self> {
-        let Some(capacity) = self.layout.size().checked_div(size_of::<E>()) else {
-            return Err(self);
-        };
-        if capacity * size_of::<E>() != self.layout.size() {
-            return Err(self);
-        }
-        if self.layout.align() != align_of::<E>() {
-            return Err(self);
-        }
+        // See if the length is compatible
         let Ok(data) = bytemuck::checked::try_cast_slice_mut::<_, E>(&mut self) else {
             return Err(self);
         };
         let length = data.len();
-        let data = self.ptr.as_ptr().cast();
-        core::mem::forget(self);
-        // SAFETY:
-        // - data was allocated by the global allocator as per type-invariant
-        // - `E` has the same alignment as indicated by the stored layout.
-        // - capacity * size_of::<E> == layout.size()
-        // - len <= capacity, because we have a slice of that length into the allocation.
-        // - the first `data.len()` are initialized as per the bytemuck check.
-        // - the layout represents a valid allocation, hence has allocation size less than isize::MAX
-        Ok(unsafe { Vec::from_raw_parts(data, length, capacity) })
+        // If so, try to convert the allocation to a vec
+        let mut vec = match self.alloc.try_into_vec::<E>() {
+            Ok(vec) => vec,
+            Err(alloc) => {
+                self.alloc = alloc;
+                return Err(self);
+            }
+        };
+        // SAFETY: We computed this length from the bytemuck-ed slice into this allocation
+        unsafe {
+            vec.set_len(length);
+        };
+        Ok(vec)
     }
 }
 
@@ -389,20 +436,14 @@ impl Deref for Bytes {
 
     fn deref(&self) -> &Self::Target {
         // SAFETY: see type invariants
-        unsafe { core::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+        unsafe { core::slice::from_raw_parts(self.alloc.as_mut_ptr(), self.len) }
     }
 }
 
 impl DerefMut for Bytes {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: see type invariants
-        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
-    }
-}
-
-impl Drop for Bytes {
-    fn drop(&mut self) {
-        buffer_dealloc(self.layout, self.ptr);
+        unsafe { core::slice::from_raw_parts_mut(self.alloc.as_mut_ptr(), self.len) }
     }
 }
 
@@ -477,5 +518,17 @@ mod tests {
         let mut bytes = Bytes::from_elems(vec![42u8; 4]);
         bytes.extend_from_byte_slice(&[0, 1, 2, 3]);
         assert_eq!(bytes[..], [42, 42, 42, 42, 0, 1, 2, 3][..]);
+    }
+
+    #[test]
+    fn test_large_elems() {
+        let mut bytes = Bytes::from_elems(vec![42u128]);
+        const TEST_BYTES: [u8; 16] = [
+            0x12, 0x90, 0x78, 0x56, 0x34, 0x12, 0x90, 0x78, 0x56, 0x34, 0x12, 0x90, 0x78, 0x56,
+            0x34, 0x12,
+        ];
+        bytes.extend_from_byte_slice(&TEST_BYTES);
+        let vec = bytes.try_into_vec::<u128>().unwrap();
+        assert_eq!(vec, [42u128, u128::from_ne_bytes(TEST_BYTES)]);
     }
 }
