@@ -141,8 +141,8 @@ impl Allocation {
         Self { ptr, layout }
     }
     // Reallocate to fit at least the size and align of min_layout
-    fn realloc(&mut self, min_layout: Layout) {
-        (self.layout, self.ptr) = buffer_realloc(self.layout, self.ptr, min_layout);
+    fn grow(&mut self, min_layout: Layout) {
+        (self.layout, self.ptr) = buffer_grow(self.layout, self.ptr, min_layout);
     }
     // Returns a mutable view of the memory of the whole allocation
     fn memory_mut(&mut self) -> &mut [MaybeUninit<u8>] {
@@ -217,7 +217,7 @@ fn alloc_overflow() -> ! {
 }
 
 // Grow the buffer while keeping alignment
-fn buffer_realloc(
+fn buffer_grow(
     old_layout: Layout,
     buffer: NonNull<u8>,
     min_layout: Layout,
@@ -280,7 +280,7 @@ fn buffer_realloc(
         }
         pub fn report_violation() {}
     }
-    // reminder: old_layout.align() < new_min_align
+    // reminder: old_layout.align() < new_align
     let mut old_buffer = buffer;
     let mut old_layout = old_layout;
     if alignment_assumption::speculate() {
@@ -381,7 +381,7 @@ impl Bytes {
         let Ok(new_layout) = Layout::from_size_align(new_cap, MAX_ALIGN) else {
             alloc_overflow()
         };
-        self.alloc.realloc(new_layout);
+        self.alloc.grow(new_layout);
     }
 
     /// Extend the byte buffer from a slice of bytes
