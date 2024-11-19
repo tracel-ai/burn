@@ -15,10 +15,6 @@ where
         super::empty::<R, u32>(shape, device)
     }
 
-    fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
-        tensor.shape.clone()
-    }
-
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
         super::bool_into_data(tensor).await
     }

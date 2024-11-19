@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion,
-    TensorData,
+    Primitive, TensorData,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
@@ -23,17 +23,6 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The boolean tensor with the given shape.
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
-
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn bool_shape(tensor: &BoolTensor<B>) -> Shape;
 
     /// Converts the tensor to a data structure.
     ///
@@ -212,7 +201,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn bool_transpose(tensor: BoolTensor<B>) -> BoolTensor<B> {
-        let ndims = Self::bool_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::bool_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -332,7 +321,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn bool_all(tensor: BoolTensor<B>) -> BoolTensor<B> {
-        let num_elems = B::bool_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         let sum = B::int_sum(B::bool_into_int(tensor));
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
@@ -351,7 +340,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
 
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = B::bool_shape(&tensor).dims[dim];
+        let num_elems = tensor.shape().dims[dim];
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
@@ -392,12 +381,12 @@ pub trait BoolTensorOps<B: Backend> {
         async {
             let indices = B::bool_argwhere(tensor).await;
 
-            if B::int_shape(&indices).num_elements() == 0 {
+            if indices.shape().num_elements() == 0 {
                 // Return empty vec when all elements are zero
                 return vec![];
             }
 
-            let dims = B::int_shape(&indices).dims;
+            let dims = indices.shape().dims;
             B::int_chunk(indices, dims[1], 1)
                 .into_iter()
                 .map(|t| B::int_reshape(t, Shape::new([dims[0]])))

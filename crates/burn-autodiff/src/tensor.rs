@@ -19,6 +19,10 @@ impl<B: Backend> Primitive for AutodiffTensor<B> {
     fn dtype(&self) -> burn_tensor::DType {
         self.primitive.dtype()
     }
+
+    fn shape(&self) -> burn_tensor::Shape {
+        self.primitive.shape()
+    }
 }
 
 pub type NodeRefCount = Arc<NodeID>;

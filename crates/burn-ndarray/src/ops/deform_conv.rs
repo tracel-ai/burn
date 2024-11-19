@@ -1,5 +1,8 @@
 use burn_common::{iter_par, run_par};
-use burn_tensor::ops::{conv::calculate_conv_output_size, DeformConvOptions};
+use burn_tensor::{
+    ops::{conv::calculate_conv_output_size, DeformConvOptions},
+    Primitive,
+};
 use core::ops::AddAssign;
 use ndarray::{
     s, Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim,

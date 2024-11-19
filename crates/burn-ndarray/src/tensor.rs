@@ -21,10 +21,8 @@ impl<E: Element> Primitive for NdArrayTensor<E> {
     fn dtype(&self) -> DType {
         E::dtype()
     }
-}
 
-impl<E> NdArrayTensor<E> {
-    pub(crate) fn shape(&self) -> Shape {
+    fn shape(&self) -> Shape {
         Shape::from(self.array.shape().to_vec())
     }
 }
@@ -220,6 +218,10 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
 impl<Q: QuantElement> Primitive for NdArrayQTensor<Q> {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

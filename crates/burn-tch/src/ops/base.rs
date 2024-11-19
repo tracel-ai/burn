@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_tensor::{Primitive, Shape};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};

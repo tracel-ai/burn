@@ -16,7 +16,9 @@ use burn_tensor::repr::{
     SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
     UnaryOperationDescription,
 };
-use burn_tensor::{DType, Device, Distribution, Element, ElementConversion, Shape, TensorData};
+use burn_tensor::{
+    DType, Device, Distribution, Element, ElementConversion, Primitive, Shape, TensorData,
+};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
@@ -91,10 +93,6 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         ));
 
         out
-    }
-
-    fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
-        tensor.shape()
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {

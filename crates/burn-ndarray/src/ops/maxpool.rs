@@ -6,7 +6,7 @@ use crate::{
 };
 
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::ElementConversion;
+use burn_tensor::{ElementConversion, Primitive};
 use ndarray::Array4;
 
 pub(crate) fn max_pool2d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(

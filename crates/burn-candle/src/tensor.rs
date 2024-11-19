@@ -25,6 +25,10 @@ impl Primitive for CandleTensor {
             candle_core::DType::F64 => DType::F64,
         }
     }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.tensor.dims().to_vec())
+    }
 }
 
 impl CandleTensor {
@@ -52,10 +56,6 @@ impl CandleTensor {
         );
         Self::new(tensor.unwrap())
     }
-
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.tensor.dims().to_vec())
-    }
 }
 
 /// A quantized tensor for the candle backend.
@@ -81,5 +81,9 @@ impl QTensorPrimitive for CandleQTensor {
 impl Primitive for CandleQTensor {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }

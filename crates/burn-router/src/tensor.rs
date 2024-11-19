@@ -24,6 +24,10 @@ impl<C: RunnerClient> Primitive for RouterTensor<C> {
     fn dtype(&self) -> DType {
         self.dtype
     }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
+    }
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
@@ -69,10 +73,6 @@ impl<C: RunnerClient> RouterTensor<C> {
             id: *self.id.as_ref(),
             dtype: self.dtype,
         }
-    }
-
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
     }
 
     pub(crate) fn status(&self) -> TensorStatus {

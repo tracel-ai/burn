@@ -88,6 +88,10 @@ impl Primitive for TchTensor {
             _ => unimplemented!(),
         }
     }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.tensor.size())
+    }
 }
 
 impl TchTensor {
@@ -150,12 +154,6 @@ impl TchTensor {
             view_ref: Arc::new(tensor.data_ptr()),
         };
         Self { tensor, storage }
-    }
-}
-
-impl TchTensor {
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.tensor.size())
     }
 }
 
@@ -333,6 +331,10 @@ pub struct TchQTensor {
 impl Primitive for TchQTensor {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

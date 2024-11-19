@@ -1,4 +1,4 @@
-use crate::{backend::Backend, DType};
+use crate::{backend::Backend, DType, Shape};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -38,12 +38,21 @@ impl<B: Backend> Primitive for TensorPrimitive<B> {
             TensorPrimitive::QFloat(tensor) => tensor.dtype(),
         }
     }
+
+    fn shape(&self) -> Shape {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.shape(),
+            TensorPrimitive::QFloat(tensor) => tensor.shape(),
+        }
+    }
 }
 
 /// Primitive trait for tensor.
 pub trait Primitive: Clone + Send + Sync + core::fmt::Debug {
     /// The dtype of the tensor.
     fn dtype(&self) -> DType;
+    /// The shape of the tensor.
+    fn shape(&self) -> Shape;
 }
 
 /// A type-level representation of the kind of a tensor.

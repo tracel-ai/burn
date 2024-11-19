@@ -62,6 +62,10 @@ impl<R: FusionRuntime> Primitive for FusionTensor<R> {
     fn dtype(&self) -> DType {
         self.dtype
     }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
+    }
 }
 
 impl<R: FusionRuntime> FusionTensor<R> {
@@ -80,9 +84,6 @@ impl<R: FusionRuntime> FusionTensor<R> {
             is_orphan: true,
             stream,
         }
-    }
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
     }
 
     fn status(&self) -> TensorStatus {
@@ -206,6 +207,10 @@ impl<R: FusionRuntime> Clone for QFusionTensor<R> {
 impl<R: FusionRuntime> Primitive for QFusionTensor<R> {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

@@ -1,4 +1,4 @@
-use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor};
+use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, Primitive};
 
 use crate::{
     graph::{NodeRef, Requirement},
@@ -22,7 +22,7 @@ impl Gradients {
         };
         gradients.register::<B>(
             root_node.id,
-            B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
+            B::float_ones(root_tensor.shape(), &B::float_device(&root_tensor)),
         );
         gradients
     }

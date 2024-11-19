@@ -2,7 +2,7 @@ use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
-    Shape,
+    Primitive, Shape,
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -195,8 +195,8 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// The output tensor.
     fn embedding(weights: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B> {
-        let [batch_size, seq_length] = B::int_shape(&indices).dims();
-        let [_, d_model] = B::float_shape(&weights).dims();
+        let [batch_size, seq_length] = indices.shape().dims();
+        let [_, d_model] = weights.shape().dims();
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
         let output = B::float_select(weights, 0, indices);
@@ -220,8 +220,8 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> FloatTensor<B> {
-        let [batch_size, seq_length] = B::int_shape(&indices).dims();
-        let [n_embeddings, d_model] = B::float_shape(&weights).dims();
+        let [batch_size, seq_length] = indices.shape().dims();
+        let [n_embeddings, d_model] = weights.shape().dims();
         let device = B::float_device(&weights);
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));

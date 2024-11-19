@@ -18,10 +18,6 @@ where
         super::empty::<R, I>(shape, device)
     }
 
-    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
-        tensor.shape.clone()
-    }
-
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         super::into_data::<R, I>(tensor).await
     }

@@ -3,7 +3,7 @@ use crate::{
     tensor::NdArrayTensor,
     NdArray,
 };
-use burn_tensor::ops::FloatTensorOps;
+use burn_tensor::{ops::FloatTensorOps, Primitive};
 use ndarray::{Array4, Array5};
 
 pub(crate) fn apply_padding_4d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(

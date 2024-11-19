@@ -161,7 +161,7 @@ where
     /// }
     /// ```
     pub fn shape(&self) -> Shape {
-        K::shape(&self.primitive)
+        self.primitive.shape()
     }
 
     /// Reshape the tensor to have the given shape.
@@ -1831,26 +1831,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// which is more high-level and designed for public use.
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
 
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For getting the shape of a tensor, users should prefer the [Tensor::shape](Tensor::shape) function,
-    /// which is more high-level and designed for public use.
-    fn shape(tensor: &Self::Primitive) -> Shape;
-
     /// Reshapes the tensor.
     ///
     /// # Arguments
@@ -2264,13 +2244,6 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
-        }
-    }
-
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
@@ -2452,9 +2425,6 @@ impl<B: Backend> BasicOps<B> for Int {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_empty(shape, device)
     }
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::int_shape(tensor)
-    }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::int_reshape(tensor, shape)
@@ -2550,9 +2520,6 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
-    }
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::bool_shape(tensor)
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {

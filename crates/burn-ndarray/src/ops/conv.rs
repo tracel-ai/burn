@@ -4,7 +4,7 @@ use burn_tensor::{
         conv::{calculate_conv_output_size, calculate_conv_transpose_output_size},
         ConvOptions, ConvTransposeOptions,
     },
-    ElementConversion,
+    ElementConversion, Primitive,
 };
 use ndarray::{
     s, Array3, Array4, Array5, ArrayView2, ArrayView3, ArrayViewMut2, ArrayViewMut3, Axis, Dim,

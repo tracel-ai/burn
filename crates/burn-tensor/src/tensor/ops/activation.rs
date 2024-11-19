@@ -1,4 +1,5 @@
 use crate::tensor::ops::tensor::FloatTensorOps;
+use crate::Primitive;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
@@ -259,7 +260,7 @@ pub trait ActivationOps<B: Backend> {
         // -max_derive - (z-1)/z if x is >= 0
         // -max_derive + (z-1)/z if x is < 0
 
-        let shape = B::float_shape(&x);
+        let shape = x.shape();
         let device = B::float_device(&x);
 
         // max(-x, 0)

@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
-    Device, Shape, TensorData,
+    Device, Primitive, Shape, TensorData,
 };
 
 use crate::{
@@ -13,10 +13,6 @@ use super::base::{expand, permute};
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         super::base::empty(shape, device, candle_core::DType::U8)
-    }
-
-    fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
-        super::base::shape(tensor)
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {

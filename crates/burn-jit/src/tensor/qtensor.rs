@@ -72,6 +72,10 @@ impl<R: JitRuntime> Primitive for QJitTensor<R> {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }
+
+    fn shape(&self) -> burn_tensor::Shape {
+        self.qtensor.shape()
+    }
 }
 
 /// The quantization parameters.

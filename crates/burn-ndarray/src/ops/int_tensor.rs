@@ -6,6 +6,7 @@ use burn_tensor::ops::IntTensorOps;
 use burn_tensor::Distribution;
 
 use burn_tensor::ElementConversion;
+use burn_tensor::Primitive;
 use core::ops::Range;
 use ndarray::IntoDimension;
 use ndarray::Zip;
@@ -27,10 +28,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
 {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<I> {
         NdArrayTensor::from_data(data)
-    }
-
-    fn int_shape(tensor: &NdArrayTensor<I>) -> Shape {
-        tensor.shape()
     }
 
     async fn int_into_data(tensor: NdArrayTensor<I>) -> TensorData {

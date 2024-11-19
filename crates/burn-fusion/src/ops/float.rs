@@ -18,7 +18,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<B>(&device.clone());
         let tensor = B::float_from_data(data, device);
-        let shape = B::float_shape(&tensor);
+        let shape = burn_tensor::Primitive::shape(&tensor);
 
         client.register_tensor(
             B::float_tensor_handle(tensor),
@@ -168,10 +168,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         );
 
         out
-    }
-
-    fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
-        tensor.shape()
     }
 
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
@@ -566,7 +562,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let stream_2 = rhs.stream;
         let dtype = lhs.dtype;
         let mut shape = binary_ops_shape(&lhs.shape, &rhs.shape);
-        let ndims = lhs.shape().num_dims();
+        let ndims = burn_tensor::Primitive::shape(&lhs).num_dims();
 
         shape[ndims - 2] = lhs.shape[ndims - 2];
         shape[ndims - 1] = rhs.shape[ndims - 1];
@@ -875,7 +871,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         }
         let stream = tensor.stream;
         let dtype = tensor.dtype;
-        let ndims = tensor.shape().num_dims();
+        let ndims = burn_tensor::Primitive::shape(&tensor).num_dims();
         let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
 
         for i in shape.len()..ndims {

@@ -72,6 +72,10 @@ impl<R: JitRuntime> Primitive for JitTensor<R> {
             _ => self.dtype,
         }
     }
+
+    fn shape(&self) -> Shape {
+        self.shape.clone()
+    }
 }
 
 /// Macro to execute a kernel/operation for a given element type.

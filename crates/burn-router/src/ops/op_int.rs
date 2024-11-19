@@ -16,7 +16,9 @@ use burn_tensor::repr::{
     SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
     UnaryOperationDescription,
 };
-use burn_tensor::{DType, Device, Distribution, Element, ElementConversion, Shape, TensorData};
+use burn_tensor::{
+    DType, Device, Distribution, Element, ElementConversion, Primitive, Shape, TensorData,
+};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
@@ -31,10 +33,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         ));
 
         out
-    }
-
-    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
-        tensor.shape()
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {

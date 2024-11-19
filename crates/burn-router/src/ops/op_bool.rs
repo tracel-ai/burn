@@ -8,7 +8,7 @@ use burn_tensor::repr::{
     ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
     SwapDimsDescription, UnaryOperationDescription,
 };
-use burn_tensor::{DType, Device, Element, Shape, TensorData};
+use burn_tensor::{DType, Device, Element, Primitive, Shape, TensorData};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
@@ -23,10 +23,6 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         ));
 
         out
-    }
-
-    fn bool_shape(tensor: &BoolTensor<Self>) -> Shape {
-        Shape::from(tensor.shape.clone())
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {

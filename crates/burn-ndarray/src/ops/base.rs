@@ -1,5 +1,6 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::ElementConversion;
+use burn_tensor::Primitive;
 use burn_tensor::TensorData;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
@@ -34,7 +35,7 @@ pub(crate) struct NdArrayMathOps<E> {
 
 impl<E> NdArrayOps<E>
 where
-    E: Copy + Debug,
+    E: Copy + Debug + burn_tensor::Element,
 {
     pub fn slice(tensor: NdArrayTensor<E>, ranges: &[Range<usize>]) -> NdArrayTensor<E> {
         let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());

@@ -38,10 +38,6 @@ where
         }
     }
 
-    fn float_shape(tensor: &FloatTensor<Self>) -> Shape {
-        tensor.shape.clone()
-    }
-
     async fn float_into_data(tensor: FloatTensor<Self>) -> TensorData {
         execute_with_dtype!(
             float(tensor.dtype),
