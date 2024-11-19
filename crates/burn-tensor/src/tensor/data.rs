@@ -54,17 +54,10 @@ pub struct TensorData {
 
 impl TensorData {
     /// Creates a new tensor data structure.
-    pub fn new<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S) -> Self {
+    pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
         // Ensure shape is valid
         let shape = shape.into();
-        let shape_numel = Self::numel(&shape);
-        value.truncate(shape_numel);
-        let numel = value.len();
-        assert_eq!(
-            shape_numel, numel,
-            "Shape {:?} is invalid for input of size {:?}",
-            shape, numel,
-        );
+        Self::check_data_len(&value, &shape, None);
         Self::init(value, shape, E::dtype())
     }
 
@@ -78,8 +71,10 @@ impl TensorData {
         shape: S,
         strategy: QuantizationStrategy,
     ) -> Self {
-        let mut bytes: Vec<u8>;
+        let shape = shape.into();
 
+        Self::check_data_len(&value, &shape, Some(&strategy));
+        let mut bytes: Bytes;
         // Notes on quantization data representation:
         // 1) The quantized values are packed into 32-bit unsigned integers. For example, int8
         //    quantized values pack 4 grouped values into a single `u32`. When unpacking these values,
@@ -90,32 +85,63 @@ impl TensorData {
         match strategy {
             QuantizationStrategy::PerTensorAffineInt8(q) => {
                 if TypeId::of::<E>() == TypeId::of::<u32>() {
-                    bytes = bytemuck::checked::cast_slice(&value).to_vec(); // already packed values
+                    bytes = Bytes::from_elems(value); // already packed values
                 } else if let Some(value) = <dyn Any>::downcast_ref::<Vec<i8>>(&value) {
-                    bytes = bytemuck::checked::cast_slice(&pack_i8s_to_u32s(value)).to_vec();
+                    bytes = Bytes::from_elems(pack_i8s_to_u32s(value));
                 } else {
                     panic!("Invalid quantized type");
                 }
                 let scale_bytes = bytemuck::bytes_of(&q.scale);
                 let offset_bytes = bytemuck::bytes_of(&q.offset);
-                bytes.extend_from_slice(offset_bytes);
-                bytes.extend_from_slice(scale_bytes);
+                bytes.extend_from_byte_slice(offset_bytes);
+                bytes.extend_from_byte_slice(scale_bytes);
             }
             QuantizationStrategy::PerTensorSymmetricInt8(q) => {
                 if TypeId::of::<E>() == TypeId::of::<u32>() {
-                    bytes = bytemuck::checked::cast_slice(&value).to_vec(); // already packed values
+                    bytes = Bytes::from_elems(value); // already packed values
                 } else if let Some(value) = <dyn Any>::downcast_ref::<Vec<i8>>(&value) {
-                    let packed = pack_i8s_to_u32s(value);
-                    bytes = bytemuck::checked::cast_slice(&packed).to_vec();
+                    bytes = Bytes::from_elems(pack_i8s_to_u32s(value));
                 } else {
                     panic!("Invalid quantized type");
                 }
                 let scale_bytes = bytemuck::bytes_of(&q.scale);
-                bytes.extend_from_slice(scale_bytes);
+                bytes.extend_from_byte_slice(scale_bytes);
             }
         }
 
-        Self::init(bytes, shape.into(), DType::QFloat(strategy.scheme()))
+        Self {
+            bytes,
+            shape,
+            dtype: DType::QFloat(strategy.scheme()),
+        }
+    }
+
+    // Check that the input vector contains a correct number of elements
+    fn check_data_len<E: Element>(
+        data: &[E],
+        shape: &Vec<usize>,
+        quantization: Option<&QuantizationStrategy>,
+    ) {
+        let mut expected_data_len = Self::numel(shape);
+        if let Some(quantization) = quantization {
+            let elem_per_data = match quantization {
+                QuantizationStrategy::PerTensorAffineInt8(_)
+                | QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                    if TypeId::of::<E>() == TypeId::of::<u32>() {
+                        4
+                    } else {
+                        1
+                    }
+                }
+            };
+            expected_data_len = expected_data_len.div_ceil(elem_per_data);
+        }
+        let num_data = data.len();
+        assert_eq!(
+            expected_data_len, num_data,
+            "Shape {:?} is invalid for input of size {:?}",
+            shape, num_data,
+        );
     }
 
     /// Initializes a new tensor data structure from the provided values.
@@ -166,7 +192,7 @@ impl TensorData {
     }
 
     /// Returns the tensor data as a vector of scalar values.
-    pub fn into_vec<E: Element>(mut self) -> Result<Vec<E>, DataError> {
+    pub fn into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
         if E::dtype() != self.dtype {
             return Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -175,19 +201,16 @@ impl TensorData {
             )));
         }
 
-        let capacity_bytes = self.bytes.capacity();
-        let length_bytes = self.bytes.len();
-        let size_elem = core::mem::size_of::<E>();
-
-        let capacity = capacity_bytes / size_elem;
-        let length = length_bytes / size_elem;
-
-        unsafe {
-            let ptr = self.bytes.as_mut_ptr();
-            core::mem::forget(self.bytes);
-
-            Ok(Vec::from_raw_parts(ptr.cast::<E>(), length, capacity))
-        }
+        let mut me = self;
+        me.bytes = match me.bytes.try_into_vec::<E>() {
+            Ok(elems) => return Ok(elems),
+            Err(bytes) => bytes,
+        };
+        // The bytes might have been deserialized and allocated with a different align.
+        // In that case, we have to memcopy the data into a new vector, more suitably allocated
+        Ok(bytemuck::checked::try_cast_slice(me.values_as_bytes())
+            .map_err(DataError::CastError)?
+            .to_vec())
     }
 
     /// Returns an iterator over the values of the tensor data.

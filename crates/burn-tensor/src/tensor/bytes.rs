@@ -1,6 +1,7 @@
 //! A version of [`bytemuck::BoxBytes`] that is cloneable and allows trailing uninitialized elements.
 
 use alloc::alloc::{Layout, LayoutError};
+use core::mem::MaybeUninit;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 
@@ -122,9 +123,9 @@ fn buffer_alloc(layout: Layout) -> NonNull<u8> {
     // must be non-zero. So in case we need a pointer for an empty vec, use a correctly aligned, dangling one.
     if layout.size() == 0 {
         // we would use NonNull:dangling() but we don't have a concrete type for the requested alignment
-        let raw = core::ptr::null_mut::<u8>().wrapping_add(layout.align());
+        let ptr = core::ptr::null_mut::<u8>().wrapping_add(layout.align());
         // SAFETY: layout.align() is never 0
-        unsafe { NonNull::new_unchecked(raw) }
+        unsafe { NonNull::new_unchecked(ptr) }
     } else {
         // SAFETY: layout has non-zero size.
         let ptr = unsafe { alloc::alloc::alloc(layout) };
@@ -132,16 +133,122 @@ fn buffer_alloc(layout: Layout) -> NonNull<u8> {
     }
 }
 
+fn expect_dangling(align: usize, buffer: NonNull<u8>) {
+    debug_assert!(
+        buffer.as_ptr().wrapping_sub(align).is_null(),
+        "expected a nullptr for size 0"
+    );
+}
+
+#[cold]
+fn alloc_overflow() -> ! {
+    panic!("Overflow, too many elements")
+}
+
+// Grow the buffer while keeping alignment
+fn buffer_grow(
+    old_layout: Layout,
+    buffer: NonNull<u8>,
+    new_size: usize,
+    new_min_align: usize,
+) -> (Layout, NonNull<u8>) {
+    let new_min_align = new_min_align.max(old_layout.align()); // Don't let data become less aligned
+    let new_size = new_size.next_multiple_of(new_min_align);
+    if new_size > isize::MAX as usize {
+        alloc_overflow();
+    }
+
+    assert!(new_size > old_layout.size(), "size must actually grow");
+    if old_layout.size() == 0 {
+        expect_dangling(old_layout.align(), buffer);
+        let new_layout = Layout::from_size_align(new_size, new_min_align).unwrap();
+        let buffer = buffer_alloc(new_layout);
+        return (new_layout, buffer);
+    };
+    let realloc = || {
+        let new_layout = Layout::from_size_align(new_size, old_layout.align()).unwrap();
+        // SAFETY:
+        // - buffer comes from a Vec or from [`buffer_alloc`/`buffer_grow`].
+        // - old_layout is the same as with which the pointer was allocated
+        // - new_size is not 0, since it is larger than old_layout.size() which is non-zero
+        // - size constitutes a valid layout
+        let ptr = unsafe { alloc::alloc::realloc(buffer.as_ptr(), old_layout, new_layout.size()) };
+        (new_layout, ptr)
+    };
+    if new_min_align <= old_layout.align() {
+        // happy path. We can just realloc.
+        let (new_layout, ptr) = realloc();
+        let buffer = NonNull::new(ptr);
+        let buffer = buffer.unwrap_or_else(|| alloc::alloc::handle_alloc_error(new_layout));
+        return (new_layout, buffer);
+    }
+    // [buffer grow]: alloc::realloc can *not* change the alignment of the allocation's layout.
+    // The unstable Allocator::{grow,shrink} API changes this, but might take a while to make it
+    // into alloc::GlobalAlloc.
+    //
+    // As such, we can not request a specific alignment. But most allocators will give us the required
+    // alignment "for free". Hence, we speculatively avoid a mem-copy by using realloc.
+    //
+    // If in the future requesting an alignment change for an existing is available, this can be removed.
+    #[cfg(target_has_atomic = "8")]
+    mod alignment_assumption {
+        use core::sync::atomic::{AtomicBool, Ordering};
+        static SPECULATE: AtomicBool = AtomicBool::new(true);
+        pub fn speculate() -> bool {
+            // We load and store with relaxed order, since worst case this leads to a few more memcopies
+            SPECULATE.load(Ordering::Relaxed)
+        }
+        pub fn report_violation() {
+            SPECULATE.store(false, Ordering::Relaxed)
+        }
+    }
+    #[cfg(not(target_has_atomic = "8"))]
+    mod alignment_assumption {
+        // On these platforms we don't speculate, and take the hit of performance
+        pub fn speculate() -> bool {
+            false
+        }
+        pub fn report_violation() {}
+    }
+    // reminder: old_layout.align() < new_min_align
+    let mut old_buffer = buffer;
+    let mut old_layout = old_layout;
+    if alignment_assumption::speculate() {
+        let (realloc_layout, ptr) = realloc();
+        if let Some(buffer) = NonNull::new(ptr) {
+            if buffer.align_offset(new_min_align) == 0 {
+                return (realloc_layout, buffer);
+            }
+            // Speculating hasn't succeeded, but access now has to go through the reallocated buffer
+            alignment_assumption::report_violation();
+            old_buffer = buffer;
+            old_layout = realloc_layout;
+        } else {
+            // If realloc fails, the later alloc will likely too, but don't report this yet
+        }
+    }
+    // realloc but change alignment. This requires a mem copy as pointed out above
+    let new_layout = Layout::from_size_align(new_size, new_min_align).unwrap();
+    let new_buffer = buffer_alloc(new_layout);
+    // SAFETY: two different memory allocations, and old buffer's size is smaller than new_size
+    unsafe {
+        core::ptr::copy_nonoverlapping(old_buffer.as_ptr(), new_buffer.as_ptr(), old_layout.size());
+    }
+    buffer_dealloc(old_layout, old_buffer);
+    (new_layout, new_buffer)
+}
+
 // Deallocate a buffer of a Vec
 fn buffer_dealloc(layout: Layout, buffer: NonNull<u8>) {
     if layout.size() != 0 {
-        // SAFETY: buffer comes from a Vec or from [`buffer_alloc`].
+        // SAFETY: buffer comes from a Vec or from [`buffer_alloc`/`buffer_grow`].
         // The layout is the same as per type-invariants
         unsafe {
             alloc::alloc::dealloc(buffer.as_ptr(), layout);
         }
     } else {
         // An empty Vec does not allocate, hence nothing to dealloc
+        expect_dangling(layout.align(), buffer);
     }
 }
 
@@ -205,6 +312,41 @@ impl Bytes {
         }
     }
 
+    fn memory_mut(&mut self) -> &mut [MaybeUninit<u8>] {
+        // SAFETY: See class invariants
+        unsafe { core::slice::from_raw_parts_mut(self.ptr.as_ptr().cast(), self.layout.size()) }
+    }
+
+    fn reserve(&mut self, additional: usize) {
+        let needs_to_grow = additional > self.capacity().wrapping_sub(self.len());
+        if !needs_to_grow {
+            return;
+        }
+        let required_cap = self
+            .len()
+            .checked_add(additional)
+            .unwrap_or_else(|| alloc_overflow());
+        // guarantee exponential growth for amortization
+        let new_cap = required_cap.max(self.capacity() * 2);
+        let new_cap = new_cap.max(MAX_ALIGN); // Small allocations would be pointless
+        (self.layout, self.ptr) = buffer_grow(self.layout, self.ptr, new_cap, MAX_ALIGN);
+    }
+
+    /// Extend the byte buffer from a slice of bytes
+    pub fn extend_from_byte_slice(&mut self, bytes: &[u8]) {
+        let additional = bytes.len();
+        self.reserve(additional);
+        let len = self.len();
+        let new_cap = len.wrapping_add(additional); // Can not overflow, as we've just reserved sufficient space for it
+        let uninit_spare = &mut self.memory_mut()[len..new_cap];
+        // SAFETY: reinterpreting the slice as a MaybeUninit<u8>.
+        // See also #![feature(maybe_uninit_write_slice)], which would replace this with safe code
+        uninit_spare.copy_from_slice(unsafe {
+            core::slice::from_raw_parts(bytes.as_ptr().cast(), additional)
+        });
+        self.len = new_cap;
+    }
+
     /// Get the total capacity, in bytes, of the wrapped allocation.
     pub fn capacity(&self) -> usize {
         self.layout.size()
@@ -212,6 +354,7 @@ impl Bytes {
 
     /// Convert the bytes back into a vector. This requires that the type has the same alignment as the element
     /// type this [Bytes] was initialized with.
+    /// This only returns with Ok(_) if the conversion can be done without a memcopy
     pub fn try_into_vec<E: bytemuck::CheckedBitPattern + bytemuck::NoUninit>(
         mut self,
     ) -> Result<Vec<E>, Self> {
@@ -323,5 +466,16 @@ mod tests {
         );
         let bytes = bytes.try_into_vec::<[u8; 2]>().expect("Conversion should succeed for bit-convertible types of equal alignment and compatible size");
         assert_eq!(bytes, &[[0, 1], [2, 3]]);
+    }
+
+    #[test]
+    fn test_grow() {
+        let mut bytes = Bytes::from_elems::<u8>(vec![]);
+        bytes.extend_from_byte_slice(&[0, 1, 2, 3]);
+        assert_eq!(bytes[..], [0, 1, 2, 3][..]);
+
+        let mut bytes = Bytes::from_elems(vec![42u8; 4]);
+        bytes.extend_from_byte_slice(&[0, 1, 2, 3]);
+        assert_eq!(bytes[..], [42, 42, 42, 42, 0, 1, 2, 3][..]);
     }
 }
