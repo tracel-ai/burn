@@ -421,7 +421,7 @@ impl TchOps {
             .tensor
             .split(split_size as i64, dim as i64)
             .into_iter()
-            .map(|tensor| TchTensor::new(tensor))
+            .map(|tensor| TchTensor::new)
             .collect()
     }
 
@@ -435,7 +435,7 @@ impl TchOps {
             .tensor
             .split_with_sizes(split_sizes_i64, dim as i64)
             .into_iter()
-            .map(|tensor| TchTensor::new(tensor))
+            .map(|tensor| TchTensor::new)
             .collect()
     }
 
