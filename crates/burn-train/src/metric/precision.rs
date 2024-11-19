@@ -44,8 +44,9 @@ impl Default for PrecisionConfig {
     }
 }
 
+///The Precision Metric
 #[derive(Default)]
-struct PrecisionMetric<B: Backend> {
+pub struct PrecisionMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
     class_reduction: ClassReduction,
