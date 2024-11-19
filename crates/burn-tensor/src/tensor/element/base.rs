@@ -325,3 +325,24 @@ impl DType {
         matches!(self, DType::Bool)
     }
 }
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub enum FloatDType {
+    F64,
+    F32,
+    F16,
+    BF16,
+}
+
+impl From<DType> for FloatDType {
+    fn from(value: DType) -> Self {
+        match value {
+            DType::F64 => FloatDType::F64,
+            DType::F32 => FloatDType::F32,
+            DType::F16 => FloatDType::F16,
+            DType::BF16 => FloatDType::BF16,
+            _ => panic!("Expected float data type, got {value:?}"),
+        }
+    }
+}

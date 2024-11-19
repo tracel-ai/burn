@@ -57,6 +57,7 @@ wgpu = ["burn-core/wgpu"]
 wgpu-spirv = ["burn-core/wgpu-spirv"]
 remote = ["burn-core/remote"]
 server = ["burn-core/server"]
+router = ["burn-core/router"]
 
 # Network utils
 network = ["burn-core/network"]

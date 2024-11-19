@@ -4,8 +4,12 @@ use crate::alloc::borrow::ToOwned;
 
 use crate::TensorPrimitive;
 use crate::{
-    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
-    ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+    backend::Backend,
+    check,
+    check::TensorCheck,
+    ops::{Device, IntTensor},
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -2273,11 +2277,11 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_scatter(dim, tensor, indices, values)
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmax(tensor, dim)
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmin(tensor, dim)
     }
 
@@ -2292,7 +2296,7 @@ impl<B: Backend> Numeric<B> for Int {
     fn max_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         B::int_max_dim_with_indices(tensor, dim)
     }
 
@@ -2307,7 +2311,7 @@ impl<B: Backend> Numeric<B> for Int {
     fn min_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         B::int_min_dim_with_indices(tensor, dim)
     }
 
@@ -2346,11 +2350,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_powf_scalar(lhs, rhs.elem())
     }
 
-    fn random(
-        shape: Shape,
-        distribution: Distribution,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         B::int_random(shape, distribution, device)
     }
 
@@ -2689,14 +2689,14 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmax(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmax(tensor, dim),
         }
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmin(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmin(tensor, dim),
@@ -2720,7 +2720,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn max_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_max_dim_with_indices(tensor, dim);
@@ -2750,7 +2750,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn min_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_min_dim_with_indices(tensor, dim);
@@ -2845,11 +2845,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn random(
-        shape: Shape,
-        distribution: Distribution,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         TensorPrimitive::Float(B::float_random(shape, distribution, device))
     }
 

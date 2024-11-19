@@ -1,16 +1,16 @@
 use super::{Event, EventProcessor, Metrics};
 use crate::metric::store::EventStoreClient;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 #[derive(new)]
 pub(crate) struct MinimalEventProcessor<T, V> {
     metrics: Metrics<T, V>,
-    store: Rc<EventStoreClient>,
+    store: Arc<EventStoreClient>,
 }
 
-impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
+impl<T: Send, V: Send> EventProcessor for MinimalEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 

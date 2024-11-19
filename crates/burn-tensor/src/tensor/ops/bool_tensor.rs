@@ -44,7 +44,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -401,7 +401,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A 2D tensor containing the indices of all non-zero elements of the given tensor.
     /// Each row contains the indices of a non-zero element.
-    fn bool_argwhere(tensor: BoolTensor<B>) -> impl Future<Output = IntTensor<B>> + Send {
+    fn bool_argwhere(tensor: BoolTensor<B>) -> impl Future<Output = IntTensor<B>> + 'static + Send {
         async {
             // Size of each output tensor is variable (= number of nonzero elements in the tensor).
             // Reading the data to count the number of truth values might cause sync but is required.
@@ -421,7 +421,9 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension. If all elements are zero, the vector is empty.
-    fn bool_nonzero(tensor: BoolTensor<B>) -> impl Future<Output = Vec<IntTensor<B>>> + Send {
+    fn bool_nonzero(
+        tensor: BoolTensor<B>,
+    ) -> impl Future<Output = Vec<IntTensor<B>>> + 'static + Send {
         async {
             let indices = B::bool_argwhere(tensor).await;
 

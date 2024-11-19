@@ -3,10 +3,10 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
-use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{
     tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_sizes,
+    FloatDType, TensorPrimitive,
 };
 use alloc::vec::Vec;
 use core::future::Future;
@@ -105,7 +105,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(tensor: FloatTensor<B>)
+        -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -791,6 +792,18 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_into_full_precision(tensor: FloatTensor<B>) -> FloatTensor<FullPrecisionBackend<B>> {
         <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
     }
+
+    /// Converts a tensor to another floating point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target floating point data type.
+    fn float_cast(tensor: FloatTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
 
     /// Converts a tensor from full precision.
     ///

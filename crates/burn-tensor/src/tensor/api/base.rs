@@ -16,7 +16,9 @@ use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
-use crate::{backend::Backend, check, Bool, Float, Int, Shape, TensorData, TensorKind};
+use crate::{
+    backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
+};
 use crate::{DType, Element, TensorPrimitive};
 
 /// A tensor with a given backend, shape and data type.
@@ -732,12 +734,18 @@ where
         //for checking if the dimension is in the acceptable range
 
         //part 1: convert the negative indices to positive
+        let mut neg_offset = D2;
         let mut dim_indices = axes
             .iter()
             .map(|d| {
                 // check if the dimension is in the acceptable range
                 check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
-                (if *d < 0 { d + D2 as isize } else { *d }) as usize
+                (if *d < 0 {
+                    neg_offset -= 1; // handle multiple negative indices (decrease dim value in reverse)
+                    d + neg_offset as isize + 1
+                } else {
+                    *d
+                }) as usize
             })
             .collect::<Vec<usize>>();
 
@@ -2101,7 +2109,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
     /// which is more high-level and designed for public use.
-    fn into_data_async(tensor: Self::Primitive) -> impl Future<Output = TensorData> + Send;
+    fn into_data_async(
+        tensor: Self::Primitive,
+    ) -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Creates a tensor from the given data.
     ///
@@ -2439,14 +2449,14 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_device(tensor),
             TensorPrimitive::QFloat(tensor) => B::q_device(tensor),
         }
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_to_device(tensor, device))
@@ -2626,11 +2636,11 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_slice_assign(tensor, ranges, value)
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         B::int_device(tensor)
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         B::int_to_device(tensor, device)
     }
 
@@ -2737,11 +2747,11 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_slice_assign(tensor, ranges, value)
     }
 
-    fn device(tensor: &Self::Primitive) -> <B as Backend>::Device {
+    fn device(tensor: &Self::Primitive) -> Device<B> {
         B::bool_device(tensor)
     }
 
-    fn to_device(tensor: Self::Primitive, device: &<B as Backend>::Device) -> Self::Primitive {
+    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
         B::bool_to_device(tensor, device)
     }
 

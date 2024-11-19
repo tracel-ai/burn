@@ -168,6 +168,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.to_device(device)`            | `tensor.to(device)`                                                       |
 | `tensor.unsqueeze()`                  | `tensor.unsqueeze(0)`                                                     |
 | `tensor.unsqueeze_dim(dim)`           | `tensor.unsqueeze(dim)`                                                   |
+| `tensor.unsqueeze_dims(dims)`         | N/A                                                  |
 
 ### Numeric Operations
 
@@ -256,6 +257,7 @@ Those operations are only available for `Float` tensors.
 | Burn API                                      | PyTorch Equivalent                 |
 |-----------------------------------------------| ---------------------------------- |
 | `Tensor::one_hot(index, num_classes, device)` | N/A                                |
+| `tensor.cast(dtype)`                          | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                               | `tensor.ceil()`                    |
 | `tensor.cos()`                                | `tensor.cos()`                     |
 | `tensor.erf()`                                | `tensor.erf()`                     |

@@ -15,7 +15,7 @@ mod tests {
                 vec![-127i8, -85, -42, 42, 85, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.023622047244094488,
+                    0.023622047,
                 )),
             ),
             &device,
@@ -26,7 +26,7 @@ mod tests {
                 vec![85i8, 127, 42, 85, 42, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.023622047244094488,
+                    0.023622047,
                 )),
             ),
             &device,
@@ -170,7 +170,7 @@ mod tests {
                 vec![-52i8, 39, -75, 38, 17, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.028808661333219274,
+                    0.02880866,
                 )),
             ),
             &device,
@@ -181,7 +181,7 @@ mod tests {
                 vec![52i8, 39, 75, 38, 17, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.028808661333219274,
+                    0.02880866,
                 )),
             ),
             &device,
@@ -346,7 +346,7 @@ mod tests {
                 vec![-127i8, -85, -42, 42, 85, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.023622047244094488,
+                    0.023622047,
                 )),
             ),
             &device,
@@ -357,7 +357,7 @@ mod tests {
                 vec![85i8, 127, 42, 85, 42, 127],
                 [6],
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    0.023622047244094488,
+                    0.023622047,
                 )),
             ),
             &device,
