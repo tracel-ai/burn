@@ -478,6 +478,11 @@ impl TensorCheck {
                     "Can't create a one hot tensor from ({index_tensor:?}) containing indexes greater or equal to the number of classes ({num_classes})",
                 )),
             );
+        } else if num_classes <= 1 {
+            check = check.register(
+                "One Hot",
+                TensorError::new("Can't create a one hot tensor with less then 2 classes"),
+            )
         }
         check
     }
