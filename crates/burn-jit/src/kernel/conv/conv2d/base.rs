@@ -9,7 +9,7 @@ use crate::{tensor::JitTensor, FloatElement, IntElement, JitElement, JitRuntime}
 use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
     conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
-    implicit_gemm::conv2d_implicit_gemm,
+    gemm::launch::conv2d_gemm_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
@@ -24,6 +24,9 @@ pub enum Conv2dStrategy {
     /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
     /// has constraints on tensor shape.
     ImplicitGemm,
+    /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
+    /// has constraints on tensor shape.
+    ImplicitGemmNew,
 }
 
 impl Default for Conv2dStrategy {
@@ -83,6 +86,9 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E, I>(input, weight, bias, options),
         Conv2dStrategy::ImplicitGemm => {
             conv2d_implicit_gemm::<R, E, I>(input, weight, bias, options)
+        }
+        Conv2dStrategy::ImplicitGemmNew => {
+            conv2d_gemm_large_m::<R, E, I>(input, weight, bias, options)
         }
     }
 }

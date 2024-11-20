@@ -28,7 +28,7 @@ pub fn reduce_dim_subcube_kernel<
 
     let should_unroll = elems_per_thread <= 8;
 
-    let warp_id = UNIT_POS / PLANE_DIM;
+    let warp_id = plane_broadcast(UNIT_POS / PLANE_DIM, 0);
 
     let mut shared_memory = RD::init_shared(subcube_size);
 

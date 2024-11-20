@@ -61,8 +61,8 @@ fn bench<B: Backend>(
 ) {
     // Shapes
     let batch_size = 16;
-    let channels_in = 16;
-    let channels_out = 16;
+    let channels_in = 64;
+    let channels_out = 64;
     let height_in = 512;
     let width_in = 512;
     let kernel_size_0 = 3;

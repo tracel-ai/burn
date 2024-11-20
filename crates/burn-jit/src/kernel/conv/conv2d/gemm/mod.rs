@@ -1,4 +1,10 @@
-pub mod kernel;
-pub mod ops;
-pub mod swizzle;
-pub mod epilogue;
+pub mod algorithm;
+pub mod base;
+mod config;
+pub mod homogeneous;
+pub mod input_reader;
+pub mod launch;
+pub mod loader;
+
+pub use config::*;
+pub use launch::*;

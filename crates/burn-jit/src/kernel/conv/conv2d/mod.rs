@@ -11,6 +11,7 @@ mod tune;
 pub use base::*;
 pub use col2im::*;
 pub use direct::*;
+pub use gemm::*;
 pub use im2col::*;
 pub use implicit_gemm::*;
 pub use transpose_direct::*;
