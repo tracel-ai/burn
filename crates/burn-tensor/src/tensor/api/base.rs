@@ -21,6 +21,8 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
+use super::TransactionQuery;
+
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
@@ -2028,6 +2030,18 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         tensor: Self::Primitive,
     ) -> impl Future<Output = TensorData> + 'static + Send;
 
+    /// Read the data from the tensor using a transaction.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For extracting the data of a tensor, users should prefer the [Tensor::into_data](Tensor::into_data) function,
+    /// which is more high-level and designed for public use.
+    fn read(tr: &mut TransactionQuery<B>, tensor: Self::Primitive);
+
     /// Creates a tensor from the given data.
     ///
     /// # Arguments
@@ -2257,6 +2271,10 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
+    fn read(tr: &mut TransactionQuery<B>, tensor: Self::Primitive) {
+        tr.read_float(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
@@ -2445,6 +2463,11 @@ impl<B: Backend> BasicOps<B> for Int {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_empty(shape, device)
     }
+
+    fn read(tr: &mut TransactionQuery<B>, tensor: Self::Primitive) {
+        tr.read_int(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         B::int_shape(tensor)
     }
@@ -2544,6 +2567,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
     }
+
+    fn read(tr: &mut TransactionQuery<B>, tensor: Self::Primitive) {
+        tr.read_bool(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         B::bool_shape(tensor)
     }

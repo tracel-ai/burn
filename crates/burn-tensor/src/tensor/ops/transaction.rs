@@ -5,18 +5,18 @@ use crate::{backend::Backend, TensorData};
 
 #[derive(Default)]
 pub struct Transaction<B: Backend> {
-    pub floats: Vec<FloatTensor<B>>,
-    pub qfloats: Vec<QuantizedTensor<B>>,
-    pub ints: Vec<IntTensor<B>>,
-    pub bools: Vec<BoolTensor<B>>,
+    pub read_floats: Vec<FloatTensor<B>>,
+    pub read_qfloats: Vec<QuantizedTensor<B>>,
+    pub read_ints: Vec<IntTensor<B>>,
+    pub read_bools: Vec<BoolTensor<B>>,
 }
 
 #[derive(Default)]
 pub struct TransactionResult {
-    pub floats: Vec<TensorData>,
-    pub qfloats: Vec<TensorData>,
-    pub ints: Vec<TensorData>,
-    pub bools: Vec<TensorData>,
+    pub read_floats: Vec<TensorData>,
+    pub read_qfloats: Vec<TensorData>,
+    pub read_ints: Vec<TensorData>,
+    pub read_bools: Vec<TensorData>,
 }
 
 pub trait TransactionOps<B: Backend> {
@@ -29,24 +29,24 @@ pub trait TransactionOps<B: Backend> {
             let mut ints = Vec::new();
             let mut bools = Vec::new();
 
-            for t in transaction.floats {
+            for t in transaction.read_floats {
                 floats.push(B::float_into_data(t).await);
             }
-            for t in transaction.qfloats {
+            for t in transaction.read_qfloats {
                 qfloats.push(B::q_into_data(t).await);
             }
-            for t in transaction.ints {
+            for t in transaction.read_ints {
                 ints.push(B::int_into_data(t).await);
             }
-            for t in transaction.bools {
+            for t in transaction.read_bools {
                 bools.push(B::bool_into_data(t).await);
             }
 
             TransactionResult {
-                floats,
-                qfloats,
-                ints,
-                bools,
+                read_floats: floats,
+                read_qfloats: qfloats,
+                read_ints: ints,
+                read_bools: bools,
             }
         }
     }

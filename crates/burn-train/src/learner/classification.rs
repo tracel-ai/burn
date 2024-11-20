@@ -1,7 +1,7 @@
 use crate::metric::processor::ItemLazy;
 use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor, TransactionBuilder};
+use burn_core::tensor::{Int, Tensor, TransactionQuery};
 use burn_ndarray::NdArray;
 
 /// Simple classification output adapted for multiple metrics.
@@ -21,10 +21,10 @@ impl<B: Backend> ItemLazy for ClassificationOutput<B> {
     type ItemSync = ClassificationOutput<NdArray>;
 
     fn sync(self) -> Self::ItemSync {
-        let [output, loss, targets] = TransactionBuilder::default()
-            .float(self.output)
-            .float(self.loss)
-            .int(self.targets)
+        let [output, loss, targets] = TransactionQuery::default()
+            .read(self.output)
+            .read(self.loss)
+            .read(self.targets)
             .execute()
             .try_into()
             .expect("Correct amount of data");
@@ -62,6 +62,28 @@ pub struct MultiLabelClassificationOutput<B: Backend> {
 
     /// The targets.
     pub targets: Tensor<B, 2, Int>,
+}
+
+impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
+    type ItemSync = MultiLabelClassificationOutput<NdArray>;
+
+    fn sync(self) -> Self::ItemSync {
+        let [output, loss, targets] = TransactionQuery::default()
+            .read(self.output)
+            .read(self.loss)
+            .read(self.targets)
+            .execute()
+            .try_into()
+            .expect("Correct amount of data");
+
+        let device = &Default::default();
+
+        MultiLabelClassificationOutput {
+            output: Tensor::from_data(output, device),
+            loss: Tensor::from_data(loss, device),
+            targets: Tensor::from_data(targets, device),
+        }
+    }
 }
 
 impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutput<B> {

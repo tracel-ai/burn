@@ -11,14 +11,14 @@ impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> 
     ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionResult> + 'static + Send
     {
         B::tr_execute(Transaction {
-            floats: transaction
-                .floats
+            read_floats: transaction
+                .read_floats
                 .into_iter()
                 .map(|t| t.primitive)
                 .collect(),
-            qfloats: transaction.qfloats,
-            ints: transaction.ints,
-            bools: transaction.bools,
+            read_qfloats: transaction.read_qfloats,
+            read_ints: transaction.read_ints,
+            read_bools: transaction.read_bools,
         })
     }
 }

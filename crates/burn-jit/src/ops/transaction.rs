@@ -28,7 +28,7 @@ where
 
         let mut kinds = Vec::new();
 
-        transaction.floats.into_iter().for_each(|t| {
+        transaction.read_floats.into_iter().for_each(|t| {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
@@ -37,7 +37,7 @@ where
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
-        transaction.ints.into_iter().for_each(|t| {
+        transaction.read_ints.into_iter().for_each(|t| {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
@@ -46,7 +46,7 @@ where
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
-        transaction.bools.into_iter().for_each(|t| {
+        transaction.read_bools.into_iter().for_each(|t| {
             if client.is_none() {
                 client = Some(t.client.clone());
             }
@@ -72,7 +72,7 @@ where
                 match kind {
                     Kind::Float(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.floats.push(TensorData {
+                        result.read_floats.push(TensorData {
                             bytes,
                             shape,
                             dtype,
@@ -80,7 +80,7 @@ where
                     }
                     Kind::Int(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.ints.push(TensorData {
+                        result.read_ints.push(TensorData {
                             bytes,
                             shape,
                             dtype,
@@ -88,7 +88,7 @@ where
                     }
                     Kind::Bool(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.bools.push(TensorData {
+                        result.read_bools.push(TensorData {
                             bytes,
                             shape,
                             dtype,
