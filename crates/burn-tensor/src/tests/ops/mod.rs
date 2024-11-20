@@ -44,6 +44,7 @@ mod padding;
 mod permute;
 mod powf;
 mod powf_scalar;
+mod prod;
 mod random;
 mod recip;
 mod remainder;
