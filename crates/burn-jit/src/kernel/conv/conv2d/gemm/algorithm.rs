@@ -19,6 +19,7 @@ use super::{
         loader::{BiasLoader, Loader},
     },
 };
+use half::f16;
 
 type LhsStageReader<GMM, EG, ES, Acc> =
     <<GMM as Convolution<EG, ES, Acc>>::Lhs as Loader<EG, ES>>::StageReader;
@@ -94,6 +95,45 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for Cmma<EG, Stage> {
     type EG = EG;
     type ES = half::f16;
     type EA = f32;
+
+    type TileMatmul = Accelerated16x16x16<Self::ES, Self::EA>;
+
+    type StageSize = Stage;
+    type StageMatmul = stage::multi_buffer::Matmul<
+        Self::ES,
+        Self::EG,
+        Self::EA,
+        Self::TileMatmul,
+        Self::StageSize,
+        BiasLoader<Self::EG, Self::EA>,
+    >;
+
+    type GlobalMatmul = ImplicitGemmConvolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>;
+
+    fn cube_dim() -> CubeDim {
+        CubeDim::new(Self::PLANE_DIM, Self::StageSize::NUM_M, 1)
+    }
+
+    fn cube_count(problem: &ConvolutionProblem) -> CubeCount {
+        let m_stage = Self::StageSize::NUM_M * Self::TileMatmul::M;
+        let n_stage = Self::StageSize::NUM_N * Self::TileMatmul::N;
+        let cubes_needed_m = (problem.m as u32).div_ceil(m_stage);
+        let cubes_needed_n = (problem.n as u32).div_ceil(n_stage);
+
+        CubeCount::Static(cubes_needed_m, cubes_needed_n, 1)
+    }
+}
+
+pub struct CmmaHalf<EG: Numeric, Stage: StageSize> {
+    pub _eg: PhantomData<EG>,
+    pub _stage: PhantomData<Stage>,
+}
+
+impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for CmmaHalf<EG, Stage> {
+    const PLANE_DIM: u32 = 32;
+    type EG = EG;
+    type ES = f16;
+    type EA = f16;
 
     type TileMatmul = Accelerated16x16x16<Self::ES, Self::EA>;
 

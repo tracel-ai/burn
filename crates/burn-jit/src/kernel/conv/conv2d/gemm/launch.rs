@@ -3,6 +3,7 @@ use burn_tensor::{
     Shape,
 };
 use cubecl::{
+    ir::{Elem, FloatKind},
     linalg::matmul::{
         self,
         components::{
@@ -29,8 +30,9 @@ use crate::{
     FloatElement, IntElement, JitRuntime,
 };
 
+use super::algorithm::CmmaHalf;
+
 pub type LargeMAlgorithm<F> = Cmma<F, S8x2x4>;
-pub type LargeKAlgorithm<F> = Cmma<F, S2x2x8>;
 pub type BalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 
 /// Perform a 2D convolution using the GEMM (im2col) algorithm.
@@ -48,17 +50,12 @@ pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, F>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R, F> {
-    conv2d_gemm_with_algo::<R, F, LargeMAlgorithm<F>>(input, weight, bias, options)
-}
-
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_gemm_large_k<R: JitRuntime, F: FloatElement, I: IntElement>(
-    input: JitTensor<R, F>,
-    weight: JitTensor<R, F>,
-    bias: Option<JitTensor<R, F>>,
-    options: ConvOptions<2>,
-) -> JitTensor<R, F> {
-    conv2d_gemm_with_algo::<R, F, LargeKAlgorithm<F>>(input, weight, bias, options)
+    match F::as_elem() {
+        Elem::Float(FloatKind::F16) => {
+            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x2x4>>(input, weight, bias, options)
+        }
+        _ => conv2d_gemm_with_algo::<R, F, LargeMAlgorithm<F>>(input, weight, bias, options),
+    }
 }
 
 #[allow(clippy::extra_unused_type_parameters)]
@@ -68,7 +65,12 @@ pub fn conv2d_gemm_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R, F>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R, F> {
-    conv2d_gemm_with_algo::<R, F, BalancedAlgorithm<F>>(input, weight, bias, options)
+    match F::as_elem() {
+        Elem::Float(FloatKind::F16) => {
+            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S4x2x4>>(input, weight, bias, options)
+        }
+        _ => conv2d_gemm_with_algo::<R, F, BalancedAlgorithm<F>>(input, weight, bias, options),
+    }
 }
 
 pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(

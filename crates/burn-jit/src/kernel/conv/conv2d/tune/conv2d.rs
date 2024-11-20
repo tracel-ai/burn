@@ -11,9 +11,8 @@ use crate::{
     kernel::{
         conv::{
             algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
-            conv2d_gemm_balanced, conv2d_gemm_large_k, conv2d_gemm_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, problem_from_key, BalancedAlgorithm, LargeKAlgorithm,
-            LargeMAlgorithm,
+            conv2d_gemm_balanced, conv2d_gemm_large_m, conv2d_im2col, conv2d_implicit_gemm,
+            problem_from_key, BalancedAlgorithm, LargeMAlgorithm,
         },
         prng::random_uniform,
     },
@@ -119,10 +118,8 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
         ),
         // GEMM large m
         3 => LargeMAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
-        // GEMM large k
-        4 => LargeKAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
         // GEMM balanced
-        5 => BalancedAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
+        4 => BalancedAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
         _ => true,
     }
 }
