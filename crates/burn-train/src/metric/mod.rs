@@ -52,3 +52,7 @@ mod confusion_stats;
 mod precision;
 #[cfg(feature = "metrics")]
 pub use precision::*;
+#[cfg(feature = "metrics")]
+mod recall;
+#[cfg(feature = "metrics")]
+pub use recall::*;

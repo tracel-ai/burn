@@ -63,12 +63,11 @@ pub(crate) mod tests {
         match classification_type {
             ClassificationType::Binary => {
                 (
-                    Tensor::from_data(
-                        [[0.3], [0.2], [0.7], [0.1], [0.55]],
-                        //[[0],   [0],   [1],   [0],   [1]] with threshold=0.5
-                        &Default::default(),
-                    ),
+                    Tensor::from_data([[0.3], [0.2], [0.7], [0.1], [0.55]], &Default::default()),
+                    // targets
                     Tensor::from_data([[0], [1], [0], [0], [1]], &Default::default()),
+                    // predictions @ threshold=0.5
+                    //                     [[0], [0], [1], [0], [1]]
                 )
             }
             ClassificationType::Multiclass => {
@@ -81,12 +80,15 @@ pub(crate) mod tests {
                             [0.1, 0.15, 0.8],
                             [0.9, 0.03, 0.07],
                         ],
-                        //[[0,   1,   0],   [0,   1,   0],    [1,   0,   0],    [0,   0,   1],    [1,   0,    0]] with top_k=1
-                        //[[1,   1,   0],   [1,   1,   0],    [1,   1,   0],    [0,   1,   1],    [1,   0,    1]] with top_k=2
                         &Default::default(),
                     ),
                     Tensor::from_data(
+                        // targets
                         [[0, 1, 0], [1, 0, 0], [0, 0, 1], [0, 0, 1], [1, 0, 0]],
+                        // predictions @ top_k=1
+                        //   [[0, 1, 0], [0, 1, 0], [1, 0, 0], [0, 0, 1], [1, 0,  0]]
+                        // predictions @ top_k=2
+                        //   [[1, 1, 0], [1, 1, 0], [1, 1, 0], [0, 1, 1], [1, 0,  1]]
                         &Default::default(),
                     ),
                 )
@@ -101,11 +103,13 @@ pub(crate) mod tests {
                             [0.7, 0.5, 0.9],
                             [1.0, 0.3, 0.2],
                         ],
-                        //[[0,   1,   1],   [0,   1,   0],    [1,   1,   0],   [1,   0,   1],   [1,   0,   0]] with threshold=0.5
                         &Default::default(),
                     ),
+                    // targets
                     Tensor::from_data(
                         [[1, 1, 0], [1, 0, 1], [1, 1, 1], [0, 0, 1], [1, 0, 0]],
+                        // predictions @ threshold=0.5
+                        //   [[0, 1, 1], [0, 1, 0], [1, 1, 0], [1, 0, 1], [1, 0, 0]]
                         &Default::default(),
                     ),
                 )
