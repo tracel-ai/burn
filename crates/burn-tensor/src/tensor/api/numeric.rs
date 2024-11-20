@@ -33,11 +33,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 + tensor2;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [3.0, 1.0, 7.0],
-    ///    //   [6.0, 11.0, 9.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[3.0, 1.0, 7.0], [6.0, 11.0, 9.0]]
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
@@ -65,11 +62,8 @@ where
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let scalar = 2.0;
     ///   let tensor = tensor + scalar;
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [3.0, 0.0, 5.0],
-    ///   //   [7.0, 11.0, 8.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[3.0, 0.0, 5.0], [7.0, 11.0, 8.0]]
     /// }
     /// ```
     pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -95,11 +89,8 @@ where
     ///   let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor1 - tensor2;
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [-1.0, -5.0, -1.0],
-    ///   //   [4.0, 7.0, 3.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[-1.0, -5.0, -1.0], [4.0, 7.0, 3.0]]
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
@@ -127,11 +118,8 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor - scalar;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [-1.0, -4.0, 1.0],
-    ///    //   [3.0, 7.0, 4.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[-1.0, -4.0, 1.0], [3.0, 7.0, 4.0]]
     /// }
     /// ```
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -157,11 +145,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 / tensor2;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [0.5, -0.6666667, 0.75],
-    ///    //   [5.0, 4.5, 2.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[0.5, -0.6666667, 0.75], [5.0, 4.5, 2.0]]
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
@@ -189,11 +174,8 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor / scalar;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [0.5, -1.0, 1.5],
-    ///    //   [2.5, 4.5, 3.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[0.5, -1.0, 1.5], [2.5, 4.5, 3.0]]
     /// }
     /// ```
     pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -226,11 +208,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor1 % scalar;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1.0, 0.0, 1.0],
-    ///    //   [1.0, 1.0, 0.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, 0.0, 1.0], [1.0, 1.0, 0.0]]
     /// }
     /// ```
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -256,11 +235,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1 * tensor2;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [2.0, -6.0, 12.0],
-    ///    //   [5.0, 18.0, 18.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[2.0, -6.0, 12.0], [5.0, 18.0, 18.0]]
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
@@ -288,11 +264,8 @@ where
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let scalar = 2.0;
     ///    let tensor = tensor * scalar;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [2.0, -4.0, 6.0],
-    ///    //   [10.0, 18.0, 12.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[2.0, -4.0, 6.0], [10.0, 18.0, 12.0]]
     /// }
     /// ```
     pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -313,11 +286,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = -tensor;
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [-1.0, 2.0, -3.0],
-    ///    //   [-5.0, -9.0, -6.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[-1.0, 2.0, -3.0], [-5.0, -9.0, -6.0]]
     /// }
     /// ```
     #[allow(clippy::should_implement_trait)]
@@ -337,11 +307,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.sign();
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1.0, -1.0, 1.0],
-    ///    //   [1.0, 1.0, 1.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, -1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
     pub fn sign(self) -> Self {
@@ -359,11 +326,8 @@ where
     /// fn example<B: Backend>() {
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::zeros(Shape::new([2, 3]), &device);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [0.0, 0.0, 0.0],
-    ///    //   [0.0, 0.0, 0.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
     pub fn zeros<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
@@ -384,11 +348,8 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.zeros_like();
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [0.0, 0.0, 0.0],
-    ///   //   [0.0, 0.0, 0.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
     pub fn zeros_like(&self) -> Self {
@@ -406,11 +367,8 @@ where
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::ones(Shape::new([2, 3]), &device);
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [1.0, 1.0, 1.0],
-    ///   //   [1.0, 1.0, 1.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
     pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
@@ -431,11 +389,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.ones_like();
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1.0, 1.0, 1.0],
-    ///    //   [1.0, 1.0, 1.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
     pub fn ones_like(&self) -> Self {
@@ -453,11 +408,8 @@ where
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::full(Shape::new([2, 3]), 5.0, &device);
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [5.0, 5.0, 5.0],
-    ///   //   [5.0, 5.0, 5.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
     /// }
     /// ```
     pub fn full<S: Into<Shape>, E: ElementConversion>(
@@ -482,11 +434,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.full_like(5.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [5.0, 5.0, 5.0],
-    ///    //   [5.0, 5.0, 5.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[5.0, 5.0, 5.0], [5.0, 5.0, 5.0]]
     /// }
     /// ```
     pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
@@ -505,7 +454,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.mean();
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [3.6666667]
     /// }
     /// ```
@@ -525,7 +474,7 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.sum();
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [22.0]
     /// }
     /// ```
@@ -550,10 +499,10 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.clone().mean_dim(0);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[3.0, 3.5, 4.5]]
     ///   let tensor = tensor.clone().mean_dim(1);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[0.6666667], [6.6666665]]
     /// }
     /// ```
@@ -579,10 +528,10 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().sum_dim(0);
-    ///    println!("{}", tensor);
-    ///    // [[6.0, 7.0, 9.0]]
+    ///    println!("{tensor}");
     ///    let tensor = tensor.clone().sum_dim(1);
-    ///    println!("{}", tensor);
+    ///    // [[6.0, 7.0, 9.0]]
+    ///    println!("{tensor}");
     ///    // [[2.0], [20.0]]
     /// }
     /// ```
@@ -604,7 +553,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.prod();
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [-1620.0]
     /// }
     /// ```
@@ -629,10 +578,10 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.clone().prod_dim(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[5.0, -18.0, 18.0]]
     ///    let tensor = tensor.clone().prod_dim(1);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[-6.0], [270.0]]
     /// }
     /// ```
@@ -657,11 +606,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.equal_elem(3.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [false, false, true],
-    ///    //   [false, false, false]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[false, false, true], [false, false, false]]
     /// }
     /// ```
     pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
@@ -684,11 +630,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.not_equal_elem(3.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [true, true, false],
-    ///    //   [true, true, true]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[true, true, false], [true, true, true]]
     /// }
     /// ```
     pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
@@ -712,11 +655,8 @@ where
     ///   let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor1.greater(tensor2);
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [false, false, false],
-    ///   //   [true, true, true]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[false, false, false], [true, true, true]]
     /// }
     /// ```
     pub fn greater(self, other: Self) -> Tensor<B, D, Bool> {
@@ -741,11 +681,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.greater_equal(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [false, false, false],
-    ///    //   [true, true, true]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[false, false, false], [true, true, true]]
     /// }
     /// ```
     pub fn greater_equal(self, other: Self) -> Tensor<B, D, Bool> {
@@ -770,11 +707,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [true, true, true],
-    ///    //   [false, false, false]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [false, false, false]]
     /// }
     /// ```
     pub fn lower(self, other: Self) -> Tensor<B, D, Bool> {
@@ -799,11 +733,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.lower_equal(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [true, true, true],
-    ///    //   [false, false, false]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [false, false, false]]
     /// }
     /// ```
     pub fn lower_equal(self, other: Self) -> Tensor<B, D, Bool> {
@@ -827,11 +758,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.greater_elem(3.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [false, false, true],
-    ///    //   [true, true, true]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
     pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
@@ -854,11 +782,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.greater_equal_elem(3.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [false, false, true],
-    ///    //   [true, true, true]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[false, false, true], [true, true, true]]
     /// }
     /// ```
     pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
@@ -881,11 +806,8 @@ where
     ///     let device = B::Device::default();
     ///     let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///     let tensor = tensor.lower_elem(3.0);
-    ///     println!("{}", tensor);
-    ///     // [
-    ///     //   [true, true, false],
-    ///     //   [false, false, false]
-    ///     // ]
+    ///     println!("{tensor}");
+    ///     // [[true, true, false], [false, false, false]]
     /// }
     /// ```
     pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
@@ -908,11 +830,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.lower_equal_elem(3.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [true, true, true],
-    ///    //   [false, false, false]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [false, false, false]]
     /// }
     /// ```
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
@@ -936,11 +855,8 @@ where
     ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
     ///   let value = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///   let tensor = tensor.mask_where(mask, value);
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [2.0, -2.0, 4.0],
-    ///   //   [5.0, 2.0, 6.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[2.0, -2.0, 4.0], [5.0, 2.0, 6.0]]
     /// }
     /// ```
     pub fn mask_where(self, mask: Tensor<B, D, Bool>, value: Self) -> Self {
@@ -967,11 +883,8 @@ where
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let mask = Tensor::<B, 2, Bool>::from_data([[true, false, true], [false, true, false]], &device);
     ///   let tensor = tensor.mask_fill(mask, 3.0);
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [3.0, -2.0, 3.0],
-    ///   //   [5.0, 3.0, 6.0]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[3.0, -2.0, 3.0], [5.0, 3.0, 6.0]]
     /// }
     /// ```
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
@@ -1062,7 +975,7 @@ where
     ///   let tensor = Tensor::<B, 3>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
     ///   let tensor = tensor.select(0, indices);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   //  [[1.0, -2.0, 3.0]]
     /// }
     /// ```
@@ -1131,7 +1044,7 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max();
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [9.0]
     /// }
     /// ```
@@ -1151,7 +1064,7 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.max_dim(0);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[5.0, 9.0, 6.0]]
     /// }
     /// ```
@@ -1175,10 +1088,10 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let (tensor, index) = tensor.max_dim_with_indices(0);
-    ///    println!("{}", tensor);
     ///    // [[5.0, 9.0, 6.0]]
-    ///    println!("{}", index);
+    ///    println!("{tensor}");
     ///    // [[1, 1, 1]]
+    ///    println!("{index}");
     /// }
     /// ```
     pub fn max_dim_with_indices(self, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
@@ -1214,11 +1127,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.max_pair(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [2.0, 3.0, 4.0],
-    ///    //   [5.0, 9.0, 6.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[2.0, 3.0, 4.0], [5.0, 9.0, 6.0]]
     /// }
     /// ```
     pub fn max_pair(self, other: Self) -> Self {
@@ -1258,7 +1168,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.min();
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [-2.0]
     /// }
     /// ```
@@ -1278,7 +1188,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.min_dim(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[1.0, -2.0, 3.0]]
     /// }
     /// ```
@@ -1301,7 +1211,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[7.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let (tensor, index) = tensor.min_dim_with_indices(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[1.0, -2.0, 3.0]]
     ///    println!("{}", index);
     ///    // [[1, 0, 0]]
@@ -1340,11 +1250,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.min_pair(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1.0, -2.0, 3.0],
-    ///    //   [1.0, 2.0, 3.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, -2.0, 3.0], [1.0, 2.0, 3.0]]
     /// }
     pub fn min_pair(self, other: Self) -> Self {
         let mask = other.clone().lower(self.clone());
@@ -1378,12 +1285,8 @@ where
     ///    ],
     ///    &device);
     ///    let tensor = tensor.clamp(2, 6);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [2, 2, 3],
-    ///    //   [4, 5, 6],
-    ///    //   [6, 6, 6]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[2, 2, 3], [4, 5, 6], [6, 6, 6]]
     /// }
     /// ```
     pub fn clamp<E: ElementConversion>(self, min: E, max: E) -> Self {
@@ -1413,12 +1316,8 @@ where
     ///    [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
     ///    &device);
     ///    let tensor = tensor.clamp_min(4);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [4, 4, 4],
-    ///    //   [4, 5, 6],
-    ///    //   [7, 8, 9]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[4, 4, 4], [4, 5, 6], [7, 8, 9]]
     /// }
     /// ```
     pub fn clamp_min<E: ElementConversion>(self, min: E) -> Self {
@@ -1448,12 +1347,8 @@ where
     ///    [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
     ///    &device);
     ///    let tensor = tensor.clamp_max(5);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1, 2, 3],
-    ///    //   [4, 5, 5],
-    ///    //   [5, 5, 5]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1, 2, 3], [4, 5, 5], [5, 5, 5]]
     /// }
     /// ```
     pub fn clamp_max<E: ElementConversion>(self, max: E) -> Self {
@@ -1472,12 +1367,8 @@ where
     ///   let device = Default::default();
     ///   let tensor = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [4, -5, 6], [7, -8, 9]], &device);
     ///   let tensor = tensor.abs();
-    ///   println!("{}", tensor);
-    ///   // [
-    ///   //   [1, 2, 3],
-    ///   //   [4, 5, 6],
-    ///   //   [7, 8, 9]
-    ///   // ]
+    ///   println!("{tensor}");
+    ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     /// }
     /// ```
     pub fn abs(self) -> Self {
@@ -1503,12 +1394,12 @@ where
     ///        &device
     ///    );
     ///    let tensor = tensor.triu(1);
-    ///    println!("{}", tensor);
-    ///    // Tensor { data: [
+    ///    println!("{tensor}");
+    ///    // [
     ///    //   [0, 2, 3],
     ///    //   [0, 0, 6],
     ///    //   [0, 0, 0]
-    ///    // ], ... }
+    ///    // ]
     /// }
     /// ```
     pub fn triu(self, diagonal: i64) -> Self {
@@ -1541,12 +1432,12 @@ where
     ///    );
     ///
     ///    let tensor = tensor.tril(-1);
-    ///    println!("{}", tensor);
-    ///    // Tensor { data: [
+    ///    println!("{tensor}");
+    ///    // [
     ///    //   [0, 0, 0],
     ///    //   [4, 0, 0],
     ///    //   [7, 8, 0]
-    ///    // ], ... }
+    ///    // ]
     /// }
     /// ```
     pub fn tril(self, diagonal: i64) -> Self {
@@ -1576,11 +1467,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
     ///    let tensor = tensor1.powf(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1.0, 8.0, 81.0],
-    ///    //   [5.0, 81.0, 216.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
     /// }
     /// ```
     pub fn powf(self, other: Self) -> Self {
@@ -1603,11 +1491,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.powf_scalar(2.0);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //  [1.0, 4.0, 9.0],
-    ///    //  [25.0, 81.0, 36.0]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
     /// }
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -1631,11 +1516,8 @@ where
     ///    let tensor1 = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
     ///    let tensor2 = Tensor::<B, 2, Int>::from_ints([[2, 3, 4], [1, 2, 3]], &device);
     ///    let tensor = tensor1.powi(tensor2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [1, -8, 81],
-    ///    //   [5, 81, 216]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1, -8, 81], [5, 81, 216]]
     /// }
     /// ```
     pub fn powi(self, other: Self) -> Self {
@@ -1658,11 +1540,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2, Int>::from_ints([[1, -2, 3], [5, 9, 6]], &device);
     ///    let tensor = tensor.powi_scalar(2);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //  [1, 4, 9],
-    ///    //  [25, 81, 36]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[1, 4, 9], [25, 81, 36]]
     /// }
     /// ```
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
@@ -1701,11 +1580,8 @@ where
     ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor2 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor1.is_close(tensor2, None, None);
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [true, true, true],
-    ///    //   [true, true, true]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[true, true, true], [true, true, true]]
     /// }
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
@@ -1778,7 +1654,7 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [0.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.bool();
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [
     ///   //   [true, true, true],
     ///   //   [false, true, true]
@@ -1811,7 +1687,7 @@ where
     ///   let device = B::Device::default();
     ///   let distribution = Distribution::Uniform(0.0, 1.0); // Any random value between 0.0 and 1.0
     ///   let tensor = Tensor::<B, 2>::random(Shape::new([2, 3]), distribution, &device);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [
     ///   //   [0.08347523, 0.70498955, 0.60332155],
     ///   //   [0.08173251, 0.18028641, 0.97942924]
@@ -1848,10 +1724,10 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let tensor = tensor.sort(0);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
     ///   let tensor = tensor.sort(1);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[-2.0, 3.0, 12.0], [3.0, 5.0, 6.0]]
     /// }
     /// ```
@@ -1882,10 +1758,10 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.sort_descending(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///    let tensor = tensor.sort_descending(1);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[12.0, 3.0, -2.0], [6.0, 5.0, 3.0]]
     /// }
     /// ```
@@ -1917,7 +1793,7 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let (tensor, indices) = tensor.sort_with_indices(0);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[5.0, -2.0, 3.0], [12.0, 3.0, 6.0]]
     ///   println!("{}", indices);
     ///   // [[1, 0, 0], [0, 1, 1]]
@@ -1949,7 +1825,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let (tensor, indices) = tensor.sort_descending_with_indices(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///    println!("{}", indices);
     ///    // [[0, 1, 1], [1, 0, 0]]
@@ -1979,7 +1855,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.argsort(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[1, 0, 0], [0, 1, 1]]
     /// }
     /// ```
@@ -2006,10 +1882,10 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.argsort_descending(0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[0, 1, 1], [1, 0, 0]]
     ///    let tensor = tensor.argsort_descending(1);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[0, 2, 1], [2, 0, 1]]
     /// }
     /// ```
@@ -2038,10 +1914,10 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///   let tensor = tensor.topk(2, 0);
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///   let tensor = tensor.topk(1, 1);
-    ///   println!("{}", tensor);   
+    ///   println!("{tensor}");   
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
@@ -2068,14 +1944,14 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let (tensor, indices) = tensor.topk_with_indices(2, 0);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[12.0, 3.0, 6.0], [5.0, -2.0, 3.0]]
     ///    println!("{}", indices);
     ///    // [[0, 1, 1], [1, 0, 0]]
     ///    let (tensor, indices) = tensor.topk_with_indices(1, 1);
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [[12.0], [6.0]]
-    ///    println!("{}", indices);
+    ///    println!("{indices}");
     ///    // [[0], [2]]
     /// }
     /// ```
@@ -2109,7 +1985,7 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///    let tensor = tensor.pad((1, 1, 1, 1), 0.0.into());
-    ///    println!("{}", tensor);
+    ///    println!("{tensor}");
     ///    // [
     ///    //   [0.0, 0.0, 0.0, 0.0, 0.0],
     ///    //   [0.0, 12.0, -2.0, 3.0, 0.0],
@@ -2167,11 +2043,8 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[1.0, f64::NAN, 3.0], [5.0, 9.0, 6.0]], &device);
     ///    let tensor = tensor.is_nan();
-    ///    println!("{}", tensor);
-    ///    // [
-    ///    //   [false, true, false],
-    ///    //   [false, false, false]
-    ///    // ]
+    ///    println!("{tensor}");
+    ///    // [[false, true, false], [false, false, false]]
     /// }
     /// ```
     pub fn is_nan(&self) -> Tensor<B, D, Bool> {
@@ -2196,11 +2069,11 @@ where
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [f64::NAN, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [true]
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
     ///   let tensor = tensor.contains_nan();
-    ///   println!("{}", tensor);
+    ///   println!("{tensor}");
     ///   // [false]
     /// }
     /// ```
