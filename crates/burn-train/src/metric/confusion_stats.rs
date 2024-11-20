@@ -1,7 +1,6 @@
-use super::classification::ClassReduction;
+use super::classification::{ClassReduction, ClassificationConfig};
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
 use std::fmt::{self, Debug};
-use std::num::NonZeroUsize;
 
 #[derive(Clone)]
 pub struct ConfusionStats<B: Backend> {
@@ -34,21 +33,26 @@ impl<B: Backend> ConfusionStats<B> {
     pub fn new(
         predictions: Tensor<B, 2>,
         targets: Tensor<B, 2, Bool>,
-        threshold: Option<f64>,
-        top_k: Option<NonZeroUsize>,
-        class_reduction: ClassReduction,
+        config: &ClassificationConfig,
     ) -> Self {
-        let prediction_mask = match (threshold, top_k) {
-            (Some(threshold), None) => {
-                predictions.greater_elem(threshold)
-            },
-            (None, Some(top_k)) => {
+        let (prediction_mask, class_reduction) = match config {
+            ClassificationConfig::Binary {
+                threshold,
+                class_reduction,
+            }
+            | ClassificationConfig::Multilabel {
+                threshold,
+                class_reduction,
+            } => (predictions.greater_elem(*threshold), *class_reduction),
+            ClassificationConfig::Multiclass {
+                top_k,
+                class_reduction,
+            } => {
                 let mask = predictions.zeros_like();
                 let indexes = predictions.argsort_descending(1).narrow(1, 0, top_k.get());
                 let values = indexes.ones_like().float();
-                mask.scatter(1, indexes, values).bool()
+                (mask.scatter(1, indexes, values).bool(), *class_reduction)
             }
-            _ => panic!("Either threshold (for binary or multilabel) or top_k (for multiclass) must be set."),
         };
         Self {
             confusion_classes: prediction_mask.int() + targets.int() * 2,
@@ -107,245 +111,201 @@ impl<B: Backend> ConfusionStats<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ClassReduction::{self, *},
-        ConfusionStats,
-    };
-    use crate::tests::{
-        dummy_classification_input,
-        ClassificationType::{self, *},
-        THRESHOLD,
-    };
+    use super::ConfusionStats;
+    use crate::metric::classification::{ClassReduction::*, ClassificationConfig};
+    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::prelude::TensorData;
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
     use std::num::NonZeroUsize;
 
-    #[rstest]
-    #[should_panic]
-    #[case::both_some(Some(THRESHOLD), Some(1))]
-    #[should_panic]
-    #[case::both_none(None, None)]
-    fn test_exclusive_threshold_top_k(
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&Binary).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            Micro,
-        );
+    // binary classification results are the same independently of class_reduction
+    #[fixture]
+    #[once]
+    fn binary_config() -> ClassificationConfig {
+        ClassificationConfig::Binary {
+            threshold: THRESHOLD,
+            class_reduction: Default::default(),
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multiclass_config_k1_micro() -> ClassificationConfig {
+        ClassificationConfig::Multiclass {
+            top_k: NonZeroUsize::new(1).unwrap(),
+            class_reduction: Micro,
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multiclass_config_k1_macro() -> ClassificationConfig {
+        ClassificationConfig::Multiclass {
+            top_k: NonZeroUsize::new(1).unwrap(),
+            class_reduction: Macro,
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multiclass_config_k2_micro() -> ClassificationConfig {
+        ClassificationConfig::Multiclass {
+            top_k: NonZeroUsize::new(2).unwrap(),
+            class_reduction: Micro,
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multiclass_config_k2_macro() -> ClassificationConfig {
+        ClassificationConfig::Multiclass {
+            top_k: NonZeroUsize::new(2).unwrap(),
+            class_reduction: Macro,
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multilabel_config_micro() -> ClassificationConfig {
+        ClassificationConfig::Multilabel {
+            threshold: THRESHOLD,
+            class_reduction: Micro,
+        }
+    }
+    #[fixture]
+    #[once]
+    fn multilabel_config_macro() -> ClassificationConfig {
+        ClassificationConfig::Multilabel {
+            threshold: THRESHOLD,
+            class_reduction: Macro,
+        }
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [3].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 1, 1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [4].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 1, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [5].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [2, 2, 1].into())]
-    fn test_true_positive(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .true_positive()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_micro(binary_config(), [1].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [3].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [1, 1, 1].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [4].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [2, 1, 1].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [5].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [2, 2, 1].into())]
+    fn test_true_positive(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .true_positive()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [8].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 3, 3].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [4].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [1, 1, 2].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [3].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [0, 2, 1].into())]
-    fn test_true_negative(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .true_negative()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_macro(binary_config(), [2].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [8].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [2, 3, 3].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [4].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [1, 1, 2].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [3].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [0, 2, 1].into())]
+    fn test_true_negative(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .true_negative()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [2].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 1, 0].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [6].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 3, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [3].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [1, 1, 1].into())]
-    fn test_false_positive(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .false_positive()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_macro(binary_config(), [1].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [2].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [1, 1, 0].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [6].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [2, 3, 1].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [3].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [1, 1, 1].into())]
+    fn test_false_positive(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .false_positive()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [1].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [2].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [1, 0, 1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [1].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [0, 0, 1].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [4].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [2, 0, 2].into())]
-    fn test_false_negatives(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .false_negative()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_macro(binary_config(), [1].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [2].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [1, 0, 1].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [1].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [0, 0, 1].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [4].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [2, 0, 2].into())]
+    fn test_false_negatives(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .false_negative()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [5].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 1, 2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [5].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [2, 1, 2].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [9].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [4, 2, 3].into())]
-    fn test_positive(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .positive()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_micro(binary_config(), [2].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [5].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [2, 1, 2].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [5].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [2, 1, 2].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [9].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [4, 2, 3].into())]
+    fn test_positive(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .positive()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [3].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [3].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [10].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [3, 4, 3].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [10].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [3, 4, 3].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [6].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [1, 3, 2].into())]
-    fn test_negative(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .negative()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_micro(binary_config(), [3].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [10].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [3, 4, 3].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [10].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [3, 4, 3].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [6].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [1, 3, 2].into())]
+    fn test_negative(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .negative()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 
     #[rstest]
-    #[case::binary_micro(Binary, Micro, Some(THRESHOLD), None, [2].into())]
-    #[case::binary_macro(Binary, Macro, Some(THRESHOLD), None, [2].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(1), [5].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(1), [2, 2, 1].into())]
-    #[case::multiclass_micro(Multiclass, Micro, None, Some(2), [10].into())]
-    #[case::multiclass_macro(Multiclass, Macro, None, Some(2), [4, 4, 2].into())]
-    #[case::multilabel_micro(Multilabel, Micro, Some(THRESHOLD), None, [8].into())]
-    #[case::multilabel_macro(Multilabel, Macro, Some(THRESHOLD), None, [3, 3, 2].into())]
-    fn test_predicted_positive(
-        #[case] classification_type: ClassificationType,
-        #[case] class_reduction: ClassReduction,
-        #[case] threshold: Option<f64>,
-        #[case] top_k: Option<usize>,
-        #[case] expected: Vec<i64>,
-    ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
-        ConfusionStats::new(
-            predictions,
-            targets,
-            threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
-            class_reduction,
-        )
-        .predicted_positive()
-        .int()
-        .into_data()
-        .assert_eq(&TensorData::from(expected.as_slice()), true);
+    #[case::binary_micro(binary_config(), [2].into())]
+    #[case::multiclass_micro(multiclass_config_k1_micro(), [5].into())]
+    #[case::multiclass_macro(multiclass_config_k1_macro(), [2, 2, 1].into())]
+    #[case::multiclass_micro(multiclass_config_k2_micro(), [10].into())]
+    #[case::multiclass_macro(multiclass_config_k2_macro(), [4, 4, 2].into())]
+    #[case::multilabel_micro(multilabel_config_micro(), [8].into())]
+    #[case::multilabel_macro(multilabel_config_macro(), [3, 3, 2].into())]
+    fn test_predicted_positive(#[case] config: ClassificationConfig, #[case] expected: Vec<i64>) {
+        let (predictions, targets) =
+            dummy_classification_input(&ClassificationType::from_classification_config(&config))
+                .into();
+        ConfusionStats::new(predictions, targets, &config)
+            .predicted_positive()
+            .int()
+            .into_data()
+            .assert_eq(&TensorData::from(expected.as_slice()), true);
     }
 }

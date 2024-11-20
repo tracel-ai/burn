@@ -29,6 +29,7 @@ pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::metric::classification::ClassificationConfig;
     use crate::TestBackend;
     use burn_core::{prelude::Tensor, tensor::Bool};
     use std::default::Default;
@@ -36,11 +37,22 @@ pub(crate) mod tests {
     /// Probability of tp before adding errors
     pub const THRESHOLD: f64 = 0.5;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub enum ClassificationType {
+        #[default]
         Binary,
         Multiclass,
         Multilabel,
+    }
+
+    impl ClassificationType {
+        pub fn from_classification_config(config: &ClassificationConfig) -> Self {
+            match config {
+                ClassificationConfig::Binary { .. } => ClassificationType::Binary,
+                ClassificationConfig::Multiclass { .. } => ClassificationType::Multiclass,
+                ClassificationConfig::Multilabel { .. } => ClassificationType::Multilabel,
+            }
+        }
     }
 
     /// Sample x Class shaped matrix for use in
