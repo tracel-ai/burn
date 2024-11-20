@@ -138,7 +138,7 @@ impl<H: Clone> HandleContainer<H> {
                 .as_ref()
                 .map(|offset| self.get_tensor_handle(offset)),
         };
-        B::quantized_tensor(handles, tensor.scheme.clone())
+        B::quantized_tensor(handles, tensor.scheme)
     }
 
     /// Register a new [float tensor](crate::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).

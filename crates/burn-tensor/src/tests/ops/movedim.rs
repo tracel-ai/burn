@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn movedim_int() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         let permuted = tensor.clone().movedim(0, 2);
         // from pytorch:
@@ -31,7 +31,7 @@ mod tests {
     #[test]
     fn movedim_float() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn movedim_bool() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .greater_elem(10);
 
@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn vec_input_int() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         let permuted = tensor.clone().movedim(vec![0, 1], vec![1, 0]);
         // from pytorch
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn vec_input_float() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn vec_input_bool() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .greater_elem(10);
 
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn different_input_types() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
@@ -192,7 +192,7 @@ mod tests {
     #[should_panic]
     fn edge_different_sizes() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with a repeated axis
         let _ = tensor.clone().movedim(vec![0, 1], vec![0]);
@@ -202,7 +202,7 @@ mod tests {
     #[should_panic]
     fn edge_out_of_bound_axis() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with an out of bound axis
         let _ = tensor.clone().movedim(0, 100);
@@ -212,7 +212,7 @@ mod tests {
     #[should_panic]
     fn edge_vec_is_not_a_set() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with a repeated axis
         let _ = tensor.clone().movedim(vec![0, 1, 1, 1, 1], vec![0, 0, 1]);
@@ -222,7 +222,7 @@ mod tests {
     #[should_panic]
     fn edge_out_of_bound_axis_vec() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with an out of bound axis
         let _ = tensor.clone().movedim(vec![0, 100], vec![0, 1]);

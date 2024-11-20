@@ -1,0 +1,52 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Backend router decorator over websocket."
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-remote"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router-remote"
+documentation = "https://docs.rs/burn-router-remote"
+version.workspace = true
+
+[features]
+default = []
+doc = []
+client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
+server = ["axum", "tracing-core", "tracing-subscriber"]
+
+
+[dependencies]
+burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = true, features = ["repr"]}
+burn-common = { path = "../burn-common", version = "0.16.0", default-features = true}
+burn-router = { path = "../burn-router", version = "0.16.0", default-features = true}
+
+# Basic dependencies
+derive-new = {workspace = true }
+log = { workspace = true }
+
+# Shared dependencies
+tokio = { version = "1.41", features = ["rt-multi-thread"] }
+serde = { workspace = true, features = ["derive"] }
+serde_bytes = { workspace = true }
+rmp-serde = { workspace = true }
+futures-util = { version = "0.3" }
+
+# Client dependencies
+async-channel = { workspace = true, optional = true }
+tokio-tungstenite = { version = "0.24", optional = true }
+
+# Server dependencies
+axum = { version = "0.7.9", features = ["ws"], optional = true }
+tracing-core = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+
+[dev-dependencies]
+# We activate the features client and server during dev.
+burn-remote = { path = ".", version = "0.16.0", features=["client", "server"] }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

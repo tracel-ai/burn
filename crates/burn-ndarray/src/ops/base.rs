@@ -10,6 +10,10 @@ use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
+
 use burn_tensor::Shape;
 use ndarray::Axis;
 use ndarray::Dim;
@@ -202,6 +206,14 @@ where
         let array = lhs.array / rhs;
         let array = array.into_shared();
 
+        NdArrayTensor { array }
+    }
+
+    pub fn remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = lhs.array.clone()
+            - (lhs.array / rhs.array.clone()).mapv_into(|a| (a.to_f64()).floor().elem())
+                * rhs.array;
+        let array = array.into_shared();
         NdArrayTensor { array }
     }
 
@@ -480,12 +492,13 @@ where
         rhs: NdArrayTensor<OtherE>,
         var_name: impl FnMut(&E, &OtherE) -> E,
     ) -> NdArrayTensor<E> {
-        NdArrayTensor::new(
-            Zip::from(lhs.array.view())
-                .and(rhs.array.view())
-                .map_collect(var_name)
-                .into_shared(),
-        )
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(Zip::from(lhs).and(rhs).map_collect(var_name).into_shared())
     }
 
     pub(crate) fn elementwise_op_scalar(

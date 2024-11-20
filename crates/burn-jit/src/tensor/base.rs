@@ -134,6 +134,7 @@ where
             strides: &self.strides,
             shape: &self.shape.dims,
             runtime: PhantomData,
+            elem_size: E::dtype().size(),
         }
     }
 
@@ -142,12 +143,17 @@ where
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
+            TensorArg::from_raw_parts::<E>(
+                handle.handle,
+                handle.strides,
+                handle.shape,
+                vectorisation,
+            )
         }
     }
 
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
-        if !self.handle.can_mut() {
+        if !self.handle.can_mut() || !self.is_contiguous_buffer() {
             return false;
         }
         let ndims = self.shape.num_dims();
@@ -194,6 +200,12 @@ where
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
         is_contiguous(&self.shape.dims, &self.strides)
+    }
+
+    /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
+    /// regions within the shape).
+    pub fn is_contiguous_buffer(&self) -> bool {
+        self.shape.num_elements() * E::as_elem().size() == self.handle.size() as usize
     }
 }
 

@@ -17,6 +17,7 @@ candle-cuda = ["burn/candle-cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
 cuda-jit = ["burn/cuda-jit"]
 cuda-jit-fusion = ["cuda-jit", "burn/fusion"]
+hip-jit = ["burn/hip-jit"]
 default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
@@ -32,8 +33,8 @@ wgpu-spirv-fusion = ["wgpu-spirv", "burn/fusion"]
 [dependencies]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
-burn-common = { path = "../crates/burn-common", version = "0.15.0" }
-burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.15.0", optional = true }
+burn-common = { path = "../crates/burn-common", version = "0.16.0" }
+burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.16.0", optional = true }
 clap = { workspace = true }
 colored = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }

@@ -73,9 +73,9 @@ impl AutodiffClient for ChannelClient {
             .unwrap()
     }
 
-    fn backward<B: Backend, const D: usize>(&self, root: AutodiffTensor<B, D>) -> Gradients {
+    fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
-        let grads = Gradients::new::<B, D>(root.node, root.primitive);
+        let grads = Gradients::new::<B>(root.node, root.primitive);
         let (callback, receiver) = std::sync::mpsc::channel();
 
         self.sender

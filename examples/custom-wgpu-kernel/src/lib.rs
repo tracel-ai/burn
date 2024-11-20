@@ -1,10 +1,7 @@
 mod backward;
 mod forward;
 
-use burn::tensor::{activation, Tensor, TensorPrimitive};
-
-/// We use a type alias for better readability.
-pub type FloatTensor<B> = <B as burn::tensor::backend::Backend>::FloatTensorPrimitive;
+use burn::tensor::{activation, ops::FloatTensor, Tensor, TensorPrimitive};
 
 /// We create our own Backend trait that extends the Burn backend trait.
 pub trait Backend: burn::tensor::backend::Backend {

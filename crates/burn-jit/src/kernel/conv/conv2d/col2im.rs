@@ -56,7 +56,8 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     );
     let im_channels = im_ch_per_group * groups;
 
-    let batches_per_run = batches_per_run(batch_size, input_h, input_w);
+    let batches_per_run = batches_per_run(batch_size, input_h, input_w)
+        .expect("Image too large to run even one batch at once");
     let col_shape_0 = im_ch_per_group * kernel_h * kernel_w;
 
     let weight = reshape(
@@ -216,11 +217,9 @@ fn col2im_kernel<F: Float>(
     args: &Col2ImArgs,
     #[comptime] has_bias: bool,
 ) {
-    if ABSOLUTE_POS > image.len() {
+    if ABSOLUTE_POS >= image.len() {
         return;
     }
-
-    let _ = bias[0]; // Keep in bind group
 
     let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w;
     let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h;

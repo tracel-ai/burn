@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn flip_int() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         let flipped = tensor.clone().flip([0, 2]);
         // from pytorch:
@@ -26,7 +26,7 @@ mod tests {
     #[test]
     fn flip_float() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .float();
 
@@ -52,7 +52,7 @@ mod tests {
     #[test]
     fn flip_bool() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device)
+        let tensor = TestTensorInt::<1>::arange(0..24, &device)
             .reshape([2, 3, 4])
             .greater_elem(10);
 
@@ -84,7 +84,7 @@ mod tests {
     #[should_panic]
     fn flip_duplicated_axes() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with a duplicated axis
         let _ = tensor.clone().flip([0, 0, 1]);
@@ -94,7 +94,7 @@ mod tests {
     #[should_panic]
     fn flip_out_of_bound_axis() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);
+        let tensor = TestTensorInt::<1>::arange(0..24, &device).reshape([2, 3, 4]);
 
         // Test with an out of bound axis
         let _ = tensor.clone().flip([3, 0, 1]);

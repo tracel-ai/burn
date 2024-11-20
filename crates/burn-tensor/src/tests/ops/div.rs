@@ -8,8 +8,8 @@ mod tests {
         let data_1 = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let data_2 = TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
         let expected = TensorData::from([[0.0, 1.0, 1.0], [1.0, 1.0, 1.0]]);
@@ -22,8 +22,8 @@ mod tests {
         let data_1 = TensorData::from([[0.0, 1.0, 2.0]]);
         let data_2 = TensorData::from([[1.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2>::from_data(data_2, &device);
+        let tensor_1 = TestTensor::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensor::<2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
 
@@ -38,7 +38,7 @@ mod tests {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
         let scalar = 2.0;
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
 
         let output = tensor / scalar;
 
@@ -52,8 +52,8 @@ mod tests {
         let data_1 = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let data_2 = TensorData::from([[1, 1, 2], [1, 1, 2]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
+        let tensor_1 = TestTensorInt::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorInt::<2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
 
@@ -67,8 +67,8 @@ mod tests {
         let data_1 = TensorData::from([[0, 1, 2]]);
         let data_2 = TensorData::from([[1, 1, 2], [3, 4, 5]]);
         let device = Default::default();
-        let tensor_1 = Tensor::<TestBackend, 2, Int>::from_data(data_1, &device);
-        let tensor_2 = Tensor::<TestBackend, 2, Int>::from_data(data_2, &device);
+        let tensor_1 = TestTensorInt::<2>::from_data(data_1, &device);
+        let tensor_2 = TestTensorInt::<2>::from_data(data_2, &device);
 
         let output = tensor_1 / tensor_2;
 
@@ -81,7 +81,7 @@ mod tests {
     fn should_support_div_scalar_ops_int() {
         let data = TensorData::from([[0, 1, 2], [3, 4, 5]]);
         let scalar = 2;
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
+        let tensor = TestTensorInt::<2>::from_data(data, &Default::default());
 
         let output = tensor / scalar;
 

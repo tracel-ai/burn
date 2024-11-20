@@ -7,6 +7,11 @@ pub use ndarray::NdArray;
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff as autodiff;
 
+#[cfg(feature = "remote")]
+pub use burn_remote as remote;
+#[cfg(feature = "remote")]
+pub use burn_remote::RemoteBackend;
+
 #[cfg(feature = "autodiff")]
 pub use burn_autodiff::Autodiff;
 
@@ -28,8 +33,17 @@ pub use burn_candle as candle;
 #[cfg(feature = "candle")]
 pub use burn_candle::Candle;
 
+#[cfg(feature = "hip-jit")]
+pub use burn_hip as hip_jit;
+
+#[cfg(feature = "hip-jit")]
+pub use burn_hip::Hip as HipJit;
+
 #[cfg(feature = "tch")]
 pub use burn_tch as libtorch;
 
 #[cfg(feature = "tch")]
 pub use burn_tch::LibTorch;
+
+#[cfg(feature = "router")]
+pub use burn_router::Router;

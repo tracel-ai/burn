@@ -171,9 +171,7 @@ impl core::fmt::Display for RecorderError {
     }
 }
 
-// TODO: Move from std to core after Error is core (see https://github.com/rust-lang/rust/issues/103765)
-#[cfg(feature = "std")]
-impl std::error::Error for RecorderError {}
+impl core::error::Error for RecorderError {}
 
 pub(crate) fn bin_config() -> bincode::config::Configuration {
     bincode::config::standard()

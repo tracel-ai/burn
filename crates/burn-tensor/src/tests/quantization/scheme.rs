@@ -11,8 +11,8 @@ mod tests {
         let device = Default::default();
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let range = CalibrationRange {
-            min: Tensor::<TestBackend, 1>::from_floats([-1.8], &device),
-            max: Tensor::<TestBackend, 1>::from_floats([0.5], &device),
+            min: TestTensor::<1>::from_floats([-1.8], &device),
+            max: TestTensor::<1>::from_floats([0.5], &device),
         };
 
         let qparams = scheme.compute_q_params(range);
@@ -33,8 +33,8 @@ mod tests {
         let device = Default::default();
         let scheme = QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8);
         let range = CalibrationRange {
-            min: Tensor::<TestBackend, 1>::from_floats([-1.8], &device),
-            max: Tensor::<TestBackend, 1>::from_floats([0.5], &device),
+            min: TestTensor::<1>::from_floats([-1.8], &device),
+            max: TestTensor::<1>::from_floats([0.5], &device),
         };
 
         let qparams = scheme.compute_q_params(range);

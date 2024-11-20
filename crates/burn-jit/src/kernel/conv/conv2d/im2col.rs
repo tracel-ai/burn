@@ -93,23 +93,25 @@ fn im2col_kernel<F: Float>(
 }
 
 #[cfg(not(test))]
-pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> usize {
-    let cube_count_per_batch = (out_h * out_w).div_ceil(cubecl::SUBCUBE_DIM_APPROX);
+pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> Option<usize> {
+    let cube_count_per_batch = (out_h * out_w).div_ceil(cubecl::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;
     let max_simultaneous = (max_cube_count / cube_count_per_batch).min(batch_size);
     if max_simultaneous == 0 {
-        panic!("Image too large to run even one batch at once");
+        return None;
     }
-    (0..=max_simultaneous)
-        .rev()
-        .find(|per_run| batch_size % per_run == 0)
-        .unwrap()
+    Some(
+        (0..=max_simultaneous)
+            .rev()
+            .find(|per_run| batch_size % per_run == 0)
+            .expect("Logically not possible"),
+    )
 }
 
 #[cfg(test)]
 #[allow(unused)]
-pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> usize {
-    1
+pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> Option<usize> {
+    Some(1)
 }
 
 fn im2col<R: JitRuntime, E: FloatElement>(
@@ -207,7 +209,8 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
     }
 
-    let batches_per_run = batches_per_run(batch_size, out_h, out_w);
+    let batches_per_run = batches_per_run(batch_size, out_h, out_w)
+        .expect("Image too large to run even one batch at once");
     let matmul_shape = Shape::new([groups, out_c_per_group, batches_per_run * out_h * out_w]);
 
     let mut out = if batches_per_run != batch_size {

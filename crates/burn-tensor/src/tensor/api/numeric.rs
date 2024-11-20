@@ -4,8 +4,12 @@ use crate::alloc::borrow::ToOwned;
 
 use crate::TensorPrimitive;
 use crate::{
-    backend::Backend, check, check::TensorCheck, BasicOps, Bool, Distribution, Element,
-    ElementConversion, Float, Int, Shape, Tensor, TensorKind,
+    backend::Backend,
+    check,
+    check::TensorCheck,
+    ops::{Device, IntTensor},
+    BasicOps, Bool, Distribution, Element, ElementConversion, Float, Int, Shape, Tensor,
+    TensorKind,
 };
 
 impl<B, const D: usize, K> Tensor<B, D, K>
@@ -65,7 +69,13 @@ where
     /// Applies element wise the remainder operation with a scalar.
     ///
     /// `y = x2 % x1`
-    #[allow(clippy::should_implement_trait)]
+    pub fn remainder(self, other: Self) -> Self {
+        Self::new(K::remainder(self.primitive, other.primitive))
+    }
+
+    /// Applies element wise the remainder operation with a scalar.
+    ///
+    /// `y = x2 % x1`
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
         Self::new(K::remainder_scalar::<E>(self.primitive, other))
     }
@@ -106,11 +116,21 @@ where
         Self::new(K::zeros(shape, device))
     }
 
+    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
+    pub fn zeros_like(&self) -> Self {
+        Self::zeros(self.shape(), &self.device())
+    }
+
     /// Create a tensor of the given shape where each element is one.
     pub fn ones<S: Into<Shape>>(shape: S, device: &B::Device) -> Self {
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
         Self::new(K::ones(shape, device))
+    }
+
+    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
+    pub fn ones_like(&self) -> Self {
+        Self::ones(self.shape(), &self.device())
     }
 
     /// Create a tensor of the given shape where each element is equal to the provided value.
@@ -122,6 +142,11 @@ where
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
         Self::new(K::full(shape, fill_value, device))
+    }
+
+    ///Returns a new tensor with the same shape and device as the current tensor filled with the provided value.
+    pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
+        Self::full(self.shape(), fill_value, &self.device())
     }
 
     /// Aggregate all elements in the tensor with the mean operation.
@@ -263,6 +288,10 @@ where
     ///
     /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather(self, dim: usize, indices: Tensor<B, D, Int>) -> Self {
         check!(TensorCheck::gather::<D>(
             dim,
@@ -288,6 +317,10 @@ where
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter(self, dim: usize, indices: Tensor<B, D, Int>, values: Self) -> Self {
         check!(TensorCheck::scatter::<D>(
             dim,
@@ -311,6 +344,10 @@ where
     /// `output[i, j, k] = input[indices[i], j, k]; // dim = 0`
     /// `output[i, j, k] = input[i, indices[j], k]; // dim = 1`
     /// `output[i, j, k] = input[i, j, indices[k]]; // dim = 2`
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
         check!(TensorCheck::select::<D>(dim));
         Self::new(K::select(self.primitive, dim, indices))
@@ -324,6 +361,10 @@ where
     /// `input[indices[i], j, k] += values[i, j, k]; // dim = 0`
     /// `input[i, indices[j], k] += values[i, j, k]; // dim = 1`
     /// `input[i, j, indices[k]] += values[i, j, k]; // dim = 2`
+    ///
+    /// # Warning
+    /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn select_assign(
         self,
         dim: usize,
@@ -975,7 +1016,7 @@ where
     /// which is more high-level and designed for public use.
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
-    /// Computes the modulus element-wise. The result has the same sign as the divisor rhs and its absolute value is
+    /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
     ///
     /// # Arguments
@@ -985,7 +1026,7 @@ where
     ///
     /// # Returns
     ///
-    /// The modulus of the input tensor with the divisor.
+    /// The modulo of the input tensor with the divisor.
     ///
     /// # Remarks
     ///
@@ -993,7 +1034,29 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modulus operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
+    /// For performing the modulo operation, users should prefer the [Tensor::remainder](Tensor::remainder) function,
+    /// which is more high-level and designed for public use.
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+
+    /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
+    /// less than that of the divisor.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The dividend.
+    /// * `rhs` - The divisor.
+    ///
+    /// # Returns
+    ///
+    /// The modulo of the input tensor with the divisor.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For performing the modul operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
     /// which is more high-level and designed for public use.
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
@@ -2079,6 +2142,9 @@ impl<B: Backend> Numeric<B> for Int {
     fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_div_scalar(lhs, rhs.elem())
     }
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_remainder(lhs, rhs)
+    }
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
         B::int_remainder_scalar(lhs, rhs.elem())
     }
@@ -2211,11 +2277,11 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_scatter(dim, tensor, indices, values)
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmax(tensor, dim)
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmin(tensor, dim)
     }
 
@@ -2230,7 +2296,7 @@ impl<B: Backend> Numeric<B> for Int {
     fn max_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         B::int_max_dim_with_indices(tensor, dim)
     }
 
@@ -2245,7 +2311,7 @@ impl<B: Backend> Numeric<B> for Int {
     fn min_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         B::int_min_dim_with_indices(tensor, dim)
     }
 
@@ -2284,11 +2350,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_powf_scalar(lhs, rhs.elem())
     }
 
-    fn random(
-        shape: Shape,
-        distribution: Distribution,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         B::int_random(shape, distribution, device)
     }
 
@@ -2379,6 +2441,20 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::QFloat(lhs) => {
                 TensorPrimitive::QFloat(B::q_div_scalar(lhs, rhs.elem()))
             }
+        }
+    }
+    fn remainder(
+        lhs: Self::Primitive,
+        rhs: Self::Primitive,
+    ) -> <Float as TensorKind<B>>::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_remainder(lhs, rhs))
+            }
+            (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
+                TensorPrimitive::QFloat(B::q_remainder(lhs, rhs))
+            }
+            _ => panic!("Primitive type mismatch for lhs and rhs"),
         }
     }
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
@@ -2613,14 +2689,14 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn argmax(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmax(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmax(tensor, dim),
         }
     }
 
-    fn argmin(tensor: Self::Primitive, dim: usize) -> <B as Backend>::IntTensorPrimitive {
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argmin(tensor, dim),
             TensorPrimitive::QFloat(tensor) => B::q_argmin(tensor, dim),
@@ -2644,7 +2720,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn max_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_max_dim_with_indices(tensor, dim);
@@ -2674,7 +2750,7 @@ impl<B: Backend> Numeric<B> for Float {
     fn min_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,
-    ) -> (Self::Primitive, <B as Backend>::IntTensorPrimitive) {
+    ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 let (values, indices) = B::float_min_dim_with_indices(tensor, dim);
@@ -2769,11 +2845,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn random(
-        shape: Shape,
-        distribution: Distribution,
-        device: &<B as Backend>::Device,
-    ) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         TensorPrimitive::Float(B::float_random(shape, distribution, device))
     }
 
@@ -2899,6 +2971,18 @@ where
 
     fn div(self, other: E) -> Self {
         Tensor::div_scalar(self, other)
+    }
+}
+
+impl<const D: usize, B, K> core::ops::Rem<Tensor<B, D, K>> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: Numeric<B>,
+    K::Elem: Element,
+{
+    type Output = Self;
+    fn rem(self, rhs: Tensor<B, D, K>) -> Self::Output {
+        Tensor::remainder(self, rhs)
     }
 }
 

@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn should_support_repeat_ops() {
         let data = TensorData::from([[0.0f64, 1.0f64, 2.0f64]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         let output = tensor.repeat_dim(0, 4);
         let expected = TensorData::from([
@@ -22,7 +22,7 @@ mod tests {
     #[test]
     fn should_support_bool_repeat_ops() {
         let data = TensorData::from([[true, false, false]]);
-        let tensor = Tensor::<TestBackend, 2, Bool>::from_data(data, &Default::default());
+        let tensor = TestTensorBool::<2>::from_data(data, &Default::default());
 
         let output = tensor.repeat_dim(0, 4);
         let expected = TensorData::from([
@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn should_support_int_repeat_ops() {
         let data = TensorData::from([[0, 1, 2]]);
-        let tensor = Tensor::<TestBackend, 2, Int>::from_data(data, &Default::default());
+        let tensor = TestTensorInt::<2>::from_data(data, &Default::default());
 
         let output = tensor.repeat_dim(0, 4);
         let expected = TensorData::from([[0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]]);
@@ -53,7 +53,7 @@ mod tests {
             [[9.0f32, 10.0f32], [11.0f32, 12.0f32]],
             [[13.0f32, 14.0f32], [15.0f32, 16.0f32]],
         ]);
-        let tensor = Tensor::<TestBackend, 3>::from_data(data, &Default::default());
+        let tensor = TestTensor::<3>::from_data(data, &Default::default());
 
         let output = tensor.repeat_dim(2, 2);
         let expected = TensorData::from([
@@ -86,7 +86,7 @@ mod tests {
             [[9i32, 10i32], [11i32, 12i32]],
             [[13i32, 14i32], [15i32, 16i32]],
         ]);
-        let tensor = Tensor::<TestBackend, 3, Int>::from_data(data, &Default::default());
+        let tensor = TestTensorInt::<3>::from_data(data, &Default::default());
 
         let output = tensor.repeat_dim(2, 3);
         let expected = TensorData::from([
@@ -117,7 +117,7 @@ mod tests {
             [[false, true], [true, false]],
             [[true, true], [false, false]],
         ]);
-        let tensor = Tensor::<TestBackend, 3, Bool>::from_data(data, &Default::default());
+        let tensor = TestTensorBool::<3>::from_data(data, &Default::default());
 
         let output = tensor.repeat_dim(1, 2);
         let expected = TensorData::from([

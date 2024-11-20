@@ -20,6 +20,22 @@ use num_traits::Float;
 
 use libm::erf;
 
+#[cfg(feature = "std")]
+#[allow(dead_code)]
+fn round_ties_even_wrapper(x: f64) -> f64 {
+    x.round_ties_even()
+}
+
+#[cfg(not(feature = "std"))]
+#[allow(dead_code)]
+fn round_ties_even_wrapper(x: f64) -> f64 {
+    if (x - x.floor()) == 0.5 {
+        (x * 0.5).round() * 2.0
+    } else {
+        x.round()
+    }
+}
+
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorOps<Self>
     for NdArray<E, I, Q>
 {
@@ -98,6 +114,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_div_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         NdArrayMathOps::div_scalar(lhs, rhs)
+    }
+
+    fn float_remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        NdArrayMathOps::remainder(lhs, rhs)
     }
 
     fn float_remainder_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
@@ -288,6 +308,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayTensor::new(array)
     }
 
+    fn float_prod(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod(tensor)
+    }
+
+    fn float_prod_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod_dim(tensor, dim)
+    }
+
     fn float_log1p(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
@@ -351,6 +379,33 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayTensor::new(array)
     }
 
+    fn float_round(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| round_ties_even_wrapper(a.to_f64()).elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_floor(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).floor().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
+    fn float_ceil(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = tensor
+            .array
+            .mapv_into(|a| (a.to_f64()).ceil().elem())
+            .into_shared();
+
+        NdArrayTensor::new(array)
+    }
+
     fn float_erf(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor
             .array
@@ -399,5 +454,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_expand(tensor: NdArrayTensor<E>, shape: Shape) -> NdArrayTensor<E> {
         NdArrayOps::expand(tensor, shape)
+    }
+
+    fn float_cast(
+        _tensor: burn_tensor::ops::FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> burn_tensor::ops::FloatTensor<Self> {
+        todo!()
     }
 }

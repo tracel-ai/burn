@@ -173,6 +173,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         NdArrayMathOps::div_scalar(lhs, rhs)
     }
 
+    fn int_remainder(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::remainder(lhs, rhs)
+    }
+
     fn int_remainder_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
         NdArrayMathOps::remainder_scalar(lhs, rhs)
     }

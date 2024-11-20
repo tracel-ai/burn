@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 
 use burn_tensor::{
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
-    Device, Distribution, ElementConversion, Shape, TensorData,
+    Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
 
@@ -14,8 +14,8 @@ use crate::{
 use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
-    fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor<F> {
-        CandleTensor::from_data(data, device.clone())
+    fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
+        CandleTensor::from_data::<F>(data, device.clone())
     }
 
     fn float_random(
@@ -52,28 +52,28 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         }
     }
 
-    fn float_shape(tensor: &CandleTensor<F>) -> Shape {
+    fn float_shape(tensor: &CandleTensor) -> Shape {
         super::base::shape(tensor)
     }
 
-    async fn float_into_data(tensor: CandleTensor<F>) -> TensorData {
+    async fn float_into_data(tensor: CandleTensor) -> TensorData {
         super::base::into_data(tensor)
     }
 
-    fn float_device(tensor: &CandleTensor<F>) -> Device<Self> {
+    fn float_device(tensor: &CandleTensor) -> Device<Self> {
         super::base::device(tensor)
     }
 
-    fn float_to_device(tensor: CandleTensor<F>, device: &Device<Self>) -> CandleTensor<F> {
+    fn float_to_device(tensor: CandleTensor, device: &Device<Self>) -> CandleTensor {
         super::base::to_device(tensor, device)
     }
 
-    fn float_into_int(tensor: CandleTensor<F>) -> IntTensor<Self> {
+    fn float_into_int(tensor: CandleTensor) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        super::base::empty(shape, device)
+        super::base::empty(shape, device, F::DTYPE)
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -106,6 +106,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_div_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         CandleTensor::new((lhs.tensor / rhs.elem::<f64>()).unwrap())
+    }
+
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(
+            (lhs.tensor.clone()
+                - lhs
+                    .tensor
+                    .broadcast_div(&rhs.tensor)
+                    .unwrap()
+                    .floor()
+                    .unwrap()
+                    .broadcast_mul(&rhs.tensor)
+                    .unwrap())
+            .unwrap(),
+        )
     }
 
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
@@ -283,7 +298,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         let sum = tensor.tensor.sum_all().unwrap().to_scalar::<F>().unwrap();
-        CandleTensor::from_data(
+        CandleTensor::from_data::<F>(
             TensorData::new([sum].into(), [1]),
             Self::float_device(&tensor),
         )
@@ -331,6 +346,36 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.tanh().unwrap())
+    }
+
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        let inner = |tensor: FloatTensor<Self>| -> candle_core::Result<FloatTensor<Self>> {
+            // implements round_to_even for consistent behavior vs libtorch
+            // https://github.com/pytorch/pytorch/blob/main/torch/csrc/jit/runtime/register_ops_utils.h#L65-L67
+
+            let floor_a = tensor.tensor.floor()?;
+            let frac_part = tensor.tensor.sub(&floor_a)?;
+
+            let half = (candle_core::Tensor::ones_like(&tensor.tensor)? * 0.5)?;
+            let mask_half = frac_part.eq(&half)?;
+            let half_tensor = tensor.tensor.mul(&half)?;
+            let rounded_half = half_tensor.round()?;
+            let doubled =
+                rounded_half.mul(&(candle_core::Tensor::ones_like(&tensor.tensor)? * 2.0)?)?;
+            let standard_round = tensor.tensor.round()?;
+            Ok(CandleTensor::new(
+                mask_half.where_cond(&doubled, &standard_round)?,
+            ))
+        };
+        inner(tensor).unwrap()
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.floor().unwrap())
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.ceil().unwrap())
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -424,5 +469,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         sign(tensor)
+    }
+
+    fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        let dtype = match dtype {
+            FloatDType::F64 => candle_core::DType::F64,
+            FloatDType::F32 => candle_core::DType::F32,
+            FloatDType::F16 => candle_core::DType::F16,
+            FloatDType::BF16 => candle_core::DType::BF16,
+        };
+
+        if tensor.tensor.dtype() == dtype {
+            tensor
+        } else {
+            CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
+        }
     }
 }

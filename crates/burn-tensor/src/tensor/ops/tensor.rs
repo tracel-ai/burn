@@ -3,9 +3,9 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
-use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
+use crate::{FloatDType, TensorPrimitive};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -103,7 +103,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(tensor: FloatTensor<B>)
+        -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -300,6 +301,18 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The result of dividing the tensor by the scalar.
     fn float_div_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+
+    /// Computes the remainder of division between two tensors element-wise.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The element-wise remainder when dividing `lhs` by `rhs`.
+    fn float_remainder(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Computes the modulus of a tensor given a scalar.
     ///
@@ -778,6 +791,18 @@ pub trait FloatTensorOps<B: Backend> {
         <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
     }
 
+    /// Converts a tensor to another floating point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target floating point data type.
+    fn float_cast(tensor: FloatTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
+
     /// Converts a tensor from full precision.
     ///
     /// # Arguments
@@ -930,6 +955,42 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` with tangent values.
     fn float_tanh(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with rounded values.
+    ///
+    /// This function should implement the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest even integer value.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be rounded.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with rounded values.
+    fn float_round(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with floored values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be floored.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with floored values.
+    fn float_floor(tensor: FloatTensor<B>) -> FloatTensor<B>;
+
+    /// Returns a new tensor with ceiled values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to be ceiled.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor` with ceiled values.
+    fn float_ceil(tensor: FloatTensor<B>) -> FloatTensor<B>;
 
     /// Returns a new tensor with the error function values.
     ///

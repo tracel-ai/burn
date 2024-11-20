@@ -43,7 +43,7 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self);
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static;
     /// Seed the runner.
     fn seed(&self, seed: u64);
 }

@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn expand_2d() {
-        let tensor = Tensor::<TestBackend, 1>::from_floats([1.0, 2.0, 3.0], &Default::default());
+        let tensor = TestTensor::<1>::from_floats([1.0, 2.0, 3.0], &Default::default());
         let output = tensor.expand([3, 3]);
 
         output.into_data().assert_eq(
@@ -13,8 +13,7 @@ mod tests {
             false,
         );
 
-        let tensor =
-            Tensor::<TestBackend, 1>::from_floats([4.0, 7.0, 2.0, 3.0], &Default::default());
+        let tensor = TestTensor::<1>::from_floats([4.0, 7.0, 2.0, 3.0], &Default::default());
         let output = tensor.expand([2, 4]);
 
         output.into_data().assert_eq(
@@ -25,8 +24,7 @@ mod tests {
 
     #[test]
     fn expand_3d() {
-        let tensor =
-            Tensor::<TestBackend, 2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &Default::default());
+        let tensor = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &Default::default());
         let output = tensor.expand([3, 2, 2]);
         let expected = TensorData::from([
             [[1.0, 2.0], [3.0, 4.0]],
@@ -39,8 +37,7 @@ mod tests {
 
     #[test]
     fn expand_higher_dimensions() {
-        let tensor =
-            Tensor::<TestBackend, 2>::from_floats([[1.0, 2.0, 3.0, 4.0]], &Default::default());
+        let tensor = TestTensor::<2>::from_floats([[1.0, 2.0, 3.0, 4.0]], &Default::default());
         let output = tensor.expand([2, 3, 4]);
         let expected = TensorData::from([
             [
@@ -60,7 +57,7 @@ mod tests {
 
     #[test]
     fn broadcast_single() {
-        let tensor = Tensor::<TestBackend, 1>::from_floats([1.0], &Default::default());
+        let tensor = TestTensor::<1>::from_floats([1.0], &Default::default());
         let output = tensor.expand([2, 3]);
 
         output
@@ -71,7 +68,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn should_fail_expand_incompatible_shapes() {
-        let tensor = Tensor::<TestBackend, 1>::from_floats([1.0, 2.0, 3.0], &Default::default());
+        let tensor = TestTensor::<1>::from_floats([1.0, 2.0, 3.0], &Default::default());
         let _expanded_tensor = tensor.expand([2, 2]);
     }
 

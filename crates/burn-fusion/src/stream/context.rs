@@ -8,6 +8,7 @@ use hashbrown::HashMap;
 ///
 /// It also contains all scalar values, which can change even for the same graph. They are sorted
 /// in the order in which they appear in the graph.
+#[allow(clippy::too_many_arguments)]
 #[derive(new)]
 pub struct Context<'a, H> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
@@ -20,8 +21,22 @@ pub struct Context<'a, H> {
     pub scalar_f16: &'a Vec<f16>,
     /// BF16 scalars found in the graph in the order they appeared.
     pub scalar_bf16: &'a Vec<bf16>,
-    /// Int scalars found in the graph in the order they appeared.
-    pub scalar_ints: &'a Vec<i32>,
+    /// i64 scalars found in the graph in the order they appeared.
+    pub scalar_i64: &'a Vec<i64>,
+    /// i32 scalars found in the graph in the order they appeared.
+    pub scalar_i32: &'a Vec<i32>,
+    /// i16 scalars found in the graph in the order they appeared.
+    pub scalar_i16: &'a Vec<i16>,
+    /// i8 scalars found in the graph in the order they appeared.
+    pub scalar_i8: &'a Vec<i8>,
+    /// u64 scalars found in the graph in the order they appeared.
+    pub scalar_u64: &'a Vec<u64>,
+    /// u32 scalars found in the graph in the order they appeared.
+    pub scalar_u32: &'a Vec<u32>,
+    /// u16 scalars found in the graph in the order they appeared.
+    pub scalar_u16: &'a Vec<u16>,
+    /// u8 scalars found in the graph in the order they appeared.
+    pub scalar_u8: &'a Vec<u8>,
 }
 
 #[derive(Default)]
@@ -34,7 +49,14 @@ pub(crate) struct OperationConverter {
     scalar_f32: Vec<f32>,
     scalar_f16: Vec<f16>,
     scalar_bf16: Vec<bf16>,
-    scalar_ints: Vec<i32>,
+    scalar_i64: Vec<i64>,
+    scalar_i32: Vec<i32>,
+    scalar_i16: Vec<i16>,
+    scalar_i8: Vec<i8>,
+    scalar_u64: Vec<u64>,
+    scalar_u32: Vec<u32>,
+    scalar_u16: Vec<u16>,
+    scalar_u8: Vec<u8>,
 }
 
 pub(crate) trait RelativeOps {
@@ -63,7 +85,14 @@ impl OperationConverter {
             scalar_f32: &self.scalar_f32,
             scalar_f16: &self.scalar_f16,
             scalar_bf16: &self.scalar_bf16,
-            scalar_ints: &self.scalar_ints,
+            scalar_i64: &self.scalar_i64,
+            scalar_i32: &self.scalar_i32,
+            scalar_i16: &self.scalar_i16,
+            scalar_i8: &self.scalar_i8,
+            scalar_u64: &self.scalar_u64,
+            scalar_u32: &self.scalar_u32,
+            scalar_u16: &self.scalar_u16,
+            scalar_u8: &self.scalar_u8,
         }
     }
 
@@ -74,7 +103,14 @@ impl OperationConverter {
         self.scalar_f32.clear();
         self.scalar_f16.clear();
         self.scalar_bf16.clear();
-        self.scalar_ints.clear();
+        self.scalar_i64.clear();
+        self.scalar_i32.clear();
+        self.scalar_i16.clear();
+        self.scalar_i8.clear();
+        self.scalar_u64.clear();
+        self.scalar_u32.clear();
+        self.scalar_u16.clear();
+        self.scalar_u8.clear();
     }
 
     pub(crate) fn relative_float<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
@@ -90,8 +126,18 @@ impl OperationConverter {
         0.elem()
     }
 
-    pub(crate) fn relative_int<E: Element>(&mut self, elem: &E) -> E {
-        self.scalar_ints.push(elem.elem());
+    pub(crate) fn relative_int<E: Element>(&mut self, elem: &E, dtype: &DType) -> E {
+        match dtype {
+            DType::I64 => self.scalar_i64.push(elem.elem()),
+            DType::I32 => self.scalar_i32.push(elem.elem()),
+            DType::I16 => self.scalar_i16.push(elem.elem()),
+            DType::I8 => self.scalar_i8.push(elem.elem()),
+            DType::U64 => self.scalar_u64.push(elem.elem()),
+            DType::U32 => self.scalar_u32.push(elem.elem()),
+            DType::U16 => self.scalar_u16.push(elem.elem()),
+            DType::U8 => self.scalar_u8.push(elem.elem()),
+            _ => todo!("Unsupported"),
+        }
         // We return 0 so that the id from a scalar operation is the same no matter its scalar
         // value.
         0.elem()
@@ -116,7 +162,7 @@ impl RelativeOps for OperationDescription {
             ),
             OperationDescription::NumericInt(dtype, ops) => OperationDescription::NumericInt(
                 *dtype,
-                ops.to_relative(converter, |converter, e| converter.relative_int(e)),
+                ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
             ),
             OperationDescription::Bool(ops) => {
                 OperationDescription::Bool(ops.to_relative(converter))
@@ -130,6 +176,9 @@ impl RelativeOps for OperationDescription {
             ),
             OperationDescription::Module(ops) => {
                 OperationDescription::Module(ops.to_relative(converter))
+            }
+            OperationDescription::Custom(ops) => {
+                OperationDescription::Custom(ops.to_relative(converter))
             }
         }
     }
@@ -498,7 +547,7 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                             .as_ref()
                             .map(|x| x.to_relative(converter)),
                     },
-                    scheme: desc.scheme.clone(),
+                    scheme: desc.scheme,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -515,8 +564,26 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                                 .as_ref()
                                 .map(|x| x.to_relative(converter)),
                         },
-                        scheme: desc.qtensor.scheme.clone(),
+                        scheme: desc.qtensor.scheme,
                     },
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            FloatOperationDescription::Round(desc) => {
+                FloatOperationDescription::Round(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            FloatOperationDescription::Floor(desc) => {
+                FloatOperationDescription::Floor(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            FloatOperationDescription::Ceil(desc) => {
+                FloatOperationDescription::Ceil(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -558,6 +625,26 @@ impl RelativeOps for IntOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+        }
+    }
+}
+
+impl RelativeOps for CustomOpDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpDescription {
+        let id = self.id.clone();
+
+        CustomOpDescription {
+            id,
+            inputs: self
+                .inputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
+            outputs: self
+                .outputs
+                .iter()
+                .map(|x| x.to_relative(converter))
+                .collect(),
         }
     }
 }
@@ -607,6 +694,13 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                 NumericOperationDescription::DivScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            NumericOperationDescription::Rem(desc) => {
+                NumericOperationDescription::Rem(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }

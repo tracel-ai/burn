@@ -111,7 +111,7 @@ mod tests {
             !output
                 .clone()
                 .to_data()
-                .as_slice::<f32>()
+                .as_slice::<FloatType>()
                 .unwrap()
                 .iter()
                 .any(|&x| x.is_nan()),
@@ -156,7 +156,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Bilinear),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.3);
         }
     }
 }

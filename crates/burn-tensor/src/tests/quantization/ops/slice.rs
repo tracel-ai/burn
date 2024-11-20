@@ -120,7 +120,7 @@ mod tests {
             [2],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.039215688, -128)),
         );
-        let tensor_assigned = Tensor::<TestBackend, 1>::from_data(data, &device);
+        let tensor_assigned = TestTensor::<1>::from_data(data, &device);
 
         let output = tensor.slice_assign([0..2], tensor_assigned);
         let expected = TensorData::from([10.0, 5.0, 2.0]);
@@ -148,7 +148,7 @@ mod tests {
             [1, 2],
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.039215688, -128)),
         );
-        let tensor_assigned = Tensor::<TestBackend, 2>::from_data(data, &device);
+        let tensor_assigned = TestTensor::<2>::from_data(data, &device);
 
         let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
         let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
@@ -291,7 +291,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_with_too_many_dimensions() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..1, 0..1]);
 
@@ -302,7 +302,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_is_desc() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         #[allow(clippy::reversed_empty_ranges)]
         let output = tensor.slice([2..1]);
@@ -314,7 +314,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_is_equal() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([1..1]);
 

@@ -105,6 +105,10 @@ where
         numeric::div_scalar(lhs, rhs)
     }
 
+    fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        numeric::remainder(lhs, rhs)
+    }
+
     fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: FloatElem<Self>) -> FloatTensor<Self> {
         numeric::remainder_scalar(lhs, rhs)
     }
@@ -333,6 +337,36 @@ where
         })
     }
 
+    fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::round(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
+    }
+
+    fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::floor(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
+    }
+
+    fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_op!(float(tensor) => |context, tensor| {
+            #[cube]
+            fn execute<C: Float>(input: Line<C>) -> Line<C> {
+                Line::ceil(input)
+            }
+            execute::expand::<C>(context, tensor)
+        })
+    }
+
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_op!(float(tensor) => |context, tensor| {
             #[cube]
@@ -391,5 +425,12 @@ where
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
         kernel::flip(tensor, axes)
+    }
+
+    fn float_cast(
+        _tensor: FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> FloatTensor<Self> {
+        todo!()
     }
 }

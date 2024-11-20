@@ -2,6 +2,7 @@
 pub mod state;
 
 mod acc;
+mod auroc;
 mod base;
 #[cfg(feature = "metrics")]
 mod cpu_temp;
@@ -16,9 +17,12 @@ mod loss;
 mod memory_use;
 
 #[cfg(feature = "metrics")]
+mod iteration;
+#[cfg(feature = "metrics")]
 mod top_k_acc;
 
 pub use acc::*;
+pub use auroc::*;
 pub use base::*;
 #[cfg(feature = "metrics")]
 pub use cpu_temp::*;
@@ -27,6 +31,8 @@ pub use cpu_use::*;
 #[cfg(feature = "metrics")]
 pub use cuda::*;
 pub use hamming::*;
+#[cfg(feature = "metrics")]
+pub use iteration::*;
 pub use learning_rate::*;
 pub use loss::*;
 #[cfg(feature = "metrics")]

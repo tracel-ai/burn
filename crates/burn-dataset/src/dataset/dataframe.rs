@@ -367,7 +367,7 @@ mod tests {
         let dataset: DataframeDataset<TestData> = DataframeDataset::new(df).unwrap();
 
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.is_empty(), false);
+        assert!(!dataset.is_empty());
 
         let item = dataset.get(1).unwrap();
         assert_eq!(
@@ -439,7 +439,7 @@ mod tests {
         let dataset = DataframeDataset::<PartialTestData>::new(df).unwrap();
 
         assert_eq!(dataset.len(), 3);
-        assert_eq!(dataset.is_empty(), false);
+        assert!(!dataset.is_empty());
 
         let item = dataset.get(1).unwrap();
         assert_eq!(

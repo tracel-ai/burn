@@ -170,8 +170,8 @@ where
                 cube_dim,
                 tensor.as_tensor_arg(vectorization_factor),
                 // Ignore shape and stride
-                TensorArg::from_raw_parts(&scale.handle, &dummy_array, &dummy_array, 1),
-                TensorArg::from_raw_parts(&offset.handle, &dummy_array, &dummy_array, 1),
+                TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
+                TensorArg::from_raw_parts::<I>(&offset.handle, &dummy_array, &dummy_array, 1),
                 output.as_tensor_arg(1),
                 vectorization_factor > 1,
             )
@@ -184,7 +184,7 @@ where
                 cube_dim,
                 tensor.as_tensor_arg(vectorization_factor),
                 // Ignore shape and stride
-                TensorArg::from_raw_parts(&scale.handle, &dummy_array, &dummy_array, 1),
+                TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
                 output.as_tensor_arg(1),
                 vectorization_factor > 1,
             )

@@ -30,6 +30,7 @@ include_models!(
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose1d,
     conv_transpose2d,
     conv_transpose3d,
     cos,
@@ -83,7 +84,9 @@ include_models!(
     pow_int,
     prelu,
     random_normal,
+    random_normal_like,
     random_uniform,
+    random_uniform_like,
     range,
     recip,
     reduce_max,
@@ -1509,6 +1512,28 @@ mod tests {
     }
 
     #[test]
+    fn conv_transpose1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 22]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
     fn conv_transpose2d() {
         // Initialize the model with weights (loaded from the exported file)
         let model: conv_transpose2d::Model<Backend> = conv_transpose2d::Model::default();
@@ -2126,11 +2151,35 @@ mod tests {
     }
 
     #[test]
+    fn random_uniform_like() {
+        let device = Default::default();
+        let model = random_uniform_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn random_normal() {
         let device = Default::default();
         let model = random_normal::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_normal_like() {
+        let device = Default::default();
+        let model = random_normal_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
         assert_eq!(expected_shape, output.shape());
     }
 
