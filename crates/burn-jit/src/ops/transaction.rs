@@ -60,7 +60,7 @@ where
 
         async move {
             let mut data = client
-                .read_many_async(bindings)
+                .read_async(bindings)
                 .await
                 .into_iter()
                 .map(|t| Some(t))

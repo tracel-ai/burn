@@ -118,6 +118,6 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 #[allow(unused)]
 pub(crate) fn debug_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R, E>) -> TensorData {
-    let bytes = tensor.client.read(tensor.handle.binding());
+    let bytes = tensor.client.read_one(tensor.handle.binding());
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
