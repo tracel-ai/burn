@@ -1228,7 +1228,7 @@ where
     ///     // The second chunk will have shape [4, 1]:
     ///     // [[2.0], [3.0], [7.0], [9.0]]
     ///     let chunks = tensor.chunk(2, 1);
-    ///     println!("{chunks}");
+    ///     println!("{chunks:?}");
     /// }
     /// ```
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
