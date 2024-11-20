@@ -76,7 +76,7 @@ fn bench<B: Backend>(
     let groups = 1;
     let options = ConvOptions::new(strides, padding, dilations, groups);
     let benchmark = Conv2dBenchmark::<B> {
-        suffix: "default",
+        suffix: "input_16x512x512_weight_16x3x3_stride_1",
         input_shape: [batch_size, channels_in, height_in, width_in].into(),
         weight_shape: [
             channels_out,
@@ -91,7 +91,7 @@ fn bench<B: Backend>(
     };
 
     let conv1 = Conv2dBenchmark::<B> {
-        suffix: "conv1",
+        suffix: "input_3x227x227_weight_96x11x11_stride_4",
         input_shape: [batch_size, 3, 227, 227].into(),
         weight_shape: [96, 3, 11, 11].into(),
         bias_shape: [96].into(),
@@ -100,7 +100,7 @@ fn bench<B: Backend>(
     };
 
     let conv2 = Conv2dBenchmark::<B> {
-        suffix: "conv2",
+        suffix: "input_3x231x231_weight_96x11x11_stride_4",
         input_shape: [batch_size, 3, 231, 231].into(),
         weight_shape: [96, 3, 11, 11].into(),
         bias_shape: [96].into(),
@@ -109,7 +109,7 @@ fn bench<B: Backend>(
     };
 
     let conv3 = Conv2dBenchmark::<B> {
-        suffix: "conv3",
+        suffix: "input_3x227x227_weight_64x7x7_stride_2",
         input_shape: [batch_size, 3, 227, 227].into(),
         weight_shape: [64, 3, 7, 7].into(),
         bias_shape: [64].into(),
@@ -118,7 +118,7 @@ fn bench<B: Backend>(
     };
 
     let conv4 = Conv2dBenchmark::<B> {
-        suffix: "conv4",
+        suffix: "input_64x224x224_weight_64x7x7_stride_2",
         input_shape: [batch_size, 64, 224, 224].into(),
         weight_shape: [64, 64, 7, 7].into(),
         bias_shape: [64].into(),
@@ -127,7 +127,7 @@ fn bench<B: Backend>(
     };
 
     let conv5 = Conv2dBenchmark::<B> {
-        suffix: "conv5",
+        suffix: "input_96x24x24_weight_256x5x5_stride_1",
         input_shape: [batch_size, 96, 24, 24].into(),
         weight_shape: [256, 96, 5, 5].into(),
         bias_shape: [256].into(),
@@ -136,7 +136,7 @@ fn bench<B: Backend>(
     };
 
     let conv6 = Conv2dBenchmark::<B> {
-        suffix: "conv6",
+        suffix: "input_256x12x12_weight_512x3x3_stride_1",
         input_shape: [batch_size, 256, 12, 12].into(),
         weight_shape: [512, 256, 3, 3].into(),
         bias_shape: [512].into(),
@@ -145,7 +145,7 @@ fn bench<B: Backend>(
     };
 
     let conv7 = Conv2dBenchmark::<B> {
-        suffix: "conv7",
+        suffix: "input_3x224x224_weight_64x3x3_stride_1",
         input_shape: [batch_size, 3, 224, 224].into(),
         weight_shape: [64, 3, 3, 3].into(),
         bias_shape: [64].into(),
@@ -154,7 +154,7 @@ fn bench<B: Backend>(
     };
 
     let conv8 = Conv2dBenchmark::<B> {
-        suffix: "conv8",
+        suffix: "input_64x112x112_weight_128x3x3_stride_1",
         input_shape: [batch_size, 64, 112, 112].into(),
         weight_shape: [128, 64, 3, 3].into(),
         bias_shape: [128].into(),
@@ -163,7 +163,7 @@ fn bench<B: Backend>(
     };
 
     let conv9 = Conv2dBenchmark::<B> {
-        suffix: "conv9",
+        suffix: "input_64x56x56_weight_64x3x3_stride_1",
         input_shape: [batch_size, 64, 56, 56].into(),
         weight_shape: [64, 64, 3, 3].into(),
         bias_shape: [64].into(),
@@ -172,7 +172,7 @@ fn bench<B: Backend>(
     };
 
     let conv10 = Conv2dBenchmark::<B> {
-        suffix: "conv10",
+        suffix: "input_128x28x28_weight_128x3x3_stride_1",
         input_shape: [batch_size, 128, 28, 28].into(),
         weight_shape: [128, 128, 3, 3].into(),
         bias_shape: [128].into(),
@@ -181,7 +181,7 @@ fn bench<B: Backend>(
     };
 
     let conv11 = Conv2dBenchmark::<B> {
-        suffix: "conv11",
+        suffix: "input_256x14x14_weight_256x3x3_stride_1",
         input_shape: [batch_size, 256, 14, 14].into(),
         weight_shape: [256, 256, 3, 3].into(),
         bias_shape: [256].into(),
@@ -190,10 +190,19 @@ fn bench<B: Backend>(
     };
 
     let conv12 = Conv2dBenchmark::<B> {
-        suffix: "conv12",
+        suffix: "input_512x7x7_weight_512x3x3_stride_1",
         input_shape: [batch_size, 512, 7, 7].into(),
         weight_shape: [512, 512, 3, 3].into(),
         bias_shape: [512].into(),
+        options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
+        device: device.clone(),
+    };
+
+    let conv13 = Conv2dBenchmark::<B> {
+        suffix: "input_96x224x224_weight_64x1x1_stride_1",
+        input_shape: [batch_size, 96, 224, 224].into(),
+        weight_shape: [64, 96, 1, 1].into(),
+        bias_shape: [64].into(),
         options: ConvOptions::new([1, 1], [0, 0], [1, 1], 1),
         device: device.clone(),
     };
@@ -213,6 +222,7 @@ fn bench<B: Backend>(
             run_benchmark(conv10),
             run_benchmark(conv11),
             run_benchmark(conv12),
+            run_benchmark(conv13),
         ],
         device,
         feature_name,
