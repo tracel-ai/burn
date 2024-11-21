@@ -285,6 +285,22 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_chunk(tensor, chunks, dim)
     }
 
+    fn int_split(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
+        split_size: usize,
+        dim: usize,
+    ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive> {
+        B::int_split(tensor, split_size, dim)
+    }
+
+    fn int_split_with_sizes(
+        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<<Autodiff<B> as Backend>::IntTensorPrimitive> {
+        B::int_split_with_sizes(tensor, split_sizes, dim)
+    }
+
     fn int_random(
         shape: Shape,
         distribution: Distribution,
