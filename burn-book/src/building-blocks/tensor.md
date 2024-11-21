@@ -288,8 +288,8 @@ Those operations are only available for `Int` tensors.
 
 | Burn API                                         | PyTorch Equivalent                                      |
 | ------------------------------------------------ | ------------------------------------------------------- |
-| `tensor.arange(5..10, device)`                   | `tensor.arange(start=5, end=10, device=device)`         |
-| `tensor.arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `Tensor::arange(5..10, device)`                   | `tensor.arange(start=5, end=10, device=device)`         |
+| `Tensor::arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
