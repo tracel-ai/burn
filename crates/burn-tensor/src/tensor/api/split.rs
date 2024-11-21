@@ -1,4 +1,4 @@
-use super::narrow::narrow;
+use super::{narrow::narrow, TensorMetadata};
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
@@ -27,7 +27,7 @@ pub fn split<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     split_size: usize,
     dim: usize,
 ) -> Vec<K::Primitive> {
-    let size = K::shape(&tensor).dims[dim];
+    let size = tensor.shape().dims[dim];
     let mut tensors = Vec::new();
 
     let mut start = 0;
