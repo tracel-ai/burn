@@ -44,7 +44,7 @@ pub struct TuiMetricsRenderer {
     interuptor: TrainingInterrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
-    manual_quit: bool,
+    persistent: bool,
 }
 
 impl MetricsRenderer for TuiMetricsRenderer {
@@ -117,13 +117,14 @@ impl TuiMetricsRenderer {
             interuptor,
             popup: PopupState::Empty,
             previous_panic_hook: Some(previous_panic_hook),
-            manual_quit: false,
+            persistent: false,
         }
     }
 
-    /// Enable manual quit after training.
-    pub fn enable_manual_quit(&mut self) {
-        self.manual_quit = true;
+    /// Set the renderer to persistent mode.
+    pub fn persistent(mut self) -> Self {
+        self.persistent = true;
+        self
     }
 
     fn render(&mut self) -> Result<(), Box<dyn Error>> {
@@ -280,7 +281,7 @@ impl Drop for TuiMetricsRenderer {
         // Reset the terminal back to raw mode. This can be skipped during
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
-            if self.manual_quit {
+            if self.persistent {
                 if let Err(err) = self.handle_post_training() {
                     eprintln!("Error in post-training handling: {}", err);
                 }
