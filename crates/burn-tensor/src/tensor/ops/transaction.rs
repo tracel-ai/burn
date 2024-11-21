@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::future::Future;
 
 use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
