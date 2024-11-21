@@ -345,6 +345,18 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         TchOps::chunk(tensor, chunks, dim)
     }
 
+    fn int_split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
+        TchOps::split(tensor, split_size, dim)
+    }
+
+    fn int_split_with_sizes(
+        tensor: TchTensor,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor> {
+        TchOps::split_with_sizes(tensor, split_sizes, dim)
+    }
+
     fn int_random(shape: Shape, distribution: Distribution, device: &LibTorchDevice) -> TchTensor {
         match distribution {
             Distribution::Default => {

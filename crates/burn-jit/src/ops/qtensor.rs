@@ -99,7 +99,10 @@ where
         let strategy = tensor.strategy();
         let qtensor = kernel::into_contiguous(tensor.qtensor);
 
-        let bytes = qtensor.client.read_async(qtensor.handle.binding()).await;
+        let bytes = qtensor
+            .client
+            .read_one_async(qtensor.handle.binding())
+            .await;
 
         // TensorData keeps quantized values packed into 32-bit unsigned integers so we can
         // keep the current representation, just cast the bytes as u32.

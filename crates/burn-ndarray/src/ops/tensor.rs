@@ -304,6 +304,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayTensor::new(array)
     }
 
+    fn float_prod(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod(tensor)
+    }
+
+    fn float_prod_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod_dim(tensor, dim)
+    }
+
     fn float_log1p(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 

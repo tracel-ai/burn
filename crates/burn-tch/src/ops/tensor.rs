@@ -413,6 +413,18 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchOps::chunk(tensor, chunks, dim)
     }
 
+    fn float_split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
+        TchOps::split(tensor, split_size, dim)
+    }
+
+    fn float_split_with_sizes(
+        tensor: TchTensor,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor> {
+        TchOps::split_with_sizes(tensor, split_sizes, dim)
+    }
+
     fn float_powf(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchOps::powf(lhs, rhs)
     }

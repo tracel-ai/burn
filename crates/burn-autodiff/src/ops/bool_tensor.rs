@@ -84,6 +84,18 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_chunk(tensor, chunks, dim)
     }
 
+    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
+        B::bool_split(tensor, split_size, dim)
+    }
+
+    fn bool_split_with_sizes(
+        tensor: BoolTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<BoolTensor<B>> {
+        B::bool_split_with_sizes(tensor, split_sizes, dim)
+    }
+
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         B::bool_permute(tensor, axes)
     }

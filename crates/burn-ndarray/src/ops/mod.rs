@@ -5,6 +5,7 @@ mod int_tensor;
 mod module;
 mod qtensor;
 mod tensor;
+mod transaction;
 
 pub(crate) mod adaptive_avgpool;
 pub(crate) mod avgpool;

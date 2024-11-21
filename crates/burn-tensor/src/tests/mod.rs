@@ -108,6 +108,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_sin!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
+        // burn_tensor::testgen_q_split!();
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();
@@ -221,6 +222,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_split!();
+        burn_tensor::testgen_prod!();
 
         // test stats
         burn_tensor::testgen_var!();

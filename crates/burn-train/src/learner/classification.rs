@@ -1,6 +1,8 @@
-use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
+use crate::metric::processor::ItemLazy;
+use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput, PrecisionInput};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, Transaction};
+use burn_ndarray::NdArray;
 
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]
@@ -15,6 +17,28 @@ pub struct ClassificationOutput<B: Backend> {
     pub targets: Tensor<B, 1, Int>,
 }
 
+impl<B: Backend> ItemLazy for ClassificationOutput<B> {
+    type ItemSync = ClassificationOutput<NdArray>;
+
+    fn sync(self) -> Self::ItemSync {
+        let [output, loss, targets] = Transaction::default()
+            .register(self.output)
+            .register(self.loss)
+            .register(self.targets)
+            .execute()
+            .try_into()
+            .expect("Correct amount of tensor data");
+
+        let device = &Default::default();
+
+        ClassificationOutput {
+            output: Tensor::from_data(output, device),
+            loss: Tensor::from_data(loss, device),
+            targets: Tensor::from_data(targets, device),
+        }
+    }
+}
+
 impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> AccuracyInput<B> {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
@@ -24,6 +48,23 @@ impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
 impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
+    }
+}
+
+impl<B: Backend> Adaptor<PrecisionInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> PrecisionInput<B> {
+        let [_, num_classes] = self.output.dims();
+        if num_classes > 1 {
+            PrecisionInput::new(
+                self.output.clone(),
+                self.targets.clone().one_hot(num_classes).bool(),
+            )
+        } else {
+            PrecisionInput::new(
+                self.output.clone(),
+                self.targets.clone().unsqueeze_dim(1).bool(),
+            )
+        }
     }
 }
 
@@ -40,6 +81,28 @@ pub struct MultiLabelClassificationOutput<B: Backend> {
     pub targets: Tensor<B, 2, Int>,
 }
 
+impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
+    type ItemSync = MultiLabelClassificationOutput<NdArray>;
+
+    fn sync(self) -> Self::ItemSync {
+        let [output, loss, targets] = Transaction::default()
+            .register(self.output)
+            .register(self.loss)
+            .register(self.targets)
+            .execute()
+            .try_into()
+            .expect("Correct amount of tensor data");
+
+        let device = &Default::default();
+
+        MultiLabelClassificationOutput {
+            output: Tensor::from_data(output, device),
+            loss: Tensor::from_data(loss, device),
+            targets: Tensor::from_data(targets, device),
+        }
+    }
+}
+
 impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutput<B> {
     fn adapt(&self) -> HammingScoreInput<B> {
         HammingScoreInput::new(self.output.clone(), self.targets.clone())
@@ -49,5 +112,11 @@ impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutpu
 impl<B: Backend> Adaptor<LossInput<B>> for MultiLabelClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
+    }
+}
+
+impl<B: Backend> Adaptor<PrecisionInput<B>> for MultiLabelClassificationOutput<B> {
+    fn adapt(&self) -> PrecisionInput<B> {
+        PrecisionInput::new(self.output.clone(), self.targets.clone().bool())
     }
 }

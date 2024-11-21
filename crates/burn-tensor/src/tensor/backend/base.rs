@@ -59,6 +59,7 @@ pub trait Backend:
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>
+    + TransactionOps<Self>
     + Clone
     + Default
     + Sized

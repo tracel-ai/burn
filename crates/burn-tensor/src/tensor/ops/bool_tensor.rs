@@ -3,8 +3,8 @@ use super::{
     FloatTensor, IntTensor,
 };
 use crate::{
-    argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion,
-    TensorData, TensorMetadata,
+    argwhere_data, backend::Backend, chunk, narrow, split, split_with_sizes, tensor::Shape, Bool,
+    ElementConversion, TensorData, TensorMetadata,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
@@ -268,14 +268,49 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced
+    /// * `chunks` - The number of chunks to be produced.
     /// * `times` - The dimension along which the tensor will be split.
     ///
     /// # Returns
     ///
-    /// A vector of tensors
+    /// A vector of tensors.
     fn bool_chunk(tensor: BoolTensor<B>, chunks: usize, dim: usize) -> Vec<BoolTensor<B>> {
         chunk::<B, Bool>(tensor, chunks, dim)
+    }
+
+    /// Split the tensor along the given dimension into chunks of `split_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_size` - The size of a single chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
+        split::<B, Bool>(tensor, split_size, dim)
+    }
+
+    /// Split the tensor along the given dimension into chunks with sizes in
+    /// `dim` according to `split_sizes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_sizes` - Vector of sizes for each chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn bool_split_with_sizes(
+        tensor: BoolTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<BoolTensor<B>> {
+        split_with_sizes::<B, Bool>(tensor, split_sizes, dim)
     }
 
     /// Tests if any element in the boolean `tensor` evaluates to True.

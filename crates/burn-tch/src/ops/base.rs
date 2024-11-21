@@ -416,6 +416,29 @@ impl TchOps {
             .collect()
     }
 
+    pub fn split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
+        tensor
+            .tensor
+            .split(split_size as i64, dim as i64)
+            .into_iter()
+            .map(TchTensor::new)
+            .collect()
+    }
+
+    pub fn split_with_sizes(
+        tensor: TchTensor,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor> {
+        let split_sizes_i64: Vec<i64> = split_sizes.iter().map(|&s| s as i64).collect();
+        tensor
+            .tensor
+            .split_with_sizes(split_sizes_i64, dim as i64)
+            .into_iter()
+            .map(TchTensor::new)
+            .collect()
+    }
+
     pub fn powf(tensor: TchTensor, exponent: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             tensor,
