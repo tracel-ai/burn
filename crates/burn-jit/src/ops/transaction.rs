@@ -63,7 +63,7 @@ where
                 .read_async(bindings)
                 .await
                 .into_iter()
-                .map(|t| Some(t))
+                .map(Some)
                 .collect::<Vec<_>>();
 
             let mut result = TransactionPrimitiveResult::default();

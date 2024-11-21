@@ -55,10 +55,10 @@ impl<B: Backend> Transaction<B> {
         async move {
             let result = fut.await;
 
-            let mut floats: Vec<_> = result.read_floats.into_iter().map(|t| Some(t)).collect();
-            let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(|t| Some(t)).collect();
-            let mut ints: Vec<_> = result.read_ints.into_iter().map(|t| Some(t)).collect();
-            let mut bools: Vec<_> = result.read_bools.into_iter().map(|t| Some(t)).collect();
+            let mut floats: Vec<_> = result.read_floats.into_iter().map(Some).collect();
+            let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
+            let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
+            let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
 
             self.orders
                 .into_iter()
