@@ -1,5 +1,5 @@
 use burn_tensor::{
-    ops::{TransactionOps, TransactionResult},
+    ops::{TransactionOps, TransactionPrimitiveResult},
     DType, TensorData,
 };
 
@@ -12,8 +12,8 @@ where
     I: IntElement,
 {
     fn tr_execute(
-        transaction: burn_tensor::ops::Transaction<Self>,
-    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionResult> + 'static + Send
+        transaction: burn_tensor::ops::TransactionPrimitive<Self>,
+    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionPrimitiveResult> + 'static + Send
     {
         let mut bindings = Vec::new();
         let mut client = None;
@@ -66,7 +66,7 @@ where
                 .map(|t| Some(t))
                 .collect::<Vec<_>>();
 
-            let mut result = TransactionResult::default();
+            let mut result = TransactionPrimitiveResult::default();
 
             for kind in kinds {
                 match kind {

@@ -1,7 +1,7 @@
 use crate::metric::processor::ItemLazy;
 use crate::metric::{Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Tensor, TransactionQuery};
+use burn_core::tensor::{Tensor, Transaction};
 use burn_ndarray::NdArray;
 
 /// Simple regression output adapted for multiple metrics.
@@ -27,13 +27,13 @@ impl<B: Backend> ItemLazy for RegressionOutput<B> {
     type ItemSync = RegressionOutput<NdArray>;
 
     fn sync(self) -> Self::ItemSync {
-        let [output, loss, targets] = TransactionQuery::default()
-            .read(self.output)
-            .read(self.loss)
-            .read(self.targets)
+        let [output, loss, targets] = Transaction::default()
+            .register(self.output)
+            .register(self.loss)
+            .register(self.targets)
             .execute()
             .try_into()
-            .expect("Correct amount of data");
+            .expect("Correct amount of tensor data");
 
         let device = &Default::default();
 

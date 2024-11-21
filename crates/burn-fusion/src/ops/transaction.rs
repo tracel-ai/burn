@@ -1,13 +1,13 @@
-use burn_tensor::ops::{Transaction, TransactionOps};
+use burn_tensor::ops::{TransactionOps, TransactionPrimitive};
 
 use crate::{client::FusionClient, Fusion, FusionBackend};
 
 impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
     fn tr_execute(
-        transaction: Transaction<Self>,
-    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionResult> + 'static + Send
+        transaction: TransactionPrimitive<Self>,
+    ) -> impl std::future::Future<Output = burn_tensor::ops::TransactionPrimitiveResult> + 'static + Send
     {
-        B::tr_execute(Transaction {
+        B::tr_execute(TransactionPrimitive {
             read_floats: transaction
                 .read_floats
                 .into_iter()

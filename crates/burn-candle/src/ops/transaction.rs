@@ -1,6 +1,6 @@
 use burn_tensor::{
     backend::Backend,
-    ops::{Transaction, TransactionOps},
+    ops::{TransactionOps, TransactionPrimitive},
 };
 
 use crate::{
