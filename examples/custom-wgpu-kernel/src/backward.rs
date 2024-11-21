@@ -11,7 +11,7 @@ use burn::{
         },
         wgpu::{FloatElement, IntElement, JitBackend, WgpuRuntime},
     },
-    tensor::{Primitive, Shape},
+    tensor::{Shape, TensorMetadata},
 };
 
 impl<F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<JitBackend<WgpuRuntime, F, I>> {}

@@ -8,7 +8,7 @@ use burn::{
         ops::{broadcast_shape, Backward, Ops, OpsKind},
         Autodiff, NodeID,
     },
-    tensor::{Primitive, Shape},
+    tensor::{Shape, TensorMetadata},
 };
 use burn_jit::{FloatElement, IntElement, JitBackend, JitRuntime};
 
