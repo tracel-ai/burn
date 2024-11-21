@@ -142,6 +142,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.any()`                        | `tensor.any()`                                                            |
 | `tensor.any_dim(dim)`                 | `tensor.any(dim)`                                                         |
 | `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`                                           |
+| `tensor.split(split_size, dim)`       | `tensor.split(split_size, dim)`                                           |
+| `tensor.split_with_sizes(split_sizes, dim)` | `tensor.split([split_sizes], dim)`                                  |
 | `tensor.device()`                     | `tensor.device`                                                           |
 | `tensor.dims()`                       | `tensor.size()`                                                           |
 | `tensor.equal(other)`                 | `x == y`                                                                  |
@@ -195,7 +197,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
-| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           | 
+| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           |
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |

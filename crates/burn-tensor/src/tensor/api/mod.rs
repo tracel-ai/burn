@@ -12,6 +12,7 @@ mod kind;
 mod narrow;
 mod numeric;
 mod sort;
+mod split;
 
 pub use argwhere::argwhere_data;
 pub use autodiff::*;
@@ -22,3 +23,4 @@ pub use kind::*;
 pub use narrow::narrow;
 pub use numeric::*;
 pub use sort::{argsort, sort, sort_with_indices};
+pub use split::{split, split_with_sizes};

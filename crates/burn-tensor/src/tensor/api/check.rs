@@ -1006,6 +1006,66 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn split<const D: usize>(
+        tensor_dims: &[usize],
+        split_size: usize,
+        dim: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+        let op = "split";
+        let tensor_rank = tensor_dims.len();
+
+        if dim >= tensor_rank {
+            check = check.register(
+                op,
+                TensorError::new("Given dimension is greater than or equal to the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dim}'")),
+            );
+        } else {
+            let tensor_size = tensor_dims[dim];
+            if split_size == 0 && tensor_size != 0 {
+                check = check.register(
+                    op,
+                    TensorError::new("split_size must be greater than 0 unless the tensor size along the dimension is 0.")
+                        .details(format!("split_size: '{split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+                );
+            }
+        }
+
+        check
+    }
+
+    pub(crate) fn split_with_sizes<const D: usize>(
+        tensor_dims: &[usize],
+        split_sizes: &[usize],
+        dim: usize,
+    ) -> Self {
+        let mut check = Self::Ok;
+        let op = "split_with_sizes";
+        let tensor_rank = tensor_dims.len();
+
+        if dim >= tensor_rank {
+            check = check.register(
+                op,
+                TensorError::new("Given dimension is greater than or equal to the tensor rank.")
+                    .details(format!("Tensor rank: '{D}', given dimension: '{dim}'.")),
+            );
+        } else {
+            // Validate split_sizes add up to size of dimension to split along
+            let tensor_size = tensor_dims[dim];
+            let total_split_size: usize = split_sizes.iter().sum();
+            if total_split_size != tensor_size {
+                check = check.register(
+                    op,
+                    TensorError::new("The sum of split_sizes must equal the tensor size along the specified dimension.")
+                        .details(format!("Sum of split_sizes: '{total_split_size}', tensor size along dim '{dim}': '{tensor_size}'.")),
+                );
+            }
+        }
+
+        check
+    }
+
     /// The goal is to minimize the cost of checks when there are no error, but it's way less
     /// important when an error occurred, crafting a comprehensive error message is more important
     /// than optimizing string manipulation.
