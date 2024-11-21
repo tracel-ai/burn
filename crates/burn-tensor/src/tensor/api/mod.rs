@@ -13,6 +13,7 @@ mod narrow;
 mod numeric;
 mod sort;
 mod split;
+mod transaction;
 
 pub use argwhere::argwhere_data;
 pub use autodiff::*;
@@ -24,3 +25,4 @@ pub use narrow::narrow;
 pub use numeric::*;
 pub use sort::{argsort, sort, sort_with_indices};
 pub use split::{split, split_with_sizes};
+pub use transaction::*;

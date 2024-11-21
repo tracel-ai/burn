@@ -129,12 +129,12 @@ mod tests {
         #[case] threshold: Option<f64>,
         #[case] top_k: Option<usize>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&Binary).into();
+        let (predictions, targets) = dummy_classification_input(&Binary);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             Micro,
         );
     }
@@ -155,12 +155,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .true_positive()
@@ -185,12 +185,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .true_negative()
@@ -215,12 +215,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .false_positive()
@@ -245,12 +245,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .false_negative()
@@ -275,12 +275,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .positive()
@@ -305,12 +305,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .negative()
@@ -335,12 +335,12 @@ mod tests {
         #[case] top_k: Option<usize>,
         #[case] expected: Vec<i64>,
     ) {
-        let (predictions, targets) = dummy_classification_input(&classification_type).into();
+        let (predictions, targets) = dummy_classification_input(&classification_type);
         ConfusionStats::new(
             predictions,
             targets,
             threshold,
-            top_k.map(NonZeroUsize::new).flatten(),
+            top_k.and_then(NonZeroUsize::new),
             class_reduction,
         )
         .predicted_positive()

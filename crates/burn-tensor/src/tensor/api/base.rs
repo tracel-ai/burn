@@ -21,6 +21,8 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
+use super::Transaction;
+
 /// A tensor with a given backend, shape and data type.
 ///
 /// # Indexing
@@ -899,6 +901,12 @@ where
     }
 
     /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
     pub fn into_data(self) -> TensorData {
         crate::try_read_sync(self.into_data_async()).expect(
             "Failed to read tensor data synchronously.
@@ -907,7 +915,13 @@ where
         )
     }
 
-    /// Returns the data of the current tensor.
+    /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
     pub fn to_data(&self) -> TensorData {
         self.clone().into_data()
     }
@@ -2113,6 +2127,15 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         tensor: Self::Primitive,
     ) -> impl Future<Output = TensorData> + 'static + Send;
 
+    /// Read the data from the tensor using a transaction.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive);
+
     /// Creates a tensor from the given data.
     ///
     /// # Arguments
@@ -2390,6 +2413,10 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_float(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_shape(tensor),
@@ -2608,6 +2635,11 @@ impl<B: Backend> BasicOps<B> for Int {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_empty(shape, device)
     }
+
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_int(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         B::int_shape(tensor)
     }
@@ -2719,6 +2751,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
     }
+
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_bool(tensor);
+    }
+
     fn shape(tensor: &Self::Primitive) -> Shape {
         B::bool_shape(tensor)
     }
