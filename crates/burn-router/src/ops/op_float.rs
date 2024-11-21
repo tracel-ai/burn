@@ -17,7 +17,7 @@ use burn_tensor::repr::{
     UnaryOperationDescription,
 };
 use burn_tensor::{
-    DType, Device, Distribution, Element, ElementConversion, Primitive, Shape, TensorData,
+    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};

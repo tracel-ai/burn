@@ -3,7 +3,7 @@ use alloc::{sync::Arc, vec::Vec};
 use super::RunnerClient;
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Primitive, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
@@ -20,7 +20,7 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) is_orphan: bool,
 }
 
-impl<C: RunnerClient> Primitive for RouterTensor<C> {
+impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
     fn dtype(&self) -> DType {
         self.dtype
     }

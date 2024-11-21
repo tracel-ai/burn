@@ -1,7 +1,7 @@
 use crate::element::JitElement;
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::JitRuntime;
-use burn_tensor::{DType, Primitive, Shape};
+use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::linalg::tensor::TensorHandle;
@@ -63,11 +63,11 @@ where
     }
 }
 
-impl<R: JitRuntime> Primitive for JitTensor<R> {
+impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
     fn dtype(&self) -> DType {
         match self.dtype {
             // NOTE: bool tensors are stored as u32, we currently make this assumption
-            // since `Primitive::dtype()` is used for display purposes only at this time.
+            // since `TensorMetadata::dtype()` is used for display purposes only at this time.
             DType::U32 => DType::Bool,
             _ => self.dtype,
         }

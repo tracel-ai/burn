@@ -1,6 +1,6 @@
 use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    DType, Element, Primitive, Shape, TensorData,
+    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{element::CandleElement, CandleDevice};
@@ -11,11 +11,11 @@ pub struct CandleTensor {
     pub(crate) tensor: candle_core::Tensor,
 }
 
-impl Primitive for CandleTensor {
+impl TensorMetadata for CandleTensor {
     fn dtype(&self) -> DType {
         match self.tensor.dtype() {
             // NOTE: bool tensors are stored as u32, we currently make this assumption
-            // since `Primitive::dtype()` is used for display purposes only at this time.
+            // since `TensorMetadata::dtype()` is used for display purposes only at this time.
             candle_core::DType::U8 => DType::Bool,
             candle_core::DType::U32 => DType::U32,
             candle_core::DType::I64 => DType::I64,
@@ -78,7 +78,7 @@ impl QTensorPrimitive for CandleQTensor {
     }
 }
 
-impl Primitive for CandleQTensor {
+impl TensorMetadata for CandleQTensor {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }

@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::ops::FloatTensor;
-use crate::{ElementConversion, Primitive, Shape, TensorData};
+use crate::{ElementConversion, Shape, TensorData, TensorMetadata};
 use alloc::vec;
 use alloc::vec::Vec;
 

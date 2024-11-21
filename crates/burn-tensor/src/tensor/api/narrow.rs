@@ -1,7 +1,7 @@
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
-use super::Primitive;
+use super::TensorMetadata;
 
 /// Returns a new tensor with the given dimension narrowed to the given range.
 ///

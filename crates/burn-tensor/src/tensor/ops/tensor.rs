@@ -5,7 +5,7 @@ use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{tensor::api::chunk, tensor::api::narrow};
-use crate::{FloatDType, Primitive, TensorPrimitive};
+use crate::{FloatDType, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;

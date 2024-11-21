@@ -2,7 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
-use burn_tensor::{ElementConversion, Primitive};
+use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::{IntoDimension, Zip};
 

@@ -3,7 +3,7 @@ use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShap
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
-    Distribution, ElementConversion, FloatDType, Primitive, Shape, TensorData,
+    Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
 };
 use half::{bf16, f16};
 use std::ops::Range;

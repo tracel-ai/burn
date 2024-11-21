@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion,
-    Primitive, TensorData,
+    TensorData, TensorMetadata,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};

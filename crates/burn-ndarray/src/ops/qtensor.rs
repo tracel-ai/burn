@@ -6,7 +6,7 @@ use burn_tensor::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationParametersPrimitive,
         QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    DType, Primitive, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{

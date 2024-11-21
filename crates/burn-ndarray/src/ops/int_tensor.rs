@@ -6,7 +6,7 @@ use burn_tensor::ops::IntTensorOps;
 use burn_tensor::Distribution;
 
 use burn_tensor::ElementConversion;
-use burn_tensor::Primitive;
+use burn_tensor::TensorMetadata;
 use core::ops::Range;
 use ndarray::IntoDimension;
 use ndarray::Zip;

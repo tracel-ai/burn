@@ -1,4 +1,4 @@
-use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, Primitive};
+use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, TensorMetadata};
 
 use crate::{
     graph::{NodeRef, Requirement},

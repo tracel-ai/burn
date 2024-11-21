@@ -5,7 +5,7 @@ use burn_tensor::{
         InterpolateMode, InterpolateOptions, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
-    Primitive,
+    TensorMetadata,
 };
 
 impl<E: TchElement, Q: QuantElement> ModuleOps<Self> for LibTorch<E, Q> {

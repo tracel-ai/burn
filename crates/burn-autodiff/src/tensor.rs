@@ -6,7 +6,7 @@ use crate::{
     graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use burn_tensor::{backend::Backend, Primitive};
+use burn_tensor::{backend::Backend, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -15,7 +15,7 @@ pub struct AutodiffTensor<B: Backend> {
     pub rc: NodeRefCount,
 }
 
-impl<B: Backend> Primitive for AutodiffTensor<B> {
+impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
     fn dtype(&self) -> burn_tensor::DType {
         self.primitive.dtype()
     }

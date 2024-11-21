@@ -18,7 +18,7 @@ use crate::{
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    Device, ElementConversion, Primitive, Shape, TensorData,
+    Device, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use super::maxmin::MaxMinDim;

@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
-    Device, Primitive, Shape, TensorData,
+    Device, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{

@@ -1,7 +1,7 @@
 use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
-    Primitive, Shape,
+    Shape, TensorMetadata,
 };
 
 use super::{MaxPool1dBackward, MaxPool1dWithIndices};

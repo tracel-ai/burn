@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
 
-use crate::{argsort, sort, sort_with_indices, Primitive};
+use crate::{argsort, sort, sort_with_indices, TensorMetadata};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.

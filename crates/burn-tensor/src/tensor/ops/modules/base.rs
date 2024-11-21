@@ -2,7 +2,7 @@ use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
-    Primitive, Shape,
+    Shape, TensorMetadata,
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).

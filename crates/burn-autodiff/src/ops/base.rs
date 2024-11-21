@@ -10,7 +10,7 @@ use crate::{
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use burn_tensor::{backend::Backend, ops::FloatTensor, Primitive, Shape};
+use burn_tensor::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
 use std::marker::PhantomData;
 
 /// Operation in preparation.

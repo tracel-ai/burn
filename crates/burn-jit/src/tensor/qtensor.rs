@@ -3,7 +3,7 @@ use burn_tensor::{
         AffineQuantization, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
         QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    read_sync, DType, Primitive, TensorData,
+    read_sync, DType, TensorData, TensorMetadata,
 };
 
 use crate::{ops::into_data, FloatElement, IntElement, JitBackend, JitRuntime};
@@ -68,7 +68,7 @@ impl<R: JitRuntime> Clone for QJitTensor<R> {
     }
 }
 
-impl<R: JitRuntime> Primitive for QJitTensor<R> {
+impl<R: JitRuntime> TensorMetadata for QJitTensor<R> {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }

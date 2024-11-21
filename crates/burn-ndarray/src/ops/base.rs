@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::ElementConversion;
-use burn_tensor::Primitive;
 use burn_tensor::TensorData;
+use burn_tensor::TensorMetadata;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;

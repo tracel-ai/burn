@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Element, Primitive, Shape, TensorData};
+use burn_tensor::{backend::Backend, Element, Shape, TensorData, TensorMetadata};
 use candle_core::WithDType;
 use half::{bf16, f16};
 

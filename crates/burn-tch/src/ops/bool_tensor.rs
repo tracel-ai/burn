@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Primitive, Shape, TensorData};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData, TensorMetadata};
 use std::ops::Range;
 
 impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {

@@ -8,7 +8,7 @@ use burn_tensor::repr::{
     ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
     SwapDimsDescription, UnaryOperationDescription,
 };
-use burn_tensor::{DType, Device, Element, Primitive, Shape, TensorData};
+use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 

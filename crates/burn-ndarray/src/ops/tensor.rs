@@ -12,7 +12,7 @@ use crate::{NdArrayDevice, SEED};
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
-use burn_tensor::{Distribution, Primitive};
+use burn_tensor::{Distribution, TensorMetadata};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]

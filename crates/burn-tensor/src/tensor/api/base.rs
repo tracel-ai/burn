@@ -21,7 +21,7 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
-use super::Primitive;
+use super::TensorMetadata;
 
 /// A tensor with a given backend, shape and data type.
 ///

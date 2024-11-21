@@ -1,7 +1,7 @@
 use burn_common::{iter_par, run_par};
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, DeformConvOptions},
-    Primitive,
+    TensorMetadata,
 };
 use core::ops::AddAssign;
 use ndarray::{

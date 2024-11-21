@@ -42,7 +42,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_from_data(data: burn_tensor::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<B>(&device.clone());
         let tensor = B::bool_from_data(data, device);
-        let shape = burn_tensor::Primitive::shape(&tensor);
+        let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
         client.register_tensor(
             B::bool_tensor_handle(tensor),
@@ -190,7 +190,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             }
         }
 
-        let ndims = burn_tensor::Primitive::shape(&tensor).num_dims();
+        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
         let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
 
         for i in shape.len()..ndims {

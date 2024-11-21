@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, Primitive, TensorKind};
+use crate::{backend::Backend, BasicOps, TensorKind, TensorMetadata};
 use alloc::vec::Vec;
 
 pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(

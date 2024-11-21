@@ -1,6 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{ConvOptions, ConvTransposeOptions};
-use crate::{backend::Backend, ops::FloatTensor, Primitive, Shape};
+use crate::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;

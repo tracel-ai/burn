@@ -4,7 +4,7 @@ use burn_tensor::{
         AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    DType, Primitive, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 use libc::c_void;
 use std::sync::Arc;
@@ -70,7 +70,7 @@ pub struct TchTensor {
     pub storage: Storage,
 }
 
-impl Primitive for TchTensor {
+impl TensorMetadata for TchTensor {
     fn dtype(&self) -> DType {
         match self.tensor.kind() {
             tch::Kind::Uint8 => DType::U8,
@@ -328,7 +328,7 @@ pub struct TchQTensor {
     pub scheme: QuantizationScheme,
 }
 
-impl Primitive for TchQTensor {
+impl TensorMetadata for TchQTensor {
     fn dtype(&self) -> DType {
         DType::QFloat(self.scheme)
     }
