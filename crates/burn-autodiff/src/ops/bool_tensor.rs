@@ -11,10 +11,6 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_from_data(data, device)
     }
 
-    fn bool_shape(tensor: &BoolTensor<B>) -> Shape {
-        B::bool_shape(tensor)
-    }
-
     async fn bool_into_data(tensor: BoolTensor<B>) -> TensorData {
         B::bool_into_data(tensor).await
     }

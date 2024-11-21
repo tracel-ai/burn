@@ -52,10 +52,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         }
     }
 
-    fn float_shape(tensor: &CandleTensor) -> Shape {
-        super::base::shape(tensor)
-    }
-
     async fn float_into_data(tensor: CandleTensor) -> TensorData {
         super::base::into_data(tensor)
     }

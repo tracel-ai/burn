@@ -19,12 +19,12 @@ use super::{bilinear_interpolate, deform_im2col, index};
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]
 pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
-    bias: Option<JitTensor<R, E>>,
-    out_grad: JitTensor<R, E>,
+    input: JitTensor<R>,
+    offset: JitTensor<R>,
+    weight: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
+    bias: Option<JitTensor<R>>,
+    out_grad: JitTensor<R>,
     options: DeformConvOptions<2>,
 ) -> DeformConv2dBackward<JitBackend<R, E, I>> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
@@ -72,14 +72,14 @@ pub(crate) fn deform_conv2d_backward<R: JitRuntime, E: FloatElement, I: IntEleme
 }
 
 fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
-    out_grad: JitTensor<R, E>,
+    input: JitTensor<R>,
+    offset: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
+    out_grad: JitTensor<R>,
     options: DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [_, in_channels, _, _] = input.shape.dims();
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
@@ -88,7 +88,7 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     let in_c_per_group = in_channels / groups;
     let out_c_per_group = out_channels / groups;
 
-    let columns = deform_im2col(input, offset, mask, options, out_dims, kernel_dims);
+    let columns = deform_im2col::<R, E>(input, offset, mask, options, out_dims, kernel_dims);
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
 
@@ -106,17 +106,17 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement, I: IntElement>(
     )
 }
 
-type InputGradients<R, E> = (JitTensor<R, E>, JitTensor<R, E>, Option<JitTensor<R, E>>);
+type InputGradients<R> = (JitTensor<R>, JitTensor<R>, Option<JitTensor<R>>);
 
 fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
-    image: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
-    out_grad: JitTensor<R, E>,
+    image: JitTensor<R>,
+    weight: JitTensor<R>,
+    offset: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
+    out_grad: JitTensor<R>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> InputGradients<R, E> {
+) -> InputGradients<R> {
     let client = out_grad.client.clone();
     let device = out_grad.device.clone();
 
@@ -129,7 +129,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
     let col_shape_0 = in_c_per_group * kernel_h * kernel_w;
     let col_shape_1 = batch_size * out_h * out_w;
     let col_shape = Shape::new([groups, col_shape_0, col_shape_1]);
-    let mut columns = empty_device(client, device, col_shape);
+    let mut columns = empty_device::<R, E>(client, device, col_shape);
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
@@ -168,13 +168,13 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R, E>,
-    image: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
+    columns: JitTensor<R>,
+    image: JitTensor<R>,
+    offset: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> (JitTensor<R, E>, Option<JitTensor<R, E>>) {
+) -> (JitTensor<R>, Option<JitTensor<R>>) {
     let client = offset.client.clone();
     let device = offset.device.clone();
     let (kernel_height, kernel_width) = kernel_dims;
@@ -182,7 +182,7 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
     let use_mask = mask.is_some();
 
     let mask = mask.unwrap_or_else(|| {
-        ones_device(
+        ones_device::<R, E>(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -194,8 +194,8 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
         )
     });
 
-    let grad_offset = empty_device(client.clone(), device.clone(), offset.shape.clone());
-    let grad_mask = empty_device(client.clone(), device.clone(), mask.shape.clone());
+    let grad_offset = empty_device::<R, E>(client.clone(), device.clone(), offset.shape.clone());
+    let grad_mask = empty_device::<R, E>(client.clone(), device.clone(), mask.shape.clone());
 
     let num_elements_offset = offset.shape.num_elements();
     let cube_dim = CubeDim::default();
@@ -413,13 +413,13 @@ fn get_coordinate_weight<F: Float>(
 }
 
 fn compute_input_grad<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
+    columns: JitTensor<R>,
+    offset: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     input_shape: Shape,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = offset.client.clone();
     let device = offset.device.clone();
 
@@ -434,8 +434,9 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     );
 
     let use_mask = mask.is_some();
-    let mask = mask
-        .unwrap_or_else(|| ones_device(client.clone(), device.clone(), Shape::new([1, 1, 1, 1])));
+    let mask = mask.unwrap_or_else(|| {
+        ones_device::<R, E>(client.clone(), device.clone(), Shape::new([1, 1, 1, 1]))
+    });
 
     let num_elements = columns.shape.num_elements();
     let cube_dim = CubeDim::default();
@@ -445,10 +446,10 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
         &offset.client,
         cube_count,
         cube_dim,
-        offset.as_tensor_arg(1),
-        mask.as_tensor_arg(1),
-        columns.as_tensor_arg(1),
-        grad_in.as_tensor_arg(1),
+        offset.as_tensor_arg::<E>(1),
+        mask.as_tensor_arg::<E>(1),
+        columns.as_tensor_arg::<E>(1),
+        grad_in.as_tensor_arg::<E>(1),
         DeformConv2dCol2ImgArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),
@@ -467,7 +468,7 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
         use_mask,
     );
 
-    cast(grad_in)
+    cast::<R, f32, E>(grad_in)
 }
 
 #[derive(CubeLaunch)]

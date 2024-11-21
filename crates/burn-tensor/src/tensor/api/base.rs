@@ -21,7 +21,7 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
-use super::Transaction;
+use super::{TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -161,7 +161,7 @@ where
     /// }
     /// ```
     pub fn shape(&self) -> Shape {
-        K::shape(&self.primitive)
+        self.primitive.shape()
     }
 
     /// Reshape the tensor to have the given shape.
@@ -1873,7 +1873,7 @@ where
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
-        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
+        writeln!(f, "  dtype:  {:?},", self.primitive.dtype().name())?;
         write!(f, "}}")
     }
 }
@@ -1927,26 +1927,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
     /// which is more high-level and designed for public use.
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
-
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For getting the shape of a tensor, users should prefer the [Tensor::shape](Tensor::shape) function,
-    /// which is more high-level and designed for public use.
-    fn shape(tensor: &Self::Primitive) -> Shape;
 
     /// Reshapes the tensor.
     ///
@@ -2318,6 +2298,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         core::any::type_name::<Self::Elem>()
     }
 
+    /// Returns the tensor data type.
+    fn dtype(tensor: &Self::Primitive) -> DType {
+        tensor.dtype()
+    }
+
     /// Tests if any element in the `tensor` evaluates to True.
     ///
     /// # Arguments
@@ -2415,13 +2400,6 @@ impl<B: Backend> BasicOps<B> for Float {
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
         tr.register_float(tensor);
-    }
-
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
-        }
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -2640,10 +2618,6 @@ impl<B: Backend> BasicOps<B> for Int {
         tr.register_int(tensor);
     }
 
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::int_shape(tensor)
-    }
-
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
         B::int_reshape(tensor, shape)
     }
@@ -2754,10 +2728,6 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
         tr.register_bool(tensor);
-    }
-
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::bool_shape(tensor)
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {

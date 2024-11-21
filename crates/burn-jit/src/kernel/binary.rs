@@ -118,9 +118,9 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
 }
 
 pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
     let ndims = lhs.shape.num_dims();
     let vectorization_factor_lhs =
         tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
@@ -152,8 +152,8 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
             TensorArg::alias(0),
             None,
             false,
@@ -166,8 +166,8 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
             TensorArg::alias(1),
             None,
             rhs.strides != lhs.strides || rhs.shape != lhs.shape,
@@ -184,9 +184,9 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             &client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
-            output.as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
+            rhs.as_tensor_arg::<E>(vectorization_factor),
+            output.as_tensor_arg::<E>(vectorization_factor),
             None,
             to_contiguous_lhs,
             to_contiguous_rhs,
@@ -197,9 +197,9 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 }
 
 pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    mut tensor: JitTensor<R, E>,
+    mut tensor: JitTensor<R>,
     scalar: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     if !tensor.is_contiguous_buffer() {
         tensor = into_contiguous(tensor);
     }
@@ -220,14 +220,14 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             &client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg::<E>(vectorization_factor),
             ScalarArg::new(scalar),
             TensorArg::alias(0),
         );
 
         tensor
     } else {
-        let output = empty_device(
+        let output = empty_device::<R, E>(
             tensor.client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
@@ -237,9 +237,9 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             &client,
             cube_count,
             CubeDim::default(),
-            tensor.as_tensor_arg(vectorization_factor),
+            tensor.as_tensor_arg::<E>(vectorization_factor),
             ScalarArg::new(scalar),
-            output.as_tensor_arg(vectorization_factor),
+            output.as_tensor_arg::<E>(vectorization_factor),
         );
 
         output

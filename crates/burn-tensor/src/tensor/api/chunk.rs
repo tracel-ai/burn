@@ -1,4 +1,4 @@
-use super::narrow::narrow;
+use super::{narrow::narrow, TensorMetadata};
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
@@ -25,7 +25,7 @@ pub fn chunk<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     chunks: usize,
     dim: usize,
 ) -> Vec<K::Primitive> {
-    let size = K::shape(&tensor).dims[dim];
+    let size = tensor.shape().dims[dim];
     if size < chunks {
         return (0..size)
             .map(|i| narrow::<B, K>(tensor.clone(), dim, i, 1))

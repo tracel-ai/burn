@@ -86,9 +86,9 @@ pub fn reduce_dim_subcube<
     EI: JitElement,
     EO: JitElement,
 >(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let topology = input.client.properties().hardware_properties();
 
     if !input.client.properties().feature_enabled(Feature::Plane)
@@ -122,8 +122,8 @@ pub fn reduce_dim_subcube<
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<EI>(1),
+        output.as_tensor_arg::<EO>(1),
         dim as u32,
         subcube_size,
         elems_per_thread,

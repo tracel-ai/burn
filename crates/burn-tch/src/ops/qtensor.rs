@@ -6,7 +6,7 @@ use burn_tensor::{
         QParams, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
         QuantizationType,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};

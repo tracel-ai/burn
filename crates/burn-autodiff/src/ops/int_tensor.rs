@@ -11,10 +11,6 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_from_data(data, device)
     }
 
-    fn int_shape(tensor: &IntTensor<B>) -> Shape {
-        B::int_shape(tensor)
-    }
-
     async fn int_into_data(tensor: IntTensor<B>) -> TensorData {
         B::int_into_data(tensor).await
     }

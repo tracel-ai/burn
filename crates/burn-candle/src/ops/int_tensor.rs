@@ -15,10 +15,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::empty(shape, device, I::DTYPE)
     }
 
-    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
-        super::base::shape(tensor)
-    }
-
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         super::base::into_data(tensor)
     }

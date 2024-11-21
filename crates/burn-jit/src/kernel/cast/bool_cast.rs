@@ -16,7 +16,7 @@ fn bool_cast_kernel<T: Numeric>(input: &Tensor<u32>, output: &mut Tensor<T>) {
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: JitRuntime, EO: JitElement>(tensor: JitTensor<R, u32>) -> JitTensor<R, EO> {
+pub fn bool_cast<R: JitRuntime, EO: JitElement>(tensor: JitTensor<R>) -> JitTensor<R> {
     let num_elems = tensor.shape.num_elements();
     let buffer = tensor.client.empty(num_elems * core::mem::size_of::<EO>());
     let output = JitTensor::new_contiguous(
@@ -24,6 +24,7 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement>(tensor: JitTensor<R, u32>) -> Ji
         tensor.device.clone(),
         tensor.shape.clone(),
         buffer,
+        EO::dtype(),
     );
 
     let cube_dim = CubeDim::default();
@@ -33,8 +34,8 @@ pub fn bool_cast<R: JitRuntime, EO: JitElement>(tensor: JitTensor<R, u32>) -> Ji
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        tensor.as_tensor_arg::<u32>(1),
+        output.as_tensor_arg::<EO>(1),
     );
 
     output

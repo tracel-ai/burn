@@ -62,25 +62,25 @@ pub enum MaskWhereStrategy {
 
 /// Execute the mask where kernel with the given strategy.
 pub fn mask_where<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E>,
-    mask: JitTensor<R, u32>,
-    value: JitTensor<R, E>,
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
+    value: JitTensor<R>,
     strategy: MaskWhereStrategy,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     match strategy {
-        MaskWhereStrategy::Readonly => mask_where_readonly(input, mask, value),
-        MaskWhereStrategy::InplaceLhs => mask_where_inplace(input, mask, value, false),
-        MaskWhereStrategy::InplaceRhs => mask_where_inplace(value, mask, input, true),
+        MaskWhereStrategy::Readonly => mask_where_readonly::<R, E, u32>(input, mask, value),
+        MaskWhereStrategy::InplaceLhs => mask_where_inplace::<R, E, u32>(input, mask, value, false),
+        MaskWhereStrategy::InplaceRhs => mask_where_inplace::<R, E, u32>(value, mask, input, true),
     }
 }
 
 fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
-    input: JitTensor<R, EI>,
-    mask: JitTensor<R, EM>,
-    value: JitTensor<R, EI>,
-) -> JitTensor<R, EI> {
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
     let ndims = input.shape.num_dims();
-    let output = empty_device(
+    let output = empty_device::<R, EI>(
         input.client.clone(),
         input.device.clone(),
         input.shape.clone(),
@@ -93,10 +93,10 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        mask.as_tensor_arg(1),
-        value.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<EI>(1),
+        mask.as_tensor_arg::<EM>(1),
+        value.as_tensor_arg::<EI>(1),
+        output.as_tensor_arg::<EI>(1),
         ndims as u32,
     );
 
@@ -104,11 +104,11 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
 }
 
 fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
-    input: JitTensor<R, EI>,
-    mask: JitTensor<R, EM>,
-    value: JitTensor<R, EI>,
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
+    value: JitTensor<R>,
     reverse: bool,
-) -> JitTensor<R, EI> {
+) -> JitTensor<R> {
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
@@ -117,9 +117,9 @@ fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        mask.as_tensor_arg(1),
-        value.as_tensor_arg(1),
+        input.as_tensor_arg::<EI>(1),
+        mask.as_tensor_arg::<EM>(1),
+        value.as_tensor_arg::<EI>(1),
         ScalarArg::new(reverse as u32),
         ndims as u32,
     );

@@ -2,7 +2,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
-use burn_tensor::ElementConversion;
+use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::{IntoDimension, Zip};
 
@@ -21,10 +21,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
 {
     fn bool_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
         NdArrayTensor::from_data(data)
-    }
-
-    fn bool_shape(tensor: &NdArrayTensor<bool>) -> Shape {
-        tensor.shape()
     }
 
     async fn bool_into_data(tensor: NdArrayTensor<bool>) -> TensorData {

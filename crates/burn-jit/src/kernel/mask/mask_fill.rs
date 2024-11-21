@@ -57,24 +57,24 @@ pub enum MaskFillStrategy {
 
 /// Execute the mask fill kernel with the given strategy.
 pub fn mask_fill<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E>,
-    mask: JitTensor<R, u32>,
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
     value: E,
     strategy: MaskFillStrategy,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     match strategy {
-        MaskFillStrategy::Readonly => mask_fill_readonly(input, mask, value),
-        MaskFillStrategy::Inplace => mask_fill_inplace(input, mask, value),
+        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, u32>(input, mask, value),
+        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, u32>(input, mask, value),
     }
 }
 
 fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
-    input: JitTensor<R, EI>,
-    mask: JitTensor<R, EM>,
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
     value: EI,
-) -> JitTensor<R, EI> {
+) -> JitTensor<R> {
     let ndims = input.shape.num_dims();
-    let output = empty_device(
+    let output = empty_device::<R, EI>(
         input.client.clone(),
         input.device.clone(),
         input.shape.clone(),
@@ -87,9 +87,9 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        mask.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<EI>(1),
+        mask.as_tensor_arg::<EM>(1),
+        output.as_tensor_arg::<EI>(1),
         ScalarArg::new(value),
         ndims as u32,
     );
@@ -98,10 +98,10 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
 }
 
 fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
-    input: JitTensor<R, EI>,
-    mask: JitTensor<R, EM>,
+    input: JitTensor<R>,
+    mask: JitTensor<R>,
     value: EI,
-) -> JitTensor<R, EI> {
+) -> JitTensor<R> {
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
@@ -110,8 +110,8 @@ fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        mask.as_tensor_arg(1),
+        input.as_tensor_arg::<EI>(1),
+        mask.as_tensor_arg::<EM>(1),
         ScalarArg::new(value),
         ndims as u32,
     );

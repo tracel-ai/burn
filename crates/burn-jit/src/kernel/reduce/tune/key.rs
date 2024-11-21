@@ -18,7 +18,7 @@ pub struct ReduceAutotuneKey {
 }
 
 pub(crate) fn create_key<R: JitRuntime, EI: JitElement>(
-    input: &JitTensor<R, EI>,
+    input: &JitTensor<R>,
     reduce_dim: &usize,
 ) -> JitAutotuneKey {
     let dims = &input.shape.dims;

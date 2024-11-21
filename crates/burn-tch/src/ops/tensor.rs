@@ -3,7 +3,7 @@ use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShap
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
-    Distribution, ElementConversion, FloatDType, Shape, TensorData,
+    Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
 };
 use half::{bf16, f16};
 use std::ops::Range;
@@ -60,12 +60,8 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tch::Tensor::ones(shape.dims, (E::KIND, device)))
     }
 
-    fn float_shape(tensor: &TchTensor) -> Shape {
-        tensor.shape()
-    }
-
     async fn float_into_data(tensor: TchTensor) -> TensorData {
-        let shape = Self::float_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = Self::float_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         match tensor.tensor.kind() {
             tch::Kind::Half => {

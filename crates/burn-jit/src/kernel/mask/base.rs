@@ -3,10 +3,10 @@ use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 
 /// Execute the mask fill kernel.
 pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
-    mask: JitTensor<R, u32>,
+    tensor: JitTensor<R>,
+    mask: JitTensor<R>,
     value: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let strategy = if tensor.can_mut() {
         MaskFillStrategy::Inplace
     } else {
@@ -18,10 +18,10 @@ pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
 
 /// Execute the mask where kernel.
 pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
-    mask: JitTensor<R, u32>,
-    value: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    tensor: JitTensor<R>,
+    mask: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
     let strategy = if tensor.can_mut_broadcast(&value) {
         MaskWhereStrategy::InplaceLhs
     } else if value.can_mut_broadcast(&tensor) {
@@ -30,5 +30,5 @@ pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
         MaskWhereStrategy::Readonly
     };
 
-    super::mask_where(tensor, mask, value, strategy)
+    super::mask_where::<R, E>(tensor, mask, value, strategy)
 }

@@ -8,7 +8,7 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
 
-use crate::{argsort, sort, sort_with_indices};
+use crate::{argsort, sort, sort_with_indices, TensorMetadata};
 
 /// Int Tensor API for basic and numeric operations, see [tensor](crate::Tensor)
 /// for documentation on each function.
@@ -24,17 +24,6 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The integer tensor with the given shape.
     fn int_empty(shape: Shape, device: &Device<B>) -> IntTensor<B>;
-
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn int_shape(tensor: &IntTensor<B>) -> Shape;
 
     /// Converts the tensor to a data structure.
     ///
@@ -727,7 +716,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The mean of all elements in the tensor.
     fn int_mean(tensor: IntTensor<B>) -> IntTensor<B> {
-        let num_elems = B::int_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         B::int_div_scalar(B::int_sum(tensor), (num_elems as i64).elem())
     }
 
@@ -776,7 +765,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The maximum element in the tensor.
     fn int_max(tensor: IntTensor<B>) -> IntTensor<B> {
-        let shape = B::int_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::int_max_dim(tensor, 0)
@@ -794,7 +783,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The maximum element in the tensor along the dimension.
     fn int_max_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmax(tensor.clone(), dim);
-        let ndim = B::int_shape(&tensor).num_dims();
+        let ndim = tensor.shape().num_dims();
 
         B::int_gather(ndim - 1, tensor, index)
     }
@@ -826,7 +815,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The minimum element in the tensor.
     fn int_min(tensor: IntTensor<B>) -> IntTensor<B> {
-        let shape = B::int_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::int_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::int_min_dim(tensor, 0)
@@ -844,7 +833,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum element in the tensor along the dimension.
     fn int_min_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         let index = B::int_argmin(tensor.clone(), dim);
-        let ndim = B::int_shape(&tensor).num_dims();
+        let ndim = tensor.shape().num_dims();
 
         B::int_gather(ndim - 1, tensor, index)
     }
@@ -861,7 +850,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The minimum elements and corresponding indices along the dimension.
     fn int_min_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         let indices = B::int_argmin(tensor.clone(), dim);
-        let ndim = B::int_shape(&tensor).num_dims();
+        let ndim = tensor.shape().num_dims();
         let values = B::int_gather(ndim - 1, tensor, indices.clone());
 
         (values, indices)
@@ -888,7 +877,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn int_transpose(tensor: IntTensor<B>) -> IntTensor<B> {
-        let ndims = Self::int_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::int_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -1092,7 +1081,7 @@ pub trait IntTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn int_all(tensor: IntTensor<B>) -> BoolTensor<B> {
-        let num_elems = B::int_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum(B::bool_into_int(bool_tensor));
@@ -1112,7 +1101,7 @@ pub trait IntTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn int_all_dim(tensor: IntTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = B::int_shape(&tensor).dims[dim];
+        let num_elems = tensor.shape().dims[dim];
         let bool_tensor = B::int_equal_elem(tensor, 0.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
@@ -1129,7 +1118,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
-        let zeros = B::int_zeros(B::int_shape(&tensor), &B::int_device(&tensor));
+        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor));
         let less_than_zero = B::int_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::int_greater_elem(tensor, 0.0f32.elem());
 

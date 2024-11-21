@@ -30,11 +30,11 @@ use crate::{
 ///
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
-    input: JitTensor<R, F>,
-    weight: JitTensor<R, F>,
-    bias: Option<JitTensor<R, F>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, F> {
+) -> JitTensor<R> {
     let is_tf32 = F::as_elem() == Elem::Float(FloatKind::F32)
         && input
             .client
@@ -88,7 +88,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);
-    let out = empty_device(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device::<R, F>(input.client.clone(), input.device.clone(), out_shape);
 
     // Implicit GEMM matrix size
     let gemm_m = (padded_batch_size * out_h * out_w) as u32;
@@ -124,11 +124,11 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         Some(bias) if out_channels == padded_out_channels => bias,
         Some(bias) => {
             let shape = Shape::new([padded_out_channels]);
-            let padded_bias = zeros_device(bias.client.clone(), bias.device.clone(), shape);
+            let padded_bias = zeros_device::<R, F>(bias.client.clone(), bias.device.clone(), shape);
             #[allow(clippy::single_range_in_vec_init)]
-            slice_assign(padded_bias, &[0..out_channels], bias)
+            slice_assign::<R, F>(padded_bias, &[0..out_channels], bias)
         }
-        None => empty_device(input.client.clone(), input.device.clone(), Shape::new([1])),
+        None => empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1])),
     };
 
     let settings = GemmSettings {
@@ -169,10 +169,10 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(input_vectorization),
-        weight.as_tensor_arg(weight_vectorization),
-        bias.as_tensor_arg(1),
-        out.as_tensor_arg(1),
+        input.as_tensor_arg::<F>(input_vectorization),
+        weight.as_tensor_arg::<F>(weight_vectorization),
+        bias.as_tensor_arg::<F>(1),
+        out.as_tensor_arg::<F>(1),
         DimensionsLaunch::new(
             ScalarArg::new(gemm_m),
             ScalarArg::new(gemm_n),
@@ -202,7 +202,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         },
     );
 
-    let out = slice(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
+    let out = slice::<R, F>(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
     permute(out, &[0, 3, 1, 2])

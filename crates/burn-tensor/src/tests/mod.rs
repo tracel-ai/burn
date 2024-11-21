@@ -2,6 +2,7 @@ mod activation;
 mod clone_invariance;
 mod module;
 mod ops;
+mod primitive;
 mod quantization;
 mod stats;
 
@@ -278,6 +279,9 @@ macro_rules! testgen_no_param {
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
+
+        // test primitive
+        burn_tensor::testgen_primitive!();
     };
 }
 

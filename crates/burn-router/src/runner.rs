@@ -9,7 +9,7 @@ use burn_tensor::{
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId, TensorStatus,
     },
-    DType, Element, ElementConversion, Shape, TensorData,
+    DType, Element, ElementConversion, FloatDType, Shape, TensorData,
 };
 use core::future::Future;
 
@@ -158,14 +158,9 @@ where
     pub(crate) fn register_float_tensor_desc(
         &self,
         shape: Vec<usize>,
-        full_precision: bool,
+        dtype: FloatDType,
     ) -> TensorDescription {
-        let dtype = if full_precision {
-            <FullPrecisionBackend<B> as Backend>::FloatElem::dtype()
-        } else {
-            B::FloatElem::dtype()
-        };
-        self.register_empty_tensor_desc(shape, dtype)
+        self.register_empty_tensor_desc(shape, dtype.into())
     }
 }
 
@@ -1249,8 +1244,8 @@ where
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 
-    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
-        let desc = self.register_float_tensor_desc(shape, full_precision);
+    fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self> {
+        let desc = self.register_float_tensor_desc(shape, dtype);
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 

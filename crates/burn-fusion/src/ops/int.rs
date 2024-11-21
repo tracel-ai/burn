@@ -27,10 +27,6 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         )
     }
 
-    fn int_shape(tensor: &IntTensor<Self>) -> Shape {
-        tensor.shape()
-    }
-
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
         tensor.int_into_data::<B>().await
     }
@@ -38,7 +34,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<B>(&device.clone());
         let tensor = B::int_from_data(data, device);
-        let shape = B::int_shape(&tensor);
+        let shape = burn_tensor::TensorMetadata::shape(&tensor);
         let stream = StreamId::current();
 
         client.register_tensor(
@@ -121,7 +117,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         }
 
         let stream = tensor.stream;
-        let ndims = tensor.shape().num_dims();
+        let ndims = burn_tensor::TensorMetadata::shape(&tensor).num_dims();
         let mut shape: Vec<usize> = ranges.iter().map(|range| range.end - range.start).collect();
 
         for i in shape.len()..ndims {

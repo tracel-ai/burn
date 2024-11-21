@@ -71,7 +71,7 @@ pub fn random_uniform<R: JitRuntime, E: JitElement>(
     device: &R::Device,
     lower_bound: E,
     upper_bound: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     random(
         shape,
         device,
@@ -84,10 +84,10 @@ pub fn random_uniform<R: JitRuntime, E: JitElement>(
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
 pub fn random_like_uniform<R: JitRuntime, E: JitElement>(
-    tensor: &JitTensor<R, E>,
+    tensor: &JitTensor<R>,
     lower_bound: E,
     upper_bound: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     random_uniform(
         tensor.shape.clone(),
         &tensor.device,

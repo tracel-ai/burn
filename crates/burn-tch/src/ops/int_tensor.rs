@@ -3,7 +3,7 @@ use std::ops::Range;
 use burn_tensor::{
     backend::Backend,
     ops::{IntTensor, IntTensorOps},
-    Distribution, Shape, TensorData,
+    Distribution, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
@@ -15,16 +15,12 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::from_data::<i64>(data, (*device).into())
     }
 
-    fn int_shape(tensor: &TchTensor) -> Shape {
-        tensor.shape()
-    }
-
     fn int_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
     async fn int_into_data(tensor: TchTensor) -> TensorData {
-        let shape = Self::int_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = Self::int_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<i64>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
         TensorData::new(values.unwrap(), shape)
