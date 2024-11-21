@@ -1,5 +1,5 @@
 use crate::metric::processor::ItemLazy;
-use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput};
+use crate::metric::{AccuracyInput, Adaptor, HammingScoreInput, LossInput, PrecisionInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
 use burn_ndarray::NdArray;
@@ -51,6 +51,23 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
     }
 }
 
+impl<B: Backend> Adaptor<PrecisionInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> PrecisionInput<B> {
+        let [_, num_classes] = self.output.dims();
+        if num_classes > 1 {
+            PrecisionInput::new(
+                self.output.clone(),
+                self.targets.clone().one_hot(num_classes).bool(),
+            )
+        } else {
+            PrecisionInput::new(
+                self.output.clone(),
+                self.targets.clone().unsqueeze_dim(1).bool(),
+            )
+        }
+    }
+}
+
 /// Multi-label classification output adapted for multiple metrics.
 #[derive(new)]
 pub struct MultiLabelClassificationOutput<B: Backend> {
@@ -95,5 +112,11 @@ impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutpu
 impl<B: Backend> Adaptor<LossInput<B>> for MultiLabelClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
+    }
+}
+
+impl<B: Backend> Adaptor<PrecisionInput<B>> for MultiLabelClassificationOutput<B> {
+    fn adapt(&self) -> PrecisionInput<B> {
+        PrecisionInput::new(self.output.clone(), self.targets.clone().bool())
     }
 }
