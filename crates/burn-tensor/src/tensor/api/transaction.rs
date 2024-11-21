@@ -6,6 +6,7 @@ use crate::{
     ops::{BoolTensor, IntTensor, TransactionPrimitive},
     TensorData,
 };
+use alloc::vec::Vec;
 
 #[derive(Default)]
 /// A transaction can [read](Self::register) multiple tensors at once with a single operation improving
