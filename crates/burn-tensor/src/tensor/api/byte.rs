@@ -12,7 +12,7 @@ where
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Int};
+    /// use burn_tensor::{Tensor, Int, Byte};
     ///
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();
@@ -55,7 +55,7 @@ where
     /// fn example<B: Backend>() {
     ///     let device = Default::default();
     ///     let byte_tensor = Tensor::<B, 1, Int>::arange(0..5, &device).byte();
-    ///     let int_tensor = int_tensor.int();
+    ///     let int_tensor = byte_tensor.int();
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
