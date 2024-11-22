@@ -1,8 +1,8 @@
 use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, tensor::JitTensor, BoolElement, JitRuntime};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
+pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement, B: BoolElement>(
     tensor: JitTensor<R>,
     mask: JitTensor<R>,
     value: E,
@@ -13,11 +13,11 @@ pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
         MaskFillStrategy::Readonly
     };
 
-    super::mask_fill(tensor, mask, value, strategy)
+    super::mask_fill::<R, E, B>(tensor, mask, value, strategy)
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
+pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement, B: BoolElement>(
     tensor: JitTensor<R>,
     mask: JitTensor<R>,
     value: JitTensor<R>,
@@ -30,5 +30,5 @@ pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
         MaskWhereStrategy::Readonly
     };
 
-    super::mask_where::<R, E>(tensor, mask, value, strategy)
+    super::mask_where::<R, E, B>(tensor, mask, value, strategy)
 }

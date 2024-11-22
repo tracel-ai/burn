@@ -1,11 +1,16 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{
+    element::JitElement,
+    ops::{max_vectorization, numeric::empty_device},
+    tensor::JitTensor,
+    BoolElement, JitRuntime,
+};
 
 #[cube(launch)]
-fn mask_fill_readonly_kernel<T: Numeric>(
+fn mask_fill_readonly_kernel<T: Numeric, B: Int>(
     input: &Tensor<Line<T>>,
-    mask: &Tensor<Line<u32>>,
+    mask: &Tensor<Line<B>>,
     output: &mut Tensor<Line<T>>,
     value: T,
     #[comptime] rank: u32,
@@ -17,17 +22,15 @@ fn mask_fill_readonly_kernel<T: Numeric>(
     let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
     let index_mask = index_offset_with_layout(mask, output, ABSOLUTE_POS, 0, rank, true);
 
-    if mask[index_mask] >= Line::new(1) {
-        output[ABSOLUTE_POS] = Line::new(value);
-    } else {
-        output[ABSOLUTE_POS] = input[index_input];
-    }
+    let mask = Line::cast_from(mask[index_mask]);
+
+    output[ABSOLUTE_POS] = select_many(mask, Line::new(value), input[index_input]);
 }
 
 #[cube(launch)]
-fn mask_fill_inplace_kernel<T: Numeric>(
+fn mask_fill_inplace_kernel<T: Numeric, B: Int>(
     input: &mut Tensor<Line<T>>,
-    mask: &Tensor<Line<u32>>,
+    mask: &Tensor<Line<B>>,
     value: T,
     #[comptime] rank: u32,
 ) {
@@ -36,10 +39,9 @@ fn mask_fill_inplace_kernel<T: Numeric>(
     }
 
     let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);
+    let mask = Line::cast_from(mask[index_mask]);
 
-    if mask[index_mask] >= Line::new(1) {
-        input[ABSOLUTE_POS] = Line::new(value);
-    }
+    input[ABSOLUTE_POS] = select_many(mask, Line::new(value), input[ABSOLUTE_POS]);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -56,19 +58,19 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement>(
+pub fn mask_fill<R: JitRuntime, E: JitElement, B: BoolElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: E,
     strategy: MaskFillStrategy,
 ) -> JitTensor<R> {
     match strategy {
-        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, u32>(input, mask, value),
-        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, u32>(input, mask, value),
+        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, B>(input, mask, value),
+        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, B>(input, mask, value),
     }
 }
 
-fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
+fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: EI,
@@ -82,14 +84,15 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
+    let vectorization = max_vectorization(&input);
 
-    mask_fill_readonly_kernel::launch::<EI, R>(
+    mask_fill_readonly_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<EI>(1),
-        mask.as_tensor_arg::<EM>(1),
-        output.as_tensor_arg::<EI>(1),
+        input.as_tensor_arg::<EI>(vectorization),
+        mask.as_tensor_arg::<EM>(vectorization),
+        output.as_tensor_arg::<EI>(vectorization),
         ScalarArg::new(value),
         ndims as u32,
     );
@@ -97,7 +100,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
     output
 }
 
-fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
+fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: EI,
@@ -105,13 +108,14 @@ fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);
+    let vectorization = max_vectorization(&input);
 
-    mask_fill_inplace_kernel::launch::<EI, R>(
+    mask_fill_inplace_kernel::launch::<EI, EM, R>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg::<EI>(1),
-        mask.as_tensor_arg::<EM>(1),
+        input.as_tensor_arg::<EI>(vectorization),
+        mask.as_tensor_arg::<EM>(vectorization),
         ScalarArg::new(value),
         ndims as u32,
     );

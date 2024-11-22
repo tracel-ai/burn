@@ -1,7 +1,10 @@
 use super::{expand, numeric, permute};
-use crate::kernel::matmul::{matmul, MatmulStrategy};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, launch_unary, reduce, unary_op, UnaryOp};
+use crate::{
+    element::{BoolElement, ByteElement},
+    kernel::matmul::{matmul, MatmulStrategy},
+};
 use crate::{execute_with_dtype, JitBackend};
 use crate::{FloatElement, IntElement, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
@@ -11,11 +14,13 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;
 
-impl<R, F, I> FloatTensorOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, B, P> FloatTensorOps<Self> for JitBackend<R, F, I, B, P>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    B: BoolElement,
+    P: ByteElement,
 {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         super::from_data::<R, F>(data, device)
@@ -248,7 +253,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype, value.dtype),
             E,
-            kernel::mask_where_auto::<R, E>(tensor, mask, value)
+            kernel::mask_where_auto::<R, E, B>(tensor, mask, value)
         )
     }
 
@@ -260,7 +265,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            kernel::mask_fill_auto::<R, E>(tensor, mask, value.elem())
+            kernel::mask_fill_auto::<R, E, B>(tensor, mask, value.elem())
         )
     }
 
@@ -268,7 +273,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::equal::<R, E>(lhs, rhs)
+            kernel::equal::<R, E, B>(lhs, rhs)
         )
     }
 
@@ -276,7 +281,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::equal_elem::<R, E>(lhs, rhs.elem())
+            kernel::equal_elem::<R, E, B>(lhs, rhs.elem())
         )
     }
 
@@ -284,7 +289,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::greater::<R, E>(lhs, rhs)
+            kernel::greater::<R, E, B>(lhs, rhs)
         )
     }
 
@@ -292,7 +297,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::greater_elem::<R, E>(lhs, rhs.elem())
+            kernel::greater_elem::<R, E, B>(lhs, rhs.elem())
         )
     }
 
@@ -300,7 +305,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::greater_equal::<R, E>(lhs, rhs)
+            kernel::greater_equal::<R, E, B>(lhs, rhs)
         )
     }
 
@@ -308,7 +313,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::greater_equal_elem::<R, E>(lhs, rhs.elem())
+            kernel::greater_equal_elem::<R, E, B>(lhs, rhs.elem())
         )
     }
 
@@ -316,7 +321,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::lower::<R, E>(lhs, rhs)
+            kernel::lower::<R, E, B>(lhs, rhs)
         )
     }
 
@@ -324,7 +329,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::lower_elem::<R, E>(lhs, rhs.elem())
+            kernel::lower_elem::<R, E, B>(lhs, rhs.elem())
         )
     }
 
@@ -332,7 +337,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::lower_equal::<R, E>(lhs, rhs)
+            kernel::lower_equal::<R, E, B>(lhs, rhs)
         )
     }
 
@@ -340,7 +345,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::lower_equal_elem::<R, E>(lhs, rhs.elem())
+            kernel::lower_equal_elem::<R, E, B>(lhs, rhs.elem())
         )
     }
 
@@ -633,7 +638,11 @@ where
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, kernel::flip::<R, E>(tensor, axes))
+        execute_with_dtype!(
+            float(tensor.dtype),
+            E,
+            kernel::flip::<R, E, B>(tensor, axes)
+        )
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {

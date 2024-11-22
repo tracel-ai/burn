@@ -1,6 +1,6 @@
-use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRuntime};
 use burn_tensor::{Shape, TensorData};
-use cubecl::CubeElement;
+use cubecl::tensor_vectorization_factor;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
@@ -28,11 +28,16 @@ pub(crate) fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>)
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime>(tensor: JitTensor<R>) -> TensorData {
+pub(crate) async fn bool_into_data<R: JitRuntime, B: BoolElement>(
+    tensor: JitTensor<R>,
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
     TensorData::new(
-        u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+        B::from_bytes(&bytes)
+            .iter()
+            .map(|i| *i != B::false_val())
+            .collect(),
         tensor.shape,
     )
 }
@@ -136,5 +141,14 @@ pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitT
         shape,
         tensor.handle,
         tensor.dtype,
+    )
+}
+
+pub(crate) fn max_vectorization<R: JitRuntime>(tensor: &JitTensor<R>) -> u8 {
+    tensor_vectorization_factor(
+        R::supported_line_sizes(),
+        &tensor.shape.dims,
+        &tensor.strides,
+        tensor.shape.num_dims() - 1,
     )
 }

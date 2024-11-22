@@ -16,13 +16,13 @@ use crate::{
         prng::random_uniform,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitAutotuneKey, JitRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
 
 use super::Conv2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
-pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weights: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -35,9 +35,7 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
     TUNER.execute(
         &JitTuneId::new::<R>(&input.device),
         &client,
-        Box::new(Conv2dOperations::<R, E, I>::new(
-            input, weights, bias, options,
-        )),
+        Box::new(Conv2dOperations::<R, E>::new(input, weights, bias, options)),
     )
 }
 
@@ -46,7 +44,7 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
     create_key = create_key::<R, E>,
     should_run = should_run
 )]
-pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_operations<R: JitRuntime, E: FloatElement>(
     key: JitAutotuneKey,
     input: JitTensor<R>,
     weights: JitTensor<R>,
@@ -74,8 +72,8 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     tune_with!(input, weights, bias, options)
 }
 
-fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
-    op: &Conv2dOperations<R, F, I>,
+fn should_run<R: JitRuntime, F: FloatElement>(
+    op: &Conv2dOperations<R, F>,
     key: &JitAutotuneKey,
     index: usize,
 ) -> bool {

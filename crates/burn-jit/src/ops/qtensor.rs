@@ -9,6 +9,7 @@ use burn_tensor::{
 };
 
 use crate::{
+    element::{BoolElement, ByteElement},
     kernel,
     tensor::{JitQuantizationParameters, JitTensor, QJitTensor},
     FloatElement, IntElement, JitBackend, JitRuntime,
@@ -27,11 +28,13 @@ fn packed_tensor<R: JitRuntime, S: Into<Shape>>(
     JitTensor::new_contiguous(client, device.clone(), shape.into(), buffer, DType::U32)
 }
 
-impl<R, F, I> QTensorOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, B, P> QTensorOps<Self> for JitBackend<R, F, I, B, P>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    B: BoolElement,
+    P: ByteElement,
 {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {

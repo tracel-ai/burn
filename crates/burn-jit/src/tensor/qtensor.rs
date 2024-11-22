@@ -6,7 +6,11 @@ use burn_tensor::{
     read_sync, DType, TensorData, TensorMetadata,
 };
 
-use crate::{ops::into_data, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{
+    element::{BoolElement, ByteElement},
+    ops::into_data,
+    FloatElement, IntElement, JitBackend, JitRuntime,
+};
 
 use super::JitTensor;
 
@@ -96,10 +100,11 @@ impl<R: JitRuntime> Clone for JitQuantizationParameters<R> {
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement>
-    From<QuantizationParametersPrimitive<JitBackend<R, F, I>>> for JitQuantizationParameters<R>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement>
+    From<QuantizationParametersPrimitive<JitBackend<R, F, I, B, P>>>
+    for JitQuantizationParameters<R>
 {
-    fn from(value: QuantizationParametersPrimitive<JitBackend<R, F, I>>) -> Self {
+    fn from(value: QuantizationParametersPrimitive<JitBackend<R, F, I, B, P>>) -> Self {
         JitQuantizationParameters {
             scale: value.scale,
             offset: value.offset,

@@ -55,6 +55,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     type IntElem = I;
 
     type BoolTensorPrimitive = NdArrayTensor<bool>;
+    type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
     type QuantizedEncoding = Q;

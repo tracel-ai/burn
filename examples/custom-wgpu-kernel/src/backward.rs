@@ -9,12 +9,15 @@ use burn::{
             ops::{broadcast_shape, Backward, Ops, OpsKind},
             Autodiff, NodeID,
         },
-        wgpu::{FloatElement, IntElement, JitBackend, WgpuRuntime},
+        wgpu::{BoolElement, ByteElement, FloatElement, IntElement, JitBackend, WgpuRuntime},
     },
     tensor::{Shape, TensorMetadata},
 };
 
-impl<F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<JitBackend<WgpuRuntime, F, I>> {}
+impl<F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> AutodiffBackend
+    for Autodiff<JitBackend<WgpuRuntime, F, I, B, P>>
+{
+}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //

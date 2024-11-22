@@ -1,4 +1,4 @@
-use crate::fusion::on_write::kernel::fuse_on_write;
+use crate::{fusion::on_write::kernel::fuse_on_write, BoolElement};
 use crate::{fusion::JitFusionHandle, JitRuntime};
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
@@ -28,9 +28,9 @@ pub struct ElemwiseOptimizationState {
 
 impl<R: JitRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
-    pub fn execute(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute<B: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         self.trace
-            .run::<R, Self>(&self.client, &self.device, context)
+            .run::<R, B, Self>(&self.client, &self.device, context)
     }
 
     /// Number of element wise operations fused.

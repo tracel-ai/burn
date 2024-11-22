@@ -167,9 +167,9 @@ macro_rules! execute_with_dtype {
                 type $element = i8;
                 $op
             }
-            // NOTE: bool and qfloat dtypes are actually represented as u32
+            // NOTE: bool and qfloat dtypes are actually represented as u32/u8
             // burn_tensor::DType::Bool => {
-            //     type $element = u32;
+            //     type $element = u32/u8;
             //     $op
             // }
             // burn_tensor::DType::QFloat(_) => {

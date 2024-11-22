@@ -13,6 +13,30 @@ pub trait FloatElement: JitElement + Float {}
 /// The int element type for the jit backend.
 pub trait IntElement: JitElement + Int {}
 
+/// The element type for booleans for the jit backend.
+pub trait BoolElement: JitElement + Int {
+    /// The true value for the boolean element.
+    fn true_val() -> Self {
+        Self::from_int(1)
+    }
+
+    /// The false value for the boolean element.
+    fn false_val() -> Self {
+        Self::from_int(0)
+    }
+
+    /// New bool element from Rust bool.
+    fn new_bool(val: bool) -> Self {
+        match val {
+            true => Self::true_val(),
+            false => Self::false_val(),
+        }
+    }
+}
+
+/// The element types for bytes for the jit backend.
+pub trait ByteElement: JitElement + Int {}
+
 impl JitElement for u64 {}
 impl JitElement for u32 {}
 impl JitElement for u16 {}
@@ -36,3 +60,11 @@ impl IntElement for i64 {}
 impl IntElement for i32 {}
 impl IntElement for i16 {}
 impl IntElement for i8 {}
+
+impl BoolElement for u8 {}
+impl BoolElement for u32 {}
+
+impl ByteElement for u8 {}
+impl ByteElement for i8 {}
+impl ByteElement for u32 {}
+impl ByteElement for i32 {}

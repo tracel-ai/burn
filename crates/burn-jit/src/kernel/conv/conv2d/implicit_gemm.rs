@@ -18,7 +18,7 @@ use crate::{
         permute,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 /// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
@@ -28,8 +28,7 @@ use crate::{
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,

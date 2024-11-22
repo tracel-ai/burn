@@ -1,4 +1,5 @@
 use crate::{
+    element::{BoolElement, ByteElement},
     tensor::{JitTensor, QJitTensor},
     FloatElement, IntElement, JitRuntime, PrecisionBridge,
 };
@@ -18,25 +19,31 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement> {
+pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement>
+{
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
+    _bool_elem: PhantomData<B>,
+    _byte_elem: PhantomData<P>,
 }
 
-impl<R, F, I> Backend for JitBackend<R, F, I>
+impl<R, F, I, B, P> Backend for JitBackend<R, F, I, B, P>
 where
     R: JitRuntime,
     R::Server: ComputeServer,
     R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
     I: IntElement,
+    B: BoolElement,
+    P: ByteElement,
 {
     type Device = R::Device;
 
     type FullPrecisionBridge = PrecisionBridge<R, f32, i32>;
     type FloatElem = F;
     type IntElem = I;
+    type BoolElem = B;
 
     type FloatTensorPrimitive = JitTensor<R>;
     type IntTensorPrimitive = JitTensor<R>;
@@ -64,19 +71,25 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> core::fmt::Debug for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> core::fmt::Debug
+    for JitBackend<R, F, I, B, P>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Clone for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> Clone
+    for JitBackend<R, F, I, B, P>
+{
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Default for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> Default
+    for JitBackend<R, F, I, B, P>
+{
     fn default() -> Self {
         Self::new()
     }
@@ -91,7 +104,9 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> ReprBackend
+    for JitBackend<R, F, I, B, P>
+{
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
