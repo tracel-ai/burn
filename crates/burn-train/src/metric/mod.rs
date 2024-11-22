@@ -41,6 +41,8 @@ pub use memory_use::*;
 pub use top_k_acc::*;
 
 pub(crate) mod processor;
+pub use processor::ItemLazy;
+
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
 
