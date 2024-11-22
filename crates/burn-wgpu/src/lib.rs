@@ -21,8 +21,12 @@ pub type SpirV = cubecl::wgpu::spirv::VkSpirvCompiler;
 
 #[cfg(feature = "spirv")]
 type Compiler = SpirV;
+#[cfg(feature = "spirv")]
+type Byte = u8;
 #[cfg(not(feature = "spirv"))]
 type Compiler = Wgsl;
+#[cfg(not(feature = "spirv"))]
+type Byte = u32;
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -56,7 +60,7 @@ type Compiler = Wgsl;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32, B = u32, P = u32, C = Compiler> =
+pub type Wgpu<F = f32, I = i32, B = Byte, P = Byte, C = Compiler> =
     burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I, B, P>>;
 
 #[cfg(not(feature = "fusion"))]
@@ -91,7 +95,7 @@ pub type Wgpu<F = f32, I = i32, B = u32, P = u32, C = Compiler> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32, B = u32, P = u32, C = Compiler> =
+pub type Wgpu<F = f32, I = i32, B = Byte, P = Byte, C = Compiler> =
     JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I, B, P>;
 
 #[cfg(test)]
