@@ -432,6 +432,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayTensor { array }
     }
 
+    fn float_into_byte(tensor: NdArrayTensor<E>) -> NdArrayTensor<u8> {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
+    }
+
     fn float_powf(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
         NdArrayMathOps::elementwise_op(lhs, rhs, |a, b| a.powf_elem(b.to_f32()))
     }

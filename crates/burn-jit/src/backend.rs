@@ -44,10 +44,12 @@ where
     type FloatElem = F;
     type IntElem = I;
     type BoolElem = B;
+    type ByteElem = P;
 
     type FloatTensorPrimitive = JitTensor<R>;
     type IntTensorPrimitive = JitTensor<R>;
     type BoolTensorPrimitive = JitTensor<R>;
+    type ByteTensorPrimitive = JitTensor<R>;
     type QuantizedTensorPrimitive = QJitTensor<R>;
     type QuantizedEncoding = u32;
 

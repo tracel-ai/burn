@@ -104,6 +104,9 @@ impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 
+    type ByteTensorPrimitive = TchTensor;
+    type ByteElem = u8;
+
     type QuantizedTensorPrimitive = TchQTensor;
     type QuantizedEncoding = Q;
 

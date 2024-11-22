@@ -1,10 +1,13 @@
 use std::borrow::Borrow;
 
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{
+        BoolTensor, ByteTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend,
+        IntTensor,
+    },
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
-use candle_core::{backend::BackendStorage, shape, Tensor};
+use candle_core::{backend::BackendStorage, shape, DType, Tensor};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -66,6 +69,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
 
     fn float_into_int(tensor: CandleTensor) -> IntTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
+    }
+
+    fn float_into_byte(tensor: CandleTensor) -> ByteTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(DType::U32).unwrap())
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {

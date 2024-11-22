@@ -1,7 +1,8 @@
 use burn_tensor::{
-    ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
-    Device, Shape, TensorData, TensorMetadata,
+    ops::{BoolTensor, BoolTensorOps, ByteTensor, FloatTensor, IntTensor, IntTensorOps},
+    Device, ElementConversion, Shape, TensorData, TensorMetadata,
 };
+use candle_core::DType;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -32,6 +33,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
+    }
+
+    fn bool_into_byte(tensor: BoolTensor<Self>) -> ByteTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(DType::U32).unwrap())
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
@@ -69,6 +74,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         let x = (candle_core::Tensor::zeros_like(&tensor.tensor).unwrap());
         CandleTensor::new(tensor.tensor.eq(&x).unwrap())
+    }
+
+    fn bool_and(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        let tensor = Self::bool_into_int(tensor);
+        let other = Self::bool_into_int(other);
+        let sum = Self::int_add(tensor, other);
+        Self::int_greater_equal_elem(sum, 2.elem())
+    }
+
+    fn bool_or(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        let tensor = Self::bool_into_int(tensor);
+        let other = Self::bool_into_int(other);
+        let sum = Self::int_add(tensor, other);
+        Self::int_greater_equal_elem(sum, 1.elem())
     }
 
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {

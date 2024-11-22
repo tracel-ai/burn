@@ -113,6 +113,17 @@ where
         self.server.lock().read_bool::<B>(tensor, stream)
     }
 
+    fn read_tensor_byte<B>(
+        &self,
+        tensor: TensorDescription,
+        stream: StreamId,
+    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.server.lock().read_byte::<B>(tensor, stream)
+    }
+
     fn read_tensor_quantized<B>(
         &self,
         tensor: QuantizedTensorDescription,
@@ -181,6 +192,27 @@ where
         server_current.drain_stream(stream);
 
         let id = server_current.change_server_bool::<B>(&tensor, &client.device, &mut server_other);
+
+        core::mem::drop(server_other);
+        core::mem::drop(server_current);
+
+        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
+    }
+
+    fn change_client_byte<B>(
+        &self,
+        tensor: TensorDescription,
+        client: Self,
+        stream: StreamId,
+    ) -> FusionTensor<R>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let mut server_other = client.server.lock();
+        let mut server_current = self.server.lock();
+        server_current.drain_stream(stream);
+
+        let id = server_current.change_server_byte::<B>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
@@ -270,5 +302,14 @@ where
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
         server.resolve_server_bool::<B>(&tensor.into_description())
+    }
+
+    fn resolve_tensor_byte<B>(&self, tensor: FusionTensor<R>) -> B::ByteTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let mut server = self.server.lock();
+        server.drain_stream(tensor.stream);
+        server.resolve_server_byte::<B>(&tensor.into_description())
     }
 }

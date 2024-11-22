@@ -1,6 +1,7 @@
 mod binary;
 mod op_activation;
 mod op_bool;
+mod op_byte;
 mod op_float;
 mod op_int;
 mod op_module;

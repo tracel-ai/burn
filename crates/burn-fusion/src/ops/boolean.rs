@@ -1,5 +1,5 @@
 use burn_tensor::{
-    ops::{binary_ops_shape, FloatTensor, IntTensor},
+    ops::{binary_ops_shape, ByteTensor, FloatTensor, IntTensor},
     DType, Element, TensorData,
 };
 use std::marker::PhantomData;
@@ -114,6 +114,40 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::Bool(BoolOperationDescription::IntoFloat(desc.clone())),
             IntoFloatOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_into_byte(tensor: BoolTensor<Self>) -> ByteTensor<Self> {
+        #[derive(new)]
+        struct IntoByteOps<B: FusionBackend> {
+            desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoByteOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.input);
+                let output = B::bool_into_byte(input);
+                handles.register_byte_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::BoolElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::Bool(BoolOperationDescription::IntoByte(desc.clone())),
+            IntoByteOps::<B>::new(desc),
         );
 
         out
@@ -372,6 +406,78 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::Bool(BoolOperationDescription::Not(desc.clone())),
             NotOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_or(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new)]
+        struct OrOps<B: FusionBackend> {
+            desc: BinaryOperationDescription,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for OrOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.lhs);
+                let other = handles.get_bool_tensor::<B>(&self.desc.rhs);
+                let output = B::bool_or(input, other);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), DType::Bool);
+
+        let desc = BinaryOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: other.into_description(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::Bool(BoolOperationDescription::Or(desc.clone())),
+            OrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_and(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new)]
+        struct AndOps<B: FusionBackend> {
+            desc: BinaryOperationDescription,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for AndOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_bool_tensor::<B>(&self.desc.lhs);
+                let other = handles.get_bool_tensor::<B>(&self.desc.rhs);
+                let output = B::bool_and(input, other);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), DType::Bool);
+
+        let desc = BinaryOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: other.into_description(),
+            out: out.to_description_out(),
+        };
+
+        out.client.register(
+            vec![stream],
+            OperationDescription::Bool(BoolOperationDescription::And(desc.clone())),
+            AndOps::<B>::new(desc),
         );
 
         out

@@ -1,6 +1,6 @@
 use super::{
-    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, Device,
-    FloatTensor, IntTensor,
+    cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign, BoolTensor, ByteTensor,
+    Device, FloatTensor, IntTensor,
 };
 use crate::{
     argwhere_data, backend::Backend, chunk, narrow, split, split_with_sizes, tensor::Shape, Bool,
@@ -68,6 +68,17 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The float tensor with the same data as the bool tensor.
     fn bool_into_float(tensor: BoolTensor<B>) -> FloatTensor<B>;
+
+    /// Converts bool tensor to byte tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The byte tensor with the same data as the bool tensor.
+    fn bool_into_byte(tensor: BoolTensor<B>) -> ByteTensor<B>;
 
     /// Gets the device of the tensor.
     ///
@@ -190,6 +201,30 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The tensor with the result of the negation.
     fn bool_not(tensor: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Performs logical or.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `other` - The right hand side to `or` with
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the logical or.
+    fn bool_or(tensor: BoolTensor<B>, other: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Performs logical and.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `other` - The right hand side to `and` with
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the negation.
+    fn bool_and(tensor: BoolTensor<B>, other: BoolTensor<B>) -> BoolTensor<B>;
 
     /// Transposes a bool tensor.
     ///

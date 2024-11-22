@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
+use burn_tensor::ops::{
+    BoolTensor, BoolTensorOps, ByteElem, ByteTensor, FloatElem, FloatTensor, IntElem, IntTensor,
+};
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
@@ -45,6 +47,22 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         client.register(OperationDescription::Bool(
             BoolOperationDescription::IntoInt(desc),
+        ));
+
+        out
+    }
+
+    fn bool_into_byte(tensor: BoolTensor<Self>) -> ByteTensor<Self> {
+        let client = tensor.client.clone();
+        let out = client.register_empty_tensor(tensor.shape.clone(), ByteElem::<Self>::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Bool(
+            BoolOperationDescription::IntoByte(desc),
         ));
 
         out
@@ -169,6 +187,40 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Bool(BoolOperationDescription::Not(
+            desc,
+        )));
+
+        out
+    }
+
+    fn bool_or(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: other.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Bool(BoolOperationDescription::Or(
+            desc,
+        )));
+
+        out
+    }
+
+    fn bool_and(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
+
+        let desc = BinaryOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: other.into_description(),
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::Bool(BoolOperationDescription::And(
             desc,
         )));
 

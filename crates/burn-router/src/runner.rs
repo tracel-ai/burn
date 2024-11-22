@@ -4,10 +4,10 @@ use burn_tensor::{
     backend::Backend,
     ops::FullPrecisionBackend,
     repr::{
-        BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
-        HandleContainer, IntOperationDescription, ModuleOperationDescription,
-        NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
-        TensorId, TensorStatus,
+        BaseOperationDescription, BoolOperationDescription, ByteOperationDescription,
+        FloatOperationDescription, HandleContainer, IntOperationDescription,
+        ModuleOperationDescription, NumericOperationDescription, OperationDescription, ReprBackend,
+        TensorDescription, TensorId, TensorStatus,
     },
     DType, Element, ElementConversion, FloatDType, Shape, TensorData,
 };
@@ -15,9 +15,11 @@ use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
-    binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_dim_ops, scalar_float_ops,
-    scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
+    binary_byte_cmp_ops, binary_byte_ops, binary_float_cmp_ops, binary_float_ops,
+    binary_int_cmp_ops, binary_int_ops, scalar_byte2int_ops, scalar_byte_cmp_ops,
+    scalar_byte_dim_ops, scalar_byte_ops, scalar_float2int_ops, scalar_float_cmp_ops,
+    scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops,
+    unary_byte_ops, unary_float_ops, unary_int_ops,
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -416,6 +418,77 @@ where
                     handles.register_bool_tensor::<B>(&desc.id, output);
                 }
             },
+            OperationDescription::BaseByte(op) => match op {
+                BaseOperationDescription::ToDevice(_) => unreachable!(),
+                BaseOperationDescription::Reshape(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_reshape(tensor, desc.out.shape.clone().into());
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SwapDims(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_swap_dims(tensor, desc.dim1, desc.dim2);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Permute(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_permute(tensor, &desc.axes);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Flip(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_flip(tensor, &desc.axes);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Expand(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_expand(tensor, desc.shape.clone().into());
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Slice(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+
+                    let output = B::byte_slice(tensor, &desc.ranges);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::SliceAssign(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let value = handles.get_byte_tensor::<B>(&desc.value);
+
+                    let output = B::byte_slice_assign(tensor, &desc.ranges, value);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Equal(desc) => {
+                    binary_byte_cmp_ops!(handles, desc, B::byte_equal)
+                }
+                BaseOperationDescription::RepeatDim(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+
+                    let output = B::byte_repeat_dim(tensor, desc.dim, desc.times);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cat(desc) => {
+                    let tensors = desc
+                        .tensors
+                        .iter()
+                        .map(|tensor| handles.get_byte_tensor::<B>(tensor))
+                        .collect();
+
+                    let output = B::byte_cat(tensors, desc.dim);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationDescription::Cast(_) => unreachable!(),
+                BaseOperationDescription::Empty(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::byte_empty(shape, &self.device);
+                    handles.register_byte_tensor::<B>(&desc.id, output);
+                }
+            },
             OperationDescription::NumericFloat(_dtype, op) => match op {
                 NumericOperationDescription::Add(desc) => {
                     binary_float_ops!(handles, desc, B::float_add)
@@ -789,6 +862,197 @@ where
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
+            OperationDescription::NumericByte(_dtype, op) => match op {
+                NumericOperationDescription::Add(desc) => {
+                    binary_byte_ops!(handles, desc, B::byte_add)
+                }
+                NumericOperationDescription::AddScalar(desc) => {
+                    scalar_byte_ops!(handles, desc, B::byte_add_scalar)
+                }
+                NumericOperationDescription::Sub(desc) => {
+                    binary_byte_ops!(handles, desc, B::byte_sub)
+                }
+                NumericOperationDescription::SubScalar(desc) => {
+                    scalar_byte_ops!(handles, desc, B::byte_sub_scalar)
+                }
+                NumericOperationDescription::Div(desc) => {
+                    binary_byte_ops!(handles, desc, B::byte_div)
+                }
+                NumericOperationDescription::DivScalar(desc) => {
+                    scalar_byte_ops!(handles, desc, B::byte_div_scalar)
+                }
+                NumericOperationDescription::Rem(desc) => {
+                    binary_byte_ops!(handles, desc, B::byte_remainder)
+                }
+                NumericOperationDescription::RemScalar(desc) => {
+                    scalar_byte_ops!(handles, desc, B::byte_remainder_scalar)
+                }
+                NumericOperationDescription::Mul(desc) => {
+                    binary_byte_ops!(handles, desc, B::byte_mul)
+                }
+                NumericOperationDescription::MulScalar(desc) => {
+                    scalar_byte_ops!(handles, desc, B::byte_mul_scalar)
+                }
+                NumericOperationDescription::Abs(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_abs)
+                }
+                NumericOperationDescription::Ones(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::byte_ones(shape, &self.device);
+                    handles.register_byte_tensor::<B>(&desc.id, output);
+                }
+                NumericOperationDescription::Zeros(desc) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::byte_zeros(shape, &self.device);
+                    handles.register_byte_tensor::<B>(&desc.id, output);
+                }
+                NumericOperationDescription::Full((desc, elem)) => {
+                    let shape = Shape::from(desc.shape.clone());
+                    let output = B::byte_full(shape, elem.elem(), &self.device);
+                    handles.register_byte_tensor::<B>(&desc.id, output);
+                }
+                NumericOperationDescription::Gather(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::byte_gather(desc.dim, tensor, indices);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::Scatter(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_byte_tensor::<B>(&desc.value);
+
+                    let output = B::byte_scatter(desc.dim, tensor, indices, value);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::Select(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::byte_select(tensor, desc.dim, indices);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::SelectAssign(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let value = handles.get_byte_tensor::<B>(&desc.value);
+
+                    let output = B::byte_select_assign(tensor, desc.dim, indices, value);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::MaskWhere(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+                    let value = handles.get_byte_tensor::<B>(&desc.value);
+
+                    let output = B::byte_mask_where(tensor, mask, value);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::MaskFill(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+                    let mask = handles.get_bool_tensor::<B>(&desc.mask);
+
+                    let output = B::byte_mask_fill(tensor, mask, desc.value.elem());
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::MeanDim(desc) => {
+                    scalar_byte_dim_ops!(handles, desc, B::byte_mean_dim)
+                }
+                NumericOperationDescription::Mean(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_mean)
+                }
+                NumericOperationDescription::Sum(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_sum)
+                }
+                NumericOperationDescription::SumDim(desc) => {
+                    scalar_byte_dim_ops!(handles, desc, B::byte_sum_dim)
+                }
+                NumericOperationDescription::Prod(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_prod)
+                }
+                NumericOperationDescription::ProdDim(desc) => {
+                    scalar_byte_dim_ops!(handles, desc, B::byte_prod_dim)
+                }
+                NumericOperationDescription::EqualElem(desc) => {
+                    scalar_byte_cmp_ops!(handles, desc, B::byte_equal_elem)
+                }
+                NumericOperationDescription::Greater(desc) => {
+                    binary_byte_cmp_ops!(handles, desc, B::byte_greater)
+                }
+                NumericOperationDescription::GreaterElem(desc) => {
+                    scalar_byte_cmp_ops!(handles, desc, B::byte_greater_elem)
+                }
+                NumericOperationDescription::GreaterEqual(desc) => {
+                    binary_byte_cmp_ops!(handles, desc, B::byte_greater_equal)
+                }
+                NumericOperationDescription::GreaterEqualElem(desc) => {
+                    scalar_byte_cmp_ops!(handles, desc, B::byte_greater_equal_elem)
+                }
+                NumericOperationDescription::Lower(desc) => {
+                    binary_byte_cmp_ops!(handles, desc, B::byte_lower)
+                }
+                NumericOperationDescription::LowerElem(desc) => {
+                    scalar_byte_cmp_ops!(handles, desc, B::byte_lower_elem)
+                }
+                NumericOperationDescription::LowerEqual(desc) => {
+                    binary_byte_cmp_ops!(handles, desc, B::byte_lower_equal)
+                }
+                NumericOperationDescription::LowerEqualElem(desc) => {
+                    scalar_byte_cmp_ops!(handles, desc, B::byte_lower_equal_elem)
+                }
+                NumericOperationDescription::ArgMax(desc) => {
+                    scalar_byte2int_ops!(handles, desc, B::byte_argmax)
+                }
+                NumericOperationDescription::ArgMin(desc) => {
+                    scalar_byte2int_ops!(handles, desc, B::byte_argmin)
+                }
+                NumericOperationDescription::Max(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_max)
+                }
+                NumericOperationDescription::MaxDimWithIndices(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::byte_max_dim_with_indices(tensor, desc.dim);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
+                NumericOperationDescription::MinDimWithIndices(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+
+                    let (output, output_idx) = B::byte_min_dim_with_indices(tensor, desc.dim);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                    handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
+                }
+                NumericOperationDescription::Min(desc) => {
+                    unary_byte_ops!(handles, desc, B::byte_min)
+                }
+                NumericOperationDescription::MaxDim(desc) => {
+                    scalar_byte_dim_ops!(handles, desc, B::byte_max_dim)
+                }
+                NumericOperationDescription::MinDim(desc) => {
+                    scalar_byte_dim_ops!(handles, desc, B::byte_min_dim)
+                }
+                NumericOperationDescription::Clamp(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.tensor);
+
+                    let output = B::byte_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::IntRandom(desc) => {
+                    let shape = Shape::from(desc.out.shape.clone());
+
+                    let output = B::byte_random(shape, desc.distribution, &self.device);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::Powf(desc) => {
+                    let lhs = handles.get_byte_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_float_tensor::<B>(&desc.rhs);
+
+                    let output = B::byte_powf(lhs, rhs);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+            },
             OperationDescription::Bool(op) => match op {
                 BoolOperationDescription::IntoFloat(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
@@ -802,10 +1066,30 @@ where
                     let output = B::bool_into_int(tensor);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                BoolOperationDescription::IntoByte(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.input);
+
+                    let output = B::bool_into_byte(tensor);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
                 BoolOperationDescription::Not(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_not(tensor);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BoolOperationDescription::Or(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.lhs);
+                    let other = handles.get_bool_tensor::<B>(&desc.rhs);
+
+                    let output = B::bool_or(tensor, other);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BoolOperationDescription::And(desc) => {
+                    let tensor = handles.get_bool_tensor::<B>(&desc.lhs);
+                    let other = handles.get_bool_tensor::<B>(&desc.rhs);
+
+                    let output = B::bool_and(tensor, other);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
@@ -815,6 +1099,26 @@ where
 
                     let output = B::int_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                IntOperationDescription::IntoByte(desc) => {
+                    let tensor = handles.get_int_tensor::<B>(&desc.input);
+
+                    let output = B::int_into_byte(tensor);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
+                }
+            },
+            OperationDescription::Byte(op) => match op {
+                ByteOperationDescription::IntoFloat(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_into_float(tensor);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ByteOperationDescription::IntoInt(desc) => {
+                    let tensor = handles.get_byte_tensor::<B>(&desc.input);
+
+                    let output = B::byte_into_int(tensor);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationDescription::Float(_dtype, op) => match op {
@@ -859,6 +1163,12 @@ where
 
                     let output = B::float_into_int(tensor);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                FloatOperationDescription::IntoByte(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+
+                    let output = B::float_into_byte(tensor);
+                    handles.register_byte_tensor::<B>(&desc.out.id, output);
                 }
                 FloatOperationDescription::Matmul(desc) => {
                     binary_float_ops!(handles, desc, B::float_matmul)

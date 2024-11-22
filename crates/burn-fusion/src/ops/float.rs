@@ -8,7 +8,9 @@ use crate::{
     unary_float_ops, Fusion, FusionBackend,
 };
 use burn_tensor::{
-    ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
+    ops::{
+        binary_ops_shape, BoolTensor, ByteTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor,
+    },
     repr::*,
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
@@ -227,6 +229,41 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::Float(dtype, FloatOperationDescription::IntoInt(desc.clone())),
             IntoIntOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn float_into_byte(tensor: FloatTensor<Self>) -> ByteTensor<Self> {
+        #[derive(new)]
+        struct IntoByteOps<B: FusionBackend> {
+            desc: UnaryOperationDescription,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoByteOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let input = handles.get_float_tensor::<B>(&self.desc.input);
+                let output = B::float_into_byte(input);
+
+                handles.register_byte_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::ByteElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::Float(dtype, FloatOperationDescription::IntoByte(desc.clone())),
+            IntoByteOps::<B>::new(desc),
         );
 
         out

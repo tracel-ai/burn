@@ -4,7 +4,7 @@ use crate::{
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::{BoolTensor, ByteTensor, FloatTensor, IntTensor, QuantizedTensor},
     repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
     Device, Element,
 };
@@ -39,6 +39,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type BoolElem = B::BoolElem;
+
+    type ByteTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    type ByteElem = B::ByteElem;
 
     type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
 
@@ -187,6 +191,10 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         handle.handle
     }
 
+    fn byte_tensor(handle: TensorHandle<Self::Handle>) -> ByteTensor<Self> {
+        handle.handle
+    }
+
     fn quantized_tensor(
         _handles: QuantizedKind<TensorHandle<Self::Handle>>,
         _scheme: burn_tensor::quantization::QuantizationScheme,
@@ -203,6 +211,10 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
     }
 
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
+        tensor
+    }
+
+    fn byte_tensor_handle(tensor: ByteTensor<Self>) -> Self::Handle {
         tensor
     }
 

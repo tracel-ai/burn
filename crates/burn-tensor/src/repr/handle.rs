@@ -120,6 +120,15 @@ impl<H: Clone> HandleContainer<H> {
         B::bool_tensor(self.get_tensor_handle(tensor))
     }
 
+    /// Get the [byte tensor](crate::backend::Backend::ByteTensorPrimitive) corresponding to the
+    /// given [tensor description](TensorDescription).
+    pub fn get_byte_tensor<B>(&mut self, tensor: &TensorDescription) -> B::ByteTensorPrimitive
+    where
+        B: ReprBackend<Handle = H>,
+    {
+        B::byte_tensor(self.get_tensor_handle(tensor))
+    }
+
     /// Get the [quantized tensor](crate::backend::Backend::QuantizedTensorPrimitive) corresponding to the
     /// given [tensor description](TensorDescription).
     pub fn get_quantized_tensor<B>(
@@ -185,6 +194,15 @@ impl<H: Clone> HandleContainer<H> {
         B: ReprBackend<Handle = H>,
     {
         let handle = B::bool_tensor_handle(tensor);
+        self.handles.insert(*id, Handle::Existing(handle));
+    }
+
+    /// Register a new [bool tensor](crate::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
+    pub fn register_byte_tensor<B>(&mut self, id: &TensorId, tensor: B::ByteTensorPrimitive)
+    where
+        B: ReprBackend<Handle = H>,
+    {
+        let handle = B::byte_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
     }
 

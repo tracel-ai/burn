@@ -211,6 +211,26 @@ impl TchOps {
         )
     }
 
+    pub fn or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.bitwise_or_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.bitwise_or_tensor_(lhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| lhs.bitwise_or_tensor(rhs),
+        )
+    }
+
+    pub fn and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.bitwise_and_tensor_(rhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| rhs.bitwise_and_tensor_(lhs).to_kind(tch::Kind::Bool),
+            |lhs, rhs| lhs.bitwise_and_tensor(rhs),
+        )
+    }
+
     pub fn add(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             lhs,

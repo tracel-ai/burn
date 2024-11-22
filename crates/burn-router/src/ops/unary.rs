@@ -39,6 +39,19 @@ macro_rules! scalar_float2int_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
+macro_rules! scalar_byte2int_ops {
+    (
+        $handles:expr, $desc:expr, $ops:expr
+    ) => {{
+        let lhs = $handles.get_byte_tensor::<B>(&$desc.lhs);
+        let output = $ops(lhs, $desc.rhs);
+
+        $handles.register_int_tensor::<B>(&$desc.out.id, output);
+    }};
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
 macro_rules! scalar_float_cmp_ops {
     (
         $handles:expr, $desc:expr, $ops:expr
@@ -78,6 +91,19 @@ macro_rules! scalar_int_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
+macro_rules! scalar_byte_ops {
+    (
+        $handles:expr, $desc:expr, $ops:expr
+    ) => {{
+        let lhs = $handles.get_byte_tensor::<B>(&$desc.lhs);
+        let output = $ops(lhs, ElementConversion::elem($desc.rhs));
+
+        $handles.register_byte_tensor::<B>(&$desc.out.id, output);
+    }};
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
 macro_rules! int_float_ops {
     (
         $handles:expr, $desc:expr, $ops:expr
@@ -104,11 +130,37 @@ macro_rules! scalar_int_dim_ops {
 
 #[allow(missing_docs)]
 #[macro_export(local_inner_macros)]
+macro_rules! scalar_byte_dim_ops {
+    (
+        $handles:expr, $desc:expr, $ops:expr
+    ) => {{
+        let lhs = $handles.get_byte_tensor::<B>(&$desc.lhs);
+        let output = $ops(lhs, $desc.rhs);
+
+        $handles.register_byte_tensor::<B>(&$desc.out.id, output);
+    }};
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
 macro_rules! scalar_int_cmp_ops {
     (
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let lhs = $handles.get_int_tensor::<B>(&$desc.lhs);
+        let output = $ops(lhs, ElementConversion::elem($desc.rhs));
+
+        $handles.register_bool_tensor::<B>(&$desc.out.id, output);
+    }};
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! scalar_byte_cmp_ops {
+    (
+        $handles:expr, $desc:expr, $ops:expr
+    ) => {{
+        let lhs = $handles.get_byte_tensor::<B>(&$desc.lhs);
         let output = $ops(lhs, ElementConversion::elem($desc.rhs));
 
         $handles.register_bool_tensor::<B>(&$desc.out.id, output);
@@ -125,5 +177,18 @@ macro_rules! unary_int_ops {
         let output = $ops(lhs);
 
         $handles.register_int_tensor::<B>(&$desc.out.id, output);
+    }};
+}
+
+#[allow(missing_docs)]
+#[macro_export(local_inner_macros)]
+macro_rules! unary_byte_ops {
+    (
+        $handles:expr, $desc:expr, $ops:expr
+    ) => {{
+        let lhs = $handles.get_byte_tensor::<B>(&$desc.input);
+        let output = $ops(lhs);
+
+        $handles.register_byte_tensor::<B>(&$desc.out.id, output);
     }};
 }

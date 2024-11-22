@@ -5,7 +5,7 @@ use crate::{
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use burn_tensor::ops::{BoolTensor, ByteTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
@@ -241,6 +241,10 @@ where
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         kernel::cast::<R, I, F>(tensor)
+    }
+
+    fn int_into_byte(tensor: IntTensor<Self>) -> ByteTensor<Self> {
+        kernel::cast::<R, I, B>(tensor)
     }
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {

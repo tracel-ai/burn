@@ -3,6 +3,8 @@ use alloc::vec::Vec;
 
 use crate::try_read_sync;
 
+use super::Byte;
+
 /// The part of the tensor to keep when creating a triangular mask.
 enum TriPart {
     /// Upper triangular part.
@@ -34,9 +36,24 @@ where
         Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
     }
 
+    /// Convert the bool tensor into an float tensor.
+    pub fn byte(self) -> Tensor<B, D, Byte> {
+        Tensor::new(B::bool_into_byte(self.primitive))
+    }
+
     /// Inverses boolean values.
     pub fn bool_not(self) -> Self {
         Tensor::new(B::bool_not(self.primitive))
+    }
+
+    /// Perform logical or on this tensor.
+    pub fn bool_or(self, other: Tensor<B, D, Bool>) -> Self {
+        Tensor::new(B::bool_or(self.primitive, other.primitive))
+    }
+
+    /// Perform logical and on this tensor.
+    pub fn bool_and(self, other: Tensor<B, D, Bool>) -> Self {
+        Tensor::new(B::bool_and(self.primitive, other.primitive))
     }
 
     /// Compute the indices of the elements that are non-zero.

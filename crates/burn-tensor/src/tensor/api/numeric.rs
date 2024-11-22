@@ -12,6 +12,8 @@ use crate::{
     TensorKind,
 };
 
+use super::Byte;
+
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -4120,6 +4122,259 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
             TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
         }
+    }
+}
+
+impl<B: Backend> Numeric<B> for Byte {
+    fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_add(lhs, rhs)
+    }
+    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_add_scalar(lhs, rhs.elem())
+    }
+    fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_sub(lhs, rhs)
+    }
+    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_sub_scalar(lhs, rhs.elem())
+    }
+    fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_div(lhs, rhs)
+    }
+    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_div_scalar(lhs, rhs.elem())
+    }
+    fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_remainder(lhs, rhs)
+    }
+    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_remainder_scalar(lhs, rhs.elem())
+    }
+    fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_mul(lhs, rhs)
+    }
+    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_mul_scalar(lhs, rhs.elem())
+    }
+    fn neg(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_neg(tensor)
+    }
+    fn zeros(shape: Shape, device: &B::Device) -> Self::Primitive {
+        B::byte_zeros(shape, device)
+    }
+    fn ones(shape: Shape, device: &B::Device) -> Self::Primitive {
+        B::byte_ones(shape, device)
+    }
+    fn full<E: ElementConversion>(
+        shape: Shape,
+        fill_value: E,
+        device: &B::Device,
+    ) -> Self::Primitive {
+        B::byte_full(shape, fill_value.elem(), device)
+    }
+
+    fn sum(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_sum(tensor)
+    }
+
+    fn sum_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::byte_sum_dim(tensor, dim)
+    }
+
+    fn prod(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_prod(tensor)
+    }
+
+    fn prod_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::byte_prod_dim(tensor, dim)
+    }
+
+    fn mean(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_mean(tensor)
+    }
+    fn mean_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::byte_mean_dim(tensor, dim)
+    }
+
+    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_equal_elem(lhs, rhs)
+    }
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_not_equal_elem(lhs, rhs)
+    }
+    fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::byte_greater(lhs, rhs)
+    }
+
+    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_greater_elem(lhs, rhs)
+    }
+
+    fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::byte_greater_equal(lhs, rhs)
+    }
+
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_greater_equal_elem(lhs, rhs)
+    }
+
+    fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::byte_lower(lhs, rhs)
+    }
+
+    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_lower_elem(lhs, rhs)
+    }
+
+    fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
+        B::byte_lower_equal(lhs, rhs)
+    }
+
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+        B::byte_lower_equal_elem(lhs, rhs)
+    }
+
+    fn mask_where(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        source: Self::Primitive,
+    ) -> Self::Primitive {
+        B::byte_mask_where(tensor, mask, source)
+    }
+
+    fn mask_fill(
+        tensor: Self::Primitive,
+        mask: B::BoolTensorPrimitive,
+        value: Self::Elem,
+    ) -> Self::Primitive {
+        B::byte_mask_fill(tensor, mask, value)
+    }
+
+    fn select(tensor: Self::Primitive, dim: usize, indices: Tensor<B, 1, Int>) -> Self::Primitive {
+        B::byte_select(tensor, dim, indices.primitive)
+    }
+
+    fn select_assign(
+        tensor: Self::Primitive,
+        dim: usize,
+        indices: Tensor<B, 1, Int>,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        B::byte_select_assign(tensor, dim, indices.primitive, values)
+    }
+    fn gather(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+    ) -> Self::Primitive {
+        B::byte_gather(dim, tensor, indices)
+    }
+
+    fn scatter(
+        dim: usize,
+        tensor: Self::Primitive,
+        indices: B::IntTensorPrimitive,
+        values: Self::Primitive,
+    ) -> Self::Primitive {
+        B::byte_scatter(dim, tensor, indices, values)
+    }
+
+    fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
+        B::byte_argmax(tensor, dim)
+    }
+
+    fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
+        B::byte_argmin(tensor, dim)
+    }
+
+    fn max(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_max(tensor)
+    }
+
+    fn max_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::byte_max_dim(tensor, dim)
+    }
+
+    fn max_dim_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+    ) -> (Self::Primitive, IntTensor<B>) {
+        B::byte_max_dim_with_indices(tensor, dim)
+    }
+
+    fn min(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_min(tensor)
+    }
+
+    fn min_dim(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::byte_min_dim(tensor, dim)
+    }
+
+    fn min_dim_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+    ) -> (Self::Primitive, IntTensor<B>) {
+        B::byte_min_dim_with_indices(tensor, dim)
+    }
+
+    fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive {
+        B::byte_clamp(tensor, min, max)
+    }
+
+    fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive {
+        B::byte_clamp_min(tensor, min)
+    }
+
+    fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive {
+        B::byte_clamp_max(tensor, max)
+    }
+
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_abs(tensor)
+    }
+
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_powf(lhs, B::byte_into_float(rhs))
+    }
+
+    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::byte_powi(lhs, rhs)
+    }
+
+    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+        B::byte_powf_scalar(lhs, rhs.elem())
+    }
+
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
+        B::byte_random(shape, distribution, device)
+    }
+
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
+        B::byte_sign(tensor)
+    }
+
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+        B::byte_sort(tensor, dim, descending)
+    }
+
+    fn sort_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> (Self::Primitive, <Int as TensorKind<B>>::Primitive) {
+        B::byte_sort_with_indices(tensor, dim, descending)
+    }
+
+    fn argsort(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> <Int as TensorKind<B>>::Primitive {
+        B::byte_argsort(tensor, dim, descending)
     }
 }
 

@@ -1,7 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
+use burn_tensor::ops::{BoolTensorOps, ByteTensorOps, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::{IntoDimension, Zip};
@@ -50,6 +50,15 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
         )
     }
 
+    fn bool_into_byte(tensor: NdArrayTensor<bool>) -> NdArrayTensor<u8> {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        NdArray::<E, I>::byte_from_data(
+            TensorData::new(values, shape).convert::<u8>(),
+            &NdArrayDevice::Cpu,
+        )
+    }
+
     fn bool_device(_tensor: &NdArrayTensor<bool>) -> <NdArray<E> as Backend>::Device {
         NdArrayDevice::Cpu
     }
@@ -82,6 +91,22 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     fn bool_not(tensor: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let array = tensor.array.mapv(|a| !a).into_shared();
         NdArrayTensor { array }
+    }
+
+    fn bool_or(tensor: NdArrayTensor<bool>, other: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        let output = Zip::from(&tensor.array)
+            .and(&other.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val || rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
+    fn bool_and(tensor: NdArrayTensor<bool>, other: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        let output = Zip::from(&tensor.array)
+            .and(&other.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val && rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn bool_into_float(

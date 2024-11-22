@@ -12,6 +12,10 @@ pub struct Int;
 #[derive(Clone, Debug)]
 pub struct Bool;
 
+/// A type-level representation of the kind of a byte tensor.
+#[derive(Clone, Debug)]
+pub struct Byte;
+
 #[derive(Debug, Clone)]
 /// A primitive tensor representation.
 pub enum TensorPrimitive<B: Backend> {
@@ -83,5 +87,12 @@ impl<B: Backend> TensorKind<B> for Bool {
     type Primitive = B::BoolTensorPrimitive;
     fn name() -> &'static str {
         "Bool"
+    }
+}
+
+impl<B: Backend> TensorKind<B> for Byte {
+    type Primitive = B::ByteTensorPrimitive;
+    fn name() -> &'static str {
+        "Byte"
     }
 }

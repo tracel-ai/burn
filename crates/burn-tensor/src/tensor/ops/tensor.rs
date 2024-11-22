@@ -1,5 +1,5 @@
-use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
+use super::{cat::cat_with_slice_assign, ByteTensor};
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
@@ -130,6 +130,17 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The int tensor with the same data as the float tensor.
     fn float_into_int(tensor: FloatTensor<B>) -> IntTensor<B>;
+
+    /// Converts float tensor to byte tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    ///
+    /// # Returns
+    ///
+    /// The byte tensor with the same data as the float tensor.
+    fn float_into_byte(tensor: FloatTensor<B>) -> ByteTensor<B>;
 
     /// Creates an empty tensor with the given shape.
     ///

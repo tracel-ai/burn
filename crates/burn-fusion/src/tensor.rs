@@ -154,6 +154,17 @@ impl<R: FusionRuntime> FusionTensor<R> {
             .read_tensor_bool::<B>(self.into_description(), id)
             .await
     }
+
+    pub(crate) async fn byte_into_data<B>(self) -> TensorData
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let id = self.stream;
+        self.client
+            .clone()
+            .read_tensor_byte::<B>(self.into_description(), id)
+            .await
+    }
 }
 
 impl<R: FusionRuntime> Drop for FusionTensor<R> {

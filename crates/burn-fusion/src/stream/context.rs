@@ -153,6 +153,9 @@ impl RelativeOps for OperationDescription {
             OperationDescription::BaseInt(ops) => {
                 OperationDescription::BaseInt(ops.to_relative(converter))
             }
+            OperationDescription::BaseByte(ops) => {
+                OperationDescription::BaseByte(ops.to_relative(converter))
+            }
             OperationDescription::BaseBool(ops) => {
                 OperationDescription::BaseBool(ops.to_relative(converter))
             }
@@ -164,10 +167,17 @@ impl RelativeOps for OperationDescription {
                 *dtype,
                 ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
             ),
+            OperationDescription::NumericByte(dtype, ops) => OperationDescription::NumericByte(
+                *dtype,
+                ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
+            ),
             OperationDescription::Bool(ops) => {
                 OperationDescription::Bool(ops.to_relative(converter))
             }
             OperationDescription::Int(ops) => OperationDescription::Int(ops.to_relative(converter)),
+            OperationDescription::Byte(ops) => {
+                OperationDescription::Byte(ops.to_relative(converter))
+            }
             OperationDescription::Float(dtype, ops) => OperationDescription::Float(
                 *dtype,
                 RelativeOpsScalar::<f32>::to_relative(ops, converter, |converter, e| {
@@ -517,6 +527,12 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            FloatOperationDescription::IntoByte(desc) => {
+                FloatOperationDescription::IntoByte(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             FloatOperationDescription::Matmul(desc) => {
                 FloatOperationDescription::Matmul(BinaryOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
@@ -606,9 +622,29 @@ impl RelativeOps for BoolOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            BoolOperationDescription::IntoByte(desc) => {
+                BoolOperationDescription::IntoByte(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             BoolOperationDescription::Not(desc) => {
                 BoolOperationDescription::Not(UnaryOperationDescription {
                     input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            BoolOperationDescription::Or(desc) => {
+                BoolOperationDescription::Or(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            BoolOperationDescription::And(desc) => {
+                BoolOperationDescription::And(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -621,6 +657,31 @@ impl RelativeOps for IntOperationDescription {
         match self {
             IntOperationDescription::IntoFloat(desc) => {
                 IntOperationDescription::IntoFloat(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::IntoByte(desc) => {
+                IntOperationDescription::IntoByte(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+        }
+    }
+}
+
+impl RelativeOps for ByteOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            ByteOperationDescription::IntoFloat(desc) => {
+                ByteOperationDescription::IntoFloat(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ByteOperationDescription::IntoInt(desc) => {
+                ByteOperationDescription::IntoInt(UnaryOperationDescription {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })

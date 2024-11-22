@@ -286,6 +286,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         NdArrayTensor { array }
     }
 
+    fn int_into_byte(tensor: NdArrayTensor<I>) -> <NdArray<E> as Backend>::ByteTensorPrimitive {
+        let array = tensor.array.mapv(|a| a.elem()).into_shared();
+        NdArrayTensor { array }
+    }
+
     fn int_swap_dims(tensor: NdArrayTensor<I>, dim1: usize, dim2: usize) -> NdArrayTensor<I> {
         NdArrayOps::swap_dims(tensor, dim1, dim2)
     }
