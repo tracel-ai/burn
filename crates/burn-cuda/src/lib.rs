@@ -19,5 +19,5 @@ mod tests {
     pub type TestRuntime = cubecl::cuda::CudaRuntime;
     pub use half::{bf16, f16};
 
-    burn_jit::testgen_all!([f16, bf16, f32], [i8, i16, i32, i64]);
+    burn_jit::testgen_all!([f16, bf16, f32], [i8, i16, i32, i64], [u8, u32]);
 }

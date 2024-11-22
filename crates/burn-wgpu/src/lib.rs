@@ -104,7 +104,7 @@ mod tests {
     // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
     // breaks a lot of tests from precision issues
     #[cfg(feature = "spirv")]
-    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64]);
+    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
     #[cfg(not(feature = "spirv"))]
-    burn_jit::testgen_all!([f32], [i32]);
+    burn_jit::testgen_all!([f32], [i32], [u32]);
 }
