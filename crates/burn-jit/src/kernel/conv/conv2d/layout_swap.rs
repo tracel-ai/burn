@@ -19,18 +19,17 @@ use crate::{
 /// The input in NHWC format
 ///
 pub fn nchw_to_nhwc<R: JitRuntime, E: JitElement>(input: JitTensor<R>) -> JitTensor<R> {
-    let tiles_per_block = 4;
+    let tiles_per_block = 8;
     let warp_size = 32;
     let tile_dim = 16;
 
     let [batch_size, in_c, h, w] = input.shape.dims();
     let hw = h * w;
-    let padded_c = in_c.div_ceil(16) * 16;
 
     let out_shape = Shape::new([batch_size, h, w, in_c]);
     let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), out_shape);
 
-    let tiles_channel = padded_c.div_ceil(tile_dim) as u32;
+    let tiles_channel = in_c.div_ceil(tile_dim) as u32;
     let tiles_hw = hw.div_ceil(tile_dim) as u32;
 
     let block_tiles_y = Ord::min(tiles_channel.next_power_of_two(), tiles_per_block);
