@@ -21,6 +21,8 @@ use crate::{
     FloatElement, IntElement, JitRuntime,
 };
 
+use super::nchw_to_nhwc;
+
 /// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
 /// * `input` - The input feature map
@@ -84,7 +86,11 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         );
     }
 
-    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
+    let input = if input.is_contiguous() {
+        nchw_to_nhwc::<R, F>(input)
+    } else {
+        into_contiguous(permute(input, &[0, 2, 3, 1]))
+    };
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);

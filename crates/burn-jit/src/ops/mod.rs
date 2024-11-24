@@ -6,7 +6,7 @@ mod module_ops;
 mod qtensor;
 mod transaction;
 
-mod base;
+pub(crate) mod base;
 pub(crate) use base::*;
 
 pub(crate) mod numeric;
