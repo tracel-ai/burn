@@ -152,7 +152,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
 
         #[unroll]
         for v in 0..input_vec {
-            let shared_idx = swizzle::<E>(mat_idx + v, num_banks);
+            let shared_idx = swizzle(mat_idx + v, num_banks);
             shared[shared_idx] = value[v];
         }
     }
@@ -181,7 +181,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
 
         #[unroll]
         for v in 0..out_vec {
-            let shared_idx = swizzle::<E>(mat_idx + v * tile_dim, num_banks);
+            let shared_idx = swizzle(mat_idx + v * tile_dim, num_banks);
             value[v] = shared[shared_idx];
         }
 
@@ -192,14 +192,11 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
 }
 
 #[cube]
-pub fn swizzle<E: CubePrimitive>(offset: u32, #[comptime] bank_count: i32) -> u32 {
+pub fn swizzle(offset: u32, #[comptime] bank_count: i32) -> u32 {
     let num_bits = comptime!(i32::BITS - bank_count.leading_zeros() - 1);
     let bit_mask = (1 << num_bits) - 1;
     let yyy_mask = bit_mask << (num_bits);
     let mask_shift = num_bits;
-    let elem_size = comptime!(E::as_elem().size() as u32);
 
-    let offset = offset * elem_size;
-    let swizzled = offset ^ ((offset & yyy_mask) >> mask_shift);
-    swizzled / elem_size
+    offset ^ ((offset & yyy_mask) >> mask_shift)
 }
