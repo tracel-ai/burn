@@ -1,4 +1,4 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, tensor::JitTensor, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
@@ -25,7 +25,7 @@ fn slice_assign_kernel<E: CubePrimitive>(
     input[offset_input] = value[offset_value];
 }
 
-pub(crate) fn slice_assign<R: JitRuntime, E: JitElement>(
+pub(crate) fn slice_assign<R: JitRuntime, E: BasicJitElement>(
     tensor: JitTensor<R>,
     indices: &[Range<usize>],
     value: JitTensor<R>,

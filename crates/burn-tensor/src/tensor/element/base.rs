@@ -258,7 +258,7 @@ make_element!(
 
 make_element!(
     ty bool Precision::Other,
-    convert |elem: &dyn ToElement| elem.to_u8() != 0,
+    convert |elem: &dyn ToElement| elem.to_u32() != 0,
     random |distribution: Distribution, rng: &mut R| {
         let sample: u8 = distribution.sampler(rng).sample();
         bool::from_elem(sample)
@@ -287,8 +287,7 @@ pub enum DType {
 }
 
 impl DType {
-    /// Returns the size of a type in bytes.
-    pub const fn size(&self) -> usize {
+    pub const fn data_size(&self) -> usize {
         match self {
             DType::F64 => core::mem::size_of::<f64>(),
             DType::F32 => core::mem::size_of::<f32>(),
@@ -302,6 +301,7 @@ impl DType {
             DType::U32 => core::mem::size_of::<u32>(),
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
+            // Nb: bools are currently stored as u32.
             DType::Bool => core::mem::size_of::<bool>(),
             DType::QFloat(scheme) => match scheme {
                 QuantizationScheme::PerTensorAffine(qtype)
@@ -311,6 +311,15 @@ impl DType {
             },
         }
     }
+    /// Returns the size of a type in bytes.
+    pub const fn elem_size(&self) -> usize {
+        match self {
+            // Nb: bools are currently stored as u32.
+            DType::Bool => core::mem::size_of::<u32>(),
+            _ => self.data_size(),
+        }
+    }
+
     /// Returns true if the data type is a floating point type.
     pub fn is_float(&self) -> bool {
         matches!(self, DType::F64 | DType::F32 | DType::F16 | DType::BF16)

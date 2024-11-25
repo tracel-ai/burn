@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{ops::empty_device, tensor::JitTensor, JitElement, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -8,7 +8,7 @@ use cubecl::{
 use super::into_contiguous;
 
 #[cube]
-pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
+pub(crate) trait BinaryOp<C: Algebraic>: 'static + Send + Sync {
     /// Execute a binary operation.
     fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
 }
@@ -21,35 +21,35 @@ pub(crate) struct RemainderOp;
 pub(crate) struct PowOp;
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for AddOp {
+impl<N: Algebraic> BinaryOp<N> for AddOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs + rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for SubOp {
+impl<N: Algebraic> BinaryOp<N> for SubOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs - rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for MulOp {
+impl<N: Algebraic> BinaryOp<N> for MulOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs * rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for DivOp {
+impl<N: Algebraic> BinaryOp<N> for DivOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs / rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for RemainderOp {
+impl<N: Algebraic> BinaryOp<N> for RemainderOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         Line::rem(lhs, rhs)
     }
@@ -63,7 +63,7 @@ impl<N: Float> BinaryOp<N> for PowOp {
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
+pub(crate) fn kernel_scalar_binop<C: Algebraic, O: BinaryOp<C>>(
     input: &Tensor<Line<C>>,
     scalar: C,
     output: &mut Tensor<Line<C>>,
@@ -76,7 +76,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
+pub(crate) fn kernel_binop<C: Algebraic, O: BinaryOp<C>>(
     lhs: &Tensor<Line<C>>,
     rhs: &Tensor<Line<C>>,
     out: &mut Tensor<Line<C>>,

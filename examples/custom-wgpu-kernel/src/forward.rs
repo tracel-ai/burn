@@ -77,7 +77,7 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         // Create a buffer for the output tensor.
         let buffer = lhs
             .client
-            .empty(shape_out.num_elements() * core::mem::size_of::<F>());
+            .empty(shape_out.num_elements() * F::as_elem().size());
 
         // Create the output tensor primitive.
         let output = JitTensor::new_contiguous(
@@ -92,8 +92,8 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
-        let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
+        let info = build_info(&[&lhs, &rhs, &output]);
+        let info_handle = lhs.client.create(u32::to_elem_data(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;

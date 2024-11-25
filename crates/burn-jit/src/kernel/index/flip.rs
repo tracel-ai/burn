@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -31,7 +31,7 @@ fn flip_kernel<E: CubePrimitive, Bool: Int>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn flip<R: JitRuntime, E: JitElement>(
+pub(crate) fn flip<R: JitRuntime, E: BasicJitElement>(
     tensor: JitTensor<R>,
     indices: &[usize],
 ) -> JitTensor<R> {
@@ -43,7 +43,7 @@ pub(crate) fn flip<R: JitRuntime, E: JitElement>(
     flip_on_output::<R, E>(tensor, output, indices)
 }
 
-pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
+pub(crate) fn flip_on_output<R: JitRuntime, E: BasicJitElement>(
     tensor: JitTensor<R>,
     output: JitTensor<R>,
     indices: &[usize],

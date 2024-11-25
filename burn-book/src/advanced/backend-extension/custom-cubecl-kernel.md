@@ -168,7 +168,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
         // Create a buffer for the output tensor.
         let buffer = lhs
             .client
-            .empty(shape_out.num_elements() * core::mem::size_of::<F>());
+            .empty(shape_out.num_elements() * F::as_elem().size());
 
         // Create the output tensor primitive.
         // Create the output tensor primitive.

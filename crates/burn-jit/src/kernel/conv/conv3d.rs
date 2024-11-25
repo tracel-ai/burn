@@ -8,8 +8,7 @@ use burn_tensor::{
 use crate::{
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
-        reshape,
+        reshape, {empty_device, zeros_device},
     },
     tensor::JitTensor,
     FloatElement, JitRuntime,

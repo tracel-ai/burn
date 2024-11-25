@@ -6,7 +6,7 @@ use cubecl::{calculate_cube_count_elemwise, linalg::matmul, prelude::*};
 
 use crate::{
     kernel::into_contiguous,
-    ops::{numeric::empty_device, reshape, swap_dims},
+    ops::{empty_device, reshape, swap_dims},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
 };

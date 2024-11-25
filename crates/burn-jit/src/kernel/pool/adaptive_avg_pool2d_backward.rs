@@ -2,7 +2,7 @@ use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
-fn adaptive_avg_pool2d_backward_direct<E: Numeric>(grad: &Tensor<E>, output: &mut Tensor<E>) {
+fn adaptive_avg_pool2d_backward_direct<E: Algebraic>(grad: &Tensor<E>, output: &mut Tensor<E>) {
     let (output_stride_0, output_stride_1, output_stride_2, output_stride_3) = (
         output.stride(0),
         output.stride(1),
@@ -84,7 +84,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
-    let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
+    let output_buffer = x.client.empty(num_elems * E::as_elem().size());
     let output = JitTensor::new_contiguous(
         x.client.clone(),
         x.device.clone(),

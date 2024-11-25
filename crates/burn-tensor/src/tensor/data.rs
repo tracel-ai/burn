@@ -357,7 +357,7 @@ impl TensorData {
     pub fn convert<E: Element>(self) -> Self {
         if E::dtype() == self.dtype {
             self
-        } else if core::mem::size_of::<E>() == self.dtype.size()
+        } else if E::dtype().data_size() == self.dtype.data_size()
             && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
         {
             match self.dtype {

@@ -21,7 +21,7 @@ impl<EI: JitElement> ReduceDimNaive<EI> for Argmin {
         }
     }
 
-    fn assign_naive<EO: Numeric>(
+    fn assign_naive<EO: Algebraic>(
         output: &mut Tensor<EO>,
         accumulator: Self::Accumulator,
         _shape_reduce_dim: u32,

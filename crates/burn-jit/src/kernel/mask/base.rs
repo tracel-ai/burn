@@ -1,8 +1,8 @@
 use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, tensor::JitTensor, JitRuntime};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
+pub(crate) fn mask_fill_auto<R: JitRuntime, E: BasicJitElement>(
     tensor: JitTensor<R>,
     mask: JitTensor<R>,
     value: E,
@@ -17,7 +17,7 @@ pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement>(
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement>(
+pub(crate) fn mask_where_auto<R: JitRuntime, E: BasicJitElement>(
     tensor: JitTensor<R>,
     mask: JitTensor<R>,
     value: JitTensor<R>,

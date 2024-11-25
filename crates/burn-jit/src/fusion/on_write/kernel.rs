@@ -686,7 +686,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
 macro_rules! binary_op {
     ($ident:ident, $op:tt) => {
         #[cube]
-        fn $ident<C: Numeric>(
+        fn $ident<C: Algebraic>(
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
@@ -817,4 +817,4 @@ unary_func!(sin, Line::<C>::sin, Float);
 unary_func!(tanh, Line::<C>::tanh, Float);
 unary_func!(erf, Line::<C>::erf, Float);
 unary_func!(recip, Line::<C>::recip, Float);
-unary_func!(abs, Line::<C>::abs, Numeric);
+unary_func!(abs, Line::<C>::abs, Algebraic);

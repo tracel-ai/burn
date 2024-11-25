@@ -3,7 +3,7 @@ use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
 #[cube(launch_unchecked)]
-fn select_assign_kernel<F: Numeric, I: Numeric>(
+fn select_assign_kernel<F: Algebraic, I: Algebraic>(
     tensor: &mut Tensor<F>,
     indices: &Tensor<I>,
     value: &Tensor<F>,

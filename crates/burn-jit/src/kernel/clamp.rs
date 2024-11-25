@@ -1,10 +1,11 @@
 use cubecl::prelude::*;
 
 use crate::kernel::{launch_unary, UnaryOp};
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::JitElement;
+use crate::{tensor::JitTensor, JitRuntime};
 
 #[derive(CubeLaunch)]
-struct Options<C: Numeric> {
+struct Options<C: Algebraic> {
     min_value: C,
     max_value: C,
 }
@@ -16,7 +17,7 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R> {
     struct ClampOp;
 
-    impl<C: Numeric> UnaryOp<C> for ClampOp {
+    impl<C: Algebraic> UnaryOp<C> for ClampOp {
         type Options = Options<C>;
 
         fn __expand_execute(
@@ -25,7 +26,7 @@ pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
             options: OptionsExpand<C>,
         ) -> <Line<C> as CubeType>::ExpandType {
             #[cube]
-            fn execute<C: Numeric>(input: Line<C>, options: &Options<C>) -> Line<C> {
+            fn execute<C: Algebraic>(input: Line<C>, options: &Options<C>) -> Line<C> {
                 Line::clamp(
                     input,
                     Line::new(options.min_value),

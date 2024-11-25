@@ -75,7 +75,7 @@ where
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::zeros::<R, F>(shape, device)
+        super::zeros::<R, F>(shape, device)
     }
 
     fn float_full(
@@ -83,11 +83,11 @@ where
         fill_value: FloatElem<Self>,
         device: &R::Device,
     ) -> FloatTensor<Self> {
-        numeric::full::<R, F>(shape, device, fill_value)
+        super::full::<R, F>(shape, device, fill_value)
     }
 
     fn float_ones(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        numeric::ones::<R, F>(shape, device)
+        super::ones::<R, F>(shape, device)
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {

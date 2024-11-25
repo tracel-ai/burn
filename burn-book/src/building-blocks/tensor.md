@@ -34,11 +34,7 @@ let tensor_1 = Tensor::<Backend, 1>::from_floats(floats, &device);
 
 Burn Tensors are primarily initialized using the `from_data()` method which takes the `TensorData`
 struct as input. The `TensorData` struct has two public fields: `shape` and `dtype`. The `value`,
-now stored as bytes, is private but can be accessed via any of the following methods: `as_slice`,
-`as_mut_slice`, `to_vec` and `iter`. To retrieve the data from a tensor, the method `.to_data()`
-should be employed when intending to reuse the tensor afterward. Alternatively, `.into_data()` is
-recommended for one-time use. Let's look at a couple of examples for initializing a tensor from
-different inputs.
+now stored as bytes, is private but can be accessed via `into_vec` or by `iter`over values. To retrieve the data from a tensor, the method `.to_data()` should be employed when intending to reuse the tensor afterward. Alternatively, `.into_data()` is recommended for one-time use. Let's look at a couple of examples for initializing a tensor from different inputs.
 
 ```rust, ignore
 

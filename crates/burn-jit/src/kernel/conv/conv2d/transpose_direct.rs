@@ -4,8 +4,7 @@ use crate::{
     element::JitElement,
     kernel::into_contiguous,
     ops::{
-        numeric::{empty_device, zeros_device},
-        reshape,
+        reshape, {empty_device, zeros_device},
     },
     tensor::JitTensor,
     IntElement, JitRuntime,
@@ -24,7 +23,7 @@ struct ConvArgs {
 }
 
 #[cube(launch)]
-fn conv_transpose2d_direct_kernel<E: Numeric>(
+fn conv_transpose2d_direct_kernel<E: Algebraic>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
     bias: &Tensor<E>,

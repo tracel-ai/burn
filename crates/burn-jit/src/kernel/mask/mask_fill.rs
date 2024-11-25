@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 
 #[cube(launch)]
 fn mask_fill_readonly_kernel<T: Numeric>(
@@ -56,7 +56,7 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement>(
+pub fn mask_fill<R: JitRuntime, E: BasicJitElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: E,
@@ -68,7 +68,7 @@ pub fn mask_fill<R: JitRuntime, E: JitElement>(
     }
 }
 
-fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
+fn mask_fill_readonly<R: JitRuntime, EI: BasicJitElement, EM: BasicJitElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: EI,
@@ -97,7 +97,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: JitElement>(
     output
 }
 
-fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: JitElement>(
+fn mask_fill_inplace<R: JitRuntime, EI: BasicJitElement, EM: BasicJitElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: EI,

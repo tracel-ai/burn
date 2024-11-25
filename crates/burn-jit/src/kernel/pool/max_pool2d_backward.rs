@@ -1,5 +1,5 @@
 use crate::{
-    element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
+    element::JitElement, kernel::into_contiguous, ops::empty_device, tensor::JitTensor,
     IntElement, JitRuntime,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
@@ -7,7 +7,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
 
 #[cube(launch_unchecked)]
-fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
+fn max_pool2d_with_indices_backward_kernel<E: Algebraic, I: Int>(
     grad: &Tensor<E>,
     indices: &Tensor<I>,
     output: &mut Tensor<E>,

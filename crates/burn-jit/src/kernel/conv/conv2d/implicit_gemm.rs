@@ -14,8 +14,7 @@ use half::f16;
 use crate::{
     kernel::{into_contiguous, slice, slice_assign},
     ops::{
-        numeric::{empty_device, zeros_device},
-        permute,
+        permute, {empty_device, zeros_device},
     },
     tensor::JitTensor,
     FloatElement, IntElement, JitRuntime,

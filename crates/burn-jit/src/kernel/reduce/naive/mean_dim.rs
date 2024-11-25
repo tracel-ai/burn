@@ -5,7 +5,7 @@ use crate::kernel::reduce::MeanDim;
 use super::base::ReduceDimNaive;
 
 #[cube]
-impl<EI: Numeric> ReduceDimNaive<EI> for MeanDim {
+impl<EI: Algebraic> ReduceDimNaive<EI> for MeanDim {
     type Accumulator = EI;
 
     fn initialize_naive() -> EI {
@@ -16,7 +16,11 @@ impl<EI: Numeric> ReduceDimNaive<EI> for MeanDim {
         *accumulator += current_value;
     }
 
-    fn assign_naive<EO: Numeric>(output: &mut Tensor<EO>, accumulator: EI, shape_reduce_dim: u32) {
+    fn assign_naive<EO: Algebraic>(
+        output: &mut Tensor<EO>,
+        accumulator: EI,
+        shape_reduce_dim: u32,
+    ) {
         let mean = accumulator / EI::cast_from(shape_reduce_dim);
         output[ABSOLUTE_POS] = EO::cast_from(mean);
     }

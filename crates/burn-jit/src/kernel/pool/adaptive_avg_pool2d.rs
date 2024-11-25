@@ -1,9 +1,9 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
-fn adaptive_avg_pool2d_direct<E: Numeric>(input: &Tensor<E>, output: &mut Tensor<E>) {
+fn adaptive_avg_pool2d_direct<E: Algebraic>(input: &Tensor<E>, output: &mut Tensor<E>) {
     let (output_stride_0, output_stride_1, output_stride_2, output_stride_3) = (
         output.stride(0),
         output.stride(1),

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_vectorization_factor, unexpanded,
@@ -44,7 +44,7 @@ pub(crate) fn unary_kernel<C: CubePrimitive, O: UnaryOp<C>>(
     }
 }
 
-pub(crate) fn launch_unary<R: JitRuntime, E: JitElement, O: UnaryOp<E>, F>(
+pub(crate) fn launch_unary<R: JitRuntime, E: BasicJitElement, O: UnaryOp<E>, F>(
     tensor: JitTensor<R>,
     options: F,
 ) -> JitTensor<R>
@@ -138,15 +138,19 @@ macro_rules! unary_op {
         launch_unary::<R, F, Op, _>($tensor, |_| ())
     }};
     (int($tensor:expr) => $exp:expr) => {{
-        unary_op!(Op, Numeric, $exp);
+        unary_op!(Op, Int, $exp);
         launch_unary::<R, I, Op, _>($tensor, |_| ())
     }};
     (numeric($tensor:expr) => $exp:expr) => {{
         unary_op!(Op, Numeric, $exp);
         launch_unary::<R, E, Op, _>($tensor, |_| ())
     }};
-    (numeric($tensor:expr, $scalar:expr) => $exp:expr) => {{
-        unary_op!(scalar Op, Numeric, $exp);
+    (algebraic($tensor:expr) => $exp:expr) => {{
+        unary_op!(Op, Algebraic, $exp);
+        launch_unary::<R, E, Op, _>($tensor, |_| ())
+    }};
+    (algebraic($tensor:expr, $scalar:expr) => $exp:expr) => {{
+        unary_op!(scalar Op, Algebraic, $exp);
         launch_unary::<R, E, Op, _>($tensor, |_| ScalarArg::new($scalar))
     }};
     (float($tensor:expr, $scalar:expr) => $exp:expr) => {{

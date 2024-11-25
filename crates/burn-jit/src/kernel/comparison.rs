@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::BasicJitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{DType, Shape};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -111,7 +111,7 @@ pub(crate) fn kernel_cmp<C: Numeric, O: ComparisonOp<C>>(
     out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
-pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
+pub(crate) fn launch_cmp<R: JitRuntime, E: BasicJitElement, O: ComparisonOp<E>>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
@@ -205,7 +205,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
     }
 }
 
-pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>>(
+pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: BasicJitElement, O: ComparisonOp<E>>(
     mut tensor: JitTensor<R>,
     scalar: E,
 ) -> JitTensor<R> {
@@ -263,48 +263,63 @@ pub(crate) fn launch_scalar_cmp<R: JitRuntime, E: JitElement, O: ComparisonOp<E>
     }
 }
 
-pub fn equal<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+pub fn equal<R: JitRuntime, E: BasicJitElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
     launch_cmp::<R, E, EqualOp>(lhs, rhs)
 }
 
-pub fn greater<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+pub fn greater<R: JitRuntime, E: BasicJitElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
     launch_cmp::<R, E, GreaterOp>(lhs, rhs)
 }
 
-pub fn greater_equal<R: JitRuntime, E: JitElement>(
+pub fn greater_equal<R: JitRuntime, E: BasicJitElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
     launch_cmp::<R, E, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+pub fn lower<R: JitRuntime, E: BasicJitElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
     launch_cmp::<R, E, LowerOp>(lhs, rhs)
 }
 
-pub fn lower_equal<R: JitRuntime, E: JitElement>(
+pub fn lower_equal<R: JitRuntime, E: BasicJitElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
     launch_cmp::<R, E, LowerEqualOp>(lhs, rhs)
 }
 
-pub fn equal_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+pub fn equal_elem<R: JitRuntime, E: BasicJitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_cmp::<R, E, EqualOp>(lhs, rhs)
 }
 
-pub fn greater_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+pub fn greater_elem<R: JitRuntime, E: BasicJitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_cmp::<R, E, GreaterOp>(lhs, rhs)
 }
 
-pub fn lower_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+pub fn lower_elem<R: JitRuntime, E: BasicJitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_cmp::<R, E, LowerOp>(lhs, rhs)
 }
 
-pub fn greater_equal_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+pub fn greater_equal_elem<R: JitRuntime, E: BasicJitElement>(
+    lhs: JitTensor<R>,
+    rhs: E,
+) -> JitTensor<R> {
     launch_scalar_cmp::<R, E, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower_equal_elem<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+pub fn lower_equal_elem<R: JitRuntime, E: BasicJitElement>(
+    lhs: JitTensor<R>,
+    rhs: E,
+) -> JitTensor<R> {
     launch_scalar_cmp::<R, E, LowerEqualOp>(lhs, rhs)
 }

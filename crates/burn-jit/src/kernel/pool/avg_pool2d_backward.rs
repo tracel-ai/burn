@@ -1,6 +1,5 @@
 use crate::{
-    element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
-    JitRuntime,
+    element::JitElement, kernel::into_contiguous, ops::empty_device, tensor::JitTensor, JitRuntime,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -15,7 +14,7 @@ pub(crate) struct PoolBackwardArgs {
 }
 
 #[cube(launch_unchecked)]
-fn avg_pool2d_backward_kernel<E: Numeric>(
+fn avg_pool2d_backward_kernel<E: Algebraic>(
     grad: &Tensor<E>,
     output: &mut Tensor<E>,
     args: &PoolBackwardArgs,

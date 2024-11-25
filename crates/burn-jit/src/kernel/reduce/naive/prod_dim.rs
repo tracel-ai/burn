@@ -5,7 +5,7 @@ use crate::kernel::reduce::ProdDim;
 use super::base::ReduceDimNaive;
 
 #[cube]
-impl<EI: Numeric> ReduceDimNaive<EI> for ProdDim {
+impl<EI: Algebraic> ReduceDimNaive<EI> for ProdDim {
     type Accumulator = EI;
 
     fn initialize_naive() -> EI {
@@ -16,7 +16,11 @@ impl<EI: Numeric> ReduceDimNaive<EI> for ProdDim {
         *accumulator *= current_value;
     }
 
-    fn assign_naive<EO: Numeric>(output: &mut Tensor<EO>, accumulator: EI, _shape_reduce_dim: u32) {
+    fn assign_naive<EO: Algebraic>(
+        output: &mut Tensor<EO>,
+        accumulator: EI,
+        _shape_reduce_dim: u32,
+    ) {
         output[ABSOLUTE_POS] = EO::cast_from(accumulator);
     }
 }

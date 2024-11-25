@@ -233,7 +233,7 @@ impl<R: JitRuntime> JitFusionHandle<R> {
             strides: &self.strides,
             shape,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
+            elem_size: self.dtype.elem_size(),
         }
     }
     /// Return the reference to a tensor argument.
@@ -246,7 +246,7 @@ impl<R: JitRuntime> JitFusionHandle<R> {
                 handle.strides,
                 handle.shape,
                 vectorisation,
-                self.dtype.size(),
+                self.dtype.elem_size(),
             )
         }
     }

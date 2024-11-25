@@ -14,8 +14,9 @@ pub struct CandleTensor {
 impl TensorMetadata for CandleTensor {
     fn dtype(&self) -> DType {
         match self.tensor.dtype() {
-            // NOTE: bool tensors are stored as u32, we currently make this assumption
-            // since `TensorMetadata::dtype()` is used for display purposes only at this time.
+            // NOTE: bool tensors are stored as u8, we currently make the assumption
+            // that no other types are used as u8. `TensorMetadata::dtype()` is only used
+            // for display purposes at this time.
             candle_core::DType::U8 => DType::Bool,
             candle_core::DType::U32 => DType::U32,
             candle_core::DType::I64 => DType::I64,

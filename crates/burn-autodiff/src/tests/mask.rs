@@ -15,7 +15,8 @@ mod tests {
         let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_bool(mask, &device);
 
         let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
-        let tensor_4 = tensor_3.mask_fill(mask, 2.0);
+        let tensor_4 = tensor_3.mask_fill(mask.clone(), 2.0);
+
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();
@@ -45,7 +46,13 @@ mod tests {
 
         let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
         let tensor_5 = tensor_4.clone().matmul(tensor_3.clone());
-        let tensor_6 = tensor_5.mask_where(mask, tensor_3.clone());
+        let tensor_6 = tensor_5.clone().mask_where(mask.clone(), tensor_3.clone());
+
+        println!("mask {:?}", mask.clone().into_data().into_vec::<bool>());
+        println!("t3 {:?}", tensor_3.clone().into_data().into_vec::<f32>());
+        println!("t5 {:?}", tensor_5.clone().into_data().into_vec::<f32>());
+        println!("t6 {:?}", tensor_6.clone().into_data().into_vec::<f32>());
+
         let grads = tensor_6.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

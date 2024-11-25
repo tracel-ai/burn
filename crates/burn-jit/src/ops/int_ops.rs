@@ -4,7 +4,6 @@ use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
-use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use std::ops::Range;
 
@@ -181,11 +180,11 @@ where
     }
 
     fn int_zeros(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::zeros::<R, I>(shape, device)
+        super::zeros::<R, I>(shape, device)
     }
 
     fn int_ones(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        numeric::ones::<R, I>(shape, device)
+        super::ones::<R, I>(shape, device)
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -227,7 +226,7 @@ where
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
         unary_op!(int(tensor) => |context, tensor| {
             #[cube]
-            fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
+            fn execute<C: Algebraic>(input: Line<C>) -> Line<C> {
                 Line::abs(input)
             }
             execute::expand::<C>(context, tensor)

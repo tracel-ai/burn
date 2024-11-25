@@ -6,7 +6,7 @@ use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTu
 use crate::{
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
-    ops::numeric::empty_device,
+    ops::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
     JitRuntime, JitTuneId,

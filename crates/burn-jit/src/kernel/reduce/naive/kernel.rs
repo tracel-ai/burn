@@ -7,7 +7,7 @@ use cubecl::prelude::*;
 use super::base::ReduceDimNaive;
 
 #[cube(launch_unchecked)]
-pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
+pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Algebraic, EO: Algebraic>(
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
     dim: u32,

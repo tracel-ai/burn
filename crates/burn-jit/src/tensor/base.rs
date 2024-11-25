@@ -1,4 +1,4 @@
-use crate::element::JitElement;
+use crate::element::{BasicJitElement, JitElement};
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::JitRuntime;
 use burn_tensor::{DType, Shape, TensorMetadata};
@@ -65,9 +65,6 @@ where
 
 impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
     fn dtype(&self) -> DType {
-        // NOTE: bool tensors are stored as u32, so
-        // they might display as being U32 tensors.
-        //  `TensorMetadata::dtype()` is used for display purposes only at this time.
         self.dtype
     }
 
@@ -165,11 +162,11 @@ macro_rules! execute_with_dtype {
                 type $element = i8;
                 $op
             }
-            // NOTE: bool and qfloat dtypes are actually represented as u32
-            // burn_tensor::DType::Bool => {
-            //     type $element = u32;
-            //     $op
-            // }
+            burn_tensor::DType::Bool => {
+                type $element = bool;
+                $op
+            }
+            // NOTE: qfloat dtypes are actually represented as u32
             // burn_tensor::DType::QFloat(_) => {
             //     type $element = u32;
             //     $op
@@ -221,11 +218,7 @@ where
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
     ) -> Self {
-        let bytes = burn_common::reader::try_read_sync(
-            self.client.read_one_async(self.handle.clone().binding()),
-        )
-        .expect("Can only change client synchronously");
-        let handle = client.create(&bytes);
+        let handle = client.create(&self.client.read_one(self.handle.clone().binding()));
 
         Self {
             client,
@@ -244,12 +237,12 @@ where
             strides: &self.strides,
             shape: &self.shape.dims,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
+            elem_size: self.dtype.elem_size(),
         }
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: JitElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a, E: BasicJitElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
@@ -317,7 +310,7 @@ where
     /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
-        self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
+        self.shape.num_elements() * self.dtype.elem_size() == self.handle.size() as usize
     }
 }
 

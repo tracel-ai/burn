@@ -1,40 +1,30 @@
-use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
-use burn_tensor::{Shape, TensorData};
-use cubecl::CubeElement;
+use crate::{element::BasicJitElement, kernel, tensor::JitTensor, JitRuntime};
+use burn_tensor::{ElementConversion, Shape, TensorData};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    client::ComputeClient,
+    cube,
+    prelude::{Numeric, ScalarArg, Tensor, Vectorized, ABSOLUTE_POS},
+    tensor_vectorization_factor, CubeDim,
+};
 
-pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
+pub(crate) fn from_data<R: JitRuntime, E: BasicJitElement>(
     data: TensorData,
     device: &R::Device,
 ) -> JitTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.convert::<E>().as_bytes());
-
+    let elems: Vec<E> = data.convert::<E>().into_vec().unwrap();
+    let buffer = client.create(&E::to_elem_data(&elems));
     JitTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
 }
 
-pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: JitRuntime, E: BasicJitElement>(
+    tensor: JitTensor<R>,
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
-
-    let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
-}
-
-#[allow(unused, reason = "useful for debugging kernels")]
-pub(crate) fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
-
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
-}
-
-pub(crate) async fn bool_into_data<R: JitRuntime>(tensor: JitTensor<R>) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    TensorData::new(
-        u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
-        tensor.shape,
-    )
+    let elements = E::from_elem_data(tensor.client.read_one_async(tensor.handle.binding()).await);
+    TensorData::new(elements, tensor.shape)
 }
 
 pub(crate) fn to_device<R: JitRuntime>(tensor: JitTensor<R>, device: &R::Device) -> JitTensor<R> {
@@ -44,16 +34,6 @@ pub(crate) fn to_device<R: JitRuntime>(tensor: JitTensor<R>, device: &R::Device)
 
     let client = R::client(device);
     tensor.to_client(client, device.clone())
-}
-
-pub(crate) fn empty<R: JitRuntime, E: JitElement>(
-    shape: Shape,
-    device: &R::Device,
-) -> JitTensor<R> {
-    let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
-
-    JitTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
 }
 
 pub(crate) fn swap_dims<R: JitRuntime>(
@@ -137,4 +117,91 @@ pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitT
         tensor.handle,
         tensor.dtype,
     )
+}
+
+pub fn full<R: JitRuntime, E: BasicJitElement>(
+    shape: Shape,
+    device: &R::Device,
+    value: E,
+) -> JitTensor<R> {
+    let client = R::client(device);
+    full_device::<R, E>(client, shape, device.clone(), value)
+}
+
+pub fn full_device<R: JitRuntime, E: BasicJitElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    shape: Shape,
+    device: R::Device,
+    value: E,
+) -> JitTensor<R> {
+    let ndims = shape.num_dims();
+    let empty = empty_device::<R, E>(client, device, shape);
+
+    #[cube(launch)]
+    pub fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
+        if ABSOLUTE_POS >= tensor.len() {
+            return;
+        }
+
+        tensor[ABSOLUTE_POS] = value;
+    }
+
+    let num_elems = empty.shape.num_elements();
+    let vectorization_factor =
+        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, ndims - 1);
+
+    let cube_dim = CubeDim::default();
+    let cube_count =
+        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+
+    full_kernel::launch::<E, R>(
+        &empty.client,
+        cube_count,
+        cube_dim,
+        empty.as_tensor_arg::<E>(vectorization_factor),
+        ScalarArg::new(value),
+    );
+
+    empty
+}
+
+pub fn zeros<R: JitRuntime, E: BasicJitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
+    let client = R::client(device);
+    zeros_device::<R, E>(client, device.clone(), shape)
+}
+
+pub fn zeros_device<R: JitRuntime, E: BasicJitElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> JitTensor<R> {
+    full_device::<R, E>(client, shape, device, 0.elem())
+}
+
+pub fn ones<R: JitRuntime, E: BasicJitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
+    let client = R::client(device);
+
+    ones_device::<R, E>(client, device.clone(), shape)
+}
+
+pub fn ones_device<R: JitRuntime, E: BasicJitElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> JitTensor<R> {
+    full_device::<R, E>(client, shape, device, 1.elem())
+}
+
+pub fn empty<R: JitRuntime, E: BasicJitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
+    let client = R::client(device);
+    empty_device::<R, E>(client, device.clone(), shape)
+}
+
+pub fn empty_device<R: JitRuntime, E: BasicJitElement>(
+    client: ComputeClient<R::Server, R::Channel>,
+    device: R::Device,
+    shape: Shape,
+) -> JitTensor<R> {
+    let buffer = client.empty(shape.num_elements() * E::as_elem().size());
+    JitTensor::new_contiguous(client, device, shape, buffer, E::dtype())
 }

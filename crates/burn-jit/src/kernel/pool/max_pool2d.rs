@@ -1,5 +1,5 @@
 use super::pool2d::{pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy};
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 

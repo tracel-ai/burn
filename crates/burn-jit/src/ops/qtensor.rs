@@ -110,7 +110,7 @@ where
             QuantizationScheme::PerTensorAffine(dtype)
             | QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
                 QuantizationType::QInt8 => {
-                    TensorData::quantized(u32::from_bytes(&bytes).to_vec(), qtensor.shape, strategy)
+                    TensorData::quantized(u32::from_elem_data(bytes), qtensor.shape, strategy)
                 }
             },
         }

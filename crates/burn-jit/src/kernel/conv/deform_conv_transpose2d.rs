@@ -7,8 +7,7 @@ use cubecl::{calculate_cube_count_elemwise, cube, prelude::*, CubeDim, CubeLaunc
 use crate::{
     kernel::{cast, into_contiguous},
     ops::{
-        numeric::{empty_device, ones_device, zeros_device},
-        reshape, swap_dims,
+        reshape, swap_dims, {empty_device, ones_device, zeros_device},
     },
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,

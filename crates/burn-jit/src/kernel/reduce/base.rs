@@ -1,8 +1,6 @@
-use cubecl::prelude::Numeric;
-
 #[cfg(feature = "autotune")]
 use crate::kernel::reduce::reduce_dim_autotune;
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{
     naive::{base::ReduceDimNaive, kernel::reduce_dim_naive},
@@ -11,7 +9,7 @@ use super::{
 };
 
 #[allow(dead_code)]
-pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
+pub(crate) trait ReduceDimAlgorithm<EI: JitElement, EO: JitElement>:
     core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI, EO> + ReduceDimSubcube<EI, EO>
 {
 }

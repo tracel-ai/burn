@@ -6,7 +6,7 @@ mod primitive;
 mod quantization;
 mod stats;
 
-pub use cubecl::prelude::{Float, Int, Numeric};
+pub use cubecl::prelude::{Algebraic, Float, Int, Numeric};
 
 #[allow(missing_docs)]
 #[macro_export]

@@ -141,11 +141,8 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    let TensorData {
-        bytes,
-        shape,
-        dtype,
-    } = TensorData::new(data, shape);
+    let tensor_data = TensorData::new(data, shape.clone());
+    let bytes = tensor_data.as_bytes().to_vec();
 
     // Manually serialize the tensor instead of using the `ParamSerde` struct, such as:
     // ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
@@ -154,7 +151,7 @@ where
     let mut tensor_data: HashMap<String, NestedValue> = HashMap::new();
     tensor_data.insert("bytes".into(), NestedValue::U8s(bytes));
     tensor_data.insert("shape".into(), shape.serialize(serializer.clone())?);
-    tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
+    tensor_data.insert("dtype".into(), E::dtype().serialize(serializer)?);
 
     let mut param: HashMap<String, NestedValue> = HashMap::new();
     param.insert("id".into(), NestedValue::String(param_id.serialize()));

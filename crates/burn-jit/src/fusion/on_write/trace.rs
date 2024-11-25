@@ -5,10 +5,7 @@ use crate::{
 
 use super::ir::{Arg, ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch};
 use burn_fusion::stream::Context;
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType,
-};
+use burn_tensor::repr::{TensorDescription, TensorId, TensorStatus};
 use cubecl::{ir::Elem, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -273,11 +270,7 @@ impl FuseOnWriteTrace {
                     }
                 }
 
-                // We encode bool tensors as u32.
-                let dtype = match tensor_global.dtype {
-                    DType::Bool => DType::U32,
-                    _ => tensor_global.dtype,
-                };
+                let dtype = tensor_global.dtype;
                 let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
 
                 let handle = JitFusionHandle {

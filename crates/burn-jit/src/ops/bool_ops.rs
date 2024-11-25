@@ -12,16 +12,15 @@ where
     I: IntElement,
 {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        super::empty::<R, u32>(shape, device)
+        super::empty::<R, bool>(shape, device)
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
-        super::bool_into_data(tensor).await
+        super::into_data::<R, bool>(tensor).await
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<u32>().collect(), data.shape);
-        super::from_data::<R, u32>(data, device)
+        super::from_data::<R, bool>(data, device)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
@@ -41,7 +40,7 @@ where
     }
 
     fn bool_slice(tensor: BoolTensor<Self>, ranges: &[Range<usize>]) -> BoolTensor<Self> {
-        kernel::slice::<R, u32>(tensor, ranges)
+        kernel::slice::<R, bool>(tensor, ranges)
     }
 
     fn bool_slice_assign(
@@ -49,15 +48,15 @@ where
         ranges: &[Range<usize>],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::slice_assign::<R, u32>(tensor, ranges, value)
+        kernel::slice_assign::<R, bool>(tensor, ranges, value)
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R, u32>(lhs, rhs)
+        kernel::equal::<R, bool>(lhs, rhs)
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem::<R, u32>(tensor, 0)
+        kernel::equal_elem::<R, bool>(tensor, false)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
@@ -72,7 +71,7 @@ where
     }
 
     fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
-        kernel::repeat_dim::<R, u32>(tensor, dim, times)
+        kernel::repeat_dim::<R, bool>(tensor, dim, times)
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
@@ -84,6 +83,6 @@ where
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        kernel::flip::<R, u32>(tensor, axes)
+        kernel::flip::<R, bool>(tensor, axes)
     }
 }

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape

@@ -1,6 +1,5 @@
 use crate::{
-    kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor, FloatElement,
-    JitRuntime,
+    kernel::into_contiguous, ops::empty_device, tensor::JitTensor, FloatElement, JitRuntime,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},
@@ -46,7 +45,7 @@ pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
     let out_grad = into_contiguous(out_grad);
     let output_shape = input.shape.clone();
     let num_elems = input.shape.num_elements();
-    let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
+    let buffer = input.client.empty(num_elems * E::as_elem().size());
     let output = JitTensor::new_contiguous(
         input.client.clone(),
         input.device.clone(),

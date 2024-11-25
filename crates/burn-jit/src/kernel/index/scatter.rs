@@ -8,7 +8,7 @@ use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
 #[cube(launch_unchecked)]
-fn scatter_kernel<T: Numeric, I: Int>(
+fn scatter_kernel<T: Algebraic, I: Int>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
     value: &Tensor<T>,

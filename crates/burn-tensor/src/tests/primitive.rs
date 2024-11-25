@@ -30,4 +30,16 @@ mod tests {
             <TestBackend as Backend>::IntElem::dtype() // default int elem type
         );
     }
+
+    #[test]
+    fn should_support_bool_dtype() {
+        let tensor =
+            TestTensorBool::<2>::from([[false, true, true], [false, false, true]]).into_primitive();
+
+        assert_eq!(
+            burn_tensor::TensorMetadata::shape(&tensor),
+            Shape::new([2, 3])
+        );
+        assert_eq!(burn_tensor::TensorMetadata::dtype(&tensor), DType::Bool);
+    }
 }
