@@ -1,7 +1,6 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
-use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
-use crate::backend::BackendBridge;
+use super::{BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::tensor::cast::ToElement;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
 use crate::{
@@ -769,19 +768,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the mean of all elements in `tensor` along `dim`.
     fn float_mean_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 
-    /// Converts a tensor to full precision.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to convert.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same values as `tensor` but with full precision.
-    fn float_into_full_precision(tensor: FloatTensor<B>) -> FloatTensor<FullPrecisionBackend<B>> {
-        <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
-    }
-
     /// Converts a tensor to another floating point data type.
     ///
     /// # Arguments
@@ -793,19 +779,6 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same values as `tensor` but in the target floating point data type.
     fn float_cast(tensor: FloatTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
-
-    /// Converts a tensor from full precision.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor to convert.
-    ///
-    /// # Returns
-    ///
-    /// A tensor with the same values as `tensor` but with the precision of the backend.
-    fn float_from_full_precision(tensor: FloatTensor<FullPrecisionBackend<B>>) -> FloatTensor<B> {
-        <B::FullPrecisionBridge as BackendBridge<B>>::from_target(tensor, None)
-    }
 
     /// Returns a new tensor with exponential values.
     ///
