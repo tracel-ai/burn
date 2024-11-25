@@ -3,9 +3,11 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::{BoolTensor, Device, FloatElem, FloatTensor, FullPrecisionBackend, IntElem, IntTensor};
 use crate::backend::BackendBridge;
 use crate::tensor::cast::ToElement;
-use crate::TensorPrimitive;
 use crate::{backend::Backend, tensor::Shape, Distribution, ElementConversion, Float, TensorData};
-use crate::{tensor::api::chunk, tensor::api::narrow};
+use crate::{
+    tensor::api::chunk, tensor::api::narrow, tensor::api::split, tensor::api::split_with_sizes,
+    FloatDType, TensorMetadata, TensorPrimitive,
+};
 use alloc::vec::Vec;
 use core::future::Future;
 use core::ops::Range;
@@ -83,17 +85,6 @@ pub trait FloatTensorOps<B: Backend> {
         Self::float_add_scalar(Self::float_zeros(shape, device), fill_value)
     }
 
-    /// Gets the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn float_shape(tensor: &FloatTensor<B>) -> Shape;
-
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -103,7 +94,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn float_into_data(tensor: FloatTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn float_into_data(tensor: FloatTensor<B>)
+        -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Gets the device of the tensor.
     ///
@@ -354,7 +346,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn float_transpose(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let ndims = Self::float_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::float_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -761,7 +753,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A scalar tensor with the mean of all elements in `tensor`.
     fn float_mean(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let num_elems = B::float_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         B::float_div_scalar(B::float_sum(tensor), (num_elems as i64).elem())
     }
 
@@ -789,6 +781,18 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_into_full_precision(tensor: FloatTensor<B>) -> FloatTensor<FullPrecisionBackend<B>> {
         <B::FullPrecisionBridge as BackendBridge<B>>::into_target(tensor, None)
     }
+
+    /// Converts a tensor to another floating point data type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to convert.
+    /// * `dtype` - The target data type.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same values as `tensor` but in the target floating point data type.
+    fn float_cast(tensor: FloatTensor<B>, dtype: FloatDType) -> FloatTensor<B>;
 
     /// Converts a tensor from full precision.
     ///
@@ -1042,7 +1046,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum element of `tensor`.
     fn float_max(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let shape = B::float_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::float_max_dim(tensor, 0)
@@ -1094,7 +1098,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum element of `tensor`.
     fn float_min(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let shape = B::float_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::float_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::float_min_dim(tensor, 0)
@@ -1178,6 +1182,47 @@ pub trait FloatTensorOps<B: Backend> {
             .collect()
     }
 
+    /// Split the tensor along the given dimension into chunks of `split_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_size` - The size of a single chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn float_split(tensor: FloatTensor<B>, split_size: usize, dim: usize) -> Vec<FloatTensor<B>> {
+        split::<B, Float>(TensorPrimitive::Float(tensor), split_size, dim)
+            .into_iter()
+            .map(|t| t.tensor())
+            .collect()
+    }
+
+    /// Split the tensor along the given dimension into chunks with sizes in
+    /// `dim` according to `split_sizes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_sizes` - Vector of sizes for each chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn float_split_with_sizes(
+        tensor: FloatTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<FloatTensor<B>> {
+        split_with_sizes::<B, Float>(TensorPrimitive::Float(tensor), split_sizes, dim)
+            .into_iter()
+            .map(|t| t.tensor())
+            .collect()
+    }
+
     /// Tests if any element in the float `tensor` evaluates to True.
     ///
     /// # Arguments
@@ -1224,7 +1269,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn float_all(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        let num_elems = B::float_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
@@ -1244,7 +1289,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn float_all_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = B::float_shape(&tensor).dims[dim];
+        let num_elems = tensor.shape().dims[dim];
         let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
@@ -1261,7 +1306,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let zeros = B::float_zeros(B::float_shape(&tensor), &B::float_device(&tensor));
+        let zeros = B::float_zeros(tensor.shape(), &B::float_device(&tensor));
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
         let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
 

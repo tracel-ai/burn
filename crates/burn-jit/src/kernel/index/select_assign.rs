@@ -45,11 +45,11 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
 }
 
 pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     dim: usize,
-    indices: JitTensor<R, I>,
-    value: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    indices: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
     let tensor = match tensor.can_mut() {
         true => tensor,
@@ -80,10 +80,10 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
             // Ignored shape + custom strides.
             TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
-            value.as_tensor_arg(1),
+            value.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         );
     };

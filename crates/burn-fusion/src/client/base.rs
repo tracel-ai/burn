@@ -39,7 +39,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = TensorData> + Send + 'static
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
@@ -47,7 +47,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = TensorData> + Send + 'static
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
@@ -55,7 +55,7 @@ where
         &self,
         tensor: TensorDescription,
         stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = TensorData> + Send + 'static
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a quantized tensor.
@@ -63,7 +63,19 @@ where
         &self,
         tensor: QuantizedTensorDescription,
         streams: Vec<StreamId>,
-    ) -> impl Future<Output = TensorData> + Send
+    ) -> impl Future<Output = TensorData> + Send + 'static
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Resolve the given float tensor to a primitive tensor.
+    fn resolve_tensor_float<B>(&self, tensor: FusionTensor<R>) -> B::FloatTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Resolve the given int tensor to a primitive tensor.
+    fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>;
+    /// Resolve the given bool tensor to a primitive tensor.
+    fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.

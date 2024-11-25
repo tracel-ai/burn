@@ -2,7 +2,7 @@
 //!
 //! Each local unit will compute a single element of the output matrix.
 use crate::{
-    kernel::{into_contiguous, SUBCUBE_DIM_APPROX},
+    kernel::{into_contiguous, PLANE_DIM_APPROX},
     ops::swap_dims,
     tensor::JitTensor,
     FloatElement, JitRuntime,
@@ -84,21 +84,21 @@ fn matmul_kernel<F: Float>(
 
 /// Matrix multiplication using memory coalescing algorithm with cube dimensions of size 16
 pub fn matmul_mem_coalescing_default<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-    out: JitTensor<R, E>,
-) -> JitTensor<R, E> {
-    matmul_simple::<R, E>(lhs, rhs, out, SUBCUBE_DIM_APPROX, SUBCUBE_DIM_APPROX)
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+    out: JitTensor<R>,
+) -> JitTensor<R> {
+    matmul_simple::<R, E>(lhs, rhs, out, PLANE_DIM_APPROX, PLANE_DIM_APPROX)
 }
 
 /// Matrix multiplication using memory coalescing algorithm with custom cube dimensions
 pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-    out: JitTensor<R, E>,
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+    out: JitTensor<R>,
     cube_dim_x: usize,
     cube_dim_y: usize,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     lhs.assert_is_on_same_device(&rhs);
     let ndims = lhs.shape.num_dims();
     let lhs = into_contiguous(lhs);
@@ -127,14 +127,14 @@ pub fn matmul_simple<R: JitRuntime, E: FloatElement>(
             &lhs.client,
             cube_count,
             CubeDim::new(cube_dim_x as u32, cube_dim_y as u32, 1),
-            lhs.as_tensor_arg(vectorization_factor),
+            lhs.as_tensor_arg::<E>(vectorization_factor),
             TensorArg::from_raw_parts::<E>(
                 &rhs.handle,
                 &rhs.strides,
                 &rhs_original_shape.dims, // We need the original shape.
                 vectorization_factor,
             ),
-            out.as_tensor_arg(1),
+            out.as_tensor_arg::<E>(1),
             Some(ndims as u32 - 2),
         );
     };

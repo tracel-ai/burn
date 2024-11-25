@@ -2,7 +2,7 @@ use std::{marker::PhantomData, ops::Range};
 
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationStrategy},
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
     repr::{
         DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
         OperationDescription, QuantizationParametersDescription, QuantizeOperationDescription,
@@ -21,14 +21,14 @@ use crate::{
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
-            DType::QFloat(strategy) => {
+            DType::QFloat(scheme) => {
                 let client = get_client::<B>(device);
                 let tensor = B::q_from_data(data, device);
                 let shape = B::q_shape(&tensor);
 
                 let handles = B::quantized_tensor_handle(tensor);
-                let qparams = match strategy {
-                    QuantizationStrategy::PerTensorAffineInt8(_) => {
+                let qparams = match scheme {
+                    QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
                         let offset = if let Some(offset) = handles.offset {
                             offset
                         } else {
@@ -49,7 +49,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                             )),
                         }
                     }
-                    QuantizationStrategy::PerTensorSymmetricInt8(_) => {
+                    QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
                         assert!(
                             handles.offset.is_none(),
                             "Offset should not be provided for symmetric quantization."
@@ -74,7 +74,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 QFusionTensor {
                     qtensor,
                     qparams,
-                    scheme: strategy.scheme(),
+                    scheme,
                 }
             }
             _ => panic!(
@@ -142,7 +142,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 scale: qparams.scale.clone().into_description(),
                 offset: qparams.offset.clone().map(|x| x.into_description()),
             },
-            scheme: scheme.clone(),
+            scheme: *scheme,
             out: out.to_description_out(),
         };
 
@@ -157,7 +157,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         QFusionTensor {
             qtensor: out,
-            scheme: scheme.clone(),
+            scheme: *scheme,
             qparams: qparams.into(),
         }
     }
@@ -212,7 +212,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
+        // Conflicting `dtype()` when both `Element` and `TensorMetadata` traits are in
+        // scope so we use the fully qualified syntax
+        burn_tensor::TensorMetadata::shape(tensor)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {

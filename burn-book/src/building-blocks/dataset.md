@@ -137,7 +137,7 @@ those are the only requirements.
 ### Images
 
 `ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
-available for multi-class and multi-label classification tasks.
+available for multi-class and multi-label classification tasks as well as semantic segmentation tasks.
 
 ```rust, ignore
 // Create an image classification dataset from the root folder,
@@ -164,6 +164,35 @@ let items = vec![
 let dataset = ImageFolderDataset::new_multilabel_classification_with_items(
     items,
     &["animal", "cat", "dog"],
+)
+.unwrap();
+```
+
+```rust, ignore
+// Create a segmentation mask dataset from a list of items, where each
+// item is a tuple `(image path, mask path)` and a list of classes
+// corresponding to the integer values in the mask.
+let items = vec![
+    (
+        "path/to/images/image0.png",
+        "path/to/annotations/mask0.png",
+    ),
+    (
+        "path/to/images/image1.png",
+        "path/to/annotations/mask1.png",
+    ),
+    (
+        "path/to/images/image2.png",
+        "path/to/annotations/mask2.png",
+    ),
+];
+let dataset = ImageFolderDataset::new_segmentation_with_items(
+    items,
+    &[
+        "cat", // 0
+        "dog", // 1
+        "background", // 2
+    ],
 )
 .unwrap();
 ```

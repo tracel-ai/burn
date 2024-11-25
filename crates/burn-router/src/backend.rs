@@ -6,7 +6,7 @@ use burn_tensor::{
     ops::FloatTensor,
     quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
     repr::{BaseOperationDescription, OperationDescription, UnaryOperationDescription},
-    Device,
+    Device, Element,
 };
 
 use super::{get_client, set_seed, RouterTensor, RunnerChannel, RunnerClient};
@@ -74,7 +74,7 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     fn sync(device: &Self::Device) {
         let client = get_client::<R>(device);
-        client.sync();
+        burn_common::future::block_on(client.sync());
     }
 }
 
@@ -90,7 +90,10 @@ impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
         _device: Option<Device<Self::Target>>,
     ) -> FloatTensor<Self::Target> {
         let client = tensor.client.clone();
-        let out = client.register_float_tensor(tensor.shape.clone(), true);
+        let out = client.register_float_tensor(
+            tensor.shape.clone(),
+            <Self::Target as Backend>::FloatElem::dtype().into(),
+        );
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),
@@ -109,7 +112,7 @@ impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
         _device: Option<Device<BackendRouter<R>>>,
     ) -> FloatTensor<BackendRouter<R>> {
         let client = tensor.client.clone();
-        let out = client.register_float_tensor(tensor.shape.clone(), false);
+        let out = client.register_float_tensor(tensor.shape.clone(), R::FloatElem::dtype().into());
 
         let desc = UnaryOperationDescription {
             input: tensor.into_description(),

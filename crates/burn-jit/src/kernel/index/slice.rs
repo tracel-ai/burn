@@ -4,9 +4,9 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
 pub(crate) fn slice<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     indices: &[Range<usize>],
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let mut dims = tensor.shape.dims.clone();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
@@ -34,11 +34,13 @@ pub(crate) fn slice<R: JitRuntime, E: JitElement>(
             Shape::from(dims),
             tensor.device,
             tensor.strides,
+            tensor.dtype,
         )
     } else {
         let shape_output = Shape::from(dims);
-        let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
-        slice_on_output(tensor, output, indices)
+        let output =
+            empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
+        slice_on_output::<R, E>(tensor, output, indices)
     }
 }
 
@@ -67,10 +69,10 @@ fn slice_kernel<E: CubePrimitive>(
 }
 
 pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
-    output: JitTensor<R, E>,
+    tensor: JitTensor<R>,
+    output: JitTensor<R>,
     indices: &[Range<usize>],
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 
@@ -87,8 +89,8 @@ pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            output.as_tensor_arg::<E>(1),
             indices_sequence,
             ndims as u32,
         )

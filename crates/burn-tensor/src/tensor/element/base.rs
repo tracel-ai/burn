@@ -1,6 +1,10 @@
 use core::cmp::Ordering;
 
-use crate::{cast::ToElement, quantization::QuantizationStrategy, Distribution};
+use crate::{
+    cast::ToElement,
+    quantization::{QuantizationScheme, QuantizationType},
+    Distribution,
+};
 #[cfg(feature = "cubecl")]
 use cubecl::flex32;
 use half::{bf16, f16};
@@ -279,7 +283,7 @@ pub enum DType {
     U16,
     U8,
     Bool,
-    QFloat(QuantizationStrategy),
+    QFloat(QuantizationScheme),
 }
 
 impl DType {
@@ -299,9 +303,11 @@ impl DType {
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
             DType::Bool => core::mem::size_of::<bool>(),
-            DType::QFloat(strategy) => match strategy {
-                QuantizationStrategy::PerTensorAffineInt8(_) => core::mem::size_of::<u8>(),
-                QuantizationStrategy::PerTensorSymmetricInt8(_) => core::mem::size_of::<u8>(),
+            DType::QFloat(scheme) => match scheme {
+                QuantizationScheme::PerTensorAffine(qtype)
+                | QuantizationScheme::PerTensorSymmetric(qtype) => match qtype {
+                    QuantizationType::QInt8 => core::mem::size_of::<i8>(),
+                },
             },
         }
     }
@@ -317,5 +323,57 @@ impl DType {
     /// Returns true if the data type is a boolean type
     pub fn is_bool(&self) -> bool {
         matches!(self, DType::Bool)
+    }
+
+    /// Returns the data type name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            DType::F64 => "f64",
+            DType::F32 => "f32",
+            DType::F16 => "f16",
+            DType::BF16 => "bf16",
+            DType::I64 => "i64",
+            DType::I32 => "i32",
+            DType::I16 => "i16",
+            DType::I8 => "i8",
+            DType::U64 => "u64",
+            DType::U32 => "u32",
+            DType::U16 => "u16",
+            DType::U8 => "u8",
+            DType::Bool => "bool",
+            DType::QFloat(_) => "qfloat",
+        }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub enum FloatDType {
+    F64,
+    F32,
+    F16,
+    BF16,
+}
+
+impl From<DType> for FloatDType {
+    fn from(value: DType) -> Self {
+        match value {
+            DType::F64 => FloatDType::F64,
+            DType::F32 => FloatDType::F32,
+            DType::F16 => FloatDType::F16,
+            DType::BF16 => FloatDType::BF16,
+            _ => panic!("Expected float data type, got {value:?}"),
+        }
+    }
+}
+
+impl From<FloatDType> for DType {
+    fn from(value: FloatDType) -> Self {
+        match value {
+            FloatDType::F64 => DType::F64,
+            FloatDType::F32 => DType::F32,
+            FloatDType::F16 => DType::F16,
+            FloatDType::BF16 => DType::BF16,
+        }
     }
 }

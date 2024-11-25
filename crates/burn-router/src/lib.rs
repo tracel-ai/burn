@@ -25,6 +25,15 @@ pub use types::*;
 /// It transfers tensors between backends via the underlying [tensor data](burn_tensor::TensorData).
 pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
 
+/// Router backend.
+///
+/// # Example
+///
+/// ```ignore
+/// type MyBackend = Router<(NdArray, Wgpu)>;
+/// ```
+pub type Router<Backends> = BackendRouter<DirectByteChannel<Backends>>;
+
 extern crate alloc;
 
 #[cfg(test)]

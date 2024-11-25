@@ -13,6 +13,9 @@ pub mod exponential;
 /// Cosine learning rate scheduler
 pub mod cosine;
 
+/// Step learning rate scheduler
+pub mod step;
+
 mod base;
 
 pub use base::*;

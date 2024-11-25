@@ -146,15 +146,15 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+                fn register_float_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
                     match self {
                         Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                             RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                         }
                         $(
                             Self::$OtherBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                                 RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                             }
                         )+
@@ -179,12 +179,16 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) {
-                    match self {
-                        Self::$DefaultBackend(runner) => runner.sync(),
+                fn sync(&self) -> impl core::future::Future<Output = ()> + Send + 'static {
+                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send + 'static>> = match self {
+                        Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
                         $(
-                            Self::$OtherBackend(runner) => runner.sync(),
+                            Self::$OtherBackend(runner) => Box::pin(runner.sync()),
                         )+
+                    };
+
+                    async move  {
+                        fut.await;
                     }
                 }
 

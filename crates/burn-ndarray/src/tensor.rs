@@ -1,6 +1,9 @@
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    Element, Shape, TensorData,
+    quantization::{
+        AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
+        QuantizationType, SymmetricQuantization,
+    },
+    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
@@ -14,8 +17,12 @@ pub struct NdArrayTensor<E> {
     pub array: ArcArray<E, IxDyn>,
 }
 
-impl<E> NdArrayTensor<E> {
-    pub(crate) fn shape(&self) -> Shape {
+impl<E: Element> TensorMetadata for NdArrayTensor<E> {
+    fn dtype(&self) -> DType {
+        E::dtype()
+    }
+
+    fn shape(&self) -> Shape {
         Shape::from(self.array.shape().to_vec())
     }
 }
@@ -182,8 +189,8 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     pub qtensor: NdArrayTensor<Q>,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
-    /// The quantization strategy.
-    pub strategy: QuantizationStrategy,
+    /// The quantization parameters.
+    pub qparams: QParams<f32, Q>,
 }
 
 impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
@@ -192,7 +199,29 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
     }
 
     fn strategy(&self) -> QuantizationStrategy {
-        self.strategy
+        match self.scheme {
+            QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
+                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                    self.qparams.scale,
+                    self.qparams.offset.unwrap().elem(),
+                ))
+            }
+            QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    self.qparams.scale,
+                ))
+            }
+        }
+    }
+}
+
+impl<Q: QuantElement> TensorMetadata for NdArrayQTensor<Q> {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

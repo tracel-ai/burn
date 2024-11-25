@@ -3,8 +3,8 @@ use super::{
     FloatTensor, IntTensor,
 };
 use crate::{
-    argwhere_data, backend::Backend, chunk, narrow, tensor::Shape, Bool, ElementConversion,
-    TensorData,
+    argwhere_data, backend::Backend, chunk, narrow, split, split_with_sizes, tensor::Shape, Bool,
+    ElementConversion, TensorData, TensorMetadata,
 };
 use alloc::{vec, vec::Vec};
 use core::{future::Future, ops::Range};
@@ -24,17 +24,6 @@ pub trait BoolTensorOps<B: Backend> {
     /// The boolean tensor with the given shape.
     fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B>;
 
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn bool_shape(tensor: &BoolTensor<B>) -> Shape;
-
     /// Converts the tensor to a data structure.
     ///
     /// # Arguments
@@ -44,7 +33,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + Send;
+    fn bool_into_data(tensor: BoolTensor<B>) -> impl Future<Output = TensorData> + 'static + Send;
 
     /// Creates a tensor from the data structure.
     ///
@@ -212,7 +201,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn bool_transpose(tensor: BoolTensor<B>) -> BoolTensor<B> {
-        let ndims = Self::bool_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::bool_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -279,14 +268,49 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced
+    /// * `chunks` - The number of chunks to be produced.
     /// * `times` - The dimension along which the tensor will be split.
     ///
     /// # Returns
     ///
-    /// A vector of tensors
+    /// A vector of tensors.
     fn bool_chunk(tensor: BoolTensor<B>, chunks: usize, dim: usize) -> Vec<BoolTensor<B>> {
         chunk::<B, Bool>(tensor, chunks, dim)
+    }
+
+    /// Split the tensor along the given dimension into chunks of `split_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_size` - The size of a single chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
+        split::<B, Bool>(tensor, split_size, dim)
+    }
+
+    /// Split the tensor along the given dimension into chunks with sizes in
+    /// `dim` according to `split_sizes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_sizes` - Vector of sizes for each chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn bool_split_with_sizes(
+        tensor: BoolTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<BoolTensor<B>> {
+        split_with_sizes::<B, Bool>(tensor, split_sizes, dim)
     }
 
     /// Tests if any element in the boolean `tensor` evaluates to True.
@@ -332,7 +356,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn bool_all(tensor: BoolTensor<B>) -> BoolTensor<B> {
-        let num_elems = B::bool_shape(&tensor).num_elements();
+        let num_elems = tensor.shape().num_elements();
         let sum = B::int_sum(B::bool_into_int(tensor));
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
@@ -351,7 +375,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
 
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = B::bool_shape(&tensor).dims[dim];
+        let num_elems = tensor.shape().dims[dim];
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_equal_elem(sum, (num_elems as i32).elem())
     }
@@ -366,7 +390,7 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A 2D tensor containing the indices of all non-zero elements of the given tensor.
     /// Each row contains the indices of a non-zero element.
-    fn bool_argwhere(tensor: BoolTensor<B>) -> impl Future<Output = IntTensor<B>> + Send {
+    fn bool_argwhere(tensor: BoolTensor<B>) -> impl Future<Output = IntTensor<B>> + 'static + Send {
         async {
             // Size of each output tensor is variable (= number of nonzero elements in the tensor).
             // Reading the data to count the number of truth values might cause sync but is required.
@@ -386,16 +410,18 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension. If all elements are zero, the vector is empty.
-    fn bool_nonzero(tensor: BoolTensor<B>) -> impl Future<Output = Vec<IntTensor<B>>> + Send {
+    fn bool_nonzero(
+        tensor: BoolTensor<B>,
+    ) -> impl Future<Output = Vec<IntTensor<B>>> + 'static + Send {
         async {
             let indices = B::bool_argwhere(tensor).await;
 
-            if B::int_shape(&indices).num_elements() == 0 {
+            if indices.shape().num_elements() == 0 {
                 // Return empty vec when all elements are zero
                 return vec![];
             }
 
-            let dims = B::int_shape(&indices).dims;
+            let dims = indices.shape().dims;
             B::int_chunk(indices, dims[1], 1)
                 .into_iter()
                 .map(|t| B::int_reshape(t, Shape::new([dims[0]])))

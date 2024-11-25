@@ -7,7 +7,7 @@ use burn_tensor::{
         QuantizationParametersDescription, QuantizedTensorDescription, TensorDescription, TensorId,
         TensorStatus,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 use std::sync::Arc;
 
@@ -21,12 +21,13 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub client: Client<R>,
     /// The datatype of the tensor.
     pub dtype: DType,
+    /// The current stream id this tensor is on.
+    pub stream: StreamId,
     // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
     //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
     pub(crate) is_orphan: bool,
-    pub(crate) stream: StreamId,
 }
 
 impl<R: FusionRuntime> Clone for FusionTensor<R> {
@@ -57,6 +58,16 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
     }
 }
 
+impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
+    fn dtype(&self) -> DType {
+        self.dtype
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
+    }
+}
+
 impl<R: FusionRuntime> FusionTensor<R> {
     pub(crate) fn new(
         id: Arc<TensorId>,
@@ -74,9 +85,6 @@ impl<R: FusionRuntime> FusionTensor<R> {
             stream,
         }
     }
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
-    }
 
     fn status(&self) -> TensorStatus {
         if Arc::strong_count(&self.id) <= 1 {
@@ -87,7 +95,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Description to be used when using an uninitialized tensor as output.
-    pub(crate) fn to_description_out(&self) -> TensorDescription {
+    pub fn to_description_out(&self) -> TensorDescription {
         TensorDescription {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
@@ -97,7 +105,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Description to be used when using an initialized tensor used as input.
-    pub(crate) fn into_description(mut self) -> TensorDescription {
+    pub fn into_description(mut self) -> TensorDescription {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -190,9 +198,19 @@ impl<R: FusionRuntime> Clone for QFusionTensor<R> {
     fn clone(&self) -> Self {
         Self {
             qtensor: self.qtensor.clone(),
-            scheme: self.scheme.clone(),
+            scheme: self.scheme,
             qparams: self.qparams.clone(),
         }
+    }
+}
+
+impl<R: FusionRuntime> TensorMetadata for QFusionTensor<R> {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

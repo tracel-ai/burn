@@ -131,10 +131,10 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
 }
 
 pub(crate) fn quantize_per_tensor<R, F, I>(
-    tensor: JitTensor<R, F>,
-    scale: JitTensor<R, F>,
-    offset: Option<JitTensor<R, I>>,
-) -> JitTensor<R, u32>
+    tensor: JitTensor<R>,
+    scale: JitTensor<R>,
+    offset: Option<JitTensor<R>>,
+) -> JitTensor<R>
 where
     R: JitRuntime,
     F: JitElement,
@@ -146,8 +146,13 @@ where
     let client = tensor.client.clone();
     // Output tensor contains 4x less elements (four int8 values packed in a single u32)
     let handle = client.empty(usize::div_ceil(num_elems, 4) * core::mem::size_of::<u32>());
-    let output =
-        JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
+    let output = JitTensor::new_contiguous(
+        client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        handle,
+        burn_tensor::DType::U32,
+    );
 
     // Force vectorization to process 4 quantized values packed for 1 output value
     let vectorization_factor: u8 = if num_elems < 4 { 1 } else { 4 };
@@ -162,13 +167,13 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg(vectorization_factor),
+                tensor.as_tensor_arg::<F>(vectorization_factor),
                 // Ignore shape and stride
                 TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
                 TensorArg::from_raw_parts::<I>(&offset.handle, &dummy_array, &dummy_array, 1),
                 ScalarArg::new(i8::MIN as f32),
                 ScalarArg::new(i8::MAX as f32),
-                output.as_tensor_arg(1),
+                output.as_tensor_arg::<u32>(1),
                 vectorization_factor > 1,
             )
         };
@@ -178,12 +183,12 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg(vectorization_factor),
+                tensor.as_tensor_arg::<F>(vectorization_factor),
                 // Ignore shape and stride
                 TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
                 ScalarArg::new(-i8::MAX as f32),
                 ScalarArg::new(i8::MAX as f32),
-                output.as_tensor_arg(1),
+                output.as_tensor_arg::<u32>(1),
                 vectorization_factor > 1,
             )
         };
@@ -194,10 +199,10 @@ where
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F, I>(
-    tensor: JitTensor<R, F>,
+    tensor: JitTensor<R>,
     scheme: &QuantizationScheme,
-    qparams: JitQuantizationParameters<R, F, I>,
-) -> QJitTensor<R, F, I>
+    qparams: JitQuantizationParameters<R>,
+) -> QJitTensor<R>
 where
     R: JitRuntime,
     F: FloatElement,
@@ -206,15 +211,17 @@ where
     let qtensor = match scheme {
         QuantizationScheme::PerTensorAffine(dtype)
         | QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-            QuantizationType::QInt8 => {
-                quantize_per_tensor(tensor, qparams.scale.clone(), qparams.offset.clone())
-            }
+            QuantizationType::QInt8 => quantize_per_tensor::<R, F, I>(
+                tensor,
+                qparams.scale.clone(),
+                qparams.offset.clone(),
+            ),
         },
     };
 
     QJitTensor {
         qtensor,
-        scheme: scheme.clone(),
+        scheme: *scheme,
         qparams,
     }
 }

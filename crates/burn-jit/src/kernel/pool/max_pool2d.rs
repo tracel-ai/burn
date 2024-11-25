@@ -73,12 +73,12 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
 }
 
 pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
@@ -97,7 +97,7 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
@@ -106,8 +106,8 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
@@ -125,12 +125,12 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
 }
 
 pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElement>(
-    x: JitTensor<R, E>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (JitTensor<R, E>, JitTensor<R, I>) {
+) -> (JitTensor<R>, JitTensor<R>) {
     let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
@@ -149,8 +149,8 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
-    let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
+    let indices = empty_device::<R, I>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
@@ -159,9 +159,9 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg(1),
-        output.as_tensor_arg(1),
-        indices.as_tensor_arg(1),
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
+        indices.as_tensor_arg::<I>(1),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

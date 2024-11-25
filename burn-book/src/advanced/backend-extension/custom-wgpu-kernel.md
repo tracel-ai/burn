@@ -239,14 +239,19 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new_contiguous(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            buffer,
+            F::dtype(),
+        );
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info(&[&lhs, &rhs, &output]);
+        let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
@@ -331,12 +336,12 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
                 // Set our state.
                 let (lhs_state, rhs_state, output, shape_bias) = ops.state;
-                let lhs = checkpointer.retrieve_node_output(lhs_state);
-                let rhs = checkpointer.retrieve_node_output(rhs_state);
+                let lhs: FloatTensor<B> = checkpointer.retrieve_node_output(lhs_state);
+                let rhs: FloatTensor<B> = checkpointer.retrieve_node_output(rhs_state);
 
                 // Fetch shapes of our tensor to support broadcasting.
-                let shape_lhs = B::float_shape(&lhs);
-                let shape_rhs = B::float_shape(&rhs);
+                let shape_lhs = lhs.shape();
+                let shape_rhs = rhs.shape();
 
                 // Compute the gradient of the output using the already existing `relu_backward`
                 // function in the basic Burn backend trait.
@@ -392,7 +397,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // during the backward pass. Here we choose to save it in the state because it's a compute bound operation.
                 let lhs_state = prep.checkpoint(&lhs);
                 let rhs_state = prep.checkpoint(&rhs);
-                let bias_shape = B::float_shape(&bias.primitive);
+                let bias_shape = bias.primitive.shape();
 
                 let output = B::fused_matmul_add_relu(
                     lhs.primitive.clone(),

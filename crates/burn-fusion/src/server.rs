@@ -6,7 +6,7 @@ use burn_tensor::repr::{
     HandleContainer, OperationDescription, QuantizedKind, QuantizedTensorDescription,
     TensorDescription, TensorId,
 };
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
@@ -42,11 +42,11 @@ where
         self.handles.create_tensor_uninit()
     }
 
-    pub async fn read_float<B>(
+    pub fn read_float<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::TensorData
+    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -55,14 +55,14 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_float_tensor::<B>(&tensor);
-        B::float_into_data(tensor).await
+        B::float_into_data(tensor)
     }
 
-    pub async fn read_int<B>(
+    pub fn read_int<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::TensorData
+    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -71,14 +71,14 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_int_tensor::<B>(&tensor);
-        B::int_into_data(tensor).await
+        B::int_into_data(tensor)
     }
 
-    pub async fn read_bool<B>(
+    pub fn read_bool<B>(
         &mut self,
         tensor: TensorDescription,
         id: StreamId,
-    ) -> burn_tensor::TensorData
+    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -87,14 +87,14 @@ where
         self.drain_stream(id);
 
         let tensor = self.handles.get_bool_tensor::<B>(&tensor);
-        B::bool_into_data(tensor).await
+        B::bool_into_data(tensor)
     }
 
-    pub async fn read_quantized<B>(
+    pub fn read_quantized<B>(
         &mut self,
         tensor: QuantizedTensorDescription,
         ids: Vec<StreamId>,
-    ) -> burn_tensor::TensorData
+    ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -105,7 +105,7 @@ where
         }
 
         let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
-        B::q_into_data(tensor).await
+        B::q_into_data(tensor)
     }
 
     pub fn change_server_float<B>(
@@ -126,6 +126,27 @@ where
             .register_float_tensor::<B>(&id, tensor.clone());
 
         id
+    }
+
+    pub fn resolve_server_float<B>(&mut self, tensor: &TensorDescription) -> B::FloatTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_float_tensor::<B>(tensor)
+    }
+
+    pub fn resolve_server_int<B>(&mut self, tensor: &TensorDescription) -> B::IntTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_int_tensor::<B>(tensor)
+    }
+
+    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorDescription) -> B::BoolTensorPrimitive
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.handles.get_bool_tensor::<B>(tensor)
     }
 
     pub fn change_server_int<B>(

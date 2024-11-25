@@ -19,12 +19,16 @@ mod tests {
     fn mask_where_inplace_lhs_should_match_reference_backend() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where(
-            tensor.into_primitive().tensor(),
-            mask.into_primitive(),
-            value.into_primitive().tensor(),
-            MaskWhereStrategy::InplaceLhs,
-        )));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<
+                _,
+                <TestBackend as Backend>::FloatElem,
+            >(
+                tensor.into_primitive().tensor(),
+                mask.into_primitive(),
+                value.into_primitive().tensor(),
+                MaskWhereStrategy::InplaceLhs,
+            )));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected
@@ -36,12 +40,16 @@ mod tests {
     fn mask_where_inplace_rhs_should_match_reference_backend() {
         let (tensor, value, mask, tensor_ref, value_ref, mask_ref) = inputs_mask_where();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where(
-            tensor.into_primitive().tensor(),
-            mask.into_primitive(),
-            value.into_primitive().tensor(),
-            MaskWhereStrategy::InplaceRhs,
-        )));
+        let actual =
+            Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_where::<
+                _,
+                <TestBackend as Backend>::FloatElem,
+            >(
+                tensor.into_primitive().tensor(),
+                mask.into_primitive(),
+                value.into_primitive().tensor(),
+                MaskWhereStrategy::InplaceRhs,
+            )));
         let expected = tensor_ref.mask_where(mask_ref, value_ref);
 
         expected

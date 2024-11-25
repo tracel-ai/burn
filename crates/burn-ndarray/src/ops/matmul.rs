@@ -2,8 +2,8 @@ use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, Unsafe
 
 use alloc::{vec, vec::Vec};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::ElementConversion;
 use burn_tensor::{ops::FloatTensorOps, Shape};
+use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::s;
 
 pub(crate) fn matmul<E>(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E>

@@ -1,10 +1,7 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::tensor::{JitQuantizationParameters, QJitTensor};
-use crate::{
-    element::JitElement, kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend,
-    JitRuntime,
-};
+use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::quantization::QuantizationScheme;
 use burn_tensor::repr::{QuantizedKind, TensorHandle};
@@ -139,6 +136,7 @@ impl<R: JitRuntime> FusionRuntime for FusionJitRuntime<R> {
     }
 }
 
+/// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
 pub struct FusionJitRuntime<R: JitRuntime> {
     _b: PhantomData<R>,
@@ -154,7 +152,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
         fn cast<R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: JitTensor<R, F>,
+            tensor: JitTensor<R>,
         ) -> JitFusionHandle<R> {
             JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
@@ -168,7 +166,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend
     }
 }
 
-pub fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
+pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
     let mut strides = vec![0; shape.len()];
 
     let mut current = 1;
@@ -218,14 +216,14 @@ unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
 unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
 
 impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor<E: JitElement>(self, shape: Shape) -> JitTensor<R, E> {
+    pub(crate) fn into_tensor(self, shape: Shape) -> JitTensor<R> {
         JitTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
             shape,
             strides: self.strides,
-            elem: PhantomData,
+            dtype: self.dtype,
         }
     }
     /// Return the reference to a tensor handle.
@@ -254,14 +252,14 @@ impl<R: JitRuntime> JitFusionHandle<R> {
     }
 }
 
-impl<R: JitRuntime, E: JitElement> From<JitTensor<R, E>> for JitFusionHandle<R> {
-    fn from(value: JitTensor<R, E>) -> Self {
+impl<R: JitRuntime> From<JitTensor<R>> for JitFusionHandle<R> {
+    fn from(value: JitTensor<R>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,
             device: value.device,
             strides: value.strides,
-            dtype: E::dtype(),
+            dtype: value.dtype,
         }
     }
 }

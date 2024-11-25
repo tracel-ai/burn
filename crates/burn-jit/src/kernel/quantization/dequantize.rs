@@ -126,10 +126,10 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 }
 
 pub(crate) fn dequantize_per_tensor<R, F, I>(
-    tensor: JitTensor<R, u32>,
-    scale: JitTensor<R, F>,
-    offset: Option<JitTensor<R, I>>,
-) -> JitTensor<R, F>
+    tensor: JitTensor<R>,
+    scale: JitTensor<R>,
+    offset: Option<JitTensor<R>>,
+) -> JitTensor<R>
 where
     R: JitRuntime,
     F: JitElement,
@@ -158,8 +158,13 @@ where
     let shape_output = tensor.shape.clone();
     let client = tensor.client.clone();
     let handle = client.empty(num_out_elems * core::mem::size_of::<F>());
-    let output =
-        JitTensor::new_contiguous(client.clone(), tensor.device.clone(), shape_output, handle);
+    let output = JitTensor::new_contiguous(
+        client.clone(),
+        tensor.device.clone(),
+        shape_output,
+        handle,
+        F::dtype(),
+    );
 
     let dummy_array = vec![1; ndims];
     if let Some(offset) = offset {
@@ -168,11 +173,11 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg(vectorization_factor),
+                tensor.as_tensor_arg::<u32>(vectorization_factor),
                 // Ignore shape and stride
                 TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
                 TensorArg::from_raw_parts::<I>(&offset.handle, &dummy_array, &dummy_array, 1),
-                output.as_tensor_arg(1),
+                output.as_tensor_arg::<F>(1),
                 vectorization_factor > 1,
             )
         };
@@ -182,10 +187,10 @@ where
                 &client,
                 cube_count,
                 cube_dim,
-                tensor.as_tensor_arg(vectorization_factor),
+                tensor.as_tensor_arg::<u32>(vectorization_factor),
                 // Ignore shape and stride
                 TensorArg::from_raw_parts::<F>(&scale.handle, &dummy_array, &dummy_array, 1),
-                output.as_tensor_arg(1),
+                output.as_tensor_arg::<F>(1),
                 vectorization_factor > 1,
             )
         };
@@ -195,7 +200,7 @@ where
 }
 
 /// Convert the tensor back to a higher precision data type.
-pub fn dequantize<R, F, I>(tensor: QJitTensor<R, F, I>) -> JitTensor<R, F>
+pub fn dequantize<R, F, I>(tensor: QJitTensor<R>) -> JitTensor<R>
 where
     R: JitRuntime,
     F: FloatElement,
@@ -204,9 +209,11 @@ where
     match tensor.scheme {
         QuantizationScheme::PerTensorAffine(dtype)
         | QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-            QuantizationType::QInt8 => {
-                dequantize_per_tensor(tensor.qtensor, tensor.qparams.scale, tensor.qparams.offset)
-            }
+            QuantizationType::QInt8 => dequantize_per_tensor::<R, F, I>(
+                tensor.qtensor,
+                tensor.qparams.scale,
+                tensor.qparams.offset,
+            ),
         },
     }
 }

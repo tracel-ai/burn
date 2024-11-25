@@ -32,22 +32,22 @@ fn flip_kernel<E: CubePrimitive, Bool: Int>(
 }
 
 pub(crate) fn flip<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     indices: &[usize],
-) -> JitTensor<R, E> {
-    let output = empty_device(
+) -> JitTensor<R> {
+    let output = empty_device::<R, E>(
         tensor.client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),
     );
-    flip_on_output(tensor, output, indices)
+    flip_on_output::<R, E>(tensor, output, indices)
 }
 
 pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R, E>,
-    output: JitTensor<R, E>,
+    tensor: JitTensor<R>,
+    output: JitTensor<R>,
     indices: &[usize],
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, u32>::new();
 
@@ -63,8 +63,8 @@ pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            output.as_tensor_arg::<E>(1),
             indices_sequence,
             ndims as u32,
         );

@@ -10,8 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{QuantizationScheme, QuantizationType};
 
-// NOTE: QuantizationStrategy is used for TensorData (sync).
-
 /// Quantization strategy.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QuantizationStrategy {

@@ -1,12 +1,15 @@
 use crate::{backend::Backend, Int, Tensor};
 
-/// The quantization parameters.
+/// The tensor quantization parameters.
+pub type QuantizationParameters<B> = QParams<Tensor<B, 1>, Tensor<B, 1, Int>>;
+
+/// The quantization tensor data parameters.
 #[derive(Clone, Debug)]
-pub struct QuantizationParameters<B: Backend> {
+pub struct QParams<S, O> {
     /// The scaling factor.
-    pub scale: Tensor<B, 1>,
+    pub scale: S,
     /// The zero-point offset.
-    pub offset: Option<Tensor<B, 1, Int>>,
+    pub offset: Option<O>,
 }
 
 /// The quantization parameters primitive.
