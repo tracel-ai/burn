@@ -37,8 +37,13 @@ where
         >(tensor);
 
         // The line below does the backend type cast.
-        let tensor =
-            JitTensor::new_contiguous(tensor.client, tensor.device, tensor.shape, tensor.handle);
+        let tensor = JitTensor::new_contiguous(
+            tensor.client,
+            tensor.device,
+            tensor.shape,
+            tensor.handle,
+            FTarget::dtype(),
+        );
 
         if let Some(device) = &device {
             to_device(tensor, device)
@@ -57,8 +62,13 @@ where
             FloatElem<JitBackend<R, FOrigin, IOrigin>>,
         >(tensor);
         // The line below does the backend type cast.
-        let tensor =
-            JitTensor::new_contiguous(tensor.client, tensor.device, tensor.shape, tensor.handle);
+        let tensor = JitTensor::new_contiguous(
+            tensor.client,
+            tensor.device,
+            tensor.shape,
+            tensor.handle,
+            FOrigin::dtype(),
+        );
 
         if let Some(device) = &device {
             to_device(tensor, device)

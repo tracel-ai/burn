@@ -29,16 +29,16 @@ fn select_kernel<T: Numeric, I: Numeric>(
 }
 
 pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
-    tensor: JitTensor<R, E>,
+    tensor: JitTensor<R>,
     dim: usize,
-    indices: JitTensor<R, I>,
-) -> JitTensor<R, E> {
+    indices: JitTensor<R>,
+) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
     let total_elem = shape_output.num_elements();
 
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
     let dummy_array = vec![1; ndims];
     let cube_dim = CubeDim::default();
@@ -49,10 +49,10 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
             // Ignore shape and stride
             TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
-            output.as_tensor_arg(1),
+            output.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     };

@@ -146,15 +146,15 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+                fn register_float_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
                     match self {
                         Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                             RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                         }
                         $(
                             Self::$OtherBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                                 RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                             }
                         )+

@@ -19,7 +19,7 @@ pub struct SourceKernel<K> {
 }
 
 impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
-    fn compile(&self, _opts: &C::CompilationOptions, _mode: ExecutionMode) -> CompiledKernel<C> {
+    fn compile(&self, _options: &C::CompilationOptions, _mode: ExecutionMode) -> CompiledKernel<C> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
@@ -71,7 +71,7 @@ macro_rules! kernel_source {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: JitRuntime, E: JitElement>(tensors: &[&JitTensor<R, E>]) -> Vec<u32> {
+pub fn build_info<R: JitRuntime, E: JitElement>(tensors: &[&JitTensor<R>]) -> Vec<u32> {
     let ndims = tensors[0].shape.num_dims();
     let mut info: Vec<u32> = vec![0; tensors.len() * 2 * ndims + 1];
     info[0] = ndims as u32;

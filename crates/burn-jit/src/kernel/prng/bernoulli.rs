@@ -59,6 +59,6 @@ pub fn random_bernoulli<R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     probability: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     random(shape, device, Bernoulli { probability })
 }

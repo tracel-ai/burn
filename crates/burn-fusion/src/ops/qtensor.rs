@@ -212,7 +212,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
+        // Conflicting `dtype()` when both `Element` and `TensorMetadata` traits are in
+        // scope so we use the fully qualified syntax
+        burn_tensor::TensorMetadata::shape(tensor)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {

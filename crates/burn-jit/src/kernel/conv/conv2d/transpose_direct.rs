@@ -123,11 +123,11 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 ///
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims();
@@ -146,7 +146,7 @@ pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
 
     let shape_out = Shape::new([batch_size, out_channels * options.groups, out_0, out_1]);
 
-    let output = empty_device(
+    let output = empty_device::<R, E>(
         input.client.clone(),
         input.device.clone(),
         shape_out.clone(),
@@ -159,7 +159,7 @@ pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
         }
         None => {
             let shape = Shape::from([output.shape.dims[0], 1, 1, 1]);
-            zeros_device(input.client.clone(), input.device.clone(), shape)
+            zeros_device::<R, E>(input.client.clone(), input.device.clone(), shape)
         }
     };
 
@@ -170,10 +170,10 @@ pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        weight.as_tensor_arg(1),
-        bias.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<E>(1),
+        weight.as_tensor_arg::<E>(1),
+        bias.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
         ConvArgsLaunch::new(
             ScalarArg::new(options.stride[0] as u32),
             ScalarArg::new(options.stride[1] as u32),

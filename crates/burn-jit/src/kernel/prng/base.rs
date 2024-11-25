@@ -12,9 +12,9 @@ pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = R::client(device);
-    let output = empty_device(client.clone(), device.clone(), shape);
+    let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
     let seeds = get_seeds();
     let args = prng.args();
 
@@ -25,7 +25,7 @@ pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
         &client,
         cube_count,
         cube_dim,
-        output.as_tensor_arg(1),
+        output.as_tensor_arg::<E>(1),
         ScalarArg::new(seeds[0]),
         ScalarArg::new(seeds[1]),
         ScalarArg::new(seeds[2]),

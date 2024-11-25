@@ -6,7 +6,7 @@ use burn_tensor::{
         QParams, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
         QuantizationType,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
@@ -208,11 +208,11 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        TchOps::argmax(TchTensor::<Q>::new(tensor.qtensor.tensor.int_repr()), dim)
+        TchOps::argmax(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
     fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        TchOps::argmin(TchTensor::<Q>::new(tensor.qtensor.tensor.int_repr()), dim)
+        TchOps::argmin(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
     fn q_max_dim_with_indices(

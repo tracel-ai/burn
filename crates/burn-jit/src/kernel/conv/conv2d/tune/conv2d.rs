@@ -24,11 +24,11 @@ use super::Conv2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weights: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weights: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
@@ -44,16 +44,16 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
 
 #[tune(
     operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm, conv2d_gemm_large_m, conv2d_gemm_balanced),
-    create_key = create_key,
+    create_key = create_key::<R, E>,
     should_run = should_run
 )]
 pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     key: JitAutotuneKey,
-    input: JitTensor<R, E>,
-    weights: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weights: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let device = &input.device;
     let key = match key {
         JitAutotuneKey::Conv2d(key) => key,
@@ -125,9 +125,9 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R, E>,
-    weights: &JitTensor<R, E>,
-    bias: &Option<JitTensor<R, E>>,
+    input: &JitTensor<R>,
+    weights: &JitTensor<R>,
+    bias: &Option<JitTensor<R>>,
     options: &ConvOptions<2>,
 ) -> JitAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();

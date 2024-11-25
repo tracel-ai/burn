@@ -10,10 +10,10 @@ struct Options<C: Numeric> {
 }
 
 pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E>,
+    input: JitTensor<R>,
     min_value: E,
     max_value: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     struct ClampOp;
 
     impl<C: Numeric> UnaryOp<C> for ClampOp {

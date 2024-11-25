@@ -142,6 +142,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.any()`                        | `tensor.any()`                                                            |
 | `tensor.any_dim(dim)`                 | `tensor.any(dim)`                                                         |
 | `tensor.chunk(num_chunks, dim)`       | `tensor.chunk(num_chunks, dim)`                                           |
+| `tensor.split(split_size, dim)`       | `tensor.split(split_size, dim)`                                           |
+| `tensor.split_with_sizes(split_sizes, dim)` | `tensor.split([split_sizes], dim)`                                  |
 | `tensor.device()`                     | `tensor.device`                                                           |
 | `tensor.dims()`                       | `tensor.size()`                                                           |
 | `tensor.equal(other)`                 | `x == y`                                                                  |
@@ -162,10 +164,13 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.slice(ranges)`                | `tensor[(*ranges,)]`                                                      |
 | `tensor.slice_assign(ranges, values)` | `tensor[(*ranges,)] = values`                                             |
 | `tensor.squeeze(dim)`                 | `tensor.squeeze(dim)`                                                     |
+| `tensor.swap_dims(dim1, dim2)`        | `tensor.transpose(dim1, dim2)`                                            |
 | `tensor.to_data()`                    | N/A                                                                       |
 | `tensor.to_device(device)`            | `tensor.to(device)`                                                       |
+| `tensor.transpose()`                  | `tensor.T`                                                                |
 | `tensor.unsqueeze()`                  | `tensor.unsqueeze(0)`                                                     |
 | `tensor.unsqueeze_dim(dim)`           | `tensor.unsqueeze(dim)`                                                   |
+| `tensor.unsqueeze_dims(dims)`         | N/A                                                                       |
 
 ### Numeric Operations
 
@@ -176,7 +181,6 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `Tensor::eye(size, device)`                                     | `torch.eye(size, device=device)`               |
 | `Tensor::full(shape, fill_value, device)`                       | `torch.full(shape, fill_value, device=device)` |
 | `Tensor::ones(shape, device)`                                   | `torch.ones(shape, device=device)`             |
-| `Tensor::zeros(shape)`                                          | `torch.zeros(shape)`                           |
 | `Tensor::zeros(shape, device)`                                  | `torch.zeros(shape, device=device)`            |
 | `tensor.abs()`                                                  | `torch.abs(tensor)`                            |
 | `tensor.add(other)` or `tensor + other`                         | `tensor + other`                               |
@@ -194,7 +198,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |
-| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           | 
+| `tensor.full_like(fill_value)`                                  | `torch.full_like(tensor, fill_value)           |
 | `tensor.gather(dim, indices)`                                   | `torch.gather(tensor, dim, indices)`           |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                             |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                            |
@@ -252,8 +256,9 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 Those operations are only available for `Float` tensors.
 
 | Burn API                                      | PyTorch Equivalent                 |
-|-----------------------------------------------| ---------------------------------- |
+| --------------------------------------------- | ---------------------------------- |
 | `Tensor::one_hot(index, num_classes, device)` | N/A                                |
+| `tensor.cast(dtype)`                          | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                               | `tensor.ceil()`                    |
 | `tensor.cos()`                                | `tensor.cos()`                     |
 | `tensor.erf()`                                | `tensor.erf()`                     |
@@ -271,10 +276,8 @@ Those operations are only available for `Float` tensors.
 | `tensor.round()`                              | `tensor.round()`                   |
 | `tensor.sin()`                                | `tensor.sin()`                     |
 | `tensor.sqrt()`                               | `tensor.sqrt()`                    |
-| `tensor.swap_dims(dim1, dim2)`                | `tensor.transpose(dim1, dim2)`     |
 | `tensor.tanh()`                               | `tensor.tanh()`                    |
 | `tensor.to_full_precision()`                  | `tensor.to(torch.float)`           |
-| `tensor.transpose()`                          | `tensor.T`                         |
 | `tensor.var(dim)`                             | `tensor.var(dim)`                  |
 | `tensor.var_bias(dim)`                        | N/A                                |
 | `tensor.var_mean(dim)`                        | N/A                                |
@@ -286,8 +289,8 @@ Those operations are only available for `Int` tensors.
 
 | Burn API                                         | PyTorch Equivalent                                      |
 | ------------------------------------------------ | ------------------------------------------------------- |
-| `tensor.arange(5..10, device)`                   | `tensor.arange(start=5, end=10, device=device)`         |
-| `tensor.arange_step(5..10, 2, device)`           | `tensor.arange(start=5, end=10, step=2, device=device)` |
+| `Tensor::arange(5..10, device)`                  | `tensor.arange(start=5, end=10, device=device)`         |
+| `Tensor::arange_step(5..10, 2, device)`          | `tensor.arange(start=5, end=10, step=2, device=device)` |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |

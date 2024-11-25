@@ -1,7 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
 use burn_common::stub::Mutex;
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
+    backend::Backend,
     ops::FullPrecisionBackend,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
@@ -9,7 +9,7 @@ use burn_tensor::{
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId, TensorStatus,
     },
-    DType, Element, ElementConversion, Shape, TensorData,
+    DType, Element, ElementConversion, FloatDType, Shape, TensorData,
 };
 use core::future::Future;
 
@@ -55,8 +55,7 @@ pub struct Runner<B: ReprBackend> {
 impl<B: ReprBackend> Runner<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
@@ -159,22 +158,16 @@ where
     pub(crate) fn register_float_tensor_desc(
         &self,
         shape: Vec<usize>,
-        full_precision: bool,
+        dtype: FloatDType,
     ) -> TensorDescription {
-        let dtype = if full_precision {
-            <FullPrecisionBackend<B> as Backend>::FloatElem::dtype()
-        } else {
-            B::FloatElem::dtype()
-        };
-        self.register_empty_tensor_desc(shape, dtype)
+        self.register_empty_tensor_desc(shape, dtype.into())
     }
 }
 
 impl<B: ReprBackend> RunnerClient for Runner<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     type Device = B::Device;
 
@@ -1251,8 +1244,8 @@ where
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 
-    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
-        let desc = self.register_float_tensor_desc(shape, full_precision);
+    fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self> {
+        let desc = self.register_float_tensor_desc(shape, dtype);
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 

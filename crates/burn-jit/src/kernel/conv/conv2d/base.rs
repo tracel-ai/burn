@@ -70,12 +70,12 @@ impl Default for ConvTranspose2dStrategy {
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
 pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     match strategy {
         Conv2dStrategy::Direct => conv2d_direct::<R, E, I>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
@@ -99,12 +99,12 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
 pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     match strategy {
         ConvTranspose2dStrategy::Direct => {
             conv_transpose2d_direct::<R, E, I>(input, weight, bias, options)

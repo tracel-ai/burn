@@ -1,6 +1,8 @@
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
+use super::TensorMetadata;
+
 /// Returns a new tensor with the given dimension narrowed to the given range.
 ///
 /// # Arguments
@@ -23,7 +25,7 @@ pub fn narrow<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     start: usize,
     length: usize,
 ) -> K::Primitive {
-    let shape = K::shape(&tensor);
+    let shape = tensor.shape();
 
     let ranges: Vec<_> = shape
         .dims

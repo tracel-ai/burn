@@ -9,11 +9,7 @@ use axum::{
 };
 use std::{net::SocketAddr, sync::Arc};
 
-use burn_tensor::{
-    backend::{Backend, BackendBridge},
-    repr::ReprBackend,
-    Device,
-};
+use burn_tensor::{ops::FullPrecisionBackend, repr::ReprBackend, Device};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
@@ -30,8 +26,7 @@ pub struct WsServer<B: ReprBackend> {
 impl<B: ReprBackend> WsServer<B>
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
@@ -183,8 +178,7 @@ where
 pub async fn start<B: ReprBackend>(device: Device<B>, port: u16)
 where
     // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
+    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
 {
     WsServer::<B>::start(device, port).await;
 }

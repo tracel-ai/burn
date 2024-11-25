@@ -3,7 +3,7 @@ use burn_tensor::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    Element, Shape, TensorData,
+    DType, Element, Shape, TensorData, TensorMetadata,
 };
 
 use ndarray::{ArcArray, Array, Dim, IxDyn};
@@ -17,8 +17,12 @@ pub struct NdArrayTensor<E> {
     pub array: ArcArray<E, IxDyn>,
 }
 
-impl<E> NdArrayTensor<E> {
-    pub(crate) fn shape(&self) -> Shape {
+impl<E: Element> TensorMetadata for NdArrayTensor<E> {
+    fn dtype(&self) -> DType {
+        E::dtype()
+    }
+
+    fn shape(&self) -> Shape {
         Shape::from(self.array.shape().to_vec())
     }
 }
@@ -208,6 +212,16 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
                 ))
             }
         }
+    }
+}
+
+impl<Q: QuantElement> TensorMetadata for NdArrayQTensor<Q> {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
     }
 }
 

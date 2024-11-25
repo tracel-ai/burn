@@ -18,13 +18,13 @@ pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
 
 /// Creates an empty output tensor with reduce output shape
 pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement>(
-    input: &JitTensor<R, EI>,
+    input: &JitTensor<R>,
     reduce_dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let mut shape_out = input.shape.clone();
     shape_out.dims[reduce_dim] = 1;
 
-    empty_device(input.client.clone(), input.device.clone(), shape_out)
+    empty_device::<R, EO>(input.client.clone(), input.device.clone(), shape_out)
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -60,10 +60,10 @@ macro_rules! reduce_operation {
 
         /// Executes the reduce operation with the given strategy.
         pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(
-            tensor: JitTensor<R, EI>,
+            tensor: JitTensor<R>,
             dim: usize,
             strategy: ReduceStrategy,
-        ) -> JitTensor<R, EO> {
+        ) -> JitTensor<R> {
             match strategy {
                 ReduceStrategy::Naive => reduce_dim_naive::<$ops, R, EI, EO>(tensor, dim),
                 ReduceStrategy::SharedMemory => reduce_dim_shared::<$ops, R, EI, EO>(tensor, dim),

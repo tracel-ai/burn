@@ -11,8 +11,8 @@ use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
-use burn_tensor::Distribution;
 use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
+use burn_tensor::{Distribution, TensorMetadata};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -60,10 +60,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         );
         *seed = Some(rng);
         tensor
-    }
-
-    fn float_shape(tensor: &NdArrayTensor<E>) -> Shape {
-        tensor.shape()
     }
 
     async fn float_into_data(tensor: NdArrayTensor<E>) -> TensorData {
@@ -308,6 +304,14 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
         NdArrayTensor::new(array)
     }
 
+    fn float_prod(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod(tensor)
+    }
+
+    fn float_prod_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        NdArrayMathOps::prod_dim(tensor, dim)
+    }
+
     fn float_log1p(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor.array.mapv_into(|a| a.log1p_elem()).into_shared();
 
@@ -446,5 +450,12 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
 
     fn float_expand(tensor: NdArrayTensor<E>, shape: Shape) -> NdArrayTensor<E> {
         NdArrayOps::expand(tensor, shape)
+    }
+
+    fn float_cast(
+        _tensor: burn_tensor::ops::FloatTensor<Self>,
+        _dtype: burn_tensor::FloatDType,
+    ) -> burn_tensor::ops::FloatTensor<Self> {
+        todo!()
     }
 }

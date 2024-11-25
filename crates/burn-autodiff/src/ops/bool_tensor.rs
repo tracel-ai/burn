@@ -11,10 +11,6 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_from_data(data, device)
     }
 
-    fn bool_shape(tensor: &BoolTensor<B>) -> Shape {
-        B::bool_shape(tensor)
-    }
-
     async fn bool_into_data(tensor: BoolTensor<B>) -> TensorData {
         B::bool_into_data(tensor).await
     }
@@ -86,6 +82,18 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_chunk(tensor: BoolTensor<B>, chunks: usize, dim: usize) -> Vec<BoolTensor<B>> {
         B::bool_chunk(tensor, chunks, dim)
+    }
+
+    fn bool_split(tensor: BoolTensor<B>, split_size: usize, dim: usize) -> Vec<BoolTensor<B>> {
+        B::bool_split(tensor, split_size, dim)
+    }
+
+    fn bool_split_with_sizes(
+        tensor: BoolTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<BoolTensor<B>> {
+        B::bool_split_with_sizes(tensor, split_sizes, dim)
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {

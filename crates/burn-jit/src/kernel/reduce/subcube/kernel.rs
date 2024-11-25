@@ -86,7 +86,7 @@ pub fn reduce_dim_subcube<
     EI: JitElement,
     EO: JitElement,
 >(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     dim: usize,
 ) -> JitTensor<R, EO> {
     let topology = input.client.properties().hardware_properties();

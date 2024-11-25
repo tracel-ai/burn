@@ -45,11 +45,11 @@ pub type BalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 ///
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
-    input: JitTensor<R, F>,
-    weight: JitTensor<R, F>,
-    bias: Option<JitTensor<R, F>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, F> {
+) -> JitTensor<R> {
     match F::as_elem() {
         Elem::Float(FloatKind::F16) => {
             conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x2x4>>(input, weight, bias, options)
@@ -60,11 +60,11 @@ pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
 
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_gemm_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
-    input: JitTensor<R, F>,
-    weight: JitTensor<R, F>,
-    bias: Option<JitTensor<R, F>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, F> {
+) -> JitTensor<R> {
     match F::as_elem() {
         Elem::Float(FloatKind::F16) => {
             conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S4x2x4>>(input, weight, bias, options)
@@ -74,11 +74,11 @@ pub fn conv2d_gemm_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
 }
 
 pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
-    input: JitTensor<R, F>,
-    weight: JitTensor<R, F>,
-    bias: Option<JitTensor<R, F>>,
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, F> {
+) -> JitTensor<R> {
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -108,7 +108,7 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
     let weight = reshape(weight, Shape::new([gemm_k, gemm_n]));
 
     let out_shape = Shape::new([gemm_m, gemm_n]);
-    let out = empty_device(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device::<R, F>(input.client.clone(), input.device.clone(), out_shape);
 
     // Target 128 bit accesses
     let available_vectorizations = R::supported_line_sizes()
@@ -159,7 +159,7 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
     let advanced_config = Default::default();
     let config = Alg::make_config(&problem, &cube_dim, &cube_count, &advanced_config);
     let bias = bias.unwrap_or_else(|| {
-        empty_device(input.client.clone(), input.device.clone(), Shape::new([1]))
+        empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
     unsafe {
@@ -167,10 +167,10 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
             &input.client,
             cube_dim,
             cube_count,
-            input.as_tensor_arg(lhs_line_size),
-            weight.as_tensor_arg(rhs_line_size),
-            bias.as_tensor_arg(out_line_size),
-            out.as_tensor_arg(out_line_size),
+            input.as_tensor_arg::<F>(lhs_line_size),
+            weight.as_tensor_arg::<F>(rhs_line_size),
+            bias.as_tensor_arg::<F>(out_line_size),
+            out.as_tensor_arg::<F>(out_line_size),
             config,
         );
     }

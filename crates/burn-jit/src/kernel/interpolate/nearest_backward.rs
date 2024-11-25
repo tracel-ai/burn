@@ -56,9 +56,9 @@ fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: FloatElement>(
-    out_grad: JitTensor<R, E>,
-    output: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    out_grad: JitTensor<R>,
+    output: JitTensor<R>,
+) -> JitTensor<R> {
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
@@ -67,8 +67,8 @@ pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: FloatElement
             &out_grad.client,
             cube_count,
             cube_dim,
-            out_grad.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            out_grad.as_tensor_arg::<E>(1),
+            output.as_tensor_arg::<E>(1),
         )
     };
 

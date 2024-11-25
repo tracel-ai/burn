@@ -87,6 +87,6 @@ pub fn random_normal<R: JitRuntime, E: JitElement>(
     device: &R::Device,
     mean: E,
     std: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     random(shape, device, Normal { mean, std })
 }
