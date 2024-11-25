@@ -145,6 +145,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.split(split_size, dim)`       | `tensor.split(split_size, dim)`                                           |
 | `tensor.split_with_sizes(split_sizes, dim)` | `tensor.split([split_sizes], dim)`                                  |
 | `tensor.device()`                     | `tensor.device`                                                           |
+| `tensor.dtype()`                      | `tensor.dtype`                                                            |
 | `tensor.dims()`                       | `tensor.size()`                                                           |
 | `tensor.equal(other)`                 | `x == y`                                                                  |
 | `tensor.expand(shape)`                | `tensor.expand(shape)`                                                    |
