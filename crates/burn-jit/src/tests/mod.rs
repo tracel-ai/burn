@@ -28,6 +28,7 @@ mod unary;
 mod uniform;
 
 // Re-export dependencies for tests
+pub use crate::ops::base::into_data_sync;
 pub use burn_autodiff;
 pub use burn_fusion;
 pub use burn_ndarray;

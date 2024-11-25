@@ -2,7 +2,7 @@ use burn_tensor::backend::Backend;
 
 use crate as burn;
 
-use super::LrScheduler;
+use super::{LrScheduler, String};
 use crate::{config::Config, LearningRate};
 
 /// The configuration for create a [step learning rate scheduler](StepLrScheduler).
@@ -33,11 +33,13 @@ pub struct StepLrSchedulerConfig {
 impl StepLrSchedulerConfig {
     /// Initializes a [step learning rate scheduler](StepLrScheduler).
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `step_size` is 0.
-    pub fn init(&self) -> StepLrScheduler {
-        assert!(self.step_size > 0, "Step size must be greater than 0.");
+    /// An error will be returned if `step_size` is 0.
+    pub fn init(&self) -> Result<StepLrScheduler, String> {
+        if self.step_size == 0 {
+            return Err("Step size must be greater than 0".into());
+        }
 
         // Atypical values of `initial_lr` and `gamma` are not rejected because they might be useful
         // in some cases like debugging (e.g., https://datascience.stackexchange.com/q/89518).
@@ -56,12 +58,12 @@ impl StepLrSchedulerConfig {
             );
         }
 
-        StepLrScheduler {
+        Ok(StepLrScheduler {
             init_lr: self.initial_lr,
             step_size: self.step_size,
             gamma: self.gamma,
             iter_idx: -1,
-        }
+        })
     }
 }
 
@@ -126,14 +128,15 @@ mod tests {
     // but the crate has been unmaintained and using it would introduce another dependency.
 
     #[test]
-    #[should_panic]
     fn test_config_step_size_zero() {
-        StepLrSchedulerConfig::new(1.0, 0).init();
+        let r = StepLrSchedulerConfig::new(1.0, 0).init();
+        assert!(r.is_err(), "Should return an error");
     }
 
     #[test]
     fn test_config_step_size_nonzero() {
-        StepLrSchedulerConfig::new(1.0, 1).init();
+        let r = StepLrSchedulerConfig::new(1.0, 1).init();
+        assert!(r.is_ok(), "Should return a success value");
     }
 
     #[test]
@@ -141,28 +144,42 @@ mod tests {
         const INIT_LR: LearningRate = 0.4;
         const STEP_SIZE: usize = 2;
 
-        let mut default = create_scheduler_unchecked(INIT_LR, STEP_SIZE, None);
-        let mut explicit = create_scheduler_unchecked(INIT_LR, STEP_SIZE, Some(0.1));
+        let mut default = StepLrSchedulerConfig::new(INIT_LR, STEP_SIZE)
+            .init()
+            .unwrap();
+        let mut explicit = StepLrSchedulerConfig::new(INIT_LR, STEP_SIZE)
+            .with_gamma(0.1)
+            .init()
+            .unwrap();
         test_utils::compare_steps(&mut default, &mut explicit, 3 * STEP_SIZE);
     }
 
     #[test]
     fn test_lr_decreasing() {
-        let scheduler = create_scheduler_unchecked(0.5, 3, Some(0.1));
+        let scheduler = StepLrSchedulerConfig::new(0.5, 3)
+            .with_gamma(0.1)
+            .init()
+            .unwrap();
         let expected_lrs = [0.5, 0.5, 0.5, 0.05, 0.05, 0.05, 0.005, 0.005, 0.005];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_increasing() {
-        let scheduler = create_scheduler_unchecked(0.1, 2, Some(2.0));
+        let scheduler = StepLrSchedulerConfig::new(0.1, 2)
+            .with_gamma(2.0)
+            .init()
+            .unwrap();
         let expected_lrs = [0.1, 0.1, 0.2, 0.2, 0.4, 0.4];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_unchanging() {
-        let scheduler = create_scheduler_unchecked(3.1, 1, Some(1.0));
+        let scheduler = StepLrSchedulerConfig::new(3.1, 1)
+            .with_gamma(1.0)
+            .init()
+            .unwrap();
         let expected_lrs = [3.1, 3.1, 3.1];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
@@ -171,7 +188,10 @@ mod tests {
     fn test_save_and_load() {
         const STEP_SIZE: usize = 10;
 
-        let scheduler = create_scheduler_unchecked(0.007, STEP_SIZE, Some(0.03));
+        let scheduler = StepLrSchedulerConfig::new(0.007, STEP_SIZE)
+            .with_gamma(0.03)
+            .init()
+            .unwrap();
         test_utils::check_save_load(scheduler, 3 * STEP_SIZE / 2);
     }
 
@@ -180,7 +200,7 @@ mod tests {
     #[test]
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
-        let mut scheduler = create_scheduler_unchecked(0.1, 2, None);
+        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
         scheduler = scheduler.load_record::<TestBackend>(i32::MAX - 1);
         scheduler.step();
     }
@@ -189,22 +209,9 @@ mod tests {
     #[should_panic = "i32::MAX"]
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
-        let mut scheduler = create_scheduler_unchecked(0.1, 2, None);
+        let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
         scheduler = scheduler.load_record::<TestBackend>(i32::MAX - 1);
         scheduler.step();
         scheduler.step();
-    }
-
-    // Create a scheduler with valid parameters
-    fn create_scheduler_unchecked(
-        init_lr: LearningRate,
-        step_size: usize,
-        gamma: Option<f64>,
-    ) -> StepLrScheduler {
-        let mut config = StepLrSchedulerConfig::new(init_lr, step_size);
-        if let Some(g) = gamma {
-            config = config.with_gamma(g);
-        }
-        config.init()
     }
 }

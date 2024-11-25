@@ -1,6 +1,7 @@
 use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRuntime};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
+use cubecl::{tensor_vectorization_factor, CubeElement};
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
@@ -20,8 +21,9 @@ pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
+/// Read data from a `JitTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub(crate) fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
+pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one(tensor.handle.binding());
@@ -72,7 +74,7 @@ pub(crate) fn swap_dims<R: JitRuntime>(
     tensor
 }
 
-pub(crate) fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
+pub fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
