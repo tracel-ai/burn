@@ -25,10 +25,10 @@ pub enum MatmulStrategy {
 impl Default for MatmulStrategy {
     fn default() -> Self {
         // if autotune is enabled, default to autotune
-        #[cfg(feature = "autotune")]
-        return MatmulStrategy::Autotune;
+        // #[cfg(feature = "autotune")]
+        // return MatmulStrategy::Autotune;
 
-        #[cfg(not(feature = "autotune"))]
+        // #[cfg(not(feature = "autotune"))]
         MatmulStrategy::Cube
     }
 }
@@ -48,6 +48,7 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             let out = init_matmul_output::<R, E>(&lhs, &rhs);
             let client = &lhs.client;
             cubecl::linalg::matmul::launch_ref::<R, E>(
+                &Default::default(),
                 client,
                 lhs.as_handle_ref(),
                 rhs.as_handle_ref(),

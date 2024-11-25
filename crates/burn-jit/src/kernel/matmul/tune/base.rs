@@ -150,6 +150,7 @@ matmul_tune_ops!(
     MatmulCube,
     |lhs: JitTensor<R>, rhs: JitTensor<R>, out: JitTensor<R>| {
         cubecl::linalg::matmul::launch_ref::<R, E>(
+            &Default::default(),
             &lhs.client,
             lhs.as_handle_ref(),
             rhs.as_handle_ref(),

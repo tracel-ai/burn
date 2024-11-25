@@ -298,6 +298,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
     matmul::launch_ref::<R, E>(
+        &Default::default(),
         &client,
         weight.as_handle_ref(),
         columns.as_handle_ref(),
