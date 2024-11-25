@@ -1,7 +1,11 @@
 #[burn_tensor_testgen::testgen(conv2d)]
 mod tests {
     use super::*;
-    use burn_tensor::{module, Distribution, Tensor};
+    use burn_jit::{
+        kernel::{conv::nchw_to_nhwc, into_contiguous},
+        tests::into_data_sync,
+    };
+    use burn_tensor::{backend::Backend, module, Distribution, Tensor};
 
     #[test]
     fn conv2d_should_match_reference_backend() {
@@ -49,5 +53,26 @@ mod tests {
         output
             .into_data()
             .assert_approx_eq(&output_ref.into_data(), 1);
+    }
+
+    #[test]
+    fn nchw_to_nhwc_should_match_into_contiguos() {
+        let test_device = Default::default();
+        let input =
+            Tensor::<TestBackend, 4>::random([4, 72, 53, 56], Distribution::Default, &test_device);
+
+        type Float = <TestBackend as Backend>::FloatElem;
+
+        let output = nchw_to_nhwc::<TestRuntime, Float>(input.clone().into_primitive().tensor());
+        let output_ref = into_contiguous(
+            input
+                .clone()
+                .permute([0, 2, 3, 1])
+                .into_primitive()
+                .tensor(),
+        );
+
+        into_data_sync::<TestRuntime, Float>(output)
+            .assert_approx_eq(&into_data_sync::<TestRuntime, Float>(output_ref), 1);
     }
 }
