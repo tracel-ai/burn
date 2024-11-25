@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::future::Future;
 
-use super::{BoolTensor, ByteTensor, FloatTensor, IntTensor, QuantizedTensor};
+use super::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{backend::Backend, TensorData};
 
 #[derive(Default)]
@@ -15,8 +15,6 @@ pub struct TransactionPrimitive<B: Backend> {
     pub read_ints: Vec<IntTensor<B>>,
     /// Bool tensors.
     pub read_bools: Vec<BoolTensor<B>>,
-    /// Byte tensors.
-    pub read_bytes: Vec<ByteTensor<B>>,
 }
 
 #[derive(Default)]
@@ -30,8 +28,6 @@ pub struct TransactionPrimitiveResult {
     pub read_ints: Vec<TensorData>,
     /// Bool tensor data.
     pub read_bools: Vec<TensorData>,
-    /// Byte tensor data.
-    pub read_bytes: Vec<TensorData>,
 }
 
 /// Operations that are sync by nature and that can be batch together in transactions to improve
@@ -47,7 +43,6 @@ pub trait TransactionOps<B: Backend> {
             let mut qfloats = Vec::new();
             let mut ints = Vec::new();
             let mut bools = Vec::new();
-            let mut bytes = Vec::new();
 
             for t in transaction.read_floats {
                 floats.push(B::float_into_data(t).await);
@@ -61,16 +56,12 @@ pub trait TransactionOps<B: Backend> {
             for t in transaction.read_bools {
                 bools.push(B::bool_into_data(t).await);
             }
-            for t in transaction.read_bytes {
-                bytes.push(B::byte_into_data(t).await);
-            }
 
             TransactionPrimitiveResult {
                 read_floats: floats,
                 read_qfloats: qfloats,
                 read_ints: ints,
                 read_bools: bools,
-                read_bytes: bytes,
             }
         }
     }

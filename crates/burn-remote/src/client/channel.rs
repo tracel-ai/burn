@@ -21,8 +21,6 @@ impl RunnerChannel for WsChannel {
 
     type BoolElem = u32;
 
-    type ByteElem = u32;
-
     fn name() -> String {
         "remote".into()
     }

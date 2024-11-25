@@ -20,8 +20,6 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type IntElem: Element;
     /// Bool element type.
     type BoolElem: Element;
-    /// Byte element type.
-    type ByteElem: Element;
 
     /// Name of the channel.
     fn name() -> String;

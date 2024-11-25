@@ -62,10 +62,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     type BoolElem = R::BoolElem;
 
-    type ByteTensorPrimitive = RouterTensor<R::Client>;
-
-    type ByteElem = R::ByteElem;
-
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 
     type QuantizedEncoding = u32;

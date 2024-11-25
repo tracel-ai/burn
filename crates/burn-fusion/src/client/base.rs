@@ -58,14 +58,6 @@ where
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
         B: FusionBackend<FusionRuntime = R>;
-    /// Read the values contained by a byte tensor.
-    fn read_tensor_byte<B>(
-        &self,
-        tensor: TensorDescription,
-        stream: StreamId,
-    ) -> impl Future<Output = TensorData> + Send + 'static
-    where
-        B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a quantized tensor.
     fn read_tensor_quantized<B>(
         &self,
@@ -84,10 +76,6 @@ where
         B: FusionBackend<FusionRuntime = R>;
     /// Resolve the given bool tensor to a primitive tensor.
     fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
-    where
-        B: FusionBackend<FusionRuntime = R>;
-    /// Resolve the given byte tensor to a primitive tensor.
-    fn resolve_tensor_byte<B>(&self, tensor: FusionTensor<R>) -> B::ByteTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given float tensor.
@@ -110,15 +98,6 @@ where
         B: FusionBackend<FusionRuntime = R>;
     /// Change the client of the given bool tensor.
     fn change_client_bool<B>(
-        &self,
-        tensor: TensorDescription,
-        client: Self,
-        stream: StreamId,
-    ) -> FusionTensor<R>
-    where
-        B: FusionBackend<FusionRuntime = R>;
-    /// Change the client of the given byte tensor.
-    fn change_client_byte<B>(
         &self,
         tensor: TensorDescription,
         client: Self,

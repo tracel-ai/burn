@@ -1,6 +1,6 @@
 use crate::{
     backend::Backend,
-    ops::{BoolTensor, ByteTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
     quantization::QuantizationScheme,
     Shape,
 };
@@ -37,8 +37,6 @@ pub trait ReprBackend: Backend {
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self>;
-    /// Convert a [handle](ReprBackend::Handle) to a [byte tensor](Backend::ByteTensorPrimitive).
-    fn byte_tensor(handle: TensorHandle<Self::Handle>) -> ByteTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
     fn quantized_tensor(
         handle: QuantizedKind<TensorHandle<Self::Handle>>,
@@ -51,8 +49,6 @@ pub trait ReprBackend: Backend {
     fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle;
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](ReprBackend::Handle).
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
-    /// Convert a [byte tensor](Backend::ByteTensorPrimitive) to a [handle](ReprBackend::Handle).
-    fn byte_tensor_handle(tensor: ByteTensor<Self>) -> Self::Handle;
     /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](ReprBackend::Handle).
     /// A quantized tensor has multiple handles for the tensor itself and the quantization parameters.
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle>;
@@ -67,8 +63,6 @@ pub enum HandleKind<B: Backend> {
     Int(B::IntTensorPrimitive),
     /// Bool tensor handle.
     Bool(B::BoolTensorPrimitive),
-    /// Byte tensor handle.
-    Byte(B::ByteTensorPrimitive),
     /// Quantized tensor handle.
     Quantized(B::QuantizedTensorPrimitive),
     /// Empty handle (used as a dummy representation).
@@ -82,7 +76,6 @@ impl<B: Backend> HandleKind<B> {
             HandleKind::Float(_) => "float",
             HandleKind::Int(_) => "int",
             HandleKind::Bool(_) => "bool",
-            HandleKind::Byte(_) => "byte",
             HandleKind::Quantized(_) => "quantized",
             HandleKind::Empty => unreachable!(), // should not happen
         }

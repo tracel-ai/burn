@@ -19,8 +19,6 @@ pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
 pub(crate) struct PowOp;
-pub(crate) struct LogicalOrOp;
-pub(crate) struct LogicalAndOp;
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
@@ -61,22 +59,6 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 impl<N: Float> BinaryOp<N> for PowOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         Line::powf(lhs, rhs)
-    }
-}
-
-#[cube]
-impl<N: Int> BinaryOp<N> for LogicalOrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        let val = bool::cast_from(lhs) || bool::cast_from(rhs);
-        Line::cast_from(val)
-    }
-}
-
-#[cube]
-impl<N: Int> BinaryOp<N> for LogicalAndOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        let val = bool::cast_from(lhs) && bool::cast_from(rhs);
-        Line::cast_from(val)
     }
 }
 

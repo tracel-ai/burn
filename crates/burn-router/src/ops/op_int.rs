@@ -1,8 +1,5 @@
 use alloc::{vec, vec::Vec};
-use burn_tensor::{
-    backend::Backend,
-    ops::{ByteElem, ByteTensor},
-};
+use burn_tensor::backend::Backend;
 use core::ops::Range;
 
 use burn_tensor::ops::{
@@ -926,22 +923,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         client.register(OperationDescription::Int(
             IntOperationDescription::IntoFloat(desc),
-        ));
-
-        out
-    }
-
-    fn int_into_byte(tensor: IntTensor<Self>) -> ByteTensor<Self> {
-        let client = tensor.client.clone();
-        let out = client.register_empty_tensor(tensor.shape.clone(), ByteElem::<Self>::dtype());
-
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-
-        client.register(OperationDescription::Int(
-            IntOperationDescription::IntoByte(desc),
         ));
 
         out

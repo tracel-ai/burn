@@ -1,5 +1,5 @@
+use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
-use super::{cat::cat_with_slice_assign, ByteTensor};
 use super::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use crate::cast::ToElement;
 use crate::tensor::api::{chunk, narrow, split, split_with_sizes};
@@ -110,19 +110,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// # Returns
     ///
-    /// The float tensor with the same data as the int tensor.
+    /// The int tensor with the same data as the float tensor.
     fn int_into_float(tensor: IntTensor<B>) -> FloatTensor<B>;
-
-    /// Converts int tensor to byte tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The byte tensor with the same data as the int tensor.
-    fn int_into_byte(tensor: IntTensor<B>) -> ByteTensor<B>;
 
     /// Fills the tensor with values from the source tensor if the mask is true at the given
     /// indices.

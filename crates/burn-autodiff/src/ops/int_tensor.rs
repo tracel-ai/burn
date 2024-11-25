@@ -255,11 +255,6 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
         AutodiffTensor::new(B::int_into_float(tensor))
     }
-    fn int_into_byte(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
-    ) -> <Autodiff<B> as Backend>::ByteTensorPrimitive {
-        B::int_into_byte(tensor)
-    }
 
     fn int_swap_dims(
         tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,

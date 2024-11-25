@@ -2254,10 +2254,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_into_int(tensor.primitive)
     }
 
-    fn float_into_byte(tensor: FloatTensor<Self>) -> <Autodiff<B> as Backend>::ByteTensorPrimitive {
-        B::float_into_byte(tensor.primitive)
-    }
-
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct PowF;

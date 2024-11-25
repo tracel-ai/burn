@@ -591,10 +591,6 @@ where
         execute_with_dtype!(float(tensor.dtype), E, kernel::cast::<R, E, I>(tensor))
     }
 
-    fn float_into_byte(tensor: FloatTensor<Self>) -> IntTensor<Self> {
-        execute_with_dtype!(float(tensor.dtype), E, kernel::cast::<R, E, P>(tensor))
-    }
-
     fn float_clamp(
         tensor: FloatTensor<Self>,
         min: FloatElem<Self>,

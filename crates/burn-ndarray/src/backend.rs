@@ -3,13 +3,10 @@ use crate::PrecisionBridge;
 use crate::{NdArrayQTensor, NdArrayTensor};
 use alloc::string::String;
 use burn_common::stub::Mutex;
+use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_tensor::quantization::QuantizationScheme;
 use burn_tensor::repr::{HandleKind, QuantizedKind, ReprBackend, TensorHandle};
-use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps},
-    ops::ByteTensor,
-};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -60,9 +57,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     type BoolTensorPrimitive = NdArrayTensor<bool>;
     type BoolElem = bool;
 
-    type ByteTensorPrimitive = NdArrayTensor<u8>;
-    type ByteElem = u8;
-
     type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
     type QuantizedEncoding = Q;
 
@@ -107,13 +101,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
         }
     }
 
-    fn byte_tensor(handle: TensorHandle<Self::Handle>) -> ByteTensor<Self> {
-        match handle.handle {
-            HandleKind::Byte(handle) => handle,
-            _ => panic!("Expected byte handle, got {}", handle.handle.name()),
-        }
-    }
-
     fn quantized_tensor(
         handles: QuantizedKind<TensorHandle<Self::Handle>>,
         _scheme: QuantizationScheme,
@@ -135,10 +122,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
 
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
         HandleKind::Bool(tensor)
-    }
-
-    fn byte_tensor_handle(tensor: ByteTensor<Self>) -> Self::Handle {
-        HandleKind::Byte(tensor)
     }
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {

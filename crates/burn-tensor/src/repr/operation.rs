@@ -68,22 +68,16 @@ pub enum OperationDescription {
     BaseFloat(BaseOperationDescription),
     /// Basic operation on an int tensor.
     BaseInt(BaseOperationDescription),
-    /// Basic operation on an int tensor.
-    BaseByte(BaseOperationDescription),
     /// Basic operation on a bool tensor.
     BaseBool(BaseOperationDescription),
     /// Numeric operation on a float tensor.
     NumericFloat(DType, NumericOperationDescription<f32>),
     /// Numeric operation on an int tensor.
     NumericInt(DType, NumericOperationDescription<i32>),
-    /// Numeric operation on a byte tensor.
-    NumericByte(DType, NumericOperationDescription<u32>),
     /// Operation specific to a bool tensor.
     Bool(BoolOperationDescription),
     /// Operation specific to an int tensor.
     Int(IntOperationDescription),
-    /// Operation specific to a byte tensor.
-    Byte(ByteOperationDescription),
     /// Operation specific to a float tensor.
     Float(DType, FloatOperationDescription),
     /// Module operation.
@@ -121,8 +115,6 @@ pub enum FloatOperationDescription {
     Ceil(UnaryOperationDescription),
     /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
     IntoInt(UnaryOperationDescription),
-    /// Operation corresponding to [into_byte](crate::ops::FloatTensorOps::float_into_byte).
-    IntoByte(UnaryOperationDescription),
     /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
     Matmul(BinaryOperationDescription),
     /// Operation corresponding to [random](crate::ops::FloatTensorOps::float_random).
@@ -530,17 +522,6 @@ pub enum NumericOperationDescription<E> {
 pub enum IntOperationDescription {
     /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOperationDescription),
-    /// Operation corresponding to [into byte](crate::ops::IntTensorOps::int_into_byte).
-    IntoByte(UnaryOperationDescription),
-}
-
-/// Operation description specific to an int tensor.
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum ByteOperationDescription {
-    /// Operation corresponding to [into float](crate::ops::IntTensorOps::byte_into_float).
-    IntoFloat(UnaryOperationDescription),
-    /// Operation corresponding to [into int](crate::ops::IntTensorOps::byte_into_byte).
-    IntoInt(UnaryOperationDescription),
 }
 
 /// Operation description specific to a bool tensor.
@@ -550,14 +531,8 @@ pub enum BoolOperationDescription {
     IntoFloat(UnaryOperationDescription),
     /// Operation corresponding to [into int](crate::ops::BoolTensorOps::bool_into_int).
     IntoInt(UnaryOperationDescription),
-    /// Operation corresponding to [into int](crate::ops::BoolTensorOps::bool_into_byte).
-    IntoByte(UnaryOperationDescription),
     /// Operation corresponding to [not](crate::ops::BoolTensorOps::bool_not).
     Not(UnaryOperationDescription),
-    /// Operation corresponding to [or](crate::ops::BoolTensorOps::bool_or).
-    Or(BinaryOperationDescription),
-    /// Operation corresponding to [and](crate::ops::BoolTensorOps::bool_and).
-    And(BinaryOperationDescription),
 }
 
 /// Swap dim operation description.
@@ -1334,14 +1309,11 @@ impl OperationDescription {
         match self {
             OperationDescription::BaseFloat(ops) => ops.nodes(),
             OperationDescription::BaseInt(ops) => ops.nodes(),
-            OperationDescription::BaseByte(ops) => ops.nodes(),
             OperationDescription::BaseBool(ops) => ops.nodes(),
             OperationDescription::NumericFloat(_dtype, ops) => ops.nodes(),
             OperationDescription::NumericInt(_dtype, ops) => ops.nodes(),
-            OperationDescription::NumericByte(_dtype, ops) => ops.nodes(),
             OperationDescription::Bool(ops) => ops.nodes(),
             OperationDescription::Int(ops) => ops.nodes(),
-            OperationDescription::Byte(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
             OperationDescription::Custom(ops) => ops.nodes(),
@@ -1549,7 +1521,6 @@ impl FloatOperationDescription {
             FloatOperationDescription::Floor(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Ceil(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::IntoByte(desc) => vec![&desc.input, &desc.out],
             FloatOperationDescription::Quantize(desc) => {
                 if let Some(offset) = &desc.qparams.offset {
                     vec![&desc.tensor, &desc.qparams.scale, &offset, &desc.out]
@@ -1577,7 +1548,6 @@ impl IntOperationDescription {
     fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             IntOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
-            IntOperationDescription::IntoByte(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
@@ -1587,19 +1557,7 @@ impl BoolOperationDescription {
         match self {
             BoolOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
             BoolOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
-            BoolOperationDescription::IntoByte(desc) => vec![&desc.input, &desc.out],
             BoolOperationDescription::Not(desc) => vec![&desc.input, &desc.out],
-            BoolOperationDescription::Or(desc) => vec![&desc.lhs, &desc.rhs, &desc.out],
-            BoolOperationDescription::And(desc) => vec![&desc.lhs, &desc.rhs, &desc.out],
-        }
-    }
-}
-
-impl ByteOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
-        match self {
-            ByteOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
-            ByteOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
         }
     }
 }

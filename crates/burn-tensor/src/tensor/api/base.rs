@@ -21,7 +21,7 @@ use crate::{
 };
 use crate::{DType, Element, TensorPrimitive};
 
-use super::{Byte, TensorMetadata, Transaction};
+use super::{TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -2828,118 +2828,6 @@ impl<B: Backend> BasicOps<B> for Bool {
         dim: usize,
     ) -> Vec<Self::Primitive> {
         B::bool_split_with_sizes(tensor, split_sizes, dim)
-    }
-}
-
-impl<B: Backend> BasicOps<B> for Byte {
-    type Elem = B::ByteElem;
-
-    fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
-        B::byte_empty(shape, device)
-    }
-
-    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
-        tr.register_byte(tensor);
-    }
-
-    fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        B::byte_reshape(tensor, shape)
-    }
-
-    fn transpose(tensor: Self::Primitive) -> Self::Primitive {
-        B::byte_transpose(tensor)
-    }
-
-    fn swap_dims(tensor: Self::Primitive, dim1: usize, dim2: usize) -> Self::Primitive {
-        B::byte_swap_dims(tensor, dim1, dim2)
-    }
-
-    fn slice(tensor: Self::Primitive, ranges: &[Range<usize>]) -> Self::Primitive {
-        B::byte_slice(tensor, ranges)
-    }
-
-    fn slice_assign(
-        tensor: Self::Primitive,
-        ranges: &[Range<usize>],
-        value: Self::Primitive,
-    ) -> Self::Primitive {
-        B::byte_slice_assign(tensor, ranges, value)
-    }
-
-    fn device(tensor: &Self::Primitive) -> Device<B> {
-        B::byte_device(tensor)
-    }
-
-    fn to_device(tensor: Self::Primitive, device: &Device<B>) -> Self::Primitive {
-        B::byte_to_device(tensor, device)
-    }
-
-    async fn into_data_async(tensor: Self::Primitive) -> TensorData {
-        B::byte_into_data(tensor).await
-    }
-
-    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::byte_from_data(data, device)
-    }
-
-    fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
-        B::byte_repeat_dim(tensor, dim, times)
-    }
-
-    fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::byte_equal(lhs, rhs)
-    }
-
-    fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::byte_not_equal(lhs, rhs)
-    }
-
-    fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
-        B::byte_cat(vectors, dim)
-    }
-
-    fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::byte_any(tensor)
-    }
-
-    fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::byte_any_dim(tensor, dim)
-    }
-
-    fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::byte_all(tensor)
-    }
-
-    fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::byte_all_dim(tensor, dim)
-    }
-
-    fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        B::byte_permute(tensor, axes)
-    }
-
-    fn expand(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
-        B::byte_expand(tensor, shape)
-    }
-
-    fn flip(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
-        B::byte_flip(tensor, axes)
-    }
-
-    fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::byte_chunk(tensor, chunks, dim)
-    }
-
-    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
-        B::byte_split(tensor, split_size, dim)
-    }
-
-    fn split_with_sizes(
-        tensor: Self::Primitive,
-        split_sizes: Vec<usize>,
-        dim: usize,
-    ) -> Vec<Self::Primitive> {
-        B::byte_split_with_sizes(tensor, split_sizes, dim)
     }
 }
 

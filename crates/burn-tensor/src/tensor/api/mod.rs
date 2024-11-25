@@ -4,7 +4,6 @@ mod argwhere;
 mod autodiff;
 mod base;
 mod bool;
-mod byte;
 mod cartesian_grid;
 mod chunk;
 mod float;

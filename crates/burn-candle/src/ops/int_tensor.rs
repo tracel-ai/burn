@@ -1,8 +1,7 @@
 use burn_tensor::{
-    ops::{BoolTensor, ByteTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
+    ops::{BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     Bool, Device, Distribution, ElementConversion, Shape, TensorData,
 };
-use candle_core::DType;
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -50,10 +49,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
-    }
-
-    fn int_into_byte(tensor: IntTensor<Self>) -> ByteTensor<Self> {
-        CandleTensor::new(tensor.tensor.to_dtype(DType::U32).unwrap())
     }
 
     fn int_mask_where(

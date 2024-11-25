@@ -35,9 +35,6 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
     type BoolElem = B::BoolElem;
 
-    type ByteTensorPrimitive = B::ByteTensorPrimitive;
-    type ByteElem = B::ByteElem;
-
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
     type QuantizedEncoding = B::QuantizedEncoding;
 

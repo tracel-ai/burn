@@ -1,9 +1,8 @@
 use crate::{
     element::{BoolElement, ByteElement},
-    kernel::{self, LogicalAndOp, LogicalOrOp},
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    kernel, FloatElement, IntElement, JitBackend, JitRuntime,
 };
-use burn_tensor::ops::{BoolTensor, ByteTensor, Device, FloatTensor, IntTensor};
+use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
@@ -32,10 +31,6 @@ where
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
         kernel::bool_cast::<R, B, I>(tensor)
-    }
-
-    fn bool_into_byte(tensor: BoolTensor<Self>) -> ByteTensor<Self> {
-        kernel::bool_cast::<R, B, P>(tensor)
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
@@ -68,14 +63,6 @@ where
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         kernel::equal_elem::<R, B, B>(tensor, B::false_val())
-    }
-
-    fn bool_or(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, B, LogicalOrOp>(tensor, other)
-    }
-
-    fn bool_and(tensor: BoolTensor<Self>, other: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::launch_binop::<R, B, LogicalAndOp>(tensor, other)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {

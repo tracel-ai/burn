@@ -333,11 +333,6 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tensor)
     }
 
-    fn int_into_byte(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(tch::Kind::Uint8);
-        TchTensor::new(tensor)
-    }
-
     fn int_swap_dims(tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }

@@ -28,11 +28,6 @@ impl<B: FusionBackend> TransactionOps<Fusion<B>> for Fusion<B> {
                 .into_iter()
                 .map(|t| t.client.clone().resolve_tensor_bool::<B>(t))
                 .collect(),
-            read_bytes: transaction
-                .read_bytes
-                .into_iter()
-                .map(|t| t.client.clone().resolve_tensor_byte::<B>(t))
-                .collect(),
         })
     }
 }

@@ -6,8 +6,6 @@ use crate::{
 
 use core::ops::Range;
 
-use super::Byte;
-
 impl<B> Tensor<B, 1, Int>
 where
     B: Backend,
@@ -100,25 +98,6 @@ where
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
         Tensor::new(TensorPrimitive::Float(B::int_into_float(self.primitive)))
-    }
-
-    /// Returns a new tensor with the same shape and device as the current tensor and the data
-    /// cast to Byte.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Int, Tensor};
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///     let int_tensor = Tensor::<B, 1, Int>::arange(0..5, &device);
-    ///     let byte_tensor = int_tensor.byte();
-    /// }
-    /// ```
-    pub fn byte(self) -> Tensor<B, D, Byte> {
-        Tensor::new(B::int_into_byte(self.primitive))
     }
 
     /// Generates a cartesian grid for the given tensor shape on the specified device.

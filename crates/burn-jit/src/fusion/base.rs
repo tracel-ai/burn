@@ -82,10 +82,6 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteEleme
         handle.handle.into_tensor(handle.shape)
     }
 
-    fn byte_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::ByteTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
-    }
-
     fn quantized_tensor(
         handles: QuantizedKind<TensorHandle<Self::Handle>>,
         scheme: QuantizationScheme,
@@ -115,10 +111,6 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteEleme
     }
 
     fn bool_tensor_handle(tensor: burn_tensor::ops::BoolTensor<Self>) -> Self::Handle {
-        tensor.into()
-    }
-
-    fn byte_tensor_handle(tensor: burn_tensor::ops::ByteTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 

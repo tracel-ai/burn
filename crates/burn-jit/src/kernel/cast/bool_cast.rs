@@ -1,10 +1,13 @@
-use crate::{ops::max_vectorization, tensor::JitTensor, BoolElement, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, BoolElement, JitElement, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 
 #[cube(launch)]
-fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<Line<B>>, output: &mut Tensor<Line<T>>) {
-    let val = Line::<bool>::cast_from(input[ABSOLUTE_POS]);
-    output[ABSOLUTE_POS] = select_many(val, Line::new(T::from_int(1)), Line::new(T::from_int(0)));
+fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tensor<T>) {
+    if input[ABSOLUTE_POS] >= B::from_int(1) {
+        output[ABSOLUTE_POS] = T::from_int(1);
+    } else {
+        output[ABSOLUTE_POS] = T::from_int(0);
+    }
 }
 
 /// Cast a bool tensor to the given element type.
@@ -28,14 +31,13 @@ pub fn bool_cast<R: JitRuntime, B: BoolElement, EO: JitElement>(
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
-    let vectorization = max_vectorization(&tensor);
 
     bool_cast_kernel::launch::<B, EO, R>(
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg::<B>(vectorization),
-        output.as_tensor_arg::<EO>(vectorization),
+        tensor.as_tensor_arg::<B>(1),
+        output.as_tensor_arg::<EO>(1),
     );
 
     output

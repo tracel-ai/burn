@@ -405,11 +405,6 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tensor)
     }
 
-    fn float_into_byte(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(tch::Kind::Uint8);
-        TchTensor::new(tensor)
-    }
-
     fn float_narrow(tensor: TchTensor, dim: usize, start: usize, length: usize) -> TchTensor {
         TchOps::narrow(tensor, dim, start, length)
     }

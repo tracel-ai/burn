@@ -19,7 +19,6 @@ impl<B: Backend, C: CheckpointStrategy> TransactionOps<Self> for Autodiff<B, C> 
             read_qfloats: transaction.read_qfloats,
             read_ints: transaction.read_ints,
             read_bools: transaction.read_bools,
-            read_bytes: transaction.read_bytes,
         })
     }
 }

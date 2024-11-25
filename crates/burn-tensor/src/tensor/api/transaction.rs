@@ -3,7 +3,7 @@ use core::future::Future;
 use super::{BasicOps, Tensor, TensorPrimitive};
 use crate::{
     backend::Backend,
-    ops::{BoolTensor, ByteTensor, IntTensor, TransactionPrimitive},
+    ops::{BoolTensor, IntTensor, TransactionPrimitive},
     TensorData,
 };
 use alloc::vec::Vec;
@@ -33,7 +33,6 @@ enum Order {
     QFloat(usize),
     Int(usize),
     Bool(usize),
-    Byte(usize),
 }
 
 impl<B: Backend> Transaction<B> {
@@ -61,7 +60,6 @@ impl<B: Backend> Transaction<B> {
             let mut qfloats: Vec<_> = result.read_qfloats.into_iter().map(Some).collect();
             let mut ints: Vec<_> = result.read_ints.into_iter().map(Some).collect();
             let mut bools: Vec<_> = result.read_bools.into_iter().map(Some).collect();
-            let mut bytes: Vec<_> = result.read_bytes.into_iter().map(Some).collect();
 
             self.orders
                 .into_iter()
@@ -70,7 +68,6 @@ impl<B: Backend> Transaction<B> {
                     Order::QFloat(index) => qfloats.get_mut(index).unwrap().take().unwrap(),
                     Order::Int(index) => ints.get_mut(index).unwrap().take().unwrap(),
                     Order::Bool(index) => bools.get_mut(index).unwrap().take().unwrap(),
-                    Order::Byte(index) => bytes.get_mut(index).unwrap().take().unwrap(),
                 })
                 .collect::<Vec<_>>()
         }
@@ -97,10 +94,5 @@ impl<B: Backend> Transaction<B> {
     pub(crate) fn register_bool(&mut self, tensor: BoolTensor<B>) {
         self.orders.push(Order::Bool(self.op.read_bools.len()));
         self.op.read_bools.push(tensor);
-    }
-
-    pub(crate) fn register_byte(&mut self, tensor: ByteTensor<B>) {
-        self.orders.push(Order::Byte(self.op.read_bytes.len()));
-        self.op.read_bytes.push(tensor);
     }
 }
