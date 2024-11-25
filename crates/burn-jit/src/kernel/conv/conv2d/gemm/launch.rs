@@ -21,7 +21,7 @@ use crate::{
                 algorithm::{Algorithm, Cmma},
                 base::{ConvolutionLaunch, ConvolutionProblem},
             },
-            Conv2dAutotuneKey,
+            nchw_to_nhwc, Conv2dAutotuneKey,
         },
         into_contiguous,
     },
@@ -97,7 +97,10 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
         width,
     );
 
-    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
+    let input = match input.is_contiguous() {
+        true => nchw_to_nhwc::<R, F>(input),
+        false => into_contiguous(permute(input, &[0, 2, 3, 1])),
+    };
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     // Implicit GEMM matrix size
