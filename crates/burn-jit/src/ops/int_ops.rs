@@ -1,7 +1,7 @@
 use super::{expand, numeric, permute};
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::{
-    element::{BoolElement, ByteElement},
+    element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
@@ -11,13 +11,12 @@ use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use std::ops::Range;
 
-impl<R, F, I, B, P> IntTensorOps<Self> for JitBackend<R, F, I, B, P>
+impl<R, F, I, B> IntTensorOps<Self> for JitBackend<R, F, I, B>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
     B: BoolElement,
-    P: ByteElement,
 {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         super::empty::<R, I>(shape, device)

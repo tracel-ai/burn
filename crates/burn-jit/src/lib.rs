@@ -21,7 +21,7 @@ pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{compute::CubeTask, Feature, Runtime};
-pub use element::{BoolElement, ByteElement, FloatElement, IntElement, JitElement};
+pub use element::{BoolElement, FloatElement, IntElement, JitElement};
 
 mod backend;
 mod bridge;

@@ -2,7 +2,7 @@ use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
 use crate::kernel::{self, launch_unary, reduce, unary_op, UnaryOp};
 use crate::{
-    element::{BoolElement, ByteElement},
+    element::BoolElement,
     kernel::matmul::{matmul, MatmulStrategy},
 };
 use crate::{execute_with_dtype, JitBackend};
@@ -14,13 +14,12 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;
 
-impl<R, F, I, B, P> FloatTensorOps<Self> for JitBackend<R, F, I, B, P>
+impl<R, F, I, B> FloatTensorOps<Self> for JitBackend<R, F, I, B>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
     B: BoolElement,
-    P: ByteElement,
 {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         super::from_data::<R, F>(data, device)

@@ -34,9 +34,6 @@ pub trait BoolElement: JitElement + Int {
     }
 }
 
-/// The element types for bytes for the jit backend.
-pub trait ByteElement: JitElement + Int {}
-
 impl JitElement for u64 {}
 impl JitElement for u32 {}
 impl JitElement for u16 {}
@@ -63,8 +60,3 @@ impl IntElement for i8 {}
 
 impl BoolElement for u8 {}
 impl BoolElement for u32 {}
-
-impl ByteElement for u8 {}
-impl ByteElement for i8 {}
-impl ByteElement for u32 {}
-impl ByteElement for i32 {}

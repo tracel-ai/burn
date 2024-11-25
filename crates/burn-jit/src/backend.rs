@@ -1,5 +1,5 @@
 use crate::{
-    element::{BoolElement, ByteElement},
+    element::BoolElement,
     tensor::{JitTensor, QJitTensor},
     FloatElement, IntElement, JitRuntime, PrecisionBridge,
 };
@@ -19,16 +19,14 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement>
-{
+pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> {
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
     _bool_elem: PhantomData<B>,
-    _byte_elem: PhantomData<P>,
 }
 
-impl<R, F, I, B, P> Backend for JitBackend<R, F, I, B, P>
+impl<R, F, I, B> Backend for JitBackend<R, F, I, B>
 where
     R: JitRuntime,
     R::Server: ComputeServer,
@@ -36,7 +34,6 @@ where
     F: FloatElement,
     I: IntElement,
     B: BoolElement,
-    P: ByteElement,
 {
     type Device = R::Device;
 
@@ -71,24 +68,24 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> core::fmt::Debug
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> core::fmt::Debug
+    for JitBackend<R, F, I, B>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> Clone
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> Clone
+    for JitBackend<R, F, I, B>
 {
     fn clone(&self) -> Self {
         Self::new()
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> Default
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> Default
+    for JitBackend<R, F, I, B>
 {
     fn default() -> Self {
         Self::new()

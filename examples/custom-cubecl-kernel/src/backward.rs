@@ -10,13 +10,10 @@ use burn::{
     },
     tensor::{Shape, TensorMetadata},
 };
-use burn_jit::{
-    element::{BoolElement, ByteElement},
-    FloatElement, IntElement, JitBackend, JitRuntime,
-};
+use burn_jit::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> AutodiffBackend
-    for Autodiff<JitBackend<R, F, I, B, P>>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> AutodiffBackend
+    for Autodiff<JitBackend<R, F, I, B>>
 {
 }
 

@@ -3,16 +3,14 @@ use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
 use super::Backend;
 use burn::tensor::Shape;
 use burn_jit::{
-    element::{BoolElement, ByteElement},
-    kernel::into_contiguous,
-    tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    element::BoolElement, kernel::into_contiguous, tensor::JitTensor, FloatElement, IntElement,
+    JitBackend, JitRuntime,
 };
 use cubecl::{CubeCount, CubeDim};
 
 /// Implement our custom backend trait for the generic `JitBackend`.
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> Backend
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> Backend
+    for JitBackend<R, F, I, B>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,

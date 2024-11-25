@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, cube, prelude::*, CubeDim, CubeLaunch};
 
 use crate::{
-    element::{BoolElement, ByteElement},
+    element::BoolElement,
     kernel::{
         cast, into_contiguous,
         matmul::{matmul, MatmulStrategy},
@@ -28,7 +28,6 @@ pub(crate) fn deform_conv2d_backward<
     E: FloatElement,
     I: IntElement,
     B: BoolElement,
-    P: ByteElement,
 >(
     input: JitTensor<R>,
     offset: JitTensor<R>,
@@ -37,14 +36,14 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<JitTensor<R>>,
     out_grad: JitTensor<R>,
     options: DeformConvOptions<2>,
-) -> DeformConv2dBackward<JitBackend<R, E, I, B, P>> {
+) -> DeformConv2dBackward<JitBackend<R, E, I, B>> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad = JitBackend::<R, E, I, B, P>::float_sum_dim(out_grad.clone(), 0);
-        let grad = JitBackend::<R, E, I, B, P>::float_sum_dim(grad, 2);
-        let grad = JitBackend::<R, E, I, B, P>::float_sum_dim(grad, 3);
+        let grad = JitBackend::<R, E, I, B>::float_sum_dim(out_grad.clone(), 0);
+        let grad = JitBackend::<R, E, I, B>::float_sum_dim(grad, 2);
+        let grad = JitBackend::<R, E, I, B>::float_sum_dim(grad, 3);
 
         reshape(grad, bias.shape)
     });

@@ -1,9 +1,6 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use crate::tensor::{JitQuantizationParameters, QJitTensor};
-use crate::{
-    element::{BoolElement, ByteElement},
-    fusion::elemwise::builder::ElementWiseBuilder,
-};
+use crate::{element::BoolElement, fusion::elemwise::builder::ElementWiseBuilder};
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_tensor::quantization::QuantizationScheme;
@@ -65,8 +62,8 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> ReprBackend
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> ReprBackend
+    for JitBackend<R, F, I, B>
 {
     type Handle = JitFusionHandle<R>;
 
@@ -153,12 +150,12 @@ pub struct FusionJitRuntime<R: JitRuntime, B: BoolElement> {
     _bool: PhantomData<B>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> FusionBackend
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> FusionBackend
+    for JitBackend<R, F, I, B>
 {
     type FusionRuntime = FusionJitRuntime<R, B>;
 
-    type FullPrecisionBackend = JitBackend<R, f32, i32, B, P>;
+    type FullPrecisionBackend = JitBackend<R, f32, i32, B>;
 
     fn cast_float(
         tensor: burn_tensor::ops::FloatTensor<Self>,

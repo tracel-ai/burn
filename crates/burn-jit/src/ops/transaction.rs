@@ -3,18 +3,14 @@ use burn_tensor::{
     DType, TensorData,
 };
 
-use crate::{
-    element::{BoolElement, ByteElement},
-    FloatElement, IntElement, JitBackend, JitRuntime,
-};
+use crate::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R, F, I, B, P> TransactionOps<Self> for JitBackend<R, F, I, B, P>
+impl<R, F, I, B> TransactionOps<Self> for JitBackend<R, F, I, B>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
     B: BoolElement,
-    P: ByteElement,
 {
     fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
