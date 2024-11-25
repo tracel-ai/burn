@@ -1,4 +1,4 @@
-use super::LrScheduler;
+use super::{LrScheduler, String};
 use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
@@ -24,28 +24,34 @@ pub struct CosineAnnealingLrSchedulerConfig {
 impl CosineAnnealingLrSchedulerConfig {
     /// Initializes a [Cosine learning rate scheduler](CosineAnnealingLrScheduler).
     ///
-    /// # Panics
-    /// This function panics if `initial_lr` and `final_lr` are not between 0 and 1.
-    pub fn init(&self) -> CosineAnnealingLrScheduler {
-        assert!(
-            self.initial_lr > 0. && self.initial_lr <= 1.,
-            "Initial learning rate must be greater than 0 and at most 1"
-        );
-        assert!(
-            self.min_lr >= 0.0 && self.min_lr <= self.initial_lr,
-            "Minimum learning rate must be at least 0 and at most equal to the initial learning rate"
-        );
-        assert!(
-            self.num_iters > 0,
-            "Number of iterations must be at least 1"
-        );
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `min_lr` is out of range [0.0, `initial_lr`]
+    /// * `num_iters` is 0
+    pub fn init(&self) -> Result<CosineAnnealingLrScheduler, String> {
+        if self.initial_lr <= 0. || self.initial_lr > 1. {
+            return Err("Initial learning rate must be greater than 0 and at most 1".into());
+        }
+        if self.min_lr < 0.0 || self.min_lr > self.initial_lr {
+            return Err(
+                "Minimum learning rate must be at least 0 and at most equal to the initial \
+                 learning rate"
+                    .into(),
+            );
+        }
+        if self.num_iters == 0 {
+            return Err("Number of iterations must be at least 1".into());
+        }
 
-        CosineAnnealingLrScheduler {
+        Ok(CosineAnnealingLrScheduler {
             min_lr: self.min_lr,
             max_lr: self.initial_lr,
             num_iters: self.num_iters,
             current_iter: usize::MAX,
-        }
+        })
     }
 }
 
@@ -94,48 +100,75 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_low() {
-        CosineAnnealingLrSchedulerConfig::new(0., 10).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(0., 10).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_high() {
-        CosineAnnealingLrSchedulerConfig::new(1.5, 10).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(1.5, 10).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Minimum learning rate must be at least 0 and at most equal to the initial learning rate"]
     fn config_min_lr_too_low() {
-        CosineAnnealingLrSchedulerConfig::new(0.5, 10)
+        let r = CosineAnnealingLrSchedulerConfig::new(0.5, 10)
             .with_min_lr(-0.1)
             .init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Minimum learning rate must be at least 0 and at most equal to the initial learning \
+             rate",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Minimum learning rate must be at least 0 and at most equal to the initial learning rate"]
     fn config_min_lr_too_high() {
-        CosineAnnealingLrSchedulerConfig::new(0.5, 10)
+        let r = CosineAnnealingLrSchedulerConfig::new(0.5, 10)
             .with_min_lr(0.6)
             .init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Minimum learning rate must be at least 0 and at most equal to the initial learning \
+             rate",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Number of iterations must be at least 1"]
     fn config_num_iters_too_low() {
-        CosineAnnealingLrSchedulerConfig::new(0.5, 0).init();
+        let r = CosineAnnealingLrSchedulerConfig::new(0.5, 0).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Number of iterations must be at least 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
     fn test_lr_change() {
         const INITIAL_LR: LearningRate = 0.5;
         const MIN_LR: LearningRate = 0.1;
-        const NUM_ITERS: usize = 2;
 
-        let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, NUM_ITERS)
+        let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, 2)
             .with_min_lr(MIN_LR)
-            .init();
+            .init()
+            .unwrap();
         let expected_lrs = [
             INITIAL_LR,                  // cos(0)
             (INITIAL_LR + MIN_LR) * 0.5, // cos(PI/2)
@@ -147,9 +180,10 @@ mod tests {
 
     #[test]
     fn test_save_and_load() {
-        const INITIAL_LR: LearningRate = 1.0;
         const NUM_ITERS: usize = 9;
-        let scheduler = CosineAnnealingLrSchedulerConfig::new(INITIAL_LR, NUM_ITERS).init();
+        let scheduler = CosineAnnealingLrSchedulerConfig::new(1.0, NUM_ITERS)
+            .init()
+            .unwrap();
         test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }
 }
