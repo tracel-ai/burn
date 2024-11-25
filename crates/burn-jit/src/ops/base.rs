@@ -1,7 +1,6 @@
 use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRuntime};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
-use cubecl::{tensor_vectorization_factor, CubeElement};
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
