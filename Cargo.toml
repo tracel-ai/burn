@@ -56,7 +56,7 @@ paste = "1"
 percent-encoding = "2.3.1"
 polars = { version = "0.41.3", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.86"
+proc-macro2 = "1.0.92"
 protobuf = "3.4.0"
 protobuf-codegen = "3.4.0"
 quote = "1.0.37"
