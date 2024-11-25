@@ -43,9 +43,9 @@ mod tests {
         let data = TensorData::from([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
         let tensor = TestTensor::<2>::from(data.clone());
 
-        let output = tensor.cast(DType::F64);
+        let output = tensor.cast(DType::F32);
 
-        assert_eq!(output.dtype(), DType::F64);
+        assert_eq!(output.dtype(), DType::F32);
         output.into_data().assert_approx_eq(&data, 5);
     }
 }
