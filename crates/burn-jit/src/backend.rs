@@ -101,8 +101,8 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement, P: ByteElement> ReprBackend
-    for JitBackend<R, F, I, B, P>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> ReprBackend
+    for JitBackend<R, F, I, B>
 {
     type Handle = HandleKind<Self>;
 
