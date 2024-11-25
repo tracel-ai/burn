@@ -65,9 +65,6 @@ where
 
 impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
     fn dtype(&self) -> DType {
-        // NOTE: bool tensors are stored as u32, so
-        // they might display as being U32 tensors.
-        //  `TensorMetadata::dtype()` is used for display purposes only at this time.
         self.dtype
     }
 
