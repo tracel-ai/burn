@@ -27,7 +27,7 @@ version = "0.16.0"
 
 [workspace.dependencies]
 atomic_float = "1"
-bytemuck = "1.19.0"
+bytemuck = "1.20.0"
 candle-core = { version = "0.7" }
 clap = { version = "4.5.20", features = ["derive"] }
 colored = "2.1.0"
