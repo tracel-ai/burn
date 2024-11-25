@@ -1,9 +1,6 @@
-use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions},
-    TensorData,
-};
+use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
-use crate::{tensor::JitTensor, FloatElement, IntElement, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 
 #[cfg(feature = "autotune")]
 use super::{conv2d_autotune, conv_transpose2d_autotune};
@@ -120,10 +117,4 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
             conv_transpose2d_col2im::<R, E, I>(input, weight, bias, options)
         }
     }
-}
-
-#[allow(unused)]
-pub(crate) fn debug_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R, E>) -> TensorData {
-    let bytes = tensor.client.read(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }

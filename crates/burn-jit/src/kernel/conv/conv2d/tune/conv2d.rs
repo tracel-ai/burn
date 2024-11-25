@@ -43,7 +43,7 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 #[tune(
-    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm),
+    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm, conv2d_gemm_large_m, conv2d_gemm_balanced),
     create_key = create_key,
     should_run = should_run
 )]

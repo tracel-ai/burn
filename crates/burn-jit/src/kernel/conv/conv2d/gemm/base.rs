@@ -1,22 +1,22 @@
 use burn_tensor::ops::ConvOptions;
 use cubecl::linalg::matmul::{
     components::{
-        global::{AccumulatorLoader, Config, Unloader},
-        MatmulConfig, MatmulProblem, MatrixLayout,
+        global::{AccumulatorLoader, Unloader},
+        stage, MatmulProblem, MatrixLayout,
     },
     kernels::matmul::AdvancedConfig,
 };
 use cubecl::prelude::*;
 
-use super::homogeneous::loader::Loader;
+use super::{homogeneous::loader::Loader, Config};
 
 #[cube]
-pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric>:
+pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul<ES, EG, Acc>>:
     'static + Send + Sync + ConvolutionKernel<EG, EG, Config: Config>
 {
-    type Lhs: Loader<EG, ES>;
-    type Rhs: Loader<EG, ES>;
-    type Bias: AccumulatorLoader<EG, Acc>;
+    type LhsLoader: Loader<EG, ES, Self::Config>;
+    type RhsLoader: Loader<EG, ES, Self::Config>;
+    type Bias: AccumulatorLoader<EG, Acc, SMM::Config>;
     type Out: Unloader<EG>;
     type Accumulator: CubeType;
 
@@ -27,8 +27,8 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric>:
     /// To compute the whole range of k values, use k_range=(0, K) where
     /// K is the K dimension of LHS and RHS.
     fn execute(
-        lhs_loader: Self::Lhs,
-        rhs_loader: Self::Rhs,
+        lhs_loader: Self::LhsLoader,
+        rhs_loader: Self::RhsLoader,
         bias_loader: Self::Bias,
         unloader: Self::Out,
         acc: &mut Self::Accumulator,
@@ -41,14 +41,14 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric>:
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
-    ) -> Self::Lhs;
+    ) -> Self::LhsLoader;
 
     fn init_rhs_loader(
         rhs: &Tensor<Line<EG>>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
-    ) -> Self::Rhs;
+    ) -> Self::RhsLoader;
 
     fn init_bias_loader(
         rhs: &Tensor<Line<EG>>,
@@ -67,7 +67,7 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric>:
 /// Provides configuration for a matmul kernel at any level
 pub trait ConvolutionKernel<I: Numeric, O: Numeric> {
     /// Configuration tailored to the matmul implementation
-    type Config: MatmulConfig;
+    type Config: Config;
 
     /// Asserts that the configuration for this matmul will lead to a valid computation
     fn check_config(config: Self::Config);

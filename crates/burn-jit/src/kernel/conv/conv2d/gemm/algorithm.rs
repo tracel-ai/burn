@@ -4,7 +4,11 @@ use cubecl::{
     linalg::matmul::{
         components::{
             stage::{self, StageSize},
-            tile::{self, accelerated::Accelerated16x16x16, Matmul as _},
+            tile::{
+                self,
+                accelerated::{self, Accelerated16x16x16},
+                Matmul as _,
+            },
             MatmulKernel,
         },
         kernels::matmul::AdvancedConfig,
@@ -21,10 +25,18 @@ use super::{
 };
 use half::f16;
 
-type LhsStageReader<GMM, EG, ES, Acc> =
-    <<GMM as Convolution<EG, ES, Acc>>::Lhs as Loader<EG, ES>>::StageReader;
-type RhsStageReader<GMM, EG, ES, Acc> =
-    <<GMM as Convolution<EG, ES, Acc>>::Rhs as Loader<EG, ES>>::StageReader;
+type LhsStageReader<GMM, SMM, EG, ES, EA> =
+    <<GMM as Convolution<EG, ES, EA, SMM>>::LhsLoader as Loader<
+        EG,
+        ES,
+        <GMM as ConvolutionKernel<EG, EG>>::Config,
+    >>::StageReader;
+type RhsStageReader<GMM, SMM, EG, ES, EA> =
+    <<GMM as Convolution<EG, ES, EA, SMM>>::RhsLoader as Loader<
+        EG,
+        ES,
+        <GMM as ConvolutionKernel<EG, EG>>::Config,
+    >>::StageReader;
 
 /// Specifications for a matmul algorithm
 pub trait Algorithm<EG: Numeric> {
@@ -40,11 +52,24 @@ pub trait Algorithm<EG: Numeric> {
     type StageMatmul: stage::Matmul<
             Self::ES,
             Self::EG,
-            Lhs = LhsStageReader<Self::GlobalMatmul, Self::EG, Self::ES, Self::EA>,
-            Rhs = RhsStageReader<Self::GlobalMatmul, Self::EG, Self::ES, Self::EA>,
+            Self::EA,
+            LhsReader = LhsStageReader<
+                Self::GlobalMatmul,
+                Self::StageMatmul,
+                Self::EG,
+                Self::ES,
+                Self::EA,
+            >,
+            RhsReader = RhsStageReader<
+                Self::GlobalMatmul,
+                Self::StageMatmul,
+                Self::EG,
+                Self::ES,
+                Self::EA,
+            >,
         > + MatmulKernel<Self::ES, Self::EG>;
 
-    type GlobalMatmul: Convolution<Self::EG, Self::ES, Self::EA>
+    type GlobalMatmul: Convolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>
         + ConvolutionLaunch<Self::EG, Self::EG>;
 
     fn cube_dim() -> CubeDim;
@@ -103,9 +128,9 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for Cmma<EG, Stage> {
         Self::ES,
         Self::EG,
         Self::EA,
+        BiasLoader<Self::EG, Self::EA, stage::multi_buffer::Config<accelerated::Config>>,
         Self::TileMatmul,
         Self::StageSize,
-        BiasLoader<Self::EG, Self::EA>,
     >;
 
     type GlobalMatmul = ImplicitGemmConvolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>;
@@ -142,9 +167,9 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for CmmaHalf<EG, Stage> {
         Self::ES,
         Self::EG,
         Self::EA,
+        BiasLoader<Self::EG, Self::EA, stage::multi_buffer::Config<accelerated::Config>>,
         Self::TileMatmul,
         Self::StageSize,
-        BiasLoader<Self::EG, Self::EA>,
     >;
 
     type GlobalMatmul = ImplicitGemmConvolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>;

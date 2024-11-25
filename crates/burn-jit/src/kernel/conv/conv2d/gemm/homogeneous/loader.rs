@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use cubecl::{
     linalg::matmul::components::{
         global::{
@@ -6,6 +8,7 @@ use cubecl::{
             AccumulatorLoader,
         },
         stage::{
+            self,
             multi_buffer::{LhsReader, RhsReader},
             Config as _, Stage,
         },
@@ -16,26 +19,32 @@ use cubecl::{
 
 use crate::kernel::conv::conv2d::gemm::{input_reader::Im2colReader, Config};
 
+use super::base::config;
+
 #[cube]
 /// Input to the global matmul, responsible of filling the stage and providing a reader for it.
 /// Advances along the k-dimension to fill the stage with further data.
-pub trait Loader<EG: Numeric, ES: Numeric>: CubeType + 'static + Send + Sync {
+pub trait Loader<EG: Numeric, ES: Numeric, G: global::Config>:
+    CubeType + 'static + Send + Sync
+{
     /// The stage reader which matches the input of the underlying stage matmul.
     type StageReader: CubeType;
 
     /// Fills the stage at the current k offset and returns a reader for it.
-    fn fill_stage<G: Config>(this: &mut Self, #[comptime] config: G) -> Self::StageReader;
+    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader;
 
     /// Move the k offset by k_offset
     fn advance_view(this: &mut Self, k_offset: u32);
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric> Loader<EG, ES> for RhsLoader<EG, ES> {
+impl<EG: Numeric, ES: Numeric, S: stage::Config> Loader<EG, ES, config::Config<S>>
+    for RhsLoader<EG, ES, S>
+{
     type StageReader = RhsReader<ES>;
 
-    fn fill_stage<G: global::Config>(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
-        CyclicLoading::load_to_slice::<EG, ES, G>(
+    fn fill_stage(this: &mut Self, #[comptime] config: config::Config<S>) -> Self::StageReader {
+        CyclicLoading::load_to_slice::<EG, ES, config::Config<S>>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
             Ident::Rhs,
@@ -50,16 +59,17 @@ impl<EG: Numeric, ES: Numeric> Loader<EG, ES> for RhsLoader<EG, ES> {
 }
 
 #[derive(CubeType)]
-pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric> {
+pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric, G: Config> {
     pub tensor_view: Im2colReader<EG>,
     pub stage: Stage<ES>,
+    _config: PhantomData<G>,
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric> Loader<EG, ES> for SimpleIm2colLoader<EG, ES> {
+impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoader<EG, ES, G> {
     type StageReader = LhsReader<ES>;
 
-    fn fill_stage<G: Config>(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
         im2col::SimpleIm2col::load_to_slice::<EG, ES, G>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
@@ -75,8 +85,8 @@ impl<EG: Numeric, ES: Numeric> Loader<EG, ES> for SimpleIm2colLoader<EG, ES> {
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric> SimpleIm2colLoader<EG, ES> {
-    pub fn new<G: Config>(
+impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
+    pub fn new(
         tensor: &Tensor<Line<EG>>,
         shape_out_y: u32,
         shape_out_x: u32,
@@ -101,7 +111,11 @@ impl<EG: Numeric, ES: Numeric> SimpleIm2colLoader<EG, ES> {
             shape_out_x,
         };
 
-        SimpleIm2colLoader::<EG, ES> { tensor_view, stage }
+        SimpleIm2colLoader::<EG, ES, G> {
+            tensor_view,
+            stage,
+            _config: PhantomData::<G>.runtime(),
+        }
     }
 }
 
@@ -120,14 +134,14 @@ unsafe impl<E: Numeric> Send for BiasReader<E> {}
 
 #[cube]
 impl<E: Numeric> BiasReader<E> {
-    pub fn load_simple<G: global::Config>(
+    pub fn load_simple<G: stage::Config>(
         &self,
         tile_n: u32,
         unit_id: u32,
         #[comptime] config: G,
     ) -> Line<E> {
-        let line_size = config.global_line_size(Ident::Out);
-        let tile_size = config.stage_dim(Ident::Rhs).tile_size_y;
+        let line_size = config.line_size(Ident::Out);
+        let tile_size = config.stage_dim(Ident::Rhs).tile_size_y_dim();
 
         let view_tile_n = tile_n * tile_size + self.n_offset;
 
@@ -147,23 +161,26 @@ impl<E: Numeric> BiasReader<E> {
 }
 
 #[derive(CubeType)]
-pub struct BiasLoader<O: Numeric, Acc: Numeric> {
+pub struct BiasLoader<O: Numeric, Acc: Numeric, G: stage::Config> {
     pub tensor_view: BiasReader<O>,
     pub stage: Stage<Acc>,
     pub has_bias: bool,
+    _config: PhantomData<G>,
 }
 
 #[cube]
-impl<O: Numeric, Acc: Numeric> AccumulatorLoader<O, Acc> for BiasLoader<O, Acc> {
+impl<O: Numeric, Acc: Numeric, G: stage::Config> AccumulatorLoader<O, Acc, G>
+    for BiasLoader<O, Acc, G>
+{
     type StageReader = LhsReader<Acc>;
 
-    fn fill_stage<G: global::Config>(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
         if this.has_bias {
             let stage_dim = config.stage_dim(Ident::Rhs);
-            let line_size = config.global_line_size(Ident::Out);
+            let line_size = config.line_size(Ident::Out);
 
-            let num_stage_elements = stage_dim.num_elements_y_dim();
-            let tile_num_elements = stage_dim.tile_size_y;
+            let num_stage_elements = stage_dim.height();
+            let tile_num_elements = stage_dim.tile_size_y_dim();
 
             let unit_id = UNIT_POS_Y * config.plane_dim() + UNIT_POS_X;
             let unit_position_base = unit_id * line_size;
@@ -200,20 +217,19 @@ impl<O: Numeric, Acc: Numeric> AccumulatorLoader<O, Acc> for BiasLoader<O, Acc> 
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric> BiasLoader<EG, ES> {
-    pub fn new<G: global::Config>(
+impl<EG: Numeric, ES: Numeric, G: stage::Config> BiasLoader<EG, ES, G> {
+    pub fn new(
         tensor: &Tensor<Line<EG>>,
         n_offset: u32,
         #[comptime] config: G,
         #[comptime] has_bias: bool,
     ) -> Self {
         if has_bias {
-            let config = config.to_smm_config();
             let stage = {
                 let line_size = config.line_size(Ident::Out);
 
                 let smem = SharedMemory::new_lined(
-                    comptime!(config.stage_dim(Ident::Rhs).num_elements_y_dim() / line_size),
+                    comptime!(config.stage_dim(Ident::Rhs).height() / line_size),
                     line_size,
                 );
 
@@ -225,10 +241,11 @@ impl<EG: Numeric, ES: Numeric> BiasLoader<EG, ES> {
                 shape_n: tensor.shape(0),
             };
 
-            BiasLoader::<EG, ES> {
+            BiasLoader::<EG, ES, G> {
                 tensor_view,
                 stage,
                 has_bias,
+                _config: PhantomData::<G>.runtime(),
             }
         } else {
             let stage = Stage::<ES> {
@@ -239,10 +256,11 @@ impl<EG: Numeric, ES: Numeric> BiasLoader<EG, ES> {
                 n_offset: 0,
                 shape_n: 0,
             };
-            BiasLoader::<EG, ES> {
+            BiasLoader::<EG, ES, G> {
                 stage,
                 tensor_view,
                 has_bias,
+                _config: PhantomData::<G>.runtime(),
             }
         }
     }
@@ -279,7 +297,7 @@ mod im2col {
             let stage_dim = config.stage_dim(ident);
             let line_size = config.global_line_size(ident);
 
-            let num_stage_elements = stage_dim.num_elements();
+            let num_stage_elements = stage_dim.total_elements();
             let total_units = comptime!(config.num_planes() * config.plane_dim());
             let jump_length = comptime!(total_units * line_size);
             let num_loads_per_unit = num_stage_elements / jump_length;
@@ -300,13 +318,13 @@ mod im2col {
                 let (tile_x, tile_y) = match config.tiling_order(ident) {
                     TilingOrderConfig::RowMajor => RowMajorTiling::to_x_y(
                         nth_tile,
-                        stage_dim.num_tiles_x,
-                        stage_dim.num_tiles_y,
+                        stage_dim.num_tiles_x_dim(),
+                        stage_dim.num_tiles_y_dim(),
                     ),
                     TilingOrderConfig::ColMajor => ColMajorTiling::to_x_y(
                         nth_tile,
-                        stage_dim.num_tiles_x,
-                        stage_dim.num_tiles_y,
+                        stage_dim.num_tiles_x_dim(),
+                        stage_dim.num_tiles_y_dim(),
                     ),
                 };
 
