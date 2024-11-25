@@ -79,7 +79,10 @@ impl<F: Numeric> Im2colReader<F> {
             (out_y * config.stride(0) + kernel_y * config.dilation(0)) as i32 - config.padding(0);
         let x =
             (out_x * config.stride(1) + kernel_x * config.dilation(1)) as i32 - config.padding(1);
+
+        let k_shape = self.stride_channel * config.kernel_size(0) * config.kernel_size(1);
         let in_bounds = batch < self.shape_batch
+            && view_k < k_shape
             && y >= 0
             && (y as u32) < self.shape_y
             && x >= 0
