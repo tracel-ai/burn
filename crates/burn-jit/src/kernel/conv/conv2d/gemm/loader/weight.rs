@@ -24,7 +24,11 @@ pub struct WeightLoader<EG: Numeric, ES: Numeric> {
 impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for WeightLoader<EG, ES> {
     type StageReader = RhsReader<ES>;
 
-    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(
+        this: &mut Self,
+        _test: &mut Tensor<EG>,
+        #[comptime] config: G,
+    ) -> Self::StageReader {
         WeightLoading::load_to_slice::<EG, ES, G>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),

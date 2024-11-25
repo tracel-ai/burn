@@ -17,10 +17,13 @@ use cubecl::{
 };
 use std::marker::PhantomData;
 
-use crate::kernel::conv::conv2d::gemm::base::{
-    Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem,
-};
 use crate::kernel::conv::conv2d::gemm::Config as _;
+use crate::{
+    kernel::conv::conv2d::gemm::base::{
+        Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem,
+    },
+    ops::numeric::zeros_device,
+};
 
 use super::loader::{BiasLoader, Loader, SimpleIm2colLoader};
 
@@ -69,6 +72,7 @@ where
         mut bias_loader: Self::Bias,
         mut out_unloader: Self::Out,
         acc: &mut Self::Accumulator,
+        test: &mut Tensor<EG>,
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     ) {
@@ -84,8 +88,8 @@ where
         SMM::fill_accumulator(&mut bias_loader, acc, config.to_smm_config());
 
         for _ in 0..num_loops {
-            let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, config);
-            let rhs_stage_reader = &Self::RhsLoader::fill_stage(&mut rhs_loader, config);
+            let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, test, config);
+            let rhs_stage_reader = &Self::RhsLoader::fill_stage(&mut rhs_loader, test, config);
 
             sync_units();
 
@@ -233,6 +237,7 @@ impl<
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
+        test: TensorArg<'_, R>,
         config: <Self as ConvolutionKernel<EG, EG>>::Config,
     ) {
         Self::check_config(config);
@@ -245,6 +250,7 @@ impl<
             weight,
             bias,
             out,
+            test,
             config,
             config.has_bias,
         );
@@ -263,6 +269,7 @@ pub(crate) fn launch<
     rhs: &Tensor<Line<EG>>,
     bias: &Tensor<Line<EG>>,
     out: &mut Tensor<Line<EG>>,
+    test: &mut Tensor<EG>,
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
@@ -276,6 +283,7 @@ pub(crate) fn launch<
         GMM::init_bias_loader(bias, y_offset, config, has_bias),
         GMM::init_unloader(out, x_offset, y_offset),
         &mut GMM::init_accumulator(config),
+        test,
         k_range,
         config,
     );

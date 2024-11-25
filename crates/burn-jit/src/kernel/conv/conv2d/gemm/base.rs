@@ -32,6 +32,7 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
         bias_loader: Self::Bias,
         unloader: Self::Out,
         acc: &mut Self::Accumulator,
+        test: &mut Tensor<EG>,
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     );
@@ -101,6 +102,7 @@ pub trait ConvolutionLaunch<I: Numeric, O: Numeric>: ConvolutionKernel<I, O> {
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
+        test: TensorArg<'_, R>,
         config: <Self as ConvolutionKernel<I, O>>::Config,
     );
 }

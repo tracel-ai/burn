@@ -31,7 +31,11 @@ pub trait Loader<EG: Numeric, ES: Numeric, G: global::Config>:
     type StageReader: CubeType;
 
     /// Fills the stage at the current k offset and returns a reader for it.
-    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader;
+    fn fill_stage(
+        this: &mut Self,
+        test: &mut Tensor<EG>,
+        #[comptime] config: G,
+    ) -> Self::StageReader;
 
     /// Move the k offset by k_offset
     fn advance_view(this: &mut Self, k_offset: u32);
@@ -43,7 +47,11 @@ impl<EG: Numeric, ES: Numeric, S: stage::Config> Loader<EG, ES, config::Config<S
 {
     type StageReader = RhsReader<ES>;
 
-    fn fill_stage(this: &mut Self, #[comptime] config: config::Config<S>) -> Self::StageReader {
+    fn fill_stage(
+        this: &mut Self,
+        _test: &mut Tensor<EG>,
+        #[comptime] config: config::Config<S>,
+    ) -> Self::StageReader {
         CyclicLoading::load_to_slice::<EG, ES, config::Config<S>>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
@@ -69,10 +77,15 @@ pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric, G: Config> {
 impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoader<EG, ES, G> {
     type StageReader = LhsReader<ES>;
 
-    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(
+        this: &mut Self,
+        test: &mut Tensor<EG>,
+        #[comptime] config: G,
+    ) -> Self::StageReader {
         im2col::SimpleIm2col::load_to_slice::<EG, ES, G>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
+            test,
             Ident::Lhs,
             config,
         );
@@ -95,6 +108,12 @@ impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
         #[comptime] config: G,
     ) -> Self {
         let stage = Stage::new::<G::SmmConfig>(Ident::Lhs, config.to_smm_config());
+        let shape_batch = tensor.shape(0);
+        let shape_channel = tensor.shape(3);
+
+        let shape_m = shape_batch * shape_out_y * shape_out_x;
+        let shape_k = shape_channel * config.kernel_size(0) * config.kernel_size(1);
+
         let tensor_view = Im2colReader::<EG> {
             tensor,
             m_offset: x_offset,
@@ -103,12 +122,14 @@ impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
             stride_y: tensor.stride(1),
             stride_x: tensor.stride(2),
             stride_channel: tensor.stride(3),
-            shape_batch: tensor.shape(0),
             shape_y: tensor.shape(1),
             shape_x: tensor.shape(2),
-            shape_channel: tensor.shape(3),
+            shape_channel,
             shape_out_y,
             shape_out_x,
+
+            shape_m,
+            shape_k,
         };
 
         SimpleIm2colLoader::<EG, ES, G> {
@@ -291,6 +312,7 @@ mod im2col {
         pub fn load_to_slice<EG: Numeric, ES: Numeric, G: Config>(
             read_view: &Im2colReader<EG>,
             slice: &mut SliceMut<Line<ES>>,
+            test: &mut Tensor<EG>,
             #[comptime] ident: Ident,
             #[comptime] config: G,
         ) {
@@ -328,8 +350,14 @@ mod im2col {
                     ),
                 };
 
-                let line_read =
-                    read_view.load_simple::<G>(tile_x, tile_y, pos_within_tile, ident, config);
+                let line_read = read_view.load_simple::<G>(
+                    tile_x,
+                    tile_y,
+                    pos_within_tile,
+                    test,
+                    ident,
+                    config,
+                );
 
                 slice[unit_position / line_size] = Line::cast_from(line_read);
             }

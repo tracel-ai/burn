@@ -25,7 +25,11 @@ use crate::{
         },
         into_contiguous,
     },
-    ops::{into_data_sync, numeric::empty_device, permute, reshape},
+    ops::{
+        into_data_sync,
+        numeric::{empty_device, zeros_device},
+        permute, reshape,
+    },
     tensor::JitTensor,
     FloatElement, IntElement, JitRuntime,
 };
@@ -165,6 +169,16 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
         empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
+    println!("input: {}", into_data_sync::<R, F>(input.clone()));
+    println!("input shape: {:?}", input.shape.dims);
+    println!("weight: {}", into_data_sync::<R, F>(weight.clone()));
+    println!("weight shape: {:?}", weight.shape.dims);
+    println!("bias: {}", into_data_sync::<R, F>(bias.clone()));
+    println!("config: {config:#?}");
+
+    let test_shape = Shape::new([batch_size, out_h, out_w, kernel_h, kernel_w, in_channels]);
+    let test = zeros_device::<R, F>(out.client.clone(), out.device.clone(), test_shape);
+
     unsafe {
         Alg::GlobalMatmul::launch_unchecked::<R>(
             &input.client,
@@ -174,11 +188,13 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
             weight.as_tensor_arg::<F>(rhs_line_size),
             bias.as_tensor_arg::<F>(out_line_size),
             out.as_tensor_arg::<F>(out_line_size),
+            test.as_tensor_arg::<F>(1),
             config,
         );
     }
 
-    //println!("{}", into_data_sync(out.clone()));
+    println!("out: {}", into_data_sync::<R, F>(out.clone()));
+    println!("test: {}", into_data_sync::<R, F>(test));
 
     // Reset to NCHW
     let out = reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]));

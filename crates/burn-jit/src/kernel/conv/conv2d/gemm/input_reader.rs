@@ -16,13 +16,15 @@ pub struct Im2colReader<E: Numeric> {
     pub stride_x: u32,
     pub stride_channel: u32,
 
-    pub shape_batch: u32,
     pub shape_y: u32,
     pub shape_x: u32,
     pub shape_channel: u32,
 
     pub shape_out_y: u32,
     pub shape_out_x: u32,
+
+    pub shape_m: u32,
+    pub shape_k: u32,
 }
 
 unsafe impl<E: Numeric> Sync for Im2colReader<E> {}
@@ -49,6 +51,7 @@ impl<F: Numeric> Im2colReader<F> {
         tile_x: u32,
         tile_y: u32,
         unit_id: u32,
+        test: &mut Tensor<F>,
         #[comptime] ident: Ident,
         #[comptime] config: G,
     ) -> Line<F> {
@@ -73,31 +76,35 @@ impl<F: Numeric> Im2colReader<F> {
         let channel = view_k % self.shape_channel;
         let rem = view_k / self.shape_channel;
         let kernel_x = rem % config.kernel_size(0);
-        let kernel_y = rem / config.kernel_size(1);
+        let kernel_y = rem / config.kernel_size(0);
 
         let y =
             (out_y * config.stride(0) + kernel_y * config.dilation(0)) as i32 - config.padding(0);
         let x =
             (out_x * config.stride(1) + kernel_x * config.dilation(1)) as i32 - config.padding(1);
 
-        let k_shape = self.stride_channel * config.kernel_size(0) * config.kernel_size(1);
-        let in_bounds = batch < self.shape_batch
-            && view_k < k_shape
-            && y >= 0
-            && (y as u32) < self.shape_y
-            && x >= 0
-            && (x as u32) < self.shape_x
-            && channel < self.shape_channel;
+        let m_in_bounds = comptime!(!config.check_m_bounds()) || view_m < self.shape_m;
+        let k_in_bounds = comptime!(!config.check_k_bounds()) || view_k < self.shape_k;
+        let no_padding = comptime!(config.padding(0) == 0 && config.padding(1) == 0);
+        let hw_in_bounds = no_padding || (y >= 0 && x >= 0);
+        let in_bounds = m_in_bounds && k_in_bounds && hw_in_bounds;
         let read_pos = batch * self.stride_batch
             + y as u32 * self.stride_y
             + x as u32 * self.stride_x
-            + channel * self.shape_channel;
+            + channel * self.stride_channel;
 
         let read_pos = read_pos / line_size;
+        let test_pos = batch * test.stride(0)
+            + out_y * test.stride(1)
+            + out_x * test.stride(2)
+            + kernel_y * test.stride(3)
+            + kernel_x * test.stride(4)
+            + channel * test.stride(5);
 
         let mut res = Line::empty(line_size).fill(F::from_int(0));
-        if config.im2col_unchecked() || in_bounds {
-            res = self.read(read_pos);
+        if in_bounds {
+            res = Line::empty(line_size).fill(F::from_int(1));
+            test[test_pos] = F::cast_from(y);
         }
 
         res
