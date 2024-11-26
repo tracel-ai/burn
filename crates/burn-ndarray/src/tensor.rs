@@ -339,20 +339,6 @@ where
             d ndims
         )
     }
-
-    // pub(crate) fn cast_to<O: Element>(self) -> NdArrayTensor<O> {
-    //     let array = self.array.mapv(|a| a.elem()).into_shared();
-
-    //     NdArrayTensor::new(array)
-    // }
-
-    // pub(crate) fn to_float(self) -> NdArrayTensorFloat {
-    //     match E::dtype() {
-    //         DType::F64 => NdArrayTensorFloat::F64(self.cast_to()),
-    //         DType::F32 => NdArrayTensorFloat::F32(self.cast_to()),
-    //         _ => unimplemented!("Invalid float type"),
-    //     }
-    // }
 }
 
 /// A quantized tensor for the ndarray backend.
