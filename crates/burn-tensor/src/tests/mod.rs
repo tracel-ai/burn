@@ -108,7 +108,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_sin!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
-        // burn_tensor::testgen_q_split!();
+        burn_tensor::testgen_q_split!();
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();
