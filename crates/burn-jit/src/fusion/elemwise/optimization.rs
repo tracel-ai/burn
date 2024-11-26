@@ -2,6 +2,7 @@ use crate::fusion::on_write::kernel::fuse_on_write;
 use crate::{fusion::JitFusionHandle, JitRuntime};
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
+use cubecl::linalg::matmul::components::global;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
@@ -212,5 +213,44 @@ fn elemwise_fuse(
 
     if pos < length {
         fuse_on_write::<f32>(inputs, outputs, pos, values, args, config)
+    }
+}
+
+#[cube]
+pub trait MatmulArgs<E: Numeric>: CubeType {
+    type Inputs: MatmulInputs<E>;
+    type Output: MatmulOutput<E>;
+}
+
+pub trait MatmulInputs<E: Numeric>: CubeType + LaunchArg {
+    fn lhs(&self) -> &Tensor<Line<E>>;
+    fn rhs(&self) -> &Tensor<Line<E>>;
+}
+
+#[cube]
+pub trait MatmulOutput<E: Numeric>: CubeType + LaunchArg {
+    fn write(this: &mut Self, position: u32, value: Line<E>);
+}
+
+#[derive(CubeLaunch)]
+struct FusedMatmulOutput<'i> {
+    inputs: &'i GlobalArgs,
+    global: GlobalArgs,
+    // #[comptime]
+    // arg: Arg,
+    // #[comptime]
+    // config: ElemwiseConfig,
+}
+
+#[cube]
+impl<E: Numeric> MatmulOutput<E> for FusedMatmulOutput {
+    fn write(this: &mut Self, position: u32, value: Line<E>) {
+        let mut values = Registry::<Arg, Line<E>>::new();
+        let args = comptime! {
+            let mut args = Sequence::<Arg>::new();
+            // args.push(this.arg);
+            args
+        };
+        // fuse_on_write::<E>(&this.a, &mut this.global, position, values, args, this.config);
     }
 }

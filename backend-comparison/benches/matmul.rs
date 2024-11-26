@@ -44,19 +44,16 @@ fn bench<B: Backend>(
     url: Option<&str>,
     token: Option<&str>,
 ) {
-    let benchmarks = [
-        (2, 4096, 4096, 4096),
-        (8, 2048, 2048, 2048),
-    ]
-    .into_iter()
-    .map(|(b, m, n, k)| {
-        let shape_lhs = [b, m, k].into();
-        let shape_rhs = [b, k, n].into();
+    let benchmarks = [(2, 4096, 4096, 4096), (8, 2048, 2048, 2048)]
+        .into_iter()
+        .map(|(b, m, n, k)| {
+            let shape_lhs = [b, m, k].into();
+            let shape_rhs = [b, k, n].into();
 
-        MatmulBenchmark::<B, 3>::new(shape_lhs, shape_rhs, device.clone())
-    })
-    .map(run_benchmark)
-    .collect();
+            MatmulBenchmark::<B, 3>::new(shape_lhs, shape_rhs, device.clone())
+        })
+        .map(run_benchmark)
+        .collect();
 
     save::<B>(benchmarks, device, feature_name, url, token).unwrap();
 }

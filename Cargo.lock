@@ -381,6 +381,7 @@ dependencies = [
  "github-device-flow",
  "half",
  "indicatif",
+ "log",
  "os_info",
  "percent-encoding",
  "rand",
@@ -392,6 +393,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "sysinfo",
+ "tracing-subscriber",
  "wgpu",
  "wsl",
 ]
@@ -1646,6 +1648,7 @@ dependencies = [
  "derive-new 0.6.0",
  "half",
  "log",
+ "paste",
 ]
 
 [[package]]

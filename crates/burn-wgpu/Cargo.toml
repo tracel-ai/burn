@@ -17,7 +17,10 @@ default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 doc = ["burn-jit/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
-spirv = ["cubecl/wgpu-spirv"]
+spirv = [
+    "cubecl/wgpu-spirv",
+    "burn-jit/lower-precision",
+] # TODO: Remove lower-precision when spirv is fixed.
 std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
 
@@ -27,13 +30,13 @@ cubecl = { workspace = true, features = ["wgpu"] }
 burn-fusion = { path = "../burn-fusion", version = "0.16.0", optional = true }
 burn-jit = { path = "../burn-jit", version = "0.16.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", features = [
-  "cubecl-wgpu",
+    "cubecl-wgpu",
 ] }
 
 
 [dev-dependencies]
 burn-jit = { path = "../burn-jit", version = "0.16.0", default-features = false, features = [
-  "export_tests",
+    "export_tests",
 ] }
 half = { workspace = true }
 paste = { workspace = true }

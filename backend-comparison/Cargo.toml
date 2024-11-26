@@ -54,6 +54,8 @@ strum_macros = { workspace = true }
 sysinfo = { workspace = true, features = ["serde"] }
 wgpu = { workspace = true }
 wsl = { workspace = true }
+tracing-subscriber = { workspace = true }
+log = { workspace = true }
 
 [dev-dependencies]
 rstest = { workspace = true }
