@@ -23,7 +23,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv2d::<R, F, I>(x, weight, bias, options, Conv2dStrategy::ImplicitGemmNew)
+        kernel::conv::conv2d::<R, F, I>(x, weight, bias, options, Conv2dStrategy::default())
     }
 
     fn deform_conv2d(

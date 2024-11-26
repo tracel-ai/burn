@@ -10,10 +10,11 @@ use cubecl::{
 };
 use std::marker::PhantomData;
 
-use crate::kernel::conv::{input_reader::Im2colReader, Config};
+use crate::kernel::conv::{reader::im2col::Im2colReader, Config};
 
 use super::base::Loader;
 
+/// Loader that translates matrix coordinates to input coordinates using the `im2col` algorithm
 #[derive(CubeType)]
 pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric, G: Config> {
     pub tensor_view: Im2colReader<EG>,

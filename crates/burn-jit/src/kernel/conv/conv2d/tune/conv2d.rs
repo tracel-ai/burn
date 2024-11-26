@@ -11,8 +11,8 @@ use crate::{
     kernel::{
         conv::{
             algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
-            conv2d_gemm_balanced, conv2d_gemm_large_m, conv2d_im2col, conv2d_implicit_gemm,
-            problem_from_key, BalancedAlgorithm, LargeMAlgorithm,
+            conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
+            conv2d_implicit_gemm, problem_from_key, CmmaBalancedAlgorithm, CmmaLargeMAlgorithm,
         },
         prng::random_uniform,
     },
@@ -43,7 +43,13 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
 }
 
 #[tune(
-    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm, conv2d_gemm_large_m, conv2d_gemm_balanced),
+    operations(
+        conv2d_direct,
+        conv2d_im2col,
+        conv2d_implicit_gemm,
+        conv2d_gemm_cmma_large_m,
+        conv2d_gemm_cmma_balanced
+    ),
     create_key = create_key::<R, E>,
     should_run = should_run
 )]
@@ -117,9 +123,9 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
             &op.input.client,
         ),
         // GEMM large m
-        3 => LargeMAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
+        3 => CmmaLargeMAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
         // GEMM balanced
-        4 => BalancedAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
+        4 => CmmaBalancedAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
         _ => true,
     }
 }

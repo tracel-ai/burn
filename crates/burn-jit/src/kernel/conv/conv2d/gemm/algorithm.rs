@@ -18,7 +18,7 @@ use super::{
 };
 use half::f16;
 
-/// Specifications for a matmul algorithm
+/// Specifications for a convolution algorithm
 pub trait Algorithm<EG: Numeric> {
     const PLANE_DIM: u32;
 
@@ -34,9 +34,12 @@ pub trait Algorithm<EG: Numeric> {
     type GlobalMatmul: Convolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>
         + ConvolutionLaunch<Self::EG, Self::EG>;
 
+    /// Cube dim for launch
     fn cube_dim() -> CubeDim;
+    /// The cube count for a given convolution problem
     fn cube_count(problem: &ConvolutionProblem) -> CubeCount;
 
+    /// Make a convolution config from a convolution problem, and launch options
     fn make_config(
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
@@ -46,12 +49,14 @@ pub trait Algorithm<EG: Numeric> {
         Self::GlobalMatmul::make_config(problem, cube_dim, cube_count, advanced_config)
     }
 
+    /// Check availability of the matmul algorithm
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
     ) -> Result<(), &str> {
         Self::GlobalMatmul::check_availability::<R>(client)
     }
 
+    /// Determine whether the given convolution problem is valid to launch (within hardware limits)
     fn can_launch<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
         problem: &ConvolutionProblem,
@@ -69,6 +74,7 @@ pub trait Algorithm<EG: Numeric> {
     }
 }
 
+/// Cmma convolution
 pub struct Cmma<EG: Numeric, Stage: StageSize> {
     pub _eg: PhantomData<EG>,
     pub _stage: PhantomData<Stage>,
@@ -107,6 +113,7 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for Cmma<EG, Stage> {
     }
 }
 
+/// Cmma convolution accumulating in half precision
 pub struct CmmaHalf<EG: Numeric, Stage: StageSize> {
     pub _eg: PhantomData<EG>,
     pub _stage: PhantomData<Stage>,

@@ -17,10 +17,11 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
     type LhsLoader: Loader<EG, ES, Self::Config>;
     type RhsLoader: Loader<EG, ES, Self::Config>;
     type AccumulatorLoader: AccumulatorLoader<EG, Acc, SMM::Config>;
+
     type Out: Unloader<EG>;
     type Accumulator: CubeType;
 
-    /// Performs the matrix multiplication over data loaded by the
+    /// Performs the convolution over data loaded by the
     /// LHS and RHS loaders, over the range given for K, and stores with
     /// using the output unloader.
     ///

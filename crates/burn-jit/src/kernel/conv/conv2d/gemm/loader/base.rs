@@ -13,7 +13,7 @@ use cubecl::{
 use crate::kernel::conv::homogeneous::base::config;
 
 #[cube]
-/// Input to the global matmul, responsible of filling the stage and providing a reader for it.
+/// Input to the convolution, responsible of filling the stage and providing a reader for it.
 /// Advances along the k-dimension to fill the stage with further data.
 pub trait Loader<EG: Numeric, ES: Numeric, G: global::Config>:
     CubeType + 'static + Send + Sync

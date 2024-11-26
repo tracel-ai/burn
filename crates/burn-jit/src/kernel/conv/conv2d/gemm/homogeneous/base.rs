@@ -61,6 +61,7 @@ where
     type LhsLoader = SimpleIm2colLoader<EG, ES, Self::Config>;
     type RhsLoader = RhsLoader<EG, ES, SMM::Config>;
     type AccumulatorLoader = BiasLoader<EG, Acc, SMM::Config>;
+
     type Out = Unloader<EG>;
     type Accumulator = SMM::Accumulator;
 

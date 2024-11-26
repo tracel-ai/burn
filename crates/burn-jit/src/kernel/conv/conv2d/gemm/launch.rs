@@ -32,10 +32,15 @@ use crate::{
 
 use super::algorithm::CmmaHalf;
 
-pub type LargeMAlgorithm<F> = Cmma<F, S8x4x2>;
-pub type BalancedAlgorithm<F> = Cmma<F, S4x2x4>;
+/// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
+/// than `out_channels`
+pub type CmmaLargeMAlgorithm<F> = Cmma<F, S8x4x2>;
+/// Balanced stage size for cases where `batch_size * out_h * out_w` is relatively small and `k` or
+/// `out_channels` is relatively large
+pub type CmmaBalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 
-/// Perform a 2D convolution using the GEMM (im2col) algorithm.
+/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
+/// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
 ///
 /// * `input` - The input feature map
 /// * `weight` - The weights (filter) applied to each kernel
@@ -44,7 +49,7 @@ pub type BalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 ///
 ///
 #[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -54,12 +59,21 @@ pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
         Elem::Float(FloatKind::F16) => {
             conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x4x2>>(input, weight, bias, options)
         }
-        _ => conv2d_gemm_with_algo::<R, F, LargeMAlgorithm<F>>(input, weight, bias, options),
+        _ => conv2d_gemm_with_algo::<R, F, CmmaLargeMAlgorithm<F>>(input, weight, bias, options),
     }
 }
 
+/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
+/// components. Uses [`CmmaBalancedAlgorithm`] for the stage size
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+///
 #[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_gemm_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -69,10 +83,19 @@ pub fn conv2d_gemm_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
         Elem::Float(FloatKind::F16) => {
             conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S4x2x4>>(input, weight, bias, options)
         }
-        _ => conv2d_gemm_with_algo::<R, F, BalancedAlgorithm<F>>(input, weight, bias, options),
+        _ => conv2d_gemm_with_algo::<R, F, CmmaBalancedAlgorithm<F>>(input, weight, bias, options),
     }
 }
 
+/// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
+/// components, using the specified algorithm.
+///
+/// * `input` - The input feature map
+/// * `weight` - The weights (filter) applied to each kernel
+/// * `bias` - The bias added to each channel
+/// * `options` - The options to use for the convolution
+///
+///
 pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
     input: JitTensor<R>,
     weight: JitTensor<R>,

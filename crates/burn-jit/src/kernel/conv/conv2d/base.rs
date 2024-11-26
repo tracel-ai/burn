@@ -6,7 +6,7 @@ use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
     conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
-    gemm::launch::conv2d_gemm_large_m, implicit_gemm::conv2d_implicit_gemm,
+    gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
@@ -85,7 +85,7 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
             conv2d_implicit_gemm::<R, E, I>(input, weight, bias, options)
         }
         Conv2dStrategy::ImplicitGemmNew => {
-            conv2d_gemm_large_m::<R, E, I>(input, weight, bias, options)
+            conv2d_gemm_cmma_large_m::<R, E, I>(input, weight, bias, options)
         }
     }
 }

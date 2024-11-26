@@ -12,6 +12,7 @@ use cubecl::{
 
 use crate::kernel::conv::reader::bias::BiasReader;
 
+/// Special loader to broadcast the 1D bias to the 2D accumulator matrix
 #[derive(CubeType)]
 pub struct BiasLoader<O: Numeric, Acc: Numeric, G: stage::Config> {
     pub tensor_view: BiasReader<O>,
