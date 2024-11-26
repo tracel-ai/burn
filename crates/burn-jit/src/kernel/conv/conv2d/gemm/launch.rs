@@ -7,7 +7,7 @@ use cubecl::{
     linalg::matmul::{
         self,
         components::{
-            stage::{S2x2x8, S4x2x4, S8x2x4},
+            stage::{S4x2x4, S8x4x2},
             MatrixLayout,
         },
     },
@@ -25,18 +25,14 @@ use crate::{
         },
         into_contiguous,
     },
-    ops::{
-        into_data_sync,
-        numeric::{empty_device, zeros_device},
-        permute, reshape,
-    },
+    ops::{numeric::empty_device, permute, reshape},
     tensor::JitTensor,
     FloatElement, IntElement, JitRuntime,
 };
 
 use super::algorithm::CmmaHalf;
 
-pub type LargeMAlgorithm<F> = Cmma<F, S8x2x4>;
+pub type LargeMAlgorithm<F> = Cmma<F, S8x4x2>;
 pub type BalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 
 /// Perform a 2D convolution using the GEMM (im2col) algorithm.
@@ -56,7 +52,7 @@ pub fn conv2d_gemm_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
 ) -> JitTensor<R> {
     match F::as_elem() {
         Elem::Float(FloatKind::F16) => {
-            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x2x4>>(input, weight, bias, options)
+            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x4x2>>(input, weight, bias, options)
         }
         _ => conv2d_gemm_with_algo::<R, F, LargeMAlgorithm<F>>(input, weight, bias, options),
     }
@@ -169,16 +165,6 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
         empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
-    println!("input: {}", into_data_sync::<R, F>(input.clone()));
-    println!("input shape: {:?}", input.shape.dims);
-    println!("weight: {}", into_data_sync::<R, F>(weight.clone()));
-    println!("weight shape: {:?}", weight.shape.dims);
-    println!("bias: {}", into_data_sync::<R, F>(bias.clone()));
-    println!("config: {config:#?}");
-
-    let test_shape = Shape::new([batch_size, out_h, out_w, kernel_h, kernel_w, in_channels]);
-    let test = zeros_device::<R, F>(out.client.clone(), out.device.clone(), test_shape);
-
     unsafe {
         Alg::GlobalMatmul::launch_unchecked::<R>(
             &input.client,
@@ -188,13 +174,9 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
             weight.as_tensor_arg::<F>(rhs_line_size),
             bias.as_tensor_arg::<F>(out_line_size),
             out.as_tensor_arg::<F>(out_line_size),
-            test.as_tensor_arg::<F>(1),
             config,
         );
     }
-
-    println!("out: {}", into_data_sync::<R, F>(out.clone()));
-    println!("test: {}", into_data_sync::<R, F>(test));
 
     // Reset to NCHW
     let out = reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]));

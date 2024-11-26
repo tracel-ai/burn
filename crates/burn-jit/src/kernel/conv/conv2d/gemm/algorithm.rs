@@ -4,11 +4,7 @@ use cubecl::{
     linalg::matmul::{
         components::{
             stage::{self, StageSize},
-            tile::{
-                self,
-                accelerated::{self, Accelerated16x16x16},
-                Matmul as _,
-            },
+            tile::{self, accelerated::Accelerated16x16x16, Matmul as _},
             MatmulKernel,
         },
         kernels::matmul::AdvancedConfig,
@@ -18,25 +14,9 @@ use cubecl::{
 
 use super::{
     base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
-    homogeneous::{
-        base::ImplicitGemmConvolution,
-        loader::{BiasLoader, Loader},
-    },
+    homogeneous::base::ImplicitGemmConvolution,
 };
 use half::f16;
-
-type LhsStageReader<GMM, SMM, EG, ES, EA> =
-    <<GMM as Convolution<EG, ES, EA, SMM>>::LhsLoader as Loader<
-        EG,
-        ES,
-        <GMM as ConvolutionKernel<EG, EG>>::Config,
-    >>::StageReader;
-type RhsStageReader<GMM, SMM, EG, ES, EA> =
-    <<GMM as Convolution<EG, ES, EA, SMM>>::RhsLoader as Loader<
-        EG,
-        ES,
-        <GMM as ConvolutionKernel<EG, EG>>::Config,
-    >>::StageReader;
 
 /// Specifications for a matmul algorithm
 pub trait Algorithm<EG: Numeric> {
@@ -49,25 +29,7 @@ pub trait Algorithm<EG: Numeric> {
     type TileMatmul: tile::Matmul<Self::ES, Self::EA> + MatmulKernel<Self::ES, Self::EA>;
 
     type StageSize: StageSize;
-    type StageMatmul: stage::Matmul<
-            Self::ES,
-            Self::EG,
-            Self::EA,
-            LhsReader = LhsStageReader<
-                Self::GlobalMatmul,
-                Self::StageMatmul,
-                Self::EG,
-                Self::ES,
-                Self::EA,
-            >,
-            RhsReader = RhsStageReader<
-                Self::GlobalMatmul,
-                Self::StageMatmul,
-                Self::EG,
-                Self::ES,
-                Self::EA,
-            >,
-        > + MatmulKernel<Self::ES, Self::EG>;
+    type StageMatmul: stage::Matmul<Self::ES, Self::EG, Self::EA> + MatmulKernel<Self::ES, Self::EG>;
 
     type GlobalMatmul: Convolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>
         + ConvolutionLaunch<Self::EG, Self::EG>;
@@ -81,10 +43,7 @@ pub trait Algorithm<EG: Numeric> {
         cube_count: &CubeCount,
         advanced_config: &AdvancedConfig,
     ) -> <Self::GlobalMatmul as ConvolutionKernel<Self::EG, Self::EG>>::Config {
-        let config =
-            Self::GlobalMatmul::make_config(problem, cube_dim, cube_count, advanced_config);
-        // problem.check_config(&config); TODO
-        config
+        Self::GlobalMatmul::make_config(problem, cube_dim, cube_count, advanced_config)
     }
 
     fn check_availability<R: Runtime>(
@@ -128,7 +87,6 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for Cmma<EG, Stage> {
         Self::ES,
         Self::EG,
         Self::EA,
-        BiasLoader<Self::EG, Self::EA, stage::multi_buffer::Config<accelerated::Config>>,
         Self::TileMatmul,
         Self::StageSize,
     >;
@@ -167,7 +125,6 @@ impl<EG: Numeric, Stage: StageSize> Algorithm<EG> for CmmaHalf<EG, Stage> {
         Self::ES,
         Self::EG,
         Self::EA,
-        BiasLoader<Self::EG, Self::EA, stage::multi_buffer::Config<accelerated::Config>>,
         Self::TileMatmul,
         Self::StageSize,
     >;

@@ -86,8 +86,6 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         );
     }
 
-    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
-    let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
     // If input is contiguous NCHW, use custom transpose kernel
     let input = match input.is_contiguous() {
         true => nchw_to_nhwc::<R, F>(input),

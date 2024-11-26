@@ -17,15 +17,14 @@ use cubecl::{
 };
 use std::marker::PhantomData;
 
-use crate::kernel::conv::conv2d::gemm::Config as _;
-use crate::{
-    kernel::conv::conv2d::gemm::base::{
-        Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem,
-    },
-    ops::numeric::zeros_device,
+use crate::kernel::conv::{
+    conv2d::gemm::base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
+    loader::im2col::SimpleIm2colLoader,
 };
-
-use super::loader::{BiasLoader, Loader, SimpleIm2colLoader};
+use crate::kernel::conv::{
+    conv2d::gemm::Config as _,
+    loader::{bias::BiasLoader, Loader},
+};
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
 /// - All planes load data to the stage
@@ -56,23 +55,21 @@ where
         Acc,
         LhsReader = LhsReader<ES>,
         RhsReader = RhsReader<ES>,
-        AccumulatorReader = BiasLoader<EG, Acc, SMMConf>,
         Config = SMMConf,
     >,
 {
     type LhsLoader = SimpleIm2colLoader<EG, ES, Self::Config>;
     type RhsLoader = RhsLoader<EG, ES, SMM::Config>;
-    type Bias = BiasLoader<EG, Acc, SMM::Config>;
+    type AccumulatorLoader = BiasLoader<EG, Acc, SMM::Config>;
     type Out = Unloader<EG>;
     type Accumulator = SMM::Accumulator;
 
     fn execute(
         mut lhs_loader: Self::LhsLoader,
         mut rhs_loader: Self::RhsLoader,
-        mut bias_loader: Self::Bias,
+        mut acc_loader: Self::AccumulatorLoader,
         mut out_unloader: Self::Out,
         acc: &mut Self::Accumulator,
-        test: &mut Tensor<EG>,
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     ) {
@@ -80,16 +77,20 @@ where
         let range = k_range.1 - k_range.0;
         let num_loops = (range + k_step - 1) / k_step;
 
-        Self::Bias::fill_stage(&mut bias_loader, config.to_smm_config());
+        Self::AccumulatorLoader::fill_stage(&mut acc_loader, config.to_smm_config());
         let (mut lhs_tile, mut rhs_tile) = SMM::init_tile_inputs(config.to_smm_config());
 
         sync_units();
 
-        SMM::fill_accumulator(&mut bias_loader, acc, config.to_smm_config());
+        SMM::fill_accumulator::<Self::AccumulatorLoader>(
+            &mut acc_loader,
+            acc,
+            config.to_smm_config(),
+        );
 
         for _ in 0..num_loops {
-            let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, test, config);
-            let rhs_stage_reader = &Self::RhsLoader::fill_stage(&mut rhs_loader, test, config);
+            let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, config);
+            let rhs_stage_reader = &Self::RhsLoader::fill_stage(&mut rhs_loader, config);
 
             sync_units();
 
@@ -146,8 +147,8 @@ where
         n_offset: u32,
         #[comptime] config: Self::Config,
         #[comptime] has_bias: bool,
-    ) -> Self::Bias {
-        Self::Bias::new(bias, n_offset, config.to_smm_config(), has_bias)
+    ) -> Self::AccumulatorLoader {
+        Self::AccumulatorLoader::new(bias, n_offset, config.to_smm_config(), has_bias)
     }
 
     fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out {
@@ -156,10 +157,6 @@ where
 
     fn init_accumulator(#[comptime] config: Self::Config) -> Self::Accumulator {
         SMM::init_accumulator(config.to_smm_config())
-    }
-
-    fn zero_accumulator(acc: &mut Self::Accumulator, #[comptime] config: Self::Config) {
-        SMM::zero_accumulator(acc, config.to_smm_config());
     }
 }
 
@@ -217,16 +214,7 @@ impl<
         EG: Numeric,
         ES: Numeric,
         Acc: Numeric,
-        SMMConf: stage::Config,
-        SMM: stage::Matmul<
-            ES,
-            EG,
-            Acc,
-            LhsReader = LhsReader<ES>,
-            RhsReader = RhsReader<ES>,
-            AccumulatorReader = BiasLoader<EG, Acc, SMMConf>,
-            Config = SMMConf,
-        >,
+        SMM: stage::Matmul<ES, EG, Acc, LhsReader = LhsReader<ES>, RhsReader = RhsReader<ES>>,
     > ConvolutionLaunch<EG, EG> for ImplicitGemmConvolution<EG, ES, Acc, SMM>
 {
     unsafe fn launch_unchecked<R: Runtime>(
@@ -237,7 +225,6 @@ impl<
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
-        test: TensorArg<'_, R>,
         config: <Self as ConvolutionKernel<EG, EG>>::Config,
     ) {
         Self::check_config(config);
@@ -250,7 +237,6 @@ impl<
             weight,
             bias,
             out,
-            test,
             config,
             config.has_bias,
         );
@@ -269,12 +255,11 @@ pub(crate) fn launch<
     rhs: &Tensor<Line<EG>>,
     bias: &Tensor<Line<EG>>,
     out: &mut Tensor<Line<EG>>,
-    test: &mut Tensor<EG>,
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
-    let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).width();
-    let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).height();
+    let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).height();
+    let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).width();
     let k_range = (0, rhs.shape(0));
 
     GMM::execute(
@@ -283,7 +268,6 @@ pub(crate) fn launch<
         GMM::init_bias_loader(bias, y_offset, config, has_bias),
         GMM::init_unloader(out, x_offset, y_offset),
         &mut GMM::init_accumulator(config),
-        test,
         k_range,
         config,
     );
@@ -418,10 +402,6 @@ pub mod config {
                 1 => self.padding.1,
                 _ => unreachable!(),
             }
-        }
-
-        fn im2col_unchecked(&self) -> bool {
-            !self.check_m_bounds && !self.check_k_bounds && self.padding == (0, 0)
         }
     }
 

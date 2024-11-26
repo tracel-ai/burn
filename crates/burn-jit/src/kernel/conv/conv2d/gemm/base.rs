@@ -8,7 +8,7 @@ use cubecl::linalg::matmul::{
 };
 use cubecl::prelude::*;
 
-use super::{homogeneous::loader::Loader, Config};
+use super::{loader::Loader, Config};
 
 #[cube]
 pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul<ES, EG, Acc>>:
@@ -16,7 +16,7 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
 {
     type LhsLoader: Loader<EG, ES, Self::Config>;
     type RhsLoader: Loader<EG, ES, Self::Config>;
-    type Bias: AccumulatorLoader<EG, Acc, SMM::Config>;
+    type AccumulatorLoader: AccumulatorLoader<EG, Acc, SMM::Config>;
     type Out: Unloader<EG>;
     type Accumulator: CubeType;
 
@@ -29,10 +29,9 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
     fn execute(
         lhs_loader: Self::LhsLoader,
         rhs_loader: Self::RhsLoader,
-        bias_loader: Self::Bias,
+        acc_loader: Self::AccumulatorLoader,
         unloader: Self::Out,
         acc: &mut Self::Accumulator,
-        test: &mut Tensor<EG>,
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     );
@@ -56,13 +55,11 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
         n_offset: u32,
         #[comptime] config: Self::Config,
         #[comptime] has_bias: bool,
-    ) -> Self::Bias;
+    ) -> Self::AccumulatorLoader;
 
     fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out;
 
     fn init_accumulator(#[comptime] config: Self::Config) -> Self::Accumulator;
-
-    fn zero_accumulator(acc: &mut Self::Accumulator, #[comptime] config: Self::Config);
 }
 
 /// Provides configuration for a matmul kernel at any level
@@ -102,7 +99,6 @@ pub trait ConvolutionLaunch<I: Numeric, O: Numeric>: ConvolutionKernel<I, O> {
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
-        test: TensorArg<'_, R>,
         config: <Self as ConvolutionKernel<I, O>>::Config,
     );
 }

@@ -6,5 +6,4 @@ pub trait Config: global::Config {
     fn dilation(&self, dim: u32) -> u32;
     fn stride(&self, dim: u32) -> u32;
     fn padding(&self, dim: u32) -> i32;
-    fn im2col_unchecked(&self) -> bool;
 }
