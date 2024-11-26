@@ -35,9 +35,9 @@ supertrait[^supertrait]. This is the trait that is then implemented by the diffe
 backends (such as `burn-ndarray` and `burn-wgpu`) which must implement the functions if no default
 is provided.
 
-In this case, we don't need to worry about `Bool` Tensors. Ops for `Float` is implemented under
+In this case, we don't need to worry about `Bool` Tensors. `Float` ops are implemented under
 [`crates/burn-tensor/src/tensor/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/tensor.rs#L991),
-and for `Int` under
+and `Int` ops under
 [`crates/burn-tensor/src/tensor/ops/int_tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/int_tensor.rs#L539).
 The current convention is ops of each type, if not unique to that type, are prefixed with the type.
 So `powf` and sundry would be defined as `int_powf` for `IntTensorOps` and `float_powf` for
@@ -50,6 +50,17 @@ The `Int` Tensor function uses the ones defined for Float with 2 extra casts (LH
 tensor, Output to an `Int`). Given that the rest of the code will only look at the float
 implementations.
 
+With the addition of quantized float tensors, the `Float` tensor primitive is represented by the
+[`TensorPrimitive`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tensor/api/kind.rs#L69)
+enum. This allows us to handle both float and quantized float operations in the `Tensor`
+implementation, correctly dispatching to the corresponding op (float or quantized) based on the
+variant. Following the same convention, the equivalent
+[quantized tensor ops](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tensor/ops/qtensor.rs#L45)
+are prefixed with `q_*` (e.g., `q_reshape` instead of `float_reshape`). Most ops have a default
+implementation that simply dequantizes the input into its floating-point representation, performs
+the operation on the float tensor, and quantizes the output. Backends can overwrite specific
+implementations when required/desired.
+
 ### Adding Tests
 
 Additional Tests should be added to `burn-tensor` under
@@ -59,6 +70,25 @@ inserting the module name into `crates/burn-tensor/src/tests/ops/mod.rs`. Then a
 `lib.rs` file in each backend, which autogenerates the tests for that specific backend. It isn't
 necessary to define tests in the backends directly, save for those that require specific testing
 such as `burn-autodiff`.
+
+For float tensor operations, the
+[`QTensorOps`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tensor/ops/qtensor.rs#L45)
+counterpart is usually added at the same time with a default implementation (as mentioned in the
+previous section). Tests for `q_*` ops follow a similar procedure: the test is added under
+[`crates/burn-tensor/src/tests/quantization/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/quantization/ops),
+the module name is inserted into `crates/burn-tensor/src/tests/quantization/ops/mod.rs` and finally
+the test is added to the
+[`testgen_quantization` macro](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/mod.rs#L67).
+If you take a look at any of the existing tests for an operation on a quantized tensor (e.g.,
+[`q_add`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/quantization/ops/add.rs)),
+you will see that the inputs and expected outputs are always defined with floating point values.
+While it assumes that the quantization and dequantization are correct, it makes the tests much more
+readable and easier to understand w.r.t. what is being tested.
+
+_Note: the tests try to use tensors with floating point values which can be de/quantized without
+introducing too much quantization error, but the result always depends on the operation (e.g.,
+tensor product of values can grow larger and significantly increase the output tensor range, leading
+to more de/quantization error on the results)._
 
 ## Adding the Op to burn-autodiff
 
