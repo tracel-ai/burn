@@ -1,3 +1,5 @@
+pub(super) use alloc::string::String;
+
 use burn_tensor::backend::Backend;
 
 use crate::{record::Record, LearningRate};

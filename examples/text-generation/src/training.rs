@@ -66,7 +66,8 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
     let lr_scheduler = NoamLrSchedulerConfig::new(0.01 / accum as f64)
         .with_warmup_steps(6000)
         .with_model_size(config.transformer.d_model)
-        .init();
+        .init()
+        .unwrap();
 
     let learner = LearnerBuilder::new(artifact_dir)
         .metric_train(CudaMetric::new())
