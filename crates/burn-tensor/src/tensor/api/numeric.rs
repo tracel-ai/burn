@@ -2286,7 +2286,7 @@ where
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For performing the modul operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
+    /// For performing the modulo operation, users should prefer the [Tensor::remainder_scalar](Tensor::remainder_scalar) function,
     /// which is more high-level and designed for public use.
     fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
