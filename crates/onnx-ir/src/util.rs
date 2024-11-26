@@ -81,3 +81,14 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     (start_dim as usize, end_dim as usize)
 }
+
+/// Infer convolution kernel shape from weight
+pub fn infer_conv_kernel_shape(w: &ArgType) -> Vec<i64> {
+    if let ArgType::Tensor(tensor) = w {
+        // Weight [out_channels, in_channels, kernel size...]
+        let shape = &tensor.shape.as_ref().unwrap()[2..];
+        shape.iter().map(|x| *x as i64).collect()
+    } else {
+        panic!("Cannot infer kernel shape");
+    }
+}
