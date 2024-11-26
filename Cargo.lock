@@ -1646,6 +1646,7 @@ dependencies = [
  "derive-new 0.6.0",
  "half",
  "log",
+ "paste",
 ]
 
 [[package]]

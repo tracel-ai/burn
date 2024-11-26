@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use cubecl::{
     linalg::matmul::components::{
         global::AccumulatorLoader,
-        stage::{self, multi_buffer::LhsReader, Stage},
+        stage::{self, Stage},
         tile::{self, Config as _},
         Ident,
     },
@@ -25,9 +25,7 @@ pub struct BiasLoader<O: Numeric, Acc: Numeric, G: stage::Config> {
 impl<O: Numeric, Acc: Numeric, G: stage::Config> AccumulatorLoader<O, Acc, G>
     for BiasLoader<O, Acc, G>
 {
-    type StageReader = LhsReader<Acc>;
-
-    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(this: &mut Self, #[comptime] config: G) {
         if this.has_bias {
             let stage_dim = config.stage_dim(Ident::Rhs);
             let line_size = config.line_size(Ident::Out);
@@ -46,7 +44,6 @@ impl<O: Numeric, Acc: Numeric, G: stage::Config> AccumulatorLoader<O, Acc, G>
                 slice[unit_id] = Line::cast_from(read_line);
             }
         }
-        LhsReader::new(this.stage)
     }
 
     /// Load accumulator

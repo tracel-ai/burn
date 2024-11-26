@@ -129,7 +129,7 @@ impl ConvolutionProblem {
             m: self.m,
             n: self.n,
             k: self.k,
-            batches: vec![],
+            batches: (vec![], vec![]),
             lhs_layout: self.lhs_layout,
             rhs_layout: self.rhs_layout,
             lhs_line_size: self.lhs_line_size,
