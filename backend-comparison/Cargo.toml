@@ -17,8 +17,8 @@ candle-cuda = ["burn/candle-cuda"]
 candle-metal = ["burn/candle", "burn/metal"]
 cuda-jit = ["burn/cuda-jit"]
 cuda-jit-fusion = ["cuda-jit", "burn/fusion"]
-hip-jit = ["burn/hip-jit"]
 default = ["burn/std", "burn/autodiff", "burn/wgpu", "burn/autotune"]
+hip-jit = ["burn/hip-jit"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
@@ -40,7 +40,6 @@ colored = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
-env_logger = "*"
 github-device-flow = { workspace = true }
 half = { workspace = true }
 indicatif = { workspace = true }
