@@ -147,7 +147,7 @@ libc = "0.2.165"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.32.1"
 systemstat = "0.2.3"
-tch = "0.18.0"
+tch = "0.15.0"
 
 ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
