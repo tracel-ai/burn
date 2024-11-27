@@ -319,11 +319,16 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
 
     let pos = calculate_positions(gemm_settings);
 
+    let in_vec = input.line_size();
+    let weight_vec = weight.line_size();
+
     // Shared memory tiles, currently only holds enough data for
     // each warp to have its own tile for a single MMA op (8 * 16 * 16 elements)
     // conceptually a WARPS_PER_CUBE x (CMMA_M * CMMA_K) matrix
-    let mut smem_input_tile = SharedMemory::<FMat>::new(cmma_input_tile_size * warps_per_cube);
-    let mut smem_weight_tile = SharedMemory::<FMat>::new(cmma_filter_tile_size * warps_per_cube);
+    let mut smem_input_tile =
+        SharedMemory::<FMat>::new_lined(cmma_input_tile_size * warps_per_cube / in_vec, in_vec);
+    let mut smem_weight_tile =
+        SharedMemory::<FMat>::new_lined(cmma_filter_tile_size * warps_per_cube / in_vec, in_vec);
 
     let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
     let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
@@ -442,8 +447,8 @@ fn execute_gemm<F: Float, FMat: Float>(
     weight: &Tensor<Line<F>>,
     bias: &Tensor<F>,
     out: &mut SliceMut<F>,
-    input_tile: &mut SliceMut<FMat>,
-    weight_tile: &mut SliceMut<FMat>,
+    input_tile: &mut SliceMut<Line<FMat>>,
+    weight_tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     args: &ConvArgs,
@@ -485,7 +490,7 @@ fn execute_gemm<F: Float, FMat: Float>(
 fn load_input_tile<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     args: &ConvArgs,
-    tile: &mut SliceMut<FMat>,
+    tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     k: u32,
@@ -567,21 +572,18 @@ fn load_input_tile<F: Float, FMat: Float>(
             + channel;
         let value = select(
             in_bounds && m_in_bounds && k_in_bounds,
-            FMat::cast_from(input[idx / vec]),
-            FMat::vectorized(0.0, vec),
+            Line::cast_from(input[idx / vec]),
+            Line::new(FMat::new(0.0)),
         );
 
-        #[unroll]
-        for i in 0..vec {
-            tile[m + i] = value[i];
-        }
+        tile[m / vec] = value;
     }
 }
 
 #[cube]
 fn load_weight_tile<F: Float, FMat: Float>(
     weight: &Tensor<Line<F>>,
-    tile: &mut SliceMut<FMat>,
+    tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     k: u32,
@@ -630,13 +632,10 @@ fn load_weight_tile<F: Float, FMat: Float>(
 
         let idx = k_idx + global_n;
 
-        let value = FMat::cast_from(weight[idx / vec]);
-        let value = select(k_in_bounds && n_in_bounds, value, FMat::new(0.0));
+        let value = Line::cast_from(weight[idx / vec]);
+        let value = select(k_in_bounds && n_in_bounds, value, Line::new(FMat::new(0.0)));
 
-        #[unroll]
-        for i in 0..vec {
-            tile[n + i] = value[i];
-        }
+        tile[n / vec] = value;
     }
 }
 

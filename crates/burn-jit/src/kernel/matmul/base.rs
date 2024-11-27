@@ -1,4 +1,4 @@
-use super::{init_matmul_output, matmul_simple};
+use super::{init_matmul_output, matmul_autotune_ref, matmul_simple};
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::prelude::*;
@@ -39,15 +39,25 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
     rhs: JitTensor<R>,
     strategy: MatmulStrategy,
 ) -> JitTensor<R> {
+    let out = init_matmul_output::<R, E>(&lhs, &rhs);
+    matmul_ref(lhs, rhs, out, strategy)
+}
+
+/// Launch a matmul kernel using the given strategy.
+pub fn matmul_ref<R: JitRuntime, E: FloatElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+    out: JitTensor<R>,
+    strategy: MatmulStrategy,
+) -> JitTensor<R> {
     match strategy {
         MatmulStrategy::Simple { grid_x, grid_y } => {
-            let out = init_matmul_output::<R, E>(&lhs, &rhs);
             matmul_simple::<R, E>(lhs, rhs, out, grid_x, grid_y)
         }
         MatmulStrategy::Cube => {
-            let out = init_matmul_output::<R, E>(&lhs, &rhs);
             let client = &lhs.client;
             cubecl::linalg::matmul::launch_ref::<R, E>(
+                &Default::default(),
                 client,
                 lhs.as_handle_ref(),
                 rhs.as_handle_ref(),
@@ -56,7 +66,7 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             out
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs),
+        MatmulStrategy::Autotune => matmul_autotune_ref::<R, E>(lhs, rhs, out),
     }
 }
 

@@ -30,7 +30,7 @@ impl<O: Numeric, Acc: Numeric, G: stage::Config> AccumulatorLoader<O, Acc, G>
             let stage_dim = config.stage_dim(Ident::Rhs);
             let line_size = config.line_size(Ident::Out);
 
-            let num_stage_elements = stage_dim.width();
+            let num_stage_elements = stage_dim.num_elements_y_dim();
 
             let unit_id = UNIT_POS_Y * config.plane_dim() + UNIT_POS_X;
             let unit_position_base = unit_id * line_size;
@@ -78,7 +78,7 @@ impl<EG: Numeric, ES: Numeric, G: stage::Config> BiasLoader<EG, ES, G> {
                 let line_size = config.line_size(Ident::Out);
 
                 let smem = SharedMemory::new_lined(
-                    comptime!(config.stage_dim(Ident::Rhs).width() / line_size),
+                    comptime!(config.stage_dim(Ident::Rhs).num_elements_y_dim() / line_size),
                     line_size,
                 );
 

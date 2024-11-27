@@ -2,7 +2,10 @@ use cubecl::{
     linalg::matmul::{
         components::{
             global::{
-                self, homogeneous::RhsLoader, unloader::Unloader, AccumulatorLoader, Config as _,
+                self,
+                homogeneous::{CyclicLoading, RhsLoader},
+                unloader::Unloader,
+                AccumulatorLoader, Config as _,
             },
             stage::{
                 self,
@@ -59,7 +62,7 @@ where
     >,
 {
     type LhsLoader = SimpleIm2colLoader<EG, ES, Self::Config>;
-    type RhsLoader = RhsLoader<EG, ES, SMM::Config>;
+    type RhsLoader = RhsLoader<EG, ES, SMM::Config, CyclicLoading>;
     type AccumulatorLoader = BiasLoader<EG, Acc, SMM::Config>;
 
     type Out = Unloader<EG>;
@@ -259,8 +262,8 @@ pub(crate) fn launch<
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
-    let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).height();
-    let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).width();
+    let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).num_elements_x_dim();
+    let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).num_elements_y_dim();
     let k_range = (0, rhs.shape(0));
 
     GMM::execute(

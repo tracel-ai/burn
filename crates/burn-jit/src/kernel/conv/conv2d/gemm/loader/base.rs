@@ -2,7 +2,7 @@ use cubecl::{
     linalg::matmul::components::{
         global::{
             self,
-            homogeneous::{CyclicLoading, RhsLoader},
+            homogeneous::{CyclicLoading, LoadingStrategy, RhsLoader},
         },
         stage::{self, multi_buffer::RhsReader},
         Ident,
@@ -29,8 +29,8 @@ pub trait Loader<EG: Numeric, ES: Numeric, G: global::Config>:
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric, S: stage::Config> Loader<EG, ES, config::Config<S>>
-    for RhsLoader<EG, ES, S>
+impl<EG: Numeric, ES: Numeric, S: stage::Config, L: LoadingStrategy>
+    Loader<EG, ES, config::Config<S>> for RhsLoader<EG, ES, S, L>
 {
     type StageReader = RhsReader<ES>;
 

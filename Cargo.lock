@@ -1673,6 +1673,7 @@ dependencies = [
  "cubecl-linalg",
  "cubecl-runtime 0.4.0",
  "cubecl-wgpu",
+ "half",
 ]
 
 [[package]]

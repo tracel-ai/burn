@@ -87,9 +87,18 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    let client = lhs.client.clone();
-
     let output = init_matmul_output::<R, E>(&lhs, &rhs);
+
+    matmul_autotune_ref::<R, E>(lhs, rhs, output)
+}
+
+/// Executes autotune on matmul operations
+pub fn matmul_autotune_ref<R: JitRuntime, E: FloatElement + Element>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+    output: JitTensor<R>,
+) -> JitTensor<R> {
+    let client = lhs.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
