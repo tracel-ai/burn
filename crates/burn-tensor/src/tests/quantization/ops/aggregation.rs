@@ -130,7 +130,6 @@ mod tests {
             QTensor::<TestBackend, 2>::int8_affine([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
         let output = tensor_with_zero.prod();
 
-        println!("wut");
         output
             .dequantize()
             .into_data()
