@@ -201,29 +201,31 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements_offset, cube_dim);
 
-    deform_col2img_coord_kernel::launch::<E, R>(
-        &image.client,
-        cube_count,
-        cube_dim,
-        image.as_handle_ref().as_tensor_arg(1),
-        offset.as_handle_ref().as_tensor_arg(1),
-        mask.as_handle_ref().as_tensor_arg(1),
-        columns.as_handle_ref().as_tensor_arg(1),
-        grad_offset.as_handle_ref().as_tensor_arg(1),
-        grad_mask.as_handle_ref().as_tensor_arg(1),
-        DeformConv2dCol2ImgCoordArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(E::from_elem(options.padding[0] as f32)),
-            ScalarArg::new(E::from_elem(options.padding[1] as f32)),
-            ScalarArg::new(options.offset_groups as u32),
-            ScalarArg::new(kernel_height as u32),
-            ScalarArg::new(kernel_width as u32),
-        ),
-        use_mask,
-    );
+    unsafe {
+        deform_col2img_coord_kernel::launch_unchecked::<E, R>(
+            &image.client,
+            cube_count,
+            cube_dim,
+            image.as_handle_ref().as_tensor_arg(1),
+            offset.as_handle_ref().as_tensor_arg(1),
+            mask.as_handle_ref().as_tensor_arg(1),
+            columns.as_handle_ref().as_tensor_arg(1),
+            grad_offset.as_handle_ref().as_tensor_arg(1),
+            grad_mask.as_handle_ref().as_tensor_arg(1),
+            DeformConv2dCol2ImgCoordArgsLaunch::new(
+                ScalarArg::new(options.stride[0] as u32),
+                ScalarArg::new(options.stride[1] as u32),
+                ScalarArg::new(options.dilation[0] as u32),
+                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(E::from_elem(options.padding[0] as f32)),
+                ScalarArg::new(E::from_elem(options.padding[1] as f32)),
+                ScalarArg::new(options.offset_groups as u32),
+                ScalarArg::new(kernel_height as u32),
+                ScalarArg::new(kernel_width as u32),
+            ),
+            use_mask,
+        )
+    };
 
     let mask_gradient = if use_mask { Some(grad_mask) } else { None };
     (grad_offset, mask_gradient)
@@ -243,7 +245,7 @@ struct DeformConv2dCol2ImgCoordArgs<F: Float> {
 }
 
 #[allow(clippy::collapsible_if)]
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
@@ -256,6 +258,10 @@ fn deform_col2img_coord_kernel<F: Float>(
 ) {
     // Position format: [batch, [offset_group, kernel_h, kernel_w, 2], out_h, out_w]
     // Alternatively : [batch, offset_channels, out_h, out_w]
+
+    if ABSOLUTE_POS >= grad_offset.len() {
+        return;
+    }
 
     let offset_channels = offset.shape(1);
     let out_h = offset.shape(2);
