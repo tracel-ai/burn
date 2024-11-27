@@ -79,11 +79,12 @@ previous section). Tests for `q_*` ops follow a similar procedure: the test is a
 the module name is inserted into `crates/burn-tensor/src/tests/quantization/ops/mod.rs` and finally
 the test is added to the
 [`testgen_quantization` macro](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/mod.rs#L67).
-If you take a look at any of the existing tests for an operation on a quantized tensor (e.g.,
-[`q_add`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/quantization/ops/add.rs)),
+If you take a look at any of the existing tests for an operation on a quantized tensor,
 you will see that the inputs and expected outputs are always defined with floating point values.
 While it assumes that the quantization and dequantization are correct, it makes the tests much more
-readable and easier to understand w.r.t. what is being tested.
+readable and easier to understand w.r.t. what is being tested. Effectively, the tests are there to
+ensure that a tensor operation is invariant to quantization (up to some quantization error, of
+course).
 
 _Note: the tests try to use tensors with floating point values which can be de/quantized without
 introducing too much quantization error, but the result always depends on the operation (e.g.,
