@@ -57,17 +57,20 @@ pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
     _a: PhantomData<A>,
 }
 
+fn valid_scale<E: Float>(mut scale: E) -> E {
+    // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
+    // scale to 0.1 to avoid division by zero.
+    if scale.eq(&E::zero()) {
+        scale = E::from(0.1).unwrap();
+    }
+    scale
+}
+
 impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
     /// Initialize an affine quantization scheme with the given parameters.
     pub fn init(scale: E, offset: Q) -> Self {
-        let mut scale = scale;
-        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
-        // scale to 0.1 to avoid division by zero.
-        if scale.eq(&E::zero()) {
-            scale = E::from(0.1).unwrap();
-        }
         Self {
-            scale,
+            scale: valid_scale(scale),
             offset,
             _a: PhantomData,
         }
@@ -87,9 +90,13 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
         let beta = E::max(beta, E::zero());
 
         // Compute scale and offset to convert a floating point value in range `[alpha, beta]` to the quantized range
-        let scale = (beta - alpha) / (b - a);
+        let scale = valid_scale((beta - alpha) / (b - a));
         let z = -(alpha / scale - a);
-        Self::init(scale, Q::from(z).unwrap())
+        Self {
+            scale,
+            offset: Q::from(z).unwrap(),
+            _a: PhantomData,
+        }
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {
@@ -136,14 +143,8 @@ pub struct SymmetricQuantization<E: Float, Q: PrimInt> {
 impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
     /// Initialize a symmetric quantization scheme with the given parameters.
     pub fn init(scale: E) -> Self {
-        let mut scale = scale;
-        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
-        // scale to 0.1 to avoid division by zero.
-        if scale.eq(&E::zero()) {
-            scale = E::from(0.1).unwrap();
-        }
         Self {
-            scale,
+            scale: valid_scale(scale),
             _q: PhantomData,
         }
     }
@@ -162,7 +163,11 @@ impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
 
         // Compute scale to convert a floating point value in range `[-alpha, alpha]` to the quantized range
         let alpha = alpha.abs().max(beta.abs());
-        Self::init((alpha + alpha) / (b - a))
+        let scale = valid_scale((alpha + alpha) / (b - a));
+        Self {
+            scale,
+            _q: PhantomData,
+        }
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {

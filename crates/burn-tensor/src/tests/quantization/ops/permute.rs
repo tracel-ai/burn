@@ -1,22 +1,15 @@
 #[burn_tensor_testgen::testgen(q_permute)]
 mod tests {
     use super::*;
-    use burn_tensor::backend::Backend;
-    use burn_tensor::quantization::{AffineQuantization, QuantizationStrategy};
-    use burn_tensor::{Device, Tensor, TensorData};
+    use burn_tensor::TensorData;
 
+    // NOTE: we use affine quantization to reduce quantization errors for the given values range
     #[test]
     fn permute_float() {
-        let device = Default::default();
-        // Quantized [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.]
-        let data = TensorData::quantized(
-            vec![
-                -128i8, -111, -94, -77, -60, -43, -26, -9, 8, 25, 42, 59, 76, 93, 110, 127,
-            ],
-            [2, 2, 4],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, -128)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &device);
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
+        ])
+        .reshape([2, 2, 4]);
 
         let permuted = tensor.clone().permute([2, 1, 0]);
 
@@ -47,36 +40,24 @@ mod tests {
     #[test]
     #[should_panic]
     fn edge_repeated_axes() {
-        let device = Default::default();
-        // Quantized [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.]
-        let data = TensorData::quantized(
-            vec![
-                -128i8, -111, -94, -77, -60, -43, -26, -9, 8, 25, 42, 59, 76, 93, 110, 127,
-            ],
-            [2, 2, 4],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, -128)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &device);
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
+        ])
+        .reshape([2, 2, 4]);
 
         // Test with a repeated axis
-        let _ = tensor.clone().permute([0, 0, 1]);
+        let _ = tensor.permute([0, 0, 1]);
     }
 
     #[test]
     #[should_panic]
     fn edge_out_of_bound_axis() {
-        let device = Default::default();
-        // Quantized [0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.]
-        let data = TensorData::quantized(
-            vec![
-                -128i8, -111, -94, -77, -60, -43, -26, -9, 8, 25, 42, 59, 76, 93, 110, 127,
-            ],
-            [2, 2, 4],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, -128)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &device);
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
+        ])
+        .reshape([2, 2, 4]);
 
         // Test with an invalid axis
-        let _ = tensor.clone().permute([3, 0, 1]);
+        let _ = tensor.permute([3, 0, 1]);
     }
 }

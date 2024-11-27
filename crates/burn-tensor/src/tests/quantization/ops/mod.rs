@@ -38,6 +38,7 @@ mod select;
 mod sin;
 mod slice;
 mod sort_argsort;
+mod split;
 mod sqrt;
 mod stack;
 mod sub;
