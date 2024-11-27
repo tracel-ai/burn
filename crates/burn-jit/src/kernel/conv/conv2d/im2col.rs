@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, linalg::matmul, prelude::*};
 
 use crate::{
-    kernel::{into_contiguous, matmul::matmul},
+    kernel::into_contiguous,
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
     FloatElement, IntElement, JitBackend, JitRuntime,
@@ -297,7 +297,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-    matmul::<R, E>(
+    matmul::launch_ref::<R, E>(
         &Default::default(),
         &client,
         weight.as_handle_ref(),

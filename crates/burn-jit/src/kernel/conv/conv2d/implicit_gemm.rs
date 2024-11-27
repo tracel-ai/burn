@@ -327,8 +327,10 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
     // conceptually a WARPS_PER_CUBE x (CMMA_M * CMMA_K) matrix
     let mut smem_input_tile =
         SharedMemory::<FMat>::new_lined(cmma_input_tile_size * warps_per_cube / in_vec, in_vec);
-    let mut smem_weight_tile =
-        SharedMemory::<FMat>::new_lined(cmma_filter_tile_size * warps_per_cube / in_vec, in_vec);
+    let mut smem_weight_tile = SharedMemory::<FMat>::new_lined(
+        cmma_filter_tile_size * warps_per_cube / weight_vec,
+        weight_vec,
+    );
 
     let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
     let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
