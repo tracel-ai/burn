@@ -92,3 +92,23 @@ pub fn infer_conv_kernel_shape(w: &ArgType) -> Vec<i64> {
         panic!("Cannot infer kernel shape");
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::ir::{ElementType, TensorType};
+
+    use super::*;
+
+    #[test]
+    fn test_infer_conv_kernel_shape() {
+        let tensor = TensorType {
+            elem_type: ElementType::Float32,
+            dim: 4,
+            shape: Some(vec![16, 64, 3, 3]),
+        };
+        let shape = infer_conv_kernel_shape(&ArgType::Tensor(tensor));
+
+        assert_eq!(shape, vec![3, 3])
+    }
+}
