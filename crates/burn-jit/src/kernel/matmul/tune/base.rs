@@ -5,7 +5,10 @@ use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTu
 
 use crate::{
     element::FloatElement,
-    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
+    kernel::{
+        matmul::{cube_strategy, utils::init_matmul_output},
+        prng::random_like_uniform,
+    },
     ops::numeric::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
@@ -149,8 +152,9 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 matmul_tune_ops!(
     MatmulCube,
     |lhs: JitTensor<R>, rhs: JitTensor<R>, out: JitTensor<R>| {
+        let strategy = cube_strategy::<R>(&lhs.client);
         cubecl::linalg::matmul::launch_ref::<R, E>(
-            &Default::default(),
+            &strategy,
             &lhs.client,
             lhs.as_handle_ref(),
             rhs.as_handle_ref(),

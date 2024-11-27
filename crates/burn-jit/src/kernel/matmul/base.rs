@@ -1,7 +1,12 @@
 use super::{init_matmul_output, matmul_simple};
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 use burn_tensor::Shape;
-use cubecl::prelude::*;
+use cubecl::{
+    ir::{Elem, FloatKind},
+    linalg::matmul::Strategy,
+    prelude::*,
+    Feature,
+};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -49,8 +54,9 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             let out = init_matmul_output::<R, E>(&lhs, &rhs);
 
             let client = &lhs.client;
+
             cubecl::linalg::matmul::launch_ref::<R, E>(
-                &Default::default(),
+                &cube_strategy::<R>(client),
                 client,
                 lhs.as_handle_ref(),
                 rhs.as_handle_ref(),
@@ -60,6 +66,26 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
         }
         #[cfg(feature = "autotune")]
         MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs),
+    }
+}
+
+pub(crate) fn cube_strategy<R: JitRuntime>(
+    client: &ComputeClient<R::Server, R::Channel>,
+) -> Strategy {
+    // TODO: Replace with auto option once cubecl has one
+    let cmma_available = client.properties().feature_enabled(Feature::Cmma {
+        a: Elem::Float(FloatKind::F16),
+        b: Elem::Float(FloatKind::F16),
+        c: Elem::Float(FloatKind::F32),
+        m: 16,
+        k: 16,
+        n: 16,
+    });
+    let plane_available = client.properties().feature_enabled(Feature::Plane);
+    match (cmma_available, plane_available) {
+        (true, _) => Strategy::Accelerated,
+        (false, true) => Strategy::PlaneMma,
+        _ => Strategy::Tiling2D(Default::default()),
     }
 }
 
