@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, ToTokens, Type};
+use crate::burn::{OtherType, Scope, TensorType, ToTokens, Type};
 use burn::config::Config;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -8,6 +8,7 @@ use quote::quote;
 #[derive(Config, Debug)]
 pub struct SplitConfig {
     pub axis: usize,
+    pub num_outputs: Option<usize>,
     pub split_sizes: Option<Vec<usize>>,
 }
 
@@ -20,10 +21,17 @@ pub struct SplitNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
     fn output_types(&self) -> Vec<Type> {
-        self.outputs
-            .iter()
-            .map(|t| Type::Tensor(t.clone()))
-            .collect()
+        let tensor = &self.outputs[0];
+        let dims = tensor.dim;
+
+        let vec_tensor_type = quote! {vec<Tensor<B, #dims>>};
+
+        let other_type = OtherType {
+            name: syn::Ident::new("split_tensors", proc_macro2::Span::call_site()),
+            ty: vec_tensor_type,
+        };
+
+        vec![Type::Other(other_type)]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -34,41 +42,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let axis = self.config.axis.to_tokens();
 
-        let output_names = self
-            .outputs
-            .iter()
-            .map(|output| scope.tensor_use_owned(output, node_position))
-            .collect::<Vec<_>>();
-
         let split_code = if let Some(split_sizes) = &self.config.split_sizes {
             let split_sizes_tokens = split_sizes.to_tokens();
             quote! {
                 let split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
             }
         } else {
-            let num_outputs = self.outputs.len();
+            let num_outputs = self.config.num_outputs.unwrap();
             let num_outputs_tokens = num_outputs.to_tokens();
             quote! {
-                let tensor_size = #input.shape().dims[#axis];
-                let split_size = (tensor_size + #num_outputs_tokens - 1) / #num_outputs_tokens;
-                let split_tensors = #input.split(split_size, #axis);
+                let split_tensors = #input.split(#num_outputs_tokens, #axis);
             }
         };
 
-        let assignments: Vec<TokenStream> = output_names
-            .iter()
-            .enumerate()
-            .map(|(i, output_name)| {
-                let idx = syn::Index::from(i);
-                quote! {
-                    let #output_name = split_tensors[#idx].clone();
-                }
-            })
-            .collect();
-
         quote! {
             #split_code
-            #(#assignments)*
+            split_tensors
         }
     }
 
@@ -98,12 +87,16 @@ mod tests {
                 TensorType::new_float("tensor2", 2),
                 TensorType::new_float("tensor3", 2),
             ],
-            SplitConfig::new(0),
+            SplitConfig {
+                axis: 0,
+                num_outputs: Some(2),
+                split_sizes: None,
+            },
         ));
 
         graph.register_input_output(
             vec!["tensor1".to_string()],
-            vec!["tensor2".to_string(), "tensor3".to_string()],
+            vec!["split_tensors".to_string()],
         );
 
         let expected = quote! {
