@@ -4,7 +4,7 @@ use cubecl::linalg::matmul::{
         global::{AccumulatorLoader, Unloader},
         stage, MatmulProblem, MatrixLayout,
     },
-    kernels::matmul::AdvancedConfig,
+    kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
 };
 use cubecl::prelude::*;
 
@@ -74,7 +74,7 @@ pub trait ConvolutionKernel<I: Numeric, O: Numeric> {
     /// Checks if the client can handle the features used in this computation
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
-    ) -> Result<(), String>;
+    ) -> Result<(), MatmulAvailabilityError>;
 
     fn make_config(
         problem: &ConvolutionProblem,

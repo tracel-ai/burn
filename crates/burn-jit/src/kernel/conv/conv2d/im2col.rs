@@ -300,8 +300,8 @@ fn execute<R: JitRuntime, E: FloatElement>(
     matmul::launch_ref::<R, E>(
         &cube_strategy::<R>(&client),
         &client,
-        weight.as_handle_ref(),
-        columns.as_handle_ref(),
-        out.as_handle_ref(),
+        &weight.as_handle_ref(),
+        &columns.as_handle_ref(),
+        &out.as_handle_ref(),
     );
 }

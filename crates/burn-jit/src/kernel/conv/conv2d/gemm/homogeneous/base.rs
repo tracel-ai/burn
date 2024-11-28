@@ -14,7 +14,7 @@ use cubecl::{
             },
             Ident, MatrixLayout, StageDim,
         },
-        kernels::matmul::AdvancedConfig,
+        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
     prelude::*,
 };
@@ -177,7 +177,7 @@ where
 
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
-    ) -> Result<(), String> {
+    ) -> Result<(), MatmulAvailabilityError> {
         SMM::check_availability::<R>(client)
     }
 

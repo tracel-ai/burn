@@ -156,9 +156,9 @@ matmul_tune_ops!(
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &strategy,
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );

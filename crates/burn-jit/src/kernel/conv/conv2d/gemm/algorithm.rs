@@ -11,7 +11,7 @@ use cubecl::{
             },
             MatmulKernel,
         },
-        kernels::matmul::AdvancedConfig,
+        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
     prelude::*,
 };
@@ -55,7 +55,7 @@ pub trait Algorithm<EG: Numeric> {
     /// Check availability of the matmul algorithm
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
-    ) -> Result<(), String> {
+    ) -> Result<(), MatmulAvailabilityError> {
         Self::GlobalConvolution::check_availability::<R>(client)
     }
 
