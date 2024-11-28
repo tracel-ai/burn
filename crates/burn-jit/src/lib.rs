@@ -24,10 +24,8 @@ use cubecl::{compute::CubeTask, Feature, Runtime};
 pub use element::{BoolElement, FloatElement, IntElement, JitElement};
 
 mod backend;
-mod bridge;
 
 pub use backend::*;
-pub use bridge::*;
 
 // Re-export cubecl.
 pub use cubecl;

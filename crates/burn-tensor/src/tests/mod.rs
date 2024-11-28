@@ -78,6 +78,42 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_quantization {
     () => {
+        // Quantized tensor utilities
+        pub mod qtensor {
+            use core::marker::PhantomData;
+
+            use burn_tensor::{
+                backend::Backend,
+                quantization::{QuantizationScheme, QuantizationType},
+                Tensor, TensorData,
+            };
+
+            pub struct QTensor<B: Backend, const D: usize> {
+                b: PhantomData<B>,
+            }
+
+            impl<B: Backend, const D: usize> QTensor<B, D> {
+                /// Creates a quantized int8 tensor from the floating point data using the default quantization scheme
+                /// (i.e., per-tensor symmetric quantization).
+                pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Self::int8_symmetric(floats)
+                }
+                /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
+                pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                        &QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+                    )
+                }
+                /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
+                pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                        &QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                    )
+                }
+            }
+        }
+        pub use qtensor::*;
+
         // test quantization
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
@@ -116,11 +152,12 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_remainder!();
         burn_tensor::testgen_q_repeat_dim!();
         burn_tensor::testgen_q_reshape!();
+        burn_tensor::testgen_q_round!();
         burn_tensor::testgen_q_select!();
         burn_tensor::testgen_q_sin!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
-        // burn_tensor::testgen_q_split!();
+        burn_tensor::testgen_q_split!();
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();

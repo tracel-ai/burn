@@ -1,7 +1,7 @@
 use crate::{
     element::BoolElement,
     tensor::{JitTensor, QJitTensor},
-    FloatElement, IntElement, JitRuntime, PrecisionBridge,
+    FloatElement, IntElement, JitRuntime,
 };
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
@@ -37,7 +37,6 @@ where
 {
     type Device = R::Device;
 
-    type FullPrecisionBridge = PrecisionBridge<R, f32, i32>;
     type FloatElem = F;
     type IntElem = I;
     type BoolElem = BT;

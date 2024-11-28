@@ -1,8 +1,9 @@
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, UnsafeSharedRef};
+use crate::ops::NdArrayOps;
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, UnsafeSharedRef};
 
 use alloc::{vec, vec::Vec};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::{ops::FloatTensorOps, Shape};
+use burn_tensor::Shape;
 use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::s;
 
@@ -33,8 +34,8 @@ where
         let mut out_array = ndarray::Array3::<E>::zeros((num_out_batches, m, n));
         let unsafe_shared_out_array = UnsafeSharedRef::new(&mut out_array);
 
-        let lhs_array = NdArray::<E>::float_reshape(lhs, Shape::new([num_l_batches, m, k])).array;
-        let rhs_array = NdArray::<E>::float_reshape(rhs, Shape::new([num_r_batches, k, n])).array;
+        let lhs_array = NdArrayOps::reshape(lhs, Shape::new([num_l_batches, m, k])).array;
+        let rhs_array = NdArrayOps::reshape(rhs, Shape::new([num_r_batches, k, n])).array;
 
         iter_range_par!(0, num_out_batches).for_each(|out_batch| {
             // Here, we:
@@ -66,7 +67,7 @@ where
         NdArrayTensor::new(out_array.into_shared().into_dyn())
     });
 
-    NdArray::<E>::float_reshape(out, out_shape)
+    NdArrayOps::reshape(out, out_shape)
 }
 
 #[derive(Debug, PartialEq)]

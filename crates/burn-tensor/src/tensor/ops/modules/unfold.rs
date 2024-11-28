@@ -69,12 +69,7 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
         x,
         weight,
         None,
-        ConvOptions {
-            stride: options.stride,
-            padding: options.padding,
-            dilation: options.dilation,
-            groups: 1,
-        },
+        ConvOptions::new(options.stride, options.padding, options.dilation, 1),
     );
 
     let [batch_size, channels_out, out_height, out_width] = unfolded.shape().dims();

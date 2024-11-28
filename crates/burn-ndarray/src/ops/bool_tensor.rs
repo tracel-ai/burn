@@ -1,14 +1,14 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_tensor::ops::{BoolTensorOps, IntTensorOps};
+use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
 use ndarray::{IntoDimension, Zip};
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::NdArrayDevice;
+use crate::{new_tensor_float, NdArrayDevice};
 use crate::{tensor::NdArrayTensor, NdArray};
 
 // Workspace crates
@@ -84,11 +84,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
         NdArrayTensor { array }
     }
 
-    fn bool_into_float(
-        tensor: NdArrayTensor<bool>,
-    ) -> <NdArray<E> as Backend>::FloatTensorPrimitive {
-        let array = tensor.array.mapv(|a| (a as i32).elem()).into_shared();
-        NdArrayTensor { array }
+    fn bool_into_float(tensor: NdArrayTensor<bool>) -> FloatTensor<Self> {
+        new_tensor_float!(NdArrayTensor {
+            array: tensor.array.mapv(|a| (a as i32).elem()).into_shared(),
+        })
     }
 
     fn bool_swap_dims(

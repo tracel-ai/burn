@@ -71,7 +71,6 @@ use colored::*;
 ///
 /// Closeness check complete.
 /// ```
-
 pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expected: &Tensor<B, D>) {
     println!("{}", "Tensor Closeness Check Results:".bold());
     println!("===============================");

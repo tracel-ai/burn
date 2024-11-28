@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use burn_tensor::{
-    backend::{Backend, BackendBridge, DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId},
     try_read_sync, DType, Shape, TensorData,
 };
@@ -89,12 +89,6 @@ macro_rules! impl_multi_backend_types {
             }
 
             impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
-                where <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-                $(
-                    <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-                )+
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
@@ -204,14 +198,6 @@ macro_rules! impl_multi_backend_types {
 
             impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
             where
-            // Restrict full precision backend handle to be the same
-            <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-            $(
-                $OtherBackend: ReprBackend<FloatElem = $DefaultBackend::FloatElem, IntElem = $DefaultBackend::IntElem>,
-                <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-            )+
                 Br: MultiBackendBridge<TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>, Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>>,
             {
                 type Device = Br::Device;

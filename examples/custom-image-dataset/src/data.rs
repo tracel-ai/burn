@@ -47,6 +47,7 @@ pub struct ClassificationBatcher<B: Backend> {
 pub struct ClassificationBatch<B: Backend> {
     pub images: Tensor<B, 4>,
     pub targets: Tensor<B, 1, Int>,
+    pub images_path: Vec<String>,
 }
 
 impl<B: Backend> ClassificationBatcher<B> {
@@ -83,6 +84,9 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             })
             .collect();
 
+        // Original sample path
+        let images_path: Vec<String> = items.iter().map(|item| item.image_path.clone()).collect();
+
         let images = items
             .into_iter()
             .map(|item| TensorData::new(image_as_vec_u8(item), Shape::new([32, 32, 3])))
@@ -100,6 +104,10 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
 
         let images = self.normalizer.normalize(images);
 
-        ClassificationBatch { images, targets }
+        ClassificationBatch {
+            images,
+            targets,
+            images_path,
+        }
     }
 }

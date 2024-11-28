@@ -1,14 +1,12 @@
+use super::{AdaptiveMomentumState, SimpleOptimizer};
+use crate::config::Config;
+use crate::optim::adaptor::OptimizerAdaptor;
+use crate::tensor::{backend::AutodiffBackend, Tensor};
 use crate::{
     self as burn, grad_clipping::GradientClippingConfig, module::AutodiffModule, record::Record,
     LearningRate,
 };
-use std::marker::PhantomData;
-
-use super::SimpleOptimizer;
-use crate::config::Config;
-use crate::optim::adaptor::OptimizerAdaptor;
-use crate::tensor::{backend::AutodiffBackend, Tensor};
-use burn_tensor::{backend::Backend, ops::Device, ElementConversion};
+use burn_tensor::{backend::Backend, ops::Device};
 
 /// AdamW configuration.
 #[derive(Config)]
@@ -31,19 +29,19 @@ pub struct AdamWConfig {
 
 /// AdamW optimizer as described in the paper [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
 #[derive(Clone)]
-pub struct AdamW<B: Backend> {
+pub struct AdamW {
     momentum: AdaptiveMomentumW,
     weight_decay: f32,
-    _phantom: PhantomData<B>,
 }
 
 /// AdamW state.
 #[derive(Record, Clone, new)]
 pub struct AdamWState<B: Backend, const D: usize> {
-    momentum: AdaptiveMomentumWState<B, D>,
+    /// Th current adaptive momentum state.
+    pub momentum: AdaptiveMomentumState<B, D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for AdamW<B> {
+impl<B: Backend> SimpleOptimizer<B> for AdamW {
     type State<const D: usize> = AdamWState<B, D>;
 
     /// A single optimization step for any tensor that represents the parameters of a model.
@@ -81,9 +79,7 @@ impl AdamWConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self,
-    ) -> OptimizerAdaptor<AdamW<B::InnerBackend>, M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<AdamW, M, B> {
         let optim = AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
@@ -91,7 +87,6 @@ impl AdamWConfig {
                 epsilon: self.epsilon,
             },
             weight_decay: self.weight_decay,
-            _phantom: Default::default(),
         };
 
         let mut optim = OptimizerAdaptor::from(optim);
@@ -100,14 +95,6 @@ impl AdamWConfig {
         }
         optim
     }
-}
-
-/// Adaptive momentum state.
-#[derive(Record, new, Clone)]
-pub struct AdaptiveMomentumWState<B: Backend, const D: usize> {
-    time: usize,
-    moment_1: Tensor<B, D>,
-    moment_2: Tensor<B, D>,
 }
 
 #[derive(Clone)]
@@ -121,8 +108,8 @@ impl AdaptiveMomentumW {
     pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
-        state: Option<AdaptiveMomentumWState<B, D>>,
-    ) -> (Tensor<B, D>, AdaptiveMomentumWState<B, D>) {
+        state: Option<AdaptiveMomentumState<B, D>>,
+    ) -> (Tensor<B, D>, AdaptiveMomentumState<B, D>) {
         let state = if let Some(mut state) = state {
             // Update first moment estimate.
             let factor = 1.0 - self.beta_1;
@@ -151,10 +138,10 @@ impl AdaptiveMomentumW {
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.powf_scalar(2.0).mul_scalar(factor);
 
-            AdaptiveMomentumWState::new(1, moment_1, moment_2)
+            AdaptiveMomentumState::new(1, moment_1, moment_2)
         };
 
-        let time: i32 = (state.time as i32).elem();
+        let time: i32 = state.time as i32;
 
         // Compute bias-corrected first and second moment estimates.
         let moment_1_corrected = state
@@ -173,25 +160,8 @@ impl AdaptiveMomentumW {
 
         (
             update_delta,
-            AdaptiveMomentumWState::new(state.time, state.moment_1, state.moment_2),
+            AdaptiveMomentumState::new(state.time, state.moment_1, state.moment_2),
         )
-    }
-}
-
-impl<B: Backend, const D: usize> AdaptiveMomentumWState<B, D> {
-    /// Move state to device.
-    ///
-    /// # Arguments
-    ///
-    /// * `device` - Device to move state to.
-    ///
-    /// # Returns
-    ///
-    /// Returns state moved to device.
-    pub fn to_device(mut self, device: &B::Device) -> Self {
-        self.moment_1 = self.moment_1.to_device(device);
-        self.moment_2 = self.moment_2.to_device(device);
-        self
     }
 }
 
@@ -202,7 +172,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -366,8 +336,7 @@ mod tests {
     }
 
     fn create_adamw(
-    ) -> OptimizerAdaptor<AdamW<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
-    {
+    ) -> OptimizerAdaptor<AdamW, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdamWConfig::new();
         AdamW {
             momentum: AdaptiveMomentumW {
@@ -376,7 +345,6 @@ mod tests {
                 epsilon: config.epsilon,
             },
             weight_decay: config.weight_decay,
-            _phantom: Default::default(),
         }
         .into()
     }
