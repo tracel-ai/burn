@@ -153,7 +153,7 @@ struct Segment<'a, R: FusionRuntime> {
     handles: &'a mut HandleContainer<R::FusionHandle>,
 }
 
-impl<'i, R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'i, R> {
+impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     fn operations(&self) -> &[OperationDescription] {
         &self.queue.relative
     }

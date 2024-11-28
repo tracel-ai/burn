@@ -18,7 +18,7 @@ pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBack
     phatom: PhantomData<M>,
 }
 
-impl<'a, B, M> ModuleVisitor<B> for GradientsParamsConverter<'a, M, B>
+impl<B, M> ModuleVisitor<B> for GradientsParamsConverter<'_, M, B>
 where
     B: AutodiffBackend,
     M: AutodiffModule<B>,

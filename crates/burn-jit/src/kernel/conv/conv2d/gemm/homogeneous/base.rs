@@ -76,6 +76,7 @@ where
     ) {
         let k_step = SMM::K;
         let range = k_range.1 - k_range.0;
+        #[allow(clippy::manual_div_ceil)]
         let num_loops = (range + k_step - 1) / k_step;
 
         Self::AccumulatorLoader::fill_stage(&mut acc_loader, config.to_smm_config());

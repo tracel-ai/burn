@@ -69,6 +69,7 @@ fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32
 #[cube]
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     let index = (output_size_index + 1) * input_size;
+    #[allow(clippy::manual_div_ceil)]
     let index = (index + output_size - 1) / output_size;
 
     if input_size < index {

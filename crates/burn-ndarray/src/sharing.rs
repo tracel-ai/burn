@@ -5,7 +5,7 @@ pub(crate) struct UnsafeSharedRef<'a, T> {
     cell: UnsafeCell<&'a mut T>,
 }
 
-unsafe impl<'a, T> Sync for UnsafeSharedRef<'a, T> {}
+unsafe impl<T> Sync for UnsafeSharedRef<'_, T> {}
 
 impl<'a, T> UnsafeSharedRef<'a, T> {
     pub fn new(data: &'a mut T) -> Self {

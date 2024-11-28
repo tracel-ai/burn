@@ -20,7 +20,7 @@ impl<'a, I> DatasetIterator<'a, I> {
     }
 }
 
-impl<'a, I> Iterator for DatasetIterator<'a, I> {
+impl<I> Iterator for DatasetIterator<'_, I> {
     type Item = I;
 
     fn next(&mut self) -> Option<I> {
