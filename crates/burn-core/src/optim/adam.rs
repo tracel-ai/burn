@@ -32,18 +32,19 @@ pub struct AdamConfig {
 
 /// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
 #[derive(Clone)]
-pub struct Adam<B: Backend> {
+pub struct Adam {
     momentum: AdaptiveMomentum,
-    weight_decay: Option<WeightDecay<B>>,
+    weight_decay: Option<WeightDecay>,
 }
 
 /// Adam state.
 #[derive(Record, Clone, new)]
 pub struct AdamState<B: Backend, const D: usize> {
-    momentum: AdaptiveMomentumState<B, D>,
+    /// The current adaptive momentum.
+    pub momentum: AdaptiveMomentumState<B, D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for Adam<B> {
+impl<B: Backend> SimpleOptimizer<B> for Adam {
     type State<const D: usize> = AdamState<B, D>;
 
     fn step<const D: usize>(
@@ -83,9 +84,7 @@ impl AdamConfig {
     /// # Returns
     ///
     /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
-        &self,
-    ) -> OptimizerAdaptor<Adam<B::InnerBackend>, M, B> {
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adam, M, B> {
         let optim = Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
@@ -106,9 +105,12 @@ impl AdamConfig {
 /// Adaptive momentum state.
 #[derive(Record, new, Clone)]
 pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
-    time: usize,
-    moment_1: Tensor<B, D>,
-    moment_2: Tensor<B, D>,
+    /// The number of iterations aggregated.
+    pub time: usize,
+    /// The first order momentum.
+    pub moment_1: Tensor<B, D>,
+    /// The second order momentum.
+    pub moment_2: Tensor<B, D>,
 }
 
 #[derive(Clone)]
@@ -190,7 +192,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -350,8 +352,7 @@ mod tests {
             .load_record(record)
     }
 
-    fn create_adam(
-    ) -> OptimizerAdaptor<Adam<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
+    fn create_adam() -> OptimizerAdaptor<Adam, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
     {
         let config = AdamConfig::new();
         Adam {
