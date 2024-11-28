@@ -86,24 +86,3 @@ where
         grads.register::<B>(node.id, grad)
     }
 }
-
-/// Execute a unary operation during the backward step where the input backend
-/// is different from the output backend.
-pub fn unary_different_backend<BIn, BOut, F>(
-    parents: [Option<NodeRef>; 1],
-    node: NodeRef,
-    grads: &mut Gradients,
-    func: F,
-) where
-    BIn: Backend,
-    BOut: Backend,
-    F: FnOnce(BOut::FloatTensorPrimitive) -> BIn::FloatTensorPrimitive,
-{
-    let [parent_node] = parents;
-    let grad = grads.consume::<BOut>(&node);
-
-    if let Some(node) = parent_node {
-        let grad = func(grad);
-        grads.register::<BIn>(node.id, grad)
-    }
-}

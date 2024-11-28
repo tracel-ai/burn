@@ -1728,7 +1728,6 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let out = client.tensor_uninitialized(shape, B::FloatElem::dtype());
 
-        // TODO: check dtype
         let desc = CatOperationDescription {
             tensors: tensors.into_iter().map(|t| t.into_description()).collect(),
             dim,

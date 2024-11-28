@@ -1,6 +1,5 @@
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::PrecisionBridge;
-use crate::{NdArrayQTensor, NdArrayTensor};
+use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
@@ -46,9 +45,8 @@ pub struct NdArray<E = f32, I = i64, Q = i8> {
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q> {
     type Device = NdArrayDevice;
-    type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive = NdArrayTensor<E>;
+    type FloatTensorPrimitive = NdArrayTensorFloat;
     type FloatElem = E;
 
     type IntTensorPrimitive = NdArrayTensor<I>;
