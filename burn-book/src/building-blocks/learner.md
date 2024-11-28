@@ -28,7 +28,7 @@ The learner builder provides numerous options when it comes to configurations.
 | Renderer               | Configure how to render metrics (default is CLI)                               |
 | Grad Accumulation      | Configure the number of steps before applying gradients                        |
 | File Checkpointer      | Configure how the model, optimizer and scheduler states are saved              |
-| Num Epochs             | Set the number of epochs.                                                      |
+| Num Epochs             | Set the number of epochs                                                       |
 | Devices                | Set the devices to be used                                                     |
 | Checkpoint             | Restart training from a checkpoint                                             |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                   |

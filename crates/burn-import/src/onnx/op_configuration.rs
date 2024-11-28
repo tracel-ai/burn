@@ -42,6 +42,10 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
         }
     }
 
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
+    }
+
     // the channels are inverted in the weight tensor
     let shape = weight.shape.clone().unwrap();
     let channels_in = shape[1] * group;
@@ -83,6 +87,10 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
             "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
+    }
+
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
     }
 
     // the channels are inverted in the weight tensor
@@ -128,6 +136,10 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
             "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
+    }
+
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
     }
 
     // the channels are inverted in the weight tensor

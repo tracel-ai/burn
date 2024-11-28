@@ -1,6 +1,5 @@
 use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
-    QFusionTensor,
+    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, QFusionTensor,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
@@ -25,8 +24,6 @@ pub struct Fusion<B: FusionBackend> {
 
 impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
-
-    type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
 
     type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
 

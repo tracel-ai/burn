@@ -49,7 +49,7 @@ where
     Normal(rand_distr::Normal<f64>),
 }
 
-impl<'a, E, R> DistributionSampler<'a, E, R>
+impl<E, R> DistributionSampler<'_, E, R>
 where
     Standard: rand::distributions::Distribution<E>,
     E: rand::distributions::uniform::SampleUniform,

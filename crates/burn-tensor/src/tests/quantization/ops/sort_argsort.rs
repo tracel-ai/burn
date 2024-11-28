@@ -1,18 +1,15 @@
 #[burn_tensor_testgen::testgen(q_sort_argsort)]
 mod tests {
     use super::*;
-    use burn_tensor::quantization::{AffineQuantization, QuantizationStrategy};
-    use burn_tensor::{Shape, Tensor, TensorData};
+    use burn_tensor::TensorData;
 
+    // NOTE: we use affine quantization to reduce quantization errors for range of input values
     #[test]
     fn test_sort_1d_float() {
         // Quantized [0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![37i8, 50, 23, 27, 67, 45, 21, 71, 127, 104, 46, 85, -128],
-            [13],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.052156862, 27)),
-        );
-        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1,
+        ]);
 
         // Sort along dim=0
         let values = tensor.sort(0);
@@ -30,13 +27,9 @@ mod tests {
 
     #[test]
     fn test_argsort_1d_float() {
-        // Quantized [0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![37i8, 50, 23, 27, 67, 45, 21, 71, 127, 104, 46, 85, -128],
-            [13],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.052156862, 27)),
-        );
-        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1,
+        ]);
 
         // Sort along dim=0
         let indices = tensor.argsort(0);
@@ -48,13 +41,9 @@ mod tests {
     #[test]
     fn test_sort_with_indices_descending_float() {
         // 1D
-        // Quantized [0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![37i8, 50, 23, 27, 67, 45, 21, 71, 127, 104, 46, 85, -128],
-            [13],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.052156862, 27)),
-        );
-        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 5.2, 4., 0.99, 3., -8.1,
+        ]);
 
         // Sort along dim=0
         let (values, indices) = tensor.sort_descending_with_indices(0);
@@ -73,12 +62,10 @@ mod tests {
 
         // 3D
         // Quantized [-0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![31i8, 67, 38, 42, 86, 62, 36, 90, 126, 63, 105, -128],
-            [2, 2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.047450982, 42)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            -0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1,
+        ])
+        .reshape([2, 2, 3]);
 
         // Sort along dim=1
         let (values, indices) = tensor.sort_descending_with_indices(1);
@@ -99,13 +86,10 @@ mod tests {
 
     #[test]
     fn test_sort_float() {
-        // Quantized [-0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![31i8, 67, 38, 42, 86, 62, 36, 90, 126, 63, 105, -128],
-            [2, 2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.047450982, 42)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            -0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1,
+        ])
+        .reshape([2, 2, 3]);
 
         // Sort along dim=0
         let values = tensor.clone().sort(0);
@@ -149,13 +133,10 @@ mod tests {
 
     #[test]
     fn test_sort_with_indices_float() {
-        // Quantized [-0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![31i8, 67, 38, 42, 86, 62, 36, 90, 126, 63, 105, -128],
-            [2, 2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.047450982, 42)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            -0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1,
+        ])
+        .reshape([2, 2, 3]);
 
         // Sort along dim=0
         let (values, indices) = tensor.clone().sort_with_indices(0);
@@ -207,13 +188,10 @@ mod tests {
 
     #[test]
     fn test_argsort_float() {
-        // Quantized [-0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1]
-        let data = TensorData::quantized(
-            vec![31i8, 67, 38, 42, 86, 62, 36, 90, 126, 63, 105, -128],
-            [2, 2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.047450982, 42)),
-        );
-        let tensor = TestTensor::<3>::from_data(data.clone(), &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([
+            -0.5, 1.2, -0.21, 0., 2.1, 0.94, -0.3, 2.3, 4., 0.99, 3., -8.1,
+        ])
+        .reshape([2, 2, 3]);
 
         // Sort along dim=0
         let indices = tensor.clone().argsort(0);
@@ -235,25 +213,8 @@ mod tests {
     }
 
     #[test]
-    fn test_sort_float_nan() {
-        let tensor = TestTensor::<2>::from([[-0.5, f32::NAN], [0., 0.94], [-0.3, f32::NAN]]);
-
-        // Sort along dim=0
-        let values = tensor.sort(0);
-
-        let values_expected = TensorData::from([[-0.5, 0.94], [-0.3, f32::NAN], [0., f32::NAN]]);
-        values.into_data().assert_approx_eq(&values_expected, 5);
-    }
-
-    #[test]
     fn test_sort_descending_1d() {
-        // Quantized [1.0, 2.0, 3.0, 4.0, 5.0]
-        let data = TensorData::quantized(
-            vec![-77i8, -26, 25, 76, 127],
-            [5],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([1.0, 2.0, 3.0, 4.0, 5.0]);
 
         // Sort along dim=0
         let values = tensor.sort_descending(0);

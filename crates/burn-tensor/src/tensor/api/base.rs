@@ -7,6 +7,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
+use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -102,6 +103,15 @@ where
     /// Converts from a primitive tensor into a tensor.
     pub fn from_primitive(tensor: K::Primitive) -> Self {
         Self::new(tensor)
+    }
+
+    /// Returns the tensor primitive data type.
+    ///
+    /// # Note
+    /// Some element types are encoded in different primitive types depending on the backend
+    /// (e.g., bool could be encoded as `u8` or `u32`).
+    pub fn dtype(&self) -> DType {
+        self.primitive.dtype()
     }
 
     /// Create an empty tensor of the given shape.
@@ -1873,7 +1883,15 @@ where
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
-        writeln!(f, "  dtype:  {:?},", self.primitive.dtype().name())?;
+
+        // Bool tensors might be encoded in a different type, which we abstract for the display
+        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
+            DType::Bool
+        } else {
+            self.primitive.dtype()
+        };
+
+        writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
     }
 }

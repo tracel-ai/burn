@@ -97,6 +97,9 @@ pub struct ImageDatasetItem {
 
     /// Annotation for the image.
     pub annotation: Annotation,
+
+    /// Original image source.
+    pub image_path: String,
 }
 
 /// Raw annotation types.
@@ -250,6 +253,7 @@ impl Mapper<ImageDatasetItemRaw, ImageDatasetItem> for PathToImageDatasetItem {
         ImageDatasetItem {
             image: img_vec,
             annotation,
+            image_path: item.image_path.display().to_string(),
         }
     }
 }

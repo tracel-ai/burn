@@ -12,7 +12,7 @@ pub(crate) struct MetricsView<'a> {
     status: StatusView,
 }
 
-impl<'a> MetricsView<'a> {
+impl MetricsView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
