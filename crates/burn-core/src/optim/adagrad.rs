@@ -27,9 +27,9 @@ pub struct AdaGradConfig {
 
 /// AdaGrad optimizer
 #[derive(Clone)]
-pub struct AdaGrad<B: Backend> {
+pub struct AdaGrad {
     lr_decay: LrDecay,
-    weight_decay: Option<WeightDecay<B>>,
+    weight_decay: Option<WeightDecay>,
 }
 
 /// AdaGrad state.
@@ -38,7 +38,7 @@ pub struct AdaGradState<B: Backend, const D: usize> {
     lr_decay: LrDecayState<B, D>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for AdaGrad<B> {
+impl<B: Backend> SimpleOptimizer<B> for AdaGrad {
     type State<const D: usize> = AdaGradState<B, D>;
 
     fn step<const D: usize>(
@@ -79,7 +79,7 @@ impl AdaGradConfig {
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
-    ) -> OptimizerAdaptor<AdaGrad<B::InnerBackend>, M, B> {
+    ) -> OptimizerAdaptor<AdaGrad, M, B> {
         let optim = AdaGrad {
             lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
@@ -157,7 +157,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, nn::Linear, TestAutodiffBackend, TestBackend};
+    use crate::{nn, nn::Linear, TestAutodiffBackend};
 
     const LEARNING_RATE: LearningRate = 0.01;
 
@@ -274,8 +274,7 @@ mod tests {
     }
 
     fn create_adagrad(
-    ) -> OptimizerAdaptor<AdaGrad<TestBackend>, Linear<TestAutodiffBackend>, TestAutodiffBackend>
-    {
+    ) -> OptimizerAdaptor<AdaGrad, Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         let config = AdaGradConfig::new();
         AdaGrad {
             lr_decay: LrDecay {
