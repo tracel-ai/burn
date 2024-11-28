@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<'a, B, M> ModuleVisitor<B> for GradientsParamsChangeDevice<'a, M, B>
+impl<B, M> ModuleVisitor<B> for GradientsParamsChangeDevice<'_, M, B>
 where
     B: AutodiffBackend,
     M: AutodiffModule<B>,
