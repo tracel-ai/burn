@@ -339,7 +339,6 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
-
     fn bool_any_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_greater_elem(sum, 0.elem())
@@ -373,7 +372,6 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
         let num_elems = tensor.shape().dims[dim];
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);

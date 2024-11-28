@@ -110,7 +110,7 @@ where
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl<'a, M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'a, M, B, O>
+impl<M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'_, M, B, O>
 where
     M: AutodiffModule<B>,
     B: AutodiffBackend,
