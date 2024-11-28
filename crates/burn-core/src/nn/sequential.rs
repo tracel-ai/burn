@@ -19,17 +19,18 @@
 /// }
 /// ```
 ///
-/// If there aren't any members of a particular class, the semicolon is still needed
+/// If there aren't any members of a particular class, the semicolon is still needed:
 /// ```
 /// gen_sequential! {
 ///     Relu,
 ///     Sigmoid;
 ///     // Nothing with no config
 ///     ;
-///     LinearConfig -> Linear
+///     LinearConfig => Linear
 /// }
+/// ```
 ///
-/// To use this macro, use the type `SequentialConfig` and `Sequential<B>` in your code.
+/// To use this macro, use the types `SequentialConfig` and `Sequential<B>` in your code.
 #[macro_export]
 macro_rules! gen_sequential {
     ($($unit:tt),*; $($cfg:ty => $module:tt),*; $($bcfg:ty => $bmodule:tt),*) => {
@@ -87,3 +88,5 @@ macro_rules! gen_sequential {
         }
     }
 }
+
+pub use gen_sequential;
