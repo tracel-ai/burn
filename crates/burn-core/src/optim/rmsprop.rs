@@ -41,7 +41,7 @@ impl RmsPropConfig {
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
-    ) -> OptimizerAdaptor<RmsProp<B::InnerBackend>, M, B> {
+    ) -> OptimizerAdaptor<RmsProp, M, B> {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
 
         let mut optim = OptimizerAdaptor::from(RmsProp {
@@ -65,16 +65,16 @@ impl RmsPropConfig {
 /// Optimizer that implements stochastic gradient descent with momentum.
 /// The optimizer can be configured with [RmsPropConfig](RmsPropConfig).
 #[derive(Clone)]
-pub struct RmsProp<B: Backend> {
+pub struct RmsProp {
     alpha: f32,
     // epsilon: f32,
     centered: bool,
     // momentum: Option<Momentum<B>>,
     momentum: RmsPropMomentum,
-    weight_decay: Option<WeightDecay<B>>,
+    weight_decay: Option<WeightDecay>,
 }
 
-impl<B: Backend> SimpleOptimizer<B> for RmsProp<B> {
+impl<B: Backend> SimpleOptimizer<B> for RmsProp {
     type State<const D: usize> = RmsPropState<B, D>;
 
     fn step<const D: usize>(
@@ -136,15 +136,19 @@ impl<B: Backend> SimpleOptimizer<B> for RmsProp<B> {
 /// State of [RmsProp](RmsProp)
 #[derive(Record, Clone, new)]
 pub struct RmsPropState<B: Backend, const D: usize> {
-    square_avg: SquareAvgState<B, D>,
-    centered: CenteredState<B, D>,
-    momentum: Option<RmsPropMomentumState<B, D>>,
+    /// Current squared average state.
+    pub square_avg: SquareAvgState<B, D>,
+    /// Current centered state
+    pub centered: CenteredState<B, D>,
+    /// Current gradient momentum, if any.
+    pub momentum: Option<RmsPropMomentumState<B, D>>,
 }
 
 /// [SquareAvgState](SquareAvgState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
 pub struct SquareAvgState<B: Backend, const D: usize> {
-    square_avg: Tensor<B, D>,
+    /// Current squared average.
+    pub square_avg: Tensor<B, D>,
 }
 
 impl<B: Backend, const D: usize> SquareAvgState<B, D> {
@@ -183,8 +187,10 @@ impl<B: Backend, const D: usize> SquareAvgState<B, D> {
 /// [CenteredState](CenteredState) is to store and pass optimizer step params.
 #[derive(Record, Clone, new)]
 pub struct CenteredState<B: Backend, const D: usize> {
-    grad_avg: Option<Tensor<B, D>>,
-    avg: Tensor<B, D>,
+    /// The averaged gradient to calculate the centered gradient, if available.
+    pub grad_avg: Option<Tensor<B, D>>,
+    /// The current average value.
+    pub avg: Tensor<B, D>,
 }
 
 impl<B: Backend, const D: usize> CenteredState<B, D> {
@@ -316,7 +322,7 @@ mod tests {
     use crate::optim::{GradientsParams, Optimizer};
     use crate::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
     use crate::tensor::{Distribution, Tensor, TensorData};
-    use crate::{nn, TestAutodiffBackend, TestBackend};
+    use crate::{nn, TestAutodiffBackend};
     use tempfile::TempDir;
 
     const LEARNING_RATE: LearningRate = 0.01;
@@ -530,8 +536,7 @@ mod tests {
     }
 
     fn create_rmsprop(
-    ) -> OptimizerAdaptor<RmsProp<TestBackend>, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend>
-    {
+    ) -> OptimizerAdaptor<RmsProp, nn::Linear<TestAutodiffBackend>, TestAutodiffBackend> {
         RmsPropConfig {
             alpha: 0.99,
             epsilon: 1e-9,
