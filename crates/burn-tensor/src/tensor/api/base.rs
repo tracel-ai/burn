@@ -105,6 +105,15 @@ where
         Self::new(tensor)
     }
 
+    /// Returns the tensor primitive data type.
+    ///
+    /// # Note
+    /// Some element types are encoded in different primitive types depending on the backend
+    /// (e.g., bool could be encoded as `u8` or `u32`).
+    pub fn dtype(&self) -> DType {
+        self.primitive.dtype()
+    }
+
     /// Create an empty tensor of the given shape.
     ///
     /// # Arguments
