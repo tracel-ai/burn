@@ -9,7 +9,7 @@ use burn::nn::{
 };
 
 use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig,
+    expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, trilu::TriluConfig,
 };
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
@@ -1804,4 +1804,40 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     };
 
     axes
+}
+
+pub fn split_config(node: &Node) -> SplitConfig {
+    // Axis to split along (default is 0 per ONNX spec)
+    let mut axis: i64 = 0;
+    let mut split_sizes: Option<Vec<usize>> = None;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "split" => {
+                let split_input = value
+                    .clone()
+                    .into_i64s()
+                    .iter()
+                    .map(|&x| x as usize)
+                    .collect();
+                split_sizes = Some(split_input);
+            }
+            _ => {}
+        }
+    }
+
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    SplitConfig {
+        axis: axis as usize,
+        split_sizes,
+    }
 }
