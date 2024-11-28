@@ -21,11 +21,11 @@ pub struct WeightDecayState<B: Backend, const D: usize> {
 
 /// Weight decay implementation that transforms gradients.
 #[derive(Clone)]
-pub struct WeightDecay<B: Backend> {
-    penalty: B::FloatElem,
+pub struct WeightDecay {
+    penalty: f32,
 }
 
-impl<B: Backend> WeightDecay<B> {
+impl WeightDecay {
     /// Creates a new [weight decay](WeightDecay) from a [config](WeightDecayConfig).
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
@@ -43,7 +43,7 @@ impl<B: Backend> WeightDecay<B> {
     /// # Returns
     ///
     /// * `grad` - Transformed gradient.
-    pub fn transform<const D: usize>(
+    pub fn transform<B: Backend, const D: usize>(
         &self,
         grad: Tensor<B, D>,
         tensor: Tensor<B, D>,

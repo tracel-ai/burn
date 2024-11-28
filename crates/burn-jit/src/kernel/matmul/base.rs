@@ -48,6 +48,7 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             let out = init_matmul_output::<R, E>(&lhs, &rhs);
             let client = &lhs.client;
             cubecl::linalg::matmul::launch_ref::<R, E>(
+                &cubecl::linalg::matmul::Strategy::Simple,
                 client,
                 lhs.as_handle_ref(),
                 rhs.as_handle_ref(),
