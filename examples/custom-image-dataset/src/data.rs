@@ -47,6 +47,7 @@ pub struct ClassificationBatcher<B: Backend> {
 pub struct ClassificationBatch<B: Backend> {
     pub images: Tensor<B, 4>,
     pub targets: Tensor<B, 1, Int>,
+    pub images_path: Vec<String>,
 }
 
 impl<B: Backend> ClassificationBatcher<B> {
@@ -100,6 +101,6 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
 
         let images = self.normalizer.normalize(images);
 
-        ClassificationBatch { images, targets }
+        ClassificationBatch { images, targets, images_path }
     }
 }
