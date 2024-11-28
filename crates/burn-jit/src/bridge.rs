@@ -10,11 +10,11 @@ use core::marker::PhantomData;
 
 /// Handle precision conversion for the jit backend.
 #[derive(Debug)]
-pub struct PrecisionBridge<R, F: FloatElement, I: IntElement, B: BoolElement = u32> {
+pub struct PrecisionBridge<R, F: FloatElement, I: IntElement, BT: BoolElement = u32> {
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
-    _bool_elem: PhantomData<B>,
+    _bool_elem: PhantomData<BT>,
 }
 
 impl<R, FOrigin, IOrigin, BOrigin, FTarget, ITarget, BTarget>

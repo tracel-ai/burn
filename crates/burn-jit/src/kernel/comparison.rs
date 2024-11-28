@@ -113,7 +113,7 @@ pub(crate) fn kernel_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
     out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
-pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, B: BoolElement, O: ComparisonOp<E>>(
+pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: ComparisonOp<E>>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
@@ -143,9 +143,9 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, B: BoolElement, O: Compar
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
-    let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<B>();
+    let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
-        kernel_cmp::launch::<E, B, O, R>(
+        kernel_cmp::launch::<E, BT, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -163,10 +163,10 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, B: BoolElement, O: Compar
             lhs.shape,
             lhs.device,
             lhs.strides,
-            B::dtype(),
+            BT::dtype(),
         )
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
-        kernel_cmp::launch::<E, B, O, R>(
+        kernel_cmp::launch::<E, BT, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
@@ -184,20 +184,20 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, B: BoolElement, O: Compar
             rhs.shape,
             rhs.device,
             rhs.strides,
-            B::dtype(),
+            BT::dtype(),
         )
     } else {
-        let output = empty_device::<R, B>(lhs.client.clone(), lhs.device.clone(), shape_out);
+        let output = empty_device::<R, BT>(lhs.client.clone(), lhs.device.clone(), shape_out);
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_cmp::launch::<E, B, O, R>(
+        kernel_cmp::launch::<E, BT, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
             lhs.as_tensor_arg::<E>(vectorization_factor),
             rhs.as_tensor_arg::<E>(vectorization_factor),
-            output.as_tensor_arg::<B>(vectorization_factor),
+            output.as_tensor_arg::<BT>(vectorization_factor),
             None,
             to_contiguous_lhs,
             to_contiguous_rhs,
@@ -210,7 +210,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, B: BoolElement, O: Compar
 pub(crate) fn launch_scalar_cmp<
     R: JitRuntime,
     E: JitElement,
-    B: BoolElement,
+    BT: BoolElement,
     O: ComparisonOp<E>,
 >(
     mut tensor: JitTensor<R>,
@@ -231,9 +231,9 @@ pub(crate) fn launch_scalar_cmp<
     let cube_count =
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
-    let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<B>();
+    let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
     if same_tensor_type && tensor.can_mut() {
-        kernel_scalar_cmp::launch::<E, B, O, R>(
+        kernel_scalar_cmp::launch::<E, BT, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -248,94 +248,94 @@ pub(crate) fn launch_scalar_cmp<
             tensor.shape,
             tensor.device,
             tensor.strides,
-            B::dtype(),
+            BT::dtype(),
         )
     } else {
-        let output = empty_device::<R, B>(
+        let output = empty_device::<R, BT>(
             tensor.client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
         );
 
-        kernel_scalar_cmp::launch::<E, B, O, R>(
+        kernel_scalar_cmp::launch::<E, BT, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
             tensor.as_tensor_arg::<E>(vectorization_factor),
             ScalarArg::new(scalar),
-            output.as_tensor_arg::<B>(vectorization_factor),
+            output.as_tensor_arg::<BT>(vectorization_factor),
         );
 
         output
     }
 }
 
-pub fn equal<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_cmp::<R, E, B, EqualOp>(lhs, rhs)
+    launch_cmp::<R, E, BT, EqualOp>(lhs, rhs)
 }
 
-pub fn greater<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn greater<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_cmp::<R, E, B, GreaterOp>(lhs, rhs)
+    launch_cmp::<R, E, BT, GreaterOp>(lhs, rhs)
 }
 
-pub fn greater_equal<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn greater_equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_cmp::<R, E, B, GreaterEqualOp>(lhs, rhs)
+    launch_cmp::<R, E, BT, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn lower<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_cmp::<R, E, B, LowerOp>(lhs, rhs)
+    launch_cmp::<R, E, BT, LowerOp>(lhs, rhs)
 }
 
-pub fn lower_equal<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn lower_equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_cmp::<R, E, B, LowerEqualOp>(lhs, rhs)
+    launch_cmp::<R, E, BT, LowerEqualOp>(lhs, rhs)
 }
 
-pub fn equal_elem<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: E,
 ) -> JitTensor<R> {
-    launch_scalar_cmp::<R, E, B, EqualOp>(lhs, rhs)
+    launch_scalar_cmp::<R, E, BT, EqualOp>(lhs, rhs)
 }
 
-pub fn greater_elem<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn greater_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: E,
 ) -> JitTensor<R> {
-    launch_scalar_cmp::<R, E, B, GreaterOp>(lhs, rhs)
+    launch_scalar_cmp::<R, E, BT, GreaterOp>(lhs, rhs)
 }
 
-pub fn lower_elem<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn lower_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: E,
 ) -> JitTensor<R> {
-    launch_scalar_cmp::<R, E, B, LowerOp>(lhs, rhs)
+    launch_scalar_cmp::<R, E, BT, LowerOp>(lhs, rhs)
 }
 
-pub fn greater_equal_elem<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn greater_equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: E,
 ) -> JitTensor<R> {
-    launch_scalar_cmp::<R, E, B, GreaterEqualOp>(lhs, rhs)
+    launch_scalar_cmp::<R, E, BT, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower_equal_elem<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn lower_equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
     lhs: JitTensor<R>,
     rhs: E,
 ) -> JitTensor<R> {
-    launch_scalar_cmp::<R, E, B, LowerEqualOp>(lhs, rhs)
+    launch_scalar_cmp::<R, E, BT, LowerEqualOp>(lhs, rhs)
 }

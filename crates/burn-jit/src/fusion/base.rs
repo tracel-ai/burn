@@ -30,14 +30,14 @@ pub enum JitOptimizationState {
     ElementWise(ElemwiseOptimizationState),
 }
 
-impl<R, B> burn_fusion::Optimization<FusionJitRuntime<R, B>> for JitOptimization<R>
+impl<R, BT> burn_fusion::Optimization<FusionJitRuntime<R, BT>> for JitOptimization<R>
 where
     R: JitRuntime,
-    B: BoolElement,
+    BT: BoolElement,
 {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
-            Self::ElementWise2(op) => op.execute::<B>(context),
+            Self::ElementWise2(op) => op.execute::<BT>(context),
         }
     }
 
@@ -62,8 +62,8 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> ReprBackend
-    for JitBackend<R, F, I, B>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
+    for JitBackend<R, F, I, BT>
 {
     type Handle = JitFusionHandle<R>;
 
@@ -125,37 +125,37 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> ReprBackend
     }
 }
 
-impl<R: JitRuntime, B: BoolElement> FusionRuntime for FusionJitRuntime<R, B> {
+impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
     type FusionDevice = R::JitDevice;
     type FusionClient = MutexFusionClient<Self>;
-    type BoolRepr = B;
+    type BoolRepr = BT;
 
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
         vec![Box::new(ElementWiseBuilder::<R>::new(
             device.clone(),
-            B::as_elem().into(),
+            BT::as_elem().into(),
         ))]
     }
 }
 
 /// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
-pub struct FusionJitRuntime<R: JitRuntime, B: BoolElement> {
+pub struct FusionJitRuntime<R: JitRuntime, BT: BoolElement> {
     _b: PhantomData<R>,
-    _bool: PhantomData<B>,
+    _bool: PhantomData<BT>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> FusionBackend
-    for JitBackend<R, F, I, B>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
+    for JitBackend<R, F, I, BT>
 {
-    type FusionRuntime = FusionJitRuntime<R, B>;
+    type FusionRuntime = FusionJitRuntime<R, BT>;
 
-    type FullPrecisionBackend = JitBackend<R, f32, i32, B>;
+    type FullPrecisionBackend = JitBackend<R, f32, i32, BT>;
 
     fn cast_float(
         tensor: burn_tensor::ops::FloatTensor<Self>,

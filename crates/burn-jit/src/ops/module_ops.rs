@@ -12,12 +12,12 @@ use burn_tensor::ops::{
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<R, F, I, B> ModuleOps<Self> for JitBackend<R, F, I, B>
+impl<R, F, I, BT> ModuleOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
-    B: BoolElement,
+    BT: BoolElement,
 {
     fn conv2d(
         x: FloatTensor<Self>,
@@ -48,7 +48,7 @@ where
         output_grad: FloatTensor<Self>,
         options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
-        kernel::conv::deform_conv2d_backward::<R, F, I, B>(
+        kernel::conv::deform_conv2d_backward::<R, F, I, BT>(
             x,
             offset,
             weight,

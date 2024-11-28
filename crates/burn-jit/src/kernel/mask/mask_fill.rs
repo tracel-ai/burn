@@ -58,15 +58,15 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn mask_fill<R: JitRuntime, E: JitElement, BT: BoolElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: E,
     strategy: MaskFillStrategy,
 ) -> JitTensor<R> {
     match strategy {
-        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, B>(input, mask, value),
-        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, B>(input, mask, value),
+        MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, BT>(input, mask, value),
+        MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, BT>(input, mask, value),
     }
 }
 

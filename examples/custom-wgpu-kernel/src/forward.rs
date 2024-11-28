@@ -41,7 +41,9 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement, B: BoolElement> Backend for JitBackend<WgpuRuntime, F, I, B> {
+impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for JitBackend<WgpuRuntime, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,

@@ -98,10 +98,11 @@ impl<R: JitRuntime> Clone for JitQuantizationParameters<R> {
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement>
-    From<QuantizationParametersPrimitive<JitBackend<R, F, I, B>>> for JitQuantizationParameters<R>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement>
+    From<QuantizationParametersPrimitive<JitBackend<R, F, I, BT>>>
+    for JitQuantizationParameters<R>
 {
-    fn from(value: QuantizationParametersPrimitive<JitBackend<R, F, I, B>>) -> Self {
+    fn from(value: QuantizationParametersPrimitive<JitBackend<R, F, I, BT>>) -> Self {
         JitQuantizationParameters {
             scale: value.scale,
             offset: value.offset,

@@ -16,7 +16,7 @@ fn bool_cast_kernel<B: Numeric, T: Numeric>(input: &Tensor<B>, output: &mut Tens
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: JitRuntime, B: BoolElement, EO: JitElement>(
+pub fn bool_cast<R: JitRuntime, BT: BoolElement, EO: JitElement>(
     tensor: JitTensor<R>,
 ) -> JitTensor<R> {
     let num_elems = tensor.shape.num_elements();
@@ -32,11 +32,11 @@ pub fn bool_cast<R: JitRuntime, B: BoolElement, EO: JitElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
-    bool_cast_kernel::launch::<B, EO, R>(
+    bool_cast_kernel::launch::<BT, EO, R>(
         &tensor.client,
         cube_count,
         cube_dim,
-        tensor.as_tensor_arg::<B>(1),
+        tensor.as_tensor_arg::<BT>(1),
         output.as_tensor_arg::<EO>(1),
     );
 

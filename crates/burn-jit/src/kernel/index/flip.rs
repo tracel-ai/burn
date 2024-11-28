@@ -33,7 +33,7 @@ fn flip_kernel<E: CubePrimitive, Bool: Int>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn flip<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub(crate) fn flip<R: JitRuntime, E: JitElement, BT: BoolElement>(
     tensor: JitTensor<R>,
     indices: &[usize],
 ) -> JitTensor<R> {
@@ -42,26 +42,26 @@ pub(crate) fn flip<R: JitRuntime, E: JitElement, B: BoolElement>(
         tensor.device.clone(),
         tensor.shape.clone(),
     );
-    flip_on_output::<R, E, B>(tensor, output, indices)
+    flip_on_output::<R, E, BT>(tensor, output, indices)
 }
 
-pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, BT: BoolElement>(
     tensor: JitTensor<R>,
     output: JitTensor<R>,
     indices: &[usize],
 ) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
-    let mut indices_sequence = SequenceArg::<'_, R, B>::new();
+    let mut indices_sequence = SequenceArg::<'_, R, BT>::new();
 
     for i in 0..ndims {
-        indices_sequence.push(ScalarArg::new(B::new_bool(indices.contains(&i))));
+        indices_sequence.push(ScalarArg::new(BT::new_bool(indices.contains(&i))));
     }
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
     unsafe {
-        flip_kernel::launch_unchecked::<E, B, R>(
+        flip_kernel::launch_unchecked::<E, BT, R>(
             &tensor.client,
             cube_count,
             cube_dim,

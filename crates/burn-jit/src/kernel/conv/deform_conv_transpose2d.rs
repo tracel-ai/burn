@@ -27,7 +27,7 @@ pub(crate) fn deform_conv2d_backward<
     R: JitRuntime,
     E: FloatElement,
     I: IntElement,
-    B: BoolElement,
+    BT: BoolElement,
 >(
     input: JitTensor<R>,
     offset: JitTensor<R>,
@@ -36,14 +36,14 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<JitTensor<R>>,
     out_grad: JitTensor<R>,
     options: DeformConvOptions<2>,
-) -> DeformConv2dBackward<JitBackend<R, E, I, B>> {
+) -> DeformConv2dBackward<JitBackend<R, E, I, BT>> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad = JitBackend::<R, E, I, B>::float_sum_dim(out_grad.clone(), 0);
-        let grad = JitBackend::<R, E, I, B>::float_sum_dim(grad, 2);
-        let grad = JitBackend::<R, E, I, B>::float_sum_dim(grad, 3);
+        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
+        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
+        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
 
         reshape(grad, bias.shape)
     });

@@ -14,12 +14,12 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;
 
-impl<R, F, I, B> FloatTensorOps<Self> for JitBackend<R, F, I, B>
+impl<R, F, I, BT> FloatTensorOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
-    B: BoolElement,
+    BT: BoolElement,
 {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         super::from_data::<R, F>(data, device)
@@ -252,7 +252,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype, value.dtype),
             E,
-            kernel::mask_where_auto::<R, E, B>(tensor, mask, value)
+            kernel::mask_where_auto::<R, E, BT>(tensor, mask, value)
         )
     }
 
@@ -264,7 +264,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            kernel::mask_fill_auto::<R, E, B>(tensor, mask, value.elem())
+            kernel::mask_fill_auto::<R, E, BT>(tensor, mask, value.elem())
         )
     }
 
@@ -272,7 +272,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::equal::<R, E, B>(lhs, rhs)
+            kernel::equal::<R, E, BT>(lhs, rhs)
         )
     }
 
@@ -280,7 +280,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::equal_elem::<R, E, B>(lhs, rhs.elem())
+            kernel::equal_elem::<R, E, BT>(lhs, rhs.elem())
         )
     }
 
@@ -288,7 +288,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::greater::<R, E, B>(lhs, rhs)
+            kernel::greater::<R, E, BT>(lhs, rhs)
         )
     }
 
@@ -296,7 +296,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::greater_elem::<R, E, B>(lhs, rhs.elem())
+            kernel::greater_elem::<R, E, BT>(lhs, rhs.elem())
         )
     }
 
@@ -304,7 +304,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::greater_equal::<R, E, B>(lhs, rhs)
+            kernel::greater_equal::<R, E, BT>(lhs, rhs)
         )
     }
 
@@ -312,7 +312,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::greater_equal_elem::<R, E, B>(lhs, rhs.elem())
+            kernel::greater_equal_elem::<R, E, BT>(lhs, rhs.elem())
         )
     }
 
@@ -320,7 +320,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::lower::<R, E, B>(lhs, rhs)
+            kernel::lower::<R, E, BT>(lhs, rhs)
         )
     }
 
@@ -328,7 +328,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::lower_elem::<R, E, B>(lhs, rhs.elem())
+            kernel::lower_elem::<R, E, BT>(lhs, rhs.elem())
         )
     }
 
@@ -336,7 +336,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            kernel::lower_equal::<R, E, B>(lhs, rhs)
+            kernel::lower_equal::<R, E, BT>(lhs, rhs)
         )
     }
 
@@ -344,7 +344,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype),
             E,
-            kernel::lower_equal_elem::<R, E, B>(lhs, rhs.elem())
+            kernel::lower_equal_elem::<R, E, BT>(lhs, rhs.elem())
         )
     }
 
@@ -640,7 +640,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            kernel::flip::<R, E, B>(tensor, axes)
+            kernel::flip::<R, E, BT>(tensor, axes)
         )
     }
 

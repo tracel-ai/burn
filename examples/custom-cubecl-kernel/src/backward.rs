@@ -12,8 +12,8 @@ use burn::{
 };
 use burn_jit::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> AutodiffBackend
-    for Autodiff<JitBackend<R, F, I, B>>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<JitBackend<R, F, I, BT>>
 {
 }
 

@@ -65,16 +65,16 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: JitRuntime, E: JitElement, B: BoolElement>(
+pub fn mask_where<R: JitRuntime, E: JitElement, BT: BoolElement>(
     input: JitTensor<R>,
     mask: JitTensor<R>,
     value: JitTensor<R>,
     strategy: MaskWhereStrategy,
 ) -> JitTensor<R> {
     match strategy {
-        MaskWhereStrategy::Readonly => mask_where_readonly::<R, E, B>(input, mask, value),
-        MaskWhereStrategy::InplaceLhs => mask_where_inplace::<R, E, B>(input, mask, value, false),
-        MaskWhereStrategy::InplaceRhs => mask_where_inplace::<R, E, B>(value, mask, input, true),
+        MaskWhereStrategy::Readonly => mask_where_readonly::<R, E, BT>(input, mask, value),
+        MaskWhereStrategy::InplaceLhs => mask_where_inplace::<R, E, BT>(input, mask, value, false),
+        MaskWhereStrategy::InplaceRhs => mask_where_inplace::<R, E, BT>(value, mask, input, true),
     }
 }
 

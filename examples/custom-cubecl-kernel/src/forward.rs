@@ -9,8 +9,8 @@ use burn_jit::{
 use cubecl::{CubeCount, CubeDim};
 
 /// Implement our custom backend trait for the generic `JitBackend`.
-impl<R: JitRuntime, F: FloatElement, I: IntElement, B: BoolElement> Backend
-    for JitBackend<R, F, I, B>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for JitBackend<R, F, I, BT>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,

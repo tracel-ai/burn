@@ -90,17 +90,17 @@ struct PotentialInplace<'a> {
 
 impl FuseOnWriteTrace {
     /// Run a trace with the given [runner](TraceRunner).
-    pub fn run<R: JitRuntime, B: BoolElement, Runner: TraceRunner<R>>(
+    pub fn run<R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
-        let analysis = self.analyse::<R, B, Runner>(client, device, context);
+        let analysis = self.analyse::<R, BT, Runner>(client, device, context);
 
         let inputs = self.register_inputs(context, &analysis.handle_inputs, analysis.vectorization);
         let outputs =
-            self.register_outputs::<_, B>(&analysis.handle_outputs, analysis.vectorization);
+            self.register_outputs::<_, BT>(&analysis.handle_outputs, analysis.vectorization);
 
         let mut ops = Sequence::new();
         for op in analysis.reads.into_values() {
@@ -127,7 +127,7 @@ impl FuseOnWriteTrace {
         Runner::run(client, inputs, outputs, config)
     }
 
-    fn analyse<'a, 'c, R: JitRuntime, B: BoolElement, Runner: TraceRunner<R>>(
+    fn analyse<'a, 'c, R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
         &'a self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -147,7 +147,7 @@ impl FuseOnWriteTrace {
         };
 
         self.analyse_inputs(context, &mut analysis);
-        self.analyse_outputs::<_, B>(client, device, context, &mut analysis);
+        self.analyse_outputs::<_, BT>(client, device, context, &mut analysis);
 
         analysis.vectorization = Runner::vectorization(
             analysis.handle_inputs.iter().map(|item| &item.handle),
@@ -190,7 +190,7 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn analyse_outputs<'a, 'c, R: JitRuntime, B: BoolElement>(
+    fn analyse_outputs<'a, 'c, R: JitRuntime, BT: BoolElement>(
         &'a self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -276,7 +276,7 @@ impl FuseOnWriteTrace {
 
                 // We encode bool tensors as `B`.
                 let dtype = match tensor_global.dtype {
-                    DType::Bool => B::dtype(),
+                    DType::Bool => BT::dtype(),
                     _ => tensor_global.dtype,
                 };
                 let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
@@ -407,7 +407,7 @@ impl FuseOnWriteTrace {
         inputs
     }
 
-    fn register_outputs<'s, R: JitRuntime, B: BoolElement>(
+    fn register_outputs<'s, R: JitRuntime, BT: BoolElement>(
         &self,
         handle_outputs: &'s [HandleOutput<'_, R>],
         vectorization: u8,
@@ -474,7 +474,7 @@ impl FuseOnWriteTrace {
                         ElemwisePrecision::U32 => outputs.t_u32.push(arg),
                         ElemwisePrecision::U16 => outputs.t_u16.push(arg),
                         ElemwisePrecision::U8 => outputs.t_u8.push(arg),
-                        ElemwisePrecision::Bool => match B::dtype() {
+                        ElemwisePrecision::Bool => match BT::dtype() {
                             DType::U32 => outputs.t_u32.push(arg),
                             DType::U8 => outputs.t_u8.push(arg),
                             _ => todo!(),

@@ -5,12 +5,12 @@ use burn_tensor::{
 
 use crate::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R, F, I, B> TransactionOps<Self> for JitBackend<R, F, I, B>
+impl<R, F, I, BT> TransactionOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
-    B: BoolElement,
+    BT: BoolElement,
 {
     fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
@@ -52,7 +52,7 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Bool(num_bindings, t.shape.into(), B::dtype()));
+            kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });

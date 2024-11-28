@@ -29,15 +29,15 @@ pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> Ten
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime, B: BoolElement>(
+pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
     tensor: JitTensor<R>,
 ) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
     TensorData::new(
-        B::from_bytes(&bytes)
+        BT::from_bytes(&bytes)
             .iter()
-            .map(|i| *i != B::false_val())
+            .map(|i| *i != BT::false_val())
             .collect(),
         tensor.shape,
     )

@@ -11,12 +11,12 @@ use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use std::ops::Range;
 
-impl<R, F, I, B> IntTensorOps<Self> for JitBackend<R, F, I, B>
+impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
-    B: BoolElement,
+    BT: BoolElement,
 {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         super::empty::<R, I>(shape, device)
@@ -59,7 +59,7 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_where_auto::<R, I, B>(tensor, mask, value)
+        kernel::mask_where_auto::<R, I, BT>(tensor, mask, value)
     }
 
     fn int_mask_fill(
@@ -67,7 +67,7 @@ where
         mask: BoolTensor<Self>,
         value: IntElem<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_fill_auto::<R, I, B>(tensor, mask, value)
+        kernel::mask_fill_auto::<R, I, BT>(tensor, mask, value)
     }
 
     fn int_gather(
@@ -105,43 +105,43 @@ where
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R, I, B>(lhs, rhs)
+        kernel::equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem::<R, I, B>(lhs, rhs)
+        kernel::equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater::<R, I, B>(lhs, rhs)
+        kernel::greater::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_elem::<R, I, B>(lhs, rhs)
+        kernel::greater_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal::<R, I, B>(lhs, rhs)
+        kernel::greater_equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal_elem::<R, I, B>(lhs, rhs)
+        kernel::greater_equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower::<R, I, B>(lhs, rhs)
+        kernel::lower::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_elem::<R, I, B>(lhs, rhs)
+        kernel::lower_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal::<R, I, B>(lhs, rhs)
+        kernel::lower_equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal_elem::<R, I, B>(lhs, rhs)
+        kernel::lower_equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -281,6 +281,6 @@ where
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        kernel::flip::<R, I, B>(tensor, axes)
+        kernel::flip::<R, I, BT>(tensor, axes)
     }
 }

@@ -14,8 +14,8 @@ use burn::{
     tensor::{Shape, TensorMetadata},
 };
 
-impl<F: FloatElement, I: IntElement, B: BoolElement> AutodiffBackend
-    for Autodiff<JitBackend<WgpuRuntime, F, I, B>>
+impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<JitBackend<WgpuRuntime, F, I, BT>>
 {
 }
 
