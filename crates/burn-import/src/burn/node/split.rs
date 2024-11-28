@@ -76,3 +76,69 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         Node::Split(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use burn::record::FullPrecisionSettings;
+
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph,
+        node::{split::SplitNode, test::assert_tokens},
+        TensorType,
+    };
+
+    #[test]
+    fn test_codegen_split() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(SplitNode::new(
+            TensorType::new_float("tensor1", 2),
+            vec![
+                TensorType::new_float("tensor2", 2),
+                TensorType::new_float("tensor3", 2),
+            ],
+            SplitConfig::new(0),
+        ));
+
+        graph.register_input_output(
+            vec!["tensor1".to_string()],
+            vec!["tensor2".to_string(), "tensor3".to_string()],
+        );
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(
+                    &self,
+                    tensor1: Tensor<B, 2>,
+                ) -> Vec<Tensor<B, 2> {
+                    let split_tensors = burn::tensor::Tensor::split(tensor1, 2, 0);
+
+                    split_tensors
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+}
