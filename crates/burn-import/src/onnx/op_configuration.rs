@@ -1809,6 +1809,7 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 pub fn split_config(node: &Node) -> SplitConfig {
     // Axis to split along (default is 0 per ONNX spec)
     let mut axis: i64 = 0;
+    let mut num_outputs: Option<usize> = None;
     let mut split_sizes: Option<Vec<usize>> = None;
 
     let tensor = match node.inputs.first().unwrap().clone().ty {
@@ -1819,15 +1820,7 @@ pub fn split_config(node: &Node) -> SplitConfig {
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
-            "split" => {
-                let split_input = value
-                    .clone()
-                    .into_i64s()
-                    .iter()
-                    .map(|&x| x as usize)
-                    .collect();
-                split_sizes = Some(split_input);
-            }
+            "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
             _ => {}
         }
     }
@@ -1836,8 +1829,34 @@ pub fn split_config(node: &Node) -> SplitConfig {
         axis += tensor.dim as i64;
     }
 
+    if node.inputs.len() > 1 {
+        let split_input_arg = &node.inputs[1];
+        if let Some(Data::Int64s(sizes)) = &split_input_arg.value {
+            let sizes: Vec<usize> = sizes.iter().map(|&x| x as usize).collect();
+            split_sizes = Some(sizes);
+        } else {
+            panic!("Split: 'split' input must be a tensor of int4 values");
+        }
+    }
+
+    // Only one of 'split_sizes' or 'num_outputs' is provided
+    if split_sizes.is_some() && num_outputs.is_some() {
+        panic!("Split: Either 'split' input or 'num_outputs' attribute should be specified, but not both.");
+    }
+
+    // If neither 'split_sizes' nor 'num_outputs' is provided, infer 'num_outputs' from the number of outputs
+    if split_sizes.is_none() && num_outputs.is_none() {
+        num_outputs = Some(node.outputs.len());
+    }
+
+    // Final validation to ensure one of 'split_sizes' or 'num_outputs' is specified
+    if split_sizes.is_none() && num_outputs.is_none() {
+        panic!("Split: Either 'split' input or 'num_outputs' attribute must be specified.");
+    }
+
     SplitConfig {
         axis: axis as usize,
+        num_outputs,
         split_sizes,
     }
 }
