@@ -12,7 +12,7 @@ use super::{
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
     prelu::PReluNode, random_normal::RandomNormalNode, random_normal_like::RandomNormalLikeNode,
     random_uniform::RandomUniformNode, random_uniform_like::RandomUniformLikeNode,
-    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode,
+    range::RangeNode, reshape::ReshapeNode, resize::ResizeNode, slice::SliceNode, split::SplitNode,
     squeeze::SqueezeNode, sum::SumNode, tile::TileNode, trilu::TriluNode, unary::UnaryNode,
     unsqueeze::UnsqueezeNode,
 };
@@ -116,6 +116,7 @@ pub enum Node<PS: PrecisionSettings> {
     Resize(ResizeNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
+    Split(SplitNode),
     Sum(SumNode),
     Tile(TileNode),
     Trilu(TriluNode),
@@ -179,6 +180,7 @@ macro_rules! match_all {
             Node::RandomUniform(node) => $func(node),
             Node::RandomUniformLike(node) => $func(node),
             Node::ConstantOfShape(node) => $func(node),
+            Node::Split(node) => $func(node),
             _ => unimplemented!(),
         }
     }};
@@ -239,6 +241,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::RandomUniform(_) => "random_uniform",
             Node::RandomUniformLike(_) => "random_uniform_like",
             Node::ConstantOfShape(_) => "constant_of_shape",
+            Node::Split(_) => "split",
             _ => unimplemented!(),
         }
     }
