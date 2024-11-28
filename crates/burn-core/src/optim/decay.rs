@@ -4,13 +4,13 @@ use crate as burn;
 use crate::record::Record;
 
 use crate::config::Config;
-use crate::tensor::{ElementConversion, Tensor};
+use crate::tensor::Tensor;
 
 /// Configuration to create [weight decay](WeightDecay).
 #[derive(Config)]
 pub struct WeightDecayConfig {
     /// L2 penalty.
-    pub penalty: f64,
+    pub penalty: f32,
 }
 
 /// State of [weight decay](WeightDecay).
@@ -29,7 +29,7 @@ impl WeightDecay {
     /// Creates a new [weight decay](WeightDecay) from a [config](WeightDecayConfig).
     pub fn new(config: &WeightDecayConfig) -> Self {
         Self {
-            penalty: config.penalty.elem(),
+            penalty: config.penalty,
         }
     }
 
