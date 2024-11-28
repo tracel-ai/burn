@@ -155,9 +155,9 @@ matmul_tune_ops!(
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &Strategy::Accelerated,
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );
@@ -169,9 +169,9 @@ matmul_tune_ops!(
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &Strategy::Tiling2D(Tiling2dConfig::default()),
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );
@@ -183,9 +183,9 @@ matmul_tune_ops!(
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &Strategy::Simple,
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );
@@ -198,9 +198,9 @@ matmul_tune_ops!(
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &Strategy::CmmaOld(cmma_old::PredefinedCmmaConfig::M128K16.into()),
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );

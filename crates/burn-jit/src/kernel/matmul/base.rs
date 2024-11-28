@@ -37,9 +37,9 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             cubecl::linalg::matmul::launch_ref::<R, E>(
                 &Default::default(),
                 client,
-                lhs.as_handle_ref(),
-                rhs.as_handle_ref(),
-                out.as_handle_ref(),
+                &lhs.as_handle_ref(),
+                &rhs.as_handle_ref(),
+                &out.as_handle_ref(),
             );
             out
         }
