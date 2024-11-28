@@ -8,14 +8,14 @@ use cubecl::linalg::matmul::{
 };
 use cubecl::prelude::*;
 
-use super::{loader::Loader, Config};
+use super::Config;
 
 #[cube]
 pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul<ES, EG, Acc>>:
     'static + Send + Sync + ConvolutionKernel<EG, EG, Config: Config>
 {
-    type LhsLoader: Loader<EG, ES, Self::Config>;
-    type RhsLoader: Loader<EG, ES, Self::Config>;
+    type LhsLoader: CubeType;
+    type RhsLoader: CubeType;
     type AccumulatorLoader: AccumulatorLoader<EG, Acc, SMM::Config>;
 
     type Out: Unloader<EG>;
@@ -74,7 +74,7 @@ pub trait ConvolutionKernel<I: Numeric, O: Numeric> {
     /// Checks if the client can handle the features used in this computation
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
-    ) -> Result<(), &str>;
+    ) -> Result<(), String>;
 
     fn make_config(
         problem: &ConvolutionProblem,

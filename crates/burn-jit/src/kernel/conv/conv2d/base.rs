@@ -21,9 +21,9 @@ pub enum Conv2dStrategy {
     /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
     /// has constraints on tensor shape.
     ImplicitGemm,
-    /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
-    /// has constraints on tensor shape.
-    ImplicitGemmNew,
+    /// Implicit GEMM implementation of convolution. Uses `cubecl` matmul components to provide
+    /// the flexibility needed to work well for varied problem sizes.
+    ImplicitGemmComplex,
 }
 
 impl Default for Conv2dStrategy {
@@ -84,7 +84,7 @@ pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
         Conv2dStrategy::ImplicitGemm => {
             conv2d_implicit_gemm::<R, E, I>(input, weight, bias, options)
         }
-        Conv2dStrategy::ImplicitGemmNew => {
+        Conv2dStrategy::ImplicitGemmComplex => {
             conv2d_gemm_cmma_large_m::<R, E, I>(input, weight, bias, options)
         }
     }

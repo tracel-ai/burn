@@ -11,8 +11,9 @@ use cubecl::{
             MatrixLayout,
         },
     },
-    tensor_line_size,
+    tensor_line_size, tf32, Feature,
 };
+use half::{bf16, f16};
 
 use crate::{
     kernel::{
@@ -30,14 +31,29 @@ use crate::{
     FloatElement, IntElement, JitRuntime,
 };
 
-use super::algorithm::CmmaHalf;
-
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
 /// than `out_channels`
-pub type CmmaLargeMAlgorithm<F> = Cmma<F, S8x4x2>;
+pub type CmmaLargeMAlgorithm<EG, ES, EA> = Cmma<EG, ES, EA, S8x4x2>;
 /// Balanced stage size for cases where `batch_size * out_h * out_w` is relatively small and `k` or
 /// `out_channels` is relatively large
-pub type CmmaBalancedAlgorithm<F> = Cmma<F, S4x2x4>;
+pub type CmmaBalancedAlgorithm<EG, ES, EA> = Cmma<EG, ES, EA, S4x2x4>;
+
+macro_rules! select_launch_algo {
+    ($algo:tt, $float:ty, $input:expr) => {
+        match (<$float>::as_elem(), has_tf32(&$input)) {
+            (Elem::Float(FloatKind::F32), true) => {
+                conv2d_gemm_with_algo::<R, F, $algo<$float, tf32, f32>>
+            }
+            (Elem::Float(FloatKind::F16), _) => {
+                conv2d_gemm_with_algo::<R, F, $algo<$float, f16, f16>>
+            }
+            (Elem::Float(FloatKind::BF16), _) => {
+                conv2d_gemm_with_algo::<R, F, $algo<$float, bf16, f32>>
+            }
+            _ => conv2d_gemm_with_algo::<R, F, $algo<$float, f16, f32>>,
+        }
+    };
+}
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
@@ -46,8 +62,6 @@ pub type CmmaBalancedAlgorithm<F> = Cmma<F, S4x2x4>;
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-///
-///
 #[allow(clippy::extra_unused_type_parameters)]
 pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
     input: JitTensor<R>,
@@ -55,12 +69,8 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    match F::as_elem() {
-        Elem::Float(FloatKind::F16) => {
-            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S8x4x2>>(input, weight, bias, options)
-        }
-        _ => conv2d_gemm_with_algo::<R, F, CmmaLargeMAlgorithm<F>>(input, weight, bias, options),
-    }
+    let launch = select_launch_algo!(CmmaLargeMAlgorithm, F, input);
+    launch(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -79,12 +89,8 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    match F::as_elem() {
-        Elem::Float(FloatKind::F16) => {
-            conv2d_gemm_with_algo::<R, F, CmmaHalf<F, S4x2x4>>(input, weight, bias, options)
-        }
-        _ => conv2d_gemm_with_algo::<R, F, CmmaBalancedAlgorithm<F>>(input, weight, bias, options),
-    }
+    let launch = select_launch_algo!(CmmaBalancedAlgorithm, F, input);
+    launch(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -189,7 +195,7 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
     });
 
     unsafe {
-        Alg::GlobalMatmul::launch_unchecked::<R>(
+        Alg::GlobalConvolution::launch_unchecked::<R>(
             &input.client,
             cube_dim,
             cube_count,
@@ -256,4 +262,10 @@ pub fn problem_from_key<R: JitRuntime, F: FloatElement>(
         out_shape_x: out_w,
         has_bias: key.has_bias,
     }
+}
+
+pub(crate) fn has_tf32<R: JitRuntime>(c: &JitTensor<R>) -> bool {
+    c.client
+        .properties()
+        .feature_enabled(Feature::Type(Elem::Float(FloatKind::TF32)))
 }

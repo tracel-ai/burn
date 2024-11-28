@@ -3,9 +3,9 @@ use cubecl::{
         components::{
             global::{
                 self,
-                homogeneous::{CyclicLoading, RhsLoader},
+                homogeneous::{self, CyclicLoading, RhsLoader},
                 unloader::Unloader,
-                AccumulatorLoader, Config as _,
+                AccumulatorLoader, Config as _, Loader,
             },
             stage::{
                 self,
@@ -24,10 +24,7 @@ use crate::kernel::conv::{
     conv2d::gemm::base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
     loader::im2col::SimpleIm2colLoader,
 };
-use crate::kernel::conv::{
-    conv2d::gemm::Config as _,
-    loader::{bias::BiasLoader, Loader},
-};
+use crate::kernel::conv::{conv2d::gemm::Config as _, loader::bias::BiasLoader};
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
 /// - All planes load data to the stage
@@ -94,7 +91,8 @@ where
 
         for _ in 0..num_loops {
             let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, config);
-            let rhs_stage_reader = &Self::RhsLoader::fill_stage(&mut rhs_loader, config);
+            let rhs_stage_reader =
+                &Self::RhsLoader::fill_stage(&mut rhs_loader, config.to_matmul_config());
 
             sync_units();
 
@@ -171,7 +169,7 @@ where
     Acc: Numeric,
     SMM: stage::Matmul<ES, EG, Acc>,
 {
-    type Config = config::Config<SMM::Config>;
+    type Config = config::Config<homogeneous::Config<SMM::Config>>;
 
     fn check_config(config: Self::Config) {
         SMM::check_config(config.to_smm_config());
@@ -179,7 +177,7 @@ where
 
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
-    ) -> Result<(), &str> {
+    ) -> Result<(), String> {
         SMM::check_availability::<R>(client)
     }
 
@@ -197,15 +195,17 @@ where
         );
 
         config::Config::new(
-            smm_config,
-            problem.m as u32 % SMM::M != 0,
-            problem.n as u32 % SMM::N != 0,
-            problem.k as u32 % SMM::K != 0,
-            problem.lhs_layout,
-            problem.rhs_layout,
-            problem.lhs_line_size as u32,
-            problem.rhs_line_size as u32,
-            problem.out_line_size as u32,
+            homogeneous::Config::new(
+                smm_config,
+                problem.m as u32 % SMM::M != 0,
+                problem.n as u32 % SMM::N != 0,
+                problem.k as u32 % SMM::K != 0,
+                problem.lhs_layout,
+                problem.rhs_layout,
+                problem.lhs_line_size as u32,
+                problem.rhs_line_size as u32,
+                problem.out_line_size as u32,
+            ),
             (problem.out_shape_y as u32, problem.out_shape_x as u32),
             problem.kernel_size,
             &problem.options,
@@ -233,7 +233,7 @@ impl<
     ) {
         Self::check_config(config);
 
-        launch::launch_unchecked::<EG, ES, Acc, Self, SMM, R>(
+        implicit_conv::launch_unchecked::<EG, ES, Acc, Self, SMM, R>(
             client,
             cube_count,
             cube_dim,
@@ -248,7 +248,7 @@ impl<
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn launch<
+pub(crate) fn implicit_conv<
     EG: Numeric,
     ES: Numeric,
     Acc: Numeric,
@@ -278,6 +278,8 @@ pub(crate) fn launch<
 }
 
 pub mod config {
+    use std::ops::Deref;
+
     use burn_tensor::ops::ConvOptions;
     use cubecl::linalg::matmul::components::MatmulConfig;
 
@@ -286,16 +288,8 @@ pub mod config {
     use super::*;
 
     #[derive(CubeType, Copy, Clone, Debug, Hash, PartialEq, Eq)]
-    pub struct Config<S: stage::Config> {
-        smm_config: S,
-        check_m_bounds: bool,
-        check_n_bounds: bool,
-        check_k_bounds: bool,
-        lhs_layout: MatrixLayout,
-        rhs_layout: MatrixLayout,
-        lhs_line_size: u32,
-        rhs_line_size: u32,
-        out_line_size: u32,
+    pub struct Config<M: global::Config> {
+        matmul: M,
 
         out_shape: (u32, u32),
 
@@ -307,67 +301,67 @@ pub mod config {
         pub has_bias: bool,
     }
 
-    impl<S: stage::Config> global::Config for Config<S> {
-        type SmmConfig = S;
+    impl<M: global::Config> Deref for Config<M> {
+        type Target = M;
 
-        fn to_smm_config(&self) -> Self::SmmConfig {
-            self.smm_config
-        }
-
-        fn global_line_size(&self, ident: Ident) -> u32 {
-            match ident {
-                Ident::Lhs => self.lhs_line_size,
-                Ident::Rhs => self.rhs_line_size,
-                Ident::Out => self.out_line_size,
-            }
-        }
-
-        fn stage_line_size(&self, ident: Ident) -> u32 {
-            self.smm_config.line_size(ident)
-        }
-
-        fn stage_dim(&self, ident: Ident) -> Box<dyn StageDim> {
-            self.smm_config.stage_dim(ident)
-        }
-
-        fn layout(&self, ident: Ident) -> MatrixLayout {
-            match ident {
-                Ident::Lhs => self.lhs_layout,
-                Ident::Rhs => self.rhs_layout,
-                Ident::Out => self.smm_config.layout(Ident::Out),
-            }
-        }
-
-        fn num_planes(&self) -> u32 {
-            self.smm_config.num_planes()
-        }
-
-        fn plane_dim(&self) -> u32 {
-            self.smm_config.plane_dim()
-        }
-
-        fn tiling_order(&self, ident: Ident) -> TilingOrderConfig {
-            self.smm_config.tiling_order(ident)
-        }
-
-        fn check_m_bounds(&self) -> bool {
-            self.check_m_bounds
-        }
-
-        fn check_n_bounds(&self) -> bool {
-            self.check_n_bounds
-        }
-
-        fn check_k_bounds(&self) -> bool {
-            self.check_k_bounds
-        }
-
-        fn transpose_load(&self, ident: Ident) -> bool {
-            self.layout(ident) != self.smm_config.layout(ident)
+        fn deref(&self) -> &Self::Target {
+            &self.matmul
         }
     }
 
-    impl<S: stage::Config> gemm::Config for Config<S> {
+    impl<M: global::Config> global::Config for Config<M> {
+        type SmmConfig = M::SmmConfig;
+
+        fn to_smm_config(&self) -> Self::SmmConfig {
+            self.matmul.to_smm_config()
+        }
+
+        fn global_line_size(&self, ident: Ident) -> u32 {
+            self.matmul.global_line_size(ident)
+        }
+
+        fn stage_line_size(&self, ident: Ident) -> u32 {
+            self.matmul.stage_line_size(ident)
+        }
+
+        fn stage_dim(&self, ident: Ident) -> Box<dyn StageDim> {
+            self.matmul.stage_dim(ident)
+        }
+
+        fn layout(&self, ident: Ident) -> MatrixLayout {
+            self.matmul.layout(ident)
+        }
+
+        fn num_planes(&self) -> u32 {
+            self.matmul.num_planes()
+        }
+
+        fn plane_dim(&self) -> u32 {
+            self.matmul.plane_dim()
+        }
+
+        fn tiling_order(&self, ident: Ident) -> TilingOrderConfig {
+            self.matmul.tiling_order(ident)
+        }
+
+        fn check_m_bounds(&self) -> bool {
+            self.matmul.check_m_bounds()
+        }
+
+        fn check_n_bounds(&self) -> bool {
+            self.matmul.check_n_bounds()
+        }
+
+        fn check_k_bounds(&self) -> bool {
+            self.matmul.check_k_bounds()
+        }
+
+        fn transpose_load(&self, ident: Ident) -> bool {
+            self.matmul.transpose_load(ident)
+        }
+    }
+
+    impl<M: global::Config> gemm::Config for Config<M> {
         fn out_shape(&self, dim: u32) -> u32 {
             match dim {
                 0 => self.out_shape.0,
@@ -409,35 +403,19 @@ pub mod config {
         }
     }
 
-    impl<S: stage::Config> MatmulConfig for Config<S> {}
+    impl<M: global::Config> MatmulConfig for Config<M> {}
 
-    impl<S: stage::Config> Config<S> {
+    impl<M: global::Config> Config<M> {
         #[allow(clippy::too_many_arguments)]
         pub fn new(
-            smm_config: S,
-            check_m_bounds: bool,
-            check_n_bounds: bool,
-            check_k_bounds: bool,
-            lhs_layout: MatrixLayout,
-            rhs_layout: MatrixLayout,
-            lhs_line_size: u32,
-            rhs_line_size: u32,
-            out_line_size: u32,
+            matmul: M,
             out_shape: (u32, u32),
             kernel_size: (u32, u32),
             conv_args: &ConvOptions<2>,
             has_bias: bool,
         ) -> Self {
             Self {
-                smm_config,
-                check_m_bounds,
-                check_n_bounds,
-                check_k_bounds,
-                lhs_layout,
-                rhs_layout,
-                lhs_line_size,
-                rhs_line_size,
-                out_line_size,
+                matmul,
                 out_shape,
                 kernel_size,
                 stride: (conv_args.stride[0] as u32, conv_args.stride[1] as u32),
@@ -445,6 +423,10 @@ pub mod config {
                 padding: (conv_args.padding[0] as i32, conv_args.padding[1] as i32),
                 has_bias,
             }
+        }
+
+        pub fn to_matmul_config(self) -> M {
+            self.matmul
         }
     }
 }

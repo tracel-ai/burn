@@ -3,16 +3,19 @@ use burn_tensor::{
     ElementConversion, Shape,
 };
 use cubecl::{
-    tune,
+    ir::{Elem, FloatKind},
+    tf32, tune,
     tune::{local_tuner, tune_with, LocalTuner},
 };
+use half::{bf16, f16};
 
 use crate::{
     kernel::{
         conv::{
             algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
             conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, problem_from_key, CmmaBalancedAlgorithm, CmmaLargeMAlgorithm,
+            conv2d_implicit_gemm, has_tf32, problem_from_key, CmmaBalancedAlgorithm,
+            CmmaLargeMAlgorithm,
         },
         prng::random_uniform,
     },
@@ -81,6 +84,23 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     tune_with!(input, weights, bias, options)
 }
 
+macro_rules! check_algo {
+    ($algo:tt, $float:ty, $input:expr, $problem:expr) => {
+        match (<$float>::as_elem(), has_tf32(&$input)) {
+            (Elem::Float(FloatKind::F32), true) => {
+                $algo::<$float, tf32, f32>::can_launch::<R>(&$input.client, &$problem)
+            }
+            (Elem::Float(FloatKind::F16), _) => {
+                $algo::<$float, f16, f16>::can_launch::<R>(&$input.client, &$problem)
+            }
+            (Elem::Float(FloatKind::BF16), _) => {
+                $algo::<$float, bf16, f32>::can_launch::<R>(&$input.client, &$problem)
+            }
+            _ => $algo::<$float, f16, f32>::can_launch::<R>(&$input.client, &$problem),
+        }
+    };
+}
+
 fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
     op: &Conv2dOperations<R, F, I>,
     key: &JitAutotuneKey,
@@ -123,9 +143,9 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
             &op.input.client,
         ),
         // GEMM large m
-        3 => CmmaLargeMAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
+        3 => check_algo!(CmmaLargeMAlgorithm, F, op.input, conv_problem),
         // GEMM balanced
-        4 => CmmaBalancedAlgorithm::<F>::can_launch::<R>(&op.input.client, &conv_problem),
+        4 => check_algo!(CmmaBalancedAlgorithm, F, op.input, conv_problem),
         _ => true,
     }
 }

@@ -1,5 +1,6 @@
 use cubecl::{
     linalg::matmul::components::{
+        global::Loader,
         stage::{
             multi_buffer::LhsReader, ColMajorTiling, RowMajorTiling, Stage, TilingOrder as _,
             TilingOrderConfig,
@@ -11,8 +12,6 @@ use cubecl::{
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{reader::im2col::Im2colReader, Config};
-
-use super::base::Loader;
 
 /// Loader that translates matrix coordinates to input coordinates using the `im2col` algorithm
 #[derive(CubeType)]
