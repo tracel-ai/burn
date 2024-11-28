@@ -85,10 +85,7 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
             .collect();
 
         // Original sample path
-        let images_path: Vec<String> = items
-            .iter()
-            .map(|item| item.image_path.clone())
-            .collect();
+        let images_path: Vec<String> = items.iter().map(|item| item.image_path.clone()).collect();
 
         let images = items
             .into_iter()
@@ -107,6 +104,10 @@ impl<B: Backend> Batcher<ImageDatasetItem, ClassificationBatch<B>> for Classific
 
         let images = self.normalizer.normalize(images);
 
-        ClassificationBatch { images, targets, images_path }
+        ClassificationBatch {
+            images,
+            targets,
+            images_path,
+        }
     }
 }
