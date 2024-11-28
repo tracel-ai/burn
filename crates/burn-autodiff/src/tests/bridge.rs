@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(bridge)]
 mod tests {
     use super::*;
-    use burn_tensor::{backend::Backend, Distribution, Tensor};
+    use burn_tensor::{backend::Backend, DType, Distribution, Tensor};
 
     #[test]
     fn test_full_precision() {
@@ -10,12 +10,13 @@ mod tests {
             .require_grad();
         let x2 = Tensor::<TestAutodiffBackend, 2>::random([32, 32], Distribution::Default, &device)
             .require_grad();
+        let dtype = x1.dtype();
 
-        let x3 = x1.clone().into_full_precision();
-        let x4 = x2.clone().into_full_precision();
+        let x3 = x1.clone().cast(DType::F32);
+        let x4 = x2.clone().cast(DType::F32);
 
         let x5 = x3.matmul(x4);
-        let x6 = Tensor::<TestAutodiffBackend, 2>::from_full_precision(x5);
+        let x6 = x5.cast(dtype);
         let x7 = x6 * x1.clone() / x2.clone();
 
         let mut grads = x7.backward();

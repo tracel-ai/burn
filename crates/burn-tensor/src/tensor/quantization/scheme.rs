@@ -45,7 +45,10 @@ impl QuantizationScheme {
                     let zero = Tensor::zeros_like(&range.max);
                     let max = range.max.max_pair(zero);
 
+                    // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
+                    // scale to 0.1 to avoid division by zero.
                     let scale = max.sub(min.clone()).div_scalar(b - a);
+                    let scale = scale.clone().mask_fill(scale.equal_elem(0.), 0.1);
                     let offset = Some(-(min.div(scale.clone()).sub_scalar(a)).int());
                     QuantizationParameters { scale, offset }
                 }

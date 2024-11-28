@@ -1,7 +1,7 @@
 use burn_common::id::StreamId;
 use burn_common::stub::Mutex;
 use burn_router::Runner;
-use burn_tensor::{ops::FullPrecisionBackend, repr::ReprBackend, Device};
+use burn_tensor::{repr::ReprBackend, Device};
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, SyncSender},
@@ -27,11 +27,7 @@ struct Session<B: ReprBackend> {
     receiver: Option<Receiver<Receiver<TaskResponse>>>,
 }
 
-impl<B: ReprBackend> SessionManager<B>
-where
-    // Restrict full precision backend handle to be the same
-    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> SessionManager<B> {
     pub fn new(device: Device<B>) -> Self {
         Self {
             runner: Runner::new(device),
@@ -103,11 +99,7 @@ where
     }
 }
 
-impl<B: ReprBackend> Session<B>
-where
-    // Restrict full precision backend handle to be the same
-    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> Session<B> {
     fn new(runner: Runner<B>) -> Self {
         let (sender, reveiver) = std::sync::mpsc::sync_channel(1);
         Self {

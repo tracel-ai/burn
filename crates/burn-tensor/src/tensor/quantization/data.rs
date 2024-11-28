@@ -18,7 +18,7 @@ pub fn pack_i8s_to_u32s(bytes: &[u8]) -> Vec<u32> {
         .collect()
 }
 
-/// Unpack 32-bit unsiged integer values into a sequence of signed 8-bit integers.
+/// Unpack 32-bit unsigned integer values into a sequence of signed 8-bit integers.
 ///
 /// # Note
 /// This assumes that the bytes represent `u32` values.
