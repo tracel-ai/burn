@@ -1,3 +1,5 @@
+use std::hint::black_box;
+
 use backend_comparison::persistence::save;
 use burn::tensor::{
     backend::Backend, module::conv2d, ops::ConvOptions, Distribution, Shape, Tensor,
@@ -50,6 +52,10 @@ impl<B: Backend> Benchmark for Conv2dBenchmark<B> {
 
     fn sync(&self) {
         B::sync(&self.device)
+    }
+
+    fn num_samples(&self) -> usize {
+        40
     }
 }
 
@@ -207,29 +213,18 @@ fn bench<B: Backend>(
         device: device.clone(),
     };
 
-    save::<B>(
-        vec![
-            run_benchmark(benchmark),
-            run_benchmark(conv1),
-            run_benchmark(conv2),
-            run_benchmark(conv3),
-            run_benchmark(conv4),
-            run_benchmark(conv5),
-            run_benchmark(conv6),
-            run_benchmark(conv7),
-            run_benchmark(conv8),
-            run_benchmark(conv9),
-            run_benchmark(conv10),
-            run_benchmark(conv11),
-            run_benchmark(conv12),
-            run_benchmark(conv13),
-        ],
-        device,
-        feature_name,
-        url,
-        token,
-    )
-    .unwrap();
+    let benches = vec![
+        benchmark, conv1, conv2, conv3, conv4, conv5, conv6, conv7, conv8, conv9, conv10, conv11,
+        conv12, conv13,
+    ];
+    let mut results = Vec::new();
+
+    for bench in benches {
+        let result = black_box(run_benchmark(bench));
+        results.push(result);
+    }
+
+    save::<B>(results, device, feature_name, url, token).unwrap();
 }
 
 fn main() {
