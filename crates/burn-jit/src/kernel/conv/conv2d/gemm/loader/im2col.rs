@@ -25,18 +25,21 @@ pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric, G: Config> {
 impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoader<EG, ES, G> {
     type StageReader = LhsReader<ES>;
 
-    fn fill_stage(this: &mut Self, #[comptime] config: G) -> Self::StageReader {
+    fn fill_stage(this: &mut Self, #[comptime] config: G) {
         SimpleIm2col::load_to_slice::<EG, ES, G>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
             Ident::Lhs,
             config,
         );
-        LhsReader::new(this.stage)
     }
 
     fn advance_view(this: &mut Self, k_offset: u32) {
         this.tensor_view.update_view(k_offset);
+    }
+
+    fn as_stage_reader(this: &Self) -> Self::StageReader {
+        LhsReader::new(this.stage)
     }
 }
 

@@ -3,7 +3,7 @@ use cubecl::{
         components::{
             global::{
                 self,
-                homogeneous::{self, CyclicLoading, RhsLoader},
+                full_load::{self, CyclicLoading, RhsLoader},
                 unloader::Unloader,
                 AccumulatorLoader, Config as _, Loader,
             },
@@ -93,9 +93,11 @@ where
         for _ in 0..num_loops {
             sync_units();
 
-            let lhs_stage_reader = &Self::LhsLoader::fill_stage(&mut lhs_loader, config);
-            let rhs_stage_reader =
-                &Self::RhsLoader::fill_stage(&mut rhs_loader, config.to_matmul_config());
+            Self::LhsLoader::fill_stage(&mut lhs_loader, config);
+            Self::RhsLoader::fill_stage(&mut rhs_loader, config.to_matmul_config());
+
+            let lhs_stage_reader = &Self::LhsLoader::as_stage_reader(&lhs_loader);
+            let rhs_stage_reader = &Self::RhsLoader::as_stage_reader(&rhs_loader);
 
             sync_units();
 
@@ -172,7 +174,7 @@ where
     Acc: Numeric,
     SMM: stage::Matmul<ES, EG, Acc>,
 {
-    type Config = config::Config<homogeneous::Config<SMM::Config>>;
+    type Config = config::Config<full_load::Config<SMM::Config>>;
 
     fn check_config(config: Self::Config) {
         SMM::check_config(config.to_smm_config());
@@ -198,7 +200,7 @@ where
         );
 
         config::Config::new(
-            homogeneous::Config::new(
+            full_load::Config::new(
                 smm_config,
                 problem.m as u32 % SMM::M != 0,
                 problem.n as u32 % SMM::N != 0,

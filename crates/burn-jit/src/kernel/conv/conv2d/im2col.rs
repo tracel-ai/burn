@@ -2,13 +2,13 @@ use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, linalg::matmul, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::{
         conv::index,
         into_contiguous, launch_binop,
-        matmul::{cube_strategy, matmul, MatmulStrategy},
+        matmul::{matmul, MatmulStrategy},
         AddOp,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
@@ -271,7 +271,7 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
     let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
     let input = reshape(input, in_shape);
-    let out = matmul::<R, E>(weight, input, MatmulStrategy::default());
+    let out = matmul::<R, E>(weight, input, None, MatmulStrategy::default());
     let mut out = reshape(out, Shape::new([out_channels, batch_size, height, width]));
 
     if let Some(bias) = bias {
@@ -290,7 +290,6 @@ fn execute<R: JitRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
 ) {
-    let client = input.client.clone();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
 
@@ -302,11 +301,5 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-    matmul::launch_ref::<R, E>(
-        &cube_strategy::<R>(&client),
-        &client,
-        &weight.as_handle_ref(),
-        &columns.as_handle_ref(),
-        &out.as_handle_ref(),
-    );
+    matmul::<R, E>(weight, columns, Some(out), Default::default());
 }
