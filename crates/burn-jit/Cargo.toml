@@ -27,7 +27,6 @@ export_tests = [
 fusion = ["burn-fusion"]
 std = ["cubecl/std"]
 template = []
-lower-precision = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.16.0" }

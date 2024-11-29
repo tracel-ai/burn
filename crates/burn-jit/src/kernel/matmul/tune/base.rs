@@ -6,9 +6,6 @@ use cubecl::{
     tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTuner},
 };
 
-#[cfg(feature = "lower-precision")]
-use cubecl::linalg::matmul::kernels::cmma_old;
-
 use crate::{
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
@@ -75,12 +72,6 @@ impl<R: JitRuntime, E: FloatElement> AutotuneOperationSet<JitAutotuneKey>
                 rhs.clone(),
                 out.clone(),
             )),
-            #[cfg(feature = "lower-precision")]
-            Box::new(MatmulCmmaOld::<R, E>::new(
-                lhs.clone(),
-                rhs.clone(),
-                out.clone(),
-            )),
         ]
     }
 
@@ -89,8 +80,6 @@ impl<R: JitRuntime, E: FloatElement> AutotuneOperationSet<JitAutotuneKey>
             0 => Box::new(MatmulTiling2d::<R, E>::new(self.lhs, self.rhs, self.out)),
             1 => Box::new(MatmulAccelerated::<R, E>::new(self.lhs, self.rhs, self.out)),
             2 => Box::new(MatmulSimple::<R, E>::new(self.lhs, self.rhs, self.out)),
-            #[cfg(feature = "lower-precision")]
-            3 => Box::new(MatmulCmmaOld::<R, E>::new(self.lhs, self.rhs, self.out)),
             _ => panic!("Fastest index is out of bound"),
         }
     }
@@ -100,10 +89,11 @@ impl<R: JitRuntime, E: FloatElement> AutotuneOperationSet<JitAutotuneKey>
 pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
+    out: Option<JitTensor<R>>,
 ) -> JitTensor<R> {
-    let client = lhs.client.clone();
+    let output = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
 
-    let output = init_matmul_output::<R, E>(&lhs, &rhs);
+    let client = lhs.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
@@ -182,21 +172,6 @@ matmul_tune_ops!(
     |lhs: JitTensor<R>, rhs: JitTensor<R>, out: JitTensor<R>| {
         cubecl::linalg::matmul::launch_ref::<R, E>(
             &Strategy::Simple,
-            &lhs.client,
-            &lhs.as_handle_ref(),
-            &rhs.as_handle_ref(),
-            &out.as_handle_ref(),
-        );
-    }
-);
-
-#[cfg(feature = "lower-precision")]
-// TODO: Remove when we fix the bug with the SPIR-V compiler.
-matmul_tune_ops!(
-    MatmulCmmaOld,
-    |lhs: JitTensor<R>, rhs: JitTensor<R>, out: JitTensor<R>| {
-        cubecl::linalg::matmul::launch_ref::<R, E>(
-            &Strategy::CmmaOld(cmma_old::PredefinedCmmaConfig::M128K16.into()),
             &lhs.client,
             &lhs.as_handle_ref(),
             &rhs.as_handle_ref(),

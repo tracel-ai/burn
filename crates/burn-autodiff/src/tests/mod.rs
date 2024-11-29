@@ -90,18 +90,18 @@ macro_rules! testgen_all {
 
             pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolTensorPrimitive;
+            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolElem;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<$float, IntType>;
+                    pub type TestBackend = TestBackend2<$float, IntType, BoolType>;
                     pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
                     pub type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
-                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, D>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, BoolType, D>;
 
                     type FloatType = $float;
 

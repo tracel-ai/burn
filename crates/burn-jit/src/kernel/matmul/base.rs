@@ -28,12 +28,15 @@ impl Default for MatmulStrategy {
 pub fn matmul<R: JitRuntime, E: FloatElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
+    out: Option<JitTensor<R>>,
     strategy: MatmulStrategy,
 ) -> JitTensor<R> {
     match strategy {
         MatmulStrategy::Cube => {
-            let out = init_matmul_output::<R, E>(&lhs, &rhs);
+            let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
+
             let client = &lhs.client;
+
             cubecl::linalg::matmul::launch_ref::<R, E>(
                 &Default::default(),
                 client,
@@ -44,6 +47,6 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
             out
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs),
+        MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs, out),
     }
 }

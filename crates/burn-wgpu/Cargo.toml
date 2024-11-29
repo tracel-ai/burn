@@ -17,10 +17,7 @@ default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 doc = ["burn-jit/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
-spirv = [
-    "cubecl/wgpu-spirv",
-    "burn-jit/lower-precision",
-] # TODO: Remove lower-precision when spirv is fixed.
+spirv = ["cubecl/wgpu-spirv"]
 std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
 

@@ -18,6 +18,8 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type FloatElem: Element;
     /// Int element type.
     type IntElem: Element;
+    /// Bool element type.
+    type BoolElem: Element;
 
     /// Name of the channel.
     fn name() -> String;

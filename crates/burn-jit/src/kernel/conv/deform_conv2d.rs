@@ -1,18 +1,22 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, DeformConvOptions, FloatTensorOps as _},
+    ops::{conv::calculate_conv_output_size, DeformConvOptions},
     Shape,
 };
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous, launch_binop,
+        matmul::{matmul, MatmulStrategy},
+        AddOp,
+    },
     ops::{
         numeric::{ones_device, zeros_device},
         reshape, swap_dims,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -251,7 +255,7 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
     output
 }
 
-pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     offset: JitTensor<R>,
     weight: JitTensor<R>,
@@ -294,24 +298,15 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
+    let out = matmul::<R, E>(weight, columns, None, MatmulStrategy::default());
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        JitBackend::<R, E, I>::float_add(out, bias)
+        launch_binop::<R, E, AddOp>(out, bias)
     } else {
         out
     }
-}
-
-pub(crate) fn index<R: JitRuntime, E: FloatElement, I: IntElement>(
-    tensor: JitTensor<R>,
-    index: usize,
-) -> JitTensor<R> {
-    let [_, shape_0, shape_1] = tensor.shape.dims();
-    let tensor = JitBackend::<R, E, I>::float_narrow(tensor, 0, index, 1);
-    reshape(tensor, Shape::new([shape_0, shape_1]))
 }

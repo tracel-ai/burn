@@ -1,5 +1,5 @@
 use super::{
-    ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, UnaryElemwiseArgs},
+    ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, UnaryElemwiseArgs},
     trace::FuseOnWriteTrace,
     trace_builder::FuseOnWriteTraceBuilder,
 };
@@ -30,9 +30,9 @@ struct TryFuseBuilder {
 }
 
 impl TryFuseBuilder {
-    fn new(max_bindings: u32) -> Self {
+    fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
         Self {
-            builder: FuseOnWriteTraceBuilder::new(),
+            builder: FuseOnWriteTraceBuilder::new(bool_precision),
             max_bindings,
             added_ops: false,
         }
@@ -118,7 +118,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn reset(&mut self) {
         self.num_ops = 0;
         self.status = OptimizationStatus::Open;
-        self.builder = TryFuseBuilder::new(self.max_bindings);
+        self.builder = TryFuseBuilder::new(self.max_bindings, self.builder.builder.bool_precision);
         self.current_output_shape.clear();
     }
 
@@ -137,9 +137,9 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
 }
 
 impl FuseOnWriteBuilder {
-    pub fn new(max_bindings: u32) -> Self {
+    pub fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
         Self {
-            builder: TryFuseBuilder::new(max_bindings),
+            builder: TryFuseBuilder::new(max_bindings, bool_precision),
             num_ops: 0,
             max_bindings,
             current_output_shape: Vec::new(),

@@ -1,6 +1,6 @@
-use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRuntime};
 use burn_tensor::{Shape, TensorData};
-use cubecl::{tensor_vectorization_factor, CubeElement};
+use cubecl::tensor_vectorization_factor;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
@@ -29,11 +29,16 @@ pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> Ten
     TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime>(tensor: JitTensor<R>) -> TensorData {
+pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
+    tensor: JitTensor<R>,
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
     TensorData::new(
-        u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+        BT::from_bytes(&bytes)
+            .iter()
+            .map(|i| *i != BT::false_val())
+            .collect(),
         tensor.shape,
     )
 }

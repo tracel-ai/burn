@@ -1,14 +1,19 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions, FloatTensorOps as _},
+    ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, linalg::matmul, prelude::*};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{
+        conv::index,
+        into_contiguous, launch_binop,
+        matmul::{matmul, MatmulStrategy},
+        AddOp,
+    },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -178,7 +183,7 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -206,7 +211,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     if kernel_h == 1 && kernel_w == 1 && in_height == out_h && in_width == out_w {
         // Special case for 1x1 kernels (sometimes used to scale the image by a set of weights)
-        return execute_1x1_kernel::<R, E, I>(input, weight, bias, options);
+        return execute_1x1_kernel::<R, E>(input, weight, bias, options);
     }
 
     let batches_per_run = batches_per_run(batch_size, out_h, out_w)
@@ -221,9 +226,9 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
         let input = reshape(input, in_shape);
         let in_shape_run = Shape::new([batches_per_run, in_channels, in_height, in_width]);
         for run in 0..runs {
-            let input = JitBackend::<R, E, I>::float_narrow(input.clone(), 0, run, 1);
+            let input = index::<R, E>(input.clone(), run);
             let input = reshape(input, in_shape_run.clone());
-            let out_slice = JitBackend::<R, E, I>::float_narrow(out.clone(), 0, run, 1);
+            let out_slice = index::<R, E>(out.clone(), run);
             let out_slice = reshape(out_slice, matmul_shape.clone());
             execute::<R, E>(
                 input,
@@ -245,12 +250,12 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        out = JitBackend::<R, E, I>::float_add(out, bias)
+        out = launch_binop::<R, E, AddOp>(out, bias)
     }
     out
 }
 
-fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
+fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -266,12 +271,12 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement, I: IntElement>(
     let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
     let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
     let input = reshape(input, in_shape);
-    let out = JitBackend::<R, E, I>::float_matmul(weight, input);
+    let out = matmul::<R, E>(weight, input, None, MatmulStrategy::default());
     let mut out = reshape(out, Shape::new([out_channels, batch_size, height, width]));
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([out_channels, 1, 1, 1]));
-        out = JitBackend::<R, E, I>::float_add(out, bias)
+        out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
     swap_dims(out, 0, 1)
@@ -285,7 +290,6 @@ fn execute<R: JitRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
 ) {
-    let client = input.client.clone();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
 
@@ -297,11 +301,5 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-    matmul::launch_ref::<R, E>(
-        &Default::default(),
-        &client,
-        &weight.as_handle_ref(),
-        &columns.as_handle_ref(),
-        &out.as_handle_ref(),
-    );
+    matmul::<R, E>(weight, columns, Some(out), Default::default());
 }
