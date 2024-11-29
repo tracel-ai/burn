@@ -123,6 +123,7 @@ pub(crate) fn handle_command(
                         jobs: args.jobs,
                         ci: args.ci,
                         features: args.features.clone(),
+                        no_default_features: args.no_default_features,
                     },
                     env,
                 )

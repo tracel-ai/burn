@@ -56,6 +56,7 @@ pub fn handle_command(
                 command: Some(TestSubCommand::All),
                 ci: true,
                 features: None,
+                no_default_features: false,
             },
             ExecutionEnvironment::Std,
         )?;
@@ -103,6 +104,7 @@ pub fn handle_command(
                     command: Some(TestSubCommand::All),
                     ci: true,
                     features: None,
+                    no_default_features: false,
                 },
                 ExecutionEnvironment::NoStd,
             )?;
