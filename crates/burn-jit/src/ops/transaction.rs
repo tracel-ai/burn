@@ -60,7 +60,7 @@ where
         let client = client.unwrap();
 
         async move {
-            let mut data = client
+            let mut data: Vec<Option<_>> = client
                 .read_async(bindings)
                 .await
                 .into_iter()

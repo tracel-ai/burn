@@ -1,5 +1,5 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
+use burn::tensor::{backend::Backend, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
@@ -21,17 +21,13 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
         vec![self.shape_lhs.dims.clone(), self.shape_rhs.dims.clone()]
     }
 
-    fn num_samples(&self) -> usize {
-        10
-    }
-
     fn execute(&self, (lhs, rhs): Self::Args) {
-        lhs.clone().matmul(rhs.clone());
+        lhs.matmul(rhs);
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
-        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
+        let lhs = Tensor::zeros(self.shape_lhs.clone(), &self.device);
+        let rhs = Tensor::zeros(self.shape_rhs.clone(), &self.device);
 
         (lhs, rhs)
     }
@@ -48,24 +44,18 @@ fn bench<B: Backend>(
     url: Option<&str>,
     token: Option<&str>,
 ) {
-    const D: usize = 3;
-    let batch_size = 8;
-    let m = 2048;
-    let k = 2048;
-    let n = 2048;
-    let shape_lhs = [batch_size, m, k].into();
-    let shape_rhs = [batch_size, k, n].into();
+    let benchmarks = [(2, 4096, 4096, 4096), (8, 2048, 2048, 2048)]
+        .into_iter()
+        .map(|(b, m, n, k)| {
+            let shape_lhs = [b, m, k].into();
+            let shape_rhs = [b, k, n].into();
 
-    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
+            MatmulBenchmark::<B, 3>::new(shape_lhs, shape_rhs, device.clone())
+        })
+        .map(run_benchmark)
+        .collect();
 
-    save::<B>(
-        vec![run_benchmark(benchmark)],
-        device,
-        feature_name,
-        url,
-        token,
-    )
-    .unwrap();
+    save::<B>(benchmarks, device, feature_name, url, token).unwrap();
 }
 
 fn main() {

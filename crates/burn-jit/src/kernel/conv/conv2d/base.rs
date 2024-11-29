@@ -1,15 +1,12 @@
-use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions},
-    TensorData,
-};
+use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
-use crate::{tensor::JitTensor, FloatElement, IntElement, JitElement, JitRuntime};
+use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 
 #[cfg(feature = "autotune")]
 use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
     conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
-    implicit_gemm::conv2d_implicit_gemm,
+    gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
@@ -24,6 +21,9 @@ pub enum Conv2dStrategy {
     /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
     /// has constraints on tensor shape.
     ImplicitGemm,
+    /// Implicit GEMM implementation of convolution. Uses `cubecl` matmul components to provide
+    /// the flexibility needed to work well for varied problem sizes.
+    ImplicitGemmComplex,
 }
 
 impl Default for Conv2dStrategy {
@@ -82,6 +82,9 @@ pub fn conv2d<R: JitRuntime, E: FloatElement>(
         Conv2dStrategy::Autotune => conv2d_autotune::<R, E>(input, weight, bias, options),
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E>(input, weight, bias, options),
         Conv2dStrategy::ImplicitGemm => conv2d_implicit_gemm::<R, E>(input, weight, bias, options),
+        Conv2dStrategy::ImplicitGemmComplex => {
+            conv2d_gemm_cmma_large_m::<R, E>(input, weight, bias, options)
+        }
     }
 }
 
@@ -112,10 +115,4 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
             conv_transpose2d_col2im::<R, E>(input, weight, bias, options)
         }
     }
-}
-
-#[allow(unused)]
-pub(crate) fn debug_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }

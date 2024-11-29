@@ -5,7 +5,10 @@ use cubecl::tune::{local_tuner, AutotuneOperation, AutotuneOperationSet, LocalTu
 
 use crate::{
     element::FloatElement,
-    kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
+    kernel::{
+        matmul::{cube_strategy, utils::init_matmul_output},
+        prng::random_like_uniform,
+    },
     ops::numeric::empty_device,
     tensor::JitTensor,
     tune_key::JitAutotuneKey,
@@ -87,9 +90,9 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    let client = lhs.client.clone();
-
     let output = init_matmul_output::<R, E>(&lhs, &rhs);
+
+    let client = lhs.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
@@ -149,11 +152,13 @@ matmul_tune_ops!(SimpleMatmul16x16, |lhs, rhs, out| {
 matmul_tune_ops!(
     MatmulCube,
     |lhs: JitTensor<R>, rhs: JitTensor<R>, out: JitTensor<R>| {
+        let strategy = cube_strategy::<R>(&lhs.client);
         cubecl::linalg::matmul::launch_ref::<R, E>(
+            &strategy,
             &lhs.client,
-            lhs.as_handle_ref(),
-            rhs.as_handle_ref(),
-            out.as_handle_ref(),
+            &lhs.as_handle_ref(),
+            &rhs.as_handle_ref(),
+            &out.as_handle_ref(),
         );
     }
 );

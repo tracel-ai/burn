@@ -7,8 +7,10 @@ pub fn into_contiguous<R: JitRuntime>(tensor: JitTensor<R>) -> JitTensor<R> {
     }
 
     execute_with_dtype!(tensor.dtype, E, {
-        let output =
-            cubecl::linalg::tensor::into_contiguous::<R, E>(&tensor.client, tensor.as_handle_ref());
+        let output = cubecl::linalg::tensor::into_contiguous::<R, E>(
+            &tensor.client,
+            &tensor.as_handle_ref(),
+        );
 
         JitTensor::new(
             tensor.client,

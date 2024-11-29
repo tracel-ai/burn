@@ -6,7 +6,10 @@ use cubecl::{calculate_cube_count_elemwise, linalg::matmul, prelude::*};
 
 use crate::{
     kernel::{
-        conv::index, into_contiguous, launch_binop, matmul::matmul, matmul::MatmulStrategy, AddOp,
+        conv::index,
+        into_contiguous, launch_binop,
+        matmul::{cube_strategy, matmul, MatmulStrategy},
+        AddOp,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
@@ -300,9 +303,10 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
     matmul::launch_ref::<R, E>(
+        &cube_strategy::<R>(&client),
         &client,
-        weight.as_handle_ref(),
-        columns.as_handle_ref(),
-        out.as_handle_ref(),
+        &weight.as_handle_ref(),
+        &columns.as_handle_ref(),
+        &out.as_handle_ref(),
     );
 }

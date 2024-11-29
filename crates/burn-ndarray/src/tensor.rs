@@ -463,7 +463,7 @@ mod tests {
             scale: B::float_from_data(TensorData::from([0.009_019_608]), &device),
             offset: Some(B::int_from_data(TensorData::from([72]), &device)),
         };
-        let qtensor: NdArrayQTensor<i8> = B::quantize(tensor.into(), &scheme, qparams);
+        let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
