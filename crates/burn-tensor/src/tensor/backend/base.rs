@@ -83,6 +83,8 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all bool operations.
     type BoolTensorPrimitive: TensorMetadata + 'static;
+    /// Tensor primitive to be used for all bool operations.
+    type BoolElem: Element;
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;

@@ -3,13 +3,14 @@ use burn_tensor::{
     DType, TensorData,
 };
 
-use crate::{FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R, F, I> TransactionOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, BT> TransactionOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    BT: BoolElement,
 {
     fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
@@ -51,7 +52,7 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Bool(num_bindings, t.shape.into(), DType::U32));
+            kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
@@ -64,7 +65,7 @@ where
                 .await
                 .into_iter()
                 .map(Some)
-                .collect::<Vec<_>>();
+                .collect::<Vec<Option<_>>>();
 
             let mut result = TransactionPrimitiveResult::default();
 

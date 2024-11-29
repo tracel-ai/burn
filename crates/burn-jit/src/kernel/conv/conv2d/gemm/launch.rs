@@ -28,7 +28,7 @@ use crate::{
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::JitTensor,
-    FloatElement, IntElement, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
@@ -62,8 +62,7 @@ macro_rules! select_launch_algo {
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -82,8 +81,7 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement, I: IntElement>(
 /// * `options` - The options to use for the convolution
 ///
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,

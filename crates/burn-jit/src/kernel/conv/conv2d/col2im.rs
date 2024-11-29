@@ -1,14 +1,18 @@
 use burn_tensor::{
-    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions, FloatTensorOps as _},
+    ops::{conv::calculate_conv_transpose_output_size, ConvTransposeOptions},
     Shape,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous,
+        matmul::{matmul, MatmulStrategy},
+        slice,
+    },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, JitElement, JitRuntime,
 };
 
 use super::batches_per_run;
@@ -20,7 +24,7 @@ use super::batches_per_run;
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -77,12 +81,12 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
         let input_shape_run = Shape::new([batches_per_run, input_channels, input_h, input_w]);
 
         for run in 0..runs {
-            let input = JitBackend::<R, E, I>::float_narrow(input.clone(), 0, run, 1);
+            let input = index::<R, E>(input.clone(), run);
             let input = reshape(input, input_shape_run.clone());
             let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
-            let image_slice = JitBackend::<R, E, I>::float_narrow(image.clone(), 0, run, 1);
+            let image_slice = index::<R, E>(image.clone(), run);
             let image_slice = reshape(image_slice, im_shape);
-            execute::<R, E, I>(
+            execute::<R, E>(
                 input,
                 weight.clone(),
                 bias.clone(),
@@ -96,7 +100,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
         let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
-        execute::<R, E, I>(
+        execute::<R, E>(
             input,
             weight,
             bias,
@@ -109,8 +113,21 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement, I: IntElement>(
     }
 }
 
+pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>, i: usize) -> JitTensor<R> {
+    #[allow(clippy::single_range_in_vec_init)]
+    let mut indices = vec![i..i + 1];
+    for dim in tensor.shape.dims[1..].iter() {
+        indices.push(0..*dim);
+    }
+    let new_shape = Shape {
+        dims: tensor.shape.dims[1..].to_vec(),
+    };
+    let tensor = slice::<R, E>(tensor, &indices);
+    reshape(tensor, new_shape)
+}
+
 #[allow(clippy::too_many_arguments)]
-fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
+fn execute<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -128,7 +145,7 @@ fn execute<R: JitRuntime, E: FloatElement, I: IntElement>(
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
     let input = reshape(input, input_shape);
 
-    let columns = JitBackend::<R, E, I>::float_matmul(weight, input);
+    let columns = matmul::<R, E>(weight, input, MatmulStrategy::default());
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     col2im::<R, E>(
