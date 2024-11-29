@@ -162,7 +162,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            matmul::<R, E>(lhs, rhs, MatmulStrategy::default())
+            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default())
         )
     }
 
