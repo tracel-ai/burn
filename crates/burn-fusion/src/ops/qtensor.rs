@@ -24,7 +24,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             DType::QFloat(scheme) => {
                 let client = get_client::<B>(device);
                 let tensor = B::q_from_data(data, device);
-                let shape = B::q_shape(&tensor);
+                let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
                 let handles = B::quantized_tensor_handle(tensor);
                 let qparams = match scheme {
@@ -209,12 +209,6 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         );
 
         out
-    }
-
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        // Conflicting `dtype()` when both `Element` and `TensorMetadata` traits are in
-        // scope so we use the fully qualified syntax
-        burn_tensor::TensorMetadata::shape(tensor)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {

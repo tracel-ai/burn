@@ -33,10 +33,6 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         todo!()
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        B::q_shape(tensor)
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
         B::q_device(tensor)
     }

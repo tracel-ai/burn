@@ -72,10 +72,6 @@ where
         kernel::quantization::dequantize::<R, F, I>(tensor)
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape.clone()
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
         tensor.qtensor.device.clone()
     }

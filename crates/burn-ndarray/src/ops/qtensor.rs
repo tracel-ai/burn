@@ -108,10 +108,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         new_tensor_float!(NdArrayTensor::from_data(data.dequantize().unwrap()))
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
-    }
-
     fn q_device(_tensor: &QuantizedTensor<Self>) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
