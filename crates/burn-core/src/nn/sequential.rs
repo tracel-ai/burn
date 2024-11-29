@@ -6,7 +6,7 @@
 /// - Backend modules: Modules that take a backend parameter (eg. Linear)
 ///
 /// List these classes of modules as comma-separated within classes, then semicolons between, like so:
-/// ```
+/// ```ignore
 /// gen_sequential! {
 ///     // No config
 ///     Relu,
@@ -20,7 +20,7 @@
 /// ```
 ///
 /// If there aren't any members of a particular class, the semicolon is still needed:
-/// ```
+/// ```ignore
 /// gen_sequential! {
 ///     Relu,
 ///     Sigmoid;
@@ -34,20 +34,20 @@
 #[macro_export]
 macro_rules! gen_sequential {
     ($($unit:tt),*; $($cfg:ty => $module:tt),*; $($bcfg:ty => $bmodule:tt),*) => {
-        #[derive(Debug, ::burn::config::Config)]
+        #[derive(Debug, burn::config::Config)]
         pub enum SequentialLayerConfig {
             $($unit,)*
             $($module($cfg),)*
             $($bmodule($bcfg),)*
         }
 
-        #[derive(Debug, ::burn::config::Config)]
+        #[derive(Debug, burn::config::Config)]
         pub struct SequentialConfig {
             pub layers: Vec<SequentialLayerConfig>
         }
 
         impl SequentialConfig {
-            pub fn init<B: ::burn::prelude::Backend>(&self, device: &B::Device) -> Sequential<B> {
+            pub fn init<B: burn::prelude::Backend>(&self, device: &B::Device) -> Sequential<B> {
                 Sequential {
                     layers: self.layers.iter().map(|l| match l {
                         $(SequentialLayerConfig::$unit => SequentialLayer::$unit($unit),)*
@@ -58,8 +58,8 @@ macro_rules! gen_sequential {
             }
         }
 
-        #[derive(Debug, ::burn::module::Module)]
-        pub enum SequentialLayer<B: ::burn::prelude::Backend> {
+        #[derive(Debug, burn::module::Module)]
+        pub enum SequentialLayer<B: burn::prelude::Backend> {
             /// In case the expansion doesn't use any backend-based layers. This should never be used.
             _PhantomData(::core::marker::PhantomData<B>),
             $($unit($unit),)*
@@ -67,13 +67,13 @@ macro_rules! gen_sequential {
             $($bmodule($bmodule<B>),)*
         }
 
-        #[derive(Debug, ::burn::module::Module)]
-        pub struct Sequential<B: ::burn::prelude::Backend> {
+        #[derive(Debug, burn::module::Module)]
+        pub struct Sequential<B: burn::prelude::Backend> {
             pub layers: Vec<SequentialLayer<B>>
         }
 
-        impl<B: ::burn::prelude::Backend> Sequential<B> {
-            pub fn forward<const D: usize>(&self, mut input: ::burn::tensor::Tensor<B, D>) -> ::burn::tensor::Tensor<B, D> {
+        impl<B: burn::prelude::Backend> Sequential<B> {
+            pub fn forward<const D: usize>(&self, mut input: burn::tensor::Tensor<B, D>) -> burn::tensor::Tensor<B, D> {
                 for layer in &self.layers {
                     input = match layer {
                         SequentialLayer::_PhantomData(_) => unreachable!("PhantomData should never be instantiated"),
