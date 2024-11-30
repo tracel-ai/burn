@@ -24,7 +24,9 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         let tensor = &self.outputs[0];
         let dims = tensor.dim;
 
-        let vec_tensor_type = quote! {vec<Tensor<B, #dims>>};
+        let dims_literal = proc_macro2::Literal::usize_unsuffixed(dims);
+
+        let vec_tensor_type = quote! {Vec<Tensor<B, #dims_literal>>};
 
         let other_type = OtherType {
             name: syn::Ident::new("split_tensors", proc_macro2::Span::call_site()),
@@ -41,24 +43,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let axis = self.config.axis.to_tokens();
+        let split_tensors = syn::Ident::new("split_tensors", proc_macro2::Span::call_site());
 
         let split_code = if let Some(split_sizes) = &self.config.split_sizes {
             let split_sizes_tokens = split_sizes.to_tokens();
             quote! {
-                let split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
+                let #split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
             }
         } else {
             let num_outputs = self.config.num_outputs.unwrap();
             let num_outputs_tokens = num_outputs.to_tokens();
             quote! {
-                let split_tensors = #input.split(#num_outputs_tokens, #axis);
+                let #split_tensors = #input.split(#num_outputs_tokens, #axis);
             }
         };
 
-        quote! {
-            #split_code
-            split_tensors
-        }
+        split_code
     }
 
     fn into_node(self) -> Node<PS> {
@@ -124,8 +124,8 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 2>,
-                ) -> Vec<Tensor<B, 2> {
-                    let split_tensors = burn::tensor::Tensor::split(tensor1, 2, 0);
+                ) -> Vec<Tensor<B, 2>> {
+                    let split_tensors = tensor1.split(2, 0);
 
                     split_tensors
                 }
