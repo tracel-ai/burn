@@ -1,4 +1,5 @@
 use crate::{
+    element::BoolElement,
     kernel::{
         self,
         conv::{Conv2dStrategy, ConvTranspose2dStrategy},
@@ -11,11 +12,12 @@ use burn_tensor::ops::{
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<R, F, I> ModuleOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, BT> ModuleOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    BT: BoolElement,
 {
     fn conv2d(
         x: FloatTensor<Self>,
@@ -23,7 +25,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv2d::<R, F, I>(x, weight, bias, options, Conv2dStrategy::default())
+        kernel::conv::conv2d::<R, F>(x, weight, bias, options, Conv2dStrategy::default())
     }
 
     fn deform_conv2d(
@@ -34,7 +36,7 @@ where
         bias: Option<FloatTensor<Self>>,
         options: DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::deform_conv2d::<R, F, I>(x, offset, weight, mask, bias, options)
+        kernel::conv::deform_conv2d::<R, F>(x, offset, weight, mask, bias, options)
     }
 
     fn deform_conv2d_backward(
@@ -46,7 +48,7 @@ where
         output_grad: FloatTensor<Self>,
         options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
-        kernel::conv::deform_conv2d_backward::<R, F, I>(
+        kernel::conv::deform_conv2d_backward::<R, F, I, BT>(
             x,
             offset,
             weight,

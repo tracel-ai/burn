@@ -168,6 +168,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type IntElem = I;
 
     type BoolTensorPrimitive = CandleTensor;
+    type BoolElem = u32;
 
     type QuantizedTensorPrimitive = CandleQTensor;
     type QuantizedEncoding = u8;

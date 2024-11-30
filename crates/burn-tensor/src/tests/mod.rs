@@ -17,28 +17,28 @@ macro_rules! testgen_all {
 
             pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolElem;
 
             $crate::testgen_with_float_param!();
             $crate::testgen_no_param!();
         }
     };
-    ([$($float:ident),*], [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         pub mod tensor {
             pub use super::*;
 
             pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolElem;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<$float, IntType>;
-                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, D>;
+                    pub type TestBackend = TestBackend2<$float, IntType, BoolType>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, BoolType, D>;
 
                     pub type FloatType = $float;
 
@@ -47,12 +47,24 @@ macro_rules! testgen_all {
                 $(mod [<$int _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<FloatType, $int>;
-                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, $int, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, $int, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, $int, D>;
+                    pub type TestBackend = TestBackend2<FloatType, $int, BoolType>;
+                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, $int, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, $int, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, $int, BoolType, D>;
 
                     pub type IntType = $int;
+
+                    $crate::testgen_with_int_param!();
+                })*
+                $(mod [<$bool _bool_ty>] {
+                    pub use super::*;
+
+                    pub type TestBackend = TestBackend2<FloatType, IntType, $bool>;
+                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, IntType, $bool, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, IntType, $bool, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, IntType, $bool, D>;
+
+                    pub type BoolType = $bool;
 
                     $crate::testgen_with_int_param!();
                 })*
@@ -304,6 +316,29 @@ macro_rules! testgen_with_int_param {
 
         // test padding
         burn_tensor::testgen_padding!();
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export]
+macro_rules! testgen_with_bool_param {
+    () => {
+        burn_tensor::testgen_all_op!();
+        burn_tensor::testgen_any_op!();
+        burn_tensor::testgen_argwhere_nonzero!();
+        burn_tensor::testgen_cast!();
+        burn_tensor::testgen_cat!();
+        burn_tensor::testgen_expand!();
+        burn_tensor::testgen_full!();
+        burn_tensor::testgen_map_comparison!();
+        burn_tensor::testgen_mask!();
+        burn_tensor::testgen_nan!();
+        burn_tensor::testgen_repeat_dim!();
+        burn_tensor::testgen_repeat!();
+        burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_stack!();
+        burn_tensor::testgen_transpose!();
+        burn_tensor::tri_mask!();
     };
 }
 

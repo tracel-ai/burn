@@ -1,3 +1,7 @@
+use std::error::Error;
+
+use tracing_subscriber::filter::LevelFilter;
+
 pub mod burnbenchapp;
 pub mod persistence;
 
@@ -26,10 +30,33 @@ pub fn get_sharing_url(args: &[String]) -> Option<&str> {
     get_argument(args, "--sharing-url")
 }
 
+pub fn init_log() -> Result<(), Box<dyn Error + Send + Sync>> {
+    let result = tracing_subscriber::fmt()
+        .with_max_level(LevelFilter::DEBUG)
+        .without_time()
+        .try_init();
+
+    if result.is_ok() {
+        update_panic_hook();
+    }
+    result
+}
+
+fn update_panic_hook() {
+    let hook = std::panic::take_hook();
+
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("PANIC => {}", info.to_string());
+        hook(info);
+    }));
+}
+
 #[macro_export]
 macro_rules! bench_on_backend {
     () => {
         use std::env;
+        backend_comparison::init_log().unwrap();
+
         let args: Vec<String> = env::args().collect();
         let url = backend_comparison::get_sharing_url(&args);
         let token = backend_comparison::get_sharing_token(&args);

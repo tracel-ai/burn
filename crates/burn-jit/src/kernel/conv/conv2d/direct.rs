@@ -11,7 +11,7 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -120,8 +120,7 @@ fn direct_conv2d_kernel<F: Float>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_direct<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,

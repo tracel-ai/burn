@@ -11,6 +11,7 @@ mod tests {
         let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
             _,
             <TestBackend as Backend>::FloatElem,
+            <TestBackend as Backend>::BoolElem,
         >(
             tensor.into_primitive().tensor(),
             mask.into_primitive(),
@@ -31,6 +32,7 @@ mod tests {
         let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
             _,
             <TestBackend as Backend>::FloatElem,
+            <TestBackend as Backend>::BoolElem,
         >(
             tensor.into_primitive().tensor(),
             mask.into_primitive(),

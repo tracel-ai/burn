@@ -500,7 +500,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     }
 }
 
-impl<'i> StreamSegment<TestOptimization> for TestSegment<'i> {
+impl StreamSegment<TestOptimization> for TestSegment<'_> {
     // The operations in the process.
     fn operations(&self) -> &[OperationDescription] {
         self.operations

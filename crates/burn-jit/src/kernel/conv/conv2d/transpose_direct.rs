@@ -8,7 +8,7 @@ use crate::{
         reshape,
     },
     tensor::JitTensor,
-    IntElement, JitRuntime,
+    JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Shape};
 
@@ -121,8 +121,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
+pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
