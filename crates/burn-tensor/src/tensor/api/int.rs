@@ -129,4 +129,63 @@ where
     ) -> Tensor<B, D2, Int> {
         cartesian_grid::<B, S, D, D2>(shape, device)
     }
+
+    /// Create a one-hot encoded tensor with configurable `on_value`, `off_value`, and `axis`.
+    ///
+    /// # Arguments
+    ///
+    /// * `depth` - The number of classes for one-hot encoding.
+    /// * `on_value` - The value to use for the "on" positions.
+    /// * `off_value` - The value to use for the "off" positions.
+    /// * `axis` - The axis along which to perform one-hot encoding.
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let expected: Tensor<B, 2, Int> = Tensor::from_ints([[5, 0, 0], [0, 0, 5], [0, 5, 0], [0, 0, 0]], &device);
+    ///     let indices: Tensor<B, 2, Int> = Tensor::from_ints([[0, 2], [1, -1]], &device);
+    ///     // One-hot encoding
+    ///     let result = indices.one_hot_with_axis(3, 5, 0, -1);
+    ///     assert_eq!(expected.to_data(), result.to_data());
+    /// }
+    /// ```
+    pub fn one_hot_with_axis(
+        self,
+        depth: usize,
+        on_value: i32,
+        off_value: i32,
+        axis: isize,
+    ) -> Tensor<B, D, Int> {
+        let indices_shape = self.dims();
+        let rank = indices_shape.len();
+        let actual_axis = if axis < 0 {
+            (rank as isize + axis + 1) as usize
+        } else {
+            axis as usize
+        };
+
+        assert!(
+            actual_axis <= rank,
+            "Axis {} out of bounds for tensor with rank {}",
+            actual_axis,
+            rank
+        );
+
+        // Create the shape for the result tensor
+        let mut result_shape = indices_shape.to_vec();
+        result_shape.insert(actual_axis, depth);
+
+        // Prepare the on_value and off_value tensors
+        let device = &self.device();
+        let on_tensor = Tensor::full(result_shape.clone(), on_value, device);
+        let off_tensor = Tensor::full(result_shape.clone(), off_value, device);
+
+        // Broadcast indices to the appropriate shape for scattering
+        let indices_expanded = self.unsqueeze_dim(actual_axis);
+
+        // Create a zero tensor and scatter on_value
+        off_tensor.scatter(actual_axis, indices_expanded, on_tensor)
+    }
 }
