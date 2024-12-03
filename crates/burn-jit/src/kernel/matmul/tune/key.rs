@@ -16,7 +16,7 @@ pub struct MatmulAutotuneKey {
     k: usize,
     #[autotune(anchor)]
     n: usize,
-    #[autotune(anchor)]
+    #[autotune(anchor(max = 256))]
     batch: usize,
     dtype: DType,
 }
@@ -71,9 +71,9 @@ mod tests {
 
         assert!(key.round);
         assert!(!key.broadcast);
-        assert!(key.m == 512);
-        assert!(key.k == 512);
-        assert!(key.n == 512);
+        assert_eq!(key.m, 512);
+        assert_eq!(key.k, 512);
+        assert_eq!(key.n, 512);
     }
 
     #[test]
@@ -84,10 +84,10 @@ mod tests {
 
         assert!(!key.round);
         assert!(key.broadcast);
-        assert!(key.m == 512);
-        assert!(key.k == 512);
-        assert!(key.n == 1024);
-        assert!(key.batch == 8);
+        assert_eq!(key.m, 512);
+        assert_eq!(key.k, 512);
+        assert_eq!(key.n, 1024);
+        assert_eq!(key.batch, 8);
     }
 
     #[test]
@@ -96,6 +96,6 @@ mod tests {
         let rhs_shape: Shape = [200, 400, 512, 513].into();
         let key = MatmulAutotuneKey::from_shape(&lhs_shape, &rhs_shape, DType::F32);
 
-        assert!(key.batch == 256);
+        assert_eq!(key.batch, 256);
     }
 }
