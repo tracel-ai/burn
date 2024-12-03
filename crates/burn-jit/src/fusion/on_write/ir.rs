@@ -4,9 +4,7 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
 pub enum Arg {
     Input(u32, ElemwisePrecision, LayoutInfo),
@@ -39,6 +37,22 @@ impl Arg {
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
         }
+    }
+}
+
+impl CubeType for Arg {
+    type ExpandType = Self;
+}
+
+impl Init for Arg {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
+}
+
+impl IntoRuntime for Arg {
+    fn __expand_runtime_method(self, _context: &mut CubeContext) -> Self::ExpandType {
+        self
     }
 }
 
