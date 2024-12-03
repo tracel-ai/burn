@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn nchw_to_nhwc_should_match_into_contiguous() {
+    fn nchw_to_nhwc_should_match_into_contiguous_2() {
         let test_device = Default::default();
         let input =
             Tensor::<TestBackend, 4>::random([4, 72, 53, 56], Distribution::Default, &test_device);
