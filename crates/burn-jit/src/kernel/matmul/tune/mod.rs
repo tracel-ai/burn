@@ -3,5 +3,5 @@ mod base;
 mod key;
 
 #[cfg(feature = "autotune")]
-pub use base::*;
+pub use base::matmul_autotune;
 pub use key::*;
