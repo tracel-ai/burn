@@ -30,6 +30,7 @@ impl<B: Backend> PrecisionMetric<B> {
         Self {
             config: ClassificationMetricConfig {
                 decision_rule: ClassificationDecisionRule::Threshold(threshold),
+                // binary classification results are the same independently of class_reduction
                 ..Default::default()
             },
             ..Default::default()

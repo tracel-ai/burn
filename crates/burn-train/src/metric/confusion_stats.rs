@@ -81,7 +81,7 @@ impl<B: Backend> ConfusionStats<B> {
         sample_class_mask: Tensor<B, 2, Bool>,
         class_reduction: ClassReduction,
     ) -> Tensor<B, 1> {
-        use ClassReduction::{Micro, Macro};
+        use ClassReduction::{Macro, Micro};
         match class_reduction {
             Micro => sample_class_mask.float().sum(),
             Macro => sample_class_mask.float().sum_dim(0).squeeze(0),
