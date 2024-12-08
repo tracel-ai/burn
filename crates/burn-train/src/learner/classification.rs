@@ -1,5 +1,5 @@
-use crate::metric::{ processor::ItemLazy, ConfusionStatsInput,
-    AccuracyInput, Adaptor, HammingScoreInput, LossInput,
+use crate::metric::{
+    processor::ItemLazy, AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput,
 };
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
