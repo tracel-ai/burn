@@ -1,8 +1,9 @@
-use crate::metric::{ ConfusionStatsInput,
+use crate::metric::{ processor::ItemLazy, ConfusionStatsInput,
     AccuracyInput, Adaptor, HammingScoreInput, LossInput,
 };
 use burn_core::tensor::backend::Backend;
-use burn_core::tensor::{Int, Tensor};
+use burn_core::tensor::{Int, Tensor, Transaction};
+use burn_ndarray::NdArray;
 
 /// Simple classification output adapted for multiple metrics.
 #[derive(new)]
@@ -15,6 +16,28 @@ pub struct ClassificationOutput<B: Backend> {
 
     /// The targets.
     pub targets: Tensor<B, 1, Int>,
+}
+
+impl<B: Backend> ItemLazy for ClassificationOutput<B> {
+    type ItemSync = ClassificationOutput<NdArray>;
+
+    fn sync(self) -> Self::ItemSync {
+        let [output, loss, targets] = Transaction::default()
+            .register(self.output)
+            .register(self.loss)
+            .register(self.targets)
+            .execute()
+            .try_into()
+            .expect("Correct amount of tensor data");
+
+        let device = &Default::default();
+
+        ClassificationOutput {
+            output: Tensor::from_data(output, device),
+            loss: Tensor::from_data(loss, device),
+            targets: Tensor::from_data(targets, device),
+        }
+    }
 }
 
 impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
@@ -57,6 +80,28 @@ pub struct MultiLabelClassificationOutput<B: Backend> {
 
     /// The targets.
     pub targets: Tensor<B, 2, Int>,
+}
+
+impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
+    type ItemSync = MultiLabelClassificationOutput<NdArray>;
+
+    fn sync(self) -> Self::ItemSync {
+        let [output, loss, targets] = Transaction::default()
+            .register(self.output)
+            .register(self.loss)
+            .register(self.targets)
+            .execute()
+            .try_into()
+            .expect("Correct amount of tensor data");
+
+        let device = &Default::default();
+
+        MultiLabelClassificationOutput {
+            output: Tensor::from_data(output, device),
+            loss: Tensor::from_data(loss, device),
+            targets: Tensor::from_data(targets, device),
+        }
+    }
 }
 
 impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutput<B> {

@@ -1,5 +1,5 @@
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::ElementConversion;
+use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::Array4;
 #[cfg(not(feature = "std"))]
 use num_traits::Float;

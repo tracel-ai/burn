@@ -6,12 +6,13 @@ use burn_tensor::{
         AffineQuantization, QParams, QTensorPrimitive, QuantizationParametersPrimitive,
         QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{
     element::{IntNdArrayElement, NdArrayElement, QuantElement},
-    FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
+    new_tensor_float, FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor,
+    NdArrayTensorFloat,
 };
 
 use super::{NdArrayMathOps, NdArrayOps};
@@ -20,6 +21,13 @@ fn into_data<E: NdArrayElement>(tensor: NdArrayTensor<E>) -> TensorData {
     let shape = tensor.shape();
     let values = tensor.array.into_iter().collect();
     TensorData::new(values, shape)
+}
+
+fn into_data_f(tensor: NdArrayTensorFloat) -> TensorData {
+    match tensor {
+        NdArrayTensorFloat::F32(tensor) => into_data(tensor),
+        NdArrayTensorFloat::F64(tensor) => into_data(tensor),
+    }
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<Self>
@@ -51,7 +59,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let (strategy, qparams) = match scheme {
             QuantizationScheme::PerTensorAffine(dtype) => match dtype {
                 QuantizationType::QInt8 => {
-                    let scale = into_data(qparams.scale).iter().next().unwrap();
+                    let scale = into_data_f(qparams.scale).iter().next().unwrap();
                     let offset = into_data(qparams.offset.unwrap())
                         .iter::<Q>()
                         .next()
@@ -70,7 +78,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             },
             QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
                 QuantizationType::QInt8 => {
-                    let scale = into_data(qparams.scale).iter().next().unwrap();
+                    let scale = into_data_f(qparams.scale).iter().next().unwrap();
                     (
                         QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                             scale,
@@ -84,7 +92,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             },
         };
 
-        let data = into_data(tensor).with_quantization(strategy);
+        let data = into_data_f(tensor).with_quantization(strategy);
         NdArrayQTensor {
             qtensor: NdArrayTensor::<Q>::from_data(data),
             scheme: *scheme,
@@ -97,7 +105,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let strategy = tensor.strategy();
         let values = tensor.qtensor.array.into_iter().collect();
         let data = TensorData::quantized(values, shape, strategy);
-        NdArrayTensor::<E>::from_data(data.dequantize().unwrap())
+        new_tensor_float!(NdArrayTensor::from_data(data.dequantize().unwrap()))
     }
 
     fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {

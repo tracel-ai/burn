@@ -1,8 +1,10 @@
+use core::num::NonZeroUsize;
+
 use super::{conv, pool, unfold::unfold4d_using_conv2d};
 use crate::{
     backend::Backend,
     ops::{FloatTensor, IntTensor},
-    Shape,
+    Shape, TensorMetadata,
 };
 
 /// Gradient computed during the backward pass for each tensor used by [conv2d](ModuleOps::conv2d).
@@ -84,45 +86,88 @@ pub struct MaxPool2dWithIndices<B: Backend> {
     pub indices: IntTensor<B>,
 }
 
+/// Check that the parameter value is non-zero.
+// NOTE: for now we keep usize but we could refactor the parameters to hold `NonZeroUsize`.
+pub(crate) fn check_nonzero(value: usize, msg: &str) -> usize {
+    NonZeroUsize::new(value).expect(msg);
+    value
+}
+
 /// Convolution options.
-#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ConvOptions<const N: usize> {
-    /// Stride.
+    /// Stride (non-zero).
     pub stride: [usize; N],
 
     /// Padding.
     pub padding: [usize; N],
 
-    /// Dilation.
+    /// Dilation (non-zero).
     pub dilation: [usize; N],
 
-    /// Groups.
+    /// Groups (non-zero).
     pub groups: usize,
 }
 
+impl<const N: usize> ConvOptions<N> {
+    /// Constructs a new `ConvOptions`.
+    pub fn new(
+        stride: [usize; N],
+        padding: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        Self {
+            stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
+            padding,
+            dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
+            groups: check_nonzero(groups, "groups must be non-zero"),
+        }
+    }
+}
+
 /// Convolution options.
-#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DeformConvOptions<const N: usize> {
-    /// Stride.
+    /// Stride (non-zero).
     pub stride: [usize; N],
 
     /// Padding.
     pub padding: [usize; N],
 
-    /// Dilation.
+    /// Dilation (non-zero).
     pub dilation: [usize; N],
 
-    /// Weight Groups.
+    /// Weight Groups (non-zero).
     pub weight_groups: usize,
 
-    /// Offset Groups.
+    /// Offset Groups (non-zero).
     pub offset_groups: usize,
 }
 
+impl<const N: usize> DeformConvOptions<N> {
+    /// Constructs a new `DeformConvOptions`.
+    pub fn new(
+        stride: [usize; N],
+        padding: [usize; N],
+        dilation: [usize; N],
+        weight_groups: usize,
+        offset_groups: usize,
+    ) -> Self {
+        Self {
+            stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
+            padding,
+            dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
+            weight_groups: check_nonzero(weight_groups, "weight groups must be non-zero"),
+            offset_groups: check_nonzero(offset_groups, "offset groups must be non-zero"),
+        }
+    }
+}
+
 /// Transposed convolution options.
-#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ConvTransposeOptions<const N: usize> {
-    /// Stride.
+    /// Stride (non-zero).
     pub stride: [usize; N],
 
     /// Padding.
@@ -131,15 +176,34 @@ pub struct ConvTransposeOptions<const N: usize> {
     /// Padding out.
     pub padding_out: [usize; N],
 
-    /// Dilation.
+    /// Dilation (non-zero).
     pub dilation: [usize; N],
 
-    /// Groups.
+    /// Groups (non-zero).
     pub groups: usize,
 }
 
+impl<const N: usize> ConvTransposeOptions<N> {
+    /// Constructs a new `ConvTransposeOptions`.
+    pub fn new(
+        stride: [usize; N],
+        padding: [usize; N],
+        padding_out: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        Self {
+            stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
+            padding,
+            padding_out,
+            dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
+            groups: check_nonzero(groups, "groups must be non-zero"),
+        }
+    }
+}
+
 /// Unfold operation options.
-#[derive(new, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct UnfoldOptions {
     /// The number of positions to slide over the input tensor in each dimension.
     /// A stride of `[1, 1]` will slide the kernel one pixel at a time.
@@ -150,6 +214,17 @@ pub struct UnfoldOptions {
 
     /// The spacing between the blocks (patches) in the original input tensor.
     pub dilation: [usize; 2],
+}
+
+impl UnfoldOptions {
+    /// Constructs a new `UnfoldOptions`.
+    pub fn new(stride: [usize; 2], padding: [usize; 2], dilation: [usize; 2]) -> Self {
+        Self {
+            stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
+            padding,
+            dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
+        }
+    }
 }
 
 /// Algorithm used for upsampling.
@@ -195,8 +270,8 @@ pub trait ModuleOps<B: Backend> {
     ///
     /// The output tensor.
     fn embedding(weights: FloatTensor<B>, indices: IntTensor<B>) -> FloatTensor<B> {
-        let [batch_size, seq_length] = B::int_shape(&indices).dims();
-        let [_, d_model] = B::float_shape(&weights).dims();
+        let [batch_size, seq_length] = indices.shape().dims();
+        let [_, d_model] = weights.shape().dims();
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
         let output = B::float_select(weights, 0, indices);
@@ -220,8 +295,8 @@ pub trait ModuleOps<B: Backend> {
         output_grad: FloatTensor<B>,
         indices: IntTensor<B>,
     ) -> FloatTensor<B> {
-        let [batch_size, seq_length] = B::int_shape(&indices).dims();
-        let [n_embeddings, d_model] = B::float_shape(&weights).dims();
+        let [batch_size, seq_length] = indices.shape().dims();
+        let [n_embeddings, d_model] = weights.shape().dims();
         let device = B::float_device(&weights);
 
         let indices = B::int_reshape(indices, Shape::new([batch_size * seq_length]));
@@ -689,4 +764,81 @@ pub trait ModuleOps<B: Backend> {
         output_size: [usize; 2],
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn conv_options_stride_zero() {
+        let _opt = ConvOptions::new([0, 1], [0, 0], [1, 1], 1);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn conv_options_dilation_zero() {
+        let _opt = ConvOptions::new([1, 1], [0, 0], [0, 0], 1);
+    }
+
+    #[test]
+    #[should_panic = "groups must be non-zero"]
+    fn conv_options_groups_zero() {
+        let _opt = ConvOptions::new([1, 1], [0, 0], [1, 1], 0);
+    }
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn conv_transpose_options_stride_zero() {
+        let _opt = ConvTransposeOptions::new([0, 1], [0, 0], [0, 0], [1, 1], 1);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn conv_transpose_options_dilation_zero() {
+        let _opt = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [0, 0], 1);
+    }
+
+    #[test]
+    #[should_panic = "groups must be non-zero"]
+    fn conv_transpose_options_groups_zero() {
+        let _opt = ConvTransposeOptions::new([1, 1], [0, 0], [0, 0], [1, 1], 0);
+    }
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn deform_conv_options_stride_zero() {
+        let _opt = DeformConvOptions::new([0, 1], [0, 0], [1, 1], 1, 1);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn deform_conv_options_dilation_zero() {
+        let _opt = DeformConvOptions::new([1, 1], [0, 0], [0, 0], 1, 1);
+    }
+
+    #[test]
+    #[should_panic = "weight groups must be non-zero"]
+    fn deform_conv_options_weights_groups_zero() {
+        let _opt = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 0, 1);
+    }
+
+    #[test]
+    #[should_panic = "offset groups must be non-zero"]
+    fn deform_conv_options_offset_groups_zero() {
+        let _opt = DeformConvOptions::new([1, 1], [0, 0], [1, 1], 1, 0);
+    }
+
+    #[test]
+    #[should_panic = "stride must be non-zero"]
+    fn unfold_options_stride_zero() {
+        let _opt = UnfoldOptions::new([0, 1], [0, 0], [1, 1]);
+    }
+
+    #[test]
+    #[should_panic = "dilation must be non-zero"]
+    fn unfold_options_dilation_zero() {
+        let _opt = UnfoldOptions::new([1, 1], [0, 0], [0, 0]);
+    }
 }

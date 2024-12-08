@@ -10,7 +10,7 @@ use crate::{
     graph::{ComputingProperty, NodeID, NodeRef, Requirement, Step},
     tensor::AutodiffTensor,
 };
-use burn_tensor::{backend::Backend, ops::FloatTensor, Shape};
+use burn_tensor::{backend::Backend, ops::FloatTensor, Shape, TensorMetadata};
 use std::marker::PhantomData;
 
 /// Operation in preparation.
@@ -292,7 +292,7 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
 /// If broadcasting happened during the forward pass, the gradients will be sum along the
 /// broadcasted dimension.
 pub fn broadcast_shape<B: Backend>(mut grad: FloatTensor<B>, shape: &Shape) -> FloatTensor<B> {
-    let shape_grad = B::float_shape(&grad);
+    let shape_grad = grad.shape();
     let ndims = shape_grad.num_dims();
 
     for i in 0..ndims {

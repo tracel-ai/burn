@@ -3,8 +3,8 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_source, FloatElement, IntElement, JitBackend,
-        JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        build_info, into_contiguous, kernel_source, BoolElement, FloatElement, IntElement,
+        JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -41,7 +41,9 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 }
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
+impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for JitBackend<WgpuRuntime, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -80,14 +82,19 @@ impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new_contiguous(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            buffer,
+            F::dtype(),
+        );
 
         // Create the kernel.
         let kernel = FusedMatmulAddRelu::<F>::new(cube_dim);
 
         // Build info buffer with tensor information needed by the kernel, such as shapes and strides.
-        let info = build_info(&[&lhs, &rhs, &output]);
+        let info = build_info::<_, F>(&[&lhs, &rhs, &output]);
         let info_handle = lhs.client.create(bytemuck::cast_slice(&info));
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.

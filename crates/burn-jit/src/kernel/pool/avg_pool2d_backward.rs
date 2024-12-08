@@ -109,17 +109,17 @@ fn loop_ranges(
 }
 
 pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E>,
-    grad: JitTensor<R, E>,
+    x: JitTensor<R>,
+    grad: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let grad = into_contiguous(grad);
     let dilation = 1;
 
-    let output = empty_device(x.client.clone(), x.device.clone(), x.shape.clone());
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), x.shape.clone());
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
@@ -128,8 +128,8 @@ pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
             &grad.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            grad.as_tensor_arg::<E>(1),
+            output.as_tensor_arg::<E>(1),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),

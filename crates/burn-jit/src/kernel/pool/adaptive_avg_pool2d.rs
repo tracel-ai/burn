@@ -62,6 +62,7 @@ fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32
     (output_size_index * input_size) / output_size
 }
 
+#[allow(clippy::manual_div_ceil)]
 #[cube]
 fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     let index = (output_size_index + 1) * input_size;
@@ -75,14 +76,14 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
 }
 
 pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R, E>,
+    input: JitTensor<R>,
     output_size: [usize; 2],
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [batch_size, channels, _, _] = input.shape.dims();
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);
     let num_elems: usize = output_shape.num_elements();
-    let output = empty_device(input.client.clone(), input.device.clone(), output_shape);
+    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), output_shape);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
@@ -91,8 +92,8 @@ pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
     );
 
     output

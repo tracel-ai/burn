@@ -60,7 +60,7 @@ impl RunnerClient for WsClient {
     fn register_float_tensor(
         &self,
         shape: Vec<usize>,
-        _full_precision: bool,
+        _dtype: burn_tensor::FloatDType,
     ) -> RouterTensor<Self> {
         self.register_empty_tensor(shape, DType::F32)
     }

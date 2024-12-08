@@ -1,4 +1,4 @@
-use super::{Event, EventProcessor, Metrics};
+use super::{Event, EventProcessor, ItemLazy, Metrics};
 use crate::metric::store::EventStoreClient;
 use crate::renderer::{MetricState, MetricsRenderer};
 use std::sync::Arc;
@@ -6,13 +6,13 @@ use std::sync::Arc;
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-pub struct FullEventProcessor<T, V> {
+pub struct FullEventProcessor<T: ItemLazy, V: ItemLazy> {
     metrics: Metrics<T, V>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
 }
 
-impl<T, V> FullEventProcessor<T, V> {
+impl<T: ItemLazy, V: ItemLazy> FullEventProcessor<T, V> {
     pub(crate) fn new(
         metrics: Metrics<T, V>,
         renderer: Box<dyn MetricsRenderer>,
@@ -26,13 +26,14 @@ impl<T, V> FullEventProcessor<T, V> {
     }
 }
 
-impl<T: Send, V: Send> EventProcessor for FullEventProcessor<T, V> {
+impl<T: ItemLazy, V: ItemLazy> EventProcessor for FullEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
     fn process_train(&mut self, event: Event<Self::ItemTrain>) {
         match event {
             Event::ProcessedItem(item) => {
+                let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
 
@@ -67,6 +68,7 @@ impl<T: Send, V: Send> EventProcessor for FullEventProcessor<T, V> {
     fn process_valid(&mut self, event: Event<Self::ItemValid>) {
         match event {
             Event::ProcessedItem(item) => {
+                let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
 

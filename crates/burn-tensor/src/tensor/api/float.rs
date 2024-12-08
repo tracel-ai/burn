@@ -2,7 +2,6 @@ use alloc::vec::Vec;
 use core::convert::TryInto;
 
 use crate::check::TensorCheck;
-use crate::ops::FullPrecisionBackend;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
@@ -244,24 +243,14 @@ where
     }
 
     /// Converts a tensor to the specified floating point data type.
+    ///
+    /// # Warning
+    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
+    /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
     pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_cast(
             self.primitive.tensor(),
             dtype.into(),
-        )))
-    }
-
-    /// Returns a tensor with full precision based on the selected backend.
-    pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
-        Tensor::new(TensorPrimitive::Float(B::float_into_full_precision(
-            self.primitive.tensor(),
-        )))
-    }
-
-    /// Returns a tensor on the selected backend from a full precision tensor.
-    pub fn from_full_precision(tensor: Tensor<FullPrecisionBackend<B>, D>) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_from_full_precision(
-            tensor.primitive.tensor(),
         )))
     }
 

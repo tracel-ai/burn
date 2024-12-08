@@ -7,6 +7,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
+use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -20,6 +21,8 @@ use crate::{
     backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
 };
 use crate::{DType, Element, TensorPrimitive};
+
+use super::{TensorMetadata, Transaction};
 
 /// A tensor with a given backend, shape and data type.
 ///
@@ -102,6 +105,15 @@ where
         Self::new(tensor)
     }
 
+    /// Returns the tensor primitive data type.
+    ///
+    /// # Note
+    /// Some element types are encoded in different primitive types depending on the backend
+    /// (e.g., bool could be encoded as `u8` or `u32`).
+    pub fn dtype(&self) -> DType {
+        self.primitive.dtype()
+    }
+
     /// Create an empty tensor of the given shape.
     ///
     /// # Arguments
@@ -159,7 +171,7 @@ where
     /// }
     /// ```
     pub fn shape(&self) -> Shape {
-        K::shape(&self.primitive)
+        self.primitive.shape()
     }
 
     /// Reshape the tensor to have the given shape.
@@ -899,6 +911,12 @@ where
     }
 
     /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
     pub fn into_data(self) -> TensorData {
         crate::try_read_sync(self.into_data_async()).expect(
             "Failed to read tensor data synchronously.
@@ -907,7 +925,13 @@ where
         )
     }
 
-    /// Returns the data of the current tensor.
+    /// Converts the data of the current tensor.
+    ///
+    /// # Note
+    ///
+    /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
+    /// tensors at once. This may improve laziness, especially if executed on a different
+    /// thread in native environments.
     pub fn to_data(&self) -> TensorData {
         self.clone().into_data()
     }
@@ -1199,7 +1223,7 @@ where
         Self::new(narrow::<B, K>(self.primitive, dim, start, length))
     }
 
-    /// Attempts to split the tensor along the given dimension into chunks.
+    /// Attempts to split the tensor into a specified number of chunks along a given dimension.
     /// May return less chunks than requested if the tensor size is not divisible by the number of chunks.
     ///
     /// When the given dimension is evenly divisible by the number of chunks, the chunks will be of equal size.
@@ -1242,6 +1266,91 @@ where
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
         K::chunk(self.primitive, chunks, dim)
+            .into_iter()
+            .map(Self::new)
+            .collect()
+    }
+
+    /// Splits the tensor into chunks of a specified size along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// If the tensor size along the given dimension is not divisible by `split_size`,
+    /// then the last chunk will be smaller.
+    ///
+    /// # Panics
+    ///
+    /// If the specified dimension to split along is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     // Create a 1D tensor with 5 elements
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     // Split the tensor into chunks of size 2 along dimension 0
+    ///     let chunks = tensor.split(2, 0);
+    ///     // The result is a vector of tensors:
+    ///     // [Tensor([0.0, 1.0]), Tensor([2.0, 3.0]), Tensor([4.0])]
+    ///     println!("{:?}", chunks);
+    /// }
+    /// ```
+    pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::split::<D>(
+            self.shape().dims.as_ref(),
+            split_size,
+            dim
+        ));
+        K::split(self.primitive, split_size, dim)
+            .into_iter()
+            .map(Self::new)
+            .collect()
+    }
+
+    /// Splits the tensor into chunks with the specified sizes along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
+    /// in `split_sizes` must equal the size of the tensor along the specified dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the specified dimension to split along is greater than the number of dimensions of the tensor or
+    /// if the sum of `dim_sizes` does not equal the size of the tensor along `dim`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     // Create a 1D tensor with 5 elements
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, 1.0, 2.0, 3.0, 4.0], &device);
+    ///     // Split the tensor into chunks with sizes [2, 3] along dimension 0
+    ///     let chunks = tensor.split_with_sizes(vec![2, 3], 0);
+    ///     // The result is a vector of tensors:
+    ///     // [Tensor([0.0, 1.0]), Tensor([2.0, 3.0, 4.0])]
+    ///     println!("{:?}", chunks);
+    /// }
+    /// ```
+    pub fn split_with_sizes(self, split_sizes: Vec<usize>, dim: usize) -> Vec<Self> {
+        check!(TensorCheck::split_with_sizes::<D>(
+            self.shape().dims.as_ref(),
+            &split_sizes,
+            dim
+        ));
+        K::split_with_sizes(self.primitive, split_sizes, dim)
             .into_iter()
             .map(Self::new)
             .collect()
@@ -1774,7 +1883,15 @@ where
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
-        writeln!(f, "  dtype:  {:?},", K::elem_type_name())?;
+
+        // Bool tensors might be encoded in a different type, which we abstract for the display
+        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
+            DType::Bool
+        } else {
+            self.primitive.dtype()
+        };
+
+        writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
     }
 }
@@ -1828,26 +1945,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For creating empty tensors, users should prefer the [Tensor::empty](Tensor::empty) function,
     /// which is more high-level and designed for public use.
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive;
-
-    /// Returns the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For getting the shape of a tensor, users should prefer the [Tensor::shape](Tensor::shape) function,
-    /// which is more high-level and designed for public use.
-    fn shape(tensor: &Self::Primitive) -> Shape;
 
     /// Reshapes the tensor.
     ///
@@ -2028,6 +2125,15 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         tensor: Self::Primitive,
     ) -> impl Future<Output = TensorData> + 'static + Send;
 
+    /// Read the data from the tensor using a transaction.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive);
+
     /// Creates a tensor from the given data.
     ///
     /// # Arguments
@@ -2111,9 +2217,57 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// To split a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
+    /// To chunk a tensor, users should prefer the [Tensor::chunk](Tensor::chunk) function,
     /// which is more high-level and designed for public use.
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive>;
+
+    /// Splits the tensor into chunks of a specified size along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// # Panics
+    ///
+    /// If the dimension to split along is greater than the number of dimensions of the tensor.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// To split a tensor, users should prefer the [Tensor::split](Tensor::split) function,
+    /// which is more high-level and designed for public use.
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive>;
+
+    /// Splits the tensor into chunks with the specified sizes along a given dimension.
+    /// Each chunk is a view of the original tensor.
+    ///
+    /// The sizes of the chunks are specified in the `split_sizes` vector. The sum of the sizes
+    /// in `split_sizes` must equal the size of the tensor along the specified dimension.
+    ///
+    /// # Panics
+    ///
+    /// If the dimension to split along is greater than the number of dimensions of the tensor or
+    /// if the sum of `dim_sizes` does not equal the size of the tensor along `dim`.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    ///
+    /// # Remarks
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// To split a tensor, users should prefer the [Tensor::split_with_sizes](Tensor::split_with_sizes) function,
+    /// which is more high-level and designed for public use.
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive>;
 
     /// Equates the given tensors.
     ///
@@ -2160,6 +2314,11 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {
         core::any::type_name::<Self::Elem>()
+    }
+
+    /// Returns the tensor data type.
+    fn dtype(tensor: &Self::Primitive) -> DType {
+        tensor.dtype()
     }
 
     /// Tests if any element in the `tensor` evaluates to True.
@@ -2257,11 +2416,8 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_empty(shape, device))
     }
 
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_shape(tensor),
-            TensorPrimitive::QFloat(tensor) => B::q_shape(tensor),
-        }
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_float(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -2437,6 +2593,36 @@ impl<B: Backend> BasicOps<B> for Float {
                 .collect(),
         }
     }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_split(tensor, split_size, dim)
+                .into_iter()
+                .map(TensorPrimitive::Float)
+                .collect(),
+            TensorPrimitive::QFloat(tensor) => B::q_split(tensor, split_size, dim)
+                .into_iter()
+                .map(TensorPrimitive::QFloat)
+                .collect(),
+        }
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => B::float_split_with_sizes(tensor, split_sizes, dim)
+                .into_iter()
+                .map(TensorPrimitive::Float)
+                .collect(),
+            TensorPrimitive::QFloat(tensor) => B::q_split_with_sizes(tensor, split_sizes, dim)
+                .into_iter()
+                .map(TensorPrimitive::QFloat)
+                .collect(),
+        }
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Int {
@@ -2445,8 +2631,9 @@ impl<B: Backend> BasicOps<B> for Int {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::int_empty(shape, device)
     }
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::int_shape(tensor)
+
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_int(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -2536,6 +2723,18 @@ impl<B: Backend> BasicOps<B> for Int {
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::int_chunk(tensor, chunks, dim)
     }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        B::int_split(tensor, split_size, dim)
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        B::int_split_with_sizes(tensor, split_sizes, dim)
+    }
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
@@ -2544,8 +2743,9 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)
     }
-    fn shape(tensor: &Self::Primitive) -> Shape {
-        B::bool_shape(tensor)
+
+    fn register_transaction(tr: &mut Transaction<B>, tensor: Self::Primitive) {
+        tr.register_bool(tensor);
     }
 
     fn reshape(tensor: Self::Primitive, shape: Shape) -> Self::Primitive {
@@ -2634,6 +2834,18 @@ impl<B: Backend> BasicOps<B> for Bool {
 
     fn chunk(tensor: Self::Primitive, chunks: usize, dim: usize) -> Vec<Self::Primitive> {
         B::bool_chunk(tensor, chunks, dim)
+    }
+
+    fn split(tensor: Self::Primitive, split_size: usize, dim: usize) -> Vec<Self::Primitive> {
+        B::bool_split(tensor, split_size, dim)
+    }
+
+    fn split_with_sizes(
+        tensor: Self::Primitive,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<Self::Primitive> {
+        B::bool_split_with_sizes(tensor, split_sizes, dim)
     }
 }
 

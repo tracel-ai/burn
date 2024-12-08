@@ -1,8 +1,8 @@
-use crate::tensor::ops::tensor::FloatTensorOps;
+use crate::TensorMetadata;
 use crate::{backend::Backend, ElementConversion};
 use core::f64::consts::SQRT_2;
 
-use super::{FloatTensor, FullPrecisionBackend};
+use super::FloatTensor;
 
 /// Activation function operations.
 ///
@@ -135,18 +135,14 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn sigmoid(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let tensor_full = B::float_into_full_precision(tensor);
-        let tensor_tmp =
-            FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
-                FullPrecisionBackend::<B>::float_log(FullPrecisionBackend::<B>::float_add_scalar(
-                    FullPrecisionBackend::<B>::float_exp(FullPrecisionBackend::<B>::float_neg(
-                        tensor_full,
-                    )),
-                    1.0.elem(),
-                )),
-            ));
+        let dtype = tensor.dtype();
+        let tensor_full = B::float_cast(tensor, crate::FloatDType::F32);
+        let tensor_tmp = B::float_exp(B::float_neg(B::float_log(B::float_add_scalar(
+            B::float_exp(B::float_neg(tensor_full)),
+            1.0.elem(),
+        ))));
 
-        B::float_from_full_precision(tensor_tmp)
+        B::float_cast(tensor_tmp, dtype.into())
     }
 
     /// Applies the Sigmoid activation function backward.
@@ -183,18 +179,16 @@ pub trait ActivationOps<B: Backend> {
         alpha: super::FloatElem<B>,
         beta: super::FloatElem<B>,
     ) -> FloatTensor<B> {
-        let tensor_full = B::float_into_full_precision(tensor);
+        let dtype = tensor.dtype();
+        let tensor_full = B::float_cast(tensor, crate::FloatDType::F32);
 
-        let tensor_tmp = FullPrecisionBackend::<B>::float_clamp(
-            FullPrecisionBackend::<B>::float_add_scalar(
-                FullPrecisionBackend::<B>::float_mul_scalar(tensor_full, alpha.elem()),
-                beta.elem(),
-            ),
+        let tensor_tmp = B::float_clamp(
+            B::float_add_scalar(B::float_mul_scalar(tensor_full, alpha.elem()), beta.elem()),
             0.0.elem(),
             1.0.elem(),
         );
 
-        B::float_from_full_precision(tensor_tmp)
+        B::float_cast(tensor_tmp, dtype.into())
     }
 
     /// Applies the LogSigmoid activation function.
@@ -259,7 +253,7 @@ pub trait ActivationOps<B: Backend> {
         // -max_derive - (z-1)/z if x is >= 0
         // -max_derive + (z-1)/z if x is < 0
 
-        let shape = B::float_shape(&x);
+        let shape = x.shape();
         let device = B::float_device(&x);
 
         // max(-x, 0)

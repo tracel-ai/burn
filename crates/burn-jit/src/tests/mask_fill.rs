@@ -2,13 +2,17 @@
 mod tests {
     use super::*;
     use burn_jit::kernel::{mask_fill, MaskFillStrategy};
-    use burn_tensor::{Bool, Distribution, Tensor, TensorPrimitive};
+    use burn_tensor::{backend::Backend, Bool, Distribution, Tensor, TensorPrimitive};
 
     #[test]
     fn mask_fill_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
+        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
+            _,
+            <TestBackend as Backend>::FloatElem,
+            <TestBackend as Backend>::BoolElem,
+        >(
             tensor.into_primitive().tensor(),
             mask.into_primitive(),
             4.0,
@@ -25,7 +29,11 @@ mod tests {
     fn mask_fill_inplace_should_match_reference_backend() {
         let (tensor, mask, tensor_ref, mask_ref) = inputs_mask_fill();
 
-        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill(
+        let actual = Tensor::<TestBackend, 3>::from_primitive(TensorPrimitive::Float(mask_fill::<
+            _,
+            <TestBackend as Backend>::FloatElem,
+            <TestBackend as Backend>::BoolElem,
+        >(
             tensor.into_primitive().tensor(),
             mask.into_primitive(),
             4.0,

@@ -4,7 +4,7 @@ use burn_tensor::{
         AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
         QuantizationType, SymmetricQuantization,
     },
-    Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 use libc::c_void;
 use std::sync::Arc;
@@ -70,6 +70,30 @@ pub struct TchTensor {
     pub storage: Storage,
 }
 
+impl TensorMetadata for TchTensor {
+    fn dtype(&self) -> DType {
+        match self.tensor.kind() {
+            tch::Kind::Uint8 => DType::U8,
+            tch::Kind::Int8 => DType::I8,
+            tch::Kind::Int16 => DType::I16,
+            tch::Kind::Int => DType::I32,
+            tch::Kind::Int64 => DType::I64,
+            tch::Kind::Half => DType::F16,
+            tch::Kind::Float => DType::F32,
+            tch::Kind::Double => DType::F64,
+            tch::Kind::Bool => DType::Bool,
+            tch::Kind::QUInt8 => DType::U8,
+            tch::Kind::BFloat16 => DType::BF16,
+            // Complex and quantization types are not valid/implemented.
+            _ => unimplemented!(),
+        }
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.tensor.size())
+    }
+}
+
 impl TchTensor {
     /// Create a new tensor.
     ///
@@ -130,12 +154,6 @@ impl TchTensor {
             view_ref: Arc::new(tensor.data_ptr()),
         };
         Self { tensor, storage }
-    }
-}
-
-impl TchTensor {
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.tensor.size())
     }
 }
 
@@ -308,6 +326,16 @@ pub struct TchQTensor {
     pub qtensor: TchTensor,
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
+}
+
+impl TensorMetadata for TchQTensor {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
+    }
 }
 
 impl QTensorPrimitive for TchQTensor {

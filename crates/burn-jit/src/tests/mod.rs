@@ -28,6 +28,7 @@ mod unary;
 mod uniform;
 
 // Re-export dependencies for tests
+pub use crate::ops::base::into_data_sync;
 pub use burn_autodiff;
 pub use burn_fusion;
 pub use burn_ndarray;
@@ -37,12 +38,12 @@ pub use serial_test;
 #[macro_export]
 macro_rules! testgen_all {
     () => {
-        use burn_tensor::{Float, Int};
-        $crate::testgen_all!([Float], [Int]);
+        use burn_tensor::{Float, Int, Bool};
+        $crate::testgen_all!([Float], [Int], [Bool]);
     };
-    ([$($float:ident),*], [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         mod jit {
-            burn_jit::testgen_jit!([$($float),*], [$($int),*]);
+            burn_jit::testgen_jit!([$($float),*], [$($int),*], [$($bool),*]);
 
             mod kernel {
                 use super::*;
@@ -83,7 +84,7 @@ macro_rules! testgen_all {
             }
         }
         mod jit_fusion {
-            burn_jit::testgen_jit_fusion!([$($float),*], [$($int),*]);
+            burn_jit::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
         }
     };
 }
@@ -91,31 +92,31 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_jit {
     () => {
-        use burn_tensor::{Float, Int};
-        $crate::testgen_jit!([Float], [Int]);
+        use burn_tensor::{Float, Int, Bool};
+        $crate::testgen_jit!([Float], [Int], [Bool]);
     };
-    ([$($float:ident),*], [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         pub use super::*;
         use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
-        pub type TestBackend = JitBackend<TestRuntime, f32, i32>;
-        pub type TestBackend2<F, I> = JitBackend<TestRuntime, F, I>;
+        pub type TestBackend = JitBackend<TestRuntime, f32, i32, u32>;
+        pub type TestBackend2<F, I, B> = JitBackend<TestRuntime, F, I, B>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        pub type TestTensor2<F, I, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I>, D>;
+        pub type TestTensor2<F, I, B, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I, B>, D>;
         pub type TestTensorInt<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-        pub type TestTensorInt2<F, I, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Int>;
+        pub type TestTensorInt2<F, I, B, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Int>;
         pub type TestTensorBool<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-        pub type TestTensorBool2<F, I, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Bool>;
+        pub type TestTensorBool2<F, I, B, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Bool>;
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-        burn_tensor::testgen_all!([$($float),*], [$($int),*]);
+        burn_tensor::testgen_all!([$($float),*], [$($int),*], [$($bool),*]);
         burn_autodiff::testgen_all!([$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:
@@ -134,28 +135,28 @@ macro_rules! testgen_jit_fusion {
         use burn_tensor::{Float, Int};
         $crate::testgen_jit_fusion!([Float], [Int]);
     };
-    ([$($float:ident),*], [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         use super::*;
         use burn_jit::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
 
-        pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime, f32, i32>>;
-        pub type TestBackend2<F, I> = burn_fusion::Fusion<JitBackend<TestRuntime, F, I>>;
+        pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime, f32, i32, u32>>;
+        pub type TestBackend2<F, I, B> = burn_fusion::Fusion<JitBackend<TestRuntime, F, I, B>>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        pub type TestTensor2<F, I, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I>, D>;
+        pub type TestTensor2<F, I, B, const D: usize> = burn_tensor::Tensor<TestBackend2<F, I, B>, D>;
         pub type TestTensorInt<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-        pub type TestTensorInt2<F, I, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Int>;
+        pub type TestTensorInt2<F, I, B, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Int>;
         pub type TestTensorBool<const D: usize> =
             burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-        pub type TestTensorBool2<F, I, const D: usize> =
-            burn_tensor::Tensor<TestBackend2<F, I>, D, burn_tensor::Bool>;
+        pub type TestTensorBool2<F, I, B, const D: usize> =
+            burn_tensor::Tensor<TestBackend2<F, I, B>, D, burn_tensor::Bool>;
 
         pub type ReferenceTensor<const D: usize> = burn_tensor::Tensor<ReferenceBackend, D>;
 
-        burn_tensor::testgen_all!([$($float),*], [$($int),*]);
+        burn_tensor::testgen_all!([$($float),*], [$($int),*], [$($bool),*]);
         burn_autodiff::testgen_all!([$($float),*]);
 
         // Not all ops are implemented for quantization yet, notably missing:

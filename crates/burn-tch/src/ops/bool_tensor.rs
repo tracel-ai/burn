@@ -1,6 +1,6 @@
 use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
-use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData};
+use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData, TensorMetadata};
 use std::ops::Range;
 
 impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
@@ -8,16 +8,12 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::from_data::<bool>(data, (*device).into())
     }
 
-    fn bool_shape(tensor: &TchTensor) -> Shape {
-        tensor.shape()
-    }
-
     fn bool_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {
         TchOps::repeat_dim(tensor, dim, times)
     }
 
     async fn bool_into_data(tensor: TchTensor) -> TensorData {
-        let shape = Self::bool_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = Self::bool_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let values: Result<Vec<bool>, tch::TchError> = tensor.tensor.shallow_clone().try_into();
         TensorData::new(values.unwrap(), shape)
@@ -91,6 +87,18 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
 
     fn bool_chunk(tensor: TchTensor, chunks: usize, dim: usize) -> Vec<TchTensor> {
         TchOps::chunk(tensor, chunks, dim)
+    }
+
+    fn bool_split(tensor: TchTensor, split_size: usize, dim: usize) -> Vec<TchTensor> {
+        TchOps::split(tensor, split_size, dim)
+    }
+
+    fn bool_split_with_sizes(
+        tensor: TchTensor,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<TchTensor> {
+        TchOps::split_with_sizes(tensor, split_sizes, dim)
     }
 
     fn bool_permute(tensor: TchTensor, axes: &[usize]) -> TchTensor {

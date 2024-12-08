@@ -324,6 +324,26 @@ impl DType {
     pub fn is_bool(&self) -> bool {
         matches!(self, DType::Bool)
     }
+
+    /// Returns the data type name.
+    pub fn name(&self) -> &'static str {
+        match self {
+            DType::F64 => "f64",
+            DType::F32 => "f32",
+            DType::F16 => "f16",
+            DType::BF16 => "bf16",
+            DType::I64 => "i64",
+            DType::I32 => "i32",
+            DType::I16 => "i16",
+            DType::I8 => "i8",
+            DType::U64 => "u64",
+            DType::U32 => "u32",
+            DType::U16 => "u16",
+            DType::U8 => "u8",
+            DType::Bool => "bool",
+            DType::QFloat(_) => "qfloat",
+        }
+    }
 }
 
 #[allow(missing_docs)]
@@ -343,6 +363,17 @@ impl From<DType> for FloatDType {
             DType::F16 => FloatDType::F16,
             DType::BF16 => FloatDType::BF16,
             _ => panic!("Expected float data type, got {value:?}"),
+        }
+    }
+}
+
+impl From<FloatDType> for DType {
+    fn from(value: FloatDType) -> Self {
+        match value {
+            FloatDType::F64 => DType::F64,
+            FloatDType::F32 => DType::F32,
+            FloatDType::F16 => DType::F16,
+            FloatDType::BF16 => DType::BF16,
         }
     }
 }

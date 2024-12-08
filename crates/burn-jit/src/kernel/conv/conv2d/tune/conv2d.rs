@@ -3,31 +3,35 @@ use burn_tensor::{
     ElementConversion, Shape,
 };
 use cubecl::{
-    tune,
+    ir::{Elem, FloatKind},
+    tf32, tune,
     tune::{local_tuner, tune_with, LocalTuner},
 };
+use half::{bf16, f16};
 
 use crate::{
     kernel::{
         conv::{
-            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col,
-            conv2d_implicit_gemm,
+            algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
+            conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
+            conv2d_implicit_gemm, has_tf32, problem_from_key, CmmaBalancedAlgorithm,
+            CmmaLargeMAlgorithm,
         },
         prng::random_uniform,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitAutotuneKey, JitRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
 
 use super::Conv2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
-pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    weights: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
+    input: JitTensor<R>,
+    weights: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
@@ -35,24 +39,28 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
     TUNER.execute(
         &JitTuneId::new::<R>(&input.device),
         &client,
-        Box::new(Conv2dOperations::<R, E, I>::new(
-            input, weights, bias, options,
-        )),
+        Box::new(Conv2dOperations::<R, E>::new(input, weights, bias, options)),
     )
 }
 
 #[tune(
-    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm),
-    create_key = create_key,
+    operations(
+        conv2d_direct,
+        conv2d_im2col,
+        conv2d_implicit_gemm,
+        conv2d_gemm_cmma_large_m,
+        conv2d_gemm_cmma_balanced
+    ),
+    create_key = create_key::<R, E>,
     should_run = should_run
 )]
-pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_operations<R: JitRuntime, E: FloatElement>(
     key: JitAutotuneKey,
-    input: JitTensor<R, E>,
-    weights: JitTensor<R, E>,
-    bias: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    weights: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let device = &input.device;
     let key = match key {
         JitAutotuneKey::Conv2d(key) => key,
@@ -74,8 +82,25 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
     tune_with!(input, weights, bias, options)
 }
 
-fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
-    op: &Conv2dOperations<R, F, I>,
+macro_rules! check_algo {
+    ($algo:tt, $float:ty, $input:expr, $problem:expr) => {
+        match (<$float>::as_elem(), has_tf32(&$input)) {
+            (Elem::Float(FloatKind::F32), true) => {
+                $algo::<$float, tf32, f32>::can_launch::<R>(&$input.client, &$problem)
+            }
+            (Elem::Float(FloatKind::F16), _) => {
+                $algo::<$float, f16, f16>::can_launch::<R>(&$input.client, &$problem)
+            }
+            (Elem::Float(FloatKind::BF16), _) => {
+                $algo::<$float, bf16, f32>::can_launch::<R>(&$input.client, &$problem)
+            }
+            _ => $algo::<$float, f16, f32>::can_launch::<R>(&$input.client, &$problem),
+        }
+    };
+}
+
+fn should_run<R: JitRuntime, F: FloatElement>(
+    op: &Conv2dOperations<R, F>,
     key: &JitAutotuneKey,
     index: usize,
 ) -> bool {
@@ -99,6 +124,8 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
         key.width,
     );
 
+    let conv_problem = problem_from_key::<R, F>(key, out_h, out_w);
+
     match index {
         // im2col
         1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
@@ -113,14 +140,18 @@ fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
             out_w,
             &op.input.client,
         ),
+        // GEMM large m
+        3 => check_algo!(CmmaLargeMAlgorithm, F, op.input, conv_problem),
+        // GEMM balanced
+        4 => check_algo!(CmmaBalancedAlgorithm, F, op.input, conv_problem),
         _ => true,
     }
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R, E>,
-    weights: &JitTensor<R, E>,
-    bias: &Option<JitTensor<R, E>>,
+    input: &JitTensor<R>,
+    weights: &JitTensor<R>,
+    bias: &Option<JitTensor<R>>,
     options: &ConvOptions<2>,
 ) -> JitAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();

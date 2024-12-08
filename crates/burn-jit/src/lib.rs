@@ -21,13 +21,11 @@ pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{compute::CubeTask, Feature, Runtime};
-pub use element::{FloatElement, IntElement, JitElement};
+pub use element::{BoolElement, FloatElement, IntElement, JitElement};
 
 mod backend;
-mod bridge;
 
 pub use backend::*;
-pub use bridge::*;
 
 // Re-export cubecl.
 pub use cubecl;

@@ -1,12 +1,11 @@
 use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
-    QFusionTensor,
+    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, QFusionTensor,
 };
 use burn_tensor::{
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
     repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
-    Device,
+    Device, Element,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -26,8 +25,6 @@ pub struct Fusion<B: FusionBackend> {
 impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
-    type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
-
     type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
@@ -37,6 +34,8 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     type IntElem = B::IntElem;
 
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
+    type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
 
@@ -145,6 +144,8 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
     type FusionDevice: DeviceOps;
     /// The client to interact with the runtime.
     type FusionClient: FusionClient<Self>;
+    /// The type that represents booleans on the backend.
+    type BoolRepr: Element;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(

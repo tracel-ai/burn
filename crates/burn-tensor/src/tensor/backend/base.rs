@@ -1,9 +1,10 @@
 use alloc::string::String;
 
 use crate::tensor::Element;
+use crate::TensorMetadata;
 use crate::{ops::*, quantization::QTensorPrimitive};
 
-use super::{BackendBridge, DeviceOps};
+use super::DeviceOps;
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
 ///
@@ -58,6 +59,7 @@ pub trait Backend:
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>
+    + TransactionOps<Self>
     + Clone
     + Default
     + Sized
@@ -69,29 +71,23 @@ pub trait Backend:
     /// Device type.
     type Device: DeviceOps;
 
-    /// A bridge that can cast tensors to full precision.
-    type FullPrecisionBridge: BackendBridge<Self> + 'static;
-
     /// Tensor primitive to be used for all float operations.
-    type FloatTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
-    /// Float element type.
+    type FloatTensorPrimitive: TensorMetadata + 'static;
+    /// Default float element type.
     type FloatElem: Element;
 
     /// Tensor primitive to be used for all int operations.
-    type IntTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type IntTensorPrimitive: TensorMetadata + 'static;
     /// Int element type.
     type IntElem: Element;
 
     /// Tensor primitive to be used for all bool operations.
-    type BoolTensorPrimitive: Clone + Send + Sync + 'static + core::fmt::Debug;
+    type BoolTensorPrimitive: TensorMetadata + 'static;
+    /// Tensor primitive to be used for all bool operations.
+    type BoolElem: Element;
 
     /// Tensor primitive to be used for all quantized operations.
-    type QuantizedTensorPrimitive: QTensorPrimitive
-        + Clone
-        + Send
-        + Sync
-        + 'static
-        + core::fmt::Debug;
+    type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
     /// Quantized tensor encoding type.
     type QuantizedEncoding: Element;
 
