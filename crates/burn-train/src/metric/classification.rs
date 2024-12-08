@@ -1,4 +1,3 @@
-use burn_core::prelude::{Backend, Bool, Tensor};
 use std::num::NonZeroUsize;
 
 /// The reduction strategy for classification metrics.
@@ -11,47 +10,19 @@ pub enum ClassReduction {
     Macro,
 }
 
-/// Input for classification metrics
-#[derive(new, Debug, Clone)]
-pub struct ClassificationInput<B: Backend> {
-    /// Sample x Class Non thresholded normalized predictions.
-    pub predictions: Tensor<B, 2>,
-    /// Sample x Class one-hot encoded target.
-    pub targets: Tensor<B, 2, Bool>,
+#[derive(Default)]
+pub struct ClassificationMetricConfig {
+    pub decision_rule: ClassificationDecisionRule,
+    pub class_reduction: ClassReduction,
 }
 
-impl<B: Backend> From<ClassificationInput<B>> for (Tensor<B, 2>, Tensor<B, 2, Bool>) {
-    fn from(input: ClassificationInput<B>) -> Self {
-        (input.predictions, input.targets)
-    }
+pub enum ClassificationDecisionRule {
+    Threshold(f64),
+    TopK(NonZeroUsize),
 }
 
-impl<B: Backend> From<(Tensor<B, 2>, Tensor<B, 2, Bool>)> for ClassificationInput<B> {
-    fn from(value: (Tensor<B, 2>, Tensor<B, 2, Bool>)) -> Self {
-        Self::new(value.0, value.1)
-    }
-}
-
-pub enum ClassificationConfig {
-    Binary {
-        threshold: f64,
-        class_reduction: ClassReduction,
-    },
-    Multiclass {
-        top_k: NonZeroUsize,
-        class_reduction: ClassReduction,
-    },
-    Multilabel {
-        threshold: f64,
-        class_reduction: ClassReduction,
-    },
-}
-
-impl Default for ClassificationConfig {
+impl Default for ClassificationDecisionRule {
     fn default() -> Self {
-        Self::Binary {
-            threshold: 0.5,
-            class_reduction: Default::default(),
-        }
+        Self::Threshold(0.5)
     }
 }

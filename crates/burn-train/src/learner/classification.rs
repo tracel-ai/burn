@@ -1,5 +1,5 @@
-use crate::metric::{
-    classification::ClassificationInput, AccuracyInput, Adaptor, HammingScoreInput, LossInput,
+use crate::metric::{ ConfusionStatsInput,
+    AccuracyInput, Adaptor, HammingScoreInput, LossInput,
 };
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
@@ -29,16 +29,16 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<ClassificationInput<B>> for ClassificationOutput<B> {
-    fn adapt(&self) -> ClassificationInput<B> {
+impl<B: Backend> Adaptor<ConfusionStatsInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> ConfusionStatsInput<B> {
         let [_, num_classes] = self.output.dims();
         if num_classes > 1 {
-            ClassificationInput::new(
+            ConfusionStatsInput::new(
                 self.output.clone(),
                 self.targets.clone().one_hot(num_classes).bool(),
             )
         } else {
-            ClassificationInput::new(
+            ConfusionStatsInput::new(
                 self.output.clone(),
                 self.targets.clone().unsqueeze_dim(1).bool(),
             )
@@ -71,8 +71,8 @@ impl<B: Backend> Adaptor<LossInput<B>> for MultiLabelClassificationOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<ClassificationInput<B>> for MultiLabelClassificationOutput<B> {
-    fn adapt(&self) -> ClassificationInput<B> {
-        ClassificationInput::new(self.output.clone(), self.targets.clone().bool())
+impl<B: Backend> Adaptor<ConfusionStatsInput<B>> for MultiLabelClassificationOutput<B> {
+    fn adapt(&self) -> ConfusionStatsInput<B> {
+        ConfusionStatsInput::new(self.output.clone(), self.targets.clone().bool())
     }
 }

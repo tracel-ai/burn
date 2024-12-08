@@ -1,6 +1,6 @@
 use super::{
-    classification::{ClassReduction, ClassificationConfig, ClassificationInput},
-    confusion_stats::ConfusionStats,
+    classification::{ClassReduction, ClassificationDecisionRule, ClassificationMetricConfig},
+    confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
     Metric, MetricEntry, MetricMetadata, Numeric,
 };
@@ -16,8 +16,7 @@ use std::num::NonZeroUsize;
 pub struct RecallMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
-    class_reduction: ClassReduction,
-    config: ClassificationConfig,
+    config: ClassificationMetricConfig,
 }
 
 impl<B: Backend> RecallMetric<B> {
@@ -29,9 +28,9 @@ impl<B: Backend> RecallMetric<B> {
     #[allow(dead_code)]
     pub fn binary(threshold: f64) -> Self {
         Self {
-            config: ClassificationConfig::Binary {
-                threshold,
-                class_reduction: Default::default(),
+            config: ClassificationMetricConfig {
+                decision_rule: ClassificationDecisionRule::Threshold(threshold),
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -45,8 +44,10 @@ impl<B: Backend> RecallMetric<B> {
     #[allow(dead_code)]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
-            config: ClassificationConfig::Multiclass {
-                top_k: NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
+            config: ClassificationMetricConfig {
+                decision_rule: ClassificationDecisionRule::TopK(
+                    NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
+                ),
                 class_reduction,
             },
             ..Default::default()
@@ -61,8 +62,8 @@ impl<B: Backend> RecallMetric<B> {
     #[allow(dead_code)]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
-            config: ClassificationConfig::Multilabel {
-                threshold,
+            config: ClassificationMetricConfig {
+                decision_rule: ClassificationDecisionRule::Threshold(threshold),
                 class_reduction,
             },
             ..Default::default()
@@ -71,7 +72,7 @@ impl<B: Backend> RecallMetric<B> {
 
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
         use ClassReduction::*;
-        let avg_tensor = match self.class_reduction {
+        let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
             Macro => {
                 if aggregated_metric.contains_nan().any().into_scalar() {
@@ -89,13 +90,12 @@ impl<B: Backend> RecallMetric<B> {
 
 impl<B: Backend> Metric for RecallMetric<B> {
     const NAME: &'static str = "Recall";
-    type Input = ClassificationInput<B>;
+    type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let (predictions, targets) = input.clone().into();
         let [sample_size, _] = input.predictions.dims();
 
-        let cf_stats = ConfusionStats::new(predictions, targets, &self.config);
+        let cf_stats = ConfusionStats::new(input, &self.config);
         let metric = self.class_average(cf_stats.clone().true_positive() / cf_stats.positive());
 
         self.state.update(
