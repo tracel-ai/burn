@@ -71,7 +71,7 @@ impl<B: Backend> RecallMetric<B> {
     }
 
     fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
-        use ClassReduction::*;
+        use ClassReduction::{Macro, Micro};
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
             Macro => {
