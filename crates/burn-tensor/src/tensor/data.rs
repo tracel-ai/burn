@@ -114,9 +114,8 @@ impl TensorData {
                     panic!("Invalid quantized type");
                 }
                 // Scale is always stored as f32 and zero-point offset as i32
-                let scale = q.scale as f32;
                 let offset = q.offset as i32;
-                let scale_bytes = bytemuck::bytes_of(&scale);
+                let scale_bytes = bytemuck::bytes_of(&q.scale);
                 let offset_bytes = bytemuck::bytes_of(&offset);
                 value.extend_from_slice(offset_bytes);
                 value.extend_from_slice(scale_bytes);
