@@ -11,7 +11,7 @@ various backends. The core of this lies in
 which is home to the numeric trait and its implementation for the different tensor types. The
 numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
 `Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be
-found under the section for [Tensor Architecture](../project-architecture/Tensor.md#tensorops).
+found under the section for [Tensor Architecture](../project-architecture/tensor.md#tensor-operations).
 
 Here is where pow was added to `crates/burn-tensor/src/tensor/api/numeric.rs`:
 

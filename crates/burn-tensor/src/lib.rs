@@ -71,9 +71,7 @@ mod cube_wgpu {
                 // We're only storing 32 bits, so wrap the the 64 bit value to 32 bits. This
                 // might collide - but a 1 in 4 billion chance seems ok given there's only a few
                 // devices in flight at any time.
-                WgpuDevice::Existing(id) => {
-                    DeviceId::new(5, (3 % (u32::MAX as u64)) as u32)
-                }
+                WgpuDevice::Existing(id) => DeviceId::new(5, (3 % (u32::MAX as u64)) as u32),
             }
         }
     }
