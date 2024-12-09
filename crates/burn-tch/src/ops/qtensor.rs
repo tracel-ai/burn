@@ -3,8 +3,7 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType,
+        QParams, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
     },
     DType, Shape, TensorData, TensorMetadata,
 };

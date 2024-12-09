@@ -1,10 +1,8 @@
-use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, QFusionTensor,
-};
+use crate::{client::FusionClient, stream::Context, FusionClientLocator, FusionTensor};
 use burn_tensor::{
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
+    repr::{OperationDescription, ReprBackend, TensorHandle},
     Device, Element,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -37,7 +35,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolElem = B::BoolElem;
 
-    type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
+    type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type QuantizedEncoding = B::QuantizedEncoding;
 
@@ -184,10 +182,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         handle.handle
     }
 
-    fn quantized_tensor(
-        _handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        _scheme: burn_tensor::quantization::QuantizationScheme,
-    ) -> QuantizedTensor<Self> {
+    fn quantized_tensor(_handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
         todo!() // not as simple
     }
 
@@ -203,7 +198,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         tensor
     }
 
-    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
+    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> Self::Handle {
         todo!() // not as simple
     }
 }

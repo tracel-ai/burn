@@ -553,19 +553,7 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
             }
             FloatOperationDescription::Dequantize(desc) => {
                 FloatOperationDescription::Dequantize(DequantizeOperationDescription {
-                    qtensor: QuantizedTensorDescription {
-                        tensor: desc.qtensor.tensor.to_relative(converter),
-                        qparams: QuantizationParametersDescription {
-                            scale: desc.qtensor.qparams.scale.to_relative(converter),
-                            offset: desc
-                                .qtensor
-                                .qparams
-                                .offset
-                                .as_ref()
-                                .map(|x| x.to_relative(converter)),
-                        },
-                        scheme: desc.qtensor.scheme,
-                    },
+                    input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }

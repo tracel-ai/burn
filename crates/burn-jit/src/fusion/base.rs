@@ -1,10 +1,8 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
-use crate::tensor::{JitQuantizationParameters, QJitTensor};
 use crate::{element::BoolElement, fusion::elemwise::builder::ElementWiseBuilder};
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_tensor::quantization::QuantizationScheme;
-use burn_tensor::repr::{QuantizedKind, TensorHandle};
+use burn_tensor::repr::TensorHandle;
 use burn_tensor::DType;
 use burn_tensor::{repr::ReprBackend, Shape};
 use core::marker::PhantomData;
@@ -80,23 +78,9 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
     }
 
     fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        scheme: QuantizationScheme,
+        handle: TensorHandle<Self::Handle>,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
-        let qtensor = handles.tensor.handle.into_tensor(handles.tensor.shape);
-        let scale = handles.scale.handle.into_tensor(handles.scale.shape);
-        let offset = handles.offset;
-
-        let qparams = JitQuantizationParameters {
-            scale,
-            offset: offset.map(|h| h.handle.into_tensor(h.shape)),
-        };
-
-        QJitTensor {
-            qtensor,
-            scheme,
-            qparams,
-        }
+        handle.handle.into_tensor(handle.shape)
     }
 
     fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
@@ -111,17 +95,8 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         tensor.into()
     }
 
-    fn quantized_tensor_handle(
-        tensor: burn_tensor::ops::QuantizedTensor<Self>,
-    ) -> QuantizedKind<Self::Handle> {
-        let qtensor: JitFusionHandle<R> = tensor.qtensor.into();
-        let scale: JitFusionHandle<R> = tensor.qparams.scale.into();
-
-        QuantizedKind {
-            tensor: qtensor,
-            scale,
-            offset: tensor.qparams.offset.map(|offset| offset.into()),
-        }
+    fn quantized_tensor_handle(tensor: burn_tensor::ops::QuantizedTensor<Self>) -> Self::Handle {
+        tensor.into()
     }
 }
 

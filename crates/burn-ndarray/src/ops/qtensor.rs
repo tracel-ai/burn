@@ -3,8 +3,8 @@ use core::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        AffineQuantization, QParams, QTensorPrimitive, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
     DType, Shape, TensorData, TensorMetadata,
 };
