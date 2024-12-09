@@ -57,19 +57,16 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
 
     let value = input[ABSOLUTE_POS];
 
+    // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        // For input line size = 1
         output[ABSOLUTE_POS] = dequantize_affine_int8(extract_i8s(value[0]), scale, offset);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        #[unroll]
-        for i in 0..input.line_size() {
-            let out = dequantize_affine_int8::<f32>(extract_i8s(value[i]), scale, offset);
+        let out = dequantize_affine_int8::<f32>(extract_i8s(value[0]), scale, offset);
 
-            #[unroll]
-            for j in 0..out.size() {
-                output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
-            }
+        #[unroll]
+        for j in 0..out.size() {
+            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
         }
     }
 }
@@ -97,19 +94,16 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 
     let value = input[ABSOLUTE_POS];
 
+    // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        // For input line size = 1
         output[ABSOLUTE_POS] = dequantize_symmetric_int8(extract_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        #[unroll]
-        for i in 0..input.line_size() {
-            let out = dequantize_symmetric_int8::<f32>(extract_i8s(value[i]), scale);
+        let out = dequantize_symmetric_int8::<f32>(extract_i8s(value[0]), scale);
 
-            #[unroll]
-            for j in 0..out.size() {
-                output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
-            }
+        #[unroll]
+        for j in 0..out.size() {
+            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
         }
     }
 }
