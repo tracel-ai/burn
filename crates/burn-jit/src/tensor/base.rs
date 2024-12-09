@@ -1,6 +1,7 @@
 use crate::element::JitElement;
 use crate::kernel::{launch_unary, unary_op, UnaryOp};
 use crate::JitRuntime;
+use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
@@ -70,6 +71,19 @@ impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
 
     fn shape(&self) -> Shape {
         self.shape.clone()
+    }
+}
+
+impl<R: JitRuntime> QTensorPrimitive for JitTensor<R> {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantizationScheme {
+        if let DType::QFloat(scheme) = &self.dtype {
+            scheme
+        } else {
+            panic!(
+                "Quantization scheme is not valid for dtype {:?}",
+                self.dtype,
+            )
+        }
     }
 }
 
@@ -241,7 +255,16 @@ where
             strides: &self.strides,
             shape: &self.shape.dims,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
+            elem_size: self.elem_size(),
+        }
+    }
+
+    fn elem_size(&self) -> usize {
+        if let DType::QFloat(_) = self.dtype {
+            // Encoded as u32
+            core::mem::size_of::<u32>()
+        } else {
+            self.dtype.size()
         }
     }
 
@@ -254,6 +277,17 @@ where
                 handle.handle,
                 handle.strides,
                 handle.shape,
+                vectorisation,
+            )
+        }
+    }
+
+    /// Return the reference to an array argument.
+    pub fn as_array_arg<E: JitElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+        unsafe {
+            ArrayArg::from_raw_parts::<E>(
+                &self.handle,
+                self.handle.size() as usize / core::mem::size_of::<E>(),
                 vectorisation,
             )
         }

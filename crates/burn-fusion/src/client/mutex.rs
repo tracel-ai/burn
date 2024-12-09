@@ -1,11 +1,10 @@
 use super::FusionClient;
 use crate::{
     stream::{execution::Operation, StreamId},
-    FusionBackend, FusionDevice, FusionHandle, FusionQuantizationParameters, FusionRuntime,
-    FusionServer, FusionTensor, QFusionTensor,
+    FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
 };
 use burn_tensor::{
-    repr::{OperationDescription, QuantizedTensorDescription, TensorDescription, TensorId},
+    repr::{OperationDescription, TensorDescription, TensorId},
     DType,
 };
 use spin::Mutex;
@@ -115,13 +114,13 @@ where
 
     fn read_tensor_quantized<B>(
         &self,
-        tensor: QuantizedTensorDescription,
-        streams: Vec<StreamId>,
+        tensor: TensorDescription,
+        stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_quantized::<B>(tensor, streams)
+        self.server.lock().read_quantized::<B>(tensor, stream)
     }
 
     fn change_client_float<B>(
@@ -190,55 +189,24 @@ where
 
     fn change_client_quantized<B>(
         &self,
-        tensor: QuantizedTensorDescription,
+        tensor: TensorDescription,
         client: Self,
-        streams: Vec<StreamId>,
-    ) -> QFusionTensor<R>
+        stream: StreamId,
+    ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let mut server_other = client.server.lock();
         let mut server_current = self.server.lock();
-        for stream in streams {
-            server_current.drain_stream(stream);
-        }
+        server_current.drain_stream(stream);
 
-        let mut ids =
+        let id =
             server_current.change_server_quantized::<B>(&tensor, &client.device, &mut server_other);
 
         core::mem::drop(server_other);
         core::mem::drop(server_current);
 
-        // NOTE: the expected order is known [qtensor, scale, <offset>]
-        let offset = tensor.qparams.offset.map(|desc| {
-            FusionTensor::new(
-                ids.pop().unwrap(),
-                desc.shape,
-                desc.dtype,
-                client.clone(),
-                StreamId::current(),
-            )
-        });
-        let scale = FusionTensor::new(
-            ids.pop().unwrap(),
-            tensor.qparams.scale.shape,
-            tensor.qparams.scale.dtype,
-            client.clone(),
-            StreamId::current(),
-        );
-        let qtensor = FusionTensor::new(
-            ids.pop().unwrap(),
-            tensor.tensor.shape,
-            tensor.tensor.dtype,
-            client,
-            StreamId::current(),
-        );
-
-        QFusionTensor {
-            qtensor,
-            scheme: tensor.scheme,
-            qparams: FusionQuantizationParameters { scale, offset },
-        }
+        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
     }
 
     fn register_orphan(&self, id: &TensorId) {

@@ -70,10 +70,6 @@ impl QTensorPrimitive for CandleQTensor {
     fn scheme(&self) -> &QuantizationScheme {
         &self.scheme
     }
-
-    fn strategy(&self) -> QuantizationStrategy {
-        todo!()
-    }
 }
 
 impl TensorMetadata for CandleQTensor {

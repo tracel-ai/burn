@@ -2,10 +2,7 @@ use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
 };
-use burn_tensor::repr::{
-    HandleContainer, OperationDescription, QuantizedKind, QuantizedTensorDescription,
-    TensorDescription, TensorId,
-};
+use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription, TensorId};
 use std::{future::Future, sync::Arc};
 
 pub struct FusionServer<R: FusionRuntime> {
@@ -92,17 +89,15 @@ where
 
     pub fn read_quantized<B>(
         &mut self,
-        tensor: QuantizedTensorDescription,
-        ids: Vec<StreamId>,
+        tensor: TensorDescription,
+        id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         // Make sure all registered operations are executed.
         // The underlying backend can still be async.
-        for id in ids {
-            self.drain_stream(id);
-        }
+        self.drain_stream(id);
 
         let tensor = self.handles.get_quantized_tensor::<B>(&tensor);
         B::q_into_data(tensor)
@@ -191,45 +186,22 @@ where
 
     pub fn change_server_quantized<B>(
         &mut self,
-        desc: &QuantizedTensorDescription,
+        desc: &TensorDescription,
         device: &R::FusionDevice,
         server_device: &mut Self,
-    ) -> Vec<Arc<TensorId>>
+    ) -> Arc<TensorId>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let tensor = self.handles.get_quantized_tensor::<B>(desc);
         let tensor = B::q_to_device(tensor, device);
-        if desc.qparams.offset.is_some() {
-            let tensor_id = server_device.create_empty_handle();
-            let scale_id = server_device.create_empty_handle();
-            let offset_id = server_device.create_empty_handle();
+        let id = server_device.create_empty_handle();
 
-            let q_ids = QuantizedKind {
-                tensor: *tensor_id,
-                scale: *scale_id,
-                offset: Some(*offset_id),
-            };
-            server_device
-                .handles
-                .register_quantized_tensor::<B>(&q_ids, tensor);
+        server_device
+            .handles
+            .register_quantized_tensor::<B>(&id, tensor);
 
-            vec![tensor_id, scale_id, offset_id]
-        } else {
-            let tensor_id = server_device.create_empty_handle();
-            let scale_id = server_device.create_empty_handle();
-
-            let q_ids = QuantizedKind {
-                tensor: *tensor_id,
-                scale: *scale_id,
-                offset: None,
-            };
-            server_device
-                .handles
-                .register_quantized_tensor::<B>(&q_ids, tensor);
-
-            vec![tensor_id, scale_id]
-        }
+        id
     }
 
     pub fn drop_tensor_handle(&mut self, id: TensorId) {

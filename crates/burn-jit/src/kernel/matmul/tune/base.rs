@@ -148,7 +148,8 @@ matmul_tune_ops!(
             &lhs.as_handle_ref(),
             &rhs.as_handle_ref(),
             &out.as_handle_ref(),
-        );
+        )
+        .unwrap();
     }
 );
 
@@ -162,7 +163,8 @@ matmul_tune_ops!(
             &lhs.as_handle_ref(),
             &rhs.as_handle_ref(),
             &out.as_handle_ref(),
-        );
+        )
+        .unwrap();
     }
 );
 
@@ -176,6 +178,7 @@ matmul_tune_ops!(
             &lhs.as_handle_ref(),
             &rhs.as_handle_ref(),
             &out.as_handle_ref(),
-        );
+        )
+        .unwrap();
     }
 );

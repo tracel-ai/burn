@@ -328,22 +328,9 @@ pub struct TchQTensor {
     pub scheme: QuantizationScheme,
 }
 
-impl TensorMetadata for TchQTensor {
-    fn dtype(&self) -> DType {
-        DType::QFloat(self.scheme)
-    }
-
-    fn shape(&self) -> Shape {
-        self.qtensor.shape()
-    }
-}
-
-impl QTensorPrimitive for TchQTensor {
-    fn scheme(&self) -> &QuantizationScheme {
-        &self.scheme
-    }
-
-    fn strategy(&self) -> QuantizationStrategy {
+impl TchQTensor {
+    /// Returns the quantization strategy, including quantization parameters, for the given tensor.
+    pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
             QuantizationScheme::PerTensorAffine(dtype) => match dtype {
                 QuantizationType::QInt8 => {
@@ -364,6 +351,22 @@ impl QTensorPrimitive for TchQTensor {
                 }
             },
         }
+    }
+}
+
+impl TensorMetadata for TchQTensor {
+    fn dtype(&self) -> DType {
+        DType::QFloat(self.scheme)
+    }
+
+    fn shape(&self) -> Shape {
+        self.qtensor.shape()
+    }
+}
+
+impl QTensorPrimitive for TchQTensor {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
     }
 }
 
