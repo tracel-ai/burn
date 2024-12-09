@@ -47,7 +47,7 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
     #[comptime] scheme: QuantizationScheme,
 ) {
     // Last two positions contain the qparams
-    if ABSOLUTE_POS >= output.len() - 2 {
+    if ABSOLUTE_POS >= input.len() - 2 {
         return;
     }
 
