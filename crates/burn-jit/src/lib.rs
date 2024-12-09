@@ -14,8 +14,6 @@ pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod tune;
-
 /// Elements for JIT backend
 pub mod element;
 
