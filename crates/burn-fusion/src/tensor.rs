@@ -138,7 +138,6 @@ impl<R: FusionRuntime> FusionTensor<R> {
                 .clone()
                 .read_tensor_quantized::<B>(self.into_description(), id)
                 .await
-            // todo!() // doesn't work if we only have one tensordescription when we need the handles for the tensor + qparams
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
         }
