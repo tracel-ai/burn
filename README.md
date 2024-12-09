@@ -324,7 +324,7 @@ WGPU (WebGPU): Cross-Platform GPU Backend 🌐
 
 Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
 backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
-shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/), or optionally
+shading language [WGSL](https://www.w3.org/TR/WGSL/), or optionally
 [SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
 Assembly to run in the browser while leveraging the GPU, see
 [this demo](https://antimora.github.io/image-classification/). For more information on the benefits
