@@ -3,6 +3,7 @@ use cubecl::{
         components::{
             global::{
                 self,
+                args::{GmmArgs, TensorArgs, TensorInput, TensorOutput},
                 full_load::{self, CyclicLoading, RhsLoader},
                 unloader::Unloader,
                 AccumulatorLoader, Config as _, Loader,
@@ -42,9 +43,10 @@ pub struct ImplicitGemmConvolution<
 }
 
 #[cube]
-impl<EG, ES, Acc, SMM, SMMConf> Convolution<EG, ES, Acc, SMM>
+impl<GA, EG, ES, Acc, SMM, SMMConf> Convolution<GA, EG, ES, Acc, SMM>
     for ImplicitGemmConvolution<EG, ES, Acc, SMM>
 where
+    GA: GmmArgs<EG>,
     EG: Numeric,
     ES: Numeric,
     Acc: Numeric,
@@ -59,10 +61,10 @@ where
     >,
 {
     type LhsLoader = SimpleIm2colLoader<EG, ES, Self::Config>;
-    type RhsLoader = RhsLoader<EG, ES, SMM::Config, CyclicLoading>;
+    type RhsLoader = RhsLoader<TensorArgs, EG, ES, SMM::Config, CyclicLoading>;
     type AccumulatorLoader = BiasLoader<EG, Acc, SMM::Config>;
 
-    type Out = Unloader<EG>;
+    type Out = Unloader<TensorArgs, EG>;
     type Accumulator = SMM::Accumulator;
 
     fn execute(
@@ -126,7 +128,7 @@ where
     }
 
     fn init_lhs_loader(
-        lhs: &Tensor<Line<EG>>,
+        lhs: TensorInput<EG, TensorArgs>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
@@ -142,7 +144,7 @@ where
     }
 
     fn init_rhs_loader(
-        rhs: &Tensor<Line<EG>>,
+        rhs: TensorInput<EG, TensorArgs>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
@@ -159,7 +161,7 @@ where
         Self::AccumulatorLoader::new(bias, n_offset, config.to_smm_config(), has_bias)
     }
 
-    fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out {
+    fn init_unloader(out: TensorOutput<EG, GA>, x_offset: u32, y_offset: u32) -> Self::Out {
         Self::Out::new(out, x_offset, y_offset, 0)
     }
 

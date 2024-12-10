@@ -13,7 +13,7 @@ use cubecl::{ir::Elem, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(new, Clone, Serialize, Deserialize)]
+#[derive(new, Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
 pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
@@ -30,10 +30,11 @@ pub struct FuseOnWriteTrace {
 pub trait TraceRunner<R: JitRuntime> {
     /// Run the trace.
     fn run<'a>(
-        client: &ComputeClient<R::Server, R::Channel>,
+        &'a self,
+        client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: ElemwiseConfig,
+        config: &'a ElemwiseConfig,
     );
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
@@ -95,6 +96,7 @@ impl FuseOnWriteTrace {
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
         context: &mut Context<'_, JitFusionHandle<R>>,
+        runner: &Runner,
     ) {
         let analysis = self.analyse::<R, BT, Runner>(client, device, context);
 
@@ -124,7 +126,7 @@ impl FuseOnWriteTrace {
             ops,
         };
 
-        Runner::run(client, inputs, outputs, config)
+        Runner::run(runner, client, inputs, outputs, &config)
     }
 
     fn analyse<'a, 'c, R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
@@ -309,8 +311,7 @@ impl FuseOnWriteTrace {
         for hi in analysis.handle_inputs.iter() {
             if let Some(reference) = analysis.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
-                    if let ElemwiseOp::Assign(op) = analysis.reads.get_mut(&hi.relative_id).unwrap()
-                    {
+                    if let Some(ElemwiseOp::Assign(op)) = analysis.reads.get_mut(&hi.relative_id) {
                         op.input.add_layout_info(LayoutInfo::SameAsRef);
                     }
                 }
@@ -488,7 +489,7 @@ impl FuseOnWriteTrace {
     }
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
     tensors: BTreeMap<ElemwisePrecision, Vec<TensorDescription>>,
 }

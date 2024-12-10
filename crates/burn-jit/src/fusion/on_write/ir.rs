@@ -114,6 +114,29 @@ pub struct GlobalArgs {
     pub s_u8: Sequence<u8>,
 }
 
+impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+    pub fn shape(&self, arg: &Arg) -> &[usize] {
+        let tensor = match arg {
+            Arg::Input(pos, precision, _) => match precision {
+                ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
+                ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
+                _ => panic!(),
+            },
+            Arg::Output(pos, precision, _) => match precision {
+                ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
+                ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
+                _ => panic!(),
+            },
+            _ => panic!("Only input & output can have a shape"),
+        };
+
+        match tensor {
+            TensorArg::Handle { handle, .. } => handle.shape,
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+}
+
 #[derive(CubeType, Clone)]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).

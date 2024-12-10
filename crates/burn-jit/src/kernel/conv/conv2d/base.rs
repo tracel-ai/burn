@@ -3,10 +3,13 @@ use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 
 #[cfg(feature = "autotune")]
-use super::{conv2d_autotune, conv_transpose2d_autotune};
+// use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
-    conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
-    gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
+    conv2d_direct,
+    conv2d_im2col,
+    conv_transpose2d_col2im,
+    conv_transpose2d_direct,
+    //gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
@@ -78,13 +81,14 @@ pub fn conv2d<R: JitRuntime, E: FloatElement>(
 ) -> JitTensor<R> {
     match strategy {
         Conv2dStrategy::Direct => conv2d_direct::<R, E>(input, weight, bias, options),
-        #[cfg(feature = "autotune")]
-        Conv2dStrategy::Autotune => conv2d_autotune::<R, E>(input, weight, bias, options),
+        // #[cfg(feature = "autotune")]
+        // Conv2dStrategy::Autotune => conv2d_autotune::<R, E>(input, weight, bias, options),
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E>(input, weight, bias, options),
-        Conv2dStrategy::ImplicitGemm => conv2d_implicit_gemm::<R, E>(input, weight, bias, options),
-        Conv2dStrategy::ImplicitGemmComplex => {
-            conv2d_gemm_cmma_large_m::<R, E>(input, weight, bias, options)
-        }
+        _ => todo!(),
+        // Conv2dStrategy::ImplicitGemm => conv2d_implicit_gemm::<R, E>(input, weight, bias, options),
+        // Conv2dStrategy::ImplicitGemmComplex => {
+        //     conv2d_gemm_cmma_large_m::<R, E>(input, weight, bias, options)
+        // }
     }
 }
 
@@ -107,12 +111,13 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
         ConvTranspose2dStrategy::Direct => {
             conv_transpose2d_direct::<R, E>(input, weight, bias, options)
         }
-        #[cfg(feature = "autotune")]
-        ConvTranspose2dStrategy::Autotune => {
-            conv_transpose2d_autotune::<R, E>(input, weight, bias, options)
-        }
+        // #[cfg(feature = "autotune")]
+        // ConvTranspose2dStrategy::Autotune => {
+        //     conv_transpose2d_autotune::<R, E>(input, weight, bias, options)
+        // }
         ConvTranspose2dStrategy::Gemm => {
             conv_transpose2d_col2im::<R, E>(input, weight, bias, options)
         }
+        _ => todo!(),
     }
 }

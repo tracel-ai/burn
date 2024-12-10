@@ -1,4 +1,6 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
+use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
+use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::tensor::{JitQuantizationParameters, QJitTensor};
 use crate::{element::BoolElement, fusion::elemwise::builder::ElementWiseBuilder};
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
@@ -18,7 +20,8 @@ use serde::{Deserialize, Serialize};
 /// More optimization variants should be added here.
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
-    ElementWise2(ElemwiseOptimization<R>),
+    ElementWise(ElemwiseOptimization<R>),
+    Matmul(MatmulOptimization<R>),
 }
 
 /// Fusion optimization state type for JIT.
@@ -28,6 +31,7 @@ pub enum JitOptimization<R: JitRuntime> {
 pub enum JitOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
+    Matmul(MatmulOptimizationState),
 }
 
 impl<R, BT> burn_fusion::Optimization<FusionJitRuntime<R, BT>> for JitOptimization<R>
@@ -37,26 +41,32 @@ where
 {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
-            Self::ElementWise2(op) => op.execute::<BT>(context),
+            Self::ElementWise(op) => op.execute::<BT>(context),
+            Self::Matmul(op) => op.execute::<BT>(context),
         }
     }
 
     fn len(&self) -> usize {
         match self {
-            Self::ElementWise2(op) => op.num_ops_fused(),
+            Self::ElementWise(op) => op.num_ops_fused(),
+            Self::Matmul(op) => op.num_ops_fused(),
         }
     }
 
     fn to_state(&self) -> JitOptimizationState {
         match self {
-            Self::ElementWise2(value) => JitOptimizationState::ElementWise(value.to_state()),
+            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
+            Self::Matmul(value) => JitOptimizationState::Matmul(value.to_state()),
         }
     }
 
     fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
         match state {
             JitOptimizationState::ElementWise(state) => {
-                Self::ElementWise2(ElemwiseOptimization::from_state(device, state))
+                Self::ElementWise(ElemwiseOptimization::from_state(device, state))
+            }
+            JitOptimizationState::Matmul(state) => {
+                Self::Matmul(MatmulOptimization::from_state(device, state))
             }
         }
     }
@@ -136,10 +146,16 @@ impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R>::new(
-            device.clone(),
-            BT::as_elem().into(),
-        ))]
+        vec![
+            Box::new(ElementWiseBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem().into(),
+            )),
+            Box::new(MatmulBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem().into(),
+            )),
+        ]
     }
 }
 

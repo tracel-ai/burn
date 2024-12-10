@@ -40,7 +40,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
         let elementwise =
             ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
 
-        JitOptimization::ElementWise2(elementwise)
+        JitOptimization::ElementWise(elementwise)
     }
 
     fn reset(&mut self) {

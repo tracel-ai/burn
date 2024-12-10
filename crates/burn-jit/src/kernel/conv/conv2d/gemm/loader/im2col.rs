@@ -1,6 +1,9 @@
 use cubecl::{
     linalg::matmul::components::{
-        global::Loader,
+        global::{
+            args::{TensorArgs, TensorInput},
+            Loader,
+        },
         stage::{
             multi_buffer::LhsReader, ColMajorTiling, RowMajorTiling, Stage, TilingOrder as _,
             TilingOrderConfig,
@@ -46,7 +49,7 @@ impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoad
 #[cube]
 impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
     pub fn new(
-        tensor: &Tensor<Line<EG>>,
+        tensor: TensorInput<EG, TensorArgs>,
         shape_out_y: u32,
         shape_out_x: u32,
         x_offset: u32,

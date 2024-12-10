@@ -1,7 +1,10 @@
 use burn_tensor::ops::ConvOptions;
 use cubecl::linalg::matmul::{
     components::{
-        global::{AccumulatorLoader, Unloader},
+        global::{
+            args::{GmmArgs, TensorArgs, TensorInput, TensorOutput},
+            AccumulatorLoader, Unloader,
+        },
         stage, MatmulProblem, MatrixLayout,
     },
     kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
@@ -11,8 +14,13 @@ use cubecl::prelude::*;
 use super::Config;
 
 #[cube]
-pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul<ES, EG, Acc>>:
-    'static + Send + Sync + ConvolutionKernel<EG, EG, Config: Config>
+pub trait Convolution<
+    GA: GmmArgs<EG>,
+    EG: Numeric,
+    ES: Numeric,
+    Acc: Numeric,
+    SMM: stage::Matmul<ES, EG, Acc>,
+>: 'static + Send + Sync + ConvolutionKernel<EG, EG, Config: Config>
 {
     type LhsLoader: CubeType;
     type RhsLoader: CubeType;
@@ -38,14 +46,14 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
     );
 
     fn init_lhs_loader(
-        lhs: &Tensor<Line<EG>>,
+        lhs: TensorInput<EG, TensorArgs>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
     ) -> Self::LhsLoader;
 
     fn init_rhs_loader(
-        rhs: &Tensor<Line<EG>>,
+        rhs: TensorInput<EG, TensorArgs>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
@@ -58,7 +66,7 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
         #[comptime] has_bias: bool,
     ) -> Self::AccumulatorLoader;
 
-    fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out;
+    fn init_unloader(out: TensorOutput<EG, GA>, x_offset: u32, y_offset: u32) -> Self::Out;
 
     fn init_accumulator(#[comptime] config: Self::Config) -> Self::Accumulator;
 }

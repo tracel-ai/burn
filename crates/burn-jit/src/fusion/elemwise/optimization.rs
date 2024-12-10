@@ -30,7 +30,7 @@ impl<R: JitRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         self.trace
-            .run::<R, BT, Self>(&self.client, &self.device, context)
+            .run::<R, BT, Self>(&self.client, &self.device, context, self)
     }
 
     /// Number of element wise operations fused.
@@ -59,10 +59,11 @@ impl<R: JitRuntime> ElemwiseOptimization<R> {
 
 impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
     fn run<'a>(
-        client: &ComputeClient<R::Server, R::Channel>,
+        &'a self,
+        client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: ElemwiseConfig,
+        config: &'a ElemwiseConfig,
     ) {
         let arg = match config.ref_layout {
             Arg::Input(index, precision, _) => match precision {
@@ -111,7 +112,14 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
         unsafe {
-            elemwise_fuse::launch_unchecked(client, cube_count, cube_dim, inputs, outputs, config);
+            elemwise_fuse::launch_unchecked(
+                client,
+                cube_count,
+                cube_dim,
+                inputs,
+                outputs,
+                config.clone(),
+            );
         }
     }
 

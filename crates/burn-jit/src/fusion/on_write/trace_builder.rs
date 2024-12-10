@@ -48,6 +48,18 @@ impl FuseOnWriteTraceBuilder {
         meta + inputs + outputs + scalar
     }
 
+    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+        let new_input = self.inputs.insert(precision_input, tensor.clone());
+        Arg::Input(new_input, precision_input, LayoutInfo::Unknown)
+    }
+
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
         let precision = tensor.dtype.into();
 
