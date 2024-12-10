@@ -122,13 +122,10 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         }
     }
 
-    fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-    ) -> QuantizedTensor<Self> {
-        let handle = handles.tensor.handle;
-        match handle {
+    fn quantized_tensor(handles: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        match handle.handle {
             HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.name()),
+            _ => panic!("Expected quantized handle, got {}", handle.handle.name()),
         }
     }
 
@@ -144,13 +141,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         HandleKind::Bool(tensor)
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
-        QuantizedKind {
-            tensor: HandleKind::Quantized(tensor),
-            // The quantized tensor primitive already encapsulates the required quantization
-            // parameters so we set the scale as an empty handle (unused).
-            scale: HandleKind::Empty,
-            offset: None,
-        }
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        HandleKind::Quantized(tensor)
     }
 }

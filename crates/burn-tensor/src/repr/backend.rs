@@ -50,8 +50,6 @@ pub enum HandleKind<B: Backend> {
     Bool(B::BoolTensorPrimitive),
     /// Quantized tensor handle.
     Quantized(B::QuantizedTensorPrimitive),
-    /// Empty handle (used as a dummy representation).
-    Empty,
 }
 
 impl<B: Backend> HandleKind<B> {
@@ -62,7 +60,6 @@ impl<B: Backend> HandleKind<B> {
             HandleKind::Int(_) => "int",
             HandleKind::Bool(_) => "bool",
             HandleKind::Quantized(_) => "quantized",
-            HandleKind::Empty => unreachable!(), // should not happen
         }
     }
 }
