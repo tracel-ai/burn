@@ -35,7 +35,6 @@ pub trait ReprBackend: Backend {
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](ReprBackend::Handle).
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
     /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](ReprBackend::Handle).
-    /// A quantized tensor has multiple handles for the tensor itself and the quantization parameters.
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle;
 }
 
