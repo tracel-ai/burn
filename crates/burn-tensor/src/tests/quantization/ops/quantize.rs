@@ -18,7 +18,7 @@ mod tests {
             offset: Some(Tensor::from_ints([72], &device)),
         };
 
-        let x_q = tensor.quantize(&scheme, qparams);
+        let x_q = tensor.quantize(&scheme, qparams).into_data();
 
         let expected = TensorData::quantized(
             vec![-128i8, -39, 72, 127],
@@ -26,7 +26,14 @@ mod tests {
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72)),
         );
 
-        x_q.to_data().assert_eq(&expected, true);
+        // Values equality
+        x_q.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = x_q.get_q_params::<f32, i8>().unwrap();
+        let expected = expected.get_q_params::<f32, i8>().unwrap();
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, expected.offset);
     }
 
     #[test]
@@ -39,7 +46,7 @@ mod tests {
             offset: None,
         };
 
-        let x_q = tensor.quantize(&scheme, qparams);
+        let x_q = tensor.quantize(&scheme, qparams).into_data();
 
         let expected = TensorData::quantized(
             vec![-127i8, -71, 0, 35],
@@ -49,7 +56,14 @@ mod tests {
             )),
         );
 
-        x_q.to_data().assert_eq(&expected, true);
+        // Values equality
+        x_q.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = x_q.get_q_params::<f32, i8>().unwrap();
+        let expected = expected.get_q_params::<f32, i8>().unwrap();
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, expected.offset);
     }
 
     #[test]

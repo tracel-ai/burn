@@ -2,11 +2,10 @@ use std::{marker::PhantomData, ops::Range};
 
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
+    quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     repr::{
         DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
         OperationDescription, QuantizationParametersDescription, QuantizeOperationDescription,
-        QuantizedKind,
     },
     DType, Device, Element, Shape, TensorData,
 };
@@ -15,67 +14,24 @@ use crate::{
     client::FusionClient,
     get_client,
     stream::{execution::Operation, StreamId},
-    Fusion, FusionBackend, FusionQuantizationParameters, QFusionTensor,
+    Fusion, FusionBackend,
 };
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
-            DType::QFloat(scheme) => {
+            DType::QFloat(_scheme) => {
+                let dtype = data.dtype;
                 let client = get_client::<B>(device);
                 let tensor = B::q_from_data(data, device);
-                let shape = B::q_shape(&tensor);
+                let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
-                let handles = B::quantized_tensor_handle(tensor);
-                let qparams = match scheme {
-                    QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
-                        let offset = if let Some(offset) = handles.offset {
-                            offset
-                        } else {
-                            panic!("Expected offset for quantized tensor.");
-                        };
-                        FusionQuantizationParameters {
-                            scale: client.register_tensor(
-                                handles.scale,
-                                vec![1],
-                                StreamId::current(),
-                                B::FloatElem::dtype(),
-                            ),
-                            offset: Some(client.register_tensor(
-                                offset,
-                                vec![1],
-                                StreamId::current(),
-                                B::IntElem::dtype(),
-                            )),
-                        }
-                    }
-                    QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
-                        assert!(
-                            handles.offset.is_none(),
-                            "Offset should not be provided for symmetric quantization."
-                        );
-                        FusionQuantizationParameters {
-                            scale: client.register_tensor(
-                                handles.scale,
-                                vec![1],
-                                StreamId::current(),
-                                B::FloatElem::dtype(),
-                            ),
-                            offset: None,
-                        }
-                    }
-                };
-                let qtensor = client.register_tensor(
-                    handles.tensor,
+                client.register_tensor(
+                    B::quantized_tensor_handle(tensor),
                     shape.dims,
                     StreamId::current(),
-                    B::QuantizedEncoding::dtype(),
-                );
-                QFusionTensor {
-                    qtensor,
-                    qparams,
-                    scheme,
-                }
+                    dtype,
+                )
             }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
@@ -108,27 +64,14 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
                 let qparams = QuantizationParametersPrimitive { scale, offset };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
-                let q_ids = if let Some(offset) = &self.desc.qparams.offset {
-                    QuantizedKind {
-                        tensor: self.desc.out.id,
-                        scale: self.desc.qparams.scale.id,
-                        offset: Some(offset.id),
-                    }
-                } else {
-                    QuantizedKind {
-                        tensor: self.desc.out.id,
-                        scale: self.desc.qparams.scale.id,
-                        offset: None,
-                    }
-                };
-                handles.register_quantized_tensor::<B>(&q_ids, output);
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
         let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor
             .client
-            .tensor_uninitialized(shape, B::QuantizedEncoding::dtype());
+            .tensor_uninitialized(shape, DType::QFloat(*scheme));
 
         let streams = if let Some(offset) = &qparams.offset {
             vec![tensor.stream, qparams.scale.stream, offset.stream]
@@ -155,11 +98,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             QuantizeOp::<B>::new(desc),
         );
 
-        QFusionTensor {
-            qtensor: out,
-            scheme: *scheme,
-            qparams: qparams.into(),
-        }
+        out
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
@@ -171,36 +110,26 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for DequantizeOp<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let tensor = handles.get_quantized_tensor::<B>(&self.desc.qtensor);
+                let tensor = handles.get_quantized_tensor::<B>(&self.desc.input);
 
                 let output = B::dequantize(tensor);
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
-        let shape: Vec<usize> = tensor.qtensor.shape.clone();
+        let stream = tensor.stream;
+        let shape: Vec<usize> = tensor.shape.clone();
         let out = tensor
-            .qtensor
             .client
             .tensor_uninitialized(shape, B::FloatElem::dtype());
 
-        let streams = if let Some(offset) = &tensor.qparams.offset {
-            vec![
-                tensor.qtensor.stream,
-                tensor.qparams.scale.stream,
-                offset.stream,
-            ]
-        } else {
-            vec![tensor.qtensor.stream, tensor.qparams.scale.stream]
-        };
-
         let desc = DequantizeOperationDescription {
-            qtensor: tensor.into_description(),
+            input: tensor.into_description(),
             out: out.to_description_out(),
         };
 
         out.client.register(
-            streams,
+            vec![stream],
             OperationDescription::Float(
                 FloatElem::<Self>::dtype(),
                 FloatOperationDescription::Dequantize(desc.clone()),
@@ -211,40 +140,23 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        // Conflicting `dtype()` when both `Element` and `TensorMetadata` traits are in
-        // scope so we use the fully qualified syntax
-        burn_tensor::TensorMetadata::shape(tensor)
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
-        tensor.qtensor.client.device().clone()
+        tensor.client.device().clone()
     }
 
     fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device<Self>) -> QuantizedTensor<Self> {
-        // Quantization parameters are on the same device as the qtensor
-        let device_original: &B::Device = tensor.qtensor.client.device();
+        let device_original: &B::Device = tensor.client.device();
         let device_target: B::Device = device.clone();
 
         if device_original == &device_target {
             return tensor;
         }
-        println!("q_to_device {:?} {:?}", device_original, device_target);
 
+        let id = tensor.stream;
         let client_target = get_client::<B>(&device_target);
-        let client_original = tensor.qtensor.client.clone();
+        let client_original = tensor.client.clone();
 
-        let ids = if let Some(offset) = &tensor.qparams.offset {
-            vec![
-                tensor.qtensor.stream,
-                tensor.qparams.scale.stream,
-                offset.stream,
-            ]
-        } else {
-            vec![tensor.qtensor.stream, tensor.qparams.scale.stream]
-        };
-
-        client_original.change_client_quantized::<B>(tensor.into_description(), client_target, ids)
+        client_original.change_client_quantized::<B>(tensor.into_description(), client_target, id)
     }
 
     fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {
@@ -252,7 +164,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
-        tensor.into_data::<B>().await
+        tensor.q_into_data::<B>().await
     }
 
     fn q_swap_dims(

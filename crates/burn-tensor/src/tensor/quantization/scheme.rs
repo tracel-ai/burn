@@ -1,11 +1,17 @@
+#![allow(missing_docs)] // cube derive macros
+
 use serde::{Deserialize, Serialize};
 
 use crate::{backend::Backend, Tensor, TensorPrimitive};
 
 use super::{CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive};
 
+#[cfg(feature = "cubecl")]
+use cubecl::prelude::*;
+
 /// Quantization data type.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "cubecl", derive(CubeType, PartialOrd, Ord))]
 pub enum QuantizationType {
     /// 8-bit signed integer.
     QInt8,
@@ -13,6 +19,7 @@ pub enum QuantizationType {
 
 /// Quantization scheme.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "cubecl", derive(PartialOrd, Ord))]
 pub enum QuantizationScheme {
     /// Per-tensor affine/asymmetric quantization.
     PerTensorAffine(QuantizationType),
@@ -22,6 +29,17 @@ pub enum QuantizationScheme {
     // PerChannelAffine,
     // /// Per-channel symmetric quantization.
     // PerChannelSymmetric,
+}
+
+#[cfg(feature = "cubecl")]
+impl CubeType for QuantizationScheme {
+    type ExpandType = Self;
+}
+#[cfg(feature = "cubecl")]
+impl cubecl::frontend::Init for QuantizationScheme {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
+    }
 }
 
 impl QuantizationScheme {

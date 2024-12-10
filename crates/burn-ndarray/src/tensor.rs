@@ -352,12 +352,9 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     pub qparams: QParams<f32, Q>,
 }
 
-impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
-    fn scheme(&self) -> &QuantizationScheme {
-        &self.scheme
-    }
-
-    fn strategy(&self) -> QuantizationStrategy {
+impl<Q: QuantElement> NdArrayQTensor<Q> {
+    /// Returns the quantization strategy, including quantization parameters, for the given tensor.
+    pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
             QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
@@ -371,6 +368,12 @@ impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
                 ))
             }
         }
+    }
+}
+
+impl<Q: QuantElement> QTensorPrimitive for NdArrayQTensor<Q> {
+    fn scheme(&self) -> &QuantizationScheme {
+        &self.scheme
     }
 }
 

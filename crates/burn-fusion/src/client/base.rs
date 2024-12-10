@@ -2,10 +2,10 @@ use std::future::Future;
 
 use crate::{
     stream::{execution::Operation, StreamId},
-    FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor, QFusionTensor,
+    FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
 use burn_tensor::{
-    repr::{OperationDescription, QuantizedTensorDescription, TensorDescription, TensorId},
+    repr::{OperationDescription, TensorDescription, TensorId},
     DType, TensorData,
 };
 
@@ -61,8 +61,8 @@ where
     /// Read the values contained by a quantized tensor.
     fn read_tensor_quantized<B>(
         &self,
-        tensor: QuantizedTensorDescription,
-        streams: Vec<StreamId>,
+        tensor: TensorDescription,
+        streams: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
         B: FusionBackend<FusionRuntime = R>;
@@ -108,10 +108,10 @@ where
     /// Change the client of the given quantized tensor.
     fn change_client_quantized<B>(
         &self,
-        tensor: QuantizedTensorDescription,
+        tensor: TensorDescription,
         client: Self,
-        streams: Vec<StreamId>,
-    ) -> QFusionTensor<R>
+        stream: StreamId,
+    ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>;
     /// Drop the tensor with the given [tensor id](TensorId).

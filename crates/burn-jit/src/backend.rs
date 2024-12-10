@@ -1,8 +1,4 @@
-use crate::{
-    element::BoolElement,
-    tensor::{JitTensor, QJitTensor},
-    FloatElement, IntElement, JitRuntime,
-};
+use crate::{element::BoolElement, tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
@@ -12,7 +8,7 @@ use std::{marker::PhantomData, sync::Mutex};
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
     quantization::QuantizationScheme,
-    repr::{HandleKind, QuantizedKind, ReprBackend, TensorHandle},
+    repr::{HandleKind, ReprBackend, TensorHandle},
 };
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
@@ -44,7 +40,7 @@ where
     type FloatTensorPrimitive = JitTensor<R>;
     type IntTensorPrimitive = JitTensor<R>;
     type BoolTensorPrimitive = JitTensor<R>;
-    type QuantizedTensorPrimitive = QJitTensor<R>;
+    type QuantizedTensorPrimitive = JitTensor<R>;
     type QuantizedEncoding = u32;
 
     fn name() -> String {
@@ -126,14 +122,10 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         }
     }
 
-    fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        _scheme: QuantizationScheme,
-    ) -> QuantizedTensor<Self> {
-        let handle = handles.tensor.handle;
-        match handle {
+    fn quantized_tensor(handles: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        match handle.handle {
             HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.name()),
+            _ => panic!("Expected quantized handle, got {}", handle.handle.name()),
         }
     }
 
@@ -149,13 +141,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         HandleKind::Bool(tensor)
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
-        QuantizedKind {
-            tensor: HandleKind::Quantized(tensor),
-            // The quantized tensor primitive already encapsulates the required quantization
-            // parameters so we set the scale as an empty handle (unused).
-            scale: HandleKind::Empty,
-            offset: None,
-        }
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        HandleKind::Quantized(tensor)
     }
 }

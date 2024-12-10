@@ -43,7 +43,8 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
                 &lhs.as_handle_ref(),
                 &rhs.as_handle_ref(),
                 &out.as_handle_ref(),
-            );
+            )
+            .unwrap();
             out
         }
         #[cfg(feature = "autotune")]
