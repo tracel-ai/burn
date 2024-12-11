@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::BoolElement;
 use crate::{fusion::JitFusionHandle, JitRuntime};
@@ -5,8 +7,8 @@ use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorDescription;
 use cubecl::linalg::matmul;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::matmul_select_kernel;
-use cubecl::linalg::matmul::kernels::MatmulLaunchError;
+use cubecl::linalg::matmul::kernels::matmul::{CmmaSelector, PlaneMmaSelector};
+use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::{client::ComputeClient, prelude::*};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +17,8 @@ use crate::fusion::on_write::{
     trace::{FuseOnWriteTrace, TraceRunner},
 };
 
-use super::{FusedMatmulArgs, FusedMatmulInputLaunch};
+use super::spec::FusedMatmulSpec;
+use super::FusedMatmulInputLaunch;
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
@@ -76,17 +79,18 @@ impl<R: JitRuntime> TraceRunner<R> for MatmulOptimization<R> {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) {
-        println!("HERE");
-        matmul_cmma_no_check::<R>(
-            client,
-            inputs,
-            outputs,
-            config,
-            &self.args,
-            (8, 8, 8),
-            (false, false),
-            false,
-        )
+        match self.args.2.precision() {
+            ElemwisePrecision::F32 => {
+                matmul_cmma_no_check::<R, f32>(client, inputs, outputs, config, &self.args)
+            }
+            ElemwisePrecision::F16 => {
+                matmul_cmma_no_check::<R, half::f16>(client, inputs, outputs, config, &self.args)
+            }
+            ElemwisePrecision::BF16 => {
+                matmul_cmma_no_check::<R, half::bf16>(client, inputs, outputs, config, &self.args)
+            }
+            _ => panic!("Unsupported precision"),
+        }
         .unwrap()
     }
 
@@ -95,8 +99,6 @@ impl<R: JitRuntime> TraceRunner<R> for MatmulOptimization<R> {
         inputs: impl Iterator<Item = &'a TensorDescription>,
         outputs: impl Iterator<Item = &'a TensorDescription>,
     ) -> u8 {
-        let factors = R::supported_line_sizes();
-
         let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
             let rank = handle.strides.len();
 
@@ -105,10 +107,10 @@ impl<R: JitRuntime> TraceRunner<R> for MatmulOptimization<R> {
                 return 1;
             }
 
-            for s in factors {
+            for s in R::max_line_size_elem(&desc.dtype.into()) {
                 // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize == 0 {
-                    return *s;
+                if desc.shape[rank - 1] % s as usize == 0 {
+                    return s;
                 }
             }
 
@@ -118,10 +120,10 @@ impl<R: JitRuntime> TraceRunner<R> for MatmulOptimization<R> {
         let vectorization_output = |desc: &TensorDescription| {
             let rank = desc.shape.len();
 
-            for s in factors {
+            for s in R::max_line_size_elem(&desc.dtype.into()) {
                 // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize == 0 {
-                    return *s;
+                if desc.shape[rank - 1] % s as usize == 0 {
+                    return s;
                 }
             }
 
@@ -142,18 +144,18 @@ impl<R: JitRuntime> TraceRunner<R> for MatmulOptimization<R> {
     }
 }
 
-fn matmul_cmma_no_check<'a, R: Runtime>(
+fn matmul_cmma_no_check<'a, R: Runtime, EG: Numeric>(
     client: &'a ComputeClient<R::Server, R::Channel>,
     inputs: GlobalArgsLaunch<'a, R>,
     outputs: GlobalArgsLaunch<'a, R>,
     config: &'a ElemwiseConfig,
     (lhs, rhs, out): &'a (Arg, Arg, Arg),
-    (lhs_line_size, rhs_line_size, out_line_size): (u8, u8, u8),
-    transposed: (bool, bool),
-    disable_cmma: bool,
 ) -> Result<(), MatmulLaunchError> {
+    let transposed: (bool, bool) = (false, false);
+    let disable_cmma: bool = false;
+
     let lhs_shape = inputs.shape(lhs);
-    let rhs_shape = inputs.shape(lhs);
+    let rhs_shape = inputs.shape(rhs);
 
     let rank = lhs_shape.len();
 
@@ -161,13 +163,9 @@ fn matmul_cmma_no_check<'a, R: Runtime>(
     let k = lhs_shape[rank - 1] as u32;
     let n = rhs_shape[rank - 1] as u32;
 
-    // let available_vectorizations = R::supported_line_sizes();
-    // let lhs_line_size =
-    //     tensor_line_size_parallel(available_vectorizations, lhs.shape, lhs.strides, rank - 1);
-    // let rhs_line_size =
-    //     tensor_line_size_parallel(available_vectorizations, rhs.shape, rhs.strides, rank - 1);
-    // let out_line_size =
-    //     tensor_line_size_parallel(available_vectorizations, out.shape, out.strides, rank - 1);
+    let lhs_line_size = inputs.line_size(&lhs);
+    let rhs_line_size = inputs.line_size(&lhs);
+    let out_line_size = outputs.line_size(&config.ref_layout);
 
     let problem = MatmulProblem {
         m: m as usize,
@@ -190,21 +188,55 @@ fn matmul_cmma_no_check<'a, R: Runtime>(
         out_line_size,
     };
 
-    match out.precision() {
-        ElemwisePrecision::F32 => matmul_select_kernel::<FusedMatmulArgs, R, f32>(
+    let plane_size = client
+        .properties()
+        .hardware_properties()
+        .defined_plane_size();
+
+    match plane_size {
+        Some(32) => matmul_launch_kernel::<32, R, EG>(
             client,
             FusedMatmulInputLaunch::new(inputs, config, &lhs, &rhs, &out),
             outputs,
-            problem,
             disable_cmma,
+            problem,
         ),
-        ElemwisePrecision::F16 => matmul_select_kernel::<FusedMatmulArgs, R, half::f16>(
+        Some(64) => matmul_launch_kernel::<64, R, EG>(
             client,
             FusedMatmulInputLaunch::new(inputs, config, &lhs, &rhs, &out),
             outputs,
-            problem,
             disable_cmma,
+            problem,
         ),
-        _ => panic!("Unsupported yet"),
+        Some(plane_dim) => Err(MatmulLaunchError::Unavailable(
+            MatmulAvailabilityError::PlaneDimUnsupported { plane_dim },
+        )),
+        None => Err(MatmulLaunchError::Unavailable(
+            MatmulAvailabilityError::PlaneDimUnknown,
+        )),
+    }
+}
+
+fn matmul_launch_kernel<'a, const PLANE_DIM: u32, R: Runtime, EG: Numeric>(
+    client: &ComputeClient<R::Server, R::Channel>,
+    input: FusedMatmulInputLaunch<'a, R>,
+    output: GlobalArgsLaunch<'a, R>,
+    disable_cmma: bool,
+    problem: MatmulProblem,
+) -> Result<(), MatmulLaunchError> {
+    if disable_cmma {
+        PlaneMmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, EG, f32>, R>(
+            client, input, output, problem,
+        )
+    } else if TypeId::of::<EG>() == TypeId::of::<half::f16>()
+        || TypeId::of::<EG>() == TypeId::of::<flex32>()
+    {
+        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, half::f16, f32>, R>(
+            client, input, output, problem,
+        )
+    } else {
+        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, tf32, f32>, R>(
+            client, input, output, problem,
+        )
     }
 }

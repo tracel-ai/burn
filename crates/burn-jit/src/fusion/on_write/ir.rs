@@ -116,7 +116,31 @@ pub struct GlobalArgs {
 
 impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
     pub fn shape(&self, arg: &Arg) -> &[usize] {
-        let tensor = match arg {
+        match self.handle(arg) {
+            TensorArg::Handle { handle, .. } => handle.shape,
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn strides(&self, arg: &Arg) -> &[usize] {
+        match self.handle(arg) {
+            TensorArg::Handle { handle, .. } => handle.strides,
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn line_size(&self, arg: &Arg) -> u8 {
+        match self.handle(arg) {
+            TensorArg::Handle {
+                vectorization_factor,
+                ..
+            } => *vectorization_factor,
+            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        }
+    }
+
+    pub fn handle(&self, arg: &Arg) -> &TensorArg<'_, R> {
+        match arg {
             Arg::Input(pos, precision, _) => match precision {
                 ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
                 ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
@@ -128,11 +152,6 @@ impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
                 _ => panic!(),
             },
             _ => panic!("Only input & output can have a shape"),
-        };
-
-        match tensor {
-            TensorArg::Handle { handle, .. } => handle.shape,
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
 }

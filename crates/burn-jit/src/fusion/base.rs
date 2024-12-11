@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
     ElementWise(ElemwiseOptimization<R>),
+    /// Matrix multiplication optimization.
     Matmul(MatmulOptimization<R>),
 }
 
@@ -31,6 +32,7 @@ pub enum JitOptimization<R: JitRuntime> {
 pub enum JitOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
+    /// Matrix multiplication optimizatio state.
     Matmul(MatmulOptimizationState),
 }
 

@@ -1,7 +1,7 @@
-use cubecl::{linalg::matmul::components::global::args::GmmArgs, prelude::*};
+use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
 use crate::fusion::on_write::{
-    io::{global_shape, global_stride, read_input},
+    io::{global_rank, global_shape, global_stride, read_input},
     ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo},
     kernel::fuse_on_write,
 };
@@ -70,7 +70,7 @@ pub struct FusedMatmulInput {
 pub struct FusedMatmulArgs;
 
 #[cube]
-impl<EG: Numeric> GmmArgs<EG> for FusedMatmulArgs {
+impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     type Output = GlobalArgs;
     type Input = FusedMatmulInput;
     type State = FusedMatmulState;
@@ -132,6 +132,44 @@ impl<EG: Numeric> GmmArgs<EG> for FusedMatmulArgs {
             args,
             &state.config,
         );
+    }
+
+    fn rank_lhs(state: &Self::State) -> u32 {
+        let (pos, precision) = comptime! {
+            match state.lhs {
+                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                _ => panic!("Lhs isn't an input"),
+            }
+        };
+
+        global_rank(unsafe { &(*state.inputs) }, pos, precision)
+    }
+
+    fn rank_rhs(state: &Self::State) -> u32 {
+        let (pos, precision) = comptime! {
+            match state.rhs {
+                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                _ => panic!("Rhs isn't an input"),
+            }
+        };
+
+        global_rank(unsafe { &(*state.inputs) }, pos, precision)
+    }
+
+    fn rank_out(state: &Self::State) -> u32 {
+        let (pos, precision, is_input) = comptime! {
+            match state.config.ref_layout {
+                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone(), true),
+                Arg::Output(pos, precision, _) => (pos.clone(), precision.clone(), false),
+                _ => panic!("Out isn't an input or output"),
+            }
+        };
+
+        if is_input {
+            global_rank(unsafe { &(*state.inputs) }, pos, precision)
+        } else {
+            global_rank(unsafe { &(*state.outputs) }, pos, precision)
+        }
     }
 
     fn shape_lhs(state: &Self::State, dim: u32) -> u32 {

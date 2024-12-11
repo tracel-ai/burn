@@ -527,7 +527,60 @@ fn get_offset<C: CubePrimitive>(
         _ => comptime![panic!("Invalid ref layout.")],
     }
 }
-
+#[cube]
+pub fn global_rank(
+    global: &GlobalArgs,
+    #[comptime] pos: u32,
+    #[comptime] precision: ElemwisePrecision,
+) -> u32 {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = global.t_f32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = global.t_f16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = global.t_bf16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = global.t_u64.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = global.t_u32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = global.t_u16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = global.t_u8.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = global.t_i64.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = global.t_i32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = global.t_i16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = global.t_i8.index(pos);
+            tensor.rank()
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
+    }
+}
 #[cube]
 pub fn global_shape(
     global: &GlobalArgs,
