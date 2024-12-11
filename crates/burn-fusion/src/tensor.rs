@@ -4,7 +4,7 @@ use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Shape, TensorData, TensorMetadata,
 };
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 pub struct FusionTensor<R: FusionRuntime> {
@@ -117,52 +117,48 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn into_data<B>(self) -> TensorData
+    pub(crate) fn into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_float::<B>(self.into_description(), id)
-            .await
+        let client = self.client.clone();
+        let desc = self.into_description();
+        async move { client.read_tensor_float::<B>(desc, id).await }
     }
 
-    pub(crate) async fn q_into_data<B>(self) -> TensorData
+    pub(crate) fn q_into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         if let DType::QFloat(_scheme) = self.dtype {
             let id = self.stream;
-            self.client
-                .clone()
-                .read_tensor_quantized::<B>(self.into_description(), id)
-                .await
+            let client = self.client.clone();
+            let desc = self.into_description();
+            async move { client.read_tensor_quantized::<B>(desc, id).await }
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
         }
     }
 
-    pub(crate) async fn int_into_data<B>(self) -> TensorData
+    pub(crate) fn int_into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_int::<B>(self.into_description(), id)
-            .await
+        let client = self.client.clone();
+        let desc = self.into_description();
+        async move { client.read_tensor_int::<B>(desc, id).await }
     }
 
-    pub(crate) async fn bool_into_data<B>(self) -> TensorData
+    pub(crate) fn bool_into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_bool::<B>(self.into_description(), id)
-            .await
+        let client = self.client.clone();
+        let desc = self.into_description();
+        async move { client.read_tensor_bool::<B>(desc, id).await }
     }
 }
 
