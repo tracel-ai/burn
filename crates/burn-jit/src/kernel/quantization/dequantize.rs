@@ -52,8 +52,7 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
     }
 
     let qparams = QParams::new(scheme);
-    let scale = qparams.scale(input);
-    let offset = qparams.offset(input);
+    let (scale, offset) = qparams.values(input);
 
     let value = input[ABSOLUTE_POS];
 
@@ -90,7 +89,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     }
 
     let qparams = QParams::new(scheme);
-    let scale = qparams.scale(input);
+    let (scale, _) = qparams.values(input);
 
     let value = input[ABSOLUTE_POS];
 
