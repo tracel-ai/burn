@@ -76,6 +76,7 @@ where
     ) {
         let k_step = SMM::K;
         let range = k_range.1 - k_range.0;
+        #[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
         #[allow(clippy::manual_div_ceil)]
         let num_loops = (range + k_step - 1) / k_step;
 

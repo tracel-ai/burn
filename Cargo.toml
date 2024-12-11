@@ -82,10 +82,10 @@ spin = { version = "0.9.8", features = [
 ] }
 strum = "0.26.3"
 strum_macros = "0.26.4"
-syn = { version = "2.0.89", features = ["full", "extra-traits"] }
+syn = { version = "2.0.90", features = ["full", "extra-traits"] }
 tempfile = "3.14.0"
-thiserror = "2.0.3"
-tokio = { version = "1.41.1", features = ["rt", "macros"] }
+thiserror = "2.0.6"
+tokio = { version = "1.42.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
 tracing-subscriber = "0.3.18"
@@ -106,7 +106,7 @@ wgpu = "22.1.0"
 # Benchmarks and Burnbench
 arboard = "3.4.1"
 github-device-flow = "0.2.0"
-os_info = "3.8.2"
+os_info = "3.9.0"
 wsl = "0.1.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
@@ -143,7 +143,7 @@ serde = { version = "1.0.215", default-features = false, features = [
 serde_json = { version = "1.0.133", default-features = false }
 uuid = { version = "1.11.0", default-features = false }
 
-libc = "0.2.165"
+libc = "0.2.167"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.32.1"
 systemstat = "0.2.3"
@@ -153,8 +153,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a4e2b77dcc1c91e31ca95a8d55454f8c49e1f4f6" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a4e2b77dcc1c91e31ca95a8d55454f8c49e1f4f6" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1c4e0036c043422773fd6824c2a888160fca8e5e" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "1c4e0036c043422773fd6824c2a888160fca8e5e" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -163,7 +163,7 @@ cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features 
 # cubecl-common = { version = "0.3.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "~1.1" }
+tracel-xtask = { version = "=1.1.8" }
 
 [profile.dev]
 debug = 0 # Speed up compilation time and not necessary.
