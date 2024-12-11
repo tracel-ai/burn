@@ -71,4 +71,16 @@ mod tests {
         let index_tensor = TestTensorInt::<1>::arange(0..3, &device);
         let one_hot_tensor = index_tensor.one_hot(1);
     }
+
+    #[test]
+    #[should_panic]
+    fn int_one_hot_with() {
+        let device = Default::default();
+        let index_tensor = TestTensorInt::<1>::arange(0..3, &device);
+        let expected = TestTensorInt::eye(5, &device).into_data();
+
+        let one_hot_tensor = index_tensor.one_hot_with_axis_and_values(3, 5, 0, -1);
+        
+        one_hot_tensor.into_data().assert_eq(&expected, false);
+    }
 }

@@ -144,48 +144,53 @@ where
     /// use burn_tensor::{Int, Tensor};
     /// fn example<B: Backend>() {
     ///     let device = B::Device::default();
-    ///     let expected: Tensor<B, 2, Int> = Tensor::from_ints([[5, 0, 0], [0, 0, 5], [0, 5, 0], [0, 0, 0]], &device);
+    ///     let expected: Tensor<B, 2, Int> = Tensor::from_ints([[5, 0, 0], [0, 0, 5], [0, 5, 0], [0, 0, 5]], &device);
     ///     let indices: Tensor<B, 2, Int> = Tensor::from_ints([[0, 2], [1, -1]], &device);
     ///     // One-hot encoding
-    ///     let result = indices.one_hot_with_axis(3, 5, 0, -1);
+    ///     let result = indices.one_hot_with_axis_and_values(3, 5, 0, -1);
     ///     assert_eq!(expected.to_data(), result.to_data());
     /// }
     /// ```
-    pub fn one_hot_with_axis(
+    pub fn one_hot_with_axis_and_values(
         self,
         depth: usize,
-        on_value: i32,
-        off_value: i32,
-        axis: isize,
+        on_value: i64,
+        off_value: i64,
+        axis: i64,
     ) -> Tensor<B, D, Int> {
-        let indices_shape = self.dims();
-        let rank = indices_shape.len();
-        let actual_axis = if axis < 0 {
-            (rank as isize + axis + 1) as usize
-        } else {
-            axis as usize
-        };
 
-        assert!(
-            actual_axis <= rank,
-            "Axis {} out of bounds for tensor with rank {}",
-            actual_axis,
-            rank
+    let mut shape = self.shape().dims::<D>().to_vec();
+    let rank = self.dims().len();
+    let axis = if axis < 0 {
+        axis + rank as i64 + 1 // Convert negative axis to positive index
+    } else {
+        axis
+    };
+    if axis < 0 || axis > rank as i64 {
+        panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
+    }
+    shape.insert(axis as usize, depth);
+    let condition1 = self.clone().greater_elem(-1 * depth as i64).int();
+    let condition2 = self.clone().lower_elem(depth as i64).int();
+    let valid_mask = condition1.mul(condition2).bool().bool_not();
+    let adjusted_indices = self
+        .clone()
+        .mask_fill(self.clone().lower_elem(0), depth as i64)
+        .add(
+            self
+                .clone()
+                .mask_fill(self.clone().greater_elem(0), 0),
         );
 
-        // Create the shape for the result tensor
-        let mut result_shape = indices_shape.to_vec();
-        result_shape.insert(actual_axis, depth);
+    let valid_indices = adjusted_indices.mask_fill(valid_mask, off_value);
+    let indices_unsqueezed = valid_indices.unsqueeze_dim(axis as usize);
 
-        // Prepare the on_value and off_value tensors
-        let device = &self.device();
-        let on_tensor = Tensor::full(result_shape.clone(), on_value, device);
-        let off_tensor = Tensor::full(result_shape.clone(), off_value, device);
+    let output= Tensor::full(shape.clone(), off_value, &self.device());
+    let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &self.device());
+    let scatter_off_values = Tensor::full(indices_unsqueezed.shape(), -off_value, &self.device());
 
-        // Broadcast indices to the appropriate shape for scattering
-        let indices_expanded = self.unsqueeze_dim(actual_axis);
-
-        // Create a zero tensor and scatter on_value
-        off_tensor.scatter(actual_axis, indices_expanded, on_tensor)
+    output
+        .scatter(axis as usize, indices_unsqueezed.clone(), scatter_on_values)
+        .scatter(axis as usize, indices_unsqueezed, scatter_off_values)
     }
 }
