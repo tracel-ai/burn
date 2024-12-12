@@ -1,7 +1,6 @@
 use crate::{fusion::on_write::kernel::fuse_on_write, BoolElement};
 use crate::{fusion::JitFusionHandle, JitRuntime};
 use burn_fusion::stream::Context;
-use burn_tensor::repr::TensorDescription;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +29,8 @@ impl<R: JitRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
         self.trace
-            .run::<R, BT, Self>(&self.client, &self.device, context, self)
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .unwrap();
     }
 
     /// Number of element wise operations fused.
@@ -57,14 +57,18 @@ impl<R: JitRuntime> ElemwiseOptimization<R> {
     }
 }
 
-impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
+pub struct ElemwiseRunner;
+
+impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
+    type Error = (); // No error possible
+
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
-    ) {
+    ) -> Result<(), Self::Error> {
         let arg = match config.ref_layout {
             Arg::Input(index, precision, _) => match precision {
                 ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
@@ -120,58 +124,9 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseOptimization<R> {
                 outputs,
                 config.clone(),
             );
-        }
-    }
-
-    fn vectorization<'a>(
-        handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorDescription>,
-        outputs: impl Iterator<Item = &'a TensorDescription>,
-    ) -> u8 {
-        let factors = R::supported_line_sizes();
-
-        let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
-            let rank = handle.strides.len();
-
-            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-            if handle.strides[rank - 1] != 1 {
-                return 1;
-            }
-
-            for s in factors {
-                // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize == 0 {
-                    return *s;
-                }
-            }
-
-            1
         };
 
-        let vectorization_output = |desc: &TensorDescription| {
-            let rank = desc.shape.len();
-
-            for s in factors {
-                // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % *s as usize == 0 {
-                    return *s;
-                }
-            }
-
-            1
-        };
-
-        let mut output = u8::MAX;
-
-        for (handle, tensor) in handles_inputs.zip(inputs) {
-            output = Ord::min(vectorization_input(handle, tensor), output);
-        }
-
-        for tensor in outputs {
-            output = Ord::min(vectorization_output(tensor), output);
-        }
-
-        output
+        Ok(())
     }
 }
 

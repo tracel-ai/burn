@@ -1,6 +1,8 @@
 use crate::fusion::on_write::ir::Arg;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
+use burn_tensor::repr::{
+    BinaryOperationDescription, FloatOperationDescription, OperationDescription,
+};
 
 use crate::{
     fusion::{
@@ -15,8 +17,9 @@ use super::optimization::MatmulOptimization;
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct MatmulBuilder<R: JitRuntime> {
     builder: FuseOnWriteBuilder,
+    builder_fallback: FuseOnWriteBuilder,
     device: R::Device,
-    matmul_op: Option<(Arg, Arg, Arg)>,
+    matmul_op: Option<((Arg, Arg, Arg), BinaryOperationDescription)>,
 }
 
 impl<R: JitRuntime> MatmulBuilder<R> {
@@ -27,6 +30,7 @@ impl<R: JitRuntime> MatmulBuilder<R> {
 
         Self {
             builder: FuseOnWriteBuilder::new(max_bindings, bool_precision),
+            builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision),
             device,
             matmul_op: None,
         }
@@ -46,27 +50,29 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
                 let rhs = self.builder.input_unhandled(&op.rhs);
                 let out = self.builder.output_unhandled(&op.out);
 
-                self.matmul_op = Some((lhs, rhs, out));
+                self.matmul_op = Some(((lhs, rhs, out), op.clone()));
             } else {
                 self.builder.close();
             }
         } else {
-            self.builder.register(operation)
+            self.builder.register(operation);
+            self.builder_fallback.register(operation);
         }
     }
 
     fn build(&self) -> JitOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.builder.build();
+        let trace_fallback = self.builder_fallback.build();
 
         let matmul = MatmulOptimization::<R>::new(
             trace,
+            trace_fallback,
             client,
             self.device.clone(),
             self.len(),
-            self.matmul_op.unwrap(),
+            self.matmul_op.as_ref().unwrap().clone(),
         );
-        println!("BUILD  {:?}", matmul.to_state());
 
         JitOptimization::Matmul(matmul)
     }
@@ -87,6 +93,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
     }
 
     fn len(&self) -> usize {
-        self.builder.len() + 1 // Matmul operation isn't registered in the builder
+        // Matmul operation isn't registered in the builder
+        self.builder.len() + 1
     }
 }

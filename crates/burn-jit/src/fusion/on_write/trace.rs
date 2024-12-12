@@ -28,6 +28,9 @@ pub struct FuseOnWriteTrace {
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with a provided [element wise config](ElemwiseConfig).
 pub trait TraceRunner<R: JitRuntime> {
+    /// The error that might happen while running the trace.
+    type Error;
+
     /// Run the trace.
     fn run<'a>(
         &'a self,
@@ -35,21 +38,68 @@ pub trait TraceRunner<R: JitRuntime> {
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
-    );
+    ) -> Result<(), Self::Error>;
+
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
         handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorDescription>,
         outputs: impl Iterator<Item = &'a TensorDescription>,
-    ) -> u8;
+    ) -> u8 {
+        // The default version uses the last dimension as vectorization axis and assumes a
+        // perpendicular contiguous line.
+
+        let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+            let rank = handle.strides.len();
+
+            // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+            if handle.strides[rank - 1] != 1 {
+                return 1;
+            }
+
+            for s in R::max_line_size_elem(&desc.dtype.into()) {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % s as usize == 0 {
+                    return s;
+                }
+            }
+
+            1
+        };
+
+        let vectorization_output = |desc: &TensorDescription| {
+            let rank = desc.shape.len();
+
+            for s in R::max_line_size_elem(&desc.dtype.into()) {
+                // The last dimension should be a multiple of the vector size.
+                if desc.shape[rank - 1] % s as usize == 0 {
+                    return s;
+                }
+            }
+
+            1
+        };
+
+        let mut output = u8::MAX;
+
+        for (handle, tensor) in handles_inputs.zip(inputs) {
+            output = Ord::min(vectorization_input(handle, tensor), output);
+        }
+
+        for tensor in outputs {
+            output = Ord::min(vectorization_output(tensor), output);
+        }
+
+        output
+    }
 }
 
-struct LaunchAnalysis<'a, 'c, R: JitRuntime> {
+struct LaunchAnalysis<'a, R: JitRuntime> {
     potential_inplaces: Vec<PotentialInplace<'a>>,
-    global_inputs: Vec<&'c TensorDescription>,
-    global_outputs: Vec<&'c TensorDescription>,
-    handle_inputs: Vec<HandleInput<'c, R>>,
-    handle_outputs: Vec<HandleOutput<'c, R>>,
+    global_inputs: Vec<TensorDescription>,
+    global_outputs: Vec<TensorDescription>,
+    handle_inputs: Vec<HandleInput<R>>,
+    handle_outputs: Vec<HandleOutput<R>>,
     reference: Option<Reference>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
@@ -58,7 +108,7 @@ struct LaunchAnalysis<'a, 'c, R: JitRuntime> {
 }
 
 #[derive(Debug)]
-enum HandleOutput<'c, R: JitRuntime> {
+enum HandleOutput<R: JitRuntime> {
     Alias {
         input_pos: usize,
         precision: ElemwisePrecision,
@@ -66,15 +116,15 @@ enum HandleOutput<'c, R: JitRuntime> {
     Owned {
         precision: ElemwisePrecision,
         handle: JitFusionHandle<R>,
-        global_shape: &'c [usize],
+        global_shape: Vec<usize>,
     },
 }
 
-struct HandleInput<'c, R: JitRuntime> {
+struct HandleInput<R: JitRuntime> {
     relative_id: TensorId,
     precision: ElemwisePrecision,
     handle: JitFusionHandle<R>,
-    global_shape: &'c [usize],
+    global_shape: Vec<usize>,
 }
 
 struct Reference {
@@ -97,7 +147,7 @@ impl FuseOnWriteTrace {
         device: &R::Device,
         context: &mut Context<'_, JitFusionHandle<R>>,
         runner: &Runner,
-    ) {
+    ) -> Result<(), Runner::Error> {
         let analysis = self.analyse::<R, BT, Runner>(client, device, context);
 
         let inputs = self.register_inputs(context, &analysis.handle_inputs, analysis.vectorization);
@@ -134,7 +184,7 @@ impl FuseOnWriteTrace {
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
         context: &mut Context<'c, JitFusionHandle<R>>,
-    ) -> LaunchAnalysis<'a, 'c, R> {
+    ) -> LaunchAnalysis<'a, R> {
         let mut analysis = LaunchAnalysis {
             potential_inplaces: Vec::new(),
             global_inputs: Vec::new(),
@@ -153,8 +203,8 @@ impl FuseOnWriteTrace {
 
         analysis.vectorization = Runner::vectorization(
             analysis.handle_inputs.iter().map(|item| &item.handle),
-            analysis.global_inputs.iter().copied(),
-            analysis.global_outputs.iter().copied(),
+            analysis.global_inputs.iter(),
+            analysis.global_outputs.iter(),
         );
 
         analysis
@@ -163,10 +213,10 @@ impl FuseOnWriteTrace {
     fn analyse_inputs<'a, 'c, R: JitRuntime>(
         &'a self,
         context: &mut Context<'c, JitFusionHandle<R>>,
-        analysis: &mut LaunchAnalysis<'a, 'c, R>,
+        analysis: &mut LaunchAnalysis<'a, R>,
     ) {
         for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
-            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
+            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
             // the global graph, since the status of the global graph
             // might be of a later operation on the same tensor id.
@@ -181,14 +231,14 @@ impl FuseOnWriteTrace {
                 });
             }
 
-            analysis.global_inputs.push(tensor_global);
             analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
             analysis.handle_inputs.push(HandleInput {
                 precision,
                 handle,
                 relative_id: tensor_relative.id,
-                global_shape: &tensor_global.shape,
+                global_shape: tensor_global.shape.clone(),
             });
+            analysis.global_inputs.push(tensor_global);
         }
     }
 
@@ -197,12 +247,11 @@ impl FuseOnWriteTrace {
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
         context: &mut Context<'c, JitFusionHandle<R>>,
-        analysis: &mut LaunchAnalysis<'a, 'c, R>,
+        analysis: &mut LaunchAnalysis<'a, R>,
     ) {
         for (precision, tensor_relative) in self.outputs.iter() {
-            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap();
+            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-            analysis.global_outputs.push(tensor_global);
 
             if let Some(index) = analysis
                 .potential_inplaces
@@ -253,6 +302,7 @@ impl FuseOnWriteTrace {
                     input_pos: potential_inplace.input_pos,
                     precision,
                 });
+                analysis.global_outputs.push(tensor_global);
             } else {
                 if analysis.reference.is_none() {
                     analysis.reference = Some(Reference {
@@ -299,15 +349,16 @@ impl FuseOnWriteTrace {
                 analysis.handle_outputs.push(HandleOutput::Owned {
                     precision,
                     handle,
-                    global_shape: &tensor_global.shape,
+                    global_shape: tensor_global.shape.clone(),
                 });
+                analysis.global_outputs.push(tensor_global);
             }
         }
 
         Self::add_layout_info_inputs(analysis);
     }
 
-    fn add_layout_info_inputs<R: JitRuntime>(analysis: &mut LaunchAnalysis<'_, '_, R>) {
+    fn add_layout_info_inputs<R: JitRuntime>(analysis: &mut LaunchAnalysis<'_, R>) {
         for hi in analysis.handle_inputs.iter() {
             if let Some(reference) = analysis.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
@@ -322,7 +373,7 @@ impl FuseOnWriteTrace {
     fn register_inputs<'c, 'h, R: JitRuntime>(
         &self,
         context: &mut Context<'c, JitFusionHandle<R>>,
-        handle_inputs: &'h [HandleInput<'c, R>],
+        handle_inputs: &'h [HandleInput<R>],
         vectorization: u8,
     ) -> GlobalArgsLaunch<'h, R> {
         let mut inputs = GlobalArgsLaunch::new(
@@ -351,7 +402,7 @@ impl FuseOnWriteTrace {
         );
 
         for hi in handle_inputs.iter() {
-            let arg = hi.handle.as_tensor_arg(hi.global_shape, vectorization);
+            let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),
@@ -410,7 +461,7 @@ impl FuseOnWriteTrace {
 
     fn register_outputs<'s, R: JitRuntime, BT: BoolElement>(
         &self,
-        handle_outputs: &'s [HandleOutput<'_, R>],
+        handle_outputs: &'s [HandleOutput<R>],
         vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
