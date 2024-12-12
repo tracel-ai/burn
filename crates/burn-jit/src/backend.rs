@@ -99,49 +99,37 @@ where
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
     for JitBackend<R, F, I, BT>
 {
-    type Handle = HandleKind<Self>;
+    type Handle = JitTensor<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
-        match handle.handle {
-            HandleKind::Float(handle) => handle,
-            _ => panic!("Expected float handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
-        match handle.handle {
-            HandleKind::Int(handle) => handle,
-            _ => panic!("Expected int handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
-        match handle.handle {
-            HandleKind::Bool(handle) => handle,
-            _ => panic!("Expected bool handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn quantized_tensor(handles: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
-        match handle.handle {
-            HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
-        HandleKind::Float(tensor)
+        tensor
     }
 
     fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
-        HandleKind::Int(tensor)
+        tensor
     }
 
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
-        HandleKind::Bool(tensor)
+        tensor
     }
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
-        HandleKind::Quantized(tensor)
+        tensor
     }
 }

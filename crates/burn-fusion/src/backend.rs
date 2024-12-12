@@ -182,8 +182,8 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         handle.handle
     }
 
-    fn quantized_tensor(_handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
-        todo!() // not as simple
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        handle.handle
     }
 
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
@@ -198,7 +198,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         tensor
     }
 
-    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> Self::Handle {
-        todo!() // not as simple
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        tensor
     }
 }
