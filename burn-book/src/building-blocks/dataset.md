@@ -137,7 +137,7 @@ those are the only requirements.
 ### Images
 
 `ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
-available for multi-class and multi-label classification tasks as well as semantic segmentation tasks.
+available for multi-class and multi-label classification tasks as well as semantic segmentation and object detection tasks.
 
 ```rust, ignore
 // Create an image classification dataset from the root folder,
@@ -197,6 +197,20 @@ let dataset = ImageFolderDataset::new_segmentation_with_items(
 .unwrap();
 ```
 
+```rust, ignore
+// Create an object detection dataset from a COCO dataset. Currently only
+// the import of object detection data (bounding boxes) is supported.
+//
+// COCO offers separate annotation and image archives for training and
+// validation, paths to the unpacked files need to be passed as parameters:
+
+let dataset = ImageFolderDataset::new_coco_detection(
+    "/path/to/coco/instances_train2017.json",
+    "/path/to/coco/images/train2017"
+)
+.unwrap();
+
+```
 ### Comma-Separated Values (CSV)
 
 Loading records from a simple CSV file in-memory is simple with the `InMemDataset`:
