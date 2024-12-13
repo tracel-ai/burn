@@ -1,8 +1,6 @@
-use std::marker::PhantomData;
-
+use super::args::FusedMatmulArgs;
 use cubecl::{linalg::matmul::components::MatmulSpec, prelude::Numeric};
-
-use super::FusedMatmulArgs;
+use std::marker::PhantomData;
 
 /// Specification for a fused standard matmul.
 #[derive(Clone)]

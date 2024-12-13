@@ -1,13 +1,11 @@
-use std::any::TypeId;
-use std::marker::PhantomData;
-
 use crate::fusion::elemwise::optimization::ElemwiseRunner;
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::kernel::matmul;
 use crate::{fusion::JitFusionHandle, JitRuntime};
 use crate::{BoolElement, FloatElement};
+
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{BinaryOperationDescription, TensorDescription, TensorStatus};
+use burn_tensor::repr::{BinaryOperationDescription, TensorStatus};
 use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::MatmulProblem;
@@ -17,14 +15,15 @@ use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
+use std::any::TypeId;
 
 use crate::fusion::on_write::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
     trace::{FuseOnWriteTrace, TraceRunner},
 };
 
+use super::args::FusedMatmulInputLaunch;
 use super::spec::FusedMatmulSpec;
-use super::FusedMatmulInputLaunch;
 
 #[derive(new)]
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
@@ -34,7 +33,7 @@ pub struct MatmulOptimization<R: JitRuntime> {
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     len: usize,
-    args: ((Arg, Arg, Arg), BinaryOperationDescription),
+    matmul: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -42,21 +41,21 @@ pub struct MatmulOptimization<R: JitRuntime> {
 pub struct MatmulOptimizationState {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
-    args: ((Arg, Arg, Arg), BinaryOperationDescription),
+    matmul: FusedMatmul,
     len: usize,
 }
 
 impl<R: JitRuntime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        match self.trace.run::<R, BT, FusedMatmul<R>>(
+        match self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
             context,
-            &FusedMatmul::new(self.args.0 .0, self.args.0 .1, self.args.0 .2),
+            &self.matmul,
         ) {
             Ok(_) => {}
-            Err(_err) => match self.args.0 .0.precision() {
+            Err(_err) => match self.matmul.lhs.precision() {
                 ElemwisePrecision::F32 => self.execute_fallback::<BT, f32>(context),
                 ElemwisePrecision::F16 => self.execute_fallback::<BT, f16>(context),
                 ElemwisePrecision::BF16 => self.execute_fallback::<BT, bf16>(context),
@@ -78,7 +77,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
             len: state.len,
             client: R::client(device),
             device: device.clone(),
-            args: state.args.clone(),
+            matmul: state.matmul.clone(),
         }
     }
 
@@ -87,7 +86,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         MatmulOptimizationState {
             trace: self.trace.clone(),
             trace_fallback: self.trace_fallback.clone(),
-            args: self.args.clone(),
+            matmul: self.matmul.clone(),
             len: self.len,
         }
     }
@@ -97,11 +96,12 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
         let (out_tensor, out_desc) = {
-            let lhs = context.tensors.get(&self.args.1.lhs.id).unwrap().clone();
-            let rhs = context.tensors.get(&self.args.1.rhs.id).unwrap().clone();
+            let lhs = context.tensors.get(&self.matmul.op.lhs.id).unwrap().clone();
+            let rhs = context.tensors.get(&self.matmul.op.rhs.id).unwrap().clone();
+            let out = context.tensors.get(&self.matmul.op.out.id).unwrap().clone();
 
-            let lhs_handle = context.handles.get_handle(&lhs.id, &self.args.1.lhs.status);
-            let rhs_handle = context.handles.get_handle(&rhs.id, &self.args.1.rhs.status);
+            let lhs_handle = context.handles.get_handle(&lhs.id, &TensorStatus::ReadOnly);
+            let rhs_handle = context.handles.get_handle(&rhs.id, &TensorStatus::ReadOnly);
 
             let lhs_tensor = lhs_handle.into_tensor(Shape {
                 dims: lhs.shape.clone(),
@@ -115,19 +115,11 @@ impl<R: JitRuntime> MatmulOptimization<R> {
                 None,
                 matmul::MatmulStrategy::default(),
             );
-            let out = context.handles.create_tensor_uninit();
-            let out_desc = TensorDescription {
-                id: *out,
-                shape: out_tensor.shape.dims.clone(),
-                status: TensorStatus::ReadOnly, // TODO Not correct but safer
-                dtype: self.args.1.out.dtype.clone(),
-            };
-            (out_tensor, out_desc)
+            (out_tensor, out)
         };
         context
             .handles
             .register_handle(out_desc.id, JitFusionHandle::from(out_tensor));
-        context.tensors.insert(self.args.1.out.id, out_desc);
 
         self.trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
@@ -135,15 +127,15 @@ impl<R: JitRuntime> MatmulOptimization<R> {
     }
 }
 
-#[derive(new)]
-struct FusedMatmul<R: JitRuntime> {
+#[derive(new, Clone, Serialize, Deserialize, Debug)]
+pub struct FusedMatmul {
     lhs: Arg,
     rhs: Arg,
     out: Arg,
-    _runtime: PhantomData<R>,
+    op: BinaryOperationDescription,
 }
 
-impl<R: JitRuntime> TraceRunner<R> for FusedMatmul<R> {
+impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
     type Error = MatmulLaunchError;
 
     fn run<'a>(
@@ -154,24 +146,24 @@ impl<R: JitRuntime> TraceRunner<R> for FusedMatmul<R> {
         config: &'a ElemwiseConfig,
     ) -> Result<(), MatmulLaunchError> {
         match self.out.precision() {
-            ElemwisePrecision::F32 => self.matmul_fused::<f32>(client, inputs, outputs, config),
-            ElemwisePrecision::F16 => self.matmul_fused::<f16>(client, inputs, outputs, config),
-            ElemwisePrecision::BF16 => self.matmul_fused::<bf16>(client, inputs, outputs, config),
+            ElemwisePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, config),
+            ElemwisePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, config),
+            ElemwisePrecision::BF16 => {
+                self.matmul_fused::<R, bf16>(client, inputs, outputs, config)
+            }
             _ => panic!("Unsupported precision"),
         }
     }
 }
 
-impl<R: JitRuntime> FusedMatmul<R> {
-    fn matmul_fused<'a, EG: Numeric>(
+impl FusedMatmul {
+    fn matmul_fused<'a, R: JitRuntime, EG: Numeric>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), MatmulLaunchError> {
-        let disable_cmma: bool = false;
-
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);
 
@@ -191,7 +183,9 @@ impl<R: JitRuntime> FusedMatmul<R> {
         let (rhs_make_contiguous, rhs_transposed) = check_layout(rhs_strides);
 
         if lhs_make_contiguous || rhs_make_contiguous {
-            panic!("Unsupported");
+            return Err(MatmulLaunchError::Unavailable(
+                MatmulAvailabilityError::PlaneDimUnknown,
+            ));
         }
 
         let rank = lhs_shape.len();
@@ -201,8 +195,18 @@ impl<R: JitRuntime> FusedMatmul<R> {
         let n = rhs_shape[rank - 1] as u32;
 
         let lhs_line_size = inputs.line_size(&self.lhs);
-        let rhs_line_size = inputs.line_size(&self.lhs);
-        let out_line_size = outputs.line_size(&config.ref_layout);
+        let rhs_line_size = inputs.line_size(&self.rhs);
+        let out_line_size = match config.ref_layout {
+            Arg::Input(..) => inputs.line_size(&config.ref_layout),
+            Arg::Output(..) => outputs.line_size(&config.ref_layout),
+            _ => panic!("Invalid ref layout"),
+        };
+
+        if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {
+            return Err(MatmulLaunchError::Unavailable(
+                MatmulAvailabilityError::PlaneDimUnknown,
+            ));
+        }
 
         let problem = MatmulProblem {
             m: m as usize,
@@ -235,14 +239,14 @@ impl<R: JitRuntime> FusedMatmul<R> {
                 client,
                 FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                 outputs,
-                disable_cmma,
+                false,
                 problem,
             ),
             Some(64) => matmul_launch_kernel::<64, R, EG>(
                 client,
                 FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                 outputs,
-                disable_cmma,
+                false,
                 problem,
             ),
             Some(plane_dim) => Err(MatmulLaunchError::Unavailable(
@@ -270,6 +274,10 @@ fn matmul_launch_kernel<'a, const PLANE_DIM: u32, R: Runtime, EG: Numeric>(
         || TypeId::of::<EG>() == TypeId::of::<flex32>()
     {
         CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, f16, f32>, R>(
+            client, input, output, problem,
+        )
+    } else if TypeId::of::<EG>() == TypeId::of::<bf16>() {
+        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, bf16, f32>, R>(
             client, input, output, problem,
         )
     } else {

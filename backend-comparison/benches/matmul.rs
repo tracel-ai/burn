@@ -1,5 +1,9 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{activation::gelu, backend::Backend, Shape, Tensor};
+use burn::tensor::{
+    activation::{gelu, relu},
+    backend::Backend,
+    Shape, Tensor,
+};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
@@ -11,7 +15,7 @@ struct MatmulBenchmark<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
-    type Args = (Tensor<B, D>, Tensor<B, D>, Tensor<B, D>);
+    type Args = (Tensor<B, D>, Tensor<B, D>, Tensor<B, 1>);
 
     fn name(&self) -> String {
         "matmul".into()
@@ -22,14 +26,14 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn execute(&self, (lhs, rhs, bias): Self::Args) {
-        let b = lhs.matmul(rhs) + bias;
-        gelu(b);
+        let bias = bias.unsqueeze();
+        relu(lhs.matmul(rhs) + bias);
     }
 
     fn prepare(&self) -> Self::Args {
         let lhs = Tensor::zeros(self.shape_lhs.clone(), &self.device);
         let rhs = Tensor::zeros(self.shape_rhs.clone(), &self.device);
-        let bias = Tensor::zeros(self.shape_rhs.clone(), &self.device);
+        let bias = Tensor::zeros([self.shape_rhs.dims[2]], &self.device);
 
         (lhs, rhs, bias)
     }
@@ -48,7 +52,7 @@ fn bench<B: Backend>(
 ) {
     let benchmarks = [
         // (3, 4096, 4096, 4096),
-        (8, 2048, 2048, 2048),
+        (32, 2048, 2048, 2048),
         // (2, 4096, 4096, 512),
     ]
     .into_iter()

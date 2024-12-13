@@ -156,7 +156,11 @@ impl FuseOnWriteBuilder {
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
-        self.builder.builder.output(tensor)
+        if self.current_output_shape.is_empty() {
+            self.current_output_shape = tensor.shape.clone();
+        }
+
+        self.builder.builder.output_unhandled(tensor)
     }
 
     fn register_base(&mut self, ops: &BaseOperationDescription) -> bool {

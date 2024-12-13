@@ -1,8 +1,5 @@
-use crate::fusion::on_write::ir::Arg;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_tensor::repr::{
-    BinaryOperationDescription, FloatOperationDescription, OperationDescription,
-};
+use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
 
 use crate::{
     fusion::{
@@ -12,14 +9,14 @@ use crate::{
     JitRuntime,
 };
 
-use super::optimization::MatmulOptimization;
+use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct MatmulBuilder<R: JitRuntime> {
     builder: FuseOnWriteBuilder,
     builder_fallback: FuseOnWriteBuilder,
     device: R::Device,
-    matmul_op: Option<((Arg, Arg, Arg), BinaryOperationDescription)>,
+    matmul: Option<FusedMatmul>,
 }
 
 impl<R: JitRuntime> MatmulBuilder<R> {
@@ -32,7 +29,7 @@ impl<R: JitRuntime> MatmulBuilder<R> {
             builder: FuseOnWriteBuilder::new(max_bindings, bool_precision),
             builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision),
             device,
-            matmul_op: None,
+            matmul: None,
         }
     }
 }
@@ -43,14 +40,14 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
             return;
         }
 
-        if self.matmul_op.is_none() {
+        if self.matmul.is_none() {
             if let OperationDescription::Float(_, FloatOperationDescription::Matmul(op)) = operation
             {
                 let lhs = self.builder.input_unhandled(&op.lhs);
                 let rhs = self.builder.input_unhandled(&op.rhs);
                 let out = self.builder.output_unhandled(&op.out);
 
-                self.matmul_op = Some(((lhs, rhs, out), op.clone()));
+                self.matmul = Some(FusedMatmul::new(lhs, rhs, out, op.clone()));
             } else {
                 self.builder.close();
             }
@@ -71,7 +68,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
             client,
             self.device.clone(),
             self.len(),
-            self.matmul_op.as_ref().unwrap().clone(),
+            self.matmul.as_ref().unwrap().clone(),
         );
 
         JitOptimization::Matmul(matmul)
@@ -79,7 +76,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
 
     fn reset(&mut self) {
         self.builder.reset();
-        self.matmul_op = None;
+        self.matmul = None;
     }
 
     fn status(&self) -> burn_fusion::OptimizationStatus {

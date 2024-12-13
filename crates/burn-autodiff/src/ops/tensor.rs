@@ -564,12 +564,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         let rhs = B::float_transpose(rhs.unwrap());
                         let grad = B::float_matmul(grad, rhs);
 
+                        println!("Tensor lhs {:?}", grad);
                         broadcast.backward_lhs::<B>(grad)
                     },
                     |grad| {
                         let lhs = B::float_transpose(lhs.unwrap());
                         let grad = B::float_matmul(lhs, grad);
 
+                        println!("Tensor rhs {:?}", grad);
                         broadcast.backward_rhs::<B>(grad)
                     },
                 );

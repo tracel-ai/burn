@@ -144,11 +144,13 @@ impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
             Arg::Input(pos, precision, _) => match precision {
                 ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
                 ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
+                ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
                 _ => panic!(),
             },
             Arg::Output(pos, precision, _) => match precision {
                 ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
                 ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
+                ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
                 _ => panic!(),
             },
             _ => panic!("Only input & output can have a shape"),
