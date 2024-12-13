@@ -124,8 +124,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_description();
-        let fut = client.read_tensor_float::<B>(desc, id);
-        async move { fut.await }
+        client.read_tensor_float::<B>(desc, id)
     }
 
     pub(crate) fn q_into_data<B>(self) -> impl Future<Output = TensorData>
@@ -136,8 +135,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             let id = self.stream;
             let client = self.client.clone();
             let desc = self.into_description();
-            let fut = client.read_tensor_quantized::<B>(desc, id);
-            async move { fut.await }
+            client.read_tensor_quantized::<B>(desc, id)
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
         }
@@ -150,7 +148,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_description();
-        async move { client.read_tensor_int::<B>(desc, id).await }
+        client.read_tensor_int::<B>(desc, id)
     }
 
     pub(crate) fn bool_into_data<B>(self) -> impl Future<Output = TensorData>
@@ -160,8 +158,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         let id = self.stream;
         let client = self.client.clone();
         let desc = self.into_description();
-        let fut = client.read_tensor_bool::<B>(desc, id);
-        async move { fut.await }
+        client.read_tensor_bool::<B>(desc, id)
     }
 }
 
