@@ -1,19 +1,21 @@
 use crate::shared::enum_variant::{parse_variants, EnumVariant};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics};
+use syn::{parse_quote, Generics, Visibility};
 
 use super::codegen::RecordItemCodegen;
 
 pub(crate) struct EnumRecordItemCodegen {
     /// Enum variants.
     variants: Vec<EnumVariant>,
+    vis: Visibility,
 }
 
 impl RecordItemCodegen for EnumRecordItemCodegen {
     fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
             variants: parse_variants(ast),
+            vis: ast.vis.clone(),
         }
     }
 
@@ -25,6 +27,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
     ) -> TokenStream {
         let mut variants = quote! {};
         let mut bounds = quote! {};
+        let vis = &self.vis;
 
         // Capture the Record enum variant types and names to transpose them in RecordItem
         for variant in self.variants.iter() {
@@ -62,7 +65,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
             #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
             #[serde(crate = "burn::serde")]
             #[serde(bound = #bound)]
-            pub enum #item_name #generics #generics_where {
+            #vis enum #item_name #generics #generics_where {
                 #variants
             }
         }
