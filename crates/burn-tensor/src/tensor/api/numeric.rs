@@ -2030,7 +2030,67 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
+    /// Create a one-hot encoded tensor with configurable `on_value`, `off_value`, and `axis`.
+    ///
+    /// # Arguments
+    ///
+    /// * `depth` - The number of classes for one-hot encoding.
+    /// * `on_value` - The value to use for the "on" positions.
+    /// * `off_value` - The value to use for the "off" positions.
+    /// * `axis` - The axis along which to perform one-hot encoding.
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Int, Tensor};
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let expected: Tensor<B, 2, Int> = Tensor::from_ints([[5, 0, 0], [0, 0, 5], [0, 5, 0], [0, 0, 5]], &device);
+    ///     let indices: Tensor<B, 2, Int> = Tensor::from_ints([[0, 2], [1, -1]], &device);
+    ///     // One-hot encoding
+    ///     let result = indices.one_hot_with_axis_and_values(3, 5, 0, -1);
+    ///     assert_eq!(expected.to_data(), result.to_data());
+    /// }
+    /// ```
+    pub fn one_hot_with_axis_and_values2(
+        self,
+        depth: usize,
+        on_value: K::Elem,
+        off_value: K::Elem,
+        axis: i64,
+    ) -> Tensor<B, D, K>
+    {
+    let mut shape = self.shape().dims().to_vec();
+    let rank = self.dims().len();
+    let axis = if axis < 0 {
+        axis + rank as i64 + 1 // Convert negative axis to positive index
+    } else {
+        axis
+    };
+    if axis < 0 || axis > rank as i64 {
+        panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
+    }
+    shape.insert(axis as usize, depth);
+    let condition1 = self.clone().greater_elem(-1 * depth as i64).int();
+    let condition2 = self.clone().lower_elem(depth as i64).int();
+    let valid_mask = condition1.mul(condition2).bool().bool_not();
+    let adjusted_indices = self
+        .clone()
+        .mask_fill(self.clone().lower_elem(0), depth as i64)
+        .add(
+            self
+                .clone()
+                .mask_fill(self.clone().greater_elem(0), 0),
+        );
 
+    let valid_indices = adjusted_indices.mask_fill(valid_mask, off_value);
+    let indices_unsqueezed = valid_indices.unsqueeze_dim(axis as usize);
+
+    let output= Tensor::full(shape.clone(), off_value, &self.device());
+    let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
+    - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
+    output.scatter(axis as usize, indices_unsqueezed.clone(), scatter_on_values);
+
+    }
     /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
     ///
     /// # Returns
