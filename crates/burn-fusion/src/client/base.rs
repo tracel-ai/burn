@@ -36,7 +36,7 @@ where
     ) -> FusionTensor<R>;
     /// Read the values contained by a float tensor.
     fn read_tensor_float<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
@@ -44,7 +44,7 @@ where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by an int tensor.
     fn read_tensor_int<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
@@ -52,7 +52,7 @@ where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a bool tensor.
     fn read_tensor_bool<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
@@ -60,7 +60,7 @@ where
         B: FusionBackend<FusionRuntime = R>;
     /// Read the values contained by a quantized tensor.
     fn read_tensor_quantized<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         streams: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static

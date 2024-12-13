@@ -79,7 +79,7 @@ where
     }
 
     fn read_tensor_float<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
@@ -91,7 +91,7 @@ where
     }
 
     fn read_tensor_int<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
@@ -102,7 +102,7 @@ where
     }
 
     fn read_tensor_bool<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
@@ -113,7 +113,7 @@ where
     }
 
     fn read_tensor_quantized<B>(
-        &self,
+        self,
         tensor: TensorDescription,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
