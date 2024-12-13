@@ -2,9 +2,11 @@ use super::{codegen::ModuleCodegen, record_struct::StructModuleRecordCodegen};
 use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
+use syn::Visibility;
 
 pub(crate) struct StructModuleCodegen {
     pub fields: Vec<FieldTypeAnalyzer>,
+    pub vis: Visibility,
 }
 
 impl ModuleCodegen for StructModuleCodegen {
@@ -182,7 +184,7 @@ impl ModuleCodegen for StructModuleCodegen {
     }
 
     fn record_codegen(self) -> Self::RecordCodegen {
-        StructModuleRecordCodegen::new(self.fields)
+        StructModuleRecordCodegen::new(self.fields, self.vis)
     }
 }
 
@@ -193,6 +195,7 @@ impl StructModuleCodegen {
                 .into_iter()
                 .map(FieldTypeAnalyzer::new)
                 .collect(),
+            vis: ast.vis.clone(),
         }
     }
 
