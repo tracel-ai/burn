@@ -75,10 +75,13 @@ impl<B: Backend> Linear<B> {
             return Self::forward::<2>(self, input.unsqueeze()).flatten(0, 1);
         }
 
-        let output = input.matmul(self.weight.val().unsqueeze());
+        let weight = self.weight.val().unsqueeze();
+        let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
 
-        match &self.bias {
-            Some(bias) => output + bias.val().unsqueeze(),
+        let output = input.matmul(weight);
+
+        match bias {
+            Some(bias) => output + bias,
             None => output,
         }
     }

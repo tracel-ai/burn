@@ -48,19 +48,8 @@ pub struct MatmulOptimizationState {
 impl<R: JitRuntime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        match self.trace.run::<R, BT, FusedMatmul>(
-            &self.client,
-            &self.device,
-            context,
-            &self.matmul,
-        ) {
-            Ok(_) => {}
-            Err(_err) => match self.matmul.lhs.precision() {
-                ElemwisePrecision::F32 => self.execute_fallback::<BT, f32>(context),
-                ElemwisePrecision::F16 => self.execute_fallback::<BT, f16>(context),
-                ElemwisePrecision::BF16 => self.execute_fallback::<BT, bf16>(context),
-                _ => panic!("Unsupported precision"),
-            },
+        if self.execute_fused::<BT>(context).is_err() {
+            self.execute_fallback::<BT>(context);
         }
     }
 
@@ -91,7 +80,24 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         }
     }
 
-    fn execute_fallback<BT: BoolElement, EG: FloatElement>(
+    fn execute_fused<BT: BoolElement>(
+        &mut self,
+        context: &mut Context<'_, JitFusionHandle<R>>,
+    ) -> Result<(), MatmulLaunchError> {
+        self.trace
+            .run::<R, BT, FusedMatmul>(&self.client, &self.device, context, &self.matmul)
+    }
+
+    fn execute_fallback<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+        match self.matmul.lhs.precision() {
+            ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
+            ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
+            ElemwisePrecision::BF16 => self.run_fallback::<BT, bf16>(context),
+            _ => panic!("Unsupported precision"),
+        }
+    }
+
+    fn run_fallback<BT: BoolElement, EG: FloatElement>(
         &mut self,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
