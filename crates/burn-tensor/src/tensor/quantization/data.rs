@@ -36,3 +36,44 @@ pub fn unpack_u32s_to_i8s(bytes: &[u8], numel: usize) -> Vec<i8> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn should_pack_i8s_to_u32() {
+        let bytes = bytemuck::cast_slice(&[-128i8, 2, -3, 127]);
+        let packed = pack_i8s_to_u32s(&bytes);
+
+        assert_eq!(packed, vec![2147679615]);
+    }
+
+    #[test]
+    fn should_pack_i8s_to_u32_padded() {
+        let bytes = bytemuck::cast_slice(&[-128i8, 2, -3, 127, 55]);
+        let bytes_padded = bytemuck::cast_slice(&[-128i8, 2, -3, 127, 55, 0, 0, 0]);
+        let packed = pack_i8s_to_u32s(&bytes);
+        let packed_padded = pack_i8s_to_u32s(&bytes_padded);
+
+        assert_eq!(packed, vec![2147679615, 922746880]);
+        assert_eq!(packed, packed_padded);
+    }
+
+    #[test]
+    fn should_unpack_u32s_to_i8s() {
+        let bytes = bytemuck::bytes_of(&2147679615u32);
+        let unpacked = unpack_u32s_to_i8s(bytes, 4);
+
+        assert_eq!(unpacked, vec![-128i8, 2, -3, 127]);
+    }
+
+    #[test]
+    fn should_unpack_u32s_to_i8s_padded() {
+        let bytes = bytemuck::bytes_of(&922746880u32);
+        let unpacked = unpack_u32s_to_i8s(bytes, 1);
+
+        assert_eq!(unpacked, vec![55]);
+    }
+}
