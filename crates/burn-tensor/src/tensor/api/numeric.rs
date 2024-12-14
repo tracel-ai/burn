@@ -2054,13 +2054,13 @@ where
     ///     // [0.0, 0.0, 5.0]]]
     /// }
     /// ```
-    pub fn one_hot_plus<const D2: usize>(
+    pub fn one_hot_plus<K2: Numeric<B>, const D2: usize>(
         self,
         depth: usize,
-        on_value: K::Elem,
-        off_value: K::Elem,
+        on_value: K2::Elem,
+        off_value: K2::Elem,
         axis: i64,
-    ) -> Tensor<B, D2, K> {
+    ) -> Tensor<B, D2, K2> {
         let mut shape = self.shape().dims::<D>().to_vec();
         let rank = self.dims().len();
         let axis = if axis < 0 {

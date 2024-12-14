@@ -108,12 +108,12 @@ mod tests {
 
     #[test]
     fn one_hot_plus_with_negative_axis_and_indices() {
-        let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
+        let tensor = TestTensorInt::<2>::from([[0, 2], [1, -1]]);
         let expected = TensorData::from(
             as_type!(FloatType: [[[5.0, 0.0, 0.0], [0.0, 0.0, 5.0]], [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]]]),
         );
 
-        let one_hot_tensor: Tensor<TestBackend, 3, Float> =
+        let one_hot_tensor: Tensor<TestBackend, 3> =
             tensor.one_hot_plus(3, FloatType::new(5.0), FloatType::new(0.0), -1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
@@ -129,7 +129,7 @@ mod tests {
         ]));
 
         let one_hot_tensor: Tensor<TestBackend, 2> =
-            tensor.one_hot_plus(10, FloatType::new(3.0), FloatType::new(1.0), 1);
+            tensor.one_hot_plus(10, 3.0, 1.0, 1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
