@@ -346,7 +346,20 @@ impl Bytes {
         Ok(())
     }
 
+    /// Create a sequence of [Bytes] from the memory representation of an unknown type of elements.
+    /// Prefer this over [Self::from_elems] when the datatype is not statically known and erased at runtime.
+    pub fn from_bytes_vec(bytes: Vec<u8>) -> Self {
+        let mut bytes = Self::from_elems(bytes);
+        // TODO: this method could be datatype aware and enforce a less strict alignment.
+        // On most platforms, this alignment check is fulfilled either way though, so
+        // the benefits of potentially saving a memcopy are negligible.
+        bytes.try_enforce_runtime_align(MAX_ALIGN).unwrap();
+        bytes
+    }
+
     /// Erase the element type of a vector by converting into a sequence of [Bytes].
+    ///
+    /// In case the element type is not statically known at runtime, prefer to use [Self::from_bytes_vec].
     pub fn from_elems<E>(elems: Vec<E>) -> Self
     where
         // NoUninit implies Copy
