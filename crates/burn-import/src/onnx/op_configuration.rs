@@ -1834,8 +1834,6 @@ pub fn split_config(node: &Node) -> SplitConfig {
         if let Some(Data::Int64s(sizes)) = &split_input_arg.value {
             let sizes: Vec<usize> = sizes.iter().map(|&x| x as usize).collect();
             split_sizes = Some(sizes);
-        } else {
-            panic!("Split: 'split' input must be a tensor of int4 values");
         }
     }
 
