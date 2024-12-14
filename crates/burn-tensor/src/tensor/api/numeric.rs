@@ -2050,13 +2050,13 @@ where
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn one_hot_with_axis_and_values2(
+    pub fn one_hot_with_axis_and_values2<const D2: usize>(
         self,
         depth: usize,
         on_value: K::Elem,
         off_value: K::Elem,
         axis: i64,
-    ) -> Tensor<B, D, K>
+    ) -> Tensor<B, D2, K>
     {
         let mut shape = self.shape().dims::<D>().to_vec();
         let rank = self.dims().len();
@@ -2084,7 +2084,7 @@ where
             );
 
         let valid_indices = adjusted_indices.mask_fill(valid_mask, off_value);
-        let indices_unsqueezed = valid_indices.unsqueeze_dim(axis as usize);
+        let indices_unsqueezed: Tensor<B, D2, Int> = valid_indices.unsqueeze_dim(axis as usize);
         let output= Tensor::full(shape.clone(), off_value, &device);
         let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
         - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());

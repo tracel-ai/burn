@@ -1,8 +1,13 @@
 #[burn_tensor_testgen::testgen(one_hot)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, TensorData};
-
+    use burn_tensor::{
+        Int, TensorData,
+        as_type,
+        backend::Backend,
+        tests::{Float as _, Int as _},
+        Numeric, Shape, Tensor,
+    };
     #[test]
     fn float_should_support_one_hot() {
         let device = Default::default();
@@ -82,5 +87,29 @@ mod tests {
         let one_hot_tensor = index_tensor.one_hot_with_axis_and_values(3, 5, 0, -1);
         
         one_hot_tensor.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn one_hot_with_axis_and_values_test_1() {
+        let tensor = TestTensor::<2>::from([[0, 2], [1, -1]]);
+        let expected = TensorData::from(as_type!(FloatType: [[[5.0, 0.0, 0.0], [0.0, 0.0, 5.0]], [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]]]));
+
+        let one_hot_tensor: Tensor<TestBackend, 3> = tensor.one_hot_with_axis_and_values2(3, FloatType::new(5.0), FloatType::new(0.0), -1);
+
+        one_hot_tensor.into_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn one_hot_with_axis_and_values_test_2() {
+        let tensor = TestTensor::<1>::from([0.0, -7.0, -8.0]);
+        let expected = TensorData::from(as_type!(FloatType:[
+            [3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            [1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        ]));
+
+        let one_hot_tensor: Tensor<TestBackend, 2> = tensor.one_hot_with_axis_and_values2(10, FloatType::new(3.0), FloatType::new(1.0), 1);
+
+        one_hot_tensor.into_data().assert_eq(&expected, true);
     }
 }
