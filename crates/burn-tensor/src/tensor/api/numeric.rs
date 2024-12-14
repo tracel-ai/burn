@@ -2041,12 +2041,12 @@ where
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Int, Tensor, Float};
+    /// use burn_tensor::{Tensor, Float};
     /// fn example<B: Backend<FloatElem: From<f32>>>() {
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor = indices.one_hot_plus(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor:Tensor<B, 3, Float> = indices.one_hot_plus(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
     ///     // [[[5.0, 0.0, 0.0],
     ///     // [0.0, 0.0, 5.0]],
@@ -2075,7 +2075,7 @@ where
         let indices: Tensor<B, D, Int> =
             Tensor::from_data(self.to_data().convert::<i64>(), &device);
         shape.insert(axis as usize, depth);
-        let condition1 = indices.clone().greater_elem(-1 * depth as i64).int();
+        let condition1 = indices.clone().greater_elem(-(depth as i64)).int();
         let condition2 = indices.clone().lower_elem(depth as i64).int();
         let valid_mask = condition1.mul(condition2).bool().bool_not();
         let adjusted_indices = indices

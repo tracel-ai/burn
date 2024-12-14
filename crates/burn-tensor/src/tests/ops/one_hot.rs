@@ -128,8 +128,7 @@ mod tests {
             [1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         ]));
 
-        let one_hot_tensor: Tensor<TestBackend, 2> =
-            tensor.one_hot_plus(10, 3.0, 1.0, 1);
+        let one_hot_tensor: Tensor<TestBackend, 2> = tensor.one_hot_plus(10, 3.0, 1.0, 1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
