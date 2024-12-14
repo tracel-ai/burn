@@ -1,4 +1,4 @@
-use burn_tensor::{backend::Backend, container::TensorContainer};
+use burn_tensor::{backend::Backend, container::TensorContainer, ops::FloatTensor, TensorMetadata};
 
 use crate::{
     graph::{NodeRef, Requirement},
@@ -14,17 +14,15 @@ pub struct Gradients {
     container: TensorContainer<GradID>,
 }
 
-type TensorPrimitive<B> = <B as Backend>::FloatTensorPrimitive;
-
 impl Gradients {
     /// Creates a new gradients container.
-    pub fn new<B: Backend>(root_node: NodeRef, root_tensor: TensorPrimitive<B>) -> Self {
+    pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
         };
         gradients.register::<B>(
             root_node.id,
-            B::float_ones(B::float_shape(&root_tensor), &B::float_device(&root_tensor)),
+            B::float_ones(root_tensor.shape(), &B::float_device(&root_tensor)),
         );
         gradients
     }
@@ -33,7 +31,7 @@ impl Gradients {
     ///
     /// Each tensor should be consumed exactly 1 time if its gradients are only required during the
     /// backward pass, otherwise, it may be consume multiple times.
-    pub fn consume<B: Backend>(&mut self, node: &NodeRef) -> TensorPrimitive<B> {
+    pub fn consume<B: Backend>(&mut self, node: &NodeRef) -> FloatTensor<B> {
         match node.requirement {
             Requirement::Grad => self
                 .container
@@ -50,14 +48,14 @@ impl Gradients {
     }
 
     /// Removes a grad tensor from the container.
-    pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<TensorPrimitive<B>> {
+    pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .remove::<B>(&tensor.node.id.value)
             .map(|tensor| tensor.tensor())
     }
 
     /// Gets a grad tensor from the container.
-    pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<TensorPrimitive<B>> {
+    pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
             .get::<B>(&tensor.node.id.value)
             .map(|tensor| tensor.tensor())
@@ -66,7 +64,7 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
-    pub fn register<B: Backend>(&mut self, node_id: NodeID, value: TensorPrimitive<B>) {
+    pub fn register<B: Backend>(&mut self, node_id: NodeID, value: FloatTensor<B>) {
         if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
             self.container.register::<B>(
                 node_id.value,

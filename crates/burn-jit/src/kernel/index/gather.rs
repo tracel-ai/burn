@@ -34,12 +34,12 @@ fn gather_kernel<T: Numeric, I: Numeric>(
 
 pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement>(
     dim: usize,
-    tensor: JitTensor<R, E>,
-    indices: JitTensor<R, I>,
-) -> JitTensor<R, E> {
+    tensor: JitTensor<R>,
+    indices: JitTensor<R>,
+) -> JitTensor<R> {
     let shape_output = indices.shape.clone();
     let total_elem = shape_output.num_elements();
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
@@ -48,9 +48,9 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement>(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            indices.as_tensor_arg::<I>(1),
+            output.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     }

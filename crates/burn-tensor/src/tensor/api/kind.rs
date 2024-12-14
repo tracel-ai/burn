@@ -1,4 +1,4 @@
-use crate::backend::Backend;
+use crate::{backend::Backend, DType, Shape};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -31,10 +31,35 @@ impl<B: Backend> TensorPrimitive<B> {
     }
 }
 
+impl<B: Backend> TensorMetadata for TensorPrimitive<B> {
+    fn dtype(&self) -> DType {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.dtype(),
+            TensorPrimitive::QFloat(tensor) => tensor.dtype(),
+        }
+    }
+
+    fn shape(&self) -> Shape {
+        match self {
+            TensorPrimitive::Float(tensor) => tensor.shape(),
+            TensorPrimitive::QFloat(tensor) => tensor.shape(),
+        }
+    }
+}
+
+/// Tensor metadata trait for tensor primitive.
+pub trait TensorMetadata: Clone + Send + Sync + core::fmt::Debug {
+    /// The dtype of the tensor.
+    fn dtype(&self) -> DType;
+    /// The shape of the tensor.
+    fn shape(&self) -> Shape;
+}
+
 /// A type-level representation of the kind of a tensor.
+/// Metadata access is lazy.
 pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
-    type Primitive: Clone + core::fmt::Debug + Send + Sync;
+    type Primitive: TensorMetadata;
 
     /// The name of the tensor kind.
     fn name() -> &'static str;

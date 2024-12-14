@@ -9,11 +9,7 @@ use axum::{
 };
 use std::{net::SocketAddr, sync::Arc};
 
-use burn_tensor::{
-    backend::{Backend, BackendBridge},
-    repr::ReprBackend,
-    Device,
-};
+use burn_tensor::{repr::ReprBackend, Device};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
@@ -27,12 +23,7 @@ pub struct WsServer<B: ReprBackend> {
     state: Arc<SessionManager<B>>,
 }
 
-impl<B: ReprBackend> WsServer<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> WsServer<B> {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
         let layer = tracing_subscriber::fmt::layer()
@@ -180,11 +171,6 @@ where
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
-pub async fn start<B: ReprBackend>(device: Device<B>, port: u16)
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+pub async fn start<B: ReprBackend>(device: Device<B>, port: u16) {
     WsServer::<B>::start(device, port).await;
 }

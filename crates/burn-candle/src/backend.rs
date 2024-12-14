@@ -9,7 +9,7 @@ use candle_core::{backend::BackendDevice, DeviceLocation};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleQTensor, CandleTensor, PrecisionBridge,
+    CandleQTensor, CandleTensor,
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
@@ -161,15 +161,14 @@ impl Default for CandleDevice {
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
-    type FullPrecisionBridge = PrecisionBridge<f32>;
-
-    type FloatTensorPrimitive = CandleTensor<Self::FloatElem>;
+    type FloatTensorPrimitive = CandleTensor;
     type FloatElem = F;
 
-    type IntTensorPrimitive = CandleTensor<Self::IntElem>;
+    type IntTensorPrimitive = CandleTensor;
     type IntElem = I;
 
-    type BoolTensorPrimitive = CandleTensor<u8>;
+    type BoolTensorPrimitive = CandleTensor;
+    type BoolElem = u32;
 
     type QuantizedTensorPrimitive = CandleQTensor;
     type QuantizedEncoding = u8;

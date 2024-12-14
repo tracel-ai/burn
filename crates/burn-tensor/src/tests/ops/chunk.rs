@@ -4,6 +4,7 @@ mod tests {
     use alloc::vec::Vec;
     use burn_tensor::{Int, Shape, Tensor, TensorData};
 
+    #[test]
     fn test_chunk_evenly_divisible() {
         let tensors: Vec<Tensor<TestBackend, 1, Int>> =
             Tensor::arange(0..12, &Default::default()).chunk(6, 0);

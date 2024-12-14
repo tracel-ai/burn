@@ -91,8 +91,10 @@ impl TensorData {
                 } else {
                     panic!("Invalid quantized type");
                 }
+                // Scale is always stored as f32 and zero-point offset as i32
+                let offset = q.offset as i32;
                 let scale_bytes = bytemuck::bytes_of(&q.scale);
-                let offset_bytes = bytemuck::bytes_of(&q.offset);
+                let offset_bytes = bytemuck::bytes_of(&offset);
                 bytes.extend_from_byte_slice(offset_bytes);
                 bytes.extend_from_byte_slice(scale_bytes);
             }
@@ -454,7 +456,7 @@ impl TensorData {
                 let mut tensor_bytes_end = self.bytes.len() - scale_size;
 
                 if let QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) = scheme {
-                    tensor_bytes_end -= core::mem::size_of::<i8>();
+                    tensor_bytes_end -= core::mem::size_of::<i32>(); // zero-point offset is stored as i32
                 }
 
                 &self.bytes[..tensor_bytes_end]
@@ -491,17 +493,17 @@ impl TensorData {
             // Quantization parameters are added at the end of the tensor data.
             // As such, the last bytes always correspond to the scale parameter.
             // If the quantization scheme includes an offset (zero-point) parameter, it is next to last.
-            let scale_size = core::mem::size_of::<E>();
+            let scale_size = core::mem::size_of::<f32>(); // scale is stored as f32
             let scale_bytes = &self.bytes[total_bytes - scale_size..];
 
-            let scale = read_unaligned(scale_bytes);
+            let scale = read_unaligned::<f32>(scale_bytes).elem();
             let mut offset = None;
 
             if let QuantizationScheme::PerTensorAffine(_) = scheme {
-                let offset_size = core::mem::size_of::<Q>();
+                let offset_size = core::mem::size_of::<i32>(); // zero-point offset is stored as i32
                 let offset_bytes =
                     &self.bytes[total_bytes - scale_size - offset_size..total_bytes - scale_size];
-                offset = Some(read_unaligned(offset_bytes))
+                offset = Some(read_unaligned::<i32>(offset_bytes).elem())
             }
 
             Some(QParams { scale, offset })

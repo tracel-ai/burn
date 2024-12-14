@@ -1,6 +1,7 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
+use burn_tensor::TensorMetadata;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -34,8 +35,14 @@ pub(crate) struct NdArrayMathOps<E> {
 
 impl<E> NdArrayOps<E>
 where
-    E: Copy + Debug,
+    E: Copy + Debug + burn_tensor::Element,
 {
+    pub fn into_data(tensor: NdArrayTensor<E>) -> TensorData {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        TensorData::new(values, shape)
+    }
+
     pub fn slice(tensor: NdArrayTensor<E>, ranges: &[Range<usize>]) -> NdArrayTensor<E> {
         let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
         let array = tensor.array.slice_move(slices.as_slice()).into_shared();
@@ -65,16 +72,22 @@ where
         )
     }
 
-    pub fn cat(tensors: Vec<NdArrayTensor<E>>, dim: usize) -> NdArrayTensor<E> {
-        let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
-            tensors.iter().map(|t| t.array.view()).collect();
-        let array = ndarray::concatenate(Axis(dim), &arrays)
+    pub(crate) fn concatenate(
+        arrays: &[ndarray::ArrayView<E, IxDyn>],
+        dim: usize,
+    ) -> NdArrayTensor<E> {
+        let array = ndarray::concatenate(Axis(dim), arrays)
             .unwrap()
             .into_shared();
 
         // Transform column-major layout into row-major (standard) layout. (fix #1053)
         let array = NdArrayTensor { array };
         Self::reshape(array.clone(), array.shape())
+    }
+
+    pub fn cat(tensors: Vec<NdArrayTensor<E>>, dim: usize) -> NdArrayTensor<E> {
+        let arrays: Vec<_> = tensors.iter().map(|t| t.array.view()).collect();
+        Self::concatenate(&arrays, dim)
     }
 
     fn to_slice_args(ranges: &[Range<usize>], ndims: usize) -> Vec<SliceInfoElem> {

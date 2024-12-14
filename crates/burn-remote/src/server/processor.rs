@@ -1,6 +1,5 @@
 use burn_router::{Runner, RunnerClient};
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
     TensorData,
 };
@@ -25,12 +24,7 @@ pub enum ProcessorTask {
     Close,
 }
 
-impl<B: ReprBackend> Processor<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> Processor<B> {
     pub fn start(runner: Runner<B>) -> SyncSender<ProcessorTask> {
         let (sender, rec) = std::sync::mpsc::sync_channel(1);
 

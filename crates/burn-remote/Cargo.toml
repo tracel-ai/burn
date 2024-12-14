@@ -28,7 +28,7 @@ derive-new = {workspace = true }
 log = { workspace = true }
 
 # Shared dependencies
-tokio = { version = "1.37", features = ["rt-multi-thread"] }
+tokio = { version = "1.42", features = ["rt-multi-thread"] }
 serde = { workspace = true, features = ["derive"] }
 serde_bytes = { workspace = true }
 rmp-serde = { workspace = true }
@@ -39,7 +39,7 @@ async-channel = { workspace = true, optional = true }
 tokio-tungstenite = { version = "0.24", optional = true }
 
 # Server dependencies
-axum = { version = "0.7.5", features = ["ws"], optional = true }
+axum = { version = "0.7.9", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 

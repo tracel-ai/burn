@@ -3,7 +3,7 @@ use alloc::{sync::Arc, vec::Vec};
 use super::RunnerClient;
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
@@ -18,6 +18,16 @@ pub struct RouterTensor<C: RunnerClient> {
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak.
     pub(crate) is_orphan: bool,
+}
+
+impl<C: RunnerClient> TensorMetadata for RouterTensor<C> {
+    fn dtype(&self) -> DType {
+        self.dtype
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
+    }
 }
 
 impl<C: RunnerClient> RouterTensor<C> {
@@ -63,10 +73,6 @@ impl<C: RunnerClient> RouterTensor<C> {
             id: *self.id.as_ref(),
             dtype: self.dtype,
         }
-    }
-
-    pub(crate) fn shape(&self) -> Shape {
-        Shape::from(self.shape.clone())
     }
 
     pub(crate) fn status(&self) -> TensorStatus {

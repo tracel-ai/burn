@@ -10,7 +10,7 @@ pub use burn_jit::{
 };
 
 pub use burn_jit::{tensor::JitTensor, JitBackend};
-pub use burn_jit::{FloatElement, IntElement};
+pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
 pub use cubecl::ir::CubeDim;
 pub use cubecl::wgpu::*;
@@ -21,8 +21,12 @@ pub type SpirV = cubecl::wgpu::spirv::VkSpirvCompiler;
 
 #[cfg(feature = "spirv")]
 type Compiler = SpirV;
+#[cfg(feature = "spirv")]
+type Bool = u8;
 #[cfg(not(feature = "spirv"))]
 type Compiler = Wgsl;
+#[cfg(not(feature = "spirv"))]
+type Bool = u32;
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -56,8 +60,8 @@ type Compiler = Wgsl;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32, C = Compiler> =
-    burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I>>;
+pub type Wgpu<F = f32, I = i32, B = Bool, C = Compiler> =
+    burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I, B>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -91,7 +95,8 @@ pub type Wgpu<F = f32, I = i32, C = Compiler> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32, C = Compiler> = JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I>;
+pub type Wgpu<F = f32, I = i32, B = Bool, C = Compiler> =
+    JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I, B>;
 
 #[cfg(test)]
 mod tests {
@@ -103,7 +108,7 @@ mod tests {
     // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
     // breaks a lot of tests from precision issues
     #[cfg(feature = "spirv")]
-    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64]);
+    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
     #[cfg(not(feature = "spirv"))]
-    burn_jit::testgen_all!([f32], [i32]);
+    burn_jit::testgen_all!([f32], [i32], [u32]);
 }

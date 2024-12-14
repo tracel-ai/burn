@@ -16,6 +16,7 @@ use portable_atomic_util::Arc;
 use burn_common::stub::Mutex;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
+    ops::Device,
     Tensor,
 };
 
@@ -109,7 +110,7 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self
     }
 
-    fn to_device(self, device: &<B as Backend>::Device) -> Self {
+    fn to_device(self, device: &Device<B>) -> Self {
         let mut tensor = self.value.lock().unwrap();
         let tensor_out = tensor.clone().to_device(device);
 
@@ -119,14 +120,11 @@ impl<const D: usize, B: Backend> Module<B> for RunningState<Tensor<B, D>> {
         self
     }
 
-    fn fork(self, device: &<B as Backend>::Device) -> Self {
+    fn fork(self, device: &Device<B>) -> Self {
         self.to_device(device) // Same thing here since no grad.
     }
 
-    fn collect_devices(
-        &self,
-        mut devices: Vec<<B as Backend>::Device>,
-    ) -> Vec<<B as Backend>::Device> {
+    fn collect_devices(&self, mut devices: Vec<Device<B>>) -> Vec<Device<B>> {
         let device = self.value.lock().unwrap().device();
 
         if !devices.contains(&device) {

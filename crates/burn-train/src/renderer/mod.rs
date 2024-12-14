@@ -6,8 +6,9 @@ pub use base::*;
 
 mod cli;
 
+/// The tui renderer
 #[cfg(feature = "tui")]
-mod tui;
+pub mod tui;
 use crate::TrainingInterrupter;
 
 /// Return the default metrics renderer.

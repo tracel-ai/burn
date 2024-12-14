@@ -2,6 +2,7 @@ mod activation;
 mod clone_invariance;
 mod module;
 mod ops;
+mod primitive;
 mod quantization;
 mod stats;
 
@@ -16,28 +17,28 @@ macro_rules! testgen_all {
 
             pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolElem;
 
             $crate::testgen_with_float_param!();
             $crate::testgen_no_param!();
         }
     };
-    ([$($float:ident),*], [$($int:ident),*]) => {
+    ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         pub mod tensor {
             pub use super::*;
 
             pub type FloatType = <TestBackend as $crate::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as $crate::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolTensorPrimitive;
+            pub type BoolType = <TestBackend as $crate::backend::Backend>::BoolElem;
 
             ::paste::paste! {
                 $(mod [<$float _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<$float, IntType>;
-                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, D>;
+                    pub type TestBackend = TestBackend2<$float, IntType, BoolType>;
+                    pub type TestTensor<const D: usize> = TestTensor2<$float, IntType, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<$float, IntType, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<$float, IntType, BoolType, D>;
 
                     pub type FloatType = $float;
 
@@ -46,12 +47,24 @@ macro_rules! testgen_all {
                 $(mod [<$int _ty>] {
                     pub use super::*;
 
-                    pub type TestBackend = TestBackend2<FloatType, $int>;
-                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, $int, D>;
-                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, $int, D>;
-                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, $int, D>;
+                    pub type TestBackend = TestBackend2<FloatType, $int, BoolType>;
+                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, $int, BoolType, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, $int, BoolType, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, $int, BoolType, D>;
 
                     pub type IntType = $int;
+
+                    $crate::testgen_with_int_param!();
+                })*
+                $(mod [<$bool _bool_ty>] {
+                    pub use super::*;
+
+                    pub type TestBackend = TestBackend2<FloatType, IntType, $bool>;
+                    pub type TestTensor<const D: usize> = TestTensor2<FloatType, IntType, $bool, D>;
+                    pub type TestTensorInt<const D: usize> = TestTensorInt2<FloatType, IntType, $bool, D>;
+                    pub type TestTensorBool<const D: usize> = TestTensorBool2<FloatType, IntType, $bool, D>;
+
+                    pub type BoolType = $bool;
 
                     $crate::testgen_with_int_param!();
                 })*
@@ -65,6 +78,42 @@ macro_rules! testgen_all {
 #[macro_export]
 macro_rules! testgen_quantization {
     () => {
+        // Quantized tensor utilities
+        pub mod qtensor {
+            use core::marker::PhantomData;
+
+            use burn_tensor::{
+                backend::Backend,
+                quantization::{QuantizationScheme, QuantizationType},
+                Tensor, TensorData,
+            };
+
+            pub struct QTensor<B: Backend, const D: usize> {
+                b: PhantomData<B>,
+            }
+
+            impl<B: Backend, const D: usize> QTensor<B, D> {
+                /// Creates a quantized int8 tensor from the floating point data using the default quantization scheme
+                /// (i.e., per-tensor symmetric quantization).
+                pub fn int8<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Self::int8_symmetric(floats)
+                }
+                /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
+                pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                        &QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+                    )
+                }
+                /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
+                pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
+                    Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+                        &QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                    )
+                }
+            }
+        }
+        pub use qtensor::*;
+
         // test quantization
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
@@ -103,10 +152,12 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_q_remainder!();
         burn_tensor::testgen_q_repeat_dim!();
         burn_tensor::testgen_q_reshape!();
+        burn_tensor::testgen_q_round!();
         burn_tensor::testgen_q_select!();
         burn_tensor::testgen_q_sin!();
         burn_tensor::testgen_q_slice!();
         burn_tensor::testgen_q_sort_argsort!();
+        burn_tensor::testgen_q_split!();
         burn_tensor::testgen_q_sqrt!();
         burn_tensor::testgen_q_stack!();
         burn_tensor::testgen_q_sub!();
@@ -220,6 +271,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
+        burn_tensor::testgen_split!();
+        burn_tensor::testgen_prod!();
 
         // test stats
         burn_tensor::testgen_var!();
@@ -268,6 +321,29 @@ macro_rules! testgen_with_int_param {
 
 #[allow(missing_docs)]
 #[macro_export]
+macro_rules! testgen_with_bool_param {
+    () => {
+        burn_tensor::testgen_all_op!();
+        burn_tensor::testgen_any_op!();
+        burn_tensor::testgen_argwhere_nonzero!();
+        burn_tensor::testgen_cast!();
+        burn_tensor::testgen_cat!();
+        burn_tensor::testgen_expand!();
+        burn_tensor::testgen_full!();
+        burn_tensor::testgen_map_comparison!();
+        burn_tensor::testgen_mask!();
+        burn_tensor::testgen_nan!();
+        burn_tensor::testgen_repeat_dim!();
+        burn_tensor::testgen_repeat!();
+        burn_tensor::testgen_reshape!();
+        burn_tensor::testgen_stack!();
+        burn_tensor::testgen_transpose!();
+        burn_tensor::tri_mask!();
+    };
+}
+
+#[allow(missing_docs)]
+#[macro_export]
 macro_rules! testgen_no_param {
     () => {
         // test stats
@@ -275,6 +351,9 @@ macro_rules! testgen_no_param {
 
         // test clone invariance
         burn_tensor::testgen_clone_invariance!();
+
+        // test primitive
+        burn_tensor::testgen_primitive!();
     };
 }
 

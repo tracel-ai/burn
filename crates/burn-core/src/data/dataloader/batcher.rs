@@ -29,6 +29,7 @@ where
     }
 }
 
+/// Test batcher
 #[cfg(test)]
 #[derive(new, Clone)]
 pub struct TestBatcher;

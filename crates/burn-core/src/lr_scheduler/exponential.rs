@@ -1,4 +1,4 @@
-use super::LrScheduler;
+use super::{LrScheduler, String};
 use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
@@ -19,24 +19,26 @@ pub struct ExponentialLrSchedulerConfig {
 impl ExponentialLrSchedulerConfig {
     /// Initializes a [exponential learning rate scheduler](ExponentialLrScheduler).
     ///
-    /// # Panics
-    /// This function panics if `initial_lr` and `gamma` are not between 0 and 1.
-    pub fn init(&self) -> ExponentialLrScheduler {
-        assert!(
-            self.initial_lr > 0. && self.initial_lr <= 1.,
-            "Initial learning rate must be greater than 0 and at most 1"
-        );
-        assert!(
-            self.gamma > 0. && self.gamma <= 1.,
-            "Gamma must be greater than 0 and at most 1"
-        );
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `gamma` is out of range (0.0, 1.0]
+    pub fn init(&self) -> Result<ExponentialLrScheduler, String> {
+        if self.initial_lr <= 0. || self.initial_lr > 1. {
+            return Err("Initial learning rate must be greater than 0 and at most 1".into());
+        }
+        if self.gamma <= 0. || self.gamma > 1. {
+            return Err("Gamma must be greater than 0 and at most 1".into());
+        }
 
-        ExponentialLrScheduler {
+        Ok(ExponentialLrScheduler {
             // Such an initial value eliminates the need for special-case handling of the first
             // learning rate.
             previous_lr: self.initial_lr / self.gamma,
             gamma: self.gamma,
-        }
+        })
     }
 }
 
@@ -75,44 +77,61 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_low() {
-        ExponentialLrSchedulerConfig::new(0., 0.5).init();
+        let r = ExponentialLrSchedulerConfig::new(0., 0.5).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_high() {
-        ExponentialLrSchedulerConfig::new(1.5, 0.5).init();
+        let r = ExponentialLrSchedulerConfig::new(1.5, 0.5).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Gamma must be greater than 0 and at most 1"]
     fn config_gamma_too_low() {
-        ExponentialLrSchedulerConfig::new(0.5, 0.0).init();
+        let r = ExponentialLrSchedulerConfig::new(0.5, 0.0).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Gamma must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Gamma must be greater than 0 and at most 1"]
     fn config_gamma_too_high() {
-        ExponentialLrSchedulerConfig::new(0.5, 1.5).init();
+        let r = ExponentialLrSchedulerConfig::new(0.5, 1.5).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Gamma must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
     fn test_lr_change() {
-        const INITIAL_LR: LearningRate = 0.8;
-        const GAMMA: f64 = 0.1;
-
-        let scheduler = ExponentialLrSchedulerConfig::new(INITIAL_LR, GAMMA).init();
+        let scheduler = ExponentialLrSchedulerConfig::new(0.8, 0.1).init().unwrap();
         let expected_lrs = [0.8, 0.08, 0.008, 0.0008, 0.00008];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_save_and_load() {
-        const INITIAL_LR: LearningRate = 0.083;
-        const GAMMA: f64 = 0.3;
-        let scheduler = ExponentialLrSchedulerConfig::new(INITIAL_LR, GAMMA).init();
+        let scheduler = ExponentialLrSchedulerConfig::new(0.083, 0.3)
+            .init()
+            .unwrap();
         test_utils::check_save_load(scheduler, 7);
     }
 }

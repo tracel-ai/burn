@@ -8,12 +8,12 @@ use burn::{
         ops::{broadcast_shape, Backward, Ops, OpsKind},
         Autodiff, NodeID,
     },
-    tensor::Shape,
+    tensor::{Shape, TensorMetadata},
 };
-use burn_jit::{FloatElement, IntElement, JitBackend, JitRuntime};
+use burn_jit::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<JitBackend<R, F, I>>
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<JitBackend<R, F, I, BT>>
 {
 }
 
@@ -51,12 +51,12 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
                 // Set our state.
                 let (lhs_state, rhs_state, output, shape_bias) = ops.state;
-                let lhs = checkpointer.retrieve_node_output(lhs_state);
-                let rhs = checkpointer.retrieve_node_output(rhs_state);
+                let lhs: FloatTensor<B> = checkpointer.retrieve_node_output(lhs_state);
+                let rhs: FloatTensor<B> = checkpointer.retrieve_node_output(rhs_state);
 
                 // Fetch shapes of our tensor to support broadcasting.
-                let shape_lhs = B::float_shape(&lhs);
-                let shape_rhs = B::float_shape(&rhs);
+                let shape_lhs = lhs.shape();
+                let shape_rhs = rhs.shape();
 
                 // Compute the gradient of the output using the already existing `relu_backward`
                 // function in the basic Burn backend trait.
@@ -114,7 +114,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // compute bound operation.
                 let lhs_state = prep.checkpoint(&lhs);
                 let rhs_state = prep.checkpoint(&rhs);
-                let bias_shape = B::float_shape(&bias.primitive);
+                let bias_shape = bias.primitive.shape();
 
                 let output = B::fused_matmul_add_relu(
                     lhs.primitive.clone(),

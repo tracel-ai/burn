@@ -3,10 +3,9 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType,
+        QParams, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
@@ -132,10 +131,6 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tensor.qtensor.tensor.dequantize().to_kind(E::KIND))
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> LibTorchDevice {
         tensor.qtensor.tensor.device().into()
     }
@@ -157,7 +152,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
-        let shape = Self::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let strategy = tensor.strategy();
 
@@ -208,11 +203,11 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        TchOps::argmax(TchTensor::<Q>::new(tensor.qtensor.tensor.int_repr()), dim)
+        TchOps::argmax(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
     fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        TchOps::argmin(TchTensor::<Q>::new(tensor.qtensor.tensor.int_repr()), dim)
+        TchOps::argmin(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
     fn q_max_dim_with_indices(

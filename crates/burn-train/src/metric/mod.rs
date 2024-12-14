@@ -41,5 +41,17 @@ pub use memory_use::*;
 pub use top_k_acc::*;
 
 pub(crate) mod processor;
+// Expose `ItemLazy` so it can be implemented for custom types
+pub use processor::ItemLazy;
+
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
+
+pub(crate) mod classification;
+#[cfg(feature = "metrics")]
+pub use crate::metric::classification::ClassReduction;
+mod confusion_stats;
+#[cfg(feature = "metrics")]
+mod precision;
+#[cfg(feature = "metrics")]
+pub use precision::*;
