@@ -2046,11 +2046,11 @@ where
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor = indices.one_hot_with_axis_and_values2(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor = indices.one_hot_with_axis_and_values(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn one_hot_with_axis_and_values2<const D2: usize>(
+    pub fn one_hot_with_axis_and_values<const D2: usize>(
         self,
         depth: usize,
         on_value: K::Elem,
