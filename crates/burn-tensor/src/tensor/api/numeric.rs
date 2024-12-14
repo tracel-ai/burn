@@ -2046,18 +2046,21 @@ where
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor = indices.one_hot_with_axis_and_values(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor = indices.one_hot_plus(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
+    ///     // [[[5.0, 0.0, 0.0],
+    ///     // [0.0, 0.0, 5.0]],
+    ///     // [[0.0, 5.0, 0.0],
+    ///     // [0.0, 0.0, 5.0]]]
     /// }
     /// ```
-    pub fn one_hot_with_axis_and_values<const D2: usize>(
+    pub fn one_hot_plus<const D2: usize>(
         self,
         depth: usize,
         on_value: K::Elem,
         off_value: K::Elem,
         axis: i64,
-    ) -> Tensor<B, D2, K>
-    {
+    ) -> Tensor<B, D2, K> {
         let mut shape = self.shape().dims::<D>().to_vec();
         let rank = self.dims().len();
         let axis = if axis < 0 {
@@ -2069,7 +2072,8 @@ where
             panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
         }
         let device = self.device();
-        let indices: Tensor<B, D, Int> = Tensor::from_data(self.to_data().convert::<i64>(), &device);
+        let indices: Tensor<B, D, Int> =
+            Tensor::from_data(self.to_data().convert::<i64>(), &device);
         shape.insert(axis as usize, depth);
         let condition1 = indices.clone().greater_elem(-1 * depth as i64).int();
         let condition2 = indices.clone().lower_elem(depth as i64).int();
@@ -2077,17 +2081,13 @@ where
         let adjusted_indices = indices
             .clone()
             .mask_fill(self.clone().lower_elem(0), depth as i64)
-            .add(
-                indices
-                    .clone()
-                    .mask_fill(self.clone().greater_elem(0), 0),
-            );
+            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0));
 
         let valid_indices = adjusted_indices.mask_fill(valid_mask, off_value);
         let indices_unsqueezed: Tensor<B, D2, Int> = valid_indices.unsqueeze_dim(axis as usize);
-        let output= Tensor::full(shape.clone(), off_value, &device);
+        let output = Tensor::full(shape.clone(), off_value, &device);
         let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
-        - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
+            - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
         output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
     }
     /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.

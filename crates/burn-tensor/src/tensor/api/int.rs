@@ -128,5 +128,5 @@ where
         device: &B::Device,
     ) -> Tensor<B, D2, Int> {
         cartesian_grid::<B, S, D, D2>(shape, device)
-    }  
+    }
 }
