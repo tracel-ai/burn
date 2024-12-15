@@ -2030,14 +2030,19 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
-    /// Create a one-hot encoded tensor with configurable `on_value`, `off_value`, and `axis`.
+    /// Create a one-hot encoded tensor with configurable `depth`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
     ///
     /// # Arguments
     ///
-    /// * `depth` - The number of classes for one-hot encoding.
-    /// * `on_value` - The value to use for the "on" positions.
-    /// * `off_value` - The value to use for the "off" positions.
-    /// * `axis` - The axis along which to perform one-hot encoding.
+    /// * `depth`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
+    /// * `on_value`: The value to assign for active positions (corresponding to indices).
+    /// * `off_value`: The value to assign for inactive positions.
+    /// * `axis`: The axis along which the one-hot dimension is added. Supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with one additional dimension for the one-hot encoding, where active positions are filled with `on_value` and others with `off_value`.
+    ///
     /// # Example
     /// ```rust
     /// use burn_tensor::backend::Backend;
@@ -2061,35 +2066,60 @@ where
         off_value: K2::Elem,
         axis: i64,
     ) -> Tensor<B, D2, K2> {
+        // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape().dims::<D>().to_vec();
+        let device = self.device();
         let rank = self.dims().len();
+
+        // Adjust negative axis to a positive index
         let axis = if axis < 0 {
-            axis + rank as i64 + 1 // Convert negative axis to positive index
+            axis + rank as i64 + 1
         } else {
             axis
         };
+
+        // Ensure axis is within valid range
         if axis < 0 || axis > rank as i64 {
             panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
         }
-        let device = self.device();
+
+        // Convert the input tensor to integer indices
         let indices: Tensor<B, D, Int> =
             Tensor::from_data(self.to_data().convert::<i64>(), &device);
+
+        // Insert the new dimension for the one-hot representation
         shape.insert(axis as usize, depth);
-        let condition1 = indices.clone().greater_elem(-(depth as i64)).int();
-        let condition2 = indices.clone().lower_elem(depth as i64).int();
-        let valid_mask = condition1.mul(condition2).bool().bool_not();
+
+        // Create masks for valid index range [-depth, depth-1]
+        let above_minimum = indices.clone().greater_elem(-(depth as i64)).int();
+        let below_maximum = indices.clone().lower_elem(depth as i64).int();
+
+        // Combine conditions to identify invalid indices
+        let invalid_mask = above_minimum.mul(below_maximum).bool().bool_not();
+
+        // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
-            .mask_fill(self.clone().lower_elem(0), depth as i64)
-            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0));
+            .mask_fill(self.clone().lower_elem(0), depth as i64) // Handle negative indices
+            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
 
-        let valid_indices = adjusted_indices.mask_fill(valid_mask, off_value);
+        // Replace invalid indices with the off_value
+        let valid_indices = adjusted_indices.mask_fill(invalid_mask, off_value);
+
+        // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = valid_indices.unsqueeze_dim(axis as usize);
+
+        // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, &device);
+
+        // Prepare scatter tensor for on_value and off_value adjustments
         let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
             - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
+
+        // Scatter on_value at the appropriate indices to create the one-hot representation
         output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
     }
+
     /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
     ///
     /// # Returns
