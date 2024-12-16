@@ -416,11 +416,11 @@ dependencies = [
  "burn",
  "burn-common",
  "burn-wgpu",
- "clap 4.5.21",
+ "clap 4.5.23",
  "colored",
  "cubecl",
  "derive-new 0.7.0",
- "dirs 5.0.1",
+ "dirs",
  "github-device-flow",
  "half",
  "indicatif",
@@ -740,7 +740,7 @@ dependencies = [
  "burn-common",
  "csv",
  "derive-new 0.7.0",
- "dirs 5.0.1",
+ "dirs",
  "fake",
  "flate2",
  "gix-tempfile",
@@ -1265,9 +1265,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.21"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb3b4b9e5a7c7514dfa52869339ee98b3156b0bfb4e8a77c4ff4babb64b1604f"
+checksum = "3135e7ec2ef7b10c6ed8950f0f792ed96ee093fa088608f1c76e569722700c84"
 dependencies = [
  "clap_builder",
  "clap_derive 4.5.18",
@@ -1275,13 +1275,13 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.21"
+version = "4.5.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b17a95aa67cc7b5ebd32aa5370189aa0d79069ef1c64ce893bd30fb24bff20ec"
+checksum = "30582fc632330df2bd26877bde0c1f4470d57c582bbc070376afcd04d8cb4838"
 dependencies = [
  "anstream",
  "anstyle",
- "clap_lex 0.7.3",
+ "clap_lex 0.7.4",
  "strsim 0.11.1",
 ]
 
@@ -1321,9 +1321,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afb84c814227b90d6895e01398aee0d8033c00e7466aca416fb6a8e0eb19d8a7"
+checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "clipboard-win"
@@ -1840,7 +1840,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "cubecl-common 0.3.0",
  "derive-new 0.6.0",
- "dirs 5.0.1",
+ "dirs",
  "hashbrown 0.14.5",
  "log",
  "md5",
@@ -1861,7 +1861,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "cubecl-common 0.4.0",
  "derive-new 0.6.0",
- "dirs 5.0.1",
+ "dirs",
  "hashbrown 0.14.5",
  "log",
  "md5",
@@ -2187,31 +2187,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
-dependencies = [
- "dirs-sys 0.3.7",
-]
-
-[[package]]
-name = "dirs"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
 dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -3242,7 +3222,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b780635574b3d92f036890d8373433d6f9fc7abb320ee42a5c25897fc8ed732"
 dependencies = [
- "dirs 5.0.1",
+ "dirs",
  "indicatif",
  "log",
  "native-tls",
@@ -3901,9 +3881,9 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
 name = "libc"
-version = "0.2.167"
+version = "0.2.168"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09d6582e104315a817dff97f75133544b2e094ee22447d2acf4a74e189ba06fc"
+checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -4827,27 +4807,28 @@ dependencies = [
 
 [[package]]
 name = "openblas-build"
-version = "0.10.9"
+version = "0.10.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4b6b44095098cafc71915cfac3427135b6dd2ea85820a7d94a5871cb0d1e169"
+checksum = "8ca8f8c64eb5b43f5538059ccbc71391420bba14d987d7e8ab99ed62ed33e26b"
 dependencies = [
  "anyhow",
+ "cc",
  "flate2",
  "native-tls",
  "tar",
- "thiserror 1.0.69",
+ "thiserror 2.0.6",
  "ureq",
- "walkdir",
 ]
 
 [[package]]
 name = "openblas-src"
-version = "0.10.9"
+version = "0.10.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa4958649f766a1013db4254a852cdf2836764869b6654fa117316905f537363"
+checksum = "19a6eee3396f46f65497e83c2f74d75315834bd0fd071cda26bda82ac3fda080"
 dependencies = [
- "dirs 3.0.2",
+ "dirs",
  "openblas-build",
+ "pkg-config",
  "vcpkg",
 ]
 
@@ -6811,9 +6792,9 @@ checksum = "a3f0bf26fd526d2a95683cd0f87bf103b8539e2ca1ef48ce002d67aad59aa0b4"
 
 [[package]]
 name = "serde"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
+checksum = "0b9781016e935a97e8beecf0c933758c97a5520d32930e460142b4cd80c6338e"
 dependencies = [
  "serde_derive",
 ]
@@ -6840,9 +6821,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
+checksum = "46f859dbbf73865c6627ed570e78961cd3ac92407a2d117204c49232485da55e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7840,7 +7821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58fccce80a2ef6bc32a512514a53cf853d438a44abaea286a4acb0c9f8566860"
 dependencies = [
  "anyhow",
- "clap 4.5.21",
+ "clap 4.5.23",
  "derive_more 0.99.18",
  "env_logger",
  "log",
@@ -7921,9 +7902,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.18"
+version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad0f048c97dbd9faa9b7df56362b8ebcaa52adb06b498c050d2f4e32f90a7a8b"
+checksum = "e8189decb5ac0fa7bc8b96b7cb9b2701d60d48805aca84a238004d665fcc4008"
 dependencies = [
  "matchers",
  "nu-ansi-term",
