@@ -51,6 +51,7 @@ use crate::{
             reshape::ReshapeNode,
             resize::ResizeNode,
             slice::SliceNode,
+            split::SplitNode,
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
@@ -72,7 +73,7 @@ use super::op_configuration::{
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, pad_config,
     reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
     reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
+    split_config, squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -356,6 +357,7 @@ impl ParsedOnnxGraph {
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
+                NodeType::Split => graph.register(Self::split_conversion(node)),
                 node_type => unsupported_ops.push(node_type),
             }
         }
@@ -1263,6 +1265,14 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let config = trilu_config(&node);
         TriluNode::new(input, output, config)
+    }
+
+    fn split_conversion(node: Node) -> SplitNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = split_config(&node);
+
+        SplitNode::new(input, outputs, config)
     }
 }
 
