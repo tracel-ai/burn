@@ -186,7 +186,11 @@ mod tests {
     use burn::tensor::TensorData;
     use quote::ToTokens;
 
-    fn expected_scalar_snippet(ty: TokenStream, val: TokenStream) -> TokenStream {
+    fn expected_tokens_constant_scalar(
+        ty: TokenStream,
+        val: TokenStream,
+        output: TokenStream,
+    ) -> TokenStream {
         quote! {
             use burn::{
                 module::Module,
@@ -210,11 +214,58 @@ mod tests {
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self) -> #ty {
-                    let output: #ty = #val;
-                    output
+                    let #output: #ty = #val;
+                    #output
                 }
             }
         }
+    }
+
+    fn assert_codegen_constant_scalar(constant: ConstantValue, scalar_kind: ScalarKind) {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+        let val = constant.val_tokens();
+        let ty = constant.ty_tokens();
+        let output = Ident::new("output", Span::call_site());
+
+        graph.register(ConstantNode::new(
+            "constant_scalar".to_owned(),
+            constant,
+            Type::Scalar(ScalarType::new(output.to_string(), scalar_kind)),
+        ));
+
+        graph.register_input_output(vec![], vec![output.to_string()]);
+
+        let expected = expected_tokens_constant_scalar(ty, val, output.to_token_stream());
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_float32() {
+        assert_codegen_constant_scalar(ConstantValue::Float32(3.14f32), ScalarKind::Float32);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_float64() {
+        assert_codegen_constant_scalar(
+            ConstantValue::Float64(std::f64::consts::PI),
+            ScalarKind::Float64,
+        );
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_int32() {
+        assert_codegen_constant_scalar(ConstantValue::Int32(123i32), ScalarKind::Int32);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_int64() {
+        assert_codegen_constant_scalar(ConstantValue::Int64(42i64), ScalarKind::Int64);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_bool() {
+        assert_codegen_constant_scalar(ConstantValue::Bool(true), ScalarKind::Bool);
+        assert_codegen_constant_scalar(ConstantValue::Bool(false), ScalarKind::Bool);
     }
 
     fn shape_to_tokens(shape: &[usize]) -> TokenStream {
@@ -223,51 +274,6 @@ mod tests {
             quote! { #lit }
         });
         quote! { [#(#dims),*] }
-    }
-
-    fn test_codegen_constant_scalar(value: ConstantValue, scalar_kind: ScalarKind) {
-        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let val = value.val_tokens();
-        let ty = value.ty_tokens();
-
-        graph.register(ConstantNode::new(
-            "constant_scalar".to_owned(),
-            value,
-            Type::Scalar(ScalarType::new("output", scalar_kind)),
-        ));
-
-        graph.register_input_output(vec![], vec!["output".to_string()]);
-
-        let expected = expected_scalar_snippet(ty, val);
-        assert_tokens(graph.codegen(), expected);
-    }
-
-    #[test]
-    fn test_codegen_constant_scalar_float32() {
-        test_codegen_constant_scalar(ConstantValue::Float32(3.14f32), ScalarKind::Float32);
-    }
-
-    #[test]
-    fn test_codegen_constant_scalar_float64() {
-        test_codegen_constant_scalar(
-            ConstantValue::Float64(std::f64::consts::PI),
-            ScalarKind::Float64,
-        );
-    }
-
-    #[test]
-    fn test_codegen_constant_scalar_int32() {
-        test_codegen_constant_scalar(ConstantValue::Int32(123i32), ScalarKind::Int32);
-    }
-
-    #[test]
-    fn test_codegen_constant_scalar_int64() {
-        test_codegen_constant_scalar(ConstantValue::Int64(42i64), ScalarKind::Int64);
-    }
-
-    #[test]
-    fn test_codegen_constant_scalar_bool() {
-        test_codegen_constant_scalar(ConstantValue::Bool(true), ScalarKind::Bool);
     }
 
     #[test]
@@ -283,11 +289,11 @@ mod tests {
             dimensions,
             Some(shape.clone()),
         );
-        let value = ConstantValue::Tensor(tensor_type.clone(), data);
+        let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
-            value.clone(),
+            constant.clone(),
             Type::Tensor(TensorType::new_float_with_shape(
                 "output",
                 dimensions,
@@ -296,8 +302,8 @@ mod tests {
         ));
 
         let con = const_tensor.to_token_stream();
-        let ty = value.ty_tokens();
-        let tensor_ty = value.tensor_ty_tokens();
+        let ty = constant.ty_tokens();
+        let tensor_ty = constant.tensor_ty_tokens();
         let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -351,11 +357,11 @@ mod tests {
             dimensions,
             Some(shape.clone()),
         );
-        let value = ConstantValue::Tensor(tensor_type.clone(), data);
+        let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
-            value.clone(),
+            constant.clone(),
             Type::Tensor(TensorType::new_int_with_shape(
                 "output",
                 dimensions,
@@ -364,8 +370,8 @@ mod tests {
         ));
 
         let con = const_tensor.to_token_stream();
-        let ty = value.ty_tokens();
-        let tensor_ty = value.tensor_ty_tokens();
+        let ty = constant.ty_tokens();
+        let tensor_ty = constant.tensor_ty_tokens();
         let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -420,11 +426,11 @@ mod tests {
             dimensions,
             Some(shape.clone()),
         );
-        let value = ConstantValue::Tensor(tensor_type.clone(), data);
+        let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
-            value.clone(),
+            constant.clone(),
             Type::Tensor(TensorType::new_bool_with_shape(
                 "output",
                 dimensions,
@@ -433,8 +439,8 @@ mod tests {
         ));
 
         let con = const_tensor.to_token_stream();
-        let ty = value.ty_tokens();
-        let tensor_ty = value.tensor_ty_tokens();
+        let ty = constant.ty_tokens();
+        let tensor_ty = constant.tensor_ty_tokens();
         let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
@@ -489,11 +495,11 @@ mod tests {
             dimensions,
             Some(shape.clone()),
         );
-        let value = ConstantValue::Tensor(tensor_type.clone(), data);
+        let constant = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
             const_tensor.to_string(),
-            value.clone(),
+            constant.clone(),
             Type::Tensor(TensorType::new_bool_with_shape(
                 "output",
                 dimensions,
@@ -502,8 +508,8 @@ mod tests {
         ));
 
         let con = const_tensor.to_token_stream();
-        let ty = value.ty_tokens();
-        let tensor_ty = value.tensor_ty_tokens();
+        let ty = constant.ty_tokens();
+        let tensor_ty = constant.tensor_ty_tokens();
         let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
