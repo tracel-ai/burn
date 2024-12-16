@@ -420,7 +420,7 @@ dependencies = [
  "colored",
  "cubecl",
  "derive-new 0.7.0",
- "dirs 5.0.1",
+ "dirs",
  "github-device-flow",
  "half",
  "indicatif",
@@ -740,7 +740,7 @@ dependencies = [
  "burn-common",
  "csv",
  "derive-new 0.7.0",
- "dirs 5.0.1",
+ "dirs",
  "fake",
  "flate2",
  "gix-tempfile",
@@ -1840,7 +1840,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "cubecl-common 0.3.0",
  "derive-new 0.6.0",
- "dirs 5.0.1",
+ "dirs",
  "hashbrown 0.14.5",
  "log",
  "md5",
@@ -1861,7 +1861,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "cubecl-common 0.4.0",
  "derive-new 0.6.0",
- "dirs 5.0.1",
+ "dirs",
  "hashbrown 0.14.5",
  "log",
  "md5",
@@ -2187,31 +2187,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "3.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30baa043103c9d0c2a57cf537cc2f35623889dc0d405e6c3cccfadbc81c71309"
-dependencies = [
- "dirs-sys 0.3.7",
-]
-
-[[package]]
-name = "dirs"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
 dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1d1d91c932ef41c0f2663aa8b0ca0342d444d842c06914aa0a7e352d0bada6"
-dependencies = [
- "libc",
- "redox_users",
- "winapi",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -3242,7 +3222,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b780635574b3d92f036890d8373433d6f9fc7abb320ee42a5c25897fc8ed732"
 dependencies = [
- "dirs 5.0.1",
+ "dirs",
  "indicatif",
  "log",
  "native-tls",
@@ -4827,27 +4807,28 @@ dependencies = [
 
 [[package]]
 name = "openblas-build"
-version = "0.10.9"
+version = "0.10.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4b6b44095098cafc71915cfac3427135b6dd2ea85820a7d94a5871cb0d1e169"
+checksum = "8ca8f8c64eb5b43f5538059ccbc71391420bba14d987d7e8ab99ed62ed33e26b"
 dependencies = [
  "anyhow",
+ "cc",
  "flate2",
  "native-tls",
  "tar",
- "thiserror 1.0.69",
+ "thiserror 2.0.6",
  "ureq",
- "walkdir",
 ]
 
 [[package]]
 name = "openblas-src"
-version = "0.10.9"
+version = "0.10.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa4958649f766a1013db4254a852cdf2836764869b6654fa117316905f537363"
+checksum = "19a6eee3396f46f65497e83c2f74d75315834bd0fd071cda26bda82ac3fda080"
 dependencies = [
- "dirs 3.0.2",
+ "dirs",
  "openblas-build",
+ "pkg-config",
  "vcpkg",
 ]
 
