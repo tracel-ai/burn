@@ -165,4 +165,195 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
     }
 }
 
-// TODO add test missing for constant node (@antimora 8/2/2023)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::burn::{
+        graph::BurnGraph, node::test::assert_tokens, ScalarKind, ScalarType, TensorType,
+    };
+    use burn::record::FullPrecisionSettings;
+    use burn::tensor::TensorData;
+
+    #[test]
+    fn test_codegen_constant_scalar_int() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantNode::new(
+            "const_int".to_owned(),
+            ConstantValue::Int64(42i64),
+            Type::Scalar(ScalarType::new("output", ScalarKind::Int64)),
+        ));
+
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> i64 {
+                    let output: i64 = 42i64;
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_float() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantNode::new(
+            "const_float".to_owned(),
+            ConstantValue::Float32(3.14f32),
+            Type::Scalar(ScalarType::new("output", ScalarKind::Float32)),
+        ));
+
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> f32 {
+                    let output: f32 = 3.14f32;
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_constant_scalar_bool() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        graph.register(ConstantNode::new(
+            "const_bool".to_owned(),
+            ConstantValue::Bool(true),
+            Type::Scalar(ScalarType::new("output", ScalarKind::Bool)),
+        ));
+
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    Self {
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> bool {
+                    let output: bool = true;
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+
+    #[test]
+    fn test_codegen_constant_tensor() {
+        let mut graph = BurnGraph::<FullPrecisionSettings>::default();
+
+        let tensor_type = TensorType::new_float_with_shape("const_tensor", 1, Some(vec![1]));
+        let data = TensorData::from([2f32, 2f32, 2f32, 2f32]);
+
+        graph.register(ConstantNode::new(
+            "const_tensor".to_owned(),
+            ConstantValue::Tensor(tensor_type.clone(), data),
+            Type::Tensor(TensorType::new_float_with_shape("output", 1, Some(vec![1]))),
+        ));
+
+        graph.register_input_output(vec![], vec!["output".to_string()]);
+
+        let expected = quote! {
+            use burn::{
+                module::Module,
+                tensor::{backend::Backend, Tensor},
+            };
+
+            #[derive(Module, Debug)]
+            pub struct Model<B: Backend> {
+                const_tensor: burn::module::Param<Tensor<B, 1>>,
+                phantom: core::marker::PhantomData<B>,
+                device: burn::module::Ignored<B::Device>,
+            }
+
+            impl<B: Backend> Model <B> {
+                #[allow(unused_variables)]
+                pub fn new(device: &B::Device) -> Self {
+                    let const_tensor: burn::module::Param<Tensor<B, 1>> = burn::nn::Initializer::Zeros.init([1], device).set_require_grad(false);
+
+                    Self {
+                        const_tensor,
+                        phantom: core::marker::PhantomData,
+                        device: burn::module::Ignored(device.clone()),
+                    }
+                }
+
+                #[allow(clippy::let_and_return, clippy::approx_constant)]
+                pub fn forward(&self) -> Tensor<B, 1> {
+                    let output = self.const_tensor.val();
+                    output
+                }
+            }
+        };
+
+        assert_tokens(graph.codegen(), expected);
+    }
+}
