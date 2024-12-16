@@ -217,6 +217,14 @@ mod tests {
         }
     }
 
+    fn shape_to_tokens(shape: &[usize]) -> TokenStream {
+        let dims = shape.iter().map(|d| {
+            let lit = proc_macro2::Literal::usize_unsuffixed(*d);
+            quote! { #lit }
+        });
+        quote! { [#(#dims),*] }
+    }
+
     fn test_codegen_constant_scalar(value: ConstantValue, scalar_kind: ScalarKind) {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
         let val = value.val_tokens();
@@ -260,14 +268,6 @@ mod tests {
     #[test]
     fn test_codegen_constant_scalar_bool() {
         test_codegen_constant_scalar(ConstantValue::Bool(true), ScalarKind::Bool);
-    }
-
-    fn shape_to_tokens(shape: &[usize]) -> TokenStream {
-        let dims = shape.iter().map(|d| {
-            let lit = proc_macro2::Literal::usize_unsuffixed(*d);
-            quote! { #lit }
-        });
-        quote! { [#(#dims),*] }
     }
 
     #[test]
@@ -342,14 +342,31 @@ mod tests {
     fn test_codegen_constant_tensor_int() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let tensor_type = TensorType::new_int_with_shape("const_tensor_int", 1, Some(vec![3]));
+        let const_tensor = Ident::new("const_tensor_int", Span::call_site());
+        let dimensions = 1;
+        let shape = vec![3];
         let data = TensorData::from([1i32, 2i32, 3i32]);
+        let tensor_type = TensorType::new_int_with_shape(
+            const_tensor.to_string(),
+            dimensions,
+            Some(shape.clone()),
+        );
+        let value = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
-            "const_tensor_int".to_owned(),
-            ConstantValue::Tensor(tensor_type.clone(), data),
-            Type::Tensor(TensorType::new_int_with_shape("output", 1, Some(vec![3]))),
+            const_tensor.to_string(),
+            value.clone(),
+            Type::Tensor(TensorType::new_int_with_shape(
+                "output",
+                dimensions,
+                Some(shape.clone()),
+            )),
         ));
+
+        let con = const_tensor.to_token_stream();
+        let ty = value.ty_tokens();
+        let tensor_ty = value.tensor_ty_tokens();
+        let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
@@ -362,7 +379,7 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                const_tensor_int: burn::module::Param<Tensor<B, 1, Int>>,
+                #con: #ty,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -370,18 +387,18 @@ mod tests {
             impl<B: Backend> Model<B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let const_tensor_int: burn::module::Param<Tensor<B, 1, Int>> = burn::nn::Initializer::Zeros.init([3], device).set_require_grad(false);
+                    let #con: #ty = burn::nn::Initializer::Zeros.init(#shp, device).set_require_grad(false);
 
                     Self {
-                        const_tensor_int,
+                        #con,
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self) -> Tensor<B, 1, Int> {
-                    let output = self.const_tensor_int.val();
+                pub fn forward(&self) -> #tensor_ty {
+                    let output = self.#con.val();
                     output
                 }
             }
@@ -394,14 +411,31 @@ mod tests {
     fn test_codegen_constant_tensor_bool() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let tensor_type = TensorType::new_bool_with_shape("const_tensor_bool", 1, Some(vec![2]));
+        let const_tensor = Ident::new("const_tensor_bool", Span::call_site());
+        let dimensions = 1;
+        let shape = vec![2];
         let data = TensorData::from([true, false]);
+        let tensor_type = TensorType::new_bool_with_shape(
+            const_tensor.to_string(),
+            dimensions,
+            Some(shape.clone()),
+        );
+        let value = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
-            "const_tensor_bool".to_owned(),
-            ConstantValue::Tensor(tensor_type.clone(), data),
-            Type::Tensor(TensorType::new_bool_with_shape("output", 1, Some(vec![2]))),
+            const_tensor.to_string(),
+            value.clone(),
+            Type::Tensor(TensorType::new_bool_with_shape(
+                "output",
+                dimensions,
+                Some(shape.clone()),
+            )),
         ));
+
+        let con = const_tensor.to_token_stream();
+        let ty = value.ty_tokens();
+        let tensor_ty = value.tensor_ty_tokens();
+        let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
@@ -414,7 +448,7 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                const_tensor_bool: burn::module::Param<Tensor<B, 1, Bool>>,
+                #con: #ty,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -422,18 +456,18 @@ mod tests {
             impl<B: Backend> Model<B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let const_tensor_bool: burn::module::Param<Tensor<B, 1, Bool>> = burn::nn::Initializer::Zeros.init([2], device).set_require_grad(false);
+                    let #con: #ty = burn::nn::Initializer::Zeros.init(#shp, device).set_require_grad(false);
 
                     Self {
-                        const_tensor_bool,
+                        #con,
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self) -> Tensor<B, 1, Bool> {
-                    let output = self.const_tensor_bool.val();
+                pub fn forward(&self) -> #tensor_ty {
+                    let output = self.#con.val();
                     output
                 }
             }
@@ -446,19 +480,31 @@ mod tests {
     fn test_codegen_constant_tensor_3d() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
-        let tensor_type =
-            TensorType::new_bool_with_shape("const_tensor_3d", 3, Some(vec![2, 2, 2]));
+        let const_tensor = Ident::new("const_tensor_3d", Span::call_site());
+        let dimensions = 3;
+        let shape = vec![2, 2, 2];
         let data = TensorData::from([[[true, false], [true, false], [true, false]]]);
+        let tensor_type = TensorType::new_bool_with_shape(
+            const_tensor.to_string(),
+            dimensions,
+            Some(shape.clone()),
+        );
+        let value = ConstantValue::Tensor(tensor_type.clone(), data);
 
         graph.register(ConstantNode::new(
-            "const_tensor_3d".to_owned(),
-            ConstantValue::Tensor(tensor_type.clone(), data),
+            const_tensor.to_string(),
+            value.clone(),
             Type::Tensor(TensorType::new_bool_with_shape(
                 "output",
-                3,
-                Some(vec![2, 2, 2]),
+                dimensions,
+                Some(shape.clone()),
             )),
         ));
+
+        let con = const_tensor.to_token_stream();
+        let ty = value.ty_tokens();
+        let tensor_ty = value.tensor_ty_tokens();
+        let shp = shape_to_tokens(&shape);
 
         graph.register_input_output(vec![], vec!["output".to_string()]);
 
@@ -471,7 +517,7 @@ mod tests {
 
             #[derive(Module, Debug)]
             pub struct Model<B: Backend> {
-                const_tensor_3d: burn::module::Param<Tensor<B, 3, Bool>>,
+                #con: #ty,
                 phantom: core::marker::PhantomData<B>,
                 device: burn::module::Ignored<B::Device>,
             }
@@ -479,18 +525,18 @@ mod tests {
             impl<B: Backend> Model<B> {
                 #[allow(unused_variables)]
                 pub fn new(device: &B::Device) -> Self {
-                    let const_tensor_3d: burn::module::Param<Tensor<B, 3, Bool>> = burn::nn::Initializer::Zeros.init([2, 2, 2], device).set_require_grad(false);
+                    let #con: #ty = burn::nn::Initializer::Zeros.init(#shp, device).set_require_grad(false);
 
                     Self {
-                        const_tensor_3d,
+                        #con,
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
 
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self) -> Tensor<B, 3, Bool> {
-                    let output = self.const_tensor_3d.val();
+                pub fn forward(&self) -> #tensor_ty {
+                    let output = self.#con.val();
                     output
                 }
             }
