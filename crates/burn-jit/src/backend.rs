@@ -113,7 +113,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         handle.handle
     }
 
-    fn quantized_tensor(handles: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
         handle.handle
     }
 
