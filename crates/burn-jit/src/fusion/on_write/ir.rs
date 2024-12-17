@@ -114,7 +114,7 @@ pub struct GlobalArgs {
     pub s_u8: Sequence<u8>,
 }
 
-impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
     ///
     /// # Panics

@@ -32,6 +32,7 @@ pub struct Im2colReader<E: Numeric> {
 
 #[cube]
 impl<E: Numeric> Im2colReader<E> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         tensor: VirtualTensor<E>,
         shape_out_y: u32,

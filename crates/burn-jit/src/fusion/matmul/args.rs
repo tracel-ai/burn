@@ -35,7 +35,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn read_lhs(state: &Self::State, coordinate: u32) -> Line<EG> {
         let (pos, precision) = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -54,7 +54,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn read_rhs(state: &Self::State, coordinate: u32) -> Line<EG> {
         let (pos, precision) = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -75,7 +75,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         let mut args = comptime![Sequence::<Arg>::new()];
 
         values.insert(state.out, value);
-        comptime![args.push(state.out.clone())];
+        comptime![args.push(state.out)];
 
         fuse_on_write(
             unsafe { &(*state.inputs) },
@@ -90,7 +90,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn rank_lhs(state: &Self::State) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -101,7 +101,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn rank_rhs(state: &Self::State) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Rhs isn't an input"),
             }
         };
@@ -112,8 +112,8 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn rank_out(state: &Self::State) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone(), true),
-                Arg::Output(pos, precision, _) => (pos.clone(), precision.clone(), false),
+                Arg::Input(pos, precision, _) => (pos, precision, true),
+                Arg::Output(pos, precision, _) => (pos, precision, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
@@ -128,7 +128,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn shape_lhs(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -139,7 +139,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn shape_rhs(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Rhs isn't an input"),
             }
         };
@@ -150,8 +150,8 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn shape_out(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone(), true),
-                Arg::Output(pos, precision, _) => (pos.clone(), precision.clone(), false),
+                Arg::Input(pos, precision, _) => (pos, precision, true),
+                Arg::Output(pos, precision, _) => (pos, precision, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
@@ -166,7 +166,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn stride_lhs(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -177,7 +177,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn stride_rhs(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone()),
+                Arg::Input(pos, precision, _) => (pos, precision),
                 _ => panic!("Rhs isn't an input"),
             }
         };
@@ -188,8 +188,8 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
     fn stride_out(state: &Self::State, dim: u32) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos.clone(), precision.clone(), true),
-                Arg::Output(pos, precision, _) => (pos.clone(), precision.clone(), false),
+                Arg::Input(pos, precision, _) => (pos, precision, true),
+                Arg::Output(pos, precision, _) => (pos, precision, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
@@ -210,6 +210,7 @@ pub struct FusedMatmulState {
     rhs: Arg,
     out: Arg,
 }
+
 #[cube]
 impl FusedMatmulState {
     pub fn new(

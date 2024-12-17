@@ -343,7 +343,7 @@ impl FuseOnWriteTraceBuilder {
         }
 
         for arg in self.outputs_unhandled.iter() {
-            mark(&arg, &mut local_tensor_ids_output);
+            mark(arg, &mut local_tensor_ids_output);
         }
 
         // All output tensors that are never read by a following operation should be written to

@@ -1,5 +1,6 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
+use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};

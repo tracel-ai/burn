@@ -185,16 +185,16 @@ impl FuseOnWriteTrace {
 
         match Runner::run(runner, client, inputs, outputs, &config) {
             Err(err) => {
-                self.rollback::<R, BT>(context, analysis.handle_inputs, analysis.handle_outputs);
+                self.rollback(context, analysis.handle_inputs, analysis.handle_outputs);
                 Err(err)
             }
             Ok(val) => Ok(val),
         }
     }
 
-    fn rollback<'a, 'c, R: JitRuntime, BT: BoolElement>(
-        &'a self,
-        context: &mut Context<'c, JitFusionHandle<R>>,
+    fn rollback<R: JitRuntime>(
+        &self,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         handle_inputs: Vec<HandleInput<R>>,
         handle_outputs: Vec<HandleOutput<R>>,
     ) {
@@ -213,11 +213,11 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn analyse<'a, 'c, R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
+    fn analyse<'a, R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
         &'a self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'c, JitFusionHandle<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
     ) -> LaunchAnalysis<'a, R> {
         let mut analysis = LaunchAnalysis {
             potential_inplaces: Vec::new(),
@@ -244,9 +244,9 @@ impl FuseOnWriteTrace {
         analysis
     }
 
-    fn analyse_inputs<'a, 'c, R: JitRuntime>(
+    fn analyse_inputs<'a, R: JitRuntime>(
         &'a self,
-        context: &mut Context<'c, JitFusionHandle<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
         for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
@@ -280,11 +280,11 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn analyse_outputs<'a, 'c, R: JitRuntime, BT: BoolElement>(
+    fn analyse_outputs<'a, R: JitRuntime, BT: BoolElement>(
         &'a self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'c, JitFusionHandle<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
         for (precision, tensor_relative) in self.outputs.iter() {
@@ -409,9 +409,9 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn register_inputs<'c, 'h, R: JitRuntime>(
+    fn register_inputs<'h, R: JitRuntime>(
         &self,
-        context: &mut Context<'c, JitFusionHandle<R>>,
+        context: &mut Context<'_, JitFusionHandle<R>>,
         handle_inputs: &'h [HandleInput<R>],
         vectorization: u8,
     ) -> GlobalArgsLaunch<'h, R> {
