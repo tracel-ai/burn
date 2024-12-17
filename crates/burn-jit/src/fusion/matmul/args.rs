@@ -6,52 +6,8 @@ use crate::fusion::on_write::{
     kernel::fuse_on_write,
 };
 
-pub struct FusedMatmulState {
-    inputs: *const GlobalArgs,
-    outputs: *mut GlobalArgs,
-    config: ElemwiseConfig,
-    lhs: Arg,
-    rhs: Arg,
-    out: Arg,
-}
-
-#[cube]
-impl FusedMatmulState {
-    pub fn new(
-        inputs: &FusedMatmulInput,
-        outputs: &mut GlobalArgs,
-        #[comptime] config: &ElemwiseConfig,
-    ) -> FusedMatmulState {
-        FusedMatmulState {
-            inputs: &inputs.global,
-            outputs,
-            config: comptime![config.clone()],
-            lhs: comptime![inputs.lhs],
-            rhs: comptime![inputs.rhs],
-            out: comptime![inputs.out],
-        }
-    }
-}
-
 #[derive(Clone)]
-pub struct FusedMatmulStateExpand {
-    inputs: GlobalArgsExpand,
-    outputs: GlobalArgsExpand,
-    config: ElemwiseConfig,
-    lhs: Arg,
-    rhs: Arg,
-    out: Arg,
-}
-
-impl CubeType for FusedMatmulState {
-    type ExpandType = FusedMatmulStateExpand;
-}
-
-impl Init for FusedMatmulStateExpand {
-    fn init(self, _context: &mut CubeContext) -> Self {
-        self
-    }
-}
+pub struct FusedMatmulArgs;
 
 #[derive(CubeLaunch)]
 pub struct FusedMatmulInput {
@@ -65,9 +21,6 @@ pub struct FusedMatmulInput {
     #[cube(comptime)]
     out: Arg,
 }
-
-#[derive(Clone)]
-pub struct FusedMatmulArgs;
 
 #[cube]
 impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
@@ -246,5 +199,51 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         } else {
             global_stride(unsafe { &(*state.outputs) }, dim, pos, precision)
         }
+    }
+}
+
+pub struct FusedMatmulState {
+    inputs: *const GlobalArgs,
+    outputs: *mut GlobalArgs,
+    config: ElemwiseConfig,
+    lhs: Arg,
+    rhs: Arg,
+    out: Arg,
+}
+#[cube]
+impl FusedMatmulState {
+    pub fn new(
+        inputs: &FusedMatmulInput,
+        outputs: &mut GlobalArgs,
+        #[comptime] config: &ElemwiseConfig,
+    ) -> FusedMatmulState {
+        FusedMatmulState {
+            inputs: &inputs.global,
+            outputs,
+            config: comptime![config.clone()],
+            lhs: comptime![inputs.lhs],
+            rhs: comptime![inputs.rhs],
+            out: comptime![inputs.out],
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FusedMatmulStateExpand {
+    inputs: GlobalArgsExpand,
+    outputs: GlobalArgsExpand,
+    config: ElemwiseConfig,
+    lhs: Arg,
+    rhs: Arg,
+    out: Arg,
+}
+
+impl CubeType for FusedMatmulState {
+    type ExpandType = FusedMatmulStateExpand;
+}
+
+impl Init for FusedMatmulStateExpand {
+    fn init(self, _context: &mut CubeContext) -> Self {
+        self
     }
 }

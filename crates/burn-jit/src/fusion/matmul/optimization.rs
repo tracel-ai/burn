@@ -83,7 +83,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
     fn execute_fused<BT: BoolElement>(
         &mut self,
         context: &mut Context<'_, JitFusionHandle<R>>,
-    ) -> Result<(), MatmulLaunchError> {
+    ) -> Result<(), FusedMatmulError> {
         self.trace
             .run::<R, BT, FusedMatmul>(&self.client, &self.device, context, &self.matmul)
     }
@@ -141,8 +141,20 @@ pub struct FusedMatmul {
     op: BinaryOperationDescription,
 }
 
+#[derive(Debug)]
+pub enum FusedMatmulError {
+    LaunchError(MatmulLaunchError),
+    InvalidInput,
+}
+
+impl From<MatmulLaunchError> for FusedMatmulError {
+    fn from(value: MatmulLaunchError) -> Self {
+        Self::LaunchError(value)
+    }
+}
+
 impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
-    type Error = MatmulLaunchError;
+    type Error = FusedMatmulError;
 
     fn run<'a>(
         &'a self,
@@ -150,7 +162,7 @@ impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
-    ) -> Result<(), MatmulLaunchError> {
+    ) -> Result<(), FusedMatmulError> {
         match self.out.precision() {
             ElemwisePrecision::F32 => self.matmul_fused::<R, f32>(client, inputs, outputs, config),
             ElemwisePrecision::F16 => self.matmul_fused::<R, f16>(client, inputs, outputs, config),
@@ -169,7 +181,7 @@ impl FusedMatmul {
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
-    ) -> Result<(), MatmulLaunchError> {
+    ) -> Result<(), FusedMatmulError> {
         let lhs_shape = inputs.shape(&self.lhs);
         let rhs_shape = inputs.shape(&self.rhs);
 
@@ -189,9 +201,7 @@ impl FusedMatmul {
         let (rhs_make_contiguous, rhs_transposed) = check_layout(rhs_strides);
 
         if lhs_make_contiguous || rhs_make_contiguous {
-            return Err(MatmulLaunchError::Unavailable(
-                MatmulAvailabilityError::PlaneDimUnknown,
-            ));
+            return Err(FusedMatmulError::InvalidInput);
         }
 
         let rank = lhs_shape.len();
@@ -209,9 +219,7 @@ impl FusedMatmul {
         };
 
         if out_line_size == 1 && (lhs_line_size > 1 || rhs_line_size > 1) {
-            return Err(MatmulLaunchError::Unavailable(
-                MatmulAvailabilityError::PlaneDimUnknown,
-            ));
+            return Err(FusedMatmulError::InvalidInput);
         }
 
         let problem = MatmulProblem {
@@ -261,7 +269,9 @@ impl FusedMatmul {
             None => Err(MatmulLaunchError::Unavailable(
                 MatmulAvailabilityError::PlaneDimUnknown,
             )),
-        }
+        }?;
+
+        Ok(())
     }
 }
 

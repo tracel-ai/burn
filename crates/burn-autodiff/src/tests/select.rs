@@ -17,7 +17,7 @@ mod tests {
         let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
         let tensor_3 = tensor_1.clone().select(0, indices);
         let tensor_4 = tensor_2.matmul(tensor_3);
-        // panic!("Tensor 4 {}", tensor_4);
+
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

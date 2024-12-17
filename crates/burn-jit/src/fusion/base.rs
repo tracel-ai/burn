@@ -32,7 +32,7 @@ pub enum JitOptimization<R: JitRuntime> {
 pub enum JitOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
-    /// Matrix multiplication optimizatio state.
+    /// Matrix multiplication optimization state.
     Matmul(MatmulOptimizationState),
 }
 

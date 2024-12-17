@@ -115,22 +115,37 @@ pub struct GlobalArgs {
 }
 
 impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+    /// Get the shape of the given [argument](Arg).
+    ///
+    /// # Panics
+    ///
+    /// If the argument doesn't have an handle.
     pub fn shape(&self, arg: &Arg) -> &[usize] {
-        match self.handle(arg) {
+        match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.shape,
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
 
+    /// Get the strides of the given [argument](Arg).
+    ///
+    /// # Panics
+    ///
+    /// If the argument doesn't have an handle.
     pub fn strides(&self, arg: &Arg) -> &[usize] {
-        match self.handle(arg) {
+        match self.resolve_arg(arg) {
             TensorArg::Handle { handle, .. } => handle.strides,
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
 
+    /// Get the line size of the given [argument](Arg).
+    ///
+    /// # Panics
+    ///
+    /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &Arg) -> u8 {
-        match self.handle(arg) {
+        match self.resolve_arg(arg) {
             TensorArg::Handle {
                 vectorization_factor,
                 ..
@@ -139,19 +154,40 @@ impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
         }
     }
 
-    pub fn handle(&self, arg: &Arg) -> &TensorArg<'_, R> {
+    /// Resolve the [argument](Arg) to a [tensor arguemnt](TensorArg).
+    ///
+    /// # Panics
+    ///
+    /// If the argument isn't a global input or output tensor.
+    pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
         match arg {
             Arg::Input(pos, precision, _) => match precision {
                 ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
                 ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
                 ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
-                _ => panic!(),
+                ElemwisePrecision::I64 => &self.t_i64.values[*pos as usize],
+                ElemwisePrecision::I32 => &self.t_i32.values[*pos as usize],
+                ElemwisePrecision::I16 => &self.t_i16.values[*pos as usize],
+                ElemwisePrecision::I8 => &self.t_i8.values[*pos as usize],
+                ElemwisePrecision::U64 => &self.t_u64.values[*pos as usize],
+                ElemwisePrecision::U32 => &self.t_u32.values[*pos as usize],
+                ElemwisePrecision::U16 => &self.t_u16.values[*pos as usize],
+                ElemwisePrecision::U8 => &self.t_u8.values[*pos as usize],
+                ElemwisePrecision::Bool => panic!("Unsupported yet"),
             },
             Arg::Output(pos, precision, _) => match precision {
                 ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
                 ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
                 ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
-                _ => panic!(),
+                ElemwisePrecision::I64 => &self.t_i64.values[*pos as usize],
+                ElemwisePrecision::I32 => &self.t_i32.values[*pos as usize],
+                ElemwisePrecision::I16 => &self.t_i16.values[*pos as usize],
+                ElemwisePrecision::I8 => &self.t_i8.values[*pos as usize],
+                ElemwisePrecision::U64 => &self.t_u64.values[*pos as usize],
+                ElemwisePrecision::U32 => &self.t_u32.values[*pos as usize],
+                ElemwisePrecision::U16 => &self.t_u16.values[*pos as usize],
+                ElemwisePrecision::U8 => &self.t_u8.values[*pos as usize],
+                ElemwisePrecision::Bool => panic!("Unsupported yet"),
             },
             _ => panic!("Only input & output can have a shape"),
         }
