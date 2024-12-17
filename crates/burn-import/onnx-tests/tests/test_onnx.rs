@@ -139,7 +139,7 @@ mod tests {
 
     use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
 
-    use burn_ndarray::NdArray;
+    
     use float_cmp::ApproxEq;
 
     type Backend = burn_ndarray::NdArray<f32>;
