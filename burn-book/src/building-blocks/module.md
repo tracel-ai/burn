@@ -112,6 +112,37 @@ Note that the trait doesn't require all methods to be implemented as they are al
 perform no operation. If you're only interested in float tensors (like the majority of use cases),
 then you can simply implement `map_float` or `visit_float`.
 
+For example, the `ModuleMapper` trait could be implemented to clamp all parameters into the range
+`[min, max]`.
+
+```rust, ignore
+/// Clamp parameters into the range `[min, max]`.
+pub struct Clamp {
+    /// Lower-bound of the range.
+    pub min: f32,
+    /// Upper-bound of the range.
+    pub max: f32,
+}
+
+// Clamp all floating-point parameter tensors between `[min, max]`.
+impl<B: Backend> ModuleMapper<B> for Clamp {
+    fn map_float<const D: usize>(
+        &mut self,
+        _id: burn::module::ParamId,
+        tensor: burn::prelude::Tensor<B, D>,
+    ) -> burn::prelude::Tensor<B, D> {
+        tensor.clamp(self.min, self.max)
+    }
+}
+
+// Clamp module mapper into the range `[-0.5, 0.5]`
+let mut clamp = Clamp {
+    min: -0.5,
+    max: 0.5,
+};
+let model = model.map(&mut clamp);
+```
+
 ## Module Display
 
 Burn provides a simple way to display the structure of a module and its configuration at a glance.

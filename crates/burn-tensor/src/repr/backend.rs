@@ -1,7 +1,6 @@
 use crate::{
     backend::Backend,
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    quantization::QuantizationScheme,
     Shape,
 };
 
@@ -12,17 +11,6 @@ pub struct TensorHandle<H: Clone> {
     pub handle: H,
     /// The shape associated to the tensor.
     pub shape: Shape,
-}
-
-/// A simple struct to encapsulate a quantized tensor kind.
-#[derive(Clone)]
-pub struct QuantizedKind<T: Clone> {
-    /// The quantized tensor.
-    pub tensor: T,
-    /// The scaling factor.
-    pub scale: T,
-    /// The zero-point offset.
-    pub offset: Option<T>,
 }
 
 /// Backend extension trait that allows an existing [backend](Backend) to use the Burn tensor representation
@@ -38,10 +26,7 @@ pub trait ReprBackend: Backend {
     /// Convert a [handle](ReprBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self>;
     /// Convert a [handle](ReprBackend::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
-    fn quantized_tensor(
-        handle: QuantizedKind<TensorHandle<Self::Handle>>,
-        scheme: QuantizationScheme,
-    ) -> QuantizedTensor<Self>;
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self>;
 
     /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](ReprBackend::Handle).
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle;
@@ -50,8 +35,7 @@ pub trait ReprBackend: Backend {
     /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](ReprBackend::Handle).
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
     /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](ReprBackend::Handle).
-    /// A quantized tensor has multiple handles for the tensor itself and the quantization parameters.
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle>;
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle;
 }
 
 /// Handle which points to a backend tensor primitive kind.
@@ -65,8 +49,6 @@ pub enum HandleKind<B: Backend> {
     Bool(B::BoolTensorPrimitive),
     /// Quantized tensor handle.
     Quantized(B::QuantizedTensorPrimitive),
-    /// Empty handle (used as a dummy representation).
-    Empty,
 }
 
 impl<B: Backend> HandleKind<B> {
@@ -77,7 +59,6 @@ impl<B: Backend> HandleKind<B> {
             HandleKind::Int(_) => "int",
             HandleKind::Bool(_) => "bool",
             HandleKind::Quantized(_) => "quantized",
-            HandleKind::Empty => unreachable!(), // should not happen
         }
     }
 }

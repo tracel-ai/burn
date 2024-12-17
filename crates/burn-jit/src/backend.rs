@@ -1,8 +1,4 @@
-use crate::{
-    element::BoolElement,
-    tensor::{JitTensor, QJitTensor},
-    FloatElement, IntElement, JitRuntime,
-};
+use crate::{element::BoolElement, tensor::JitTensor, FloatElement, IntElement, JitRuntime};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
@@ -11,8 +7,7 @@ use std::{marker::PhantomData, sync::Mutex};
 #[cfg(not(feature = "fusion"))]
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    quantization::QuantizationScheme,
-    repr::{HandleKind, QuantizedKind, ReprBackend, TensorHandle},
+    repr::{ReprBackend, TensorHandle},
 };
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
@@ -44,7 +39,7 @@ where
     type FloatTensorPrimitive = JitTensor<R>;
     type IntTensorPrimitive = JitTensor<R>;
     type BoolTensorPrimitive = JitTensor<R>;
-    type QuantizedTensorPrimitive = QJitTensor<R>;
+    type QuantizedTensorPrimitive = JitTensor<R>;
     type QuantizedEncoding = u32;
 
     fn name() -> String {
@@ -103,59 +98,37 @@ where
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
     for JitBackend<R, F, I, BT>
 {
-    type Handle = HandleKind<Self>;
+    type Handle = JitTensor<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
-        match handle.handle {
-            HandleKind::Float(handle) => handle,
-            _ => panic!("Expected float handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
-        match handle.handle {
-            HandleKind::Int(handle) => handle,
-            _ => panic!("Expected int handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
-        match handle.handle {
-            HandleKind::Bool(handle) => handle,
-            _ => panic!("Expected bool handle, got {}", handle.handle.name()),
-        }
+        handle.handle
     }
 
-    fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        _scheme: QuantizationScheme,
-    ) -> QuantizedTensor<Self> {
-        let handle = handles.tensor.handle;
-        match handle {
-            HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.name()),
-        }
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        handle.handle
     }
 
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
-        HandleKind::Float(tensor)
+        tensor
     }
 
     fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
-        HandleKind::Int(tensor)
+        tensor
     }
 
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
-        HandleKind::Bool(tensor)
+        tensor
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
-        QuantizedKind {
-            tensor: HandleKind::Quantized(tensor),
-            // The quantized tensor primitive already encapsulates the required quantization
-            // parameters so we set the scale as an empty handle (unused).
-            scale: HandleKind::Empty,
-            offset: None,
-        }
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        tensor
     }
 }
