@@ -268,7 +268,7 @@ mod tests {
         assert_codegen_constant_scalar(ConstantValue::Bool(false), ScalarKind::Bool);
     }
 
-    /// Transforms &[1usize, 2usize, 3usize] into literal tokens [1, 2, 3].
+    /// Transforms e.g. `&[1usize, 2usize, 3usize]` into literal tokens [1, 2, 3].
     fn shape_to_tokens(shape: &[usize]) -> TokenStream {
         let dims = shape.iter().map(|d| {
             let lit = proc_macro2::Literal::usize_unsuffixed(*d);
