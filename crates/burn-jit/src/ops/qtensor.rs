@@ -3,7 +3,7 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
-    DType, Device, Shape, TensorData,
+    Bytes, DType, Device, Shape, TensorData,
 };
 
 use crate::{
@@ -82,12 +82,8 @@ where
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
 
-        // TODO: this should be refactored such that the bytes type is opaque.
-        // With this, the logic for handling the bytes representation of quantized data
-        // (as well as all data manipulations) will be encapsulated in the type.
-        // Creating a TensorData struct directly from some bytes should probably not be possible outside of the crate.
         TensorData {
-            bytes,
+            bytes: Bytes::from_bytes_vec(bytes),
             shape: tensor.shape.into(),
             dtype: tensor.dtype,
         }

@@ -1,10 +1,7 @@
 use alloc::vec::Vec;
 
 /// Pack signed 8-bit integer values into a sequence of unsigned 32-bit integers.
-///
-/// # Note
-/// This assumes that the bytes represent `i8` values.
-pub fn pack_i8s_to_u32s(bytes: &[u8]) -> Vec<u32> {
+pub fn pack_i8s_to_u32s(bytes: &[i8]) -> Vec<u32> {
     // Shift and combine groups of four 8-bit values into a u32.
     // Same as doing this:
     //     let result = (a_u8 & 0xFF) << 24 | (b_u8 & 0xFF) << 16 | (c_u8 & 0xFF) << 8 | (d_u8 & 0xFF);
@@ -12,7 +9,7 @@ pub fn pack_i8s_to_u32s(bytes: &[u8]) -> Vec<u32> {
         .chunks(4)
         .map(|x| {
             x.iter().enumerate().fold(0u32, |acc, (i, x)| {
-                acc | (*x as i8 as u32 & 0xFF) << ((3 - i) * 8)
+                acc | (*x as u32 & 0xFF) << ((3 - i) * 8)
             })
         })
         .collect()

@@ -1,6 +1,6 @@
 use burn_tensor::{
     ops::{TransactionOps, TransactionPrimitiveResult},
-    DType, TensorData,
+    Bytes, DType, TensorData,
 };
 
 use crate::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
@@ -74,7 +74,7 @@ where
                     Kind::Float(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
                         result.read_floats.push(TensorData {
-                            bytes,
+                            bytes: Bytes::from_bytes_vec(bytes),
                             shape,
                             dtype,
                         });
@@ -82,7 +82,7 @@ where
                     Kind::Int(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
                         result.read_ints.push(TensorData {
-                            bytes,
+                            bytes: Bytes::from_bytes_vec(bytes),
                             shape,
                             dtype,
                         });
@@ -90,7 +90,7 @@ where
                     Kind::Bool(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
                         result.read_bools.push(TensorData {
-                            bytes,
+                            bytes: Bytes::from_bytes_vec(bytes),
                             shape,
                             dtype,
                         });
