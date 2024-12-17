@@ -9,7 +9,7 @@ CONST_VALUE = 2
 class ConstantModel(nn.Module):
     def __init__(self, const_dtype: torch.dtype):
         super().__init__()
-        self.const = CONST_VALUE
+        self.const = torch.tensor(CONST_VALUE).to(const_dtype)
 
     def forward(self, x):
         return x + self.const

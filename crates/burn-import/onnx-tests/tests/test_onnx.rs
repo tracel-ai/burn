@@ -29,6 +29,8 @@ include_models!(
     constant_f64,
     constant_i32,
     constant_i64,
+    constant_tensor_f32,
+    constant_tensor_f64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -2224,6 +2226,16 @@ mod tests {
         let model = constant_i64::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<i64, _>(Shape::from([2, 3, 4]));
         let expected_output = TensorData::full(Shape::from([2, 3, 4]), 2i64);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
+    }
+
+    #[test]
+    fn constant_tensor_f32() {
+        let device = Default::default();
+        let model = constant_tensor_f32::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f32, _>(Shape::from([2, 2]));
+        let expected_output = TensorData::full::<f32, _>(Shape::from([2, 2]), 2f32);
         let output = model.forward(input.into());
         assert_eq!(expected_output, output.to_data());
     }
