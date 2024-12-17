@@ -25,6 +25,7 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -2181,6 +2182,16 @@ mod tests {
         let output = model.forward(input.into());
 
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn constant() {
+        let device = Default::default();
+        let model = constant::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f32, _>(Shape::from([2, 3]));
+        let expected_output = TensorData::full::<f32, _>(Shape::from([2, 3]), 2.0);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
     }
 
     #[test]

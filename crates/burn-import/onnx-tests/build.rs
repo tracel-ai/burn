@@ -16,6 +16,7 @@ fn main() {
         .input("tests/clip/clip_opset16.onnx")
         .input("tests/clip/clip_opset7.onnx")
         .input("tests/concat/concat.onnx")
+        .input("tests/constant/constant.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")
         .input("tests/constant_of_shape/constant_of_shape_full_like.onnx")
         .input("tests/conv1d/conv1d.onnx")
