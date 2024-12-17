@@ -3,34 +3,61 @@
 import torch
 import torch.nn as nn
 
+CONST_VALUE = 2
+
+
 class ConstantModel(nn.Module):
-    def __init__(self):
-        super(ConstantModel, self).__init__()
+    def __init__(self, const_dtype: torch.dtype):
+        super().__init__()
+        self.const = CONST_VALUE
 
     def forward(self, x):
-        # '2.0' should result in a constant node
-        return x + 2.0
+        return x + self.const
+
+
+def export_model(model: ConstantModel, dummy_input: torch.Tensor, file_name: str):
+    model.eval()
+    torch.onnx.export(
+        model,
+        dummy_input,
+        file_name,
+        verbose=False,
+        opset_version=16,
+        do_constant_folding=False,
+    )
+    print(f"Finished exporting model to {file_name}")
+
+    # Output some test data for demonstration
+    test_input = dummy_input.clone()
+    print(dummy_input.dtype, "test input:", test_input)
+    output = model.forward(test_input)
+    print(dummy_input.dtype, "test output:", output)
+    print("")
+
 
 def main():
-    model = ConstantModel()
-    model.eval()
     device = torch.device("cpu")
-    onnx_name = "constant.onnx"
+    shape = (2, 3, 4)
 
-    # Dummy input for export
-    dummy_input = torch.randn(3, 4, device=device)
-    torch.onnx.export(model, dummy_input, onnx_name,
-                      verbose=False, opset_version=16, do_constant_folding=False)
+    model_f32 = ConstantModel(torch.float32)
+    f32_input = torch.randn(shape, dtype=torch.float32, device=device)
+    export_model(model_f32, f32_input, "constant_f32.onnx")
 
-    print("Finished exporting model to {}".format(onnx_name))
+    model_f64 = ConstantModel(torch.float64)
+    f64_input = torch.randn(shape, dtype=torch.float64, device=device)
+    export_model(model_f64, f64_input, "constant_f64.onnx")
 
-    # Output some test data for use in testing
-    input = torch.randn(2, 3, device=device)
-    print("Test input:", input)
-    print("Test input data shape: {}".format(input.shape))
-    output = model.forward(input)
-    print("Test output:", output)
-    print("Test output data shape: {}".format(output.shape))
+    model_i32 = ConstantModel(torch.int32)
+    i32_input = torch.randint(
+        low=-10, high=10, size=shape, device=device, dtype=torch.int32
+    )
+    export_model(model_i32, i32_input, "constant_i32.onnx")
 
-if __name__ == '__main__':
+    model_i64 = ConstantModel(torch.int64)
+    i64_input = torch.randint(
+        low=-10, high=10, size=shape, device=device, dtype=torch.int64
+    )
+    export_model(model_i64, i64_input, "constant_i64.onnx")
+
+if __name__ == "__main__":
     main()
