@@ -7,8 +7,7 @@ use std::{marker::PhantomData, sync::Mutex};
 #[cfg(not(feature = "fusion"))]
 use burn_tensor::{
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    quantization::QuantizationScheme,
-    repr::{HandleKind, ReprBackend, TensorHandle},
+    repr::{ReprBackend, TensorHandle},
 };
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
@@ -113,7 +112,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
         handle.handle
     }
 
-    fn quantized_tensor(handles: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
         handle.handle
     }
 
