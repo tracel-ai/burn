@@ -20,8 +20,6 @@ fn main() {
         .input("tests/constant/constant_f64.onnx")
         .input("tests/constant/constant_i32.onnx")
         .input("tests/constant/constant_i64.onnx")
-        .input("tests/constant/constant_tensor_f32.onnx")
-        .input("tests/constant/constant_tensor_f64.onnx")
         .input("tests/constant_of_shape/constant_of_shape.onnx")
         .input("tests/constant_of_shape/constant_of_shape_full_like.onnx")
         .input("tests/conv1d/conv1d.onnx")
