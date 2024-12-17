@@ -489,7 +489,7 @@ mod tests {
 
         let const_tensor = Ident::new("const_tensor_3d", Span::call_site());
         let dimensions = 3;
-        let shape = vec![2, 2, 2];
+        let shape = vec![1, 3, 2];
         let data = TensorData::from([[[true, false], [true, false], [true, false]]]);
         let tensor_type = TensorType::new_bool_with_shape(
             const_tensor.to_string(),
