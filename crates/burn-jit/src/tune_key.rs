@@ -1,5 +1,5 @@
 use crate::kernel::{
-    // conv::{Conv2dAutotuneKey, ConvTranspose2dAutotuneKey},
+    conv::{Conv2dAutotuneKey, ConvTranspose2dAutotuneKey},
     matmul::MatmulAutotuneKey,
     reduce::ReduceAutotuneKey,
 };
@@ -14,10 +14,10 @@ pub enum JitAutotuneKey {
     Matmul(MatmulAutotuneKey),
     /// Key for reduce dim operations
     ReduceDim(ReduceAutotuneKey),
-    // /// Key for convolution operations
-    // Conv2d(Conv2dAutotuneKey),
-    // /// Key for transpose convolution operations
-    // ConvTranspose2d(ConvTranspose2dAutotuneKey),
+    /// Key for convolution operations
+    Conv2d(Conv2dAutotuneKey),
+    /// Key for transpose convolution operations
+    ConvTranspose2d(ConvTranspose2dAutotuneKey),
 }
 
 impl Display for JitAutotuneKey {
@@ -25,8 +25,8 @@ impl Display for JitAutotuneKey {
         match self {
             JitAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
             JitAutotuneKey::ReduceDim(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
-            // JitAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
-            // JitAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
+            JitAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
+            JitAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
         }
     }
 }

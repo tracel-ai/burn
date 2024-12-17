@@ -58,7 +58,7 @@ pub trait TraceRunner<R: JitRuntime> {
                 return 1;
             }
 
-            for s in R::max_line_size_elem(&desc.dtype.into()) {
+            for s in R::line_size_elem(&desc.dtype.into()) {
                 // The last dimension should be a multiple of the vector size.
                 if desc.shape[rank - 1] % s as usize == 0 {
                     return s;
@@ -71,7 +71,7 @@ pub trait TraceRunner<R: JitRuntime> {
         let vectorization_output = |desc: &TensorDescription| {
             let rank = desc.shape.len();
 
-            for s in R::max_line_size_elem(&desc.dtype.into()) {
+            for s in R::line_size_elem(&desc.dtype.into()) {
                 // The last dimension should be a multiple of the vector size.
                 if desc.shape[rank - 1] % s as usize == 0 {
                     return s;

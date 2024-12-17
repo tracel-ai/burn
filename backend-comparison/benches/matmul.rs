@@ -1,9 +1,5 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{
-    activation::{gelu, relu},
-    backend::Backend,
-    Shape, Tensor,
-};
+use burn::tensor::{activation::relu, backend::Backend, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
