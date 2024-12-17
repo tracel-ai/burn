@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_codegen_constant_scalar_float64() {
         assert_codegen_constant_scalar(
-            ConstantValue::Float64(3.141_592_653_589_793_f64),
+            ConstantValue::Float64(3.111_222_333_444_555_f64),
             ScalarKind::Float64,
         );
     }
