@@ -139,7 +139,6 @@ mod tests {
 
     use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
 
-    
     use float_cmp::ApproxEq;
 
     type Backend = burn_ndarray::NdArray<f32>;
@@ -2189,7 +2188,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_f32() {
+    fn add_constant_f32() {
         let device = Default::default();
         let model = constant_f32::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<f32, _>(Shape::from([2, 3, 4]));
@@ -2199,7 +2198,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_f64() {
+    fn add_constant_f64() {
         let device = Default::default();
         let model = constant_f64::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<f64, _>(Shape::from([2, 3, 4]));
@@ -2209,7 +2208,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_i32() {
+    fn add_constant_i32() {
         let device = Default::default();
         let model = constant_i32::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<i32, _>(Shape::from([2, 3, 4]));
@@ -2219,7 +2218,7 @@ mod tests {
     }
 
     #[test]
-    fn constant_i64() {
+    fn add_constant_i64() {
         let device = Default::default();
         let model = constant_i64::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<i64, _>(Shape::from([2, 3, 4]));
