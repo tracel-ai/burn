@@ -76,6 +76,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
 
     fn reset(&mut self) {
         self.builder.reset();
+        self.builder_fallback.reset();
         self.matmul = None;
     }
 
