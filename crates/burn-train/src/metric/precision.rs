@@ -1,5 +1,5 @@
 use super::{
-    classification::{ClassReduction, ClassificationDecisionRule, ClassificationMetricConfig},
+    classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
     Metric, MetricEntry, MetricMetadata, Numeric,
@@ -29,7 +29,7 @@ impl<B: Backend> PrecisionMetric<B> {
     pub fn binary(threshold: f64) -> Self {
         Self {
             config: ClassificationMetricConfig {
-                decision_rule: ClassificationDecisionRule::Threshold(threshold),
+                decision_rule: DecisionRule::Threshold(threshold),
                 // binary classification results are the same independently of class_reduction
                 ..Default::default()
             },
@@ -46,7 +46,7 @@ impl<B: Backend> PrecisionMetric<B> {
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
-                decision_rule: ClassificationDecisionRule::TopK(
+                decision_rule: DecisionRule::TopK(
                     NonZeroUsize::new(top_k).expect("top_k must be non-zero"),
                 ),
                 class_reduction,
@@ -64,7 +64,7 @@ impl<B: Backend> PrecisionMetric<B> {
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
-                decision_rule: ClassificationDecisionRule::Threshold(threshold),
+                decision_rule: DecisionRule::Threshold(threshold),
                 class_reduction,
             },
             ..Default::default()

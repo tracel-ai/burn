@@ -1,10 +1,8 @@
-use super::classification::{
-    ClassReduction, ClassificationDecisionRule, ClassificationMetricConfig,
-};
+use super::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule};
 use burn_core::prelude::{Backend, Bool, Int, Tensor};
 use std::fmt::{self, Debug};
 
-/// Input for classification metrics
+/// Input for [ConfusionStats]
 #[derive(new, Debug, Clone)]
 pub struct ConfusionStatsInput<B: Backend> {
     /// Sample x Class Non thresholded normalized predictions.
@@ -55,10 +53,8 @@ impl<B: Backend> ConfusionStats<B> {
     /// Expects `predictions` to be normalized.
     pub fn new(input: &ConfusionStatsInput<B>, config: &ClassificationMetricConfig) -> Self {
         let prediction_mask = match config.decision_rule {
-            ClassificationDecisionRule::Threshold(threshold) => {
-                input.predictions.clone().greater_elem(threshold)
-            }
-            ClassificationDecisionRule::TopK(top_k) => {
+            DecisionRule::Threshold(threshold) => input.predictions.clone().greater_elem(threshold),
+            DecisionRule::TopK(top_k) => {
                 let mask = input.predictions.zeros_like();
                 let indexes =
                     input
@@ -129,9 +125,7 @@ impl<B: Backend> ConfusionStats<B> {
 mod tests {
     use super::{ConfusionStats, ConfusionStatsInput};
     use crate::{
-        metric::classification::{
-            ClassReduction, ClassificationDecisionRule, ClassificationMetricConfig,
-        },
+        metric::classification::{ClassReduction, ClassificationMetricConfig, DecisionRule},
         tests::{dummy_classification_input, ClassificationType, THRESHOLD},
         TestBackend,
     };
@@ -144,7 +138,7 @@ mod tests {
         class_reduction: ClassReduction,
     ) -> ClassificationMetricConfig {
         ClassificationMetricConfig {
-            decision_rule: ClassificationDecisionRule::TopK(top_k),
+            decision_rule: DecisionRule::TopK(top_k),
             class_reduction,
         }
     }
@@ -175,7 +169,7 @@ mod tests {
         class_reduction: ClassReduction,
     ) -> ClassificationMetricConfig {
         ClassificationMetricConfig {
-            decision_rule: ClassificationDecisionRule::Threshold(threshold),
+            decision_rule: DecisionRule::Threshold(threshold),
             class_reduction,
         }
     }
