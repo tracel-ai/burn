@@ -1197,6 +1197,7 @@ mod tests {
     use crate::quantization::AffineQuantization;
 
     use super::*;
+    use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
