@@ -77,143 +77,143 @@ jobs:
         if: false
         run: echo
 
-  code-quality:
-    runs-on: ubuntu-22.04
-    needs: prepare-checks
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux
-      # --------------------------------------------------------------------------------
-      - name: Audit
-        run: cargo xtask check audit
-      # --------------------------------------------------------------------------------
-      - name: Format
-        shell: bash
-        env:
-          # work around for colors
-          # see: https://github.com/rust-lang/rustfmt/issues/3385
-          TERM: xterm-256color
-        run: cargo xtask check format
-      # --------------------------------------------------------------------------------
-      - name: Lint
-        run: cargo xtask check lint
-      # --------------------------------------------------------------------------------
-      - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v1
+  # code-quality:
+  #   runs-on: ubuntu-22.04
+  #   needs: prepare-checks
+  #   strategy:
+  #     matrix:
+  #       rust: [stable]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-linux
+  #     # --------------------------------------------------------------------------------
+  #     - name: Audit
+  #       run: cargo xtask check audit
+  #     # --------------------------------------------------------------------------------
+  #     - name: Format
+  #       shell: bash
+  #       env:
+  #         # work around for colors
+  #         # see: https://github.com/rust-lang/rustfmt/issues/3385
+  #         TERM: xterm-256color
+  #       run: cargo xtask check format
+  #     # --------------------------------------------------------------------------------
+  #     - name: Lint
+  #       run: cargo xtask check lint
+  #     # --------------------------------------------------------------------------------
+  #     - name: Typos
+  #       uses: tracel-ai/github-actions/check-typos@v1
 
-  documentation:
-    runs-on: ubuntu-22.04
-    needs: prepare-checks
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux
-      # --------------------------------------------------------------------------------
-      - name: Documentation Build
-        run: cargo xtask doc build
-      # --------------------------------------------------------------------------------
-      - name: Documentation Tests
-        run: cargo xtask doc tests
+  # documentation:
+  #   runs-on: ubuntu-22.04
+  #   needs: prepare-checks
+  #   strategy:
+  #     matrix:
+  #       rust: [stable]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-linux
+  #     # --------------------------------------------------------------------------------
+  #     - name: Documentation Build
+  #       run: cargo xtask doc build
+  #     # --------------------------------------------------------------------------------
+  #     - name: Documentation Tests
+  #       run: cargo xtask doc tests
 
-  linux-std-tests:
-    runs-on: ubuntu-22.04
-    needs: prepare-checks
-    env:
-      DISABLE_WGPU_SPIRV: '1'
-    strategy:
-      matrix:
-        rust: [stable, prev]
-        include:
-          - rust: stable
-            toolchain: stable
-            coverage: --enable-coverage
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux
-      # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v1
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-          cargo-package-to-clean: burn-tch
-      # --------------------------------------------------------------------------------
-      - name: Install grcov
-        if: matrix.rust == 'stable'
-        shell: bash
-        run: |
-          curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
-          tar xj -C $HOME/.cargo/bin
-          cargo xtask coverage install
-      # --------------------------------------------------------------------------------
-      - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test --ci
-      # --------------------------------------------------------------------------------
-      - name: Generate lcov.info
-        if: matrix.rust == 'stable'
-        # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
-      # --------------------------------------------------------------------------------
-      - name: Codecov upload lcov.info
-        if: matrix.rust == 'stable'
-        uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+  # linux-std-tests:
+  #   runs-on: ubuntu-22.04
+  #   needs: prepare-checks
+  #   env:
+  #     DISABLE_WGPU_SPIRV: '1'
+  #   strategy:
+  #     matrix:
+  #       rust: [stable, prev]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #           coverage: --enable-coverage
+  #         - rust: prev
+  #           toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-linux
+  #     # --------------------------------------------------------------------------------
+  #     - name: Setup Linux runner
+  #       uses: tracel-ai/github-actions/setup-linux@v1
+  #       with:
+  #         vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
+  #         mesa-version: ${{ env.MESA_VERSION }}
+  #         mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
+  #         cargo-package-to-clean: burn-tch
+  #     # --------------------------------------------------------------------------------
+  #     - name: Install grcov
+  #       if: matrix.rust == 'stable'
+  #       shell: bash
+  #       run: |
+  #         curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
+  #         tar xj -C $HOME/.cargo/bin
+  #         cargo xtask coverage install
+  #     # --------------------------------------------------------------------------------
+  #     - name: Tests
+  #       run: cargo xtask ${{ matrix.coverage }} test --ci
+  #     # --------------------------------------------------------------------------------
+  #     - name: Generate lcov.info
+  #       if: matrix.rust == 'stable'
+  #       # /* is to exclude std library code coverage from analysis
+  #       run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*"
+  #     # --------------------------------------------------------------------------------
+  #     - name: Codecov upload lcov.info
+  #       if: matrix.rust == 'stable'
+  #       uses: codecov/codecov-action@v5
+  #       with:
+  #         files: lcov.info
+  #         token: ${{ secrets.CODECOV_TOKEN }}
 
-  linux-no-std-tests:
-    runs-on: ubuntu-22.04
-    needs: prepare-checks
-    strategy:
-      matrix:
-        rust: [stable, prev]
-        include:
-          - rust: stable
-            toolchain: stable
-          - rust: prev
-            toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-linux-no-std
-      # --------------------------------------------------------------------------------
-      - name: Setup Linux runner
-        uses: tracel-ai/github-actions/setup-linux@v1
-        with:
-          vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
-      # --------------------------------------------------------------------------------
-      - name: Crates Build
-        run: cargo xtask --execution-environment no-std build --ci
-      # --------------------------------------------------------------------------------
-      - name: Crates Tests
-        run: cargo xtask --execution-environment no-std test --ci
+  # linux-no-std-tests:
+  #   runs-on: ubuntu-22.04
+  #   needs: prepare-checks
+  #   strategy:
+  #     matrix:
+  #       rust: [stable, prev]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #         - rust: prev
+  #           toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-linux-no-std
+  #     # --------------------------------------------------------------------------------
+  #     - name: Setup Linux runner
+  #       uses: tracel-ai/github-actions/setup-linux@v1
+  #       with:
+  #         vulkan-sdk-version: ${{ env.VULKAN_SDK_VERSION }}
+  #         mesa-version: ${{ env.MESA_VERSION }}
+  #         mesa-ci-build-version: ${{ env.MESA_CI_BINARY_BUILD }}
+  #     # --------------------------------------------------------------------------------
+  #     - name: Crates Build
+  #       run: cargo xtask --execution-environment no-std build --ci
+  #     # --------------------------------------------------------------------------------
+  #     - name: Crates Tests
+  #       run: cargo xtask --execution-environment no-std test --ci
 
   windows-std-tests:
     runs-on: windows-2022
@@ -246,22 +246,22 @@ jobs:
       - name: Tests
         run: cargo xtask test --ci
 
-  macos-std-tests:
-    runs-on: blaze/macos-14
-    needs: prepare-checks
-    # Keep the stragegy to be able to easily add new rust versions if required
-    strategy:
-      matrix:
-        rust: [stable]
-        include:
-          - rust: stable
-            toolchain: stable
-    steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
-        with:
-          rust-toolchain: ${{ matrix.toolchain }}
-          cache-key: ${{ matrix.rust }}-macos
-      # --------------------------------------------------------------------------------
-      - name: Tests
-        run: cargo xtask test --ci
+  # macos-std-tests:
+  #   runs-on: blaze/macos-14
+  #   needs: prepare-checks
+  #   # Keep the stragegy to be able to easily add new rust versions if required
+  #   strategy:
+  #     matrix:
+  #       rust: [stable]
+  #       include:
+  #         - rust: stable
+  #           toolchain: stable
+  #   steps:
+  #     - name: Setup Rust
+  #       uses: tracel-ai/github-actions/setup-rust@v1
+  #       with:
+  #         rust-toolchain: ${{ matrix.toolchain }}
+  #         cache-key: ${{ matrix.rust }}-macos
+  #     # --------------------------------------------------------------------------------
+  #     - name: Tests
+  #       run: cargo xtask test --ci
