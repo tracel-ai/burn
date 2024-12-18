@@ -1,32 +1,35 @@
 use cubecl::{
-    linalg::matmul::components::{
-        global::Loader,
-        stage::{
-            multi_buffer::LhsReader, ColMajorTiling, RowMajorTiling, Stage, TilingOrder as _,
-            TilingOrderConfig,
+    linalg::{
+        matmul::components::{
+            global::Loader,
+            stage::{
+                multi_buffer::LhsReader, ColMajorTiling, RowMajorTiling, Stage, TilingOrder as _,
+                TilingOrderConfig,
+            },
+            Ident,
         },
-        Ident,
+        tensor::VirtualTensor,
     },
     prelude::*,
 };
 use std::marker::PhantomData;
 
-use crate::kernel::conv::{reader::im2col::Im2colReader, Config};
+use crate::kernel::conv::{reader::im2col::Im2colReader, spec::ConvSpec, Config};
 
 /// Loader that translates matrix coordinates to input coordinates using the `im2col` algorithm
 #[derive(CubeType)]
-pub struct SimpleIm2colLoader<EG: Numeric, ES: Numeric, G: Config> {
-    pub tensor_view: Im2colReader<EG>,
-    pub stage: Stage<ES>,
+pub struct SimpleIm2colLoader<CS: ConvSpec, G: Config> {
+    pub tensor_view: Im2colReader<CS::EG>,
+    pub stage: Stage<CS::ES>,
     _config: PhantomData<G>,
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoader<EG, ES, G> {
-    type StageReader = LhsReader<ES>;
+impl<CS: ConvSpec, G: Config> Loader<CS::EG, CS::ES, G> for SimpleIm2colLoader<CS, G> {
+    type StageReader = LhsReader<CS::ES>;
 
     fn fill_stage(this: &mut Self, #[comptime] config: G) {
-        SimpleIm2col::load_to_slice::<EG, ES, G>(
+        SimpleIm2col::load_to_slice::<CS, G>(
             &this.tensor_view,
             &mut this.stage.as_slice_mut(),
             Ident::Lhs,
@@ -44,9 +47,9 @@ impl<EG: Numeric, ES: Numeric, G: Config> Loader<EG, ES, G> for SimpleIm2colLoad
 }
 
 #[cube]
-impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
+impl<CS: ConvSpec, G: Config> SimpleIm2colLoader<CS, G> {
     pub fn new(
-        tensor: &Tensor<Line<EG>>,
+        tensor: VirtualTensor<CS::EG>,
         shape_out_y: u32,
         shape_out_x: u32,
         x_offset: u32,
@@ -60,25 +63,18 @@ impl<EG: Numeric, ES: Numeric, G: Config> SimpleIm2colLoader<EG, ES, G> {
         let shape_m = shape_batch * shape_out_y * shape_out_x;
         let shape_k = shape_channel * config.kernel_size(0) * config.kernel_size(1);
 
-        let tensor_view = Im2colReader::<EG> {
+        let tensor_view = Im2colReader::<CS::EG>::new(
             tensor,
-            m_offset: x_offset,
-            k_offset: y_offset,
-            stride_batch: tensor.stride(0),
-            stride_y: tensor.stride(1),
-            stride_x: tensor.stride(2),
-            stride_channel: tensor.stride(3),
-            shape_y: tensor.shape(1),
-            shape_x: tensor.shape(2),
-            shape_channel,
             shape_out_y,
             shape_out_x,
-
-            shape_m,
+            x_offset,
+            y_offset,
             shape_k,
-        };
+            shape_channel,
+            shape_m,
+        );
 
-        SimpleIm2colLoader::<EG, ES, G> {
+        SimpleIm2colLoader::<CS, G> {
             tensor_view,
             stage,
             _config: PhantomData::<G>.runtime(),
@@ -93,9 +89,9 @@ pub struct SimpleIm2col;
 
 #[cube]
 impl SimpleIm2col {
-    pub fn load_to_slice<EG: Numeric, ES: Numeric, G: Config>(
-        read_view: &Im2colReader<EG>,
-        slice: &mut SliceMut<Line<ES>>,
+    pub fn load_to_slice<CS: ConvSpec, G: Config>(
+        read_view: &Im2colReader<CS::EG>,
+        slice: &mut SliceMut<Line<CS::ES>>,
         #[comptime] ident: Ident,
         #[comptime] config: G,
     ) {

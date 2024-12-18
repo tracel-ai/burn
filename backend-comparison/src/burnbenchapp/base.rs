@@ -103,6 +103,8 @@ enum BenchmarkValues {
     Data,
     #[strum(to_string = "matmul")]
     Matmul,
+    #[strum(to_string = "matmul-fused")]
+    MatmulFused,
     #[strum(to_string = "unary")]
     Unary,
     #[strum(to_string = "max-pool2d")]

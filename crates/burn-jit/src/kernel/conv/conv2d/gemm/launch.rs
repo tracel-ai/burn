@@ -15,6 +15,7 @@ use cubecl::{
 };
 use half::{bf16, f16};
 
+use super::spec::{ConvSpec, SingleConvSpec};
 use crate::{
     kernel::{
         conv::{
@@ -33,24 +34,30 @@ use crate::{
 
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
 /// than `out_channels`
-pub type CmmaLargeMAlgorithm<EG, ES, EA> = Cmma<EG, ES, EA, S8x4x2>;
+pub type CmmaLargeMAlgorithm<CS> = Cmma<CS, S8x4x2>;
 /// Balanced stage size for cases where `batch_size * out_h * out_w` is relatively small and `k` or
 /// `out_channels` is relatively large
-pub type CmmaBalancedAlgorithm<EG, ES, EA> = Cmma<EG, ES, EA, S4x2x4>;
+pub type CmmaBalancedAlgorithm<CS> = Cmma<CS, S4x2x4>;
 
 macro_rules! select_launch_algo {
     ($algo:tt, $float:ty, $input:expr) => {
         match (<$float>::as_elem(), has_tf32(&$input)) {
             (Elem::Float(FloatKind::F32), true) => {
-                conv2d_gemm_with_algo::<R, F, $algo<$float, tf32, f32>>
+                type Spec<F> = SingleConvSpec<32, F, tf32, f32>;
+                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
             }
             (Elem::Float(FloatKind::F16), _) => {
-                conv2d_gemm_with_algo::<R, F, $algo<$float, f16, f16>>
+                type Spec<F> = SingleConvSpec<32, $float, f16, f16>;
+                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
             }
             (Elem::Float(FloatKind::BF16), _) => {
-                conv2d_gemm_with_algo::<R, F, $algo<$float, bf16, f32>>
+                type Spec<F> = SingleConvSpec<32, $float, bf16, f32>;
+                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
             }
-            _ => conv2d_gemm_with_algo::<R, F, $algo<$float, f16, f32>>,
+            _ => {
+                type Spec<F> = SingleConvSpec<32, $float, f16, f32>;
+                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
+            }
         }
     };
 }
@@ -100,7 +107,7 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
 /// * `options` - The options to use for the convolution
 ///
 ///
-pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, Alg: Algorithm<F>>(
+pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, CS: ConvSpec, Alg: Algorithm<CS>>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,

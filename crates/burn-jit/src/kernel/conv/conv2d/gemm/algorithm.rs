@@ -4,11 +4,7 @@ use cubecl::{
     linalg::matmul::{
         components::{
             stage::{self, StageSize},
-            tile::{
-                self,
-                accelerated::{Accelerated16x16x16, CmmaValid},
-                Matmul as _,
-            },
+            tile::{self, accelerated::Accelerated16x16x16, Matmul as _},
             MatmulKernel,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
@@ -19,23 +15,17 @@ use cubecl::{
 use super::{
     base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
     homogeneous::base::ImplicitGemmConvolution,
+    spec::ConvSpec,
 };
 
 /// Specifications for a convolution algorithm
-pub trait Algorithm<EG: Numeric> {
-    const PLANE_DIM: u32;
-
-    type EG: Numeric;
-    type ES: Numeric;
-    type EA: Numeric;
-
-    type TileMatmul: tile::Matmul<Self::ES, Self::EA> + MatmulKernel<Self::ES, Self::EA>;
+pub trait Algorithm<CS: ConvSpec> {
+    type TileMatmul: tile::Matmul<CS::ES, CS::EA> + MatmulKernel;
 
     type StageSize: StageSize;
-    type StageMatmul: stage::Matmul<Self::ES, Self::EG, Self::EA> + MatmulKernel<Self::ES, Self::EG>;
+    type StageMatmul: stage::Matmul<CS::ES, CS::EG, CS::EA> + MatmulKernel;
 
-    type GlobalConvolution: Convolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>
-        + ConvolutionLaunch<Self::EG, Self::EG>;
+    type GlobalConvolution: Convolution<CS, Self::StageMatmul> + ConvolutionLaunch<CS::EG, CS::EG>;
 
     /// Cube dim for launch
     fn cube_dim() -> CubeDim;
@@ -48,7 +38,7 @@ pub trait Algorithm<EG: Numeric> {
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
         advanced_config: &AdvancedConfig,
-    ) -> <Self::GlobalConvolution as ConvolutionKernel<Self::EG, Self::EG>>::Config {
+    ) -> <Self::GlobalConvolution as ConvolutionKernel<CS::EG, CS::EG>>::Config {
         Self::GlobalConvolution::make_config(problem, cube_dim, cube_count, advanced_config)
     }
 
@@ -78,39 +68,21 @@ pub trait Algorithm<EG: Numeric> {
 }
 
 /// Cmma convolution
-pub struct Cmma<EG: Numeric, ES: Numeric, EA: Numeric, Stage: StageSize> {
-    pub _eg: PhantomData<EG>,
-    pub _es: PhantomData<ES>,
-    pub _ea: PhantomData<EA>,
+pub struct Cmma<CS: ConvSpec, Stage: StageSize> {
+    pub _cp: PhantomData<CS>,
     pub _stage: PhantomData<Stage>,
 }
 
-impl<EG: Numeric, ES: Numeric, EA: Numeric, Stage: StageSize> Algorithm<EG>
-    for Cmma<EG, ES, EA, Stage>
-where
-    (ES, EA): CmmaValid<ES, EA>,
-{
-    const PLANE_DIM: u32 = 32;
-    type EG = EG;
-    type ES = ES;
-    type EA = EA;
-
-    type TileMatmul = Accelerated16x16x16<Self::ES, Self::EA>;
-
+impl<CS: ConvSpec, Stage: StageSize> Algorithm<CS> for Cmma<CS, Stage> {
+    type TileMatmul = Accelerated16x16x16<CS::ES, CS::EA>;
     type StageSize = Stage;
-    type StageMatmul = stage::multi_buffer::Matmul<
-        Self::ES,
-        Self::EG,
-        Self::EA,
-        Self::TileMatmul,
-        Self::StageSize,
-    >;
+    type StageMatmul =
+        stage::multi_buffer::Matmul<CS::ES, CS::EG, CS::EA, Self::TileMatmul, Self::StageSize>;
 
-    type GlobalConvolution =
-        ImplicitGemmConvolution<Self::EG, Self::ES, Self::EA, Self::StageMatmul>;
+    type GlobalConvolution = ImplicitGemmConvolution<CS, Self::StageMatmul>;
 
     fn cube_dim() -> CubeDim {
-        CubeDim::new(Self::PLANE_DIM, Self::StageSize::NUM_M, 1)
+        CubeDim::new(CS::PLANE_DIM, Self::StageSize::NUM_M, 1)
     }
 
     fn cube_count(problem: &ConvolutionProblem) -> CubeCount {

@@ -17,6 +17,8 @@ pub struct FuseOnWriteTraceBuilder {
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     pub bool_precision: ElemwisePrecision,
+    outputs_unhandled: Vec<Arg>,
+    inputs_unhandled: Vec<TensorId>,
 }
 
 impl FuseOnWriteTraceBuilder {
@@ -29,6 +31,8 @@ impl FuseOnWriteTraceBuilder {
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
+            outputs_unhandled: Vec::new(),
+            inputs_unhandled: Vec::new(),
         }
     }
 
@@ -46,6 +50,27 @@ impl FuseOnWriteTraceBuilder {
         // one slot per scalar.
         let scalar = self.scalars.len() as u32;
         meta + inputs + outputs + scalar
+    }
+
+    pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        let arg = self.output(tensor);
+        self.outputs_unhandled.push(arg);
+        arg
+    }
+
+    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+        let new_input = self.inputs.insert(precision_input, tensor.clone());
+        let arg = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+
+        self.inputs_unhandled.push(tensor.id);
+        arg
     }
 
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
@@ -141,7 +166,15 @@ impl FuseOnWriteTraceBuilder {
         }
 
         // Current problem is that I need btreemap instead of sequences.
-        FuseOnWriteTrace::new(outputs, inputs, scalars, ops, reads, writes)
+        FuseOnWriteTrace::new(
+            outputs,
+            inputs,
+            scalars,
+            ops,
+            reads,
+            writes,
+            self.inputs_unhandled.clone(),
+        )
     }
 
     fn output_tensors(&self) -> RegisteredTensors {
@@ -307,6 +340,10 @@ impl FuseOnWriteTraceBuilder {
 
         for op in self.ops.iter() {
             mark_op(op);
+        }
+
+        for arg in self.outputs_unhandled.iter() {
+            mark(arg, &mut local_tensor_ids_output);
         }
 
         // All output tensors that are never read by a following operation should be written to

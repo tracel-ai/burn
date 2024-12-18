@@ -147,6 +147,22 @@ impl FuseOnWriteBuilder {
         }
     }
 
+    pub fn close(&mut self) {
+        self.status = OptimizationStatus::Closed;
+    }
+
+    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        self.builder.builder.input_unhandled(tensor)
+    }
+
+    pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        if self.current_output_shape.is_empty() {
+            self.current_output_shape = tensor.shape.clone();
+        }
+
+        self.builder.builder.output_unhandled(tensor)
+    }
+
     fn register_base(&mut self, ops: &BaseOperationDescription) -> bool {
         match ops {
             BaseOperationDescription::Equal(desc) => self

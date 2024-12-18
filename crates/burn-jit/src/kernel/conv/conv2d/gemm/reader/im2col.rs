@@ -1,4 +1,7 @@
-use cubecl::{linalg::matmul::components::Ident, prelude::*};
+use cubecl::{
+    linalg::{matmul::components::Ident, tensor::VirtualTensor},
+    prelude::*,
+};
 
 use crate::kernel::conv::Config;
 
@@ -7,7 +10,7 @@ use crate::kernel::conv::Config;
 /// Ensures safe access by preventing out-of-bounds errors.
 /// Includes pre-fetched shapes and strides for optimized performance.
 pub struct Im2colReader<E: Numeric> {
-    pub tensor: *const Tensor<Line<E>>,
+    pub tensor: VirtualTensor<E>,
     pub m_offset: u32,
     pub k_offset: u32,
 
@@ -27,11 +30,50 @@ pub struct Im2colReader<E: Numeric> {
     pub shape_k: u32,
 }
 
+#[cube]
+impl<E: Numeric> Im2colReader<E> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        tensor: VirtualTensor<E>,
+        shape_out_y: u32,
+        shape_out_x: u32,
+        x_offset: u32,
+        y_offset: u32,
+        shape_k: u32,
+        shape_channel: u32,
+        shape_m: u32,
+    ) -> Im2colReader<E> {
+        let stride_batch = tensor.stride(0);
+        let stride_y = tensor.stride(1);
+        let stride_x = tensor.stride(2);
+        let stride_channel = tensor.stride(3);
+        let shape_y = tensor.shape(1);
+        let shape_x = tensor.shape(2);
+
+        Im2colReader::<E> {
+            tensor,
+            m_offset: x_offset,
+            k_offset: y_offset,
+            stride_batch,
+            stride_y,
+            stride_x,
+            stride_channel,
+            shape_y,
+            shape_x,
+            shape_channel,
+            shape_out_y,
+            shape_out_x,
+            shape_m,
+            shape_k,
+        }
+    }
+}
+
 unsafe impl<E: Numeric> Sync for Im2colReader<E> {}
 unsafe impl<E: Numeric> Send for Im2colReader<E> {}
 
 #[cube]
-impl<F: Numeric> Im2colReader<F> {
+impl<E: Numeric> Im2colReader<E> {
     /// Advance the view along the k dimension by a specified offset, `k_offset`.
     pub fn update_view(&mut self, k_offset: u32) {
         self.k_offset += k_offset;
@@ -54,7 +96,7 @@ impl<F: Numeric> Im2colReader<F> {
         unit_id: u32,
         #[comptime] ident: Ident,
         #[comptime] config: G,
-    ) -> Line<F> {
+    ) -> Line<E> {
         let line_size = config.global_line_size(ident);
         let tile_size_x = config.stage_dim(ident).tile_size_x_dim();
         let tile_size_y = config.stage_dim(ident).tile_size_y_dim();
@@ -98,7 +140,7 @@ impl<F: Numeric> Im2colReader<F> {
 
         let read_pos = read_pos / line_size;
 
-        let mut res = Line::empty(line_size).fill(F::from_int(0));
+        let mut res = Line::empty(line_size).fill(E::from_int(0));
         if in_bounds {
             res = self.read(read_pos);
         }
@@ -106,7 +148,7 @@ impl<F: Numeric> Im2colReader<F> {
         res
     }
 
-    fn read(&self, position: u32) -> Line<F> {
-        unsafe { *(*self.tensor).index_unchecked(position) }
+    fn read(&self, position: u32) -> Line<E> {
+        self.tensor.read(position)
     }
 }

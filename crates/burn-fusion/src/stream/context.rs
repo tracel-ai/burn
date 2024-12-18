@@ -12,7 +12,7 @@ use hashbrown::HashMap;
 #[derive(new)]
 pub struct Context<'a, H> {
     /// The tensor mapping where local tensor id points to the updated tensor description.
-    pub tensors: &'a HashMap<TensorId, TensorDescription>,
+    pub tensors: &'a mut HashMap<TensorId, TensorDescription>,
     /// Handle container to retrieve tensors based on their description.
     pub handles: &'a mut HandleContainer<H>,
     /// F32 scalars found in the graph in the order they appeared.
@@ -78,10 +78,13 @@ trait RelativeOpsScalar<E: Element> {
 }
 
 impl OperationConverter {
-    pub(crate) fn context<'a, H>(&'a self, handles: &'a mut HandleContainer<H>) -> Context<'a, H> {
+    pub(crate) fn context<'a, H>(
+        &'a mut self,
+        handles: &'a mut HandleContainer<H>,
+    ) -> Context<'a, H> {
         Context {
             handles,
-            tensors: &self.tensors_relative2global,
+            tensors: &mut self.tensors_relative2global,
             scalar_f32: &self.scalar_f32,
             scalar_f16: &self.scalar_f16,
             scalar_bf16: &self.scalar_bf16,
