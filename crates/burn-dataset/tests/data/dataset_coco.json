@@ -1,0 +1,132 @@
+{
+  "images": [
+    {
+      "width": 32,
+      "height": 32,
+      "id": 0,
+      "file_name": "two_dots_and_triangle.jpg"
+    },
+    {
+      "width": 32,
+      "height": 32,
+      "id": 1,
+      "file_name": "dot_triangle.jpg"
+    },
+    {
+      "width": 32,
+      "height": 32,
+      "id": 2,
+      "file_name": "one_dot.jpg"
+    }
+  ],
+  "categories": [
+    {
+      "id": 0,
+      "name": "dot"
+    },
+    {
+      "id": 1,
+      "name": "triangle"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 0,
+      "image_id": 0,
+      "category_id": 0,
+      "segmentation": [],
+      "bbox": [
+        3.1251719394773056,
+        18.0907840440165,
+        10.96011004126548,
+        10.740027510316379
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 117.71188335928603
+    },
+    {
+      "id": 1,
+      "image_id": 0,
+      "category_id": 0,
+      "segmentation": [],
+      "bbox": [
+        3.2572214580467658,
+        3.0371389270976605,
+        10.563961485557085,
+        10.828060522696012
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 114.38721432504178
+    },
+    {
+      "id": 2,
+      "image_id": 0,
+      "category_id": 1,
+      "segmentation": [],
+      "bbox": [
+        15.097661623108666,
+        3.3892709766162312,
+        12.632737276478679,
+        11.18019257221458
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 141.23643546522516
+    },
+    {
+      "id": 3,
+      "image_id": 1,
+      "category_id": 0,
+      "segmentation": [],
+      "bbox": [
+        3.125171939477304,
+        17.914718019257222,
+        10.82806052269601,
+        11.004126547455297
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 119.15334825525184
+    },
+    {
+      "id": 4,
+      "image_id": 1,
+      "category_id": 1,
+      "segmentation": [],
+      "bbox": [
+        15.27372764786794,
+        3.301237964236589,
+        12.192572214580478,
+        11.708390646492433
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 142.7553984738776
+    },
+    {
+      "id": 5,
+      "image_id": 2,
+      "category_id": 0,
+      "segmentation": [],
+      "bbox": [
+        10.07977991746905,
+        9.59559834938102,
+        10.960110041265464,
+        11.356258596973863
+      ],
+      "ignore": 0,
+      "iscrowd": 0,
+      "area": 124.46584387990049
+    }
+  ],
+  "info": {
+    "year": 2024,
+    "version": "1.0",
+    "description": "",
+    "contributor": "",
+    "url": "",
+    "date_created": "2024-12-11 22:16:31.823494"
+  }
+}
