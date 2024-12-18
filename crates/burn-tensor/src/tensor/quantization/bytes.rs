@@ -185,6 +185,7 @@ unsafe fn reinterpret_vec<T, U>(mut input: Vec<T>) -> Vec<U> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn should_pack_unpack_quantization_parameters_symmetric() {
