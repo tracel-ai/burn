@@ -44,9 +44,9 @@ env:
 
   # Sourced from https://archive.mesa3d.org/. Bumping this requires
   # updating the mesa build in https://github.com/gfx-rs/ci-build and creating a new release.
-  MESA_VERSION: "23.3.1"
+  MESA_VERSION: "24.2.3"
   # Corresponds to https://github.com/gfx-rs/ci-build/releases
-  MESA_CI_BINARY_BUILD: "build18"
+  MESA_CI_BINARY_BUILD: "build19"
 
   # Sourced from https://www.nuget.org/packages/Microsoft.Direct3D.WARP
   WARP_VERSION: "1.0.13"
@@ -229,14 +229,14 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v1
+        uses: tracel-ai/github-actions/setup-rust@main
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
-        uses: tracel-ai/github-actions/setup-windows@v1
+        uses: tracel-ai/github-actions/setup-windows@main
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
           dxc-filename: ${{ env.DXC_FILENAME }}
