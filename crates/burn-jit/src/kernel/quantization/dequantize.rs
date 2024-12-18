@@ -32,10 +32,10 @@ pub(crate) fn extract_i8(value: u32, offset: u32) -> i32 {
 pub(crate) fn extract_i8s(value: u32) -> Line<i32> {
     let mut line = Line::empty(4);
     // Extract each 8-bit segment
-    line[0] = extract_i8(value, 24);
-    line[1] = extract_i8(value, 16);
-    line[2] = extract_i8(value, 8);
-    line[3] = extract_i8(value, 0);
+    line[0] = extract_i8(value, 0);
+    line[1] = extract_i8(value, 8);
+    line[2] = extract_i8(value, 16);
+    line[3] = extract_i8(value, 24);
 
     line
 }

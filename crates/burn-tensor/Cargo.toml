@@ -35,7 +35,7 @@ burn-common = { path = "../burn-common", version = "0.16.0", default-features = 
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.16.0", optional = true }
 cubecl = { workspace = true, optional = true, default-features = true }
 
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }

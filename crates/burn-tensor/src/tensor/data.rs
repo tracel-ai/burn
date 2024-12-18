@@ -6,13 +6,14 @@ use core::{
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
-use alloc::vec;
 use alloc::vec::Vec;
 use bytemuck::{checked::CheckedCastError, AnyBitPattern};
 use half::{bf16, f16};
 
 use crate::{
-    quantization::{AffineQuantization, Quantization, QuantizationStrategy},
+    quantization::{
+        Quantization, QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
+    },
     tensor::{bytes::Bytes, Shape},
     DType, Distribution, Element, ElementConversion,
 };
@@ -24,11 +25,6 @@ use num_traits::pow::Pow;
 use num_traits::Float;
 
 use rand::RngCore;
-
-use super::quantization::{
-    pack_i8s_to_u32s, unpack_u32s_to_i8s, QParams, QuantizationScheme, QuantizationType,
-    SymmetricQuantization,
-};
 
 /// The things that can go wrong when manipulating tensor data.
 #[derive(Debug)]
@@ -43,7 +39,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    pub bytes: Bytes,
+    bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -57,102 +53,54 @@ impl TensorData {
     pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
         // Ensure shape is valid
         let shape = shape.into();
-        Self::check_data_len(&value, &shape, None);
-        Self::init(value, shape, E::dtype())
+        Self::check_data_len(&value, &shape);
+
+        Self {
+            bytes: Bytes::from_elems(value),
+            shape,
+            dtype: E::dtype(),
+        }
     }
 
     /// Creates a new quantized tensor data structure.
-    ///
-    /// # Note
-    /// If the quantized data representation is `u32`, the values are assumed to already be packed
-    /// (e.g., groups of 4 `i8` values are packed into a single `u32`).
     pub fn quantized<E: Element, S: Into<Vec<usize>>>(
         value: Vec<E>,
         shape: S,
         strategy: QuantizationStrategy,
     ) -> Self {
         let shape = shape.into();
+        Self::check_data_len(&value, &shape);
 
-        Self::check_data_len(&value, &shape, Some(&strategy));
-        let mut bytes: Bytes;
-        // Notes on quantization data representation:
-        // 1) The quantized values are packed into 32-bit unsigned integers. For example, int8
-        //    quantized values pack 4 grouped values into a single `u32`. When unpacking these values,
-        //    we make sure to retrieve only the meaningful values (and ignore the alignment padding).
-        // 2) Quantization parameters are appended to the tensor data.
-        //    As such, the last bytes always correspond to the scale parameter.
-        //    If the quantization scheme includes an offset (zero-point) parameter, it is next to last.
-        match strategy {
-            QuantizationStrategy::PerTensorAffineInt8(q) => {
-                if TypeId::of::<E>() == TypeId::of::<u32>() {
-                    bytes = Bytes::from_elems(value); // already packed values
-                } else if let Some(value) = <dyn Any>::downcast_ref::<Vec<i8>>(&value) {
-                    bytes = Bytes::from_elems(pack_i8s_to_u32s(value));
-                } else {
-                    panic!("Invalid quantized type");
-                }
-                // Scale is always stored as f32 and zero-point offset as i32
-                let offset = q.offset as i32;
-                let scale_bytes = bytemuck::bytes_of(&q.scale);
-                let offset_bytes = bytemuck::bytes_of(&offset);
-                bytes.extend_from_byte_slice(offset_bytes);
-                bytes.extend_from_byte_slice(scale_bytes);
-            }
-            QuantizationStrategy::PerTensorSymmetricInt8(q) => {
-                if TypeId::of::<E>() == TypeId::of::<u32>() {
-                    bytes = Bytes::from_elems(value); // already packed values
-                } else if let Some(value) = <dyn Any>::downcast_ref::<Vec<i8>>(&value) {
-                    bytes = Bytes::from_elems(pack_i8s_to_u32s(value));
-                } else {
-                    panic!("Invalid quantized type");
-                }
-                let scale_bytes = bytemuck::bytes_of(&q.scale);
-                bytes.extend_from_byte_slice(scale_bytes);
-            }
-        }
+        let q_bytes = QuantizedBytes::new(value, strategy);
 
         Self {
-            bytes,
+            bytes: q_bytes.bytes,
             shape,
-            dtype: DType::QFloat(strategy.scheme()),
+            dtype: DType::QFloat(q_bytes.scheme),
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes.
+    ///
+    /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
+    /// certain that the bytes representation is valid.
+    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+        Self {
+            bytes: Bytes::from_bytes_vec(bytes),
+            shape: shape.into(),
+            dtype,
         }
     }
 
     // Check that the input vector contains a correct number of elements
-    fn check_data_len<E: Element>(
-        data: &[E],
-        shape: &Vec<usize>,
-        quantization: Option<&QuantizationStrategy>,
-    ) {
-        let mut expected_data_len = Self::numel(shape);
-        if let Some(quantization) = quantization {
-            let elem_per_data = match quantization {
-                QuantizationStrategy::PerTensorAffineInt8(_)
-                | QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                    if TypeId::of::<E>() == TypeId::of::<u32>() {
-                        4
-                    } else {
-                        1
-                    }
-                }
-            };
-            expected_data_len = expected_data_len.div_ceil(elem_per_data);
-        }
+    fn check_data_len<E: Element>(data: &[E], shape: &Vec<usize>) {
+        let expected_data_len = Self::numel(shape);
         let num_data = data.len();
         assert_eq!(
             expected_data_len, num_data,
             "Shape {:?} is invalid for input of size {:?}",
             shape, num_data,
         );
-    }
-
-    /// Initializes a new tensor data structure from the provided values.
-    fn init<E: Element>(value: Vec<E>, shape: Vec<usize>, dtype: DType) -> Self {
-        Self {
-            bytes: Bytes::from_elems(value),
-            shape,
-            dtype,
-        }
     }
 
     fn try_as_slice<E: Element>(&self) -> Result<&[E], DataError> {
@@ -195,6 +143,7 @@ impl TensorData {
 
     /// Returns the tensor data as a vector of scalar values.
     pub fn into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
+        // This means we cannot call `into_vec` for QFloat
         if E::dtype() != self.dtype {
             return Err(DataError::TypeMismatch(format!(
                 "Invalid target element type (expected {:?}, got {:?})",
@@ -210,7 +159,7 @@ impl TensorData {
         };
         // The bytes might have been deserialized and allocated with a different align.
         // In that case, we have to memcopy the data into a new vector, more suitably allocated
-        Ok(bytemuck::checked::try_cast_slice(me.values_as_bytes())
+        Ok(bytemuck::checked::try_cast_slice(me.as_bytes())
             .map_err(DataError::CastError)?
             .to_vec())
     }
@@ -282,9 +231,13 @@ impl TensorData {
                 DType::QFloat(scheme) => match scheme {
                     QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
                     | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
-                        // Unpack values before converting to the specified type
-                        let values =
-                            unpack_u32s_to_i8s(self.values_as_bytes(), self.num_elements());
+                        // Quantized int8 values
+                        let q_bytes = QuantizedBytes {
+                            bytes: self.bytes.clone(),
+                            scheme,
+                            num_elements: self.num_elements(),
+                        };
+                        let (values, _) = q_bytes.into_vec_i8();
 
                         Box::new(
                             values
@@ -414,6 +367,11 @@ impl TensorData {
         &self.bytes
     }
 
+    /// Returns the bytes representation of the data.
+    pub fn into_bytes(self) -> Bytes {
+        self.bytes
+    }
+
     /// Applies the data quantization strategy.
     ///
     /// # Panics
@@ -439,100 +397,18 @@ impl TensorData {
         }
     }
 
-    /// Returns the values of the tensor as bytes.
-    ///
-    /// Takes into account the quantization parameters to ignore since they are packed
-    /// into the tensor data bytes.
-    ///
-    /// # Note
-    /// For quantized types, this method takes into account the quantization parameters
-    /// to ignore since they are appended to the data bytes.
-    ///
-    /// For other data types, this is equivalent to [`as_bytes()`](TensorData::as_bytes).
-    pub fn values_as_bytes(&self) -> &[u8] {
-        match self.dtype {
-            DType::QFloat(scheme) => {
-                let scale_size = core::mem::size_of::<f32>();
-                let mut tensor_bytes_end = self.bytes.len() - scale_size;
-
-                if let QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) = scheme {
-                    tensor_bytes_end -= core::mem::size_of::<i32>(); // zero-point offset is stored as i32
-                }
-
-                &self.bytes[..tensor_bytes_end]
-            }
-            _ => self.as_bytes(),
-        }
-    }
-
-    /// Get the quantization parameters for a quantized data type.
-    pub fn get_q_params<E: Element, Q: Element>(&self) -> Option<QParams<E, Q>> {
-        fn read_unaligned<T: bytemuck::CheckedBitPattern>(bytes: &[u8]) -> T {
-            // The starting memory address isn't guaranteed to be  divisible by the
-            // target type's alignment size, so using `from_bytes` could fail. Instead,
-            // we try to read the unaligned bytes and fallback to a manual copy if it is
-            // not supported.
-            bytemuck::checked::try_pod_read_unaligned(bytes)
-                .or_else(|err| {
-                    match err {
-                        CheckedCastError::PodCastError(_) => {
-                            // Fallback to manual copy
-                            let mut aligned_bytes = vec![0u8; core::mem::size_of::<T>()];
-                            aligned_bytes.copy_from_slice(bytes);
-                            Ok(*bytemuck::checked::from_bytes(&aligned_bytes))
-                        }
-                        _ => Err(err),
-                    }
-                })
-                .unwrap()
-        }
-
-        if let DType::QFloat(scheme) = &self.dtype {
-            let total_bytes = self.bytes.len();
-
-            // Quantization parameters are added at the end of the tensor data.
-            // As such, the last bytes always correspond to the scale parameter.
-            // If the quantization scheme includes an offset (zero-point) parameter, it is next to last.
-            let scale_size = core::mem::size_of::<f32>(); // scale is stored as f32
-            let scale_bytes = &self.bytes[total_bytes - scale_size..];
-
-            let scale = read_unaligned::<f32>(scale_bytes).elem();
-            let mut offset = None;
-
-            if let QuantizationScheme::PerTensorAffine(_) = scheme {
-                let offset_size = core::mem::size_of::<i32>(); // zero-point offset is stored as i32
-                let offset_bytes =
-                    &self.bytes[total_bytes - scale_size - offset_size..total_bytes - scale_size];
-                offset = Some(read_unaligned::<i32>(offset_bytes).elem())
-            }
-
-            Some(QParams { scale, offset })
-        } else {
-            None
-        }
-    }
-
     /// Dequantizes the data according to its quantization scheme.
     pub fn dequantize(self) -> Result<Self, DataError> {
-        if let DType::QFloat(scheme) = &self.dtype {
-            let qparams = self.get_q_params::<f32, i8>().unwrap();
-            match scheme {
-                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
-                    let strategy = AffineQuantization::<f32, i8, i32>::init(
-                        qparams.scale,
-                        qparams.offset.unwrap(),
-                    );
-                    let values = unpack_u32s_to_i8s(self.values_as_bytes(), self.num_elements());
-                    let value = strategy.dequantize(bytemuck::checked::cast_slice(&values));
-                    Ok(Self::new(value, self.shape))
-                }
-                QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
-                    let strategy = SymmetricQuantization::<f32, i8>::init(qparams.scale);
-                    let values = unpack_u32s_to_i8s(self.values_as_bytes(), self.num_elements());
-                    let value = strategy.dequantize(bytemuck::checked::cast_slice(&values));
-                    Ok(Self::new(value, self.shape))
-                }
-            }
+        if let DType::QFloat(scheme) = self.dtype {
+            let num_elements = self.num_elements();
+            let q_bytes = QuantizedBytes {
+                bytes: self.bytes,
+                scheme,
+                num_elements,
+            };
+
+            let values = q_bytes.dequantize().0;
+            Ok(Self::new(values, self.shape))
         } else {
             Err(DataError::TypeMismatch(format!(
                 "Expected quantized data, got {:?}",
@@ -1318,6 +1194,8 @@ fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(
 #[cfg(test)]
 #[allow(deprecated)]
 mod tests {
+    use crate::quantization::AffineQuantization;
+
     use super::*;
     use rand::{rngs::StdRng, SeedableRng};
 
@@ -1434,43 +1312,6 @@ mod tests {
         test_precision::<i32>();
     }
 
-    #[test]
-    fn should_pack_unpack_quantization_parameters_symmetric() {
-        let scale = 0.03937008;
-        // Quantized [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
-        let data = TensorData::quantized(
-            vec![0i8, 25, 51, 76, 102, 127],
-            [2, 3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(scale)),
-        );
-
-        let qparams = data.get_q_params::<f32, i8>().unwrap();
-
-        assert_eq!(qparams.scale, scale);
-        assert_eq!(qparams.offset, None);
-    }
-
-    #[test]
-    fn should_pack_unpack_quantization_parameters_affine() {
-        let scale = 0.019607844;
-        let offset = -128;
-        // Quantized [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
-        let data = TensorData::quantized(
-            vec![-128i8, -77, -26, 25, 76, 127],
-            [2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(scale, offset)),
-        );
-        let qparams = data.get_q_params::<f32, i8>().unwrap();
-
-        assert_eq!(qparams.scale, scale);
-        assert_eq!(qparams.offset, Some(offset));
-    }
-
-    #[test]
-    fn should_not_return_q_params() {
-        let data = TensorData::from([[3.0, 5.0, 6.0, 7.0]]);
-        assert!(data.get_q_params::<f32, i8>().is_none());
-    }
     #[test]
     #[should_panic = "Expected quantized data"]
     fn should_not_dequantize() {

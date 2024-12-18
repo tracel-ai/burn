@@ -141,11 +141,8 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    let TensorData {
-        bytes,
-        shape,
-        dtype,
-    } = TensorData::new(data, shape);
+    let data = TensorData::new(data, shape.clone());
+    let (dtype, bytes) = (data.dtype, data.into_bytes());
 
     // Manually serialize the tensor instead of using the `ParamSerde` struct, such as:
     // ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
