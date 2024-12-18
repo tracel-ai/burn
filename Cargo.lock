@@ -415,7 +415,6 @@ dependencies = [
  "arboard",
  "burn",
  "burn-common",
- "burn-wgpu",
  "clap 4.5.23",
  "colored",
  "cubecl",
