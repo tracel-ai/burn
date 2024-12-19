@@ -44,11 +44,11 @@ mod tests {
         // Values equality
         x_q.assert_eq(&x_q, true);
 
-        // // Quantization parameters check
-        // let qparams = get_q_params(x_q);
-        // let expected = get_q_params(expected);
-        // assert_eq!(qparams.scale, expected.scale);
-        // assert_eq!(qparams.offset, expected.offset);
+        // Quantization parameters check
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, expected.offset);
     }
 
     #[test]
