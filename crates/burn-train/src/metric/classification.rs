@@ -9,7 +9,9 @@ pub struct ClassificationMetricConfig {
 
 /// The prediction decision rule for classification metrics.
 pub enum DecisionRule {
+    /// Consider a class predicted if its probability exceeds the threshold.
     Threshold(f64),
+    /// Consider a class predicted correctly if it is within the top k predicted classes based on scores.
     TopK(NonZeroUsize),
 }
 
