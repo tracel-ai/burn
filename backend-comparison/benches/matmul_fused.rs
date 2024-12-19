@@ -1,5 +1,5 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
+use burn::tensor::{activation::relu, backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
@@ -11,25 +11,31 @@ struct MatmulBenchmark<B: Backend, const D: usize> {
 }
 
 impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
-    type Args = (Tensor<B, D>, Tensor<B, D>);
+    type Args = (Tensor<B, D>, Tensor<B, D>, Tensor<B, 1>);
 
     fn name(&self) -> String {
-        "matmul".into()
+        "matmul_bias_relu".into()
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![self.shape_lhs.dims.clone(), self.shape_rhs.dims.clone()]
     }
 
-    fn execute(&self, (lhs, rhs): Self::Args) {
-        lhs.matmul(rhs);
+    fn execute(&self, (lhs, rhs, bias): Self::Args) {
+        let bias = bias.unsqueeze();
+        relu(lhs.matmul(rhs) + bias);
     }
 
     fn prepare(&self) -> Self::Args {
         let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
         let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
+        let bias = Tensor::random(
+            [self.shape_rhs.dims[2]],
+            Distribution::Default,
+            &self.device,
+        );
 
-        (lhs, rhs)
+        (lhs, rhs, bias)
     }
 
     fn sync(&self) {

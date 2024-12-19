@@ -233,7 +233,11 @@ impl<'de, A: BurnModuleAdapter> serde::Deserializer<'de> for Deserializer<A> {
     where
         V: Visitor<'de>,
     {
-        visitor.visit_byte_buf(self.value.unwrap().as_bytes().unwrap())
+        let bytes = self.value.unwrap().as_bytes().unwrap();
+        match bytes.try_into_vec::<u8>() {
+            Ok(bytes) => visitor.visit_byte_buf(bytes),
+            Err(bytes) => visitor.visit_bytes(&bytes),
+        }
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>

@@ -1,5 +1,8 @@
 use cubecl::{
-    linalg::matmul::components::{stage, Ident},
+    linalg::{
+        matmul::components::{stage, Ident},
+        tensor::VirtualTensor,
+    },
     prelude::*,
 };
 
@@ -8,7 +11,7 @@ use cubecl::{
 /// Ensures safe access by preventing out-of-bounds errors.
 /// Includes pre-fetched shapes and strides for optimized performance.
 pub struct BiasReader<E: Numeric> {
-    pub tensor: *const Tensor<Line<E>>,
+    pub tensor: VirtualTensor<E>,
     pub n_offset: u32,
     pub shape_n: u32,
 }
@@ -18,6 +21,15 @@ unsafe impl<E: Numeric> Send for BiasReader<E> {}
 
 #[cube]
 impl<E: Numeric> BiasReader<E> {
+    /// Load the 1D bias into shared memory
+    pub fn new(tensor: VirtualTensor<E>, n_offset: u32, shape_n: u32) -> BiasReader<E> {
+        BiasReader::<E> {
+            tensor,
+            n_offset,
+            shape_n,
+        }
+    }
+
     /// Load the 1D bias into shared memory
     pub fn load_simple<G: stage::Config>(&self, unit_id: u32, #[comptime] config: G) -> Line<E> {
         let line_size = config.line_size(Ident::Out);
@@ -33,6 +45,6 @@ impl<E: Numeric> BiasReader<E> {
     }
 
     fn read(&self, position: u32) -> Line<E> {
-        unsafe { *(*self.tensor).index_unchecked(position) }
+        self.tensor.read(position)
     }
 }

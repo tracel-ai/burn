@@ -34,7 +34,7 @@ wgpu-spirv-fusion = ["wgpu-spirv", "burn/fusion"]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
 burn-common = { path = "../crates/burn-common", version = "0.16.0" }
-burn-wgpu = { path = "../crates/burn-wgpu", default-features = false, version = "0.16.0", optional = true }
+
 clap = { workspace = true }
 colored = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }
@@ -95,6 +95,11 @@ name = "conv3d"
 [[bench]]
 harness = false
 name = "matmul"
+
+[[bench]]
+harness = false
+name = "matmul-fused"
+path = "benches/matmul_fused.rs"
 
 [[bench]]
 harness = false

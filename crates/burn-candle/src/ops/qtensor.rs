@@ -29,10 +29,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> QTensorOps<Self> for Candle<F, 
         unimplemented!()
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        super::base::shape(&tensor.qtensor)
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {
         super::base::device(&tensor.qtensor)
     }

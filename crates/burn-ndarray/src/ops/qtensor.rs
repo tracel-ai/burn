@@ -3,10 +3,10 @@ use core::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        AffineQuantization, QParams, QTensorPrimitive, QuantizationParametersPrimitive,
-        QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
     },
-    DType, Shape, TensorData, TensorMetadata,
+    DType, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{
@@ -36,12 +36,31 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
     fn q_from_data(data: TensorData, _device: &NdArrayDevice) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => {
-                let qparams = data.get_q_params().unwrap();
-                let data = data.convert::<Q>();
-                NdArrayQTensor {
-                    qtensor: NdArrayTensor::<Q>::from_data(data),
+                let shape = data.shape.clone();
+                let num_elements = data.num_elements();
+                let q_bytes = QuantizedBytes {
+                    bytes: data.into_bytes(),
                     scheme,
-                    qparams,
+                    num_elements,
+                };
+
+                match scheme {
+                    QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+                    | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                        let (values, qparams) = q_bytes.into_vec_i8();
+
+                        let data = TensorData::new(values, shape).convert::<Q>();
+                        let qparams = QParams {
+                            scale: qparams.scale,
+                            offset: qparams.offset.map(|x| x.elem::<Q>()),
+                        };
+
+                        NdArrayQTensor {
+                            qtensor: NdArrayTensor::<Q>::from_data(data),
+                            scheme,
+                            qparams,
+                        }
+                    }
                 }
             }
             _ => panic!(
@@ -92,7 +111,17 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             },
         };
 
+        let shape = tensor.shape();
         let data = into_data_f(tensor).with_quantization(strategy);
+        let num_elements = data.num_elements();
+        let q_bytes = QuantizedBytes {
+            bytes: data.into_bytes(),
+            scheme: *scheme,
+            num_elements,
+        };
+        let (values, _) = q_bytes.into_vec_i8();
+        let data = TensorData::new(values, shape).convert::<Q>();
+
         NdArrayQTensor {
             qtensor: NdArrayTensor::<Q>::from_data(data),
             scheme: *scheme,
@@ -106,10 +135,6 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         let values = tensor.qtensor.array.into_iter().collect();
         let data = TensorData::quantized(values, shape, strategy);
         new_tensor_float!(NdArrayTensor::from_data(data.dequantize().unwrap()))
-    }
-
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
     }
 
     fn q_device(_tensor: &QuantizedTensor<Self>) -> NdArrayDevice {

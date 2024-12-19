@@ -1,20 +1,23 @@
 use cubecl::{
-    linalg::matmul::{
-        components::{
-            global::{
-                self,
-                full_load::{self, CyclicLoading, RhsLoader},
-                unloader::Unloader,
-                AccumulatorLoader, Config as _, Loader,
+    linalg::{
+        matmul::{
+            components::{
+                global::{
+                    self,
+                    full_load::{self, CyclicLoading, RhsLoader},
+                    unloader::Unloader,
+                    AccumulatorLoader, Config as _, Loader,
+                },
+                stage::{
+                    self,
+                    multi_buffer::{LhsReader, RhsReader},
+                    TilingOrderConfig,
+                },
+                Ident, MatrixLayout, StageDim,
             },
-            stage::{
-                self,
-                multi_buffer::{LhsReader, RhsReader},
-                TilingOrderConfig,
-            },
-            Ident, MatrixLayout, StageDim,
+            kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
         },
-        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
+        tensor::{ReadWrite, VirtualTensor},
     },
     prelude::*,
 };
@@ -23,46 +26,36 @@ use std::marker::PhantomData;
 use crate::kernel::conv::{
     conv2d::gemm::base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
     loader::im2col::SimpleIm2colLoader,
+    spec::ConvSpec,
 };
 use crate::kernel::conv::{conv2d::gemm::Config as _, loader::bias::BiasLoader};
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
 /// - All planes load data to the stage
 /// - All planes are used in the stage matmul computation
-pub struct ImplicitGemmConvolution<
-    EG: Numeric,
-    ES: Numeric,
-    Acc: Numeric,
-    SMM: stage::Matmul<ES, EG, Acc>,
-> {
-    _eg: PhantomData<EG>,
-    _es: PhantomData<ES>,
-    _acc: PhantomData<Acc>,
+pub struct ImplicitGemmConvolution<CS: ConvSpec, SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>> {
+    _cs: PhantomData<CS>,
     _stage_matmul: PhantomData<SMM>,
 }
 
 #[cube]
-impl<EG, ES, Acc, SMM, SMMConf> Convolution<EG, ES, Acc, SMM>
-    for ImplicitGemmConvolution<EG, ES, Acc, SMM>
+impl<CS: ConvSpec, SMM, SMMConf> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
 where
-    EG: Numeric,
-    ES: Numeric,
-    Acc: Numeric,
     SMMConf: stage::Config,
     SMM: stage::Matmul<
-        ES,
-        EG,
-        Acc,
-        LhsReader = LhsReader<ES>,
-        RhsReader = RhsReader<ES>,
+        CS::ES,
+        CS::EG,
+        CS::EA,
+        LhsReader = LhsReader<CS::ES>,
+        RhsReader = RhsReader<CS::ES>,
         Config = SMMConf,
     >,
 {
-    type LhsLoader = SimpleIm2colLoader<EG, ES, Self::Config>;
-    type RhsLoader = RhsLoader<EG, ES, SMM::Config, CyclicLoading>;
-    type AccumulatorLoader = BiasLoader<EG, Acc, SMM::Config>;
+    type LhsLoader = SimpleIm2colLoader<CS, Self::Config>;
+    type RhsLoader = RhsLoader<CS::EG, CS::ES, SMM::Config, CyclicLoading>;
+    type AccumulatorLoader = BiasLoader<CS, SMM::Config>;
 
-    type Out = Unloader<EG>;
+    type Out = Unloader<CS::EG>;
     type Accumulator = SMM::Accumulator;
 
     fn execute(
@@ -76,6 +69,7 @@ where
     ) {
         let k_step = SMM::K;
         let range = k_range.1 - k_range.0;
+        #[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
         #[allow(clippy::manual_div_ceil)]
         let num_loops = (range + k_step - 1) / k_step;
 
@@ -125,7 +119,7 @@ where
     }
 
     fn init_lhs_loader(
-        lhs: &Tensor<Line<EG>>,
+        lhs: VirtualTensor<CS::EG>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
@@ -141,7 +135,7 @@ where
     }
 
     fn init_rhs_loader(
-        rhs: &Tensor<Line<EG>>,
+        rhs: VirtualTensor<CS::EG>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
@@ -150,7 +144,7 @@ where
     }
 
     fn init_bias_loader(
-        bias: &Tensor<Line<EG>>,
+        bias: VirtualTensor<CS::EG>,
         n_offset: u32,
         #[comptime] config: Self::Config,
         #[comptime] has_bias: bool,
@@ -158,7 +152,11 @@ where
         Self::AccumulatorLoader::new(bias, n_offset, config.to_smm_config(), has_bias)
     }
 
-    fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out {
+    fn init_unloader(
+        out: VirtualTensor<CS::EG, ReadWrite>,
+        x_offset: u32,
+        y_offset: u32,
+    ) -> Self::Out {
         Self::Out::new(out, x_offset, y_offset, 0)
     }
 
@@ -167,12 +165,9 @@ where
     }
 }
 
-impl<EG, ES, Acc, SMM> ConvolutionKernel<EG, EG> for ImplicitGemmConvolution<EG, ES, Acc, SMM>
+impl<CS: ConvSpec, SMM> ConvolutionKernel<CS::EG, CS::EG> for ImplicitGemmConvolution<CS, SMM>
 where
-    EG: Numeric,
-    ES: Numeric,
-    Acc: Numeric,
-    SMM: stage::Matmul<ES, EG, Acc>,
+    SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>,
 {
     type Config = config::Config<full_load::Config<SMM::Config>>;
 
@@ -220,11 +215,15 @@ where
 }
 
 impl<
-        EG: Numeric,
-        ES: Numeric,
-        Acc: Numeric,
-        SMM: stage::Matmul<ES, EG, Acc, LhsReader = LhsReader<ES>, RhsReader = RhsReader<ES>>,
-    > ConvolutionLaunch<EG, EG> for ImplicitGemmConvolution<EG, ES, Acc, SMM>
+        CS: ConvSpec,
+        SMM: stage::Matmul<
+            CS::ES,
+            CS::EG,
+            CS::EA,
+            LhsReader = LhsReader<CS::ES>,
+            RhsReader = RhsReader<CS::ES>,
+        >,
+    > ConvolutionLaunch<CS::EG, CS::EG> for ImplicitGemmConvolution<CS, SMM>
 {
     unsafe fn launch_unchecked<R: Runtime>(
         client: &ComputeClient<<R as Runtime>::Server, <R as Runtime>::Channel>,
@@ -234,11 +233,11 @@ impl<
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
-        config: <Self as ConvolutionKernel<EG, EG>>::Config,
+        config: <Self as ConvolutionKernel<CS::EG, CS::EG>>::Config,
     ) {
         Self::check_config(config);
 
-        implicit_conv::launch_unchecked::<EG, ES, Acc, Self, SMM, R>(
+        implicit_conv::launch_unchecked::<CS, Self, SMM, R>(
             client,
             cube_count,
             cube_dim,
@@ -254,22 +253,25 @@ impl<
 
 #[cube(launch_unchecked)]
 pub(crate) fn implicit_conv<
-    EG: Numeric,
-    ES: Numeric,
-    Acc: Numeric,
-    GMM: Convolution<EG, ES, Acc, SMM>,
-    SMM: stage::Matmul<ES, EG, Acc>,
+    CS: ConvSpec,
+    GMM: Convolution<CS, SMM>,
+    SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>,
 >(
-    lhs: &Tensor<Line<EG>>,
-    rhs: &Tensor<Line<EG>>,
-    bias: &Tensor<Line<EG>>,
-    out: &mut Tensor<Line<EG>>,
+    lhs: &Tensor<Line<CS::EG>>,
+    rhs: &Tensor<Line<CS::EG>>,
+    bias: &Tensor<Line<CS::EG>>,
+    out: &mut Tensor<Line<CS::EG>>,
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
     let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).num_elements_x_dim();
     let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).num_elements_y_dim();
     let k_range = (0, rhs.shape(0));
+
+    let lhs = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(lhs);
+    let rhs = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(rhs);
+    let bias = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(bias);
+    let out = VirtualTensor::<CS::EG, ReadWrite>::new::<Tensor<Line<CS::EG>>>(out);
 
     GMM::execute(
         GMM::init_lhs_loader(lhs, x_offset, k_range.0, config),
