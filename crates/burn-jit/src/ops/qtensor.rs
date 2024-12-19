@@ -3,7 +3,7 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
-    Bytes, DType, Device, Shape, TensorData,
+    DType, Device, Shape, TensorData,
 };
 
 use crate::{
@@ -82,11 +82,7 @@ where
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
 
-        TensorData {
-            bytes: Bytes::from_bytes_vec(bytes),
-            shape: tensor.shape.into(),
-            dtype: tensor.dtype,
-        }
+        TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
     }
 
     fn q_swap_dims(

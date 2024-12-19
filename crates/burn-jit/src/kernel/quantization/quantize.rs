@@ -72,7 +72,7 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
                 range_max,
             );
             // Shift and combine into u32
-            v_packed |= (v[0] & 0xFF) << (8 * (num_packed - i - 1));
+            v_packed |= (v[0] & 0xFF) << (8 * i);
         }
         output[ABSOLUTE_POS] = v_packed;
     }
@@ -105,7 +105,7 @@ pub(crate) fn pack_i8s_to_u32s(value: Line<u32>) -> u32 {
     #[unroll]
     for i in 0..line_size {
         // Shift and combine into u32
-        v_packed |= (value[i] & 0xFF) << (8 * (line_size - i - 1));
+        v_packed |= (value[i] & 0xFF) << (8 * i);
     }
     v_packed
 }
@@ -150,7 +150,7 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
                 range_max,
             );
             // Shift and combine into u32
-            v_packed |= (v[0] & 0xFF) << (8 * (num_packed - i - 1));
+            v_packed |= (v[0] & 0xFF) << (8 * i);
         }
         output[ABSOLUTE_POS] = v_packed;
     }

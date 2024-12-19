@@ -3,10 +3,25 @@ mod tests {
     use super::*;
     use burn_tensor::ops::QTensorOps;
     use burn_tensor::quantization::{
-        AffineQuantization, QuantizationParameters, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QuantizationParameters, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
     };
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::{DType, Tensor, TensorData};
+
+    fn get_q_params(data: TensorData) -> QParams<f32, i8> {
+        let num_elements = data.num_elements();
+        let scheme = if let DType::QFloat(scheme) = data.dtype {
+            scheme
+        } else {
+            unreachable!()
+        };
+        let q_bytes = QuantizedBytes {
+            bytes: data.into_bytes(),
+            scheme,
+            num_elements,
+        };
+        q_bytes.into_vec_i8().1
+    }
 
     #[test]
     fn should_support_quantize_affine_int8() {
@@ -30,8 +45,8 @@ mod tests {
         x_q.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = x_q.get_q_params::<f32, i8>().unwrap();
-        let expected = expected.get_q_params::<f32, i8>().unwrap();
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset, expected.offset);
     }
@@ -60,8 +75,8 @@ mod tests {
         x_q.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = x_q.get_q_params::<f32, i8>().unwrap();
-        let expected = expected.get_q_params::<f32, i8>().unwrap();
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset, expected.offset);
     }

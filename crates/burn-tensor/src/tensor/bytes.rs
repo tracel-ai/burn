@@ -108,7 +108,7 @@ impl<'de> serde::Deserialize<'de> for Bytes {
 impl Clone for Bytes {
     fn clone(&self) -> Self {
         // unwrap here: the layout is valid as it has the alignment & size of self
-        Self::try_from_data(MAX_ALIGN, self.deref()).unwrap()
+        Self::try_from_data(self.align(), self.deref()).unwrap()
     }
 }
 
@@ -380,7 +380,7 @@ impl Bytes {
         }
     }
 
-    fn reserve(&mut self, additional: usize) {
+    fn reserve(&mut self, additional: usize, align: usize) {
         let needs_to_grow = additional > self.capacity().wrapping_sub(self.len());
         if !needs_to_grow {
             return;
@@ -390,17 +390,20 @@ impl Bytes {
         };
         // guarantee exponential growth for amortization
         let new_cap = required_cap.max(self.capacity() * 2);
-        let new_cap = new_cap.max(MAX_ALIGN); // Small allocations would be pointless
-        let Ok(new_layout) = Layout::from_size_align(new_cap, MAX_ALIGN) else {
+        let new_cap = new_cap.max(align); // Small allocations would be pointless
+        let Ok(new_layout) = Layout::from_size_align(new_cap, align) else {
             alloc_overflow()
         };
         self.alloc.grow(new_layout);
     }
 
-    /// Extend the byte buffer from a slice of bytes
-    pub fn extend_from_byte_slice(&mut self, bytes: &[u8]) {
+    /// Extend the byte buffer from a slice of bytes.
+    ///
+    /// This is used internally to preserve the alignment of the memory layout when matching elements
+    /// are extended. Prefer [`Self::extend_from_byte_slice`] otherwise.
+    pub(crate) fn extend_from_byte_slice_aligned(&mut self, bytes: &[u8], align: usize) {
         let additional = bytes.len();
-        self.reserve(additional);
+        self.reserve(additional, align);
         let len = self.len();
         let new_cap = len.wrapping_add(additional); // Can not overflow, as we've just successfully reserved sufficient space for it
         let uninit_spare = &mut self.alloc.memory_mut()[len..new_cap];
@@ -412,9 +415,19 @@ impl Bytes {
         self.len = new_cap;
     }
 
+    /// Extend the byte buffer from a slice of bytes
+    pub fn extend_from_byte_slice(&mut self, bytes: &[u8]) {
+        self.extend_from_byte_slice_aligned(bytes, MAX_ALIGN)
+    }
+
     /// Get the total capacity, in bytes, of the wrapped allocation.
     pub fn capacity(&self) -> usize {
         self.alloc.layout.size()
+    }
+
+    /// Get the alignment of the wrapped allocation.
+    pub(crate) fn align(&self) -> usize {
+        self.alloc.layout.align()
     }
 
     /// Convert the bytes back into a vector. This requires that the type has the same alignment as the element
