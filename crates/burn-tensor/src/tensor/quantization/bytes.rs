@@ -70,7 +70,6 @@ impl QuantizedBytes {
 
     /// Returns the int8 quantized values with the quantization parameters.
     pub fn into_vec_i8(self) -> (Vec<i8>, QParams<f32, i8>) {
-        // println!("into_vec_i8 {:?}", self.bytes)
         let numel = self.num_elements;
         let scheme = self.scheme;
         let (values, qparams) = self.split_values_off();
@@ -103,6 +102,7 @@ impl QuantizedBytes {
     ///
     /// Returns the packed values and a newly allocated vector containining the quantization parameters.
     fn split_values_off(self) -> (Vec<u32>, Vec<u32>) {
+        // The bytes can be created either from packed u32 or existing bytes with the same representation.
         let mut values = match self.bytes.align() {
             1 => {
                 let bytes = self.bytes.try_into_vec::<u8>().unwrap();
