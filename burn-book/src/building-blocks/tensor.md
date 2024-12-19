@@ -157,6 +157,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`                                       |
 | `tensor.not_equal(other)`             | `x != y`                                                                  |
 | `tensor.permute(axes)`                | `tensor.permute(axes)`                                                    |
+| `tensor.one_hot_plus(depth, on_value, off_value, axis)` | N/A                                                     |
 | `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`                                                |
 | `tensor.repeat_dim(dim, times)`       | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
 | `tensor.repeat(sizes)`                | `tensor.repeat(sizes)`                                                    |
