@@ -143,6 +143,30 @@ let mut clamp = Clamp {
 let model = model.map(&mut clamp);
 ```
 
+If you want to use this during training to constrain your model parameters, make sure that the
+parameter tensors are still tracked for autodiff. This can be done with a simple adjustment to the
+implementation.
+
+```rust, ignore
+impl<B: AutodiffBackend> ModuleMapper<B> for Clamp {
+    fn map_float<const D: usize>(
+        &mut self,
+        _id: burn::module::ParamId,
+        tensor: burn::prelude::Tensor<B, D>,
+    ) -> burn::prelude::Tensor<B, D> {
+        let is_require_grad = tensor.is_require_grad();
+
+        let mut tensor = Tensor::from_inner(tensor.inner().clamp(self.min, self.max));
+
+        if is_require_grad {
+            tensor = tensor.require_grad();
+        }
+
+        tensor
+    }
+}
+```
+
 ## Module Display
 
 Burn provides a simple way to display the structure of a module and its configuration at a glance.
