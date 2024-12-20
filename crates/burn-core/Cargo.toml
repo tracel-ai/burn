@@ -38,6 +38,7 @@ doc = [
     "wgpu",
     "cuda-jit",
     "hip-jit",
+    "audio",
     "vision",
     "autodiff",
     "remote",
@@ -79,6 +80,7 @@ std = [
     "num-traits/std",
 ]
 vision = ["burn-dataset?/vision", "burn-common/network"]
+audio = ["burn-dataset?/audio"]
 
 # Backend
 autodiff = ["burn-autodiff"]
