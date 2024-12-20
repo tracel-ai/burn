@@ -13,14 +13,14 @@ use std::num::NonZeroUsize;
 
 ///The Precision Metric
 #[derive(Default)]
-pub struct PrecisionMetric<B: Backend> {
+pub struct RecallMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
     config: ClassificationMetricConfig,
 }
 
-impl<B: Backend> PrecisionMetric<B> {
-    /// Precision metric for binary classification.
+impl<B: Backend> RecallMetric<B> {
+    /// Recall metric for binary classification.
     ///
     /// # Arguments
     ///
@@ -37,7 +37,7 @@ impl<B: Backend> PrecisionMetric<B> {
         }
     }
 
-    /// Precision metric for multiclass classification.
+    /// Recall metric for multiclass classification.
     ///
     /// # Arguments
     ///
@@ -55,11 +55,11 @@ impl<B: Backend> PrecisionMetric<B> {
         }
     }
 
-    /// Precision metric for multi-label classification.
+    /// Recall metric for multi-label classification.
     ///
     /// # Arguments
     ///
-    /// * `threshold` - The threshold to transform a probability into a binary value.
+    /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
@@ -89,16 +89,15 @@ impl<B: Backend> PrecisionMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for PrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
+impl<B: Backend> Metric for RecallMetric<B> {
+    const NAME: &'static str = "Recall";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let [sample_size, _] = input.predictions.dims();
 
         let cf_stats = ConfusionStats::new(input, &self.config);
-        let metric =
-            self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
+        let metric = self.class_average(cf_stats.clone().true_positive() / cf_stats.positive());
 
         self.state.update(
             100.0 * metric,
@@ -112,7 +111,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for PrecisionMetric<B> {
+impl<B: Backend> Numeric for RecallMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -122,7 +121,7 @@ impl<B: Backend> Numeric for PrecisionMetric<B> {
 mod tests {
     use super::{
         ClassReduction::{self, *},
-        Metric, MetricMetadata, Numeric, PrecisionMetric,
+        Metric, MetricMetadata, Numeric, RecallMetric,
     };
     use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
@@ -130,9 +129,9 @@ mod tests {
 
     #[rstest]
     #[case::binary_macro(THRESHOLD, 0.5)]
-    fn test_binary_precision(#[case] threshold: f64, #[case] expected: f64) {
+    fn test_binary_recall(#[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
-        let mut metric = PrecisionMetric::binary(threshold);
+        let mut metric = RecallMetric::binary(threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
@@ -140,31 +139,31 @@ mod tests {
 
     #[rstest]
     #[case::multiclass_micro_k1(Micro, 1, 3.0/5.0)]
-    #[case::multiclass_micro_k2(Micro, 2, 4.0/10.0)]
-    #[case::multiclass_macro_k1(Macro, 1, (0.5 + 0.5 + 1.0)/3.0)]
-    #[case::multiclass_macro_k2(Macro, 2, (0.5 + 1.0/4.0 + 0.5)/3.0)]
-    fn test_multiclass_precision(
+    #[case::multiclass_micro_k2(Micro, 2, 4.0/5.0)]
+    #[case::multiclass_macro_k1(Macro, 1, (0.5 + 1.0 + 0.5)/3.0)]
+    #[case::multiclass_macro_k2(Macro, 2, (1.0 + 1.0 + 0.5)/3.0)]
+    fn test_multiclass_recall(
         #[case] class_reduction: ClassReduction,
         #[case] top_k: usize,
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
-        let mut metric = PrecisionMetric::multiclass(top_k, class_reduction);
+        let mut metric = RecallMetric::multiclass(top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
     }
 
     #[rstest]
-    #[case::multilabel_micro(Micro, THRESHOLD, 5.0/8.0)]
-    #[case::multilabel_macro(Macro, THRESHOLD, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
-    fn test_multilabel_precision(
+    #[case::multilabel_micro(Micro, THRESHOLD, 5.0/9.0)]
+    #[case::multilabel_macro(Macro, THRESHOLD, (0.5 + 1.0 + 1.0/3.0)/3.0)]
+    fn test_multilabel_recall(
         #[case] class_reduction: ClassReduction,
         #[case] threshold: f64,
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
-        let mut metric = PrecisionMetric::multilabel(threshold, class_reduction);
+        let mut metric = RecallMetric::multilabel(threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
