@@ -2030,11 +2030,12 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
-    /// Create a one-hot encoded tensor with configurable `depth`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
+
+    /// Create a one-hot encoded tensor with configurable `num_classes`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
     ///
     /// # Arguments
     ///
-    /// * `depth`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
+    /// * `num_classes`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
     /// * `on_value`: The value to assign for active positions (corresponding to indices).
     /// * `off_value`: The value to assign for inactive positions.
     /// * `axis`: The axis along which the one-hot dimension is added. Supports negative indexing.
@@ -2051,7 +2052,7 @@ where
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
     ///     // One-hot encoding
-    ///     let tensor:Tensor<B, 3, Float> = indices.one_hot_plus(3, 5.0.into(), 0.0.into(), -1);
+    ///     let tensor:Tensor<B, 3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
     ///     println!("{tensor}");
     ///     // [[[5.0, 0.0, 0.0],
     ///     // [0.0, 0.0, 5.0]],
@@ -2059,9 +2060,9 @@ where
     ///     // [0.0, 0.0, 5.0]]]
     /// }
     /// ```
-    pub fn one_hot_plus<K2: Numeric<B>, const D2: usize>(
+    pub fn one_hot_fill<K2: Numeric<B>, const D2: usize>(
         self,
-        depth: usize,
+        num_classes: usize,
         on_value: K2::Elem,
         off_value: K2::Elem,
         axis: i64,
@@ -2088,11 +2089,11 @@ where
             Tensor::from_data(self.to_data().convert::<i64>(), &device);
 
         // Insert the new dimension for the one-hot representation
-        shape.insert(axis as usize, depth);
+        shape.insert(axis as usize, num_classes);
 
-        // Create masks for valid index range [-depth, depth-1]
-        let above_minimum = indices.clone().greater_elem(-(depth as i64)).int();
-        let below_maximum = indices.clone().lower_elem(depth as i64).int();
+        // Create masks for valid index range [-num_classes, num_classes-1]
+        let above_minimum = indices.clone().greater_elem(-(num_classes as i64)).int();
+        let below_maximum = indices.clone().lower_elem(num_classes as i64).int();
 
         // Combine conditions to identify invalid indices
         let invalid_mask = above_minimum.mul(below_maximum).bool().bool_not();
@@ -2100,7 +2101,7 @@ where
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
-            .mask_fill(self.clone().lower_elem(0), depth as i64) // Handle negative indices
+            .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
 
         // Replace invalid indices with the off_value
