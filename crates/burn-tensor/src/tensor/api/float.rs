@@ -1,11 +1,9 @@
-use alloc::vec::Vec;
-use core::convert::TryInto;
-
 use crate::check::TensorCheck;
+use crate::ops::FloatElem;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::{Distribution, Shape, TensorData};
+use crate::tensor::{Distribution, TensorData};
 use crate::Tensor;
 use crate::{check, FloatDType};
 use crate::{Int, TensorPrimitive};
@@ -182,25 +180,25 @@ where
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::Tensor;
     ///
-    /// fn example<B: Backend>() {
+    /// fn example<B: Backend>() where <B as Backend>::FloatElem: From<f32>{
     ///     let device = Default::default();
-    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10, &device);
+    ///     let indices: Tensor<B, 1> = Tensor::from_ints([0.0, 1.0, 2.0, 3.0], &device);
+    ///     let one_hot: Tensor<B, 4> = indices.one_hot(4);
     ///     println!("{}", one_hot.to_data());
-    ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    ///     // [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
     /// }
     /// ```
-    pub fn one_hot(index: usize, num_classes: usize, device: &B::Device) -> Self {
-        check!(TensorCheck::one_hot_index(index, num_classes));
-
-        let mut dims = [1; D];
-        dims[D - 1] = num_classes;
-        let shape = Shape::new(dims);
-        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
-        let tensor = Tensor::zeros(shape, device);
-        let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
-        ranges[D - 1] = index..index + 1;
-
-        tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D]), device))
+    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2>
+    where
+        FloatElem<B>: From<f32>,
+    {
+        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
+        self.one_hot_fill(
+            num_classes,
+            B::FloatElem::from(1.0),
+            B::FloatElem::from(0.0),
+            -1,
+        )
     }
 
     /// Applies the matrix multiplication operation.

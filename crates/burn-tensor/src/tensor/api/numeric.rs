@@ -2092,11 +2092,17 @@ where
         shape.insert(axis as usize, num_classes);
 
         // Create masks for valid index range [-num_classes, num_classes-1]
-        let above_minimum = indices.clone().greater_elem(-(num_classes as i64)).int();
-        let below_maximum = indices.clone().lower_elem(num_classes as i64).int();
+        let lower_bound = indices
+            .clone()
+            .lower_equal_elem(-(num_classes as i64))
+            .int();
+        let upper_bound = indices
+            .clone()
+            .greater_equal_elem(num_classes as i64 - 1)
+            .int();
 
         // Combine conditions to identify invalid indices
-        let invalid_mask = above_minimum.mul(below_maximum).bool().bool_not();
+        let invalid_mask = lower_bound.mul(upper_bound).bool();
 
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
