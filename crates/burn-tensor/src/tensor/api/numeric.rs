@@ -2083,38 +2083,22 @@ where
         if axis < 0 || axis > rank as i64 {
             panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
         }
-
         // Convert the input tensor to integer indices
         let indices: Tensor<B, D, Int> =
             Tensor::from_data(self.to_data().convert::<i64>(), &device);
-
         // Insert the new dimension for the one-hot representation
         shape.insert(axis as usize, num_classes);
-
-        // Create masks for valid index range [-num_classes, num_classes-1]
-        let lower_bound = indices
-            .clone()
-            .lower_equal_elem(-(num_classes as i64))
-            .int();
-        let upper_bound = indices
-            .clone()
-            .greater_equal_elem(num_classes as i64 - 1)
-            .int();
-
-        // Combine conditions to identify invalid indices
-        let invalid_mask = lower_bound.mul(upper_bound).bool();
-
         // Adjust indices to valid range and handle invalid indices
         let adjusted_indices = indices
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-
-        // Replace invalid indices with the off_value
-        let valid_indices = adjusted_indices.mask_fill(invalid_mask, off_value);
-
+        check!(TensorCheck::one_hot_tensor(
+            adjusted_indices.clone(),
+            num_classes
+        ));
         // Unsqueeze the indices tensor along the specified axis
-        let indices_unsqueezed: Tensor<B, D2, Int> = valid_indices.unsqueeze_dim(axis as usize);
+        let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value
         let output = Tensor::full(shape.clone(), off_value, &device);

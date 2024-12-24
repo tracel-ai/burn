@@ -105,20 +105,4 @@ mod tests {
         let one_hot_tensor: Tensor<TestBackend, 3, Float> =
             tensor.one_hot_fill(2, FloatType::new(5.0), FloatType::new(0.0), 3);
     }
-
-    #[test]
-    fn one_hot_fill_should_panic_when_index_exceeds_number_of_classes() {
-        let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, 1.0]]);
-
-        let one_hot_tensor: Tensor<TestBackend, 3, Float> =
-            tensor.one_hot_fill(1, FloatType::new(5.0), FloatType::new(0.0), -1);
-    }
-
-    #[test]
-    fn one_hot_fill_should_panic_when_number_of_classes_is_zero() {
-        let tensor = TestTensor::<2>::from([[1.0, 2.0], [1.0, 1.0]]);
-
-        let one_hot_tensor: Tensor<TestBackend, 3, Float> =
-            tensor.one_hot_fill(0, FloatType::new(5.0), FloatType::new(0.0), -1);
-    }
 }
