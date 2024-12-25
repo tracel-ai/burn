@@ -73,27 +73,21 @@ where
                 match kind {
                     Kind::Float(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_floats.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_floats
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                     Kind::Int(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_ints.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_ints
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                     Kind::Bool(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_bools.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_bools
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                 }
             }

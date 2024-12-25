@@ -9,21 +9,20 @@ use cubecl::{
 };
 use half::{bf16, f16};
 
+use super::Conv2dAutotuneKey;
 use crate::{
     kernel::{
         conv::{
             algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
             conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, has_tf32, problem_from_key, CmmaBalancedAlgorithm,
-            CmmaLargeMAlgorithm,
+            conv2d_implicit_gemm, has_tf32, problem_from_key, spec::SingleConvSpec,
+            CmmaBalancedAlgorithm, CmmaLargeMAlgorithm,
         },
         prng::random_uniform,
     },
     tensor::JitTensor,
     FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
-
-use super::Conv2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
 pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
@@ -86,15 +85,21 @@ macro_rules! check_algo {
     ($algo:tt, $float:ty, $input:expr, $problem:expr) => {
         match (<$float>::as_elem(), has_tf32(&$input)) {
             (Elem::Float(FloatKind::F32), true) => {
-                $algo::<$float, tf32, f32>::can_launch::<R>(&$input.client, &$problem)
+                type Spec<F> = SingleConvSpec<32, F, tf32, f32>;
+                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
             }
             (Elem::Float(FloatKind::F16), _) => {
-                $algo::<$float, f16, f16>::can_launch::<R>(&$input.client, &$problem)
+                type Spec<F> = SingleConvSpec<32, $float, f16, f16>;
+                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
             }
             (Elem::Float(FloatKind::BF16), _) => {
-                $algo::<$float, bf16, f32>::can_launch::<R>(&$input.client, &$problem)
+                type Spec<F> = SingleConvSpec<32, $float, bf16, f32>;
+                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
             }
-            _ => $algo::<$float, f16, f32>::can_launch::<R>(&$input.client, &$problem),
+            _ => {
+                type Spec<F> = SingleConvSpec<32, $float, f16, f32>;
+                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
+            }
         }
     };
 }

@@ -383,6 +383,6 @@ mod tests {
             .clone()
             .as_bytes()
             .expect("has bytes vec");
-        assert_eq!(bytes, [1.0f32; 4].map(|f| f.to_le_bytes()).as_flattened());
+        assert_eq!(&*bytes, [1.0f32; 4].map(|f| f.to_le_bytes()).as_flattened());
     }
 }

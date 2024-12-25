@@ -32,6 +32,7 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
 
 # Backends

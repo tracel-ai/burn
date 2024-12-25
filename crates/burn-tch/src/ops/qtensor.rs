@@ -3,8 +3,8 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationType,
+        QParams, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+        QuantizedBytes,
     },
     DType, Shape, TensorData, TensorMetadata,
 };
@@ -47,10 +47,15 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         // methods take the values provided when quantizing.
         match data.dtype {
             DType::QFloat(scheme) => {
-                let qparams = data.get_q_params::<E, Q>().unwrap();
-                let dequantized = data.dequantize().unwrap();
-                let values = dequantized.as_slice::<E>().unwrap();
-                let tensor = tch::Tensor::from_slice(values).to(device);
+                let num_elements = data.num_elements();
+                let q_bytes = QuantizedBytes {
+                    bytes: data.into_bytes(),
+                    scheme,
+                    num_elements,
+                };
+
+                let (values, qparams) = q_bytes.dequantize();
+                let tensor = tch::Tensor::from_slice(&values).to(device);
                 let tensor = quantize(tensor.reshape(shape_tch.dims), &scheme, &qparams);
 
                 TchQTensor {
@@ -132,10 +137,6 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         TchTensor::new(tensor.qtensor.tensor.dequantize().to_kind(E::KIND))
     }
 
-    fn q_shape(tensor: &QuantizedTensor<Self>) -> Shape {
-        tensor.qtensor.shape()
-    }
-
     fn q_device(tensor: &QuantizedTensor<Self>) -> LibTorchDevice {
         tensor.qtensor.tensor.device().into()
     }
@@ -157,7 +158,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
-        let shape = Self::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let strategy = tensor.strategy();
 

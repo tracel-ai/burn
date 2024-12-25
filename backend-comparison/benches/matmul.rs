@@ -1,5 +1,5 @@
 use backend_comparison::persistence::save;
-use burn::tensor::{backend::Backend, Shape, Tensor};
+use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
 use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
@@ -26,8 +26,8 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs = Tensor::zeros(self.shape_lhs.clone(), &self.device);
-        let rhs = Tensor::zeros(self.shape_rhs.clone(), &self.device);
+        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
+        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
 
         (lhs, rhs)
     }
@@ -45,9 +45,10 @@ fn bench<B: Backend>(
     token: Option<&str>,
 ) {
     let benchmarks = [
-        (3, 4096, 4096, 4096),
-        (8, 2048, 2048, 2048),
-        (2, 4096, 4096, 512),
+        (2, 4096, 4096, 4096),
+        (32, 2048, 2048, 2048),
+        (256, 1024, 1024, 1024),
+        (1024, 256, 256, 256),
     ]
     .into_iter()
     .map(|(b, m, n, k)| {

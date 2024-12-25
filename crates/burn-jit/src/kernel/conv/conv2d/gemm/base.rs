@@ -1,24 +1,27 @@
 use burn_tensor::ops::ConvOptions;
-use cubecl::linalg::matmul::{
-    components::{
-        global::{AccumulatorLoader, Unloader},
-        stage, MatmulProblem, MatrixLayout,
+use cubecl::linalg::{
+    matmul::{
+        components::{
+            global::{AccumulatorLoader, Unloader},
+            stage, MatmulProblem, MatrixLayout,
+        },
+        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
-    kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
+    tensor::{ReadWrite, VirtualTensor},
 };
 use cubecl::prelude::*;
 
-use super::Config;
+use super::{spec::ConvSpec, Config};
 
 #[cube]
-pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul<ES, EG, Acc>>:
-    'static + Send + Sync + ConvolutionKernel<EG, EG, Config: Config>
+pub trait Convolution<CS: ConvSpec, SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>>:
+    'static + Send + Sync + ConvolutionKernel<CS::EG, CS::EG, Config: Config>
 {
     type LhsLoader: CubeType;
     type RhsLoader: CubeType;
-    type AccumulatorLoader: AccumulatorLoader<EG, Acc, SMM::Config>;
+    type AccumulatorLoader: AccumulatorLoader<CS::EG, CS::EA, SMM::Config>;
 
-    type Out: Unloader<EG>;
+    type Out: Unloader<CS::EG>;
     type Accumulator: CubeType;
 
     /// Performs the convolution over data loaded by the
@@ -38,27 +41,31 @@ pub trait Convolution<EG: Numeric, ES: Numeric, Acc: Numeric, SMM: stage::Matmul
     );
 
     fn init_lhs_loader(
-        lhs: &Tensor<Line<EG>>,
+        lhs: VirtualTensor<CS::EG>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
     ) -> Self::LhsLoader;
 
     fn init_rhs_loader(
-        rhs: &Tensor<Line<EG>>,
+        rhs: VirtualTensor<CS::EG>,
         x_offset: u32,
         y_offset: u32,
         #[comptime] config: Self::Config,
     ) -> Self::RhsLoader;
 
     fn init_bias_loader(
-        rhs: &Tensor<Line<EG>>,
+        bias: VirtualTensor<CS::EG>,
         n_offset: u32,
         #[comptime] config: Self::Config,
         #[comptime] has_bias: bool,
     ) -> Self::AccumulatorLoader;
 
-    fn init_unloader(out: &mut Tensor<Line<EG>>, x_offset: u32, y_offset: u32) -> Self::Out;
+    fn init_unloader(
+        out: VirtualTensor<CS::EG, ReadWrite>,
+        x_offset: u32,
+        y_offset: u32,
+    ) -> Self::Out;
 
     fn init_accumulator(#[comptime] config: Self::Config) -> Self::Accumulator;
 }

@@ -51,7 +51,12 @@ pub(crate) mod classification;
 #[cfg(feature = "metrics")]
 pub use crate::metric::classification::ClassReduction;
 mod confusion_stats;
+pub use confusion_stats::ConfusionStatsInput;
 #[cfg(feature = "metrics")]
 mod precision;
 #[cfg(feature = "metrics")]
 pub use precision::*;
+#[cfg(feature = "metrics")]
+mod recall;
+#[cfg(feature = "metrics")]
+pub use recall::*;
