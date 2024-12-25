@@ -2063,8 +2063,8 @@ where
     pub fn one_hot_fill<K2: Numeric<B>, const D2: usize>(
         self,
         num_classes: usize,
-        on_value: K2::Elem,
-        off_value: K2::Elem,
+        on_value: f32,
+        off_value: f32,
         axis: i64,
     ) -> Tensor<B, D2, K2> {
         // Initialize shape from the current tensor dimensions and prepare for modification

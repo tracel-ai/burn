@@ -1,6 +1,5 @@
 use crate::check;
 use crate::check::TensorCheck;
-use crate::ops::IntElem;
 use crate::{
     backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
 };
@@ -115,7 +114,7 @@ where
     /// use burn_tensor::backend::Backend;
     /// use burn_tensor::{Tensor, Int};
     ///
-    /// fn example<B: Backend>() where <B as Backend>::IntElem: From<i32>{
+    /// fn example<B: Backend>(){
     ///     let device = B::Device::default();
     ///     let indices: Tensor<B, 1, Int> = Tensor::from_ints([0, 1, 2, 3], &device);
     ///     let one_hot: Tensor<B, 4, Int> = indices.one_hot(4);
@@ -123,11 +122,8 @@ where
     ///     // [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     /// }
     /// ```
-    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2, Int>
-    where
-        IntElem<B>: From<i32>,
-    {
+    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2, Int> {
         check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
-        self.one_hot_fill(num_classes, B::IntElem::from(1), B::IntElem::from(0), -1)
+        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
     }
 }

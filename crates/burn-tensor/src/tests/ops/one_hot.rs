@@ -64,7 +64,7 @@ mod tests {
             [[1, 1], [1, 1], [3, 1], [1, 1], [1, 3], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]]
         ]));
 
-        let one_hot_tensor: Tensor<TestBackend, 3, Int> = tensor.one_hot_fill(10, 3, 1, 1);
+        let one_hot_tensor: Tensor<TestBackend, 3, Int> = tensor.one_hot_fill(10, 3.0, 1.0, 1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
@@ -77,8 +77,7 @@ mod tests {
             [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]]
         ]));
 
-        let one_hot_tensor: Tensor<TestBackend, 3> =
-            tensor.one_hot_fill(3, FloatType::new(5.0), FloatType::new(0.0), -1);
+        let one_hot_tensor: Tensor<TestBackend, 3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
@@ -102,7 +101,6 @@ mod tests {
     fn one_hot_fill_should_panic_when_axis_out_range_of_rank() {
         let tensor = TestTensor::<2>::from([[0.0, 2.0], [1.0, -1.0]]);
 
-        let one_hot_tensor: Tensor<TestBackend, 3, Float> =
-            tensor.one_hot_fill(2, FloatType::new(5.0), FloatType::new(0.0), 3);
+        let one_hot_tensor: Tensor<TestBackend, 3, Float> = tensor.one_hot_fill(2, 5.0, 0.0, 3);
     }
 }
