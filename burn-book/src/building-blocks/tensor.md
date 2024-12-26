@@ -157,7 +157,7 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.narrow(dim, start, length)`   | `tensor.narrow(dim, start, length)`                                       |
 | `tensor.not_equal(other)`             | `x != y`                                                                  |
 | `tensor.permute(axes)`                | `tensor.permute(axes)`                                                    |
-| `tensor.one_hot_plus(depth, on_value, off_value, axis)` | N/A                                                     |
+| `tensor.one_hot_fill(depth, on_value, off_value, axis)` | N/A                                                     |
 | `tensor.movedim(src, dst)`            | `tensor.movedim(src, dst)`                                                |
 | `tensor.repeat_dim(dim, times)`       | `tensor.repeat(*[times if i == dim else 1 for i in range(tensor.dim())])` |
 | `tensor.repeat(sizes)`                | `tensor.repeat(sizes)`                                                    |
@@ -259,7 +259,7 @@ Those operations are only available for `Float` tensors.
 
 | Burn API                                      | PyTorch Equivalent                 |
 | --------------------------------------------- | ---------------------------------- |
-| `Tensor::one_hot(index, num_classes, device)` | N/A                                |
+| `tensor.one_hot(num_classes)`                 | `torch.nn.functional.one_hot`      |
 | `tensor.cast(dtype)`                          | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                               | `tensor.ceil()`                    |
 | `tensor.cos()`                                | `tensor.cos()`                     |
@@ -297,7 +297,7 @@ Those operations are only available for `Int` tensors.
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
-| `tensor.one_hot(num_classes)`                    | N/A                                                     |
+| `tensor.one_hot(num_classes)`                    | `torch.nn.functional.one_hot`                           |
 
 ### Bool Operations
 
