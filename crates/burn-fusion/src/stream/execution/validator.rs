@@ -112,7 +112,7 @@ pub(crate) enum TriggerProgress {
 /// trigger.
 pub(crate) type TriggerId = usize;
 
-impl<'b, O> OperationsStore for TriggerOperationsStore<'b, O> {
+impl<O> OperationsStore for TriggerOperationsStore<'_, O> {
     type Id = TriggerId;
 
     fn get(&self, id: Self::Id) -> &[OperationDescription] {
@@ -131,7 +131,7 @@ pub(crate) struct ExecutionPlanOperationsStore<'a, O> {
     store: &'a ExecutionPlanStore<O>,
 }
 
-impl<'b, O> OperationsStore for ExecutionPlanOperationsStore<'b, O> {
+impl<O> OperationsStore for ExecutionPlanOperationsStore<'_, O> {
     type Id = ExecutionPlanId;
 
     fn get(&self, id: Self::Id) -> &[OperationDescription] {

@@ -103,6 +103,8 @@ enum BenchmarkValues {
     Data,
     #[strum(to_string = "matmul")]
     Matmul,
+    #[strum(to_string = "matmul-fused")]
+    MatmulFused,
     #[strum(to_string = "unary")]
     Unary,
     #[strum(to_string = "max-pool2d")]
@@ -231,16 +233,16 @@ fn run_backend_comparison_benchmarks(
 }
 
 fn run_cargo(
-    bench: &String,
-    backend: &String,
+    bench: &str,
+    backend: &str,
     url: &str,
     token: Option<&str>,
     progress_bar: &Option<Arc<Mutex<RunnerProgressBar>>>,
 ) -> io::Result<ExitStatus> {
     let processor: Arc<dyn OutputProcessor> = if let Some(pb) = progress_bar {
         Arc::new(NiceProcessor::new(
-            bench.clone(),
-            backend.clone(),
+            bench.to_string(),
+            backend.to_string(),
             pb.clone(),
         ))
     } else {

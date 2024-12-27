@@ -1,18 +1,20 @@
 use crate::shared::field::FieldTypeAnalyzer;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::Generics;
+use syn::{Generics, Visibility};
 
 use super::record::ModuleRecordCodegen;
 
 #[derive(new)]
 pub(crate) struct StructModuleRecordCodegen {
     fields: Vec<FieldTypeAnalyzer>,
+    vis: Visibility,
 }
 
 impl ModuleRecordCodegen for StructModuleRecordCodegen {
     fn gen_record_type(&self, record_name: &Ident, generics: &Generics) -> TokenStream {
         let mut fields = quote! {};
+        let vis = &self.vis;
 
         for field in self.fields.iter() {
             let ty = &field.field.ty;
@@ -20,7 +22,7 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
 
             fields.extend(quote! {
                 /// The module record associative type.
-                pub #name: <#ty as burn::module::Module<B>>::Record,
+                #vis #name: <#ty as burn::module::Module<B>>::Record,
             });
         }
 
@@ -30,7 +32,7 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
 
             /// The record type for the module.
             #[derive(burn::record::Record)]
-            pub struct #record_name #generics #generics_where {
+            #vis struct #record_name #generics #generics_where {
                 #fields
             }
         }

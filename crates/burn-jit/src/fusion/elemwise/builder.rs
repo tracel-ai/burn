@@ -1,7 +1,10 @@
 use burn_fusion::OptimizationBuilder;
 
 use crate::{
-    fusion::{on_write::builder::FuseOnWriteBuilder, JitOptimization},
+    fusion::{
+        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision},
+        JitOptimization,
+    },
     JitRuntime,
 };
 
@@ -14,13 +17,13 @@ pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
 }
 
 impl<R: JitRuntime> ElementWiseBuilder<R> {
-    pub fn new(device: R::Device) -> Self {
+    pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
 
         Self {
-            builder: FuseOnWriteBuilder::new(max_bindings),
+            builder: FuseOnWriteBuilder::new(max_bindings, bool_precision),
             device,
         }
     }
@@ -37,7 +40,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
         let elementwise =
             ElemwiseOptimization::<R>::new(trace, client, self.device.clone(), self.len());
 
-        JitOptimization::ElementWise2(elementwise)
+        JitOptimization::ElementWise(elementwise)
     }
 
     fn reset(&mut self) {

@@ -177,7 +177,7 @@ mod tests {
         let input = AurocInput::new(
             Tensor::from_data(
                 [
-                    [0.1, 0.9], // All positives perdictions
+                    [0.1, 0.9], // All positives predictions
                     [0.2, 0.8],
                     [0.3, 0.7],
                     [0.4, 0.6],

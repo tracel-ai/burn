@@ -2,11 +2,8 @@ use alloc::{format, string::String};
 use core::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
-    ops::FloatTensor,
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    repr::{BaseOperationDescription, OperationDescription, UnaryOperationDescription},
-    Device,
+    backend::Backend,
+    quantization::{QTensorPrimitive, QuantizationScheme},
 };
 
 use super::{get_client, set_seed, RouterTensor, RunnerChannel, RunnerClient};
@@ -39,16 +36,10 @@ impl<R: RunnerClient> QTensorPrimitive for RouterTensor<R> {
     fn scheme(&self) -> &QuantizationScheme {
         todo!()
     }
-
-    fn strategy(&self) -> QuantizationStrategy {
-        todo!()
-    }
 }
 
 impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type Device = R::Device;
-
-    type FullPrecisionBridge = PrecisionBridge;
 
     type FloatTensorPrimitive = RouterTensor<R::Client>;
 
@@ -59,6 +50,8 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
     type IntElem = R::IntElem;
 
     type BoolTensorPrimitive = RouterTensor<R::Client>;
+
+    type BoolElem = R::BoolElem;
 
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 
@@ -74,52 +67,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     fn sync(device: &Self::Device) {
         let client = get_client::<R>(device);
-        client.sync();
-    }
-}
-
-/// Handle precision conversion.
-#[derive(Debug)]
-pub struct PrecisionBridge {}
-
-impl<R: RunnerChannel> BackendBridge<BackendRouter<R>> for PrecisionBridge {
-    type Target = BackendRouter<R>;
-
-    fn into_target(
-        tensor: FloatTensor<BackendRouter<R>>,
-        _device: Option<Device<Self::Target>>,
-    ) -> FloatTensor<Self::Target> {
-        let client = tensor.client.clone();
-        let out = client.register_float_tensor(tensor.shape.clone(), true);
-
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-
-        client.register(OperationDescription::BaseFloat(
-            BaseOperationDescription::Cast(desc),
-        ));
-
-        out
-    }
-
-    fn from_target(
-        tensor: FloatTensor<Self::Target>,
-        _device: Option<Device<BackendRouter<R>>>,
-    ) -> FloatTensor<BackendRouter<R>> {
-        let client = tensor.client.clone();
-        let out = client.register_float_tensor(tensor.shape.clone(), false);
-
-        let desc = UnaryOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
-        };
-
-        client.register(OperationDescription::BaseFloat(
-            BaseOperationDescription::Cast(desc),
-        ));
-
-        out
+        burn_common::future::block_on(client.sync());
     }
 }

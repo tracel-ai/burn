@@ -1,5 +1,3 @@
-use std::{net::SocketAddr, sync::Arc};
-
 use axum::{
     extract::{
         ws::{self, WebSocket, WebSocketUpgrade},
@@ -9,12 +7,9 @@ use axum::{
     routing::any,
     Router,
 };
+use std::{net::SocketAddr, sync::Arc};
 
-use burn_tensor::{
-    backend::{Backend, BackendBridge},
-    repr::ReprBackend,
-    Device,
-};
+use burn_tensor::{repr::ReprBackend, Device};
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
@@ -28,12 +23,7 @@ pub struct WsServer<B: ReprBackend> {
     state: Arc<SessionManager<B>>,
 }
 
-impl<B: ReprBackend> WsServer<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> WsServer<B> {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
         let layer = tracing_subscriber::fmt::layer()
@@ -90,37 +80,33 @@ where
         let packet = socket.recv().await;
         let msg = match packet {
             Some(msg) => msg,
-            None => {
-                log::info!("Still no message");
-                panic!("");
-            }
+            None => panic!("Still no message"),
         };
 
-        if let Ok(ws::Message::Binary(bytes)) = msg {
-            let task = match rmp_serde::from_slice::<Task>(&bytes) {
-                Ok(val) => val,
-                Err(err) => {
-                    log::info!("Only bytes messages are supported {err:?}");
-                    panic!("");
+        match msg {
+            Ok(ws::Message::Binary(bytes)) => {
+                let task = match rmp_serde::from_slice::<Task>(&bytes) {
+                    Ok(val) => val,
+                    Err(err) => panic!("Only bytes messages are supported {err:?}"),
+                };
+                let id = match task {
+                    Task::Init(id) => id,
+                    _ => panic!("Response handler not initialized."),
+                };
+
+                let receiver = self.state.register_responder(id);
+
+                log::info!("Response handler connection active");
+
+                while let Ok(callback) = receiver.recv() {
+                    let response = callback.recv().unwrap();
+                    let bytes = rmp_serde::to_vec(&response).unwrap();
+
+                    socket.send(ws::Message::Binary(bytes)).await.unwrap();
                 }
-            };
-            let id = match task {
-                Task::Init(id) => id,
-                _ => panic!(""),
-            };
-
-            let receiver = self.state.register_responder(id).await;
-
-            log::info!("Response handler connection active");
-
-            while let Ok(callback) = receiver.recv() {
-                let response = callback.recv().unwrap();
-                let bytes = rmp_serde::to_vec(&response).unwrap();
-
-                socket.send(ws::Message::Binary(bytes)).await.unwrap();
             }
-        } else {
-            panic!("");
+            Err(err) => panic!("Can't start the response handler {err:?}"),
+            _ => panic!("Unsupported message type"),
         }
     }
 
@@ -147,14 +133,13 @@ where
                     }
                 };
 
-                let (stream, connection_id, task) =
-                    match self.state.stream(&mut session_id, task).await {
-                        Some(val) => val,
-                        None => {
-                            log::info!("Ops session activated {session_id:?}");
-                            continue;
-                        }
-                    };
+                let (stream, connection_id, task) = match self.state.stream(&mut session_id, task) {
+                    Some(val) => val,
+                    None => {
+                        log::info!("Ops session activated {session_id:?}");
+                        continue;
+                    }
+                };
 
                 match task {
                     ComputeTask::RegisterOperation(op) => {
@@ -180,17 +165,12 @@ where
         }
 
         log::info!("Closing connection");
-        self.state.close(session_id).await;
+        self.state.close(session_id);
     }
 }
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
-pub async fn start<B: ReprBackend>(device: Device<B>, port: u16)
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+pub async fn start<B: ReprBackend>(device: Device<B>, port: u16) {
     WsServer::<B>::start(device, port).await;
 }

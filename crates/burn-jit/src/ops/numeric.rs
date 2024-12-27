@@ -12,7 +12,7 @@ pub fn full<R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     value: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = R::client(device);
 
     full_device::<R, E>(client, shape, device.clone(), value)
@@ -23,9 +23,9 @@ pub fn full_device<R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: R::Device,
     value: E,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let ndims = shape.num_dims();
-    let empty = empty_device(client, device, shape);
+    let empty = empty_device::<R, E>(client, device, shape);
 
     #[cube(launch)]
     pub fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
@@ -48,28 +48,28 @@ pub fn full_device<R: JitRuntime, E: JitElement>(
         &empty.client,
         cube_count,
         cube_dim,
-        empty.as_tensor_arg(vectorization_factor),
+        empty.as_tensor_arg::<E>(vectorization_factor),
         ScalarArg::new(value),
     );
 
     empty
 }
 
-pub fn zeros<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R, E> {
+pub fn zeros<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
     let client = R::client(device);
 
-    zeros_device(client, device.clone(), shape)
+    zeros_device::<R, E>(client, device.clone(), shape)
 }
 
 pub fn zeros_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     full_device::<R, E>(client, shape, device, 0.elem())
 }
 
-pub fn ones<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R, E> {
+pub fn ones<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
     let client = R::client(device);
 
     ones_device::<R, E>(client, device.clone(), shape)
@@ -79,7 +79,7 @@ pub fn ones_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     full_device::<R, E>(client, shape, device, 1.elem())
 }
 
@@ -87,74 +87,56 @@ pub fn empty_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    JitTensor::new_contiguous(client, device, shape, buffer)
+    JitTensor::new_contiguous(client, device, shape, buffer, E::dtype())
 }
 
-pub fn add<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+pub fn add<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, AddOp>(lhs, rhs)
 }
 
-pub fn add_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, E> {
+pub fn add_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_binop::<R, E, AddOp>(lhs, rhs)
 }
 
-pub fn sub<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+pub fn sub<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, SubOp>(lhs, rhs)
 }
 
-pub fn sub_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, E> {
+pub fn sub_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_binop::<R, E, SubOp>(lhs, rhs)
 }
 
-pub fn mul<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+pub fn mul<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, MulOp>(lhs, rhs)
 }
 
-pub fn mul_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, E> {
+pub fn mul_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_binop::<R, E, MulOp>(lhs, rhs)
 }
 
-pub fn div<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+pub fn div<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, DivOp>(lhs, rhs)
 }
 
-pub fn div_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R, E>, rhs: E) -> JitTensor<R, E> {
+pub fn div_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_binop::<R, E, DivOp>(lhs, rhs)
 }
 
 pub fn remainder<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
     launch_binop::<R, E, RemainderOp>(lhs, rhs)
 }
 
-pub fn remainder_scalar<R: JitRuntime, E: JitElement>(
-    lhs: JitTensor<R, E>,
-    rhs: E,
-) -> JitTensor<R, E> {
+pub fn remainder_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     launch_scalar_binop::<R, E, RemainderOp>(lhs, rhs)
 }
 
-pub fn pow<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R, E>,
-    rhs: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+pub fn pow<R: JitRuntime, E: FloatElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, PowOp>(lhs, rhs)
 }
 

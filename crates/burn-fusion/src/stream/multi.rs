@@ -1,4 +1,4 @@
-use burn_tensor::repr::{HandleContainer, OperationDescription};
+use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription};
 
 use super::{
     execution::{ExecutionMode, Operation, Processor, StreamSegment},
@@ -32,7 +32,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.maybe_drain(streams, handles);
+        let id = self.resolve_streams(streams, handles, &desc);
 
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
@@ -64,7 +64,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
     }
 
-    /// Drain the streams
+    /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
         if let Some(mut stream) = self.streams.remove(&id) {
             stream.processor.process(
@@ -79,27 +79,40 @@ impl<R: FusionRuntime> MultiStream<R> {
     /// When one of the provided streams is different from the current stream, we drain them.
     ///
     /// Returns the current stream id.
-    fn maybe_drain(
+    fn resolve_streams(
         &mut self,
         streams: Vec<StreamId>,
         handles: &mut HandleContainer<R::FusionHandle>,
+        op: &OperationDescription,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
 
-        if streams.len() == 1 {
-            // The only case where we don't need to drain, because we will process
-            // the operation queue of the current stream right after this.
-            if streams[0] == current {
-                return current;
+        for id in streams {
+            if id != current {
+                self.resolve_stream(handles, id, op.nodes());
             }
         }
 
-        for id in streams {
-            self.drain(handles, id);
-        }
-
         current
+    }
+
+    /// Drain the stream only if one of the tensor in the given nodes is also included in the
+    /// stream queue.
+    fn resolve_stream(
+        &mut self,
+        handles: &mut HandleContainer<R::FusionHandle>,
+        id: StreamId,
+        nodes: Vec<&TensorDescription>,
+    ) {
+        if let Some(stream) = self.streams.get(&id) {
+            for node in nodes {
+                if stream.queue.ids.contains(&node.id) {
+                    self.drain(handles, id);
+                    return;
+                }
+            }
+        }
     }
 
     fn remove_duplicate(items: Vec<StreamId>) -> Vec<StreamId> {
@@ -140,7 +153,7 @@ struct Segment<'a, R: FusionRuntime> {
     handles: &'a mut HandleContainer<R::FusionHandle>,
 }
 
-impl<'i, R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'i, R> {
+impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
     fn operations(&self) -> &[OperationDescription] {
         &self.queue.relative
     }

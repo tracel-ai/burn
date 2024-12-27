@@ -40,23 +40,22 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     type Input = AccuracyInput<B>;
 
     fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
-        let [batch_size, _n_classes] = input.outputs.dims();
+        let targets = input.targets.clone();
+        let outputs = input.outputs.clone();
 
-        let targets = input.targets.clone().to_device(&B::Device::default());
-        let outputs = input
-            .outputs
-            .clone()
-            .argmax(1)
-            .to_device(&B::Device::default())
-            .reshape([batch_size]);
+        let [batch_size, _n_classes] = outputs.dims();
+
+        let outputs = outputs.argmax(1).reshape([batch_size]);
 
         let accuracy = match self.pad_token {
             Some(pad_token) => {
                 let mask = targets.clone().equal_elem(pad_token as i64);
-                let matches = outputs.equal(targets).int().mask_fill(mask.clone(), 0);
-                let num_pad = mask.int().sum().into_scalar().elem::<f64>();
+                let matches = outputs.equal(targets).float().mask_fill(mask.clone(), 0);
+                let num_pad = mask.float().sum();
 
-                matches.sum().into_scalar().elem::<f64>() / (batch_size as f64 - num_pad)
+                let acc = matches.sum() / (num_pad.neg() + batch_size as f32);
+
+                acc.into_scalar().elem::<f64>()
             }
             None => {
                 outputs

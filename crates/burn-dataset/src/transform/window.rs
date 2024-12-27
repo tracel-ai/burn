@@ -79,7 +79,7 @@ impl<'a, I> WindowsIterator<'a, I> {
     }
 }
 
-impl<'a, I> Iterator for WindowsIterator<'a, I> {
+impl<I> Iterator for WindowsIterator<'_, I> {
     type Item = Vec<I>;
 
     fn next(&mut self) -> Option<Vec<I>> {
@@ -88,7 +88,7 @@ impl<'a, I> Iterator for WindowsIterator<'a, I> {
     }
 }
 
-impl<'a, I> Clone for WindowsIterator<'a, I> {
+impl<I> Clone for WindowsIterator<'_, I> {
     fn clone(&self) -> Self {
         WindowsIterator {
             size: self.size,

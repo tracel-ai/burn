@@ -16,13 +16,13 @@ autotune = []
 default = ["autotune", "std", "fusion", "cubecl/default"]
 doc = ["default"]
 export_tests = [
-  "burn-tensor-testgen",
-  "serial_test",
-  "burn-autodiff/export_tests",
-  "burn-tensor/export_tests",
-  "burn-ndarray",
-  "fusion",
-  "paste",
+    "burn-tensor-testgen",
+    "serial_test",
+    "burn-autodiff/export_tests",
+    "burn-tensor/export_tests",
+    "burn-ndarray",
+    "fusion",
+    "paste",
 ]
 fusion = ["burn-fusion"]
 std = ["cubecl/std"]
@@ -32,8 +32,8 @@ template = []
 burn-common = { path = "../burn-common", version = "0.16.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.16.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.16.0", features = [
-  "cubecl",
-  "repr",
+    "cubecl",
+    "repr",
 ] }
 cubecl = { workspace = true, features = ["linalg"] }
 

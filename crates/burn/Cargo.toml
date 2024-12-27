@@ -9,7 +9,7 @@ license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.81"
+rust-version = "1.82"
 version.workspace = true
 
 [features]
@@ -32,6 +32,7 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
 
 # Backends
@@ -52,11 +53,12 @@ candle = ["burn-core/candle"]
 cuda-jit = ["burn-core/cuda-jit"]
 hip-jit = ["burn-core/hip-jit"]
 ndarray = ["burn-core/ndarray"]
+remote = ["burn-core/remote"]
+router = ["burn-core/router"]
+server = ["burn-core/server"]
 tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 wgpu-spirv = ["burn-core/wgpu-spirv"]
-remote = ["burn-core/remote"]
-server = ["burn-core/server"]
 
 # Network utils
 network = ["burn-core/network"]

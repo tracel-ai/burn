@@ -58,12 +58,12 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 }
 
 pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let [batch_size, channels, _, _] = x.shape.dims();
     let dilation = 1;
 
@@ -83,7 +83,7 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
@@ -92,8 +92,8 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
         &x.client,
         cube_count,
         cube_dim,
-        x.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
         (),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),

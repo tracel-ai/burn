@@ -1,12 +1,9 @@
-use crate::{
-    client::FusionClient, stream::Context, FusionClientLocator, FusionTensor, PrecisionBridge,
-    QFusionTensor,
-};
+use crate::{client::FusionClient, stream::Context, FusionClientLocator, FusionTensor};
 use burn_tensor::{
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{OperationDescription, QuantizedKind, ReprBackend, TensorHandle},
-    Device,
+    repr::{OperationDescription, ReprBackend, TensorHandle},
+    Device, Element,
 };
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -26,8 +23,6 @@ pub struct Fusion<B: FusionBackend> {
 impl<B: FusionBackend> Backend for Fusion<B> {
     type Device = B::Device;
 
-    type FullPrecisionBridge = PrecisionBridge<B::FullPrecisionBackend>;
-
     type FloatTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type FloatElem = B::FloatElem;
@@ -38,7 +33,9 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type BoolTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
-    type QuantizedTensorPrimitive = QFusionTensor<B::FusionRuntime>;
+    type BoolElem = B::BoolElem;
+
+    type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
     type QuantizedEncoding = B::QuantizedEncoding;
 
@@ -145,6 +142,8 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
     type FusionDevice: DeviceOps;
     /// The client to interact with the runtime.
     type FusionClient: FusionClient<Self>;
+    /// The type that represents booleans on the backend.
+    type BoolRepr: Element;
 
     /// The list of optimizations that will be used to optimize the computational graph.
     fn optimizations(
@@ -183,11 +182,8 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         handle.handle
     }
 
-    fn quantized_tensor(
-        _handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        _scheme: burn_tensor::quantization::QuantizationScheme,
-    ) -> QuantizedTensor<Self> {
-        todo!() // not as simple
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        handle.handle
     }
 
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
@@ -202,7 +198,7 @@ impl<B: FusionBackend> ReprBackend for Fusion<B> {
         tensor
     }
 
-    fn quantized_tensor_handle(_tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
-        todo!() // not as simple
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        tensor
     }
 }

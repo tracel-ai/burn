@@ -3,12 +3,15 @@ use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
 use super::Backend;
 use burn::tensor::Shape;
 use burn_jit::{
-    kernel::into_contiguous, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime,
+    element::BoolElement, kernel::into_contiguous, tensor::JitTensor, FloatElement, IntElement,
+    JitBackend, JitRuntime,
 };
 use cubecl::{CubeCount, CubeDim};
 
 /// Implement our custom backend trait for the generic `JitBackend`.
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
+    for JitBackend<R, F, I, BT>
+{
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -47,8 +50,13 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
+        let output = JitTensor::new_contiguous(
+            lhs.client.clone(),
+            lhs.device.clone(),
+            shape_out,
+            buffer,
+            F::dtype(),
+        );
 
         // Declare the wgsl workgroup with the number of cubes in x, y and z.
         let cubes_needed_in_x = f32::ceil(num_rows as f32 / cube_dim.x as f32) as u32;
@@ -62,10 +70,10 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
             &lhs.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(1),
-            rhs.as_tensor_arg(1),
-            bias.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            lhs.as_tensor_arg::<F>(1),
+            rhs.as_tensor_arg::<F>(1),
+            bias.as_tensor_arg::<F>(1),
+            output.as_tensor_arg::<F>(1),
         );
 
         // Return the output tensor.

@@ -12,210 +12,12 @@ pub fn read<C: CubePrimitive>(
     #[comptime] config: &ElemwiseConfig,
 ) -> Line<C> {
     match arg {
-        Arg::Input(pos, precision, layout) => match comptime![precision] {
-            ElemwisePrecision::F32 => {
-                let tensor = inputs.t_f32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::F16 => {
-                let tensor = inputs.t_f16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::BF16 => {
-                let tensor = inputs.t_bf16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U64 => {
-                let tensor = inputs.t_u64.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U32 => {
-                let tensor = inputs.t_u32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U16 => {
-                let tensor = inputs.t_u16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U8 => {
-                let tensor = inputs.t_u8.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I64 => {
-                let tensor = inputs.t_i64.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I32 => {
-                let tensor = inputs.t_i32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I16 => {
-                let tensor = inputs.t_i16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I8 => {
-                let tensor = inputs.t_i8.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            _ => comptime![panic!("Unsupported precision {precision:?}")],
-        },
-        Arg::Output(pos, precision, layout) => match comptime![precision] {
-            ElemwisePrecision::F32 => {
-                let tensor = outputs.t_f32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::F16 => {
-                let tensor = outputs.t_f16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::BF16 => {
-                let tensor = outputs.t_bf16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U64 => {
-                let tensor = outputs.t_u64.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U32 => {
-                let tensor = outputs.t_u32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U16 => {
-                let tensor = outputs.t_u16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::U8 => {
-                let tensor = outputs.t_u8.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I64 => {
-                let tensor = outputs.t_i64.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I32 => {
-                let tensor = outputs.t_i32.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I16 => {
-                let tensor = outputs.t_i16.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            ElemwisePrecision::I8 => {
-                let tensor = outputs.t_i8.index(pos);
-                let offset = match layout {
-                    LayoutInfo::SameAsRef => ref_pos,
-                    LayoutInfo::IsRef => ref_pos,
-                    LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
-                };
-                Line::cast_from(tensor[offset])
-            }
-            _ => comptime![panic!("Unsupported precision {precision:?}")],
-        },
+        Arg::Input(pos, precision, layout) => {
+            read_input(inputs, outputs, pos, ref_pos, layout, precision, config)
+        }
+        Arg::Output(pos, precision, layout) => {
+            read_output(inputs, outputs, pos, ref_pos, layout, precision, config)
+        }
         Arg::Local(pos, precision) => match comptime![precision] {
             ElemwisePrecision::F32 => Line::cast_from(locals.l_f32.find(pos)),
             ElemwisePrecision::F16 => Line::cast_from(locals.l_f16.find(pos)),
@@ -245,6 +47,234 @@ pub fn read<C: CubePrimitive>(
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
+    }
+}
+
+#[cube]
+pub fn read_input<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    #[comptime] pos: u32,
+    ref_pos: u32,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] precision: ElemwisePrecision,
+    #[comptime] config: &ElemwiseConfig,
+) -> Line<C> {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = inputs.t_f32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = inputs.t_f16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = inputs.t_bf16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = inputs.t_u64.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = inputs.t_u32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = inputs.t_u16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = inputs.t_u8.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = inputs.t_i64.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = inputs.t_i32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = inputs.t_i16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = inputs.t_i8.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
+    }
+}
+
+#[cube]
+pub fn read_output<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    pos: u32,
+    ref_pos: u32,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] precision: ElemwisePrecision,
+    #[comptime] config: &ElemwiseConfig,
+) -> Line<C> {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = outputs.t_f32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = outputs.t_f16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = outputs.t_bf16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = outputs.t_u64.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = outputs.t_u32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = outputs.t_u16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = outputs.t_u8.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = outputs.t_i64.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = outputs.t_i32.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = outputs.t_i16.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = outputs.t_i8.index(pos);
+            let offset = match layout {
+                LayoutInfo::SameAsRef => ref_pos,
+                LayoutInfo::IsRef => ref_pos,
+                LayoutInfo::Unknown => get_offset(inputs, outputs, tensor, ref_pos, config),
+            };
+            Line::cast_from(tensor[offset])
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
     }
 }
 
@@ -495,5 +525,170 @@ fn get_offset<C: CubePrimitive>(
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         _ => comptime![panic!("Invalid ref layout.")],
+    }
+}
+#[cube]
+pub fn global_rank(
+    global: &GlobalArgs,
+    #[comptime] pos: u32,
+    #[comptime] precision: ElemwisePrecision,
+) -> u32 {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = global.t_f32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = global.t_f16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = global.t_bf16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = global.t_u64.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = global.t_u32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = global.t_u16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = global.t_u8.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = global.t_i64.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = global.t_i32.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = global.t_i16.index(pos);
+            tensor.rank()
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = global.t_i8.index(pos);
+            tensor.rank()
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
+    }
+}
+#[cube]
+pub fn global_shape(
+    global: &GlobalArgs,
+    dim: u32,
+    #[comptime] pos: u32,
+    #[comptime] precision: ElemwisePrecision,
+) -> u32 {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = global.t_f32.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = global.t_f16.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = global.t_bf16.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = global.t_u64.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = global.t_u32.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = global.t_u16.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = global.t_u8.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = global.t_i64.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = global.t_i32.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = global.t_i16.index(pos);
+            tensor.shape(dim)
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = global.t_i8.index(pos);
+            tensor.shape(dim)
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
+    }
+}
+
+#[cube]
+pub fn global_stride(
+    global: &GlobalArgs,
+    dim: u32,
+    #[comptime] pos: u32,
+    #[comptime] precision: ElemwisePrecision,
+) -> u32 {
+    match comptime![precision] {
+        ElemwisePrecision::F32 => {
+            let tensor = global.t_f32.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::F16 => {
+            let tensor = global.t_f16.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::BF16 => {
+            let tensor = global.t_bf16.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::U64 => {
+            let tensor = global.t_u64.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::U32 => {
+            let tensor = global.t_u32.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::U16 => {
+            let tensor = global.t_u16.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::U8 => {
+            let tensor = global.t_u8.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::I64 => {
+            let tensor = global.t_i64.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::I32 => {
+            let tensor = global.t_i32.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::I16 => {
+            let tensor = global.t_i16.index(pos);
+            tensor.stride(dim)
+        }
+        ElemwisePrecision::I8 => {
+            let tensor = global.t_i8.index(pos);
+            tensor.stride(dim)
+        }
+        _ => comptime![panic!("Unsupported precision {precision:?}")],
     }
 }

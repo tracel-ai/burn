@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::ops::FloatTensor;
-use crate::{ElementConversion, Shape, TensorData};
+use crate::{ElementConversion, Shape, TensorData, TensorMetadata};
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -63,21 +63,16 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
     kernel_size: [usize; 2],
     options: UnfoldOptions,
 ) -> FloatTensor<B> {
-    let [_batch_size, in_channels, _in_height, _in_width] = B::float_shape(&x).dims();
+    let [_batch_size, in_channels, _in_height, _in_width] = x.shape().dims();
     let weight = create_unfolding_weight::<B>(in_channels, kernel_size, &B::float_device(&x));
     let unfolded = B::conv2d(
         x,
         weight,
         None,
-        ConvOptions {
-            stride: options.stride,
-            padding: options.padding,
-            dilation: options.dilation,
-            groups: 1,
-        },
+        ConvOptions::new(options.stride, options.padding, options.dilation, 1),
     );
 
-    let [batch_size, channels_out, out_height, out_width] = B::float_shape(&unfolded).dims();
+    let [batch_size, channels_out, out_height, out_width] = unfolded.shape().dims();
 
     B::float_reshape(
         unfolded,

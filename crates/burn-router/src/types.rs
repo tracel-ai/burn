@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use burn_tensor::{
-    backend::{Backend, BackendBridge, DeviceId, DeviceOps},
+    backend::{Backend, DeviceId, DeviceOps},
     repr::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId},
     try_read_sync, DType, Shape, TensorData,
 };
@@ -89,12 +89,6 @@ macro_rules! impl_multi_backend_types {
             }
 
             impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
-                where <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-                $(
-                    <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-                )+
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
@@ -146,15 +140,15 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
+                fn register_float_tensor(&self, shape: Vec<usize>, dtype: burn_tensor::FloatDType) -> RouterTensor<Self> {
                     match self {
                         Self::$DefaultBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                             RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                         }
                         $(
                             Self::$OtherBackend(runner) => {
-                            let desc = runner.register_float_tensor_desc(shape, full_precision);
+                            let desc = runner.register_float_tensor_desc(shape, dtype);
                                 RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
                             }
                         )+
@@ -179,12 +173,16 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) {
-                    match self {
-                        Self::$DefaultBackend(runner) => runner.sync(),
+                fn sync(&self) -> impl core::future::Future<Output = ()> + Send + 'static {
+                    let fut: core::pin::Pin<Box<dyn core::future::Future<Output = ()> + Send + 'static>> = match self {
+                        Self::$DefaultBackend(runner) => Box::pin(runner.sync()),
                         $(
-                            Self::$OtherBackend(runner) => runner.sync(),
+                            Self::$OtherBackend(runner) => Box::pin(runner.sync()),
                         )+
+                    };
+
+                    async move  {
+                        fut.await;
                     }
                 }
 
@@ -200,14 +198,6 @@ macro_rules! impl_multi_backend_types {
 
             impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
             where
-            // Restrict full precision backend handle to be the same
-            <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-            $(
-                $OtherBackend: ReprBackend<FloatElem = $DefaultBackend::FloatElem, IntElem = $DefaultBackend::IntElem>,
-                <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-            )+
                 Br: MultiBackendBridge<TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>, Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>>,
             {
                 type Device = Br::Device;
@@ -216,6 +206,7 @@ macro_rules! impl_multi_backend_types {
 
                 type FloatElem = $DefaultBackend::FloatElem;
                 type IntElem = $DefaultBackend::IntElem;
+                type BoolElem = $DefaultBackend::BoolElem;
 
                 type Client = MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>;
 

@@ -293,7 +293,8 @@ mod tests {
                 ),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data()
+                .assert_approx_eq_diff(&output.into_data(), 0.002);
         }
     }
 }

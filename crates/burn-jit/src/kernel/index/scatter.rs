@@ -67,10 +67,10 @@ fn scatter_kernel<T: Numeric, I: Int>(
 
 pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
     dim: usize,
-    tensor: JitTensor<R, E>,
-    indices: JitTensor<R, I>,
-    value: JitTensor<R, E>,
-) -> JitTensor<R, E> {
+    tensor: JitTensor<R>,
+    indices: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
@@ -109,9 +109,9 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
             &indices.client.clone(),
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            value.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            indices.as_tensor_arg::<I>(1),
+            value.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     }

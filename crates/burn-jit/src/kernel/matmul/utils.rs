@@ -3,16 +3,13 @@ use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
 pub fn init_matmul_output<R: JitRuntime, E: JitElement>(
-    lhs: &JitTensor<R, E>,
-    rhs: &JitTensor<R, E>,
-) -> JitTensor<R, E> {
-    empty_device(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
+    lhs: &JitTensor<R>,
+    rhs: &JitTensor<R>,
+) -> JitTensor<R> {
+    empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out(lhs, rhs))
 }
 
-pub(crate) fn shape_out<R: JitRuntime, E: JitElement>(
-    lhs: &JitTensor<R, E>,
-    rhs: &JitTensor<R, E>,
-) -> Shape {
+pub(crate) fn shape_out<R: JitRuntime>(lhs: &JitTensor<R>, rhs: &JitTensor<R>) -> Shape {
     let ndims = lhs.shape.num_dims();
     let mut shape_out = vec![0; ndims];
     lhs.shape

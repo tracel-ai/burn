@@ -1,17 +1,16 @@
 use alloc::{sync::Arc, vec::Vec};
-use spin::Mutex;
-
+use burn_common::stub::Mutex;
 use burn_tensor::{
-    backend::{Backend, BackendBridge},
-    ops::FullPrecisionBackend,
+    backend::Backend,
     repr::{
         BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
         HandleContainer, IntOperationDescription, ModuleOperationDescription,
         NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
         TensorId, TensorStatus,
     },
-    DType, Element, ElementConversion, Shape, TensorData,
+    DType, ElementConversion, FloatDType, Shape, TensorData,
 };
+use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
@@ -52,12 +51,7 @@ pub struct Runner<B: ReprBackend> {
     device: B::Device,
 }
 
-impl<B: ReprBackend> Runner<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> Runner<B> {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
         Self {
@@ -70,7 +64,7 @@ where
 
     /// Get the tensor handle for the given [tensor description](TensorDescription).
     pub(crate) fn get_tensor_handle(&self, tensor: &TensorDescription) -> B::Handle {
-        let handles = &mut self.context.lock().handles;
+        let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
     }
 
@@ -82,7 +76,7 @@ where
         dtype: DType,
         client: C,
     ) -> RouterTensor<C> {
-        let mut ctx = self.context.lock();
+        let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
 
         ctx.handles.register_handle(*id.as_ref(), handle);
@@ -93,7 +87,7 @@ where
 
     /// Register a tensor from its data and id.
     pub fn register_tensor_data_id(&self, id: TensorId, data: TensorData) {
-        let mut ctx = self.context.lock();
+        let mut ctx = self.context.lock().unwrap();
         let dtype = data.dtype;
 
         if dtype.is_float() {
@@ -114,7 +108,7 @@ where
 
     /// Register a tensor and returns its description.
     pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
-        let mut ctx = self.context.lock();
+        let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
         let dtype = data.dtype;
@@ -144,7 +138,7 @@ where
 
     /// Register an empty tensor and returns its description.
     pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
-        let mut ctx = self.context.lock();
+        let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);
 
@@ -159,29 +153,19 @@ where
     pub(crate) fn register_float_tensor_desc(
         &self,
         shape: Vec<usize>,
-        full_precision: bool,
+        dtype: FloatDType,
     ) -> TensorDescription {
-        let dtype = if full_precision {
-            <FullPrecisionBackend<B> as Backend>::FloatElem::dtype()
-        } else {
-            B::FloatElem::dtype()
-        };
-        self.register_empty_tensor_desc(shape, dtype)
+        self.register_empty_tensor_desc(shape, dtype.into())
     }
 }
 
-impl<B: ReprBackend> RunnerClient for Runner<B>
-where
-    // Restrict full precision backend handle to be the same
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target:
-        ReprBackend<Handle = B::Handle>,
-{
+impl<B: ReprBackend> RunnerClient for Runner<B> {
     type Device = B::Device;
 
     /// Execute a tensor operation.
     fn register(&self, op: OperationDescription) {
         // Remove unused tensor handles
-        let mut ctx = self.context.lock();
+        let mut ctx = self.context.lock().unwrap();
         ctx.free_orphans();
 
         let handles = &mut ctx.handles;
@@ -252,24 +236,9 @@ where
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationDescription::Cast(desc) => {
-                    let input_dtype = desc.input.dtype;
-                    let out_dtype = desc.out.dtype;
-                    let float_dtype = B::FloatElem::dtype();
-                    let full_dtype = <FullPrecisionBackend<B> as Backend>::FloatElem::dtype();
-
-                    if input_dtype == float_dtype && out_dtype == full_dtype {
-                        let tensor = handles.get_float_tensor::<B>(&desc.input);
-                        let output = B::float_into_full_precision(tensor);
-                        handles
-                            .register_float_tensor::<FullPrecisionBackend<B>>(&desc.out.id, output);
-                    } else if input_dtype == full_dtype && out_dtype == float_dtype {
-                        let tensor =
-                            handles.get_float_tensor::<FullPrecisionBackend<B>>(&desc.input);
-                        let output = B::float_from_full_precision(tensor);
-                        handles.register_float_tensor::<B>(&desc.out.id, output);
-                    } else {
-                        unimplemented!() // only cast to and from full precision
-                    }
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cast(tensor, desc.out.dtype.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationDescription::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
@@ -1320,22 +1289,36 @@ where
         }
     }
 
-    async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
-        let mut ctx = self.context.lock();
+    fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send {
+        let mut ctx = self.context.lock().unwrap();
 
-        if tensor.dtype.is_float() {
+        enum Output<B: Backend> {
+            Float(B::FloatTensorPrimitive),
+            Int(B::IntTensorPrimitive),
+            Bool(B::BoolTensorPrimitive),
+        }
+
+        let tensor = if tensor.dtype.is_float() {
             let tensor = ctx.handles.get_float_tensor::<B>(&tensor);
-            B::float_into_data(tensor).await
+            Output::<B>::Float(tensor)
         } else if tensor.dtype.is_int() {
             let tensor = ctx.handles.get_int_tensor::<B>(&tensor);
-            B::int_into_data(tensor).await
+            Output::Int(tensor)
         } else if tensor.dtype.is_bool() {
             let tensor = ctx.handles.get_bool_tensor::<B>(&tensor);
-            B::bool_into_data(tensor).await
+            Output::Bool(tensor)
         } else if let DType::QFloat(_) = tensor.dtype {
             todo!()
         } else {
             unimplemented!()
+        };
+
+        async move {
+            match tensor {
+                Output::Float(val) => B::float_into_data(val).await,
+                Output::Int(val) => B::int_into_data(val).await,
+                Output::Bool(val) => B::bool_into_data(val).await,
+            }
         }
     }
 
@@ -1349,8 +1332,8 @@ where
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 
-    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self> {
-        let desc = self.register_float_tensor_desc(shape, full_precision);
+    fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self> {
+        let desc = self.register_float_tensor_desc(shape, dtype);
         RouterTensor::new(Arc::new(desc.id), desc.shape, desc.dtype, self.clone())
     }
 
@@ -1359,11 +1342,15 @@ where
     }
 
     fn register_orphan(&self, id: &TensorId) {
-        self.context.lock().drop_tensor_handle(*id)
+        self.context.lock().unwrap().drop_tensor_handle(*id)
     }
 
-    fn sync(&self) {
-        B::sync(&self.device);
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static {
+        let device = self.device.clone();
+
+        async move {
+            B::sync(&device);
+        }
     }
 
     fn seed(&self, seed: u64) {

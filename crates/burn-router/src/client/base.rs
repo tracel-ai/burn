@@ -11,7 +11,7 @@ use spin::Mutex;
 use burn_tensor::{
     backend::{DeviceId, DeviceOps},
     repr::{OperationDescription, TensorDescription, TensorId},
-    DType, TensorData,
+    DType, FloatDType, TensorData,
 };
 
 use crate::{RouterTensor, RunnerChannel};
@@ -37,13 +37,13 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     /// Create a new [RouterTensor] with no resources associated.
     fn register_empty_tensor(&self, shape: Vec<usize>, dtype: DType) -> RouterTensor<Self>;
     /// Create a new float [RouterTensor] with no resources associated.
-    fn register_float_tensor(&self, shape: Vec<usize>, full_precision: bool) -> RouterTensor<Self>;
+    fn register_float_tensor(&self, shape: Vec<usize>, dtype: FloatDType) -> RouterTensor<Self>;
     /// Get the current device used by all operations handled by this client.
     fn device(&self) -> Self::Device;
     /// Drop the tensor with the given [tensor id](TensorId).
     fn register_orphan(&self, id: &TensorId);
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self);
+    fn sync(&self) -> impl Future<Output = ()> + Send + 'static;
     /// Seed the runner.
     fn seed(&self, seed: u64);
 }

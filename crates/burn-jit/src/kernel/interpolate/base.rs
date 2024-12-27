@@ -16,21 +16,21 @@ use super::{
 ///
 /// Supports nearest, bilinear and bicubic modes
 pub fn interpolate<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
+    input: JitTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let input = into_contiguous(input);
     let [batch_size, channels, _, _] = input.shape.dims();
     let [out_height, out_width] = output_size;
 
     let shape_out = Shape::new([batch_size, channels, out_height, out_width]);
-    let output = empty_device(input.client.clone(), input.device.clone(), shape_out);
+    let output = empty_device::<R, E>(input.client.clone(), input.device.clone(), shape_out);
 
     match options.mode {
-        InterpolateMode::Nearest => interpolate_nearest_launch(input, output),
-        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output),
-        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output),
+        InterpolateMode::Nearest => interpolate_nearest_launch::<R, E>(input, output),
+        InterpolateMode::Bilinear => interpolate_bilinear_launch::<R, E>(input, output),
+        InterpolateMode::Bicubic => interpolate_bicubic_launch::<R, E>(input, output),
     }
 }
 
@@ -38,11 +38,11 @@ pub fn interpolate<R: JitRuntime, E: FloatElement>(
 ///
 /// Note: only nearest mode is supported
 pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
-    out_grad: JitTensor<R, E>,
+    input: JitTensor<R>,
+    out_grad: JitTensor<R>,
     _output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let out_grad = into_contiguous(out_grad);
     let output_shape = input.shape.clone();
     let num_elems = input.shape.num_elements();
@@ -52,10 +52,11 @@ pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
         input.device.clone(),
         output_shape,
         buffer,
+        input.dtype,
     );
 
     match options.mode {
-        InterpolateMode::Nearest => interpolate_nearest_backward_launch(out_grad, output),
+        InterpolateMode::Nearest => interpolate_nearest_backward_launch::<R, E>(out_grad, output),
         InterpolateMode::Bilinear => {
             panic!("bilinear interpolation backward is not supported by JIT backend")
         }

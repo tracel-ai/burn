@@ -28,13 +28,14 @@ pub struct SgdConfig {
 #[derive(Clone)]
 pub struct Sgd<B: Backend> {
     momentum: Option<Momentum<B>>,
-    weight_decay: Option<WeightDecay<B>>,
+    weight_decay: Option<WeightDecay>,
 }
 
 /// State of [Sgd](Sgd).
 #[derive(Record, Clone, new)]
 pub struct SgdState<B: Backend, const D: usize> {
-    momentum: Option<MomentumState<B, D>>,
+    /// The current state of the momentum (if any).
+    pub momentum: Option<MomentumState<B, D>>,
 }
 
 impl SgdConfig {

@@ -6,152 +6,267 @@ use super::{
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, NdArrayTensorFloat};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
 use burn_tensor::ops::*;
 
+macro_rules! module_op {
+    // Module op with inputs (inp), optional (opt) and arguments (args).
+    (inp($($x:tt),+), opt($($opt:tt),*), $element:ident, $op:expr) => {{
+        #[allow(unused_parens, unreachable_patterns)]
+        match ($($x),+) {
+            ($(NdArrayTensorFloat::F32($x)),+) => {
+                type $element = f32;
+                $op(
+                    $($x),+
+                    $(, $opt.map(|o| match o { NdArrayTensorFloat::F32(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                )
+            }
+            ($(NdArrayTensorFloat::F64($x)),+) => {
+                type $element = f64;
+                $op(
+                    $($x),+
+                    $(, $opt.map(|o| match o { NdArrayTensorFloat::F64(val) => val, _ => panic!("Optional argument type mismatch") }))*
+                )
+            }
+            _ => panic!("Data type mismatch"),
+        }
+    }};
+}
+
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Self>
     for NdArray<E, I, Q>
 {
     fn conv2d(
-        x: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        bias: Option<NdArrayTensor<E>>,
+        x: NdArrayTensorFloat,
+        weight: NdArrayTensorFloat,
+        bias: Option<NdArrayTensorFloat>,
         options: ConvOptions<2>,
-    ) -> NdArrayTensor<E> {
-        conv2d::<E, I, Q>(x, weight, bias, options)
+    ) -> NdArrayTensorFloat {
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv2d::<
+            E,
+            I,
+            Q,
+        >(
+            x, weight, bias, options
+        )
+        .into())
     }
 
     fn deform_conv2d(
-        x: NdArrayTensor<E>,
-        offset: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        mask: Option<NdArrayTensor<E>>,
-        bias: Option<NdArrayTensor<E>>,
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
         options: DeformConvOptions<2>,
-    ) -> NdArrayTensor<E> {
-        deform_conv2d::<E>(x, offset, weight, mask, bias, options)
+    ) -> FloatTensor<Self> {
+        module_op!(
+            inp(x, offset, weight),
+            opt(mask, bias),
+            E,
+            |x, offset, weight, mask, bias| deform_conv2d::<E>(
+                x, offset, weight, mask, bias, options
+            )
+            .into()
+        )
     }
 
     fn deform_conv2d_backward(
-        x: NdArrayTensor<E>,
-        offset: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        mask: Option<NdArrayTensor<E>>,
-        bias: Option<NdArrayTensor<E>>,
-        output_grad: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
+        offset: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        mask: Option<FloatTensor<Self>>,
+        bias: Option<FloatTensor<Self>>,
+        output_grad: FloatTensor<Self>,
         options: DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
-        deform_conv2d_backward(x, offset, weight, mask, bias, output_grad, options)
+        module_op!(
+            inp(x, offset, weight, output_grad),
+            opt(mask, bias),
+            E,
+            |x, offset, weight, output_grad, mask, bias| {
+                let (x, offset, weight, mask, bias) = deform_conv2d_backward::<E, I, Q>(
+                    x,
+                    offset,
+                    weight,
+                    mask,
+                    bias,
+                    output_grad,
+                    options,
+                );
+                DeformConv2dBackward::new(
+                    x.into(),
+                    offset.into(),
+                    weight.into(),
+                    mask.map(|m| m.into()),
+                    bias.map(|b| b.into()),
+                )
+            }
+        )
     }
 
     fn conv_transpose2d(
-        x: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        bias: Option<NdArrayTensor<E>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<2>,
-    ) -> NdArrayTensor<E> {
-        conv_transpose2d(x, weight, bias, options)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
+            conv_transpose2d::<E>(x, weight, bias, options).into()
+        })
     }
 
     fn avg_pool2d(
-        x: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> NdArrayTensor<E> {
-        avg_pool2d(x, kernel_size, stride, padding, count_include_pad)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| avg_pool2d::<E>(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad
+        )
+        .into())
     }
 
     fn avg_pool2d_backward(
-        x: NdArrayTensor<E>,
-        grad: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
-    ) -> NdArrayTensor<E> {
-        avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, grad), opt(), E, |x, grad| avg_pool2d_backward::<E>(
+            x,
+            grad,
+            kernel_size,
+            stride,
+            padding,
+            count_include_pad
+        )
+        .into())
     }
 
     fn max_pool2d(
-        x: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> NdArrayTensor<E> {
-        max_pool2d::<E, I, Q>(x, kernel_size, stride, padding, dilation)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| max_pool2d::<E, I, Q>(
+            x,
+            kernel_size,
+            stride,
+            padding,
+            dilation
+        )
+        .into())
     }
 
     fn max_pool2d_with_indices(
-        x: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
-        let (output, indices) =
-            max_pool2d_with_indices::<E, I, Q>(x, kernel_size, stride, padding, dilation);
-
-        MaxPool2dWithIndices::new(output, indices)
+        module_op!(inp(x), opt(), E, |x| {
+            let (output, indices) =
+                max_pool2d_with_indices::<E, I, Q>(x, kernel_size, stride, padding, dilation);
+            MaxPool2dWithIndices::new(output.into(), indices)
+        })
     }
 
     fn max_pool2d_with_indices_backward(
-        x: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-        output_grad: NdArrayTensor<E>,
+        output_grad: FloatTensor<Self>,
         indices: NdArrayTensor<I>,
     ) -> MaxPool2dBackward<NdArray<E, I, Q>> {
-        MaxPool2dBackward::new(max_pool2d_backward(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            dilation,
-            output_grad,
-            indices,
-        ))
+        module_op!(inp(x, output_grad), opt(), E, |x, output_grad| {
+            let output = max_pool2d_backward::<E, I>(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                output_grad,
+                indices,
+            );
+            MaxPool2dBackward::new(output.into())
+        })
     }
 
-    fn adaptive_avg_pool2d(x: NdArrayTensor<E>, output_size: [usize; 2]) -> NdArrayTensor<E> {
-        adaptive_avg_pool2d(x, output_size)
+    fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
+        module_op!(inp(x), opt(), E, |x| adaptive_avg_pool2d::<E>(
+            x,
+            output_size
+        )
+        .into())
     }
 
     fn adaptive_avg_pool2d_backward(
-        x: NdArrayTensor<E>,
-        grad: NdArrayTensor<E>,
-    ) -> NdArrayTensor<E> {
-        adaptive_avg_pool2d_backward(x, grad)
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, grad), opt(), E, |x, grad| {
+            adaptive_avg_pool2d_backward::<E>(x, grad).into()
+        })
     }
 
     fn interpolate(
-        x: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> NdArrayTensor<E> {
+    ) -> FloatTensor<Self> {
         match options.mode {
-            InterpolateMode::Nearest => nearest_interpolate(x, output_size),
-            InterpolateMode::Bilinear => bilinear_interpolate(x, output_size),
-            InterpolateMode::Bicubic => bicubic_interpolate(x, output_size),
+            InterpolateMode::Nearest => {
+                module_op!(inp(x), opt(), E, |x| nearest_interpolate::<E>(
+                    x,
+                    output_size
+                )
+                .into())
+            }
+            InterpolateMode::Bilinear => {
+                module_op!(inp(x), opt(), E, |x| bilinear_interpolate::<E>(
+                    x,
+                    output_size
+                )
+                .into())
+            }
+            InterpolateMode::Bicubic => {
+                module_op!(inp(x), opt(), E, |x| bicubic_interpolate::<E>(
+                    x,
+                    output_size
+                )
+                .into())
+            }
         }
     }
 
     fn interpolate_backward(
-        x: NdArrayTensor<E>,
-        grad: NdArrayTensor<E>,
+        x: FloatTensor<Self>,
+        grad: FloatTensor<Self>,
         output_size: [usize; 2],
         options: InterpolateOptions,
-    ) -> NdArrayTensor<E> {
+    ) -> FloatTensor<Self> {
         match options.mode {
-            InterpolateMode::Nearest => nearest_interpolate_backward(x, grad, output_size),
+            InterpolateMode::Nearest => module_op!(inp(x, grad), opt(), E, |x, grad| {
+                nearest_interpolate_backward::<E>(x, grad, output_size).into()
+            }),
             InterpolateMode::Bilinear => {
                 panic!("bilinear interpolation backward is not supported for ndarray backend")
             }
@@ -162,20 +277,29 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
     }
 
     fn conv3d(
-        x: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        bias: Option<NdArrayTensor<E>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
-    ) -> NdArrayTensor<E> {
-        conv3d::<E, I, Q>(x, weight, bias, options)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv3d::<
+            E,
+            I,
+            Q,
+        >(
+            x, weight, bias, options
+        )
+        .into())
     }
 
     fn conv_transpose3d(
-        x: NdArrayTensor<E>,
-        weight: NdArrayTensor<E>,
-        bias: Option<NdArrayTensor<E>>,
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
         options: ConvTransposeOptions<3>,
-    ) -> NdArrayTensor<E> {
-        conv_transpose3d(x, weight, bias, options)
+    ) -> FloatTensor<Self> {
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
+            conv_transpose3d::<E>(x, weight, bias, options).into()
+        })
     }
 }

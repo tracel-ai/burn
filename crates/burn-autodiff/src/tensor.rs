@@ -6,13 +6,23 @@ use crate::{
     graph::{ComputingProperty, Node, NodeID, NodeRef, Requirement, Step},
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
-use burn_tensor::backend::Backend;
+use burn_tensor::{backend::Backend, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
     pub primitive: B::FloatTensorPrimitive,
     pub node: NodeRef,
     pub rc: NodeRefCount,
+}
+
+impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
+    fn dtype(&self) -> burn_tensor::DType {
+        self.primitive.dtype()
+    }
+
+    fn shape(&self) -> burn_tensor::Shape {
+        self.primitive.shape()
+    }
 }
 
 pub type NodeRefCount = Arc<NodeID>;

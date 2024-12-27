@@ -16,10 +16,13 @@ pub struct FuseOnWriteTraceBuilder {
     scalars: BTreeMap<ElemwisePrecision, u32>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
+    pub bool_precision: ElemwisePrecision,
+    outputs_unhandled: Vec<Arg>,
+    inputs_unhandled: Vec<TensorId>,
 }
 
 impl FuseOnWriteTraceBuilder {
-    pub fn new() -> Self {
+    pub fn new(bool_precision: ElemwisePrecision) -> Self {
         Self {
             locals: Locals::default(),
             outputs: RegisteredTensors::default(),
@@ -27,6 +30,9 @@ impl FuseOnWriteTraceBuilder {
             scalars: BTreeMap::default(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
+            bool_precision,
+            outputs_unhandled: Vec::new(),
+            inputs_unhandled: Vec::new(),
         }
     }
 
@@ -40,18 +46,39 @@ impl FuseOnWriteTraceBuilder {
         let meta = 1;
         let inputs = self.inputs.len() as u32;
         let outputs = self.output_tensors().len() as u32;
-        // In the future, scalars could be packed into 1 bufer or into the metadata, but currently take up
+        // In the future, scalars could be packed into 1 buffer or into the metadata, but currently take up
         // one slot per scalar.
         let scalar = self.scalars.len() as u32;
         meta + inputs + outputs + scalar
     }
 
+    pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        let arg = self.output(tensor);
+        self.outputs_unhandled.push(arg);
+        arg
+    }
+
+    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+        let new_input = self.inputs.insert(precision_input, tensor.clone());
+        let arg = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+
+        self.inputs_unhandled.push(tensor.id);
+        arg
+    }
+
     pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as u32.
+        // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
-            ElemwisePrecision::Bool => ElemwisePrecision::U32,
+            ElemwisePrecision::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -82,9 +109,9 @@ impl FuseOnWriteTraceBuilder {
     pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as u32.
+        // Bool tensors are encoded as bool_precision.
         let precision_output = match precision {
-            ElemwisePrecision::Bool => ElemwisePrecision::U32,
+            ElemwisePrecision::Bool => self.bool_precision,
             _ => precision,
         };
 
@@ -103,9 +130,9 @@ impl FuseOnWriteTraceBuilder {
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
 
-        // Bool scalars are encoded as u32.
+        // Bool scalars are encoded as bool_precision.
         let precision = match precision {
-            ElemwisePrecision::Bool => ElemwisePrecision::U32,
+            ElemwisePrecision::Bool => self.bool_precision,
             _ => precision,
         };
         let new_index = self.scalars.get(&precision).copied().unwrap_or(0);
@@ -139,7 +166,15 @@ impl FuseOnWriteTraceBuilder {
         }
 
         // Current problem is that I need btreemap instead of sequences.
-        FuseOnWriteTrace::new(outputs, inputs, scalars, ops, reads, writes)
+        FuseOnWriteTrace::new(
+            outputs,
+            inputs,
+            scalars,
+            ops,
+            reads,
+            writes,
+            self.inputs_unhandled.clone(),
+        )
     }
 
     fn output_tensors(&self) -> RegisteredTensors {
@@ -154,9 +189,9 @@ impl FuseOnWriteTraceBuilder {
         let mark = |var: &Arg, list: &mut Vec<(TensorId, ElemwisePrecision)>| {
             if let Arg::Local(index, precision) = var {
                 if let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index) {
-                    // Input and outputs tensors are using u32 for booleans.
+                    // Input and outputs tensors are using bool_precision for booleans.
                     let precision = match precision {
-                        ElemwisePrecision::Bool => ElemwisePrecision::U32,
+                        ElemwisePrecision::Bool => self.bool_precision,
                         _ => *precision,
                     };
 
@@ -305,6 +340,10 @@ impl FuseOnWriteTraceBuilder {
 
         for op in self.ops.iter() {
             mark_op(op);
+        }
+
+        for arg in self.outputs_unhandled.iter() {
+            mark(arg, &mut local_tensor_ids_output);
         }
 
         // All output tensors that are never read by a following operation should be written to

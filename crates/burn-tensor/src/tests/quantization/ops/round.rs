@@ -1,21 +1,14 @@
 #[burn_tensor_testgen::testgen(q_round)]
 mod tests {
     use super::*;
-    use burn_tensor::quantization::{AffineQuantization, QuantizationStrategy};
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_support_round_ops() {
-        let data = TensorData::quantized(
-            // [[24.0423, 87.9478, 76.1838], [59.6929, 43.8169, 94.8826]]
-            vec![-63, 108, 76, 32, -10, 127],
-            [2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                0.3725856688608348,
-                -128,
-            )),
-        );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = QTensor::<TestBackend, 2>::int8([
+            [24.0423, 87.9478, 76.1838],
+            [59.6929, 43.8169, 94.8826],
+        ]);
 
         let output = tensor.round();
         let expected = TensorData::from([[24., 88., 76.], [60., 44., 95.]]);
@@ -25,19 +18,13 @@ mod tests {
 
     #[test]
     fn should_round_ties_even() {
-        let data = TensorData::quantized(
-            // [1.5, 2.5, 3.5, 4.5, 5.5, 6.5]
-            vec![-69i8, -30, 9, 48, 87, 127],
-            [2, 3],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                0.02552864282968089,
-                -128,
-            )),
-        );
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        // NOTE: round ties to even only affects values that are exact halfway from ceil/floor, so quantization
+        // errors can impact this. This basically only guarantees the values for the max value in the range since
+        // it is always represented correctly.
+        let tensor = QTensor::<TestBackend, 1>::int8([5.5]);
 
         let output = tensor.round();
-        let expected = TensorData::from([[2., 3., 3.], [4., 5., 7.]]);
+        let expected = TensorData::from([6.]);
 
         output.into_data().assert_approx_eq(&expected, 3);
     }

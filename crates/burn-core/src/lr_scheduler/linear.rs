@@ -1,4 +1,4 @@
-use super::LrScheduler;
+use super::{LrScheduler, String};
 use crate as burn;
 use crate::{config::Config, LearningRate};
 use burn_tensor::backend::Backend;
@@ -22,27 +22,29 @@ pub struct LinearLrSchedulerConfig {
 impl LinearLrSchedulerConfig {
     /// Initializes a [linear learning rate scheduler](LinearLrScheduler).
     ///
-    /// # Panics
-    /// This function panics if `initial_lr` and `final_lr` are not between 0 and 1.
-    pub fn init(&self) -> LinearLrScheduler {
-        assert!(
-            self.initial_lr > 0. && self.initial_lr <= 1.,
-            "Initial learning rate must be greater than 0 and at most 1"
-        );
-        assert!(
-            self.final_lr >= 0. && self.final_lr <= 1.,
-            "Final learning rate must be at least 0 and at most 1"
-        );
-        assert!(
-            self.num_iters > 0,
-            "Number of iterations must be at least 1"
-        );
+    /// # Errors
+    ///
+    /// An error will be returned if any of the following conditions is true:
+    ///
+    /// * `initial_lr` is out of range (0.0, 1.0]
+    /// * `final_lr` is out of range [0.0, 1.0]
+    /// * `num_iters` is 0
+    pub fn init(&self) -> Result<LinearLrScheduler, String> {
+        if self.initial_lr <= 0. || self.initial_lr > 1. {
+            return Err("Initial learning rate must be greater than 0 and at most 1".into());
+        }
+        if self.final_lr < 0. || self.final_lr > 1. {
+            return Err("Final learning rate must be at least 0 and at most 1".into());
+        }
+        if self.num_iters == 0 {
+            return Err("Number of iterations must be at least 1".into());
+        }
 
-        LinearLrScheduler {
+        Ok(LinearLrScheduler {
             final_lr: self.final_lr,
             step_size: (self.final_lr - self.initial_lr) / self.num_iters as f64,
             remaining_iters: self.num_iters + 1,
-        }
+        })
     }
 }
 
@@ -83,71 +85,87 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_low() {
-        LinearLrSchedulerConfig::new(0., 0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0., 0.5, 100).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Initial learning rate must be greater than 0 and at most 1"]
     fn config_initial_lr_too_high() {
-        LinearLrSchedulerConfig::new(1.5, 0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(1.5, 0.5, 100).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Initial learning rate must be greater than 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Final learning rate must be at least 0 and at most 1"]
     fn config_final_lr_too_low() {
-        LinearLrSchedulerConfig::new(0.5, -0.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0.5, -0.5, 100).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Final learning rate must be at least 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Final learning rate must be at least 0 and at most 1"]
     fn config_final_lr_too_high() {
-        LinearLrSchedulerConfig::new(0.5, 1.5, 100).init();
+        let r = LinearLrSchedulerConfig::new(0.5, 1.5, 100).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Final learning rate must be at least 0 and at most 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
-    #[should_panic = "Number of iterations must be at least 1"]
     fn config_num_iters_too_low() {
-        LinearLrSchedulerConfig::new(0.9, 0.1, 0).init();
+        let r = LinearLrSchedulerConfig::new(0.9, 0.1, 0).init();
+        assert!(r.is_err(), "Should return an error");
+        assert_eq!(
+            r.unwrap_err(),
+            "Number of iterations must be at least 1",
+            "Error messages should match",
+        );
     }
 
     #[test]
     fn test_lr_decreasing() {
-        const INITIAL_LR: LearningRate = 0.9;
-        const FINAL_LR: LearningRate = 0.5;
-        const NUM_ITERS: usize = 4;
-        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let scheduler = LinearLrSchedulerConfig::new(0.9, 0.5, 4).init().unwrap();
         let expected_lrs = [0.9, 0.8, 0.7, 0.6, 0.5, 0.5];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_increasing() {
-        const INITIAL_LR: LearningRate = 0.01;
-        const FINAL_LR: LearningRate = 0.04;
-        const NUM_ITERS: usize = 3;
-        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let scheduler = LinearLrSchedulerConfig::new(0.01, 0.04, 3).init().unwrap();
         let expected_lrs = [0.01, 0.02, 0.03, 0.04, 0.04];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_lr_unchanging() {
-        const INITIAL_LR: LearningRate = 0.3;
-        const FINAL_LR: LearningRate = 0.3;
-        const NUM_ITERS: usize = 2;
-        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let scheduler = LinearLrSchedulerConfig::new(0.3, 0.3, 2).init().unwrap();
         let expected_lrs = [0.3, 0.3, 0.3, 0.3];
         test_utils::check_lr_sequence(scheduler, expected_lrs);
     }
 
     #[test]
     fn test_save_and_load() {
-        const INITIAL_LR: LearningRate = 1.0;
-        const FINAL_LR: LearningRate = 0.01;
         const NUM_ITERS: usize = 6;
-        let scheduler = LinearLrSchedulerConfig::new(INITIAL_LR, FINAL_LR, NUM_ITERS).init();
+        let scheduler = LinearLrSchedulerConfig::new(1.0, 0.01, NUM_ITERS)
+            .init()
+            .unwrap();
         test_utils::check_save_load(scheduler, NUM_ITERS / 3 * 2);
     }
 }

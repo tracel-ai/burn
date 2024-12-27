@@ -9,7 +9,7 @@ struct ParamIdCollector<'a, M> {
     phantom: PhantomData<M>,
 }
 
-impl<'a, B, M> ModuleVisitor<B> for ParamIdCollector<'a, M>
+impl<B, M> ModuleVisitor<B> for ParamIdCollector<'_, M>
 where
     B: Backend,
     M: Module<B>,

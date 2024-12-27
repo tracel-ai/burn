@@ -12,19 +12,21 @@ use cubecl::hip::HipRuntime;
 
 #[cfg(target_os = "linux")]
 #[cfg(not(feature = "fusion"))]
-pub type Hip<F = f32, I = i32> = JitBackend<HipRuntime, F, I>;
+pub type Hip<F = f32, I = i32, B = u8> = JitBackend<HipRuntime, F, I, B>;
 
 #[cfg(target_os = "linux")]
 #[cfg(feature = "fusion")]
-pub type Hip<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<HipRuntime, F, I>>;
+pub type Hip<F = f32, I = i32, B = u8> = burn_fusion::Fusion<JitBackend<HipRuntime, F, I, B>>;
 
-#[cfg(target_os = "linux")]
-#[cfg(test)]
-mod tests {
-    use burn_jit::JitBackend;
-
-    pub type TestRuntime = cubecl::hip::HipRuntime;
-    pub use half::{bf16, f16};
-
-    burn_jit::testgen_all!();
-}
+// TODO: Hang the computer when AMD isn't available.
+//
+// #[cfg(target_os = "linux")]
+// #[cfg(test)]
+// mod tests {
+//     use burn_jit::JitBackend;
+//
+//     pub type TestRuntime = cubecl::hip::HipRuntime;
+//     pub use half::{bf16, f16};
+//
+//     burn_jit::testgen_all!();
+// }

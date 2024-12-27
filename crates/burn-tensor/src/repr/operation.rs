@@ -15,8 +15,6 @@ use crate::{
     DType, Distribution, Element,
 };
 
-use super::{QuantizationParametersDescription, QuantizedTensorDescription};
-
 /// Custom operation in fusion stream, declaring it's inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct CustomOpDescription {
@@ -941,6 +939,15 @@ pub struct ConvTranspose3dOptionsDescription {
     pub groups: usize,
 }
 
+/// Quantization parameters description.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuantizationParametersDescription {
+    /// The scaling factor.
+    pub scale: TensorDescription,
+    /// The zero-point offset.
+    pub offset: Option<TensorDescription>,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct QuantizeOperationDescription {
@@ -953,7 +960,7 @@ pub struct QuantizeOperationDescription {
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct DequantizeOperationDescription {
-    pub qtensor: QuantizedTensorDescription,
+    pub input: TensorDescription,
     pub out: TensorDescription,
 }
 
@@ -1584,18 +1591,7 @@ impl FloatOperationDescription {
                     vec![&desc.tensor, &desc.qparams.scale, &desc.out]
                 }
             }
-            FloatOperationDescription::Dequantize(desc) => {
-                if let Some(offset) = &desc.qtensor.qparams.offset {
-                    vec![
-                        &desc.qtensor.tensor,
-                        &desc.qtensor.qparams.scale,
-                        &offset,
-                        &desc.out,
-                    ]
-                } else {
-                    vec![&desc.qtensor.tensor, &desc.qtensor.qparams.scale, &desc.out]
-                }
-            }
+            FloatOperationDescription::Dequantize(desc) => vec![&desc.input, &desc.out],
         }
     }
 }

@@ -38,9 +38,9 @@ pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Numeric, EO: N
 
 /// Executes the naive kernel for reduce dim
 pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
-    input: JitTensor<R, EI>,
+    input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R, EO> {
+) -> JitTensor<R> {
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let cube_dim = CubeDim::default();
@@ -51,8 +51,8 @@ pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, E
             &input.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            input.as_tensor_arg::<EI>(1),
+            output.as_tensor_arg::<EO>(1),
             ScalarArg::new(dim as u32),
         );
     }

@@ -1,4 +1,4 @@
-use crate::{PrecisionBridge, QuantElement, TchQTensor};
+use crate::{QuantElement, TchQTensor};
 
 use super::element::TchElement;
 use super::TchTensor;
@@ -93,17 +93,17 @@ pub struct LibTorch<E = f32, Q = i8> {
 
 impl<E: TchElement, Q: QuantElement> Backend for LibTorch<E, Q> {
     type Device = LibTorchDevice;
-    type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive = TchTensor<E>;
+    type FloatTensorPrimitive = TchTensor;
     type FloatElem = E;
 
-    type IntTensorPrimitive = TchTensor<i64>;
+    type IntTensorPrimitive = TchTensor;
     type IntElem = i64;
 
-    type BoolTensorPrimitive = TchTensor<bool>;
+    type BoolTensorPrimitive = TchTensor;
+    type BoolElem = bool;
 
-    type QuantizedTensorPrimitive = TchQTensor<Q>;
+    type QuantizedTensorPrimitive = TchQTensor;
     type QuantizedEncoding = Q;
 
     fn seed(seed: u64) {

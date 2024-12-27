@@ -4,7 +4,7 @@ use core::{future::Future, ops::Range};
 use crate::{
     backend::Backend,
     quantization::{QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme},
-    Device, Shape, TensorData,
+    Device, Shape, TensorData, TensorMetadata,
 };
 
 use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
@@ -73,17 +73,6 @@ pub trait QTensorOps<B: Backend> {
 
     /// Convert the tensor back to a higher precision data type.
     fn dequantize(tensor: QuantizedTensor<B>) -> FloatTensor<B>;
-
-    /// Gets the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn q_shape(tensor: &QuantizedTensor<B>) -> Shape;
 
     /// Gets the device of the tensor.
     ///
@@ -460,7 +449,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn q_transpose(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let ndims = Self::q_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::q_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -1071,7 +1060,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum element of `tensor`.
     fn q_max(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let shape = B::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::q_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::q_max_dim(tensor, 0)
@@ -1123,7 +1112,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum element of `tensor`.
     fn q_min(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let shape = B::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::q_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::q_min_dim(tensor, 0)
@@ -1198,17 +1187,72 @@ pub trait QTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
-    /// * `chunks` - The number of chunks to be produced
+    /// * `chunks` - The number of chunks to be produced.
     /// * `times` - The dimension along which the tensor will be split.
     ///
     /// # Returns
     ///
-    /// A vector of tensors
+    /// A vector of tensors.
     fn q_chunk(tensor: QuantizedTensor<B>, chunks: usize, dim: usize) -> Vec<QuantizedTensor<B>> {
         let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
         let out_f = B::float_chunk(tensor_f, chunks, dim);
+
+        out_f
+            .into_iter()
+            .map(|tensor| Self::quantize_dynamic(tensor, &scheme))
+            .collect()
+    }
+
+    /// Split the tensor along the given dimension into chunks of `split_size`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_size` - The size of a single chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn q_split(
+        tensor: QuantizedTensor<B>,
+        split_size: usize,
+        dim: usize,
+    ) -> Vec<QuantizedTensor<B>> {
+        let scheme = *tensor.scheme();
+
+        let tensor_f = Self::dequantize(tensor);
+        let out_f = B::float_split(tensor_f, split_size, dim);
+
+        out_f
+            .into_iter()
+            .map(|tensor| Self::quantize_dynamic(tensor, &scheme))
+            .collect()
+    }
+
+    /// Split the tensor along the given dimension into chunks with sizes in
+    /// `dim` according to `split_sizes`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `split_sizes` - Vector of sizes for each chunk.
+    /// * `times` - The dimension along which the tensor will be split.
+    ///
+    /// # Returns
+    ///
+    /// A vector of tensors.
+    fn q_split_with_sizes(
+        tensor: QuantizedTensor<B>,
+        split_sizes: Vec<usize>,
+        dim: usize,
+    ) -> Vec<QuantizedTensor<B>> {
+        let scheme = *tensor.scheme();
+
+        let tensor_f = Self::dequantize(tensor);
+        let out_f = B::float_split_with_sizes(tensor_f, split_sizes, dim);
 
         out_f
             .into_iter()

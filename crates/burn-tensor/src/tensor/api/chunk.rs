@@ -1,4 +1,4 @@
-use super::narrow::narrow;
+use super::{narrow::narrow, TensorMetadata};
 use crate::{backend::Backend, BasicOps, TensorKind};
 use alloc::vec::Vec;
 
@@ -7,16 +7,16 @@ use alloc::vec::Vec;
 /// # Arguments
 ///
 /// * `tensor` - The tensor.
-/// * `chunks` - The number of chunks to be produced
-/// * `times` - The dimension along which the tensor will be split.
+/// * `chunks` - The number of chunks to be produced.
+/// * `dim` - The dimension along which the tensor will be split.
 ///
 /// # Returns
 ///
-/// A vectors of tensors
+/// A vectors of tensors.
 ///
 /// # Remarks
 ///
-/// This is a fallback solution that used only when the backend doesn't have the corresponding implementation.
+/// This is a fallback solution that is used only when the backend doesn't have the corresponding implementation.
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
@@ -25,7 +25,7 @@ pub fn chunk<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     chunks: usize,
     dim: usize,
 ) -> Vec<K::Primitive> {
-    let size = K::shape(&tensor).dims[dim];
+    let size = tensor.shape().dims[dim];
     if size < chunks {
         return (0..size)
             .map(|i| narrow::<B, K>(tensor.clone(), dim, i, 1))

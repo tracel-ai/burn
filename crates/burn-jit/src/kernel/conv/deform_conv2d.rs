@@ -1,18 +1,22 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, DeformConvOptions, FloatTensorOps as _},
+    ops::{conv::calculate_conv_output_size, DeformConvOptions},
     Shape,
 };
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous, launch_binop,
+        matmul::{matmul, MatmulStrategy},
+        AddOp,
+    },
     ops::{
         numeric::{ones_device, zeros_device},
         reshape, swap_dims,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, JitRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -183,13 +187,13 @@ pub(crate) fn bilinear_interpolate<F: Float>(
 }
 
 pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
+    input: JitTensor<R>,
+    offset: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
     options: DeformConvOptions<2>,
     out_dims: (usize, usize),
     kernel_dims: (usize, usize),
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
 
@@ -202,10 +206,10 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
         batch_size * out_height * out_width,
     ]);
 
-    let output = zeros_device(client.clone(), device.clone(), shape_out.clone());
+    let output = zeros_device::<R, E>(client.clone(), device.clone(), shape_out.clone());
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
-        ones_device(
+        ones_device::<R, E>(
             client.clone(),
             device.clone(),
             Shape::new([
@@ -251,14 +255,14 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
     output
 }
 
-pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R, E>,
-    offset: JitTensor<R, E>,
-    weight: JitTensor<R, E>,
-    mask: Option<JitTensor<R, E>>,
-    bias: Option<JitTensor<R, E>>,
+pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
+    input: JitTensor<R>,
+    offset: JitTensor<R>,
+    weight: JitTensor<R>,
+    mask: Option<JitTensor<R>>,
+    bias: Option<JitTensor<R>>,
     options: DeformConvOptions<2>,
-) -> JitTensor<R, E> {
+) -> JitTensor<R> {
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);
@@ -285,7 +289,8 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     );
     let out_dims = (out_h, out_w);
 
-    let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
+    let columns =
+        deform_im2col::<R, E>(input, offset, mask, options, out_dims, (kernel_h, kernel_w));
 
     let [col_size_0, col_size_1] = columns.shape.dims();
     let col_size_0 = col_size_0 / groups;
@@ -293,24 +298,15 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = JitBackend::<R, E, I>::float_matmul(weight, columns);
+    let out = matmul::<R, E>(weight, columns, None, MatmulStrategy::default());
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        JitBackend::<R, E, I>::float_add(out, bias)
+        launch_binop::<R, E, AddOp>(out, bias)
     } else {
         out
     }
-}
-
-pub(crate) fn index<R: JitRuntime, E: FloatElement, I: IntElement>(
-    tensor: JitTensor<R, E>,
-    index: usize,
-) -> JitTensor<R, E> {
-    let [_, shape_0, shape_1] = tensor.shape.dims();
-    let tensor = JitBackend::<R, E, I>::float_narrow(tensor, 0, index, 1);
-    reshape(tensor, Shape::new([shape_0, shape_1]))
 }

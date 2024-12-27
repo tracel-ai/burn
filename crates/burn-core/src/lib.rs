@@ -48,6 +48,7 @@ pub use burn_remote::server;
 
 extern crate alloc;
 
+/// Backend for test cases
 #[cfg(all(
     test,
     not(feature = "test-tch"),
@@ -65,6 +66,7 @@ pub type TestBackend = burn_wgpu::Wgpu;
 #[cfg(all(test, feature = "test-cuda"))]
 pub type TestBackend = burn_cuda::Cuda;
 
+/// Backend for autodiff test cases
 #[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;

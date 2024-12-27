@@ -67,7 +67,7 @@ mod tests {
     fn should_be_zero() {
         let device = Default::default();
         let lhs = Tensor::<TestBackend, 1>::from_data(TensorData::from([0.0, 0.0, 0.0]), &device);
-        let rhs = Tensor::<TestBackend, 1>::from_data(TensorData::from([3.5, -2.1, 1e-5]), &device);
+        let rhs = Tensor::<TestBackend, 1>::from_data(TensorData::from([3.5, -2.1, 1e-4]), &device);
 
         let output = lhs.remainder(rhs);
         let expected = TensorData::from([0.0, 0.0, 0.0]);
