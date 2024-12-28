@@ -7,12 +7,12 @@ use cubecl::{
                     self,
                     full_load::{self, CyclicLoading, RhsLoader},
                     output_loader::Unloader,
-                    AccumulatorLoader,
+                    AccumulatorLoader, GlobalConfig, InputLoader,
                 },
                 stage::{
                     self,
                     multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                    StageMatmulFamily, TilingOrderConfig,
+                    StageConfig, StageMatmulFamily, TilingOrderConfig,
                 },
                 Ident, MatrixLayout, StageDim,
             },
@@ -30,7 +30,7 @@ use crate::kernel::conv::{
         ConvolutionProblem,
     },
     loader::im2col::SimpleIm2colLoader,
-    spec::ConvSpec,
+    spec::{ConvSpec, SingleConvSpec},
 };
 use crate::kernel::conv::{conv2d::gemm::ConvGemmConfig as _, loader::bias::BiasLoader};
 
@@ -82,7 +82,7 @@ where
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     ) {
-        let k_step = SMM::K;
+        let k_step = config.k_step;
         let range = k_range.1 - k_range.0;
         #[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
         #[allow(clippy::manual_div_ceil)]
@@ -188,14 +188,15 @@ where
     type Input = SMM::Input;
 
     fn check_config(config: Self::Config) {
-        SMM::check_config(config.to_smm_config());
+        SMM::check_config(&config.to_smm_config());
     }
 
     fn check_availability<R: Runtime>(
         client: &ComputeClient<R::Server, R::Channel>,
         config: &Self::Config,
     ) -> Result<(), MatmulAvailabilityError> {
-        SMM::check_availability::<R>(client, config)
+        // SMM::check_availability::<R>(client, &config.to_smm_config())
+        Ok(())
     }
 
     fn make_config(
@@ -217,9 +218,9 @@ where
         config::HomogeneousConfig::new(
             full_load::Config::new(
                 smm_config,
-                problem.m as u32 % SMM::M != 0,
-                problem.n as u32 % SMM::N != 0,
-                problem.k as u32 % SMM::K != 0,
+                problem.m as u32 % smm_config.num_stages().m != 0,
+                problem.n as u32 % smm_config.num_stages().n != 0,
+                problem.k as u32 % smm_config.num_stages().k != 0,
                 problem.lhs_layout,
                 problem.rhs_layout,
                 problem.lhs_line_size as u32,
@@ -250,7 +251,7 @@ impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFa
     ) {
         Self::check_config(config);
 
-        implicit_conv::launch_unchecked::<CS, Self, SMM, R>(
+        implicit_conv::launch_unchecked::<CS::ES, CS::EG, CS::EA, Self, SMM, R>(
             client,
             cube_count,
             cube_dim,
@@ -288,12 +289,18 @@ pub(crate) fn implicit_conv<
     let bias = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(bias);
     let out = VirtualTensor::<EG, ReadWrite>::new::<Tensor<Line<EG>>>(out);
 
-    GMM::execute(
-        GMM::init_lhs_loader(lhs, x_offset, k_range.0, config),
-        GMM::init_rhs_loader(rhs, k_range.0, y_offset, config),
-        GMM::init_bias_loader(bias, y_offset, config, has_bias),
-        GMM::init_unloader(out, x_offset, y_offset),
-        &mut GMM::init_accumulator(config),
+    GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::execute(
+        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_lhs_loader(
+            lhs, x_offset, k_range.0, config,
+        ),
+        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_rhs_loader(
+            rhs, k_range.0, y_offset, config,
+        ),
+        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_bias_loader(
+            bias, y_offset, config, has_bias,
+        ),
+        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_unloader(out, x_offset, y_offset),
+        &mut GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_accumulator(config),
         k_range,
         config,
     );

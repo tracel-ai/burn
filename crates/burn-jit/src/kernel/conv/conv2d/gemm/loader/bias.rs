@@ -5,7 +5,7 @@ use cubecl::{
         matmul::components::{
             global::AccumulatorLoader,
             stage::{Stage, StageConfig},
-            tile::TileMatmul,
+            tile::{TileConfig, TileMatmul},
             Ident,
         },
         tensor::VirtualTensor,
@@ -56,7 +56,7 @@ impl<CS: ConvSpec, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for Bias
     ) {
         if this.has_bias {
             let line_size = config.line_size(Ident::Out);
-            let tile_elems = Tile::N / line_size;
+            let tile_elems = config.size().n / line_size;
             let start = tile_n * tile_elems;
             let slice = this.stage.as_slice_mut().slice(start, start + tile_elems);
             Tile::fill_accumulator(&slice, acc, 0, config);

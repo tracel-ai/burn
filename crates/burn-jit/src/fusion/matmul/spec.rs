@@ -13,8 +13,6 @@ pub struct FusedMatmulSpec<const PLANE_DIM: u32, EG: Numeric, ES: Numeric, EA: N
 impl<EG: Numeric, ES: Numeric, EA: Numeric, const PLANE_DIM: u32> MatmulSpec
     for FusedMatmulSpec<PLANE_DIM, EG, ES, EA>
 {
-    const PLANE_DIM: u32 = PLANE_DIM;
-
     type EG = EG;
     type ES = ES;
     type EA = EA;

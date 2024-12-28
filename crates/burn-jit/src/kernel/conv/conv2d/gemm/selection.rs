@@ -4,7 +4,9 @@ use super::{
 };
 use crate::JitRuntime;
 use cubecl::linalg::matmul::components::{
-    stage::CommonStageInput, tile::accelerated::Accelerated, MatmulSelection, MatmulSize,
+    stage::CommonStageInput,
+    tile::{accelerated::Accelerated, TileMatmulFamily},
+    MatmulSelection, MatmulSize,
 };
 
 pub struct ConvSelection {
@@ -45,7 +47,7 @@ impl ConvSelector<ImplicitCmmaConv> for Large {
 
         let selection = ConvSelection { matmul: selection };
 
-        Ok((selection, config_input))
+        (selection, config_input)
     }
 }
 
@@ -72,6 +74,6 @@ impl ConvSelector<ImplicitCmmaConv> for Balanced {
 
         let selection = ConvSelection { matmul: selection };
 
-        Ok((selection, config_input))
+        (selection, config_input)
     }
 }

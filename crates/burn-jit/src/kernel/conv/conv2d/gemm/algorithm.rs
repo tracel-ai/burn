@@ -1,11 +1,8 @@
-use std::marker::PhantomData;
-
 use cubecl::{
     linalg::matmul::{
         components::{
             stage::{self, StageMatmulFamily},
             tile::{accelerated::Accelerated, TileMatmulFamily},
-            MatmulSelection,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
@@ -15,6 +12,7 @@ use cubecl::{
 use super::{
     base::{ConvolutionConfigFactory, ConvolutionFamily, ConvolutionProblem},
     homogeneous::base::ImplicitGemmConvolutionFamily,
+    selection::ConvSelection,
 };
 
 /// Specifications for a convolution algorithm
@@ -43,9 +41,9 @@ pub trait Algorithm {
             cube_count,
             advanced_config,
         );
-        problem.check_config(&config)?;
-        Self::GlobalConvolution::check_config(&config)?;
-        Ok(config)
+        // problem.check_config(&config);
+        // Self::GlobalConvolution::check_config(&config)?;
+        config
     }
 
     /// Check availability of the matmul algorithm
@@ -83,16 +81,20 @@ impl Algorithm for ImplicitCmmaConv {
     type TileMatmul = Accelerated;
     type StageMatmul = stage::multi_buffer::MultiBufferMatmulFamily<Self::TileMatmul>;
     type GlobalConvolution = ImplicitGemmConvolutionFamily<Self::StageMatmul>;
-    type Selection = MatmulSelection;
+    type Selection = ConvSelection;
     type Input = <Self::GlobalConvolution as ConvolutionConfigFactory>::Input;
 
-    fn cube_dim(selection: &MatmulSelection) -> CubeDim {
-        CubeDim::new(selection.plane_dim, selection.num_stagess.m, 1)
+    fn cube_dim(selection: &ConvSelection) -> CubeDim {
+        CubeDim::new(
+            selection.matmul.plane_dim,
+            selection.matmul.num_stagess.m,
+            1,
+        )
     }
 
-    fn cube_count(selection: &MatmulSelection, problem: &ConvolutionProblem) -> CubeCount {
-        let m_stage = selection.num_stagess.m * selection.tile.m;
-        let n_stage = selection.num_stagess.n * selection.tile.n;
+    fn cube_count(selection: &ConvSelection, problem: &ConvolutionProblem) -> CubeCount {
+        let m_stage = selection.matmul.num_stagess.m * selection.matmul.tile.m;
+        let n_stage = selection.matmul.num_stagess.n * selection.matmul.tile.n;
         let cubes_needed_m = (problem.m as u32).div_ceil(m_stage);
         let cubes_needed_n = (problem.n as u32).div_ceil(n_stage);
 

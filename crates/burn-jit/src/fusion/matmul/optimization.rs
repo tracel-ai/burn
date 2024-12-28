@@ -9,7 +9,6 @@ use burn_tensor::repr::{BinaryOperationDescription, TensorStatus};
 use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::{CmmaSelector, PlaneMmaSelector};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};

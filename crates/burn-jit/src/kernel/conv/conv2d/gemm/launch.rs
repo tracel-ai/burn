@@ -1,15 +1,21 @@
+use std::any::TypeId;
+
 use burn_tensor::{
     ops::{conv::calculate_conv_output_size, ConvOptions},
     Shape,
 };
 use cubecl::{
+    flex32,
     ir::{Elem, FloatKind},
     linalg::matmul::{self, components::MatrixLayout},
     tensor_line_size, tf32, Feature,
 };
 use half::{bf16, f16};
 
-use super::selection::{Balanced, ConvSelector, Large};
+use super::{
+    selection::{Balanced, ConvSelector, Large},
+    spec::{ConvSpec, SingleConvSpec},
+};
 use crate::{
     kernel::{
         conv::{
@@ -23,7 +29,7 @@ use crate::{
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::JitTensor,
-    FloatElement, JitRuntime,
+    FloatElement, JitElement, JitRuntime,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -39,7 +45,7 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    conv2d_gemm_with_algo::<R, F, ImplicitCmmaConv, Large>(input, weight, bias, options)
+    conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Large>(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -55,7 +61,32 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    conv2d_gemm_with_algo::<R, F, ImplicitCmmaConv, Balanced>(input, weight, bias, options)
+    conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Balanced>(input, weight, bias, options)
+}
+
+fn conv2d_gemm_cmma_strategy<
+    R: JitRuntime,
+    F: FloatElement,
+    Alg: Algorithm,
+    S: ConvSelector<Alg>,
+>(
+    input: JitTensor<R>,
+    weight: JitTensor<R>,
+    bias: Option<JitTensor<R>>,
+    options: ConvOptions<2>,
+) -> JitTensor<R> {
+    if TypeId::of::<F>() == TypeId::of::<flex32>() {
+        conv2d_gemm_with_algo::<R, SingleConvSpec<F, f16, f32>, Alg, S>(
+            input, weight, bias, options,
+        )
+    } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
+    {
+        conv2d_gemm_with_algo::<R, SingleConvSpec<F, F, f32>, Alg, S>(input, weight, bias, options)
+    } else {
+        conv2d_gemm_with_algo::<R, SingleConvSpec<F, tf32, f32>, Alg, S>(
+            input, weight, bias, options,
+        )
+    }
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -67,17 +98,15 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
 /// * `options` - The options to use for the convolution
 ///
 ///
-pub fn conv2d_gemm_with_algo<
-    R: JitRuntime,
-    F: FloatElement,
-    Alg: Algorithm,
-    S: ConvSelector<Alg>,
->(
+pub fn conv2d_gemm_with_algo<R: JitRuntime, SP: ConvSpec, Alg: Algorithm, S: ConvSelector<Alg>>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> JitTensor<R>
+where
+    SP::EG: JitElement,
+{
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -97,7 +126,7 @@ pub fn conv2d_gemm_with_algo<
     );
 
     let input = match input.is_contiguous() {
-        true => nchw_to_nhwc::<R, F>(input),
+        true => nchw_to_nhwc::<R, SP::EG>(input),
         false => into_contiguous(permute(input, &[0, 2, 3, 1])),
     };
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
@@ -110,13 +139,13 @@ pub fn conv2d_gemm_with_algo<
     let weight = reshape(weight, Shape::new([gemm_k, gemm_n]));
 
     let out_shape = Shape::new([gemm_m, gemm_n]);
-    let out = empty_device::<R, F>(input.client.clone(), input.device.clone(), out_shape);
+    let out = empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), out_shape);
 
     // Target 128 bit accesses
     let available_vectorizations = R::supported_line_sizes()
         .iter()
         .copied()
-        .filter(|it| *it as usize * size_of::<F>() <= 16)
+        .filter(|it| *it as usize * size_of::<SP::EG>() <= 16)
         .collect::<Vec<_>>();
     let lhs_line_size = tensor_line_size(
         &available_vectorizations,
@@ -161,31 +190,31 @@ pub fn conv2d_gemm_with_algo<
         None => 32, // To keep compatibility. TODO: Proper error handling.
     };
 
-    let selection = S::select_kernel(plane_dim);
+    let (selection, config_input) = S::select_kernel::<SP, R>(plane_dim);
     let cube_dim = Alg::cube_dim(&selection);
     let cube_count = Alg::cube_count(&selection, &problem);
 
     let advanced_config = Default::default();
     let config = Alg::make_config(
+        config_input,
         &problem,
         &cube_dim,
         &cube_count,
         &advanced_config,
-        selection,
     );
     let bias = bias.unwrap_or_else(|| {
-        empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1]))
+        empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
 
     unsafe {
-        Alg::GlobalConvolution::launch_unchecked::<R>(
+        Alg::GlobalConvolution::launch_unchecked::<SP, R>(
             &input.client,
             cube_dim,
             cube_count,
-            input.as_tensor_arg::<F>(lhs_line_size),
-            weight.as_tensor_arg::<F>(rhs_line_size),
-            bias.as_tensor_arg::<F>(out_line_size),
-            out.as_tensor_arg::<F>(out_line_size),
+            input.as_tensor_arg::<SP::EG>(lhs_line_size),
+            weight.as_tensor_arg::<SP::EG>(rhs_line_size),
+            bias.as_tensor_arg::<SP::EG>(out_line_size),
+            out.as_tensor_arg::<SP::EG>(out_line_size),
             config,
         );
     }

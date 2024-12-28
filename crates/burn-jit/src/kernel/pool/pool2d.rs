@@ -1,24 +1,30 @@
 use core::hash::Hash;
 use cubecl::prelude::*;
 
+pub trait Pool2dDirectStrategyFamily: Send + Sync + 'static {
+    type Indices: LaunchArg;
+    type Config: CubeType + Clone + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
+    type Pool2d<N: Numeric>: Pool2dDirectStrategy<N, Config = Self::Config, Indices = Self::Indices>;
+}
+
 #[cube]
 pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
     type Accumulator: CubeType;
-    type Config: CubeType + Clone + Copy + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
+    type Config: CubeType + Clone + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
 
     type Indices: LaunchArg;
 
-    fn initialize(#[comptime] config: Self::Config) -> Self::Accumulator;
+    fn initialize(#[comptime] config: &Self::Config) -> Self::Accumulator;
 
     fn accumulate(
-        #[comptime] config: Self::Config,
+        #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         index: u32,
         result: N,
     );
 
     fn store(
-        #[comptime] config: Self::Config,
+        #[comptime] config: &Self::Config,
         position: u32,
         output: &mut Tensor<N>,
         output_indices: &mut Self::Indices,
@@ -37,13 +43,13 @@ pub struct Pool2dDirectArgs {
 }
 
 #[cube(launch)]
-pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategy<E>>(
+pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     input: &Tensor<E>,
     output: &mut Tensor<E>,
     indices: &mut S::Indices,
     args: &Pool2dDirectArgs,
     #[comptime] kernel_size: (u32, u32),
-    #[comptime] config: S::Config,
+    #[comptime] config: &S::Config,
 ) {
     let (output_stride_0, output_stride_1, output_stride_2, output_stride_3) = (
         output.stride(0),
@@ -70,7 +76,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategy<E>>(
     let oh = (ABSOLUTE_POS / output_stride_2) % output_shape_2;
     let ow = (ABSOLUTE_POS / output_stride_3) % output_shape_3;
 
-    let mut accumulator = S::initialize(config);
+    let mut accumulator = S::Pool2d::<E>::initialize(config);
 
     let index_input_0 = b * input_stride_0;
     let index_input_1 = c * input_stride_1;
@@ -95,7 +101,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategy<E>>(
 
                 let index_input = index_input_0 + index_input_1 + index_input_2 + index_input_3;
 
-                S::accumulate(
+                S::Pool2d::<E>::accumulate(
                     config,
                     &mut accumulator,
                     index_input_2 + iw_pad,
@@ -105,5 +111,5 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategy<E>>(
         }
     }
 
-    S::store(config, ABSOLUTE_POS, output, indices, accumulator);
+    S::Pool2d::<E>::store(config, ABSOLUTE_POS, output, indices, accumulator);
 }
