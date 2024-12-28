@@ -287,19 +287,19 @@ where
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         // not implemented
         //todo!()
-        numeric::bitwise_and(lhs, rhs)
+        numeric::bitwise_and::<R, I>(lhs, rhs)
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
         // not implemented
         //todo!()
-        numeric::bitwise_and_scalar(lhs, rhs)
+        numeric::bitwise_and_scalar::<R, I>(lhs, rhs)
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         // not implemented
         //todo!()
-        numeric::bitwise_or(lhs, rhs)
+        numeric::bitwise_or::<R, I>(lhs, rhs)
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
@@ -311,7 +311,7 @@ where
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
         // not implemented
         //todo!()
-        numeric::bitwise_xor(lhs, rhs)
+        numeric::bitwise_xor::<R, I>(lhs, rhs)
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
@@ -323,6 +323,6 @@ where
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
         // not implemented
         //todo!()
-        numeric::bitwise_not(tensor)
+        numeric::bitwise_not::<R, I>(tensor)
     }
 }

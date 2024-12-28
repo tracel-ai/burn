@@ -75,7 +75,7 @@ pub enum OperationDescription {
     /// Operation specific to a bool tensor.
     Bool(BoolOperationDescription),
     /// Operation specific to an int tensor.
-    Int(IntOperationDescription),
+    Int(DType, IntOperationDescription<i32>),
     /// Operation specific to a float tensor.
     Float(DType, FloatOperationDescription),
     /// Module operation.
@@ -513,48 +513,41 @@ pub enum NumericOperationDescription<E> {
     /// Float => [powf](crate::ops::FloatTensorOps::float_powf).
     /// Int => [powf](crate::ops::IntTensorOps::int_powf).
     Powf(BinaryOperationDescription),
-    /// Operation corresponding to:
-    ///
-    /// Float => [add](crate::ops::FloatTensorOps::float_add).
-    /// Int => [add](crate::ops::IntTensorOps::int_add).
-    BitwiseAnd(BinaryOperationDescription),
-    /// Operation corresponding to:
-    ///
-    /// Float => [div scalar](crate::ops::FloatTensorOps::float_div_scalar).
-    /// Int => [div scalar](crate::ops::IntTensorOps::int_div_scalar).
-    BitwiseAndScalar(ScalarOperationDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [add](crate::ops::FloatTensorOps::float_add).
-    /// Int => [add](crate::ops::IntTensorOps::int_add).
-    BitwiseOr(BinaryOperationDescription),
-    /// Operation corresponding to:
-    ///
-    /// Float => [div scalar](crate::ops::FloatTensorOps::float_div_scalar).
-    /// Int => [div scalar](crate::ops::IntTensorOps::int_div_scalar).
-    BitwiseOrScalar(ScalarOperationDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [add](crate::ops::FloatTensorOps::float_add).
-    /// Int => [add](crate::ops::IntTensorOps::int_add).
-    BitwiseXor(BinaryOperationDescription),
-    /// Operation corresponding to:
-    ///
-    /// Float => [div scalar](crate::ops::FloatTensorOps::float_div_scalar).
-    /// Int => [div scalar](crate::ops::IntTensorOps::int_div_scalar).
-    BitwiseXorScalar(ScalarOperationDescription<E>),
-    /// Operation corresponding to:
-    ///
-    /// Float => [powf](crate::ops::FloatTensorOps::float_powf).
-    /// Int => [powf](crate::ops::IntTensorOps::int_powf).
-    BitwiseNot(UnaryOperationDescription),
 }
 
 /// Operation description specific to an int tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum IntOperationDescription {
+pub enum IntOperationDescription<E> {
     /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_and).
+    BitwiseAnd(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [div scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
+    BitwiseAndScalar(ScalarOperationDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_or).
+    BitwiseOr(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_or_scalar).
+    BitwiseOrScalar(ScalarOperationDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_xor).
+    BitwiseXor(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_xor_scalar).
+    BitwiseXorScalar(ScalarOperationDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [add](crate::ops::IntTensorOps::bitwise_not).
+    BitwiseNot(UnaryOperationDescription),
 }
 
 /// Operation description specific to a bool tensor.
@@ -1355,7 +1348,7 @@ impl OperationDescription {
             OperationDescription::NumericFloat(_dtype, ops) => ops.nodes(),
             OperationDescription::NumericInt(_dtype, ops) => ops.nodes(),
             OperationDescription::Bool(ops) => ops.nodes(),
-            OperationDescription::Int(ops) => ops.nodes(),
+            OperationDescription::Int(_dtype, ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
             OperationDescription::Custom(ops) => ops.nodes(),
@@ -1538,27 +1531,6 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::Powf(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::BitwiseAnd(desc) => {
-                vec![&desc.lhs, &desc.rhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseAndScalar(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseOr(desc) => {
-                vec![&desc.lhs, &desc.rhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseOrScalar(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseXor(desc) => {
-                vec![&desc.lhs, &desc.rhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseXorScalar(desc) => {
-                vec![&desc.lhs, &desc.out]
-            }
-            NumericOperationDescription::BitwiseNot(desc) => {
-                vec![&desc.input, &desc.out]
-            }
         }
     }
 }
@@ -1596,10 +1568,31 @@ impl FloatOperationDescription {
     }
 }
 
-impl IntOperationDescription {
+impl<E: Element> IntOperationDescription<E> {
     fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             IntOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            IntOperationDescription::BitwiseAnd(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseAndScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseOr(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseOrScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseXor(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseXorScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseNot(desc) => {
+                vec![&desc.input, &desc.out]
+            }
         }
     }
 }
@@ -1817,13 +1810,6 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::Clamp(desc) => desc.hash(state),
             NumericOperationDescription::IntRandom(desc) => desc.hash(state),
             NumericOperationDescription::Powf(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseAnd(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseAndScalar(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseOr(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseOrScalar(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseXor(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseXorScalar(desc) => desc.hash(state),
-            NumericOperationDescription::BitwiseNot(desc) => desc.hash(state),
         }
     }
 }

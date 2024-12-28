@@ -70,7 +70,7 @@ impl<N: Float> BinaryOp<N> for PowOp {
 impl<N: Numeric> BinaryOp<N> for BitwiseAndOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         //lhs + rhs
-        lhs
+        lhs + rhs
     }
 }
 

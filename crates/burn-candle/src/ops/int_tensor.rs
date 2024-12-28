@@ -373,30 +373,30 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         sign(tensor)
     }
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("bitwise_and is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_and is not implemented for Candle IntTensor");
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        todo!("bitwise_and_scalar is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_and_scalar is not implemented for Candle IntTensor");
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("bitwise_or is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_or is not implemented for Candle IntTensor");
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        todo!("bitwise_or_scalar is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_or_scalar is not implemented for Candle IntTensor");
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("bitwise_xor is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_xor is not implemented for Candle IntTensor");
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        todo!("bitwise_xor_scalar is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_xor_scalar is not implemented for Candle IntTensor");
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        todo!("bitwise_not is not implemented for Candle IntTensor");
+        unimplemented!("bitwise_not is not implemented for Candle IntTensor");
     }
 }

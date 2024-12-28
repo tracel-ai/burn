@@ -914,6 +914,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
+        let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
 
         let desc = UnaryOperationDescription {
@@ -922,6 +923,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
+            dtype,
             IntOperationDescription::IntoFloat(desc),
         ));
 
@@ -1185,9 +1187,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseAnd(desc),
+            IntOperationDescription::BitwiseAnd(desc),
         ));
 
         out
@@ -1204,9 +1206,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseOr(desc),
+            IntOperationDescription::BitwiseOr(desc),
         ));
 
         out
@@ -1223,9 +1225,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseXor(desc),
+            IntOperationDescription::BitwiseXor(desc),
         ));
 
         out
@@ -1241,9 +1243,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseNot(desc),
+            IntOperationDescription::BitwiseNot(desc),
         ));
 
         out
@@ -1260,9 +1262,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseAndScalar(desc),
+            IntOperationDescription::BitwiseAndScalar(desc),
         ));
 
         out
@@ -1279,9 +1281,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseOrScalar(desc),
+            IntOperationDescription::BitwiseOrScalar(desc),
         ));
 
         out
@@ -1298,9 +1300,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::NumericInt(
+        client.register(OperationDescription::Int(
             dtype,
-            NumericOperationDescription::BitwiseXorScalar(desc),
+            IntOperationDescription::BitwiseXorScalar(desc),
         ));
 
         out

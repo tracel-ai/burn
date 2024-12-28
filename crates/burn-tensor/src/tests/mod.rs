@@ -271,15 +271,8 @@ macro_rules! testgen_with_float_param {
         burn_tensor::testgen_floor!();
         burn_tensor::testgen_ceil!();
         burn_tensor::testgen_select!();
-<<<<<<< HEAD
-        burn_tensor::testgen_bitwise_and!();
-        burn_tensor::testgen_bitwise_or!();
-        burn_tensor::testgen_bitwise_xor!();
-        burn_tensor::testgen_bitwise_not!();
-=======
         burn_tensor::testgen_split!();
         burn_tensor::testgen_prod!();
->>>>>>> main
 
         // test stats
         burn_tensor::testgen_var!();
@@ -317,13 +310,14 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_gather_scatter!();
-        burn_tensor::testgen_bitwise_and!();
-        burn_tensor::testgen_bitwise_or!();
-        burn_tensor::testgen_bitwise_xor!();
-        burn_tensor::testgen_bitwise_and_scalar!();
-        burn_tensor::testgen_bitwise_or_scalar!();
-        burn_tensor::testgen_bitwise_xor_scalar!();
-        burn_tensor::testgen_bitwise_not!();
+        // burn_tensor::testgen_bitwise_and!();
+        // burn_tensor::testgen_bitwise_or!();
+        // burn_tensor::testgen_bitwise_xor!();
+        // burn_tensor::testgen_bitwise_and_scalar!();
+        // burn_tensor::testgen_bitwise_or_scalar!();
+        // burn_tensor::testgen_bitwise_xor_scalar!();
+        // burn_tensor::testgen_bitwise_not!();
+        burn_tensor::testgen_bitwise!();
 
         // test stats
         burn_tensor::testgen_eye!();

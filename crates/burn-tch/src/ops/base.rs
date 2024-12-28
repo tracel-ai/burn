@@ -478,67 +478,58 @@ impl TchOps {
         TchTensor::new(tensor.tensor.argsort(dim as i64, descending))
     }
 
-    pub fn bitwise_and(lhs: TchTensor<E>, rhs: TchTensor<E>) -> TchTensor<E> {
+    pub fn bitwise_and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.f_bitwise_and_tensor(rhs).unwrap(),
-            |lhs, rhs| rhs.f_bitwise_and_tensor(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_and_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_and_tensor_(lhs).unwrap(),
             |lhs, rhs| lhs.f_bitwise_and_tensor(rhs).unwrap(),
         )
     }
 
-    pub fn bitwise_and_scalar<S: Into<Scalar> + Clone>(
-        tensor: TchTensor<E>,
-        scalar: S,
-    ) -> TchTensor<E> {
+    pub fn bitwise_and_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
         tensor.unary_ops(
             |mut tensor| tensor.f_bitwise_and_(scalar.clone().into()).unwrap(),
             |tensor| tensor.f_bitwise_and(scalar.clone().into()).unwrap(),
         )
     }
 
-    pub fn bitwise_or(lhs: TchTensor<E>, rhs: TchTensor<E>) -> TchTensor<E> {
+    pub fn bitwise_or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.f_bitwise_or_tensor(rhs).unwrap(),
-            |lhs, rhs| rhs.f_bitwise_or_tensor(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_or_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_or_tensor_(lhs).unwrap(),
             |lhs, rhs| lhs.f_bitwise_or_tensor(rhs).unwrap(),
         )
     }
 
-    pub fn bitwise_or_scalar<S: Into<Scalar> + Clone>(
-        tensor: TchTensor<E>,
-        scalar: S,
-    ) -> TchTensor<E> {
+    pub fn bitwise_or_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
         tensor.unary_ops(
             |mut tensor| tensor.f_bitwise_or_(scalar.clone().into()).unwrap(),
             |tensor| tensor.f_bitwise_or(scalar.clone().into()).unwrap(),
         )
     }
 
-    pub fn bitwise_xor(lhs: TchTensor<E>, rhs: TchTensor<E>) -> TchTensor<E> {
+    pub fn bitwise_xor(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             lhs,
             rhs,
-            |lhs, rhs| lhs.f_bitwise_xor_tensor(rhs).unwrap(),
-            |lhs, rhs| rhs.f_bitwise_xor_tensor(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_xor_tensor_(rhs).unwrap(),
+            |lhs, rhs| rhs.f_bitwise_xor_tensor_(lhs).unwrap(),
             |lhs, rhs| lhs.f_bitwise_xor_tensor(rhs).unwrap(),
         )
     }
 
-    pub fn bitwise_xor_scalar<S: Into<Scalar> + Clone>(
-        tensor: TchTensor<E>,
-        scalar: S,
-    ) -> TchTensor<E> {
+    pub fn bitwise_xor_scalar<S: Into<Scalar> + Clone>(tensor: TchTensor, scalar: S) -> TchTensor {
         tensor.unary_ops(
             |mut tensor| tensor.f_bitwise_xor_(scalar.clone().into()).unwrap(),
             |tensor| tensor.f_bitwise_xor(scalar.clone().into()).unwrap(),
         )
     }
 
-    pub fn bitwise_not(tensor: TchTensor<E>) -> TchTensor<E> {
+    pub fn bitwise_not(tensor: TchTensor) -> TchTensor {
         tensor.unary_ops(
             |mut tensor| tensor.f_bitwise_not_().unwrap(),
             |tensor| tensor.f_bitwise_not().unwrap(),

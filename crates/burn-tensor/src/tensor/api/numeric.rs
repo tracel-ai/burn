@@ -2090,41 +2090,6 @@ where
         // Check if the sum is NaN by comparing it to itself
         Tensor::new(K::not_equal(sum.clone(), sum))
     }
-
-    /// Applies the element wise logical and operation with another tensor.
-    pub fn bitwise_and(self, other: Self) -> Self {
-        Self::new(K::bitwise_and(self.primitive, other.primitive))
-    }
-
-    /// Applies the element wise logical or operation with another tensor.
-    pub fn bitwise_or(self, other: Self) -> Self {
-        Self::new(K::bitwise_or(self.primitive, other.primitive))
-    }
-
-    /// Applies the element wise logical xor operation with another tensor.
-    pub fn bitwise_xor(self, other: Self) -> Self {
-        Self::new(K::bitwise_xor(self.primitive, other.primitive))
-    }
-
-    /// Applies the element wise logical not operation.
-    pub fn bitwise_not(self) -> Self {
-        Self::new(K::bitwise_not(self.primitive))
-    }
-
-    /// Applies the element wise logical and operation with a scalar.
-    pub fn bitwise_and_scalar(self, other: K::Elem) -> Self {
-        Self::new(K::bitwise_and_scalar(self.primitive, other))
-    }
-
-    /// Applies the element wise logical or operation with a scalar.
-    pub fn bitwise_or_scalar(self, other: K::Elem) -> Self {
-        Self::new(K::bitwise_or_scalar(self.primitive, other))
-    }
-
-    /// Applies the element wise logical xor operation with a scalar.
-    pub fn bitwise_xor_scalar(self, other: K::Elem) -> Self {
-        Self::new(K::bitwise_xor_scalar(self.primitive, other))
-    }
 }
 
 impl<B, K> Tensor<B, 2, K>
@@ -3387,26 +3352,26 @@ where
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive;
 
-    /// Applies logical `and` operation element-wise between two tensors.
-    fn bitwise_and(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    // /// Applies logical `and` operation element-wise between two tensors.
+    // fn bitwise_and(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
-    /// Applies logical `and` operation element-wise between a tensor and a scalar.
-    fn bitwise_and_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    // /// Applies logical `and` operation element-wise between a tensor and a scalar.
+    // fn bitwise_and_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
-    /// Applies logical `or` operation element-wise between two tensors.
-    fn bitwise_or(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    // /// Applies logical `or` operation element-wise between two tensors.
+    // fn bitwise_or(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
-    /// Applies logical `or` operation element-wise between a tensor and a scalar.
-    fn bitwise_or_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    // /// Applies logical `or` operation element-wise between a tensor and a scalar.
+    // fn bitwise_or_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
-    /// Applies logical `xor` operation element-wise between two tensors.
-    fn bitwise_xor(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
+    // /// Applies logical `xor` operation element-wise between two tensors.
+    // fn bitwise_xor(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
 
-    /// Applies logical `xor` operation element-wise between a tensor and a scalar.
-    fn bitwise_xor_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    // /// Applies logical `xor` operation element-wise between a tensor and a scalar.
+    // fn bitwise_xor_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
 
-    /// Applies logical `not` operation element-wise on a tensor.
-    fn bitwise_not(tensor: Self::Primitive) -> Self::Primitive;
+    // /// Applies logical `not` operation element-wise on a tensor.
+    // fn bitwise_not(tensor: Self::Primitive) -> Self::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
@@ -3662,34 +3627,6 @@ impl<B: Backend> Numeric<B> for Int {
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive {
         B::int_argsort(tensor, dim, descending)
-    }
-
-    fn bitwise_and(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::bitwise_and(lhs, rhs)
-    }
-
-    fn bitwise_and_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::bitwise_and_scalar(lhs, rhs.elem())
-    }
-
-    fn bitwise_or(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::bitwise_or(lhs, rhs)
-    }
-
-    fn bitwise_or_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::bitwise_or_scalar(lhs, rhs.elem())
-    }
-
-    fn bitwise_xor(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::bitwise_xor(lhs, rhs)
-    }
-
-    fn bitwise_xor_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::bitwise_xor_scalar(lhs, rhs.elem())
-    }
-
-    fn bitwise_not(tensor: Self::Primitive) -> Self::Primitive {
-        B::bitwise_not(tensor)
     }
 }
 
@@ -4204,67 +4141,6 @@ impl<B: Backend> Numeric<B> for Float {
             TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
             TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
         }
-    }
-
-    fn bitwise_and(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let rhs_int = B::float_into_int(rhs.tensor());
-        let result_int = B::bitwise_and(lhs_int, rhs_int);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_and_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let scalar = i64::from_elem(rhs.elem::<f32>());
-        let scalar_int_elem = B::IntElem::from_elem(scalar);
-
-        let result_int = B::bitwise_and_scalar(lhs_int, scalar_int_elem);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_or(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let rhs_int = B::float_into_int(rhs.tensor());
-        let result_int = B::bitwise_or(lhs_int, rhs_int);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_or_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let scalar = i64::from_elem(rhs.elem::<f32>());
-        let scalar_int_elem = B::IntElem::from_elem(scalar);
-
-        let result_int = B::bitwise_or_scalar(lhs_int, scalar_int_elem);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_xor(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let rhs_int = B::float_into_int(rhs.tensor());
-        let result_int = B::bitwise_xor(lhs_int, rhs_int);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_xor_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        let lhs_int = B::float_into_int(lhs.tensor());
-        let scalar = i64::from_elem(rhs.elem::<f32>());
-        let scalar_int_elem = B::IntElem::from_elem(scalar);
-
-        let result_int = B::bitwise_xor_scalar(lhs_int, scalar_int_elem);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
-    }
-
-    fn bitwise_not(tensor: Self::Primitive) -> Self::Primitive {
-        let tensor_int = B::float_into_int(tensor.tensor());
-        let result_int = B::bitwise_not(tensor_int);
-
-        TensorPrimitive::Float(B::int_into_float(result_int))
     }
 }
 
