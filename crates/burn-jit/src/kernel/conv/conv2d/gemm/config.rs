@@ -1,7 +1,7 @@
-use cubecl::linalg::matmul::components::global;
+use cubecl::linalg::matmul::components::global::GlobalConfig;
 
 /// Convolution specific config, extends regular matmul [`Config`](global::Config)
-pub trait Config: global::Config {
+pub trait ConvGemmConfig: GlobalConfig {
     /// The shape of the output at `dim`
     fn out_shape(&self, dim: u32) -> u32;
     /// The size of the convolution kernel at `dim`

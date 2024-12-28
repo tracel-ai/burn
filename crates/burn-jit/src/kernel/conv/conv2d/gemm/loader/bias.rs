@@ -4,8 +4,8 @@ use cubecl::{
     linalg::{
         matmul::components::{
             global::AccumulatorLoader,
-            stage::{self, Stage},
-            tile::{self, Config as _},
+            stage::{Stage, StageConfig},
+            tile::TileMatmul,
             Ident,
         },
         tensor::VirtualTensor,
@@ -17,7 +17,7 @@ use crate::kernel::conv::{reader::bias::BiasReader, spec::ConvSpec};
 
 /// Special loader to broadcast the 1D bias to the 2D accumulator matrix
 #[derive(CubeType)]
-pub struct BiasLoader<CS: ConvSpec, G: stage::Config> {
+pub struct BiasLoader<CS: ConvSpec, G: StageConfig> {
     pub tensor_view: BiasReader<CS::EG>,
     pub stage: Stage<CS::EA>,
     pub has_bias: bool,
@@ -25,7 +25,7 @@ pub struct BiasLoader<CS: ConvSpec, G: stage::Config> {
 }
 
 #[cube]
-impl<CS: ConvSpec, G: stage::Config> AccumulatorLoader<CS::EG, CS::EA, G> for BiasLoader<CS, G> {
+impl<CS: ConvSpec, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for BiasLoader<CS, G> {
     fn fill_stage(this: &mut Self, #[comptime] config: G) {
         if this.has_bias {
             let stage_dim = config.stage_dim(Ident::Rhs);
@@ -48,7 +48,7 @@ impl<CS: ConvSpec, G: stage::Config> AccumulatorLoader<CS::EG, CS::EA, G> for Bi
     }
 
     /// Load accumulator
-    fn load<I: Numeric, Tile: tile::Matmul<I, CS::EA>>(
+    fn load<I: Numeric, Tile: TileMatmul<I, CS::EA>>(
         this: &mut Self,
         acc: &mut Tile::Accumulator,
         tile_n: u32,
@@ -67,7 +67,7 @@ impl<CS: ConvSpec, G: stage::Config> AccumulatorLoader<CS::EG, CS::EA, G> for Bi
 }
 
 #[cube]
-impl<CS: ConvSpec, G: stage::Config> BiasLoader<CS, G> {
+impl<CS: ConvSpec, G: StageConfig> BiasLoader<CS, G> {
     pub fn new(
         tensor: VirtualTensor<CS::EG>,
         n_offset: u32,
@@ -99,7 +99,7 @@ impl<CS: ConvSpec, G: stage::Config> BiasLoader<CS, G> {
 }
 
 #[cube]
-fn init_stage<ES: Numeric, G: stage::Config>(#[comptime] config: G) -> Stage<ES> {
+fn init_stage<ES: Numeric, G: StageConfig>(#[comptime] config: G) -> Stage<ES> {
     let line_size = config.line_size(Ident::Out);
 
     let smem = SharedMemory::new_lined(

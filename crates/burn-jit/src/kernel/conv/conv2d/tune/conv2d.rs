@@ -13,10 +13,12 @@ use super::Conv2dAutotuneKey;
 use crate::{
     kernel::{
         conv::{
-            algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
-            conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, has_tf32, problem_from_key, spec::SingleConvSpec,
-            CmmaBalancedAlgorithm, CmmaLargeMAlgorithm,
+            algorithm::{Algorithm, ImplicitCmmaConv},
+            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_gemm_cmma_balanced,
+            conv2d_gemm_cmma_large_m, conv2d_im2col, conv2d_implicit_gemm, has_tf32,
+            problem_from_key,
+            selection::Large,
+            spec::SingleConvSpec,
         },
         prng::random_uniform,
     },
@@ -146,9 +148,25 @@ fn should_run<R: JitRuntime, F: FloatElement>(
             &op.input.client,
         ),
         // GEMM large m
-        3 => check_algo!(CmmaLargeMAlgorithm, F, op.input, conv_problem),
+        3 => {
+            let plane_dim = 32;
+            let selection = Large::select_kernel(plane_dim);
+            let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
+            let cube_count = ImplicitCmmaConv::cube_count(&selection, &conv_problem);
+
+            let advanced_config = Default::default();
+            let config = ImplicitCmmaConv::make_config(
+                &conv_problem,
+                &cube_dim,
+                &cube_count,
+                &advanced_config,
+                selection,
+            );
+
+            ImplicitCmmaConv::can_launch(&op.input.client, &conv_problem, &config, &selection)
+        }
         // GEMM balanced
-        4 => check_algo!(CmmaBalancedAlgorithm, F, op.input, conv_problem),
+        // 4 => check_algo!(CmmaBalancedAlgorithm, F, op.input, conv_problem),
         _ => true,
     }
 }

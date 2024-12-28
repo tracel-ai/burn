@@ -4,23 +4,17 @@ use burn_tensor::{
 };
 use cubecl::{
     ir::{Elem, FloatKind},
-    linalg::matmul::{
-        self,
-        components::{
-            stage::{S4x2x4, S8x4x2},
-            MatrixLayout,
-        },
-    },
+    linalg::matmul::{self, components::MatrixLayout},
     tensor_line_size, tf32, Feature,
 };
 use half::{bf16, f16};
 
-use super::spec::{ConvSpec, SingleConvSpec};
+use super::selection::{Balanced, ConvSelector, Large};
 use crate::{
     kernel::{
         conv::{
             conv2d::gemm::{
-                algorithm::{Algorithm, Cmma},
+                algorithm::{Algorithm, ImplicitCmmaConv},
                 base::{ConvolutionLaunch, ConvolutionProblem},
             },
             nchw_to_nhwc, Conv2dAutotuneKey,
@@ -31,36 +25,6 @@ use crate::{
     tensor::JitTensor,
     FloatElement, JitRuntime,
 };
-
-/// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
-/// than `out_channels`
-pub type CmmaLargeMAlgorithm<CS> = Cmma<CS, S8x4x2>;
-/// Balanced stage size for cases where `batch_size * out_h * out_w` is relatively small and `k` or
-/// `out_channels` is relatively large
-pub type CmmaBalancedAlgorithm<CS> = Cmma<CS, S4x2x4>;
-
-macro_rules! select_launch_algo {
-    ($algo:tt, $float:ty, $input:expr) => {
-        match (<$float>::as_elem(), has_tf32(&$input)) {
-            (Elem::Float(FloatKind::F32), true) => {
-                type Spec<F> = SingleConvSpec<32, F, tf32, f32>;
-                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
-            }
-            (Elem::Float(FloatKind::F16), _) => {
-                type Spec<F> = SingleConvSpec<32, $float, f16, f16>;
-                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
-            }
-            (Elem::Float(FloatKind::BF16), _) => {
-                type Spec<F> = SingleConvSpec<32, $float, bf16, f32>;
-                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
-            }
-            _ => {
-                type Spec<F> = SingleConvSpec<32, $float, f16, f32>;
-                conv2d_gemm_with_algo::<R, F, Spec<$float>, $algo<Spec<$float>>>
-            }
-        }
-    };
-}
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
 /// components. Uses [`CmmaLargeMAlgorithm`] for the stage size
@@ -75,8 +39,7 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    let launch = select_launch_algo!(CmmaLargeMAlgorithm, F, input);
-    launch(input, weight, bias, options)
+    conv2d_gemm_with_algo::<R, F, ImplicitCmmaConv, Large>(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -86,16 +49,13 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-///
-///
 pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
-    let launch = select_launch_algo!(CmmaBalancedAlgorithm, F, input);
-    launch(input, weight, bias, options)
+    conv2d_gemm_with_algo::<R, F, ImplicitCmmaConv, Balanced>(input, weight, bias, options)
 }
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -107,7 +67,12 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
 /// * `options` - The options to use for the convolution
 ///
 ///
-pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, CS: ConvSpec, Alg: Algorithm<CS>>(
+pub fn conv2d_gemm_with_algo<
+    R: JitRuntime,
+    F: FloatElement,
+    Alg: Algorithm,
+    S: ConvSelector<Alg>,
+>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -186,15 +151,28 @@ pub fn conv2d_gemm_with_algo<R: JitRuntime, F: FloatElement, CS: ConvSpec, Alg: 
         has_bias: bias.is_some(),
     };
 
-    if !Alg::can_launch::<R>(&input.client, &problem) {
-        panic!("Can't do implicit GEMM");
-    }
+    let plane_dim = match input
+        .client
+        .properties()
+        .hardware_properties()
+        .defined_plane_size()
+    {
+        Some(val) => val,
+        None => 32, // To keep compatibility. TODO: Proper error handling.
+    };
 
-    let cube_dim = Alg::cube_dim();
-    let cube_count = Alg::cube_count(&problem);
+    let selection = S::select_kernel(plane_dim);
+    let cube_dim = Alg::cube_dim(&selection);
+    let cube_count = Alg::cube_count(&selection, &problem);
 
     let advanced_config = Default::default();
-    let config = Alg::make_config(&problem, &cube_dim, &cube_count, &advanced_config);
+    let config = Alg::make_config(
+        &problem,
+        &cube_dim,
+        &cube_count,
+        &advanced_config,
+        selection,
+    );
     let bias = bias.unwrap_or_else(|| {
         empty_device::<R, F>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });
