@@ -26,8 +26,10 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn prepare(&self) -> Self::Args {
-        let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
-        let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
+        // let lhs = Tensor::random(self.shape_lhs.clone(), Distribution::Default, &self.device);
+        // let rhs = Tensor::random(self.shape_rhs.clone(), Distribution::Default, &self.device);
+        let lhs = Tensor::zeros(self.shape_lhs.clone(), &self.device);
+        let rhs = Tensor::zeros(self.shape_rhs.clone(), &self.device);
 
         (lhs, rhs)
     }
@@ -46,6 +48,7 @@ fn bench<B: Backend>(
 ) {
     let benchmarks = [
         (2, 4096, 4096, 4096),
+        (1, 6144, 6144, 6144),
         (32, 2048, 2048, 2048),
         (256, 1024, 1024, 1024),
         (1024, 256, 256, 256),
