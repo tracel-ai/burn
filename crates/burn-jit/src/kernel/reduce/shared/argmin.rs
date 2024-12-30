@@ -1,11 +1,11 @@
 use cubecl::prelude::*;
 
-use crate::{kernel::reduce::Argmin, JitElement};
+use crate::kernel::reduce::Argmin;
 
 use super::base::ReduceDimShared;
 
 #[cube]
-impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for Argmin {
+impl<EIn: Numeric, EOut: Numeric> ReduceDimShared<EIn, EOut> for Argmin {
     /// The reduction accumulator
     type Accumulator = (SharedMemory<EIn>, SharedMemory<u32>);
     type Value = (EIn, u32);
@@ -17,7 +17,7 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for Argmin {
     ) -> (SharedMemory<EIn>, SharedMemory<u32>) {
         let mut value_shared = SharedMemory::new(shared_memory_size);
         let mut index_shared = SharedMemory::new(shared_memory_size);
-        value_shared[write_position] = comptime![EIn::maximum_value()].runtime();
+        value_shared[write_position] = comptime![EIn::MAX].runtime();
         index_shared[write_position] = 0;
         (value_shared, index_shared)
     }

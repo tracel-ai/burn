@@ -5,14 +5,17 @@ use crate::kernel::reduce::reduce_dim_autotune;
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::{
-    naive::{base::ReduceDimNaive, kernel::reduce_dim_naive},
+    naive::{
+        base::{ReduceDimNaive, ReduceDimNaiveFamily},
+        kernel::reduce_dim_naive,
+    },
     shared::{base::ReduceDimShared, kernel::reduce_dim_shared},
     subcube::{base::ReduceDimSubcube, kernel::reduce_dim_subcube},
 };
 
 #[allow(dead_code)]
-pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
-    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI, EO> + ReduceDimSubcube<EI, EO>
+pub(crate) trait ReduceDimAlgorithm<EI: Numeric, EO: Numeric>:
+    core::fmt::Debug + ReduceDimNaiveFamily + ReduceDimShared<EI, EO> + ReduceDimSubcube<EI, EO>
 {
 }
 
@@ -56,7 +59,7 @@ macro_rules! reduce_operation {
         #[derive(Debug)]
         pub(crate) struct $ops;
 
-        impl<EI: JitElement, EO: JitElement> ReduceDimAlgorithm<EI, EO> for $ops {}
+        impl<EI: Numeric, EO: Numeric> ReduceDimAlgorithm<EI, EO> for $ops {}
 
         /// Executes the reduce operation with the given strategy.
         pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(

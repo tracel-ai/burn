@@ -5,9 +5,19 @@ use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
 
 use super::base::ReduceDimNaive;
+use super::base::ReduceDimNaiveFamily;
 
 #[cube(launch_unchecked)]
-pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
+pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaiveFamily, EI: Numeric, EO: Numeric>(
+    input: &Tensor<EI>,
+    output: &mut Tensor<EO>,
+    dim: u32,
+) {
+    naive_reduce::<RD::Reduce<EI>, EI, EO>(input, output, dim)
+}
+
+#[cube]
+fn naive_reduce<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
     input: &Tensor<EI>,
     output: &mut Tensor<EO>,
     dim: u32,
@@ -37,7 +47,7 @@ pub(crate) fn naive_reduce_dim_kernel<RD: ReduceDimNaive<EI>, EI: Numeric, EO: N
 }
 
 /// Executes the naive kernel for reduce dim
-pub fn reduce_dim_naive<RD: ReduceDimNaive<EI>, R: JitRuntime, EI: JitElement, EO: JitElement>(
+pub fn reduce_dim_naive<RD: ReduceDimNaiveFamily, R: JitRuntime, EI: JitElement, EO: JitElement>(
     input: JitTensor<R>,
     dim: usize,
 ) -> JitTensor<R> {

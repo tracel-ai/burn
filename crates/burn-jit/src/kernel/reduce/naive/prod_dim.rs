@@ -2,7 +2,11 @@ use cubecl::prelude::*;
 
 use crate::kernel::reduce::ProdDim;
 
-use super::base::ReduceDimNaive;
+use super::base::{ReduceDimNaive, ReduceDimNaiveFamily};
+
+impl ReduceDimNaiveFamily for ProdDim {
+    type Reduce<E: Numeric> = Self;
+}
 
 #[cube]
 impl<EI: Numeric> ReduceDimNaive<EI> for ProdDim {

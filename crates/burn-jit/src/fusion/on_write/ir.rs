@@ -293,7 +293,7 @@ impl From<DType> for ElemwisePrecision {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct ElemwiseConfig {
     pub rank: u32,

@@ -1,16 +1,20 @@
 use cubecl::prelude::*;
 
-use crate::{kernel::reduce::Argmax, JitElement};
+use crate::kernel::reduce::Argmax;
 
-use super::base::ReduceDimNaive;
+use super::base::{ReduceDimNaive, ReduceDimNaiveFamily};
+
+impl ReduceDimNaiveFamily for Argmax {
+    type Reduce<E: Numeric> = Self;
+}
 
 #[cube]
-impl<EI: JitElement> ReduceDimNaive<EI> for Argmax {
+impl<EI: Numeric> ReduceDimNaive<EI> for Argmax {
     type Accumulator = (EI, u32);
 
     fn initialize_naive() -> Self::Accumulator {
         // TODO: switch to using f32::NEG_INFINITY when it's supported: https://github.com/tracel-ai/cubecl/issues/68
-        (comptime![EI::minimum_value()].runtime(), 0u32)
+        (comptime![EI::MIN].runtime(), 0u32)
     }
 
     fn inner_loop_naive(accumulator: &mut Self::Accumulator, current_value: EI, i: u32) {

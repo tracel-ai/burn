@@ -281,23 +281,24 @@ fn matmul_launch_kernel<'a, const PLANE_DIM: u32, R: Runtime, EG: Numeric>(
     disable_cmma: bool,
     problem: MatmulProblem,
 ) -> Result<(), MatmulLaunchError> {
-    if disable_cmma {
-        PlaneMmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, EG, f32>, R>(
-            client, input, output, problem,
-        )
-    } else if TypeId::of::<EG>() == TypeId::of::<f16>()
-        || TypeId::of::<EG>() == TypeId::of::<flex32>()
-    {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, f16, f32>, R>(
-            client, input, output, problem,
-        )
-    } else if TypeId::of::<EG>() == TypeId::of::<bf16>() {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, bf16, f32>, R>(
-            client, input, output, problem,
-        )
-    } else {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, tf32, f32>, R>(
-            client, input, output, problem,
-        )
-    }
+    Ok(())
+    // if disable_cmma {
+    //     PlaneMmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, EG, f32>, R>(
+    //         client, input, output, problem,
+    //     )
+    // } else if TypeId::of::<EG>() == TypeId::of::<f16>()
+    //     || TypeId::of::<EG>() == TypeId::of::<flex32>()
+    // {
+    //     CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, f16, f32>, R>(
+    //         client, input, output, problem,
+    //     )
+    // } else if TypeId::of::<EG>() == TypeId::of::<bf16>() {
+    //     CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, bf16, f32>, R>(
+    //         client, input, output, problem,
+    //     )
+    // } else {
+    //     CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, tf32, f32>, R>(
+    //         client, input, output, problem,
+    //     )
+    // }
 }
