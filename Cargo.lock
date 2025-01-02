@@ -713,7 +713,7 @@ dependencies = [
  "serde_json",
  "spin",
  "tempfile",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "uuid",
 ]
 
@@ -761,7 +761,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tempfile",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
 ]
 
 [[package]]
@@ -822,7 +822,7 @@ dependencies = [
  "serde",
  "serde_json",
  "syn 2.0.90",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "tracing-core",
  "tracing-subscriber",
  "zip 2.2.2",
@@ -995,9 +995,9 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.20.0"
+version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b37c88a63ffd85d15b406896cc343916d7cf57838a847b3a6f2ca5d39a5695a"
+checksum = "ef657dfab802224e671f5818e9a4935f9b1957ed18e58292690cc39e7a4092a3"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -2850,7 +2850,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b5eccc17194ed0e67d49285e4853307e4147e95407f91c1c3e4a13ba9f4e4ce"
 dependencies = [
  "faster-hex",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
 ]
 
 [[package]]
@@ -4757,15 +4757,15 @@ dependencies = [
  "flate2",
  "native-tls",
  "tar",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "ureq",
 ]
 
 [[package]]
 name = "openblas-src"
-version = "0.10.10"
+version = "0.10.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19a6eee3396f46f65497e83c2f74d75315834bd0fd071cda26bda82ac3fda080"
+checksum = "252f22774417be65f908a20f7721a97e33a253acad4f28370408b7f1baea0629"
 dependencies = [
  "dirs",
  "openblas-build",
@@ -5885,7 +5885,7 @@ dependencies = [
  "rustc-hash 2.1.0",
  "rustls",
  "socket2",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "tokio",
  "tracing",
 ]
@@ -5904,7 +5904,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "tinyvec",
  "tracing",
  "web-time",
@@ -6773,9 +6773,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.133"
+version = "1.0.134"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
+checksum = "d00f4175c42ee48b15416f6193a959ba3a0d67fc699a0db9ad12df9f83991c7d"
 dependencies = [
  "itoa",
  "memchr",
@@ -7456,11 +7456,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.8"
+version = "2.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08f5383f3e0071702bf93ab5ee99b52d26936be9dedd9413067cbdcddcb6141a"
+checksum = "f072643fd0190df67a8bab670c20ef5d8737177d6ac6b2e9a236cb096206b2cc"
 dependencies = [
- "thiserror-impl 2.0.8",
+ "thiserror-impl 2.0.9",
 ]
 
 [[package]]
@@ -7476,9 +7476,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.8"
+version = "2.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2f357fcec90b3caef6623a099691be676d033b40a058ac95d2a6ade6fa0c943"
+checksum = "7b50fa271071aae2e6ee85f842e2e28ba8cd2c5fb67f11fcb1fd70b276f9e7d4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8998,7 +8998,7 @@ dependencies = [
  "pbkdf2 0.12.2",
  "rand",
  "sha1",
- "thiserror 2.0.8",
+ "thiserror 2.0.9",
  "time",
  "zeroize",
  "zopfli",
