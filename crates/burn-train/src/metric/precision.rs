@@ -42,6 +42,7 @@ impl<B: Backend> PrecisionMetric<B> {
     /// # Arguments
     ///
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
@@ -60,6 +61,7 @@ impl<B: Backend> PrecisionMetric<B> {
     /// # Arguments
     ///
     /// * `threshold` - The threshold to transform a probability into a binary value.
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {

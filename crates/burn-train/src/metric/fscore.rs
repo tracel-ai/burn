@@ -25,6 +25,7 @@ impl<B: Backend> FScoreMetric<B> {
     ///
     /// # Arguments
     ///
+    /// * `beta` - Positive real factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
     pub fn binary(beta: f64, threshold: f64) -> Self {
@@ -43,7 +44,9 @@ impl<B: Backend> FScoreMetric<B> {
     ///
     /// # Arguments
     ///
+    /// * `beta` - Positive real factor to weight recall's importance.
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(beta: f64, top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
@@ -62,7 +65,9 @@ impl<B: Backend> FScoreMetric<B> {
     ///
     /// # Arguments
     ///
+    /// * `beta` - Positive real factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multilabel(beta: f64, threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
