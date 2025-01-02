@@ -129,7 +129,7 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::binary_macro(THRESHOLD, 0.5)]
+    #[case::binary(THRESHOLD, 0.5)]
     fn test_binary_precision(#[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = PrecisionMetric::binary(threshold);
