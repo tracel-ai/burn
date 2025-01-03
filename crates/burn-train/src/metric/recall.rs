@@ -11,7 +11,7 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-///The Precision Metric
+///The Recall Metric
 #[derive(Default)]
 pub struct RecallMetric<B: Backend> {
     state: NumericMetricState,
@@ -42,6 +42,7 @@ impl<B: Backend> RecallMetric<B> {
     /// # Arguments
     ///
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
@@ -60,6 +61,7 @@ impl<B: Backend> RecallMetric<B> {
     /// # Arguments
     ///
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
+    /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
     pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
@@ -128,7 +130,7 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::binary_macro(THRESHOLD, 0.5)]
+    #[case::binary(THRESHOLD, 0.5)]
     fn test_binary_recall(#[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
         let mut metric = RecallMetric::binary(threshold);
