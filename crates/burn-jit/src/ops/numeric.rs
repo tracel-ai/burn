@@ -1,8 +1,9 @@
 use crate::kernel::{
-    launch_binop, launch_scalar_binop, AddOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    launch_binop, launch_scalar_binop, AddOp, BitwiseAndOp, BitwiseNotOp, BitwiseOrOp,
+    BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
 };
 use crate::{element::JitElement, tensor::JitTensor};
-use crate::{FloatElement, JitRuntime};
+use crate::{FloatElement, IntElement, JitRuntime};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;
@@ -138,4 +139,46 @@ pub fn remainder_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E)
 
 pub fn pow<R: JitRuntime, E: FloatElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
     launch_binop::<R, E, PowOp>(lhs, rhs)
+}
+
+pub fn bitwise_and<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    //launch_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    launch_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+}
+
+pub fn bitwise_and_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    //launch_scalar_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    launch_scalar_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+}
+
+pub fn bitwise_or<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+}
+
+pub fn bitwise_or_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+    //todo!();
+}
+
+pub fn bitwise_xor<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+    //todo!();
+}
+
+pub fn bitwise_xor_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+}
+
+pub fn bitwise_not<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, BitwiseNotOp>(lhs, 1.elem());
+    todo!();
 }
