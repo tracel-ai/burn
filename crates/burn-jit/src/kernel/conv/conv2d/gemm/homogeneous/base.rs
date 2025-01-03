@@ -14,7 +14,7 @@ use cubecl::{
                     multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
                     StageConfig, StageMatmulFamily, TilingOrderConfig,
                 },
-                Ident, MatrixLayout, StageDim,
+                Ident, InvalidConfigError, MatrixLayout, StageDim,
             },
             kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
         },
@@ -30,7 +30,7 @@ use crate::kernel::conv::{
         ConvolutionProblem,
     },
     loader::im2col::SimpleIm2colLoader,
-    spec::{ConvSpec, SingleConvSpec},
+    precision::ConvPrecision,
 };
 use crate::kernel::conv::{conv2d::gemm::ConvGemmConfig as _, loader::bias::BiasLoader};
 
@@ -42,20 +42,23 @@ impl<SMM> ConvolutionFamily<SMM> for ImplicitGemmConvolutionFamily<SMM>
 where
     SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFamily>,
 {
-    type Convolution<CS: ConvSpec> =
+    type Convolution<CS: ConvPrecision> =
         ImplicitGemmConvolution<CS, SMM::Matmul<CS::ES, CS::EG, CS::EA>>;
 }
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
 /// - All planes load data to the stage
 /// - All planes are used in the stage matmul computation
-pub struct ImplicitGemmConvolution<CS: ConvSpec, SMM: stage::StageMatmul<CS::ES, CS::EG, CS::EA>> {
+pub struct ImplicitGemmConvolution<
+    CS: ConvPrecision,
+    SMM: stage::StageMatmul<CS::ES, CS::EG, CS::EA>,
+> {
     _cs: PhantomData<CS>,
     _stage_matmul: PhantomData<SMM>,
 }
 
 #[cube]
-impl<CS: ConvSpec, SMM> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
+impl<CS: ConvPrecision, SMM> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
 where
     SMM: stage::StageMatmul<
         CS::ES,
@@ -187,16 +190,15 @@ where
     type Config = config::HomogeneousConfig<full_load::Config<SMM::Config>>;
     type Input = SMM::Input;
 
-    fn check_config(config: Self::Config) {
-        SMM::check_config(&config.to_smm_config());
+    fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError> {
+        SMM::check_config(&config.to_smm_config())
     }
 
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
         config: &Self::Config,
     ) -> Result<(), MatmulAvailabilityError> {
-        // SMM::check_availability::<R>(client, &config.to_smm_config())
-        Ok(())
+        SMM::check_availability::<R, (CS::EG, CS::ES, CS::EA)>(client, &config.to_smm_config())
     }
 
     fn make_config(
@@ -239,7 +241,7 @@ where
 impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFamily>>
     ConvolutionLaunch for ImplicitGemmConvolutionFamily<SMM>
 {
-    unsafe fn launch_unchecked<CS: ConvSpec, R: Runtime>(
+    unsafe fn launch_unchecked<CS: ConvPrecision, R: Runtime>(
         client: &ComputeClient<<R as Runtime>::Server, <R as Runtime>::Channel>,
         cube_dim: CubeDim,
         cube_count: CubeCount,
@@ -249,8 +251,6 @@ impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFa
         out: TensorArg<'_, R>,
         config: <Self as ConvolutionConfigFactory>::Config,
     ) {
-        Self::check_config(config);
-
         implicit_conv::launch_unchecked::<CS::ES, CS::EG, CS::EA, Self, SMM, R>(
             client,
             cube_count,
@@ -289,18 +289,12 @@ pub(crate) fn implicit_conv<
     let bias = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(bias);
     let out = VirtualTensor::<EG, ReadWrite>::new::<Tensor<Line<EG>>>(out);
 
-    GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::execute(
-        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_lhs_loader(
-            lhs, x_offset, k_range.0, config,
-        ),
-        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_rhs_loader(
-            rhs, k_range.0, y_offset, config,
-        ),
-        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_bias_loader(
-            bias, y_offset, config, has_bias,
-        ),
-        GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_unloader(out, x_offset, y_offset),
-        &mut GMM::Convolution::<SingleConvSpec<EG, ES, EA>>::init_accumulator(config),
+    GMM::Convolution::<(EG, ES, EA)>::execute(
+        GMM::Convolution::<(EG, ES, EA)>::init_lhs_loader(lhs, x_offset, k_range.0, config),
+        GMM::Convolution::<(EG, ES, EA)>::init_rhs_loader(rhs, k_range.0, y_offset, config),
+        GMM::Convolution::<(EG, ES, EA)>::init_bias_loader(bias, y_offset, config, has_bias),
+        GMM::Convolution::<(EG, ES, EA)>::init_unloader(out, x_offset, y_offset),
+        &mut GMM::Convolution::<(EG, ES, EA)>::init_accumulator(config),
         k_range,
         config,
     );

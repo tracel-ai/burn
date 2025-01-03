@@ -27,7 +27,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
     type Indices = ();
 
     fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
-        N::MIN
+        N::min_value()
     }
 
     fn accumulate(
@@ -59,7 +59,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     type Indices = Tensor<i32>;
 
     fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
-        (N::MIN, 0i32)
+        (N::min_value(), 0i32)
     }
 
     fn accumulate(

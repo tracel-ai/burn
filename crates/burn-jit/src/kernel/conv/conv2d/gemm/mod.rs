@@ -5,9 +5,9 @@ pub mod base;
 pub mod homogeneous;
 pub mod launch;
 pub mod loader;
+pub mod precision;
 pub mod reader;
 pub mod selection;
-pub mod spec;
 
 pub use config::*;
 pub use launch::*;

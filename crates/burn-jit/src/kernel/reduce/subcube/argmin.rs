@@ -17,7 +17,7 @@ impl<EIn: Numeric, EOut: Numeric> ReduceDimSubcube<EIn, EOut> for Argmin {
     }
 
     fn init_value() -> Self::Value {
-        (comptime![EIn::MAX], 0u32)
+        (comptime![EIn::max_value()], 0u32)
     }
 
     fn read_value(input: &Tensor<EIn>, pos: u32, i: u32) -> Self::Value {

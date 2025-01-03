@@ -13,8 +13,8 @@ use cubecl::{
 use half::{bf16, f16};
 
 use super::{
+    precision::ConvPrecision,
     selection::{Balanced, ConvSelector, Large},
-    spec::{ConvSpec, SingleConvSpec},
 };
 use crate::{
     kernel::{
@@ -76,16 +76,12 @@ fn conv2d_gemm_cmma_strategy<
     options: ConvOptions<2>,
 ) -> JitTensor<R> {
     if TypeId::of::<F>() == TypeId::of::<flex32>() {
-        conv2d_gemm_with_algo::<R, SingleConvSpec<F, f16, f32>, Alg, S>(
-            input, weight, bias, options,
-        )
+        conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
     } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
     {
-        conv2d_gemm_with_algo::<R, SingleConvSpec<F, F, f32>, Alg, S>(input, weight, bias, options)
+        conv2d_gemm_with_algo::<R, (F, F, f32), Alg, S>(input, weight, bias, options)
     } else {
-        conv2d_gemm_with_algo::<R, SingleConvSpec<F, tf32, f32>, Alg, S>(
-            input, weight, bias, options,
-        )
+        conv2d_gemm_with_algo::<R, (F, tf32, f32), Alg, S>(input, weight, bias, options)
     }
 }
 
@@ -96,9 +92,12 @@ fn conv2d_gemm_cmma_strategy<
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-///
-///
-pub fn conv2d_gemm_with_algo<R: JitRuntime, SP: ConvSpec, Alg: Algorithm, S: ConvSelector<Alg>>(
+pub fn conv2d_gemm_with_algo<
+    R: JitRuntime,
+    SP: ConvPrecision,
+    Alg: Algorithm,
+    S: ConvSelector<Alg>,
+>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -190,18 +189,24 @@ where
         None => 32, // To keep compatibility. TODO: Proper error handling.
     };
 
-    let (selection, config_input) = S::select_kernel::<SP, R>(plane_dim);
+    let (selection, config_input) = S::select_kernel::<R, SP>(plane_dim);
     let cube_dim = Alg::cube_dim(&selection);
     let cube_count = Alg::cube_count(&selection, &problem);
 
     let advanced_config = Default::default();
-    let config = Alg::make_config(
+    let config = match Alg::make_config(
         config_input,
         &problem,
         &cube_dim,
         &cube_count,
         &advanced_config,
-    );
+    ) {
+        Ok(val) => val,
+        Err(err) => {
+            panic!("Can't launch conv kernel because of an invalid config: {err}")
+        }
+    };
+
     let bias = bias.unwrap_or_else(|| {
         empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))
     });

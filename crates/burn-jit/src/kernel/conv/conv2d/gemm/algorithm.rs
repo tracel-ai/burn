@@ -3,6 +3,7 @@ use cubecl::{
         components::{
             stage::{self, StageMatmulFamily},
             tile::{accelerated::Accelerated, TileMatmulFamily},
+            InvalidConfigError,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
@@ -12,6 +13,7 @@ use cubecl::{
 use super::{
     base::{ConvolutionConfigFactory, ConvolutionFamily, ConvolutionProblem},
     homogeneous::base::ImplicitGemmConvolutionFamily,
+    precision::ConvPrecision,
     selection::ConvSelection,
 };
 
@@ -33,7 +35,8 @@ pub trait Algorithm {
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
         advanced_config: &AdvancedConfig,
-    ) -> <Self::GlobalConvolution as ConvolutionConfigFactory>::Config {
+    ) -> Result<<Self::GlobalConvolution as ConvolutionConfigFactory>::Config, InvalidConfigError>
+    {
         let config = Self::GlobalConvolution::make_config(
             input,
             problem,
@@ -41,27 +44,28 @@ pub trait Algorithm {
             cube_count,
             advanced_config,
         );
-        // problem.check_config(&config);
-        // Self::GlobalConvolution::check_config(&config)?;
-        config
+        // problem.check_config(&config)?;
+        Self::GlobalConvolution::check_config(&config)?;
+        Ok(config)
     }
 
     /// Check availability of the matmul algorithm
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
         config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
     ) -> Result<(), MatmulAvailabilityError> {
-        Self::GlobalConvolution::check_availability::<R>(client, config)
+        Self::GlobalConvolution::check_availability::<R, CS>(client, config)
     }
 
     /// Determine whether the given convolution problem is valid to launch (within hardware limits)
-    fn can_launch<R: Runtime>(
+    fn can_launch<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
         problem: &ConvolutionProblem,
         config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
         selection: &Self::Selection,
     ) -> bool {
-        if problem.options.groups > 1 || Self::check_availability::<R>(client, config).is_err() {
+        if problem.options.groups > 1 || Self::check_availability::<R, CS>(client, config).is_err()
+        {
             return false;
         }
 

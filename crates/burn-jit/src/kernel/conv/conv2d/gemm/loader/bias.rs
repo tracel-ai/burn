@@ -13,11 +13,11 @@ use cubecl::{
     prelude::*,
 };
 
-use crate::kernel::conv::{reader::bias::BiasReader, spec::ConvSpec};
+use crate::kernel::conv::{precision::ConvPrecision, reader::bias::BiasReader};
 
 /// Special loader to broadcast the 1D bias to the 2D accumulator matrix
 #[derive(CubeType)]
-pub struct BiasLoader<CS: ConvSpec, G: StageConfig> {
+pub struct BiasLoader<CS: ConvPrecision, G: StageConfig> {
     pub tensor_view: BiasReader<CS::EG>,
     pub stage: Stage<CS::EA>,
     pub has_bias: bool,
@@ -25,7 +25,7 @@ pub struct BiasLoader<CS: ConvSpec, G: StageConfig> {
 }
 
 #[cube]
-impl<CS: ConvSpec, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for BiasLoader<CS, G> {
+impl<CS: ConvPrecision, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for BiasLoader<CS, G> {
     fn fill_stage(this: &mut Self, #[comptime] config: G) {
         if this.has_bias {
             let stage_dim = config.stage_dim(Ident::Rhs);
@@ -67,7 +67,7 @@ impl<CS: ConvSpec, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for Bias
 }
 
 #[cube]
-impl<CS: ConvSpec, G: StageConfig> BiasLoader<CS, G> {
+impl<CS: ConvPrecision, G: StageConfig> BiasLoader<CS, G> {
     pub fn new(
         tensor: VirtualTensor<CS::EG>,
         n_offset: u32,

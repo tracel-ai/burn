@@ -14,7 +14,7 @@ impl<EI: Numeric> ReduceDimNaive<EI> for Argmax {
 
     fn initialize_naive() -> Self::Accumulator {
         // TODO: switch to using f32::NEG_INFINITY when it's supported: https://github.com/tracel-ai/cubecl/issues/68
-        (comptime![EI::MIN].runtime(), 0u32)
+        (comptime![EI::min_value()].runtime(), 0u32)
     }
 
     fn inner_loop_naive(accumulator: &mut Self::Accumulator, current_value: EI, i: u32) {

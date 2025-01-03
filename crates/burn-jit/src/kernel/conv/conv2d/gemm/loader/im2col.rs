@@ -14,18 +14,20 @@ use cubecl::{
 };
 use std::marker::PhantomData;
 
-use crate::kernel::conv::{reader::im2col::Im2colReader, spec::ConvSpec, ConvGemmConfig};
+use crate::kernel::conv::{precision::ConvPrecision, reader::im2col::Im2colReader, ConvGemmConfig};
 
 /// Loader that translates matrix coordinates to input coordinates using the `im2col` algorithm
 #[derive(CubeType)]
-pub struct SimpleIm2colLoader<CS: ConvSpec, G: ConvGemmConfig> {
+pub struct SimpleIm2colLoader<CS: ConvPrecision, G: ConvGemmConfig> {
     pub tensor_view: Im2colReader<CS::EG>,
     pub stage: Stage<CS::ES>,
     _config: PhantomData<G>,
 }
 
 #[cube]
-impl<CS: ConvSpec, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G> for SimpleIm2colLoader<CS, G> {
+impl<CS: ConvPrecision, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G>
+    for SimpleIm2colLoader<CS, G>
+{
     type StageReader = LhsReader<CS::ES>;
 
     fn fill_stage(this: &mut Self, #[comptime] config: G) {
@@ -47,7 +49,7 @@ impl<CS: ConvSpec, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G> for SimpleI
 }
 
 #[cube]
-impl<CS: ConvSpec, G: ConvGemmConfig> SimpleIm2colLoader<CS, G> {
+impl<CS: ConvPrecision, G: ConvGemmConfig> SimpleIm2colLoader<CS, G> {
     pub fn new(
         tensor: VirtualTensor<CS::EG>,
         shape_out_y: u32,
@@ -89,7 +91,7 @@ pub struct SimpleIm2col;
 
 #[cube]
 impl SimpleIm2col {
-    pub fn load_to_slice<CS: ConvSpec, G: ConvGemmConfig>(
+    pub fn load_to_slice<CS: ConvPrecision, G: ConvGemmConfig>(
         read_view: &Im2colReader<CS::EG>,
         slice: &mut SliceMut<Line<CS::ES>>,
         #[comptime] ident: Ident,

@@ -4,7 +4,7 @@ use cubecl::linalg::{
         components::{
             global::{AccumulatorLoader, OutputLoader},
             stage::{StageMatmul, StageMatmulFamily},
-            MatmulProblem, MatrixLayout,
+            InvalidConfigError, MatmulProblem, MatrixLayout,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
@@ -12,12 +12,12 @@ use cubecl::linalg::{
 };
 use cubecl::prelude::*;
 
-use super::{spec::ConvSpec, ConvGemmConfig};
+use super::{precision::ConvPrecision, ConvGemmConfig};
 
 pub trait ConvolutionFamily<SMM: StageMatmulFamily>:
     ConvolutionConfigFactory<Config: ConvGemmConfig> + ConvolutionLaunch
 {
-    type Convolution<CS: ConvSpec>: Convolution<
+    type Convolution<CS: ConvPrecision>: Convolution<
         CS,
         SMM::Matmul<CS::ES, CS::EG, CS::EA>,
         Config = Self::Config,
@@ -25,7 +25,7 @@ pub trait ConvolutionFamily<SMM: StageMatmulFamily>:
 }
 
 #[cube]
-pub trait Convolution<CS: ConvSpec, SMM: StageMatmul<CS::ES, CS::EG, CS::EA>>:
+pub trait Convolution<CS: ConvPrecision, SMM: StageMatmul<CS::ES, CS::EG, CS::EA>>:
     'static + Send + Sync
 {
     type LhsLoader: CubeType;
@@ -89,10 +89,10 @@ pub trait ConvolutionConfigFactory: Send + Sync + 'static {
     type Input;
 
     /// Asserts that the configuration for this matmul will lead to a valid computation
-    fn check_config(config: Self::Config);
+    fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError>;
 
     /// Checks if the client can handle the features used in this computation
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
         config: &Self::Config,
     ) -> Result<(), MatmulAvailabilityError>;
@@ -114,7 +114,7 @@ pub trait ConvolutionLaunch: ConvolutionConfigFactory {
     ///
     /// Out-of-bounds can happen
     #[allow(clippy::too_many_arguments)]
-    unsafe fn launch_unchecked<CS: ConvSpec, R: Runtime>(
+    unsafe fn launch_unchecked<CS: ConvPrecision, R: Runtime>(
         client: &ComputeClient<<R as Runtime>::Server, <R as Runtime>::Channel>,
         cube_dim: CubeDim,
         cube_count: CubeCount,

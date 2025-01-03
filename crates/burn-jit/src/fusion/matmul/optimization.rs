@@ -269,7 +269,7 @@ impl FusedMatmul {
         ) {
             Ok(_) => return Ok(()),
             Err(err) => match err {
-                MatmulLaunchError::Unavailable(matmul_availability_error) => {
+                MatmulLaunchError::Unavailable(_) => {
                     // Let's try another selector.
                 }
                 _ => return Err(FusedMatmulError::LaunchError(err)),
