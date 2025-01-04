@@ -15,7 +15,7 @@ impl<EIn: Numeric, EOut: Numeric> ReduceDimSubcube<EIn, EOut> for SumDim {
     }
 
     fn init_value() -> Self::Value {
-        EIn::cast_from(032)
+        EIn::cast_from(0u32)
     }
 
     fn read_value(input: &Tensor<EIn>, pos: u32, _i: u32) -> Self::Value {

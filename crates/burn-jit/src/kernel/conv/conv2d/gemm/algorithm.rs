@@ -44,7 +44,6 @@ pub trait Algorithm {
             cube_count,
             advanced_config,
         );
-        // problem.check_config(&config)?;
         Self::GlobalConvolution::check_config(&config)?;
         Ok(config)
     }
