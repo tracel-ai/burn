@@ -29,12 +29,12 @@ pub enum Conv2dStrategy {
 impl Default for Conv2dStrategy {
     fn default() -> Self {
         // if autotune is enabled, default to autotune
-        // #[cfg(feature = "autotune")]
-        // return Conv2dStrategy::Autotune;
+        #[cfg(feature = "autotune")]
+        return Conv2dStrategy::Autotune;
 
-        // // if autotune is disabled, default to the more memory-conservative algorithm
-        // #[cfg(not(feature = "autotune"))]
-        Conv2dStrategy::ImplicitGemm
+        // if autotune is disabled, default to the more memory-conservative algorithm
+        #[cfg(not(feature = "autotune"))]
+        Conv2dStrategy::Direct
     }
 }
 
