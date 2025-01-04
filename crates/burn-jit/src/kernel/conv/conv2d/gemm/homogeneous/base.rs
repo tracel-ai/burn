@@ -12,7 +12,7 @@ use cubecl::{
                 stage::{
                     self,
                     multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                    StageConfig, StageMatmulFamily, TilingOrderConfig,
+                    StageMatmulFamily, TilingOrderConfig,
                 },
                 Ident, InvalidConfigError, MatrixLayout, StageDim,
             },
@@ -220,9 +220,10 @@ where
         config::HomogeneousConfig::new(
             full_load::Config::new(
                 smm_config,
-                problem.m as u32 % smm_config.num_stages().m != 0,
-                problem.n as u32 % smm_config.num_stages().n != 0,
-                problem.k as u32 % smm_config.num_stages().k != 0,
+                // TODO: Find the correct condition to avoid check bounds.
+                true,
+                true,
+                true,
                 problem.lhs_layout,
                 problem.rhs_layout,
                 problem.lhs_line_size as u32,
@@ -251,7 +252,7 @@ impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFa
         out: TensorArg<'_, R>,
         config: <Self as ConvolutionConfigFactory>::Config,
     ) {
-        implicit_conv::launch_unchecked::<CS::ES, CS::EG, CS::EA, Self, SMM, R>(
+        implicit_conv::launch_unchecked::<CS::EG, CS::ES, CS::EA, Self, SMM, R>(
             client,
             cube_count,
             cube_dim,
@@ -267,8 +268,8 @@ impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFa
 
 #[cube(launch_unchecked)]
 pub(crate) fn implicit_conv<
-    ES: Numeric,
     EG: Numeric,
+    ES: Numeric,
     EA: Numeric,
     GMM: ConvolutionFamily<SMM>,
     SMM: StageMatmulFamily,

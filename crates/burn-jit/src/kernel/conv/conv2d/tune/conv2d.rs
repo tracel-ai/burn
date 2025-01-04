@@ -181,11 +181,6 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
     conv_problem: &ConvolutionProblem,
 ) -> bool {
     let plane_dim = 32;
-    // Not the actual precision used, but good enough for the check.
-    //
-    // TODO: Remove the can_launch function and simply handle Result in the autotune
-    // runner.
-    type CS = (half::f16, half::f16, half::f16);
 
     let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
     let cube_dim = ImplicitCmmaConv::cube_dim(&selection);

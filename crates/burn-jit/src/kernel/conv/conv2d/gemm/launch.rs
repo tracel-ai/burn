@@ -170,12 +170,10 @@ where
         lhs_line_size,
         rhs_line_size,
         out_line_size,
-
         kernel_size: (kernel_h as u32, kernel_w as u32),
         options,
         out_shape_y: out_h,
         out_shape_x: out_w,
-
         has_bias: bias.is_some(),
     };
 
