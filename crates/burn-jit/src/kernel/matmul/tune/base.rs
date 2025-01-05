@@ -85,7 +85,7 @@ fn matmul_accelerated<R: JitRuntime, E: FloatElement>(
     out: JitTensor<R>,
 ) {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Accelerated,
+        &Strategy::Standard,
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),

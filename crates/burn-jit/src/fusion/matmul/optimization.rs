@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use crate::fusion::elemwise::optimization::ElemwiseRunner;
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::kernel::matmul;
@@ -8,14 +10,14 @@ use burn_fusion::stream::Context;
 use burn_tensor::repr::{BinaryOperationDescription, TensorStatus};
 use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
+use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::{CmmaSelector, PlaneMmaSelector};
+use cubecl::linalg::matmul::kernels::matmul::{MatmulSelector, StandardSelector};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
-use std::any::TypeId;
 
 use crate::fusion::on_write::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
@@ -248,57 +250,53 @@ impl FusedMatmul {
             .hardware_properties()
             .defined_plane_size();
 
-        match plane_size {
-            Some(32) => matmul_launch_kernel::<32, R, EG>(
-                client,
-                FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-                outputs,
-                false,
-                problem,
-            ),
-            Some(64) => matmul_launch_kernel::<64, R, EG>(
-                client,
-                FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-                outputs,
-                false,
-                problem,
-            ),
-            Some(plane_dim) => Err(MatmulLaunchError::Unavailable(
-                MatmulAvailabilityError::PlaneDimUnsupported { plane_dim },
-            )),
-            None => Err(MatmulLaunchError::Unavailable(
-                MatmulAvailabilityError::PlaneDimUnknown,
-            )),
-        }?;
+        let plane_size = match plane_size {
+            Some(val) => val,
+            None => {
+                return Err(MatmulLaunchError::Unavailable(
+                    MatmulAvailabilityError::PlaneDimUnknown,
+                )
+                .into())
+            }
+        };
 
-        Ok(())
+        match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
+            client,
+            FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+            outputs,
+            problem,
+            plane_size,
+        ) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(FusedMatmulError::LaunchError(err)),
+        }
     }
 }
 
-fn matmul_launch_kernel<'a, const PLANE_DIM: u32, R: Runtime, EG: Numeric>(
+fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, S: MatmulSelector>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
-    disable_cmma: bool,
     problem: MatmulProblem,
+    plane_size: u32,
 ) -> Result<(), MatmulLaunchError> {
-    if disable_cmma {
-        PlaneMmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, EG, f32>, R>(
-            client, input, output, problem,
-        )
-    } else if TypeId::of::<EG>() == TypeId::of::<f16>()
+    if TypeId::of::<EG>() == TypeId::of::<half::f16>()
         || TypeId::of::<EG>() == TypeId::of::<flex32>()
     {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, f16, f32>, R>(
-            client, input, output, problem,
+        S::select_kernel::<FusedMatmulSpec<EG, half::f16, f32>, R>(
+            client, input, output, problem, plane_size,
         )
-    } else if TypeId::of::<EG>() == TypeId::of::<bf16>() {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, bf16, f32>, R>(
-            client, input, output, problem,
+    } else if TypeId::of::<EG>() == TypeId::of::<half::bf16>() {
+        S::select_kernel::<FusedMatmulSpec<EG, half::bf16, f32>, R>(
+            client, input, output, problem, plane_size,
+        )
+    } else if S::stage_tf32_supported() {
+        S::select_kernel::<FusedMatmulSpec<EG, tf32, f32>, R>(
+            client, input, output, problem, plane_size,
         )
     } else {
-        CmmaSelector::select_kernel::<FusedMatmulSpec<{ PLANE_DIM }, EG, tf32, f32>, R>(
-            client, input, output, problem,
+        S::select_kernel::<FusedMatmulSpec<EG, EG, f32>, R>(
+            client, input, output, problem, plane_size,
         )
     }
 }

@@ -1,10 +1,10 @@
-use crate::{kernel::reduce::Argmax, JitElement};
+use crate::kernel::reduce::Argmax;
 use cubecl::prelude::*;
 
 use super::base::ReduceDimShared;
 
 #[cube]
-impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for Argmax {
+impl<EIn: Numeric, EOut: Numeric> ReduceDimShared<EIn, EOut> for Argmax {
     /// The reduction accumulator
     type Accumulator = (SharedMemory<EIn>, SharedMemory<u32>);
     type Value = (EIn, u32);
@@ -16,7 +16,7 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for Argmax {
     ) -> (SharedMemory<EIn>, SharedMemory<u32>) {
         let mut value_shared = SharedMemory::new(shared_memory_size);
         let mut index_shared = SharedMemory::new(shared_memory_size);
-        value_shared[write_position] = comptime![EIn::minimum_value()].runtime();
+        value_shared[write_position] = EIn::min_value();
         index_shared[write_position] = 0;
         (value_shared, index_shared)
     }

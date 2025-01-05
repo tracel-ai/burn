@@ -1,10 +1,8 @@
 use cubecl::prelude::*;
 
-use crate::JitElement;
-
 /// Specifies the reduce dim algorithm in use
 #[cube]
-pub trait ReduceDimShared<EIn: JitElement, EOut: JitElement>: Send + Sync + 'static {
+pub trait ReduceDimShared<EIn: Numeric, EOut: Numeric>: Send + Sync + 'static {
     /// The reduction accumulator
     type Accumulator: CubeType;
     type Value: CubeType;

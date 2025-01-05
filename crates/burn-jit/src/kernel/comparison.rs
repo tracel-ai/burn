@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{
     element::JitElement, ops::numeric::empty_device, tensor::JitTensor, BoolElement, JitRuntime,
 };
@@ -56,11 +58,26 @@ impl<N: Numeric> ComparisonOp<N> for LowerOp {
     }
 }
 
+pub(crate) trait ScalarOpSpec: Send + Sync + 'static {
+    type C: Numeric;
+    type B: Numeric;
+}
+
+pub(crate) struct Spec<C, B> {
+    _c: PhantomData<C>,
+    _b: PhantomData<B>,
+}
+
+impl<C: Numeric, B: Numeric> ScalarOpSpec for Spec<C, B> {
+    type C = C;
+    type B = B;
+}
+
 #[cube(launch)]
-pub(crate) fn kernel_scalar_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
-    input: &Tensor<Line<C>>,
-    scalar: C,
-    output: &mut Tensor<Line<B>>,
+pub(crate) fn kernel_scalar_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
+    input: &Tensor<Line<SS::C>>,
+    scalar: SS::C,
+    output: &mut Tensor<Line<SS::B>>,
 ) {
     let offset_output = ABSOLUTE_POS;
 
@@ -72,10 +89,10 @@ pub(crate) fn kernel_scalar_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
-    lhs: &Tensor<Line<C>>,
-    rhs: &Tensor<Line<C>>,
-    out: &mut Tensor<Line<B>>,
+pub(crate) fn kernel_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
+    lhs: &Tensor<Line<SS::C>>,
+    rhs: &Tensor<Line<SS::C>>,
+    out: &mut Tensor<Line<SS::B>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -89,7 +106,7 @@ pub(crate) fn kernel_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
     }
 
     if to_contiguous_lhs {
-        offset_lhs = index_offset_with_layout::<C, B>(
+        offset_lhs = index_offset_with_layout::<SS::C, SS::B>(
             lhs,
             out,
             offset_out,
@@ -100,7 +117,7 @@ pub(crate) fn kernel_cmp<C: Numeric, B: Numeric, O: ComparisonOp<C>>(
     }
 
     if to_contiguous_rhs {
-        offset_rhs = index_offset_with_layout::<C, B>(
+        offset_rhs = index_offset_with_layout::<SS::C, SS::B>(
             rhs,
             out,
             offset_out,
@@ -145,7 +162,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
     if same_tensor_type && lhs.can_mut_broadcast(&rhs) {
-        kernel_cmp::launch::<E, BT, O, R>(
+        kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -166,7 +183,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
             BT::dtype(),
         )
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
-        kernel_cmp::launch::<E, BT, O, R>(
+        kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
@@ -191,7 +208,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_cmp::launch::<E, BT, O, R>(
+        kernel_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
@@ -233,7 +250,7 @@ pub(crate) fn launch_scalar_cmp<
 
     let same_tensor_type = core::any::TypeId::of::<E>() == core::any::TypeId::of::<BT>();
     if same_tensor_type && tensor.can_mut() {
-        kernel_scalar_cmp::launch::<E, BT, O, R>(
+        kernel_scalar_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -257,7 +274,7 @@ pub(crate) fn launch_scalar_cmp<
             tensor.shape.clone(),
         );
 
-        kernel_scalar_cmp::launch::<E, BT, O, R>(
+        kernel_scalar_cmp::launch::<Spec<E, BT>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),

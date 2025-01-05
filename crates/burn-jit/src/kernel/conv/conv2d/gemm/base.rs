@@ -2,8 +2,9 @@ use burn_tensor::ops::ConvOptions;
 use cubecl::linalg::{
     matmul::{
         components::{
-            global::{AccumulatorLoader, Unloader},
-            stage, MatmulProblem, MatrixLayout,
+            global::{AccumulatorLoader, OutputLoader},
+            stage::{StageMatmul, StageMatmulFamily},
+            InvalidConfigError, MatmulProblem, MatrixLayout,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
@@ -11,17 +12,28 @@ use cubecl::linalg::{
 };
 use cubecl::prelude::*;
 
-use super::{spec::ConvSpec, Config};
+use super::{precision::ConvPrecision, ConvGemmConfig};
+
+pub trait ConvolutionFamily<SMM: StageMatmulFamily>:
+    ConvolutionConfigFactory<Config: ConvGemmConfig> + ConvolutionLaunch
+{
+    type Convolution<CS: ConvPrecision>: Convolution<
+        CS,
+        SMM::Matmul<CS::ES, CS::EG, CS::EA>,
+        Config = Self::Config,
+    >;
+}
 
 #[cube]
-pub trait Convolution<CS: ConvSpec, SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>>:
-    'static + Send + Sync + ConvolutionKernel<CS::EG, CS::EG, Config: Config>
+pub trait Convolution<CS: ConvPrecision, SMM: StageMatmul<CS::ES, CS::EG, CS::EA>>:
+    'static + Send + Sync
 {
     type LhsLoader: CubeType;
     type RhsLoader: CubeType;
+    type Config: ConvGemmConfig;
     type AccumulatorLoader: AccumulatorLoader<CS::EG, CS::EA, SMM::Config>;
 
-    type Out: Unloader<CS::EG>;
+    type Out: OutputLoader<CS::EG>;
     type Accumulator: CubeType;
 
     /// Performs the convolution over data loaded by the
@@ -71,19 +83,22 @@ pub trait Convolution<CS: ConvSpec, SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>>:
 }
 
 /// Provides configuration for a matmul kernel at any level
-pub trait ConvolutionKernel<I: Numeric, O: Numeric> {
+pub trait ConvolutionConfigFactory: Send + Sync + 'static {
     /// Configuration tailored to the matmul implementation
-    type Config: Config;
+    type Config: ConvGemmConfig;
+    type Input;
 
     /// Asserts that the configuration for this matmul will lead to a valid computation
-    fn check_config(config: Self::Config);
+    fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError>;
 
     /// Checks if the client can handle the features used in this computation
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
+        config: &Self::Config,
     ) -> Result<(), MatmulAvailabilityError>;
 
     fn make_config(
+        input: Self::Input,
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
@@ -92,14 +107,14 @@ pub trait ConvolutionKernel<I: Numeric, O: Numeric> {
 }
 
 /// Provides launch entry point to solve a matmul
-pub trait ConvolutionLaunch<I: Numeric, O: Numeric>: ConvolutionKernel<I, O> {
+pub trait ConvolutionLaunch: ConvolutionConfigFactory {
     /// Entry point
     ///
     /// # Safety
     ///
     /// Out-of-bounds can happen
     #[allow(clippy::too_many_arguments)]
-    unsafe fn launch_unchecked<R: Runtime>(
+    unsafe fn launch_unchecked<CS: ConvPrecision, R: Runtime>(
         client: &ComputeClient<<R as Runtime>::Server, <R as Runtime>::Channel>,
         cube_dim: CubeDim,
         cube_count: CubeCount,
@@ -107,7 +122,7 @@ pub trait ConvolutionLaunch<I: Numeric, O: Numeric>: ConvolutionKernel<I, O> {
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
-        config: <Self as ConvolutionKernel<I, O>>::Config,
+        config: <Self as ConvolutionConfigFactory>::Config,
     );
 }
 

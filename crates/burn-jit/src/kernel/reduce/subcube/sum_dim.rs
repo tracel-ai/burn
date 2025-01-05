@@ -1,11 +1,11 @@
 use cubecl::{cube, prelude::*};
 
-use crate::{kernel::reduce::SumDim, JitElement};
+use crate::kernel::reduce::SumDim;
 
 use super::base::ReduceDimSubcube;
 
 #[cube]
-impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for SumDim {
+impl<EIn: Numeric, EOut: Numeric> ReduceDimSubcube<EIn, EOut> for SumDim {
     /// The reduction accumulator
     type Accumulator = SharedMemory<EIn>;
     type Value = EIn;
@@ -15,7 +15,7 @@ impl<EIn: JitElement, EOut: JitElement> ReduceDimSubcube<EIn, EOut> for SumDim {
     }
 
     fn init_value() -> Self::Value {
-        comptime![EIn::default()].runtime()
+        EIn::cast_from(0u32)
     }
 
     fn read_value(input: &Tensor<EIn>, pos: u32, _i: u32) -> Self::Value {

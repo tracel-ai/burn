@@ -1,5 +1,9 @@
 use cubecl::prelude::*;
 
+pub trait ReduceDimNaiveFamily: Send + Sync + 'static {
+    type Reduce<E: Numeric>: ReduceDimNaive<E>;
+}
+
 /// Specifies the reduce dim algorithm in use
 #[cube]
 pub trait ReduceDimNaive<EI: Numeric>: Send + Sync + 'static {

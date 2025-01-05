@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
@@ -11,6 +13,17 @@ use super::into_contiguous;
 pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a binary operation.
     fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
+}
+
+pub(crate) trait BinaryOpSpec: Send + Sync + 'static {
+    type C: Numeric;
+}
+pub(crate) struct Spec<C: Numeric> {
+    _c: PhantomData<C>,
+}
+
+impl<C: Numeric> BinaryOpSpec for Spec<C> {
+    type C = C;
 }
 
 pub(crate) struct AddOp;
@@ -63,10 +76,10 @@ impl<N: Float> BinaryOp<N> for PowOp {
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
-    input: &Tensor<Line<C>>,
-    scalar: C,
-    output: &mut Tensor<Line<C>>,
+pub(crate) fn kernel_scalar_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
+    input: &Tensor<Line<BS::C>>,
+    scalar: BS::C,
+    output: &mut Tensor<Line<BS::C>>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
@@ -76,10 +89,10 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
-    lhs: &Tensor<Line<C>>,
-    rhs: &Tensor<Line<C>>,
-    out: &mut Tensor<Line<C>>,
+pub(crate) fn kernel_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
+    lhs: &Tensor<Line<BS::C>>,
+    rhs: &Tensor<Line<BS::C>>,
+    out: &mut Tensor<Line<BS::C>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -93,7 +106,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
     }
 
     if to_contiguous_lhs {
-        offset_lhs = index_offset_with_layout::<C, C>(
+        offset_lhs = index_offset_with_layout::<BS::C, BS::C>(
             lhs,
             out,
             offset_out,
@@ -104,7 +117,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
     }
 
     if to_contiguous_rhs {
-        offset_rhs = index_offset_with_layout::<C, C>(
+        offset_rhs = index_offset_with_layout::<BS::C, BS::C>(
             rhs,
             out,
             offset_out,
@@ -148,7 +161,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if lhs.can_mut_broadcast(&rhs) {
-        kernel_binop::launch::<E, O, R>(
+        kernel_binop::launch::<Spec<E>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -162,7 +175,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 
         lhs
     } else if rhs.can_mut_broadcast(&lhs) {
-        kernel_binop::launch::<E, O, R>(
+        kernel_binop::launch::<Spec<E>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -180,7 +193,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_binop::launch::<E, O, R>(
+        kernel_binop::launch::<Spec<E>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -216,7 +229,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if tensor.can_mut() {
-        kernel_scalar_binop::launch::<E, O, R>(
+        kernel_scalar_binop::launch::<Spec<E>, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -233,7 +246,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             tensor.shape.clone(),
         );
 
-        kernel_scalar_binop::launch::<E, O, R>(
+        kernel_scalar_binop::launch::<Spec<E>, O, R>(
             &client,
             cube_count,
             CubeDim::default(),

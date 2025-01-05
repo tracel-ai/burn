@@ -1,6 +1,6 @@
 use cubecl::{
     linalg::{
-        matmul::components::{stage, Ident},
+        matmul::components::{stage::StageConfig, Ident},
         tensor::VirtualTensor,
     },
     prelude::*,
@@ -31,7 +31,7 @@ impl<E: Numeric> BiasReader<E> {
     }
 
     /// Load the 1D bias into shared memory
-    pub fn load_simple<G: stage::Config>(&self, unit_id: u32, #[comptime] config: G) -> Line<E> {
+    pub fn load_simple<G: StageConfig>(&self, unit_id: u32, #[comptime] config: G) -> Line<E> {
         let line_size = config.line_size(Ident::Out);
 
         let view_n = self.n_offset + unit_id;

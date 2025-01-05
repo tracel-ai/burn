@@ -3,7 +3,7 @@ use cubecl::{
     prelude::*,
 };
 
-use crate::kernel::conv::Config;
+use crate::kernel::conv::ConvGemmConfig;
 
 #[derive(CubeType)]
 /// A view of a feature map tensor that starts reading data from a specified offset.
@@ -89,7 +89,7 @@ impl<E: Numeric> Im2colReader<E> {
     /// # Note
     ///
     /// Out-of-bounds reads will be translated to zeros.
-    pub fn load_simple<G: Config>(
+    pub fn load_simple<G: ConvGemmConfig>(
         &self,
         tile_x: u32,
         tile_y: u32,

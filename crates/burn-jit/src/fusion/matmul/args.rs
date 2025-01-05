@@ -23,16 +23,19 @@ pub struct FusedMatmulInput {
 }
 
 #[cube]
-impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
-    type Output = GlobalArgs;
-    type Input = FusedMatmulInput;
-    type State = FusedMatmulState;
+impl MatmulArgs for FusedMatmulArgs {
+    type Output<EG: Numeric> = GlobalArgs;
+    type Input<EG: Numeric> = FusedMatmulInput;
+    type State<EG: Numeric> = FusedMatmulState;
 
-    fn init_state(inputs: &Self::Input, outputs: &mut Self::Output) -> Self::State {
+    fn init_state<EG: Numeric>(
+        inputs: &Self::Input<EG>,
+        outputs: &mut Self::Output<EG>,
+    ) -> Self::State<EG> {
         FusedMatmulState::new(inputs, outputs, &inputs.config)
     }
 
-    fn read_lhs(state: &Self::State, coordinate: u32) -> Line<EG> {
+    fn read_lhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
         let (pos, precision) = comptime! {
             match state.lhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -51,7 +54,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         )
     }
 
-    fn read_rhs(state: &Self::State, coordinate: u32) -> Line<EG> {
+    fn read_rhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
         let (pos, precision) = comptime! {
             match state.rhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -70,7 +73,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         )
     }
 
-    fn write_out(state: &mut Self::State, coordinate: u32, value: Line<EG>) {
+    fn write_out<EG: Numeric>(state: &mut Self::State<EG>, coordinate: u32, value: Line<EG>) {
         let mut values = Registry::<Arg, Line<EG>>::new();
         let mut args = comptime![Sequence::<Arg>::new()];
 
@@ -87,7 +90,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         );
     }
 
-    fn rank_lhs(state: &Self::State) -> u32 {
+    fn rank_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -98,7 +101,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_rank(unsafe { &(*state.inputs) }, pos, precision)
     }
 
-    fn rank_rhs(state: &Self::State) -> u32 {
+    fn rank_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -109,7 +112,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_rank(unsafe { &(*state.inputs) }, pos, precision)
     }
 
-    fn rank_out(state: &Self::State) -> u32 {
+    fn rank_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
                 Arg::Input(pos, precision, _) => (pos, precision, true),
@@ -125,7 +128,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         }
     }
 
-    fn shape_lhs(state: &Self::State, dim: u32) -> u32 {
+    fn shape_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -136,7 +139,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_shape(unsafe { &(*state.inputs) }, dim, pos, precision)
     }
 
-    fn shape_rhs(state: &Self::State, dim: u32) -> u32 {
+    fn shape_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -147,7 +150,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_shape(unsafe { &(*state.inputs) }, dim, pos, precision)
     }
 
-    fn shape_out(state: &Self::State, dim: u32) -> u32 {
+    fn shape_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
                 Arg::Input(pos, precision, _) => (pos, precision, true),
@@ -163,7 +166,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         }
     }
 
-    fn stride_lhs(state: &Self::State, dim: u32) -> u32 {
+    fn stride_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.lhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -174,7 +177,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_stride(unsafe { &(*state.inputs) }, dim, pos, precision)
     }
 
-    fn stride_rhs(state: &Self::State, dim: u32) -> u32 {
+    fn stride_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision) = comptime! {
             match state.rhs {
                 Arg::Input(pos, precision, _) => (pos, precision),
@@ -185,7 +188,7 @@ impl<EG: Numeric> MatmulArgs<EG> for FusedMatmulArgs {
         global_stride(unsafe { &(*state.inputs) }, dim, pos, precision)
     }
 
-    fn stride_out(state: &Self::State, dim: u32) -> u32 {
+    fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
         let (pos, precision, is_input) = comptime! {
             match state.config.ref_layout {
                 Arg::Input(pos, precision, _) => (pos, precision, true),
