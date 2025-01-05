@@ -267,16 +267,9 @@ impl FusedMatmul {
             problem,
             plane_size,
         ) {
-            Ok(_) => return Ok(()),
-            Err(err) => match err {
-                MatmulLaunchError::Unavailable(_) => {
-                    // Let's try another selector.
-                }
-                _ => return Err(FusedMatmulError::LaunchError(err)),
-            },
-        };
-
-        Ok(())
+            Ok(_) => Ok(()),
+            Err(err) => Err(FusedMatmulError::LaunchError(err)),
+        }
     }
 }
 
