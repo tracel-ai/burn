@@ -16,7 +16,7 @@ impl<EIn: Numeric, EOut: Numeric> ReduceDimShared<EIn, EOut> for Argmax {
     ) -> (SharedMemory<EIn>, SharedMemory<u32>) {
         let mut value_shared = SharedMemory::new(shared_memory_size);
         let mut index_shared = SharedMemory::new(shared_memory_size);
-        value_shared[write_position] = comptime![EIn::min_value()].runtime();
+        value_shared[write_position] = EIn::min_value();
         index_shared[write_position] = 0;
         (value_shared, index_shared)
     }
