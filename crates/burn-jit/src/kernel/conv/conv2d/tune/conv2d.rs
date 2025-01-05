@@ -184,12 +184,12 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
 
     let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
     let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
-    let cube_count = ImplicitCmmaConv::cube_count(&selection, &conv_problem);
+    let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
 
     let advanced_config = Default::default();
     let config = ImplicitCmmaConv::make_config(
         config_input,
-        &conv_problem,
+        conv_problem,
         &cube_dim,
         &cube_count,
         &advanced_config,
@@ -197,7 +197,7 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
 
     match config {
         Ok(config) => {
-            ImplicitCmmaConv::can_launch::<R, CS>(&input.client, &conv_problem, &config, &selection)
+            ImplicitCmmaConv::can_launch::<R, CS>(&input.client, conv_problem, &config, &selection)
         }
         Err(_) => false,
     }

@@ -177,15 +177,12 @@ where
         has_bias: bias.is_some(),
     };
 
-    let plane_dim = match input
+    let plane_dim = input
         .client
         .properties()
         .hardware_properties()
         .defined_plane_size()
-    {
-        Some(val) => val,
-        None => 32, // To keep compatibility. TODO: Proper error handling.
-    };
+        .unwrap_or(32);
 
     let (selection, config_input) = S::select_kernel::<R, SP>(plane_dim);
     let cube_dim = Alg::cube_dim(&selection);

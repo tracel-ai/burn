@@ -14,9 +14,7 @@ pub struct ConvSelection {
 }
 
 pub trait ConvSelector<A: Algorithm> {
-    fn select_kernel<'a, R: JitRuntime, CS: ConvPrecision>(
-        plane_dim: u32,
-    ) -> (A::Selection, A::Input);
+    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(plane_dim: u32) -> (A::Selection, A::Input);
 }
 
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
@@ -27,7 +25,7 @@ pub struct Large;
 pub struct Balanced;
 
 impl ConvSelector<ImplicitCmmaConv> for Large {
-    fn select_kernel<'a, R: JitRuntime, CS: ConvPrecision>(
+    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(
         plane_dim: u32,
     ) -> (
         <ImplicitCmmaConv as Algorithm>::Selection,
@@ -43,8 +41,8 @@ impl ConvSelector<ImplicitCmmaConv> for Large {
             plane_dim,
         };
         let config_input = CommonStageInput {
-            tile: Accelerated::input(selection.tile.clone()),
-            num_stages: selection.num_stagess.clone(),
+            tile: Accelerated::input(selection.tile),
+            num_stages: selection.num_stagess,
         };
 
         let selection = ConvSelection { matmul: selection };
@@ -54,7 +52,7 @@ impl ConvSelector<ImplicitCmmaConv> for Large {
 }
 
 impl ConvSelector<ImplicitCmmaConv> for Balanced {
-    fn select_kernel<'a, R: JitRuntime, CS: ConvPrecision>(
+    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(
         plane_dim: u32,
     ) -> (
         <ImplicitCmmaConv as Algorithm>::Selection,
@@ -70,8 +68,8 @@ impl ConvSelector<ImplicitCmmaConv> for Balanced {
             plane_dim,
         };
         let config_input = CommonStageInput {
-            tile: Accelerated::input(selection.tile.clone()),
-            num_stages: selection.num_stagess.clone(),
+            tile: Accelerated::input(selection.tile),
+            num_stages: selection.num_stagess,
         };
 
         let selection = ConvSelection { matmul: selection };
