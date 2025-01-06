@@ -61,7 +61,7 @@ pub enum Commands {
         sample_interval: usize,
     },
 
-    // Generate images with the model
+    /// Generate images with the model
     Generate {
         /// Path to the trained model
         #[arg(long)]
