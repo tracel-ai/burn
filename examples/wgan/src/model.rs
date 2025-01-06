@@ -23,9 +23,7 @@ impl<B: Backend> LayerBlock<B> {
         let leakyrelu = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
 
         Self {
-            fc,
-            bn,
-            leakyrelu,
+            fc, bn, leakyrelu,
         }
     }
 
