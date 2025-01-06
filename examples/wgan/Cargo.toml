@@ -1,0 +1,19 @@
+[package]
+name = "wgan"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+ndarray = ["burn/ndarray"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+
+[dependencies]
+burn = { version="0.15.0", features=["train", "vision"] }
+image = { version="0.25.5" }
+# Command line parser
+clap = { version="4.5.21", features=["derive"] }
