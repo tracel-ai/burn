@@ -4,7 +4,7 @@ use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, 
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
-    tensor_vectorization_factor,
+    tensor_line_size_parallel,
 };
 
 use super::into_contiguous;
@@ -105,7 +105,7 @@ impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
     input: &Tensor<Line<C>>,
     scalar: C,
@@ -118,7 +118,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
     output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     lhs: &Tensor<Line<C>>,
     rhs: &Tensor<Line<C>>,
@@ -165,12 +165,19 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
     let ndims = lhs.shape.num_dims();
-    let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
-    let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, ndims - 1);
-
-    let vectorization_factor = Ord::min(vectorization_factor_lhs, vectorization_factor_rhs);
+    let line_size_lhs = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &lhs.shape.dims,
+        &lhs.strides,
+        ndims - 1,
+    );
+    let line_size_rhs = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &rhs.shape.dims,
+        &rhs.strides,
+        ndims - 1,
+    );
+    let line_size = Ord::min(line_size_lhs, line_size_rhs);
 
     let mut shape_out = vec![0; ndims];
     lhs.shape
@@ -187,55 +194,56 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
     let num_elems = shape_out.num_elements();
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    if lhs.can_mut_broadcast(&rhs) {
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
-            TensorArg::alias(0),
-            None,
-            false,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-        );
+    unsafe {
+        if lhs.can_mut_broadcast(&rhs) {
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                TensorArg::alias(0),
+                None,
+                false,
+                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            );
 
-        lhs
-    } else if rhs.can_mut_broadcast(&lhs) {
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
-            TensorArg::alias(1),
-            None,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-            false,
-        );
+            lhs
+        } else if rhs.can_mut_broadcast(&lhs) {
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                TensorArg::alias(1),
+                None,
+                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+                false,
+            );
 
-        rhs
-    } else {
-        let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
-        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
-        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
+            rhs
+        } else {
+            let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
+            let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
+            let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg::<E>(vectorization_factor),
-            rhs.as_tensor_arg::<E>(vectorization_factor),
-            output.as_tensor_arg::<E>(vectorization_factor),
-            None,
-            to_contiguous_lhs,
-            to_contiguous_rhs,
-        );
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                output.as_tensor_arg::<E>(line_size),
+                None,
+                to_contiguous_lhs,
+                to_contiguous_rhs,
+            );
 
-        output
+            output
+        }
     }
 }
 
@@ -249,42 +257,47 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamil
 
     // Vectorization is only enabled when the last dimension is contiguous.
     let ndims = tensor.shape.num_dims();
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, ndims - 1);
+    let line_size = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &tensor.shape.dims,
+        &tensor.strides,
+        ndims - 1,
+    );
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    if tensor.can_mut() {
-        kernel_scalar_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            tensor.as_tensor_arg::<E>(vectorization_factor),
-            ScalarArg::new(scalar),
-            TensorArg::alias(0),
-        );
+    unsafe {
+        if tensor.can_mut() {
+            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                tensor.as_tensor_arg::<E>(line_size),
+                ScalarArg::new(scalar),
+                TensorArg::alias(0),
+            );
 
-        tensor
-    } else {
-        let output = empty_device::<R, E>(
-            tensor.client.clone(),
-            tensor.device.clone(),
-            tensor.shape.clone(),
-        );
+            tensor
+        } else {
+            let output = empty_device::<R, E>(
+                tensor.client.clone(),
+                tensor.device.clone(),
+                tensor.shape.clone(),
+            );
 
-        kernel_scalar_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            CubeDim::default(),
-            tensor.as_tensor_arg::<E>(vectorization_factor),
-            ScalarArg::new(scalar),
-            output.as_tensor_arg::<E>(vectorization_factor),
-        );
+            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                CubeDim::default(),
+                tensor.as_tensor_arg::<E>(line_size),
+                ScalarArg::new(scalar),
+                output.as_tensor_arg::<E>(line_size),
+            );
 
-        output
+            output
+        }
     }
 }
