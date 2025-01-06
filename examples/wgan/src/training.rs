@@ -85,7 +85,7 @@ pub fn train<B: AutodiffBackend>(
     channels: usize,
     clip_value: f32,
     sample_interval: usize,
-    device: B::Device
+    device: B::Device,
 ) {
     create_artifact_dir(artifact_dir);
     // Create the configuration
@@ -107,13 +107,13 @@ pub fn train<B: AutodiffBackend>(
         image_size,
         channels,
         clip_value,
-        sample_interval
+        sample_interval,
     );
     let config_model = ModelConfig::new(config.latent_dim, config.image_size, config.channels);
     // Create the Clip module mapper
     let mut clip = Clip {
         min: -config.clip_value,
-        max: config.clip_value
+        max: config.clip_value,
     };
 
     // Save training config
