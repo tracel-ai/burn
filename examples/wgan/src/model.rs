@@ -22,9 +22,7 @@ impl<B: Backend> LayerBlock<B> {
         let bn: BatchNorm<B, 0> = nn::BatchNormConfig::new(output).with_epsilon(0.8).init(device);
         let leakyrelu = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
 
-        Self {
-            fc, bn, leakyrelu,
-        }
+        Self { fc, bn, leakyrelu }
     }
 
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
