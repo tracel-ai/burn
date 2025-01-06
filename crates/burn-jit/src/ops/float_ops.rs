@@ -1,6 +1,9 @@
 use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::{self, launch_unary_float, reduce, FloatUnaryOp, FloatUnaryOpFamily};
+use crate::kernel::unary_basic::BasicFloatUnaryKind;
+use crate::kernel::{
+    self, launch_unary_float, reduce, unary_basic, FloatUnaryOp, FloatUnaryOpFamily,
+};
 use crate::{
     element::BoolElement,
     kernel::matmul::{matmul, MatmulStrategy},
@@ -389,75 +392,15 @@ where
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Exp;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Exp {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::exp(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Exp {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Exp, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Exp)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Log;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Log {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::log(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Log {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Log, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Log1p;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Log1p {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::log1p(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Log1p {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Log1p, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log1p)
     }
 
     fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
@@ -485,219 +428,39 @@ where
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Sqrt;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Sqrt {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::sqrt(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Sqrt {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Sqrt, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sqrt)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Abs;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Abs {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::abs(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Abs {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Abs, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Abs)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Cos;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Cos {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::cos(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Cos {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Cos, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Cos)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Sin;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Sin {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::sin(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Sin {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Sin, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sin)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Tanh;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Tanh {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::tanh(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Tanh {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Tanh, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Tanh)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Round;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Round {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::round(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Round {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Round, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Round)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Floor;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Floor {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::floor(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Floor {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Floor, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Floor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Ceil;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Ceil {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::ceil(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Ceil {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Ceil, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Ceil)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Erf;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Erf {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::erf(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Erf {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Erf, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Erf)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -733,27 +496,7 @@ where
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        struct Recip;
-
-        #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Recip {
-            type Options = ();
-
-            fn execute(input: Line<F>, _options: &Self::Options) -> Line<F> {
-                Line::recip(input)
-            }
-        }
-
-        impl FloatUnaryOpFamily for Recip {
-            type Options<F: Float> = ();
-            type Unary<F: Float> = Self;
-        }
-
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            launch_unary_float::<R, F, Recip, _>(tensor, |_| ())
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Recip)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {

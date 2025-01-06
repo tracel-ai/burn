@@ -105,3 +105,77 @@ where
         }
     }
 }
+
+/// Use comptime enum to implement all unary operations that don't have any input argument in the
+/// kernel definition.
+pub(crate) mod unary_basic {
+    use crate::execute_with_dtype;
+
+    use super::*;
+
+    pub(crate) fn launch<R, Args>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+    where
+        R: JitRuntime,
+        for<'a> Args: FnOnce(&'a ()) -> &'a BasicFloatUnaryKind,
+    {
+        execute_with_dtype!(
+            float(tensor.dtype),
+            F,
+            launch_unary_float::<R, F, BasicFloatUnary, _>(tensor, |input| {
+                BasicFloatUnaryOptionsLaunch::new(args(input))
+            })
+        )
+    }
+
+    #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+    pub enum BasicFloatUnaryKind {
+        Exp,
+        Log,
+        Log1p,
+        Sqrt,
+        Abs,
+        Cos,
+        Sin,
+        Tanh,
+        Round,
+        Floor,
+        Ceil,
+        Erf,
+        Recip,
+    }
+
+    #[derive(CubeLaunch)]
+    struct BasicFloatUnaryOptions {
+        #[cube(comptime)]
+        kind: BasicFloatUnaryKind,
+    }
+    struct BasicFloatUnary;
+
+    #[cube]
+    impl<F: Float> FloatUnaryOp<F> for BasicFloatUnary {
+        type Options = BasicFloatUnaryOptions;
+
+        fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+            match comptime![options.kind] {
+                BasicFloatUnaryKind::Exp => Line::exp(input),
+                BasicFloatUnaryKind::Log => Line::log(input),
+                BasicFloatUnaryKind::Log1p => Line::log1p(input),
+                BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
+                BasicFloatUnaryKind::Abs => Line::abs(input),
+                BasicFloatUnaryKind::Cos => Line::cos(input),
+                BasicFloatUnaryKind::Sin => Line::sin(input),
+                BasicFloatUnaryKind::Tanh => Line::tanh(input),
+                BasicFloatUnaryKind::Round => Line::round(input),
+                BasicFloatUnaryKind::Floor => Line::floor(input),
+                BasicFloatUnaryKind::Ceil => Line::ceil(input),
+                BasicFloatUnaryKind::Erf => Line::erf(input),
+                BasicFloatUnaryKind::Recip => Line::recip(input),
+            }
+        }
+    }
+
+    impl FloatUnaryOpFamily for BasicFloatUnary {
+        type Options<F: Float> = BasicFloatUnaryOptions;
+        type Unary<F: Float> = Self;
+    }
+}
