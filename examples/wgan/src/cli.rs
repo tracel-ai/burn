@@ -66,5 +66,5 @@ pub enum Commands {
         // Path to the trained model
         #[arg(long)]
         artifact_dir: String,
-    }
+    },
 }
