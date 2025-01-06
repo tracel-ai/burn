@@ -2263,4 +2263,31 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         out
     }
+
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        scalar_float_ops!(CumsumOps, B::float_cumsum, usize, noconvert);
+
+        let stream = tensor.stream;
+        let dtype = tensor.dtype;
+        let shape = tensor.shape.clone();
+        let out = tensor
+            .client
+            .tensor_uninitialized(shape, B::FloatElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            OperationDescription::NumericFloat(
+                dtype,
+                NumericOperationDescription::CumSum(desc.clone()),
+            ),
+            CumsumOps::<B>::new(desc),
+        );
+
+        out
+    }
 }

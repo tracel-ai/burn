@@ -283,4 +283,8 @@ where
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         kernel::flip::<R, I, BT>(tensor, axes)
     }
+
+    fn int_cumsum(_tensor: IntTensor<Self>, _dim: usize) -> IntTensor<Self> {
+        todo!()
+    }
 }

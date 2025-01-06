@@ -196,6 +196,7 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                 |
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                 |
 | `tensor.contains_nan()`                                         | N/A                                            |
+| `tensor.cumsum(dim)`                                            | `tensor.cumsum(dim)`                           |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                               |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                              |
 | `tensor.equal_elem(other)`                                      | `tensor.eq(other)`                             |

@@ -95,6 +95,7 @@ mod tests {
     burn_tensor::testgen_round!();
     burn_tensor::testgen_floor!();
     burn_tensor::testgen_ceil!();
+    burn_tensor::testgen_cumsum!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //
@@ -175,4 +176,5 @@ mod tests {
     burn_autodiff::testgen_ad_round!();
     burn_autodiff::testgen_ad_floor!();
     burn_autodiff::testgen_ad_ceil!();
+    burn_autodiff::testgen_ad_cumsum!();
 }

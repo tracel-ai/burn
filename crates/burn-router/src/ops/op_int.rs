@@ -1173,4 +1173,23 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         out
     }
+
+    fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = ScalarOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericInt(
+            dtype,
+            NumericOperationDescription::CumSum(desc),
+        ));
+
+        out
+    }
 }

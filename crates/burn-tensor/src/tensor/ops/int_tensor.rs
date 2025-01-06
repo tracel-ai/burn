@@ -671,6 +671,18 @@ pub trait IntTensorOps<B: Backend> {
     /// The sum of all elements in the tensor.
     fn int_sum(tensor: IntTensor<B>) -> IntTensor<B>;
 
+    /// Computes the cumulative sum of all elements in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension to sum along.
+    ///
+    /// # Returns
+    ///
+    /// The cumulative sum of all elements in the tensor along the dimension.
+    fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
+
     /// Sums all elements in the tensor along a dimension.
     ///
     /// # Arguments

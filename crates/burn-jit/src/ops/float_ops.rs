@@ -665,4 +665,8 @@ where
             _ => unimplemented!("Unsupported floating point type cast"),
         }
     }
+
+    fn float_cumsum(_tensor: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+        todo!()
+    }
 }

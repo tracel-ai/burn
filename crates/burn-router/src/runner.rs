@@ -573,6 +573,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 NumericOperationDescription::Powf(desc) => {
                     binary_float_ops!(handles, desc, B::float_powf)
                 }
+                NumericOperationDescription::CumSum(desc) => {
+                    scalar_float_dim_ops!(handles, desc, B::float_cumsum)
+                }
             },
             OperationDescription::NumericInt(_dtype, op) => match op {
                 NumericOperationDescription::Add(desc) => {
@@ -763,6 +766,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
                     let output = B::int_powf(lhs, rhs);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                NumericOperationDescription::CumSum(desc) => {
+                    scalar_int_dim_ops!(handles, desc, B::int_cumsum)
                 }
             },
             OperationDescription::Bool(op) => match op {
