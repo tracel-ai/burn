@@ -103,7 +103,7 @@ impl ModelConfig {
         let layer2 = LayerBlock::new(128, 256, device);
         let layer3 = LayerBlock::new(256, 512, device);
         let layer4 = LayerBlock::new(512, 1024, device);
-        let fc = nn::LinearConfig::new(1024, self.channels*self.image_size*self.image_size)
+        let fc = nn::LinearConfig::new(1024, self.channels * self.image_size * self.image_size)
             .with_bias(true).init(device);
 
         let generator = Generator {
@@ -116,7 +116,7 @@ impl ModelConfig {
         };
 
         // Construct the initialized discriminator
-        let fc1 = nn::LinearConfig::new(self.channels*self.image_size*self.image_size, 512).init(device);
+        let fc1 = nn::LinearConfig::new(self.channels * self.image_size * self.image_size, 512).init(device);
         let leakyrelu1 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
         let fc2 = nn::LinearConfig::new(512, 256).init(device);
         let leakyrelu2 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
