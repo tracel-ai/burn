@@ -1,5 +1,5 @@
 use super::{expand, numeric, permute};
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
@@ -229,13 +229,23 @@ where
     }
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        unary_op!(int(tensor) => |context, tensor| {
-            #[cube]
-            fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
+        struct Abs;
+
+        #[cube]
+        impl<N: Numeric> NumericUnaryOp<N> for Abs {
+            type Options = ();
+
+            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
                 Line::abs(input)
             }
-            execute::expand::<C>(context, tensor)
-        })
+        }
+
+        impl NumericUnaryOpFamily for Abs {
+            type Options<N: Numeric> = ();
+            type Unary<N: Numeric> = Self;
+        }
+
+        launch_unary_numeric::<R, I, Abs, _>(tensor, |_| ())
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {

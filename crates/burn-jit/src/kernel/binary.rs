@@ -9,21 +9,14 @@ use cubecl::{
 
 use super::into_contiguous;
 
+pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
+    type BinaryOp<C: Numeric>: BinaryOp<C>;
+}
+
 #[cube]
 pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a binary operation.
     fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
-}
-
-pub(crate) trait BinaryOpSpec: Send + Sync + 'static {
-    type C: Numeric;
-}
-pub(crate) struct Spec<C: Numeric> {
-    _c: PhantomData<C>,
-}
-
-impl<C: Numeric> BinaryOpSpec for Spec<C> {
-    type C = C;
 }
 
 pub(crate) struct AddOp;
@@ -31,7 +24,40 @@ pub(crate) struct SubOp;
 pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
-pub(crate) struct PowOp;
+
+/// Since Powf only works on float, but we still want to implement the numeric binary op family, we
+/// set another precision in the family type to cast, when necessary, the input value to a valid
+/// float.
+///
+/// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
+/// the family pattern for [PowOp], but at least we don't duplicate code.
+pub(crate) struct PowOp<F: Float> {
+    _f: PhantomData<F>,
+}
+
+impl BinaryOpFamily for AddOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for SubOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for MulOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for DivOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for RemainderOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl<F: Float> BinaryOpFamily for PowOp<F> {
+    type BinaryOp<C: Numeric> = Self;
+}
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
@@ -69,30 +95,34 @@ impl<N: Numeric> BinaryOp<N> for RemainderOp {
 }
 
 #[cube]
-impl<N: Float> BinaryOp<N> for PowOp {
+impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        Line::powf(lhs, rhs)
+        let lhs = Line::<F>::cast_from(lhs);
+        let rhs = Line::<F>::cast_from(rhs);
+        let out = Line::powf(lhs, rhs);
+
+        Line::cast_from(out)
     }
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_scalar_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
-    input: &Tensor<Line<BS::C>>,
-    scalar: BS::C,
-    output: &mut Tensor<Line<BS::C>>,
+pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
+    input: &Tensor<Line<C>>,
+    scalar: C,
+    output: &mut Tensor<Line<C>>,
 ) {
     if ABSOLUTE_POS >= output.len() {
         return;
     }
 
-    output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], Line::new(scalar));
+    output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
 }
 
 #[cube(launch)]
-pub(crate) fn kernel_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
-    lhs: &Tensor<Line<BS::C>>,
-    rhs: &Tensor<Line<BS::C>>,
-    out: &mut Tensor<Line<BS::C>>,
+pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
+    lhs: &Tensor<Line<C>>,
+    rhs: &Tensor<Line<C>>,
+    out: &mut Tensor<Line<C>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -106,7 +136,7 @@ pub(crate) fn kernel_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
     }
 
     if to_contiguous_lhs {
-        offset_lhs = index_offset_with_layout::<BS::C, BS::C>(
+        offset_lhs = index_offset_with_layout::<C, C>(
             lhs,
             out,
             offset_out,
@@ -117,7 +147,7 @@ pub(crate) fn kernel_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
     }
 
     if to_contiguous_rhs {
-        offset_rhs = index_offset_with_layout::<BS::C, BS::C>(
+        offset_rhs = index_offset_with_layout::<C, C>(
             rhs,
             out,
             offset_out,
@@ -127,10 +157,10 @@ pub(crate) fn kernel_binop<BS: BinaryOpSpec, O: BinaryOp<BS::C>>(
         );
     }
 
-    out[offset_out] = O::execute(lhs[offset_lhs], rhs[offset_rhs]);
+    out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
+pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
@@ -161,7 +191,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if lhs.can_mut_broadcast(&rhs) {
-        kernel_binop::launch::<Spec<E>, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -175,7 +205,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
 
         lhs
     } else if rhs.can_mut_broadcast(&lhs) {
-        kernel_binop::launch::<Spec<E>, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -193,7 +223,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
         let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_binop::launch::<Spec<E>, O, R>(
+        kernel_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -209,7 +239,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
     }
 }
 
-pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
+pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
     mut tensor: JitTensor<R>,
     scalar: E,
 ) -> JitTensor<R> {
@@ -229,7 +259,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
 
     if tensor.can_mut() {
-        kernel_scalar_binop::launch::<Spec<E>, O, R>(
+        kernel_scalar_binop::launch::<E, O, R>(
             &client,
             cube_count,
             cube_dim,
@@ -246,7 +276,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
             tensor.shape.clone(),
         );
 
-        kernel_scalar_binop::launch::<Spec<E>, O, R>(
+        kernel_scalar_binop::launch::<E, O, R>(
             &client,
             cube_count,
             CubeDim::default(),
