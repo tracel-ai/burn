@@ -69,20 +69,48 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(images: Tensor<B, 4>, nrow: u32, p
 }
 
 pub fn train<B: AutodiffBackend>(
-    artifact_dir: &str, num_epochs: usize, num_critic: usize, batch_size: usize,
-    num_workers: usize, seed: u64, lr: f64, latent_dim: usize, image_size: usize,
-    channels: usize, clip_value: f32, sample_interval: usize, device: B::Device) {
-
+    artifact_dir: &str,
+    num_epochs: usize,
+    num_critic: usize,
+    batch_size: usize,
+    num_workers: usize,
+    seed: u64,
+    lr: f64,
+    latent_dim: usize,
+    image_size: usize,
+    channels: usize,
+    clip_value: f32,
+    sample_interval: usize,
+    device: B::Device
+) {
     create_artifact_dir(artifact_dir);
     // Create the configuration
-    let config_optimizer = RmsPropConfig::new().with_alpha(0.99).with_momentum(0.0).with_epsilon(0.00000008).with_weight_decay(None).with_centered(false);
+    let config_optimizer = RmsPropConfig::new()
+        .with_alpha(0.99)
+        .with_momentum(0.0)
+        .with_epsilon(0.00000008)
+        .with_weight_decay(None)
+        .with_centered(false);
     let config = TrainingConfig::new(
-        config_optimizer, num_epochs, num_critic, batch_size, num_workers,
-        seed, lr, latent_dim, image_size, channels, clip_value, sample_interval
+        config_optimizer,
+        num_epochs,
+        num_critic,
+        batch_size,
+        num_workers,
+        seed,
+        lr,
+        latent_dim,
+        image_size,
+        channels,
+        clip_value,
+        sample_interval
     );
     let config_model = ModelConfig::new(config.latent_dim, config.image_size, config.channels);
     // Create the Clip module mapper
-    let mut clip = Clip {min: -config.clip_value, max: config.clip_value};
+    let mut clip = Clip {
+        min: -config.clip_value,
+        max: config.clip_value
+    };
 
     // Save training config
     config
