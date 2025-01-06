@@ -63,7 +63,7 @@ pub enum Commands {
 
     // Generate images with the model
     Generate {
-        // Path to the trained model
+        /// Path to the trained model
         #[arg(long)]
         artifact_dir: String,
     },
