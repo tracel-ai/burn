@@ -35,7 +35,10 @@ fn create_artifact_dir(artifact_dir: &str) {
 
 /// Save the generated images
 // The images format is [B, H, W, C]
-pub fn save_image<B: Backend, Q: AsRef<Path>>(images: Tensor<B, 4>, nrow: u32, path: Q) -> ImageResult<()> {
+pub fn save_image<B: Backend, Q: AsRef<Path>>(
+    images: Tensor<B, 4>,
+    nrow: u32,
+    path: Q) -> ImageResult<()> {
     let ncol = (images.dims()[0] as f32 / nrow as f32).ceil() as u32;
 
     let width = images.dims()[2] as u32;
