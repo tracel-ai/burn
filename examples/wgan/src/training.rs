@@ -38,7 +38,8 @@ fn create_artifact_dir(artifact_dir: &str) {
 pub fn save_image<B: Backend, Q: AsRef<Path>>(
     images: Tensor<B, 4>,
     nrow: u32,
-    path: Q) -> ImageResult<()> {
+    path: Q
+) -> ImageResult<()> {
     let ncol = (images.dims()[0] as f32 / nrow as f32).ceil() as u32;
 
     let width = images.dims()[2] as u32;
@@ -51,7 +52,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
         _ => panic!("Wrong channels number"),
     };
 
-    let mut imgbuf = RgbImage::new(nrow*width, ncol*height);
+    let mut imgbuf = RgbImage::new(nrow * width, ncol * height);
     // Write images into a nrow*ncol grid layout
     for row in 0..nrow {
         for col in 0..ncol {
@@ -64,7 +65,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
             let image = Rgb32FImage::from_vec(width, height, image).unwrap();
             let image: RgbImage = image.convert();
             for (x, y, pixel) in image.enumerate_pixels() {
-                imgbuf.put_pixel(row*width+x, col*height+y, *pixel);
+                imgbuf.put_pixel(row * width + x, col * height + y, *pixel);
             }
         }
     }
@@ -184,7 +185,7 @@ pub fn train<B: AutodiffBackend>(
                 // Normalize the images. The Rgb32 images should be in range 0.0-1.0
                 let fake_images = (fake_images.clone()-fake_images.clone().min().reshape([1,1,1,1])) / (fake_images.clone().max().reshape([1,1,1,1])-fake_images.clone().min().reshape([1,1,1,1]));
                 // Add 0.5/255.0 to the images, refer to pytorch save_image source
-                let fake_images = (fake_images + 0.5/255.0).clamp(0.0, 1.0);
+                let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
                 // Save images in current directory
                 let path = format!("image{}.png", batches_done);
                 let path = Path::new(&path);
