@@ -4,6 +4,6 @@ A burn implementation of examplar WGAN model to generate MNIST digits inspired b
 ### Usage:
 For the MNIST dataset, each image has a size of 28x28 pixels and one color channel (grayscale), hence we use `--image-size 28 --channels 1` here.
 #### Training
-* cargo run --release --features ndarray -- train --artifact-dir output --num-epochs 200 --batch-size 64 --num-workers 10 --lr 0.0001 --latent-dim 100 --image-size 28 --channels 1 --num-critic 5 --clip-value 0.01 --sample-interval 1000
+`cargo run --release --features ndarray -- train --artifact-dir output --num-epochs 200 --batch-size 64 --num-workers 10 --lr 0.0001 --latent-dim 100 --image-size 28 --channels 1 --num-critic 5 --clip-value 0.01 --sample-interval 1000`
 #### Generating
-* cargo run --release --features ndarray -- generate --artifact-dir output
+`cargo run --release --features ndarray -- generate --artifact-dir output`
