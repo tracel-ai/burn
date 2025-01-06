@@ -6,7 +6,10 @@
 ))]
 
 mod ndarray {
-    use burn::backend::{ndarray::{NdArray, NdArrayDevice}, Autodiff};
+    use burn::backend::{
+        ndarray::{NdArray, NdArrayDevice},
+        Autodiff
+    };
     use wgan::{
         cli::{Cli, Commands},
         training::train,
@@ -47,7 +50,7 @@ mod ndarray {
                     device,
                 );
             },
-            Commands::Generate {artifact_dir} => {
+            Commands::Generate { artifact_dir } => {
                 generate::<NdArray>(&artifact_dir, device);
             },
         }
@@ -67,10 +70,4 @@ fn main() {
         feature = "ndarray-blas-netlib",
     ))]
     ndarray::run(cli);
-    #[cfg(feature = "tch-cpu")]
-    tch_cpu::run(cli);
-    #[cfg(feature = "tch-gpu")]
-    tch_gpu::run(cli);
-    #[cfg(feature = "wgpu")]
-    wgpu::run(cli);
 }
