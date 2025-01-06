@@ -8,7 +8,7 @@
 mod ndarray {
     use burn::backend::{
         ndarray::{NdArray, NdArrayDevice},
-        Autodiff
+        Autodiff,
     };
     use wgan::{
         cli::{Cli, Commands},
@@ -49,14 +49,13 @@ mod ndarray {
                     sample_interval,
                     device,
                 );
-            },
+            }
             Commands::Generate { artifact_dir } => {
                 generate::<NdArray>(&artifact_dir, device);
-            },
+            }
         }
     }
 }
-
 
 use clap::Parser;
 use wgan::cli::Cli;
