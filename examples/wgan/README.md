@@ -8,5 +8,5 @@ For the MNIST dataset, each image has a size of 28x28 pixels and one color chann
 ### Generating
 `cargo run --release --features ndarray -- generate --artifact-dir output`
 ### Help
-`cargo run --release --features ndarray -- train --help`
-`cargo run --release --features ndarray -- generate --help`
+* `cargo run --release --features ndarray -- train --help`
+* `cargo run --release --features ndarray -- generate --help`
