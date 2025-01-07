@@ -187,7 +187,7 @@ pub fn train<B: AutodiffBackend>(
                 ]);
                 // Adversarial loss. Minimize it to make the fake images as truth
                 let loss_g = -discriminator.forward(critic_fake_images).mean();
-                
+
                 let grads = loss_g.backward();
                 let grads = GradientsParams::from_grads(grads, &generator);
                 generator = optimizer_g.step(config.lr, generator, grads);
@@ -230,6 +230,9 @@ pub fn train<B: AutodiffBackend>(
         .save_file(format!("{artifact_dir}/generator"), &CompactRecorder::new())
         .expect("Generator should be saved successfully");
     discriminator
-        .save_file(format!("{artifact_dir}/discriminator"), &CompactRecorder::new())
+        .save_file(
+            format!("{artifact_dir}/discriminator"),
+            &CompactRecorder::new(),
+        )
         .expect("Discriminator should be saved successfully");
 }
