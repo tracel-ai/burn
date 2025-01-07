@@ -30,8 +30,8 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     let fake_images = fake_images.reshape([
         config.batch_size,
         config.channels,
-        config.image_size as usize,
-        config.image_size as usize,
+        config.image_size,
+        config.image_size,
     ]);
     // [B, C, H, W] to [B, H, C, W] to [B, H, W, C]
     let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
@@ -42,7 +42,6 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     // Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer, refer to pytorch save_image source
     let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
     // Save images in current directory
-    let path = format!("fake_image.png");
-    let path = Path::new(&path);
+    let path = Path::new("fake_image.png");
     save_image::<B, _>(fake_images, 5, path).unwrap();
 }
