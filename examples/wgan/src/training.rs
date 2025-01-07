@@ -182,8 +182,8 @@ pub fn train<B: AutodiffBackend>(
                 let critic_fake_images = critic_fake_images.reshape([
                     batch_size,
                     channels,
-                    image_size as usize,
-                    image_size as usize,
+                    image_size,
+                    image_size,
                 ]);
                 // Adversarial loss. Minimize it to make the fake images as truth
                 let loss_g = -discriminator.forward(critic_fake_images).mean();
