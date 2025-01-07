@@ -5,7 +5,6 @@ use burn::{
     tensor::backend::AutodiffBackend,
 };
 
-
 /// Layer block of generator model
 #[derive(Module, Debug)]
 pub struct LayerBlock<B: Backend> {
@@ -47,7 +46,7 @@ pub struct Generator<B: Backend> {
     tanh: nn::Tanh, 
 }
 
-impl <B: Backend> Generator<B> {
+impl<B: Backend> Generator<B> {
     /// Applies the forward pass on the input tensor by specified order
     pub fn forward(&self, noise: Tensor<B, 2>) -> Tensor<B, 2> {
         let output = self.layer1.forward(noise);
@@ -82,7 +81,7 @@ impl<B: Backend> Discriminator<B> {
         let output = self.leakyrelu1.forward(output); // output: [batch, 512]
         let output = self.fc2.forward(output); // output: [batch, 256]
         let output = self.leakyrelu2.forward(output); // output: [batch, 256]
-        
+
         self.fc3.forward(output) // output: [batch, 1]
     }
 }
@@ -104,7 +103,8 @@ impl ModelConfig {
         let layer3 = LayerBlock::new(256, 512, device);
         let layer4 = LayerBlock::new(512, 1024, device);
         let fc = nn::LinearConfig::new(1024, self.channels * self.image_size * self.image_size)
-            .with_bias(true).init(device);
+            .with_bias(true)
+            .init(device);
 
         let generator = Generator {
             layer1,
@@ -122,7 +122,7 @@ impl ModelConfig {
         let fc2 = nn::LinearConfig::new(512, 256).init(device);
         let leakyrelu2 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
         let fc3 = nn::LinearConfig::new(256, 1).init(device);
-        
+
         let discriminator = Discriminator {
             fc1,
             leakyrelu1,
@@ -134,7 +134,6 @@ impl ModelConfig {
         (generator, discriminator)
     }
 }
-
 
 /// Clip module mapper to clip all module parameters between a range of values
 #[derive(Module, Clone, Debug)]
