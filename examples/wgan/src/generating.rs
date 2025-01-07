@@ -24,7 +24,7 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     let noise = Tensor::<B, 2>::random(
         [config.batch_size, config.latent_dim],
         Distribution::Normal(0.0, 1.0),
-        &device
+        &device,
     );
     let fake_images = generator.forward(noise); // [batch_size, channesl*height*width]
     let fake_images = fake_images.reshape([
@@ -37,8 +37,8 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
     // Normalize the images. The Rgb32 images should be in range 0.0-1.0
     let fake_images = (fake_images.clone() - fake_images.clone().min().reshape([1,1,1,1]))
-        / (fake_images.clone().max().reshape([1,1,1,1])
-           - fake_images.clone().min().reshape([1,1,1,1]));
+        / (fake_images.clone().max().reshape([1, 1, 1, 1])
+           - fake_images.clone().min().reshape([1, 1, 1, 1]));
     // Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer, refer to pytorch save_image source
     let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
     // Save images in current directory
