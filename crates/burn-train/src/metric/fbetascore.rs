@@ -11,7 +11,7 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-///The FScore Metric
+/// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
 #[derive(Default)]
 pub struct FBetaScoreMetric<B: Backend> {
     state: NumericMetricState,
@@ -21,7 +21,7 @@ pub struct FBetaScoreMetric<B: Backend> {
 }
 
 impl<B: Backend> FBetaScoreMetric<B> {
-    /// FScore metric for binary classification.
+    /// F-beta score metric for binary classification.
     ///
     /// # Arguments
     ///
@@ -40,7 +40,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
         }
     }
 
-    /// FScore metric for multiclass classification.
+    /// F-beta score metric for multiclass classification.
     ///
     /// # Arguments
     ///
@@ -61,7 +61,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
         }
     }
 
-    /// FScore metric for multi-label classification.
+    /// F-beta score metric for multi-label classification.
     ///
     /// # Arguments
     ///
@@ -99,7 +99,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
 }
 
 impl<B: Backend> Metric for FBetaScoreMetric<B> {
-    const NAME: &'static str = "FScore";
+    const NAME: &'static str = "FBetaScore";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
