@@ -97,34 +97,6 @@ macro_rules! check_algo {
             _ => can_launch::<$algo, R, ($float, $float, f32)>($input, $problem),
         }
     };
-
-    ($algo:tt, $input:expr, $problem:expr) => {
-        let plane_dim = 32;
-        let conv_problem = $problem;
-
-        let (selection, config_input) = $algo::select_kernel::<R, CS>(plane_dim);
-        let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
-        let cube_count = ImplicitCmmaConv::cube_count(&selection, &conv_problem);
-
-        let advanced_config = Default::default();
-        let config = ImplicitCmmaConv::make_config(
-            config_input,
-            &conv_problem,
-            &cube_dim,
-            &cube_count,
-            &advanced_config,
-        );
-
-        match config {
-            Ok(config) => ImplicitCmmaConv::can_launch::<R, CS>(
-                &op.input.client,
-                &conv_problem,
-                &config,
-                &selection,
-            ),
-            Err(_) => false,
-        }
-    };
 }
 
 fn should_run<R: JitRuntime, F: FloatElement>(
@@ -180,11 +152,27 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
     input: &JitTensor<R>,
     conv_problem: &ConvolutionProblem,
 ) -> bool {
-    let plane_dim = 32;
+    let plane_dim = match input
+        .client
+        .properties()
+        .hardware_properties()
+        .defined_plane_size()
+    {
+        Some(val) => val,
+        None => return false,
+    };
 
     let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
     let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
     let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
+
+    let max_cube_dim = u16::MAX as u32;
+
+    if let cubecl::CubeCount::Static(x, y, z) = cube_count {
+        if x > max_cube_dim || y > max_cube_dim || z > max_cube_dim {
+            return false;
+        }
+    }
 
     let advanced_config = Default::default();
     let config = ImplicitCmmaConv::make_config(
