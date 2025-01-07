@@ -12,8 +12,8 @@ mod ndarray {
     };
     use wgan::{
         cli::{Cli, Commands},
-        training::train,
         generating::generate,
+        training::train,
     };
 
     pub fn run(cli: Cli) {
