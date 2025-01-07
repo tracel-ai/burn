@@ -1,6 +1,5 @@
 use arboard::Clipboard;
 use burn::serde::{Deserialize, Serialize};
-use github_device_flow::{self, DeviceFlow};
 use reqwest;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -64,7 +63,7 @@ pub(crate) fn get_tokens() -> Option<Tokens> {
 pub(crate) fn get_username(access_token: &str) -> Option<UserInfo> {
     let client = reqwest::blocking::Client::new();
     let response = client
-        .get(format!("{}users/me", super::USER_BENCHMARK_SERVER_URL))
+        .get(format!("{}users/me", USER_BENCHMARK_SERVER_URL))
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(
@@ -77,7 +76,7 @@ pub(crate) fn get_username(access_token: &str) -> Option<UserInfo> {
 }
 
 fn auth() -> Option<Tokens> {
-    let mut flow = match DeviceFlow::start(CLIENT_ID, None) {
+    let mut flow = match DeviceFlow::start(CLIENT_ID, None, None) {
         Ok(flow) => flow,
         Err(e) => {
             eprintln!("Error authenticating: {}", e);
@@ -144,7 +143,7 @@ fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
     let response = client
         .post(format!(
             "{}auth/refresh-token",
-            super::USER_BENCHMARK_SERVER_URL
+            USER_BENCHMARK_SERVER_URL
         ))
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -188,6 +187,8 @@ fn save_tokens(tokens: &Tokens) {
 
 #[cfg(test)]
 use serial_test::serial;
+
+use crate::burnbenchapp::{auth::github_device_flow::DeviceFlow, USER_BENCHMARK_SERVER_URL};
 
 #[cfg(test)]
 mod tests {
