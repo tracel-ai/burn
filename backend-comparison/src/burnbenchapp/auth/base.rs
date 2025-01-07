@@ -141,10 +141,7 @@ fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
     println!("Refreshing token...");
     let client = reqwest::blocking::Client::new();
     let response = client
-        .post(format!(
-            "{}auth/refresh-token",
-            USER_BENCHMARK_SERVER_URL
-        ))
+        .post(format!("{}auth/refresh-token", USER_BENCHMARK_SERVER_URL))
         .header(reqwest::header::USER_AGENT, "burnbench")
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(
