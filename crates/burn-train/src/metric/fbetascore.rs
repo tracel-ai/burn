@@ -13,14 +13,14 @@ use std::num::NonZeroUsize;
 
 ///The FScore Metric
 #[derive(Default)]
-pub struct FScoreMetric<B: Backend> {
+pub struct FBetaScoreMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
     config: ClassificationMetricConfig,
     beta: f64,
 }
 
-impl<B: Backend> FScoreMetric<B> {
+impl<B: Backend> FBetaScoreMetric<B> {
     /// FScore metric for binary classification.
     ///
     /// # Arguments
@@ -98,7 +98,7 @@ impl<B: Backend> FScoreMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for FScoreMetric<B> {
+impl<B: Backend> Metric for FBetaScoreMetric<B> {
     const NAME: &'static str = "FScore";
     type Input = ConfusionStatsInput<B>;
 
@@ -126,7 +126,7 @@ impl<B: Backend> Metric for FScoreMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for FScoreMetric<B> {
+impl<B: Backend> Numeric for FBetaScoreMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -136,7 +136,7 @@ impl<B: Backend> Numeric for FScoreMetric<B> {
 mod tests {
     use super::{
         ClassReduction::{self, *},
-        FScoreMetric, Metric, MetricMetadata, Numeric,
+        FBetaScoreMetric, Metric, MetricMetadata, Numeric,
     };
     use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
@@ -147,7 +147,7 @@ mod tests {
     #[case::binary_b2(2.0, THRESHOLD, 0.5)]
     fn test_binary_fscore(#[case] beta: f64, #[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
-        let mut metric = FScoreMetric::binary(beta, threshold);
+        let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
@@ -169,7 +169,7 @@ mod tests {
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
-        let mut metric = FScoreMetric::multiclass(beta, top_k, class_reduction);
+        let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
@@ -187,7 +187,7 @@ mod tests {
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
-        let mut metric = FScoreMetric::multilabel(beta, threshold, class_reduction);
+        let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)

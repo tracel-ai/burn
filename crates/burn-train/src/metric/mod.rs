@@ -15,7 +15,7 @@ mod cpu_use;
 #[cfg(feature = "metrics")]
 mod cuda;
 #[cfg(feature = "metrics")]
-mod fscore;
+mod fbetascore;
 mod hamming;
 #[cfg(feature = "metrics")]
 mod iteration;
@@ -42,7 +42,7 @@ pub use cpu_use::*;
 #[cfg(feature = "metrics")]
 pub use cuda::*;
 #[cfg(feature = "metrics")]
-pub use fscore::*;
+pub use fbetascore::*;
 pub use hamming::*;
 #[cfg(feature = "metrics")]
 pub use iteration::*;
