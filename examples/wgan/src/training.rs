@@ -152,7 +152,7 @@ pub fn train<B: AutodiffBackend>(
             let noise = Tensor::<B, 2>::random(
                 [config.batch_size, config.latent_dim],
                 Distribution::Normal(0.0, 1.0),
-                &device
+                &device,
             );
             // datach: do not update gerenator, only discriminator is updated
             let fake_images = generator.forward(noise.clone()).detach(); // [batch_size, channels*height*width]
@@ -183,7 +183,7 @@ pub fn train<B: AutodiffBackend>(
                     batch_size,
                     channels,
                     image_size as usize,
-                    image_size as usize
+                    image_size as usize,
                 ]);
                 // Adversarial loss. Minimize it to make the fake images as truth
                 let loss_g = -discriminator.forward(critic_fake_images).mean();
@@ -199,7 +199,8 @@ pub fn train<B: AutodiffBackend>(
                     "[Epoch {}/{}] [Batch {}/{}] [D loss: {}] [G loss: {}]",
                     epoch,
                     config.num_epochs,
-                    iteration, batch_num,
+                    iteration,
+                    batch_num,
                     loss_d.into_scalar(),
                     loss_g.into_scalar()
                 );
@@ -210,9 +211,9 @@ pub fn train<B: AutodiffBackend>(
                 let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
                 // Normalize the images. The Rgb32 images should be in range 0.0-1.0
                 let fake_images = (fake_images.clone()
-                    - fake_images.clone().min().reshape([1,1,1,1]))
-                    / (fake_images.clone().max().reshape([1,1,1,1])
-                       - fake_images.clone().min().reshape([1,1,1,1]));
+                    - fake_images.clone().min().reshape([1, 1, 1, 1]))
+                    / (fake_images.clone().max().reshape([1, 1, 1, 1])
+                       - fake_images.clone().min().reshape([1, 1, 1, 1]));
                 // Add 0.5/255.0 to the images, refer to pytorch save_image source
                 let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
                 // Save images in current directory
@@ -226,15 +227,9 @@ pub fn train<B: AutodiffBackend>(
 
     // Save the trained models
     generator
-        .save_file(
-            format!("{artifact_dir}/generator"),
-            &CompactRecorder::new(),
-        )
+        .save_file(format!("{artifact_dir}/generator"), &CompactRecorder::new())
         .expect("Generator should be saved successfully");
     discriminator
-        .save_file(
-            format!("{artifact_dir}/discriminator"),
-            &CompactRecorder::new(),
-        )
+        .save_file(format!("{artifact_dir}/discriminator"), &CompactRecorder::new())
         .expect("Discriminator should be saved successfully");
 }
