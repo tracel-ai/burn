@@ -7,7 +7,7 @@ use burn::{
     record::CompactRecorder,
     tensor::{backend::AutodiffBackend, Distribution},
 };
-use image::{buffer::ConvertBuffer, Rgb32FImage, RgbImage, error::ImageResult};
+use image::{buffer::ConvertBuffer, error::ImageResult, Rgb32FImage, RgbImage};
 use std::path::Path;
 
 #[derive(Config)]
@@ -213,7 +213,7 @@ pub fn train<B: AutodiffBackend>(
                 let fake_images = (fake_images.clone()
                     - fake_images.clone().min().reshape([1, 1, 1, 1]))
                     / (fake_images.clone().max().reshape([1, 1, 1, 1])
-                       - fake_images.clone().min().reshape([1, 1, 1, 1]));
+                        - fake_images.clone().min().reshape([1, 1, 1, 1]));
                 // Add 0.5/255.0 to the images, refer to pytorch save_image source
                 let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
                 // Save images in current directory
