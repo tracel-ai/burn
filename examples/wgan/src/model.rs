@@ -34,8 +34,7 @@ impl<B: Backend> LayerBlock<B> {
     }
 }
 
-
-// Generator model
+/// Generator model
 #[derive(Module, Debug)]
 pub struct Generator<B: Backend> {
     layer1: LayerBlock<B>,
@@ -43,7 +42,7 @@ pub struct Generator<B: Backend> {
     layer3: LayerBlock<B>,
     layer4: LayerBlock<B>,
     fc: nn::Linear<B>,
-    tanh: nn::Tanh, 
+    tanh: nn::Tanh,
 }
 
 impl<B: Backend> Generator<B> {
@@ -59,7 +58,6 @@ impl<B: Backend> Generator<B> {
         output // return [batch_size, channels*height*width]
     }
 }
-
 
 /// Discriminator model
 #[derive(Module, Debug)]
