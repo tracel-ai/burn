@@ -19,17 +19,19 @@ impl<B: Backend> LayerBlock<B> {
         let fc = nn::LinearConfig::new(input, output)
             .with_bias(true)
             .init(device);
-        let bn: BatchNorm<B, 0> = nn::BatchNormConfig::new(output).with_epsilon(0.8).init(device);
+        let bn: BatchNorm<B, 0> = nn::BatchNormConfig::new(output)
+            .with_epsilon(0.8)
+            .init(device);
         let leakyrelu = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
 
         Self { fc, bn, leakyrelu }
     }
 
     pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        let output = self.fc.forward(input);  // output: [Batch, x]
-        let output = self.bn.forward(output);  // output: [Batch, x]
+        let output = self.fc.forward(input); // output: [Batch, x]
+        let output = self.bn.forward(output); // output: [Batch, x]
 
-        self.leakyrelu.forward(output)  // output: [Batch, x]
+        self.leakyrelu.forward(output) // output: [Batch, x]
     }
 }
 
@@ -55,7 +57,7 @@ impl <B: Backend> Generator<B> {
         let output = self.fc.forward(output);
         let output = self.tanh.forward(output);
 
-        output  // return [batch_size, channels*height*width]
+        output // return [batch_size, channels*height*width]
     }
 }
 
@@ -75,20 +77,20 @@ impl<B: Backend> Discriminator<B> {
     /// The input image shape is [batch, channels, height, width]
     pub fn forward(&self, images: Tensor<B, 4>) -> Tensor<B, 2> {
         // Full connection for each batch
-        let output = images.flatten(1, 3);  // output: [batch, channels*height*width]
-        let output = self.fc1.forward(output);  // output: [batch, 512]
-        let output = self.leakyrelu1.forward(output);  // output: [batch, 512]
-        let output = self.fc2.forward(output);  // output: [batch, 256]
-        let output = self.leakyrelu2.forward(output);  // output: [batch, 256]
+        let output = images.flatten(1, 3); // output: [batch, channels*height*width]
+        let output = self.fc1.forward(output); // output: [batch, 512]
+        let output = self.leakyrelu1.forward(output); // output: [batch, 512]
+        let output = self.fc2.forward(output); // output: [batch, 256]
+        let output = self.leakyrelu2.forward(output); // output: [batch, 256]
         
-        self.fc3.forward(output)  // output: [batch, 1]
+        self.fc3.forward(output) // output: [batch, 1]
     }
 }
 
 // Use model config to construct a generative and adverserial model
 #[derive(Config, Debug)]
 pub struct ModelConfig {
-    latent_dim: usize,  // dimensionality of the latent sapce
+    latent_dim: usize, // dimensionality of the latent sapce
     image_size: usize,
     channels: usize,
 }
@@ -114,7 +116,8 @@ impl ModelConfig {
         };
 
         // Construct the initialized discriminator
-        let fc1 = nn::LinearConfig::new(self.channels * self.image_size * self.image_size, 512).init(device);
+        let fc1 = nn::LinearConfig::new(self.channels * self.image_size * self.image_size, 512)
+            .init(device);
         let leakyrelu1 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
         let fc2 = nn::LinearConfig::new(512, 256).init(device);
         let leakyrelu2 = nn::LeakyReluConfig::new().with_negative_slope(0.2).init();
