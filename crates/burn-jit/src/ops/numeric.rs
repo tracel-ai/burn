@@ -137,5 +137,5 @@ pub fn remainder_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E)
 }
 
 pub fn pow<R: JitRuntime, E: FloatElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
-    launch_binop::<R, E, PowOp>(lhs, rhs)
+    launch_binop::<R, E, PowOp<E>>(lhs, rhs)
 }
