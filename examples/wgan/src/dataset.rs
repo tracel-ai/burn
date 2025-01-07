@@ -27,7 +27,7 @@ impl<B: Backend> Batcher<MnistItem, MnistBatch<B>> for MnistBatcher<B> {
             .map(|item| TensorData::from(item.image))
             .map(|data| Tensor::<B, 2>::from_data(data.convert::<B::FloatElem>(), &self.device))
             .map(|tensor| tensor.reshape([1, 28, 28]))
-            //Set std=0.5 and mean=0.5 to keep consistent with pytorch WGAN example
+            // Set std=0.5 and mean=0.5 to keep consistent with pytorch WGAN example
             .map(|tensor| ((tensor / 255) - 0.5) / 0.5)
             .collect();
 
