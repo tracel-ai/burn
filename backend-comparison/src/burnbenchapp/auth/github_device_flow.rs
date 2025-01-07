@@ -7,7 +7,7 @@ use chrono::{DateTime, Duration};
 use serde::{Deserialize, Serialize};
 
 pub fn credential_error(msg: String) -> DeviceFlowError {
-    DeviceFlowError::GitHubError(msg.into())
+    DeviceFlowError::GitHubError(msg)
 }
 
 pub fn send_request(
@@ -227,6 +227,6 @@ impl DeviceFlow {
 fn calculate_expiry(expires_in: i64) -> String {
     let expires_in = Duration::seconds(expires_in);
     let mut expiry: DateTime<Utc> = Utc::now();
-    expiry = expiry + expires_in;
+    expiry += expires_in;
     expiry.to_rfc3339()
 }
