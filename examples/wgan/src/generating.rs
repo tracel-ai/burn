@@ -1,6 +1,6 @@
 use crate::{
     model::ModelConfig,
-    training::{TrainingConfig, save_image},
+    training::{save_image, TrainingConfig},
 };
 use burn::{
     prelude::*,
@@ -21,15 +21,26 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     generator = generator.load_record(record);
 
     // Get a batch of noise
-    let noise = Tensor::<B, 2>::random([config.batch_size, config.latent_dim], Distribution::Normal(0.0, 1.0), &device);
+    let noise = Tensor::<B, 2>::random(
+        [config.batch_size, config.latent_dim],
+        Distribution::Normal(0.0, 1.0),
+        &device
+    );
     let fake_images = generator.forward(noise); // [batch_size, channesl*height*width]
-    let fake_images = fake_images.reshape([config.batch_size, config.channels, config.image_size as usize, config.image_size as usize]);
+    let fake_images = fake_images.reshape([
+        config.batch_size,
+        config.channels,
+        config.image_size as usize,
+        config.image_size as usize,
+    ]);
     // [B, C, H, W] to [B, H, C, W] to [B, H, W, C]
     let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
     // Normalize the images. The Rgb32 images should be in range 0.0-1.0
-    let fake_images = (fake_images.clone()-fake_images.clone().min().reshape([1,1,1,1])) / (fake_images.clone().max().reshape([1,1,1,1])-fake_images.clone().min().reshape([1,1,1,1]));
+    let fake_images = (fake_images.clone() - fake_images.clone().min().reshape([1,1,1,1]))
+        / (fake_images.clone().max().reshape([1,1,1,1])
+           - fake_images.clone().min().reshape([1,1,1,1]));
     // Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer, refer to pytorch save_image source
-    let fake_images = (fake_images + 0.5/255.0).clamp(0.0, 1.0);
+    let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
     // Save images in current directory
     let path = format!("fake_image.png");
     let path = Path::new(&path);
