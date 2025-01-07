@@ -53,9 +53,8 @@ impl<B: Backend> Generator<B> {
         let output = self.layer3.forward(output);
         let output = self.layer4.forward(output);
         let output = self.fc.forward(output);
-        let output = self.tanh.forward(output);
 
-        output // return [batch_size, channels*height*width]
+        self.tanh.forward(output) // [batch_size, channels*height*width]
     }
 }
 
