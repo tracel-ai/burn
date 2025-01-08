@@ -447,6 +447,20 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn one_hot_index(index: usize, num_classes: usize) -> Self {
+        let mut check = Self::Ok;
+        if index >= num_classes {
+            check = check.register(
+                "One Hot",
+                TensorError::new(format!(
+                    "Can't create a one hot tensor with index ({index}) greater or equal to the number of classes ({num_classes})",
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Numeric<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,

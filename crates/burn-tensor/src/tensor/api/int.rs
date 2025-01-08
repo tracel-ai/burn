@@ -1,5 +1,3 @@
-use crate::check;
-use crate::check::TensorCheck;
 use crate::{
     backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
 };
@@ -100,30 +98,5 @@ where
         device: &B::Device,
     ) -> Tensor<B, D2, Int> {
         cartesian_grid::<B, S, D, D2>(shape, device)
-    }
-
-    /// Create a one hot tensor from an index tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `num_classes` - The number of classes to use in encoding.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Int};
-    ///
-    /// fn example<B: Backend>(){
-    ///     let device = B::Device::default();
-    ///     let indices: Tensor<B, 1, Int> = Tensor::from_ints([0, 1, 2, 3], &device);
-    ///     let one_hot: Tensor<B, 4, Int> = indices.one_hot(4);
-    ///     println!("{}", one_hot.to_data());
-    ///     // [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-    /// }
-    /// ```
-    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2, Int> {
-        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
-        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
     }
 }

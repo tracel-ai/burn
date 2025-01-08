@@ -2030,6 +2030,26 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
+    /// Create a one hot tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>(){
+    ///     let device = Default::default();
+    ///     let indices: Tensor<B, 1> = Tensor::from_floats([0.0, 1.0, 2.0, 3.0], &device);
+    ///     let one_hot: Tensor<B, 4> = indices.one_hot(4);
+    ///     println!("{}", one_hot.to_data());
+    ///     // [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+    /// }
+    /// ```
+    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2> {
+        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
+        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
+    }
 
     /// Create a one-hot encoded tensor with configurable `num_classes`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
     ///
