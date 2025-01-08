@@ -50,7 +50,7 @@ fn naive_reduce<RD: ReduceDimNaive<EI>, EI: Numeric, EO: Numeric>(
 pub fn reduce_dim_naive<RD: ReduceDimNaiveFamily, R: JitRuntime, EI: JitElement, EO: JitElement>(
     input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, String> {
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let cube_dim = CubeDim::default();
@@ -67,5 +67,5 @@ pub fn reduce_dim_naive<RD: ReduceDimNaiveFamily, R: JitRuntime, EI: JitElement,
         );
     }
 
-    output
+    Ok(output)
 }

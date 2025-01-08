@@ -11,5 +11,5 @@ pub fn prod<R: JitRuntime, E: JitElement>(
     let shape = Shape::new([input.shape.num_elements()]);
     let input: JitTensor<R> =
         JitTensor::new_contiguous(input.client, input.device, shape, input.handle, input.dtype);
-    prod_dim::<R, E, E>(input, 0, strategy)
+    prod_dim::<R, E, E>(input, 0, strategy).unwrap()
 }

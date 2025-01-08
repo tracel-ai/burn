@@ -1,6 +1,8 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
-use crate::{tensor::JitTensor, FloatElement, IntElement, JitRuntime};
+use crate::{
+    kernel::conv::ConvLaunchError, tensor::JitTensor, FloatElement, IntElement, JitRuntime,
+};
 
 #[cfg(feature = "autotune")]
 use super::{conv2d_autotune, conv_transpose2d_autotune};
@@ -75,11 +77,11 @@ pub fn conv2d<R: JitRuntime, E: FloatElement>(
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     match strategy {
         Conv2dStrategy::Direct => conv2d_direct::<R, E>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
-        Conv2dStrategy::Autotune => conv2d_autotune::<R, E>(input, weight, bias, options),
+        Conv2dStrategy::Autotune => Ok(conv2d_autotune::<R, E>(input, weight, bias, options)),
         Conv2dStrategy::Gemm => conv2d_im2col::<R, E>(input, weight, bias, options),
         Conv2dStrategy::ImplicitGemm => conv2d_implicit_gemm::<R, E>(input, weight, bias, options),
         Conv2dStrategy::ImplicitGemmComplex => {
@@ -102,15 +104,15 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     match strategy {
         ConvTranspose2dStrategy::Direct => {
             conv_transpose2d_direct::<R, E>(input, weight, bias, options)
         }
         #[cfg(feature = "autotune")]
-        ConvTranspose2dStrategy::Autotune => {
-            conv_transpose2d_autotune::<R, E>(input, weight, bias, options)
-        }
+        ConvTranspose2dStrategy::Autotune => Ok(conv_transpose2d_autotune::<R, E>(
+            input, weight, bias, options,
+        )),
         ConvTranspose2dStrategy::Gemm => {
             conv_transpose2d_col2im::<R, E>(input, weight, bias, options)
         }

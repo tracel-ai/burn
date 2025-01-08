@@ -197,7 +197,7 @@ where
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::sum_dim::<R, I, I>(tensor, dim, Default::default())
+        kernel::reduce::sum_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -205,19 +205,19 @@ where
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::prod_dim::<R, I, I>(tensor, dim, Default::default())
+        kernel::reduce::prod_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::mean_dim::<R, I, I>(tensor, dim, Default::default())
+        kernel::reduce::mean_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmax::<R, I, I>(tensor, dim, Default::default())
+        kernel::reduce::argmax::<R, I, I>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmin::<R, I, I>(tensor, dim, Default::default())
+        kernel::reduce::argmin::<R, I, I>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_clamp(

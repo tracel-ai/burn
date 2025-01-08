@@ -12,7 +12,7 @@ use cubecl::{
 use half::f16;
 
 use crate::{
-    kernel::{into_contiguous, slice, slice_assign},
+    kernel::{conv::ConvLaunchError, into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
@@ -35,7 +35,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let is_tf32 = F::as_elem_native_unchecked() == Elem::Float(FloatKind::F32)
         && input
             .client
@@ -210,7 +210,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     let out = slice::<R, F>(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
-    permute(out, &[0, 3, 1, 2])
+    Ok(permute(out, &[0, 3, 1, 2]))
 }
 
 fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {

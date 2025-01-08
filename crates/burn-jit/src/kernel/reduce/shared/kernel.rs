@@ -85,7 +85,7 @@ pub fn reduce_dim_shared<
 >(
     input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, String> {
     let output = init_reduce_output::<R, EI, EO>(&input, dim);
 
     let num_elems_output = output.shape.num_elements();
@@ -113,5 +113,5 @@ pub fn reduce_dim_shared<
         divisible_shape,
     );
 
-    output
+    Ok(output)
 }
