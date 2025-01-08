@@ -22,7 +22,7 @@ Now that you have a trained model saved to your disk, you can easily load it in 
 ```rust, ignore
 // Load model in full precision from MessagePack file
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-model
+model = model
     .load_file(model_path, &recorder, device)
     .expect("Should be able to load the model weights from the provided file");
 ```
