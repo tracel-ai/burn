@@ -226,7 +226,7 @@ fn reduce_shared_false_plane_false<
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
-) {
+) -> Result<(), String> {
     cubecl::reduce::reduce::<Run, In, Out, Rd>(
         &input.client,
         input.as_handle_ref(),
@@ -236,8 +236,7 @@ fn reduce_shared_false_plane_false<
             shared: false,
             use_planes: false,
         }),
-    )
-    .unwrap()
+    ).map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_true_plane_false<
@@ -249,7 +248,7 @@ fn reduce_shared_true_plane_false<
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
-) {
+) -> Result<(), String> {
     cubecl::reduce::reduce::<Run, In, Out, Rd>(
         &input.client,
         input.as_handle_ref(),
@@ -259,8 +258,7 @@ fn reduce_shared_true_plane_false<
             shared: true,
             use_planes: false,
         }),
-    )
-    .unwrap()
+    ).map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_false_plane_true<
@@ -272,7 +270,7 @@ fn reduce_shared_false_plane_true<
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
-) {
+) -> Result<(), String> {
     cubecl::reduce::reduce::<Run, In, Out, Rd>(
         &input.client,
         input.as_handle_ref(),
@@ -282,8 +280,7 @@ fn reduce_shared_false_plane_true<
             shared: false,
             use_planes: true,
         }),
-    )
-    .unwrap()
+    ).map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_true_plane_true<
@@ -295,7 +292,7 @@ fn reduce_shared_true_plane_true<
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
-) {
+) -> Result<(), String> {
     cubecl::reduce::reduce::<Run, In, Out, Rd>(
         &input.client,
         input.as_handle_ref(),
@@ -305,6 +302,5 @@ fn reduce_shared_true_plane_true<
             shared: true,
             use_planes: true,
         }),
-    )
-    .unwrap()
+    ).map_err(|e| format!("{e}"))
 }
