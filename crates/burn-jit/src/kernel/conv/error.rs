@@ -12,6 +12,7 @@ impl From<MatmulLaunchError> for ConvLaunchError {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<AutotuneError> for ConvLaunchError {
     fn into(self) -> AutotuneError {
         AutotuneError::Unknown(format!("{self:?}"))

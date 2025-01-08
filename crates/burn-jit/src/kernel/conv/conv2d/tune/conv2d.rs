@@ -147,7 +147,6 @@ fn should_run<R: JitRuntime, F: FloatElement>(
         _ => true,
     };
 
-    println!("{index} => {should_run}");
     should_run
 }
 
@@ -168,17 +167,8 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
     let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
     let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
     let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
-
-    let max_cube_dim = 65535;
-
-    if let cubecl::CubeCount::Static(x, y, z) = cube_count {
-        println!("({x}, {y}, {z})");
-        if x > max_cube_dim || y > max_cube_dim || z > max_cube_dim {
-            return false;
-        }
-    }
-
     let advanced_config = Default::default();
+
     let config = ImplicitCmmaConv::make_config(
         config_input,
         conv_problem,
