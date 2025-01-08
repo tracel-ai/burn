@@ -23,7 +23,7 @@ use crate::{
                 algorithm::{Algorithm, ImplicitCmmaConv},
                 base::{ConvolutionLaunch, ConvolutionProblem},
             },
-            nchw_to_nhwc, Conv2dAutotuneKey,
+            nchw_to_nhwc, Conv2dAutotuneKey, ConvLaunchError,
         },
         into_contiguous,
     },
@@ -44,7 +44,7 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Large>(input, weight, bias, options)
 }
 
@@ -60,7 +60,7 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Balanced>(input, weight, bias, options)
 }
 
@@ -74,7 +74,7 @@ fn conv2d_gemm_cmma_strategy<
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     if TypeId::of::<F>() == TypeId::of::<flex32>() {
         conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
     } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
@@ -102,7 +102,7 @@ pub fn conv2d_gemm_with_algo<
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R>
+) -> Result<JitTensor<R>, ConvLaunchError>
 where
     SP::EG: JitElement,
 {
@@ -221,7 +221,7 @@ where
 
     // Reset to NCHW
     let out = reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]));
-    permute(out, &[0, 3, 1, 2])
+    Ok(permute(out, &[0, 3, 1, 2]))
 }
 
 pub fn problem_from_key<R: JitRuntime, F: FloatElement>(

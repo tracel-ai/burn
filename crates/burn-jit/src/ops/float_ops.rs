@@ -1,6 +1,9 @@
 use super::{expand, numeric, permute};
 use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::{self, launch_unary, reduce, unary_op, UnaryOp};
+use crate::kernel::unary_basic::BasicFloatUnaryKind;
+use crate::kernel::{
+    self, launch_unary_float, reduce, unary_basic, FloatUnaryOp, FloatUnaryOpFamily,
+};
 use crate::{
     element::BoolElement,
     kernel::matmul::{matmul, MatmulStrategy},
@@ -11,9 +14,9 @@ use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use burn_tensor::{DType, ElementConversion, FloatDType};
 use cubecl::prelude::*;
+use cubecl::reduce::instructions;
 use half::{bf16, f16};
 use std::ops::Range;
-use cubecl::reduce::instructions;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for JitBackend<R, F, I, BT>
 where
@@ -163,7 +166,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default())
+            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
         )
     }
 
@@ -361,7 +364,8 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::reduce_dim::<R, E, E, instructions::Sum>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, instructions::Sum>(tensor, dim, Default::default())
+                .unwrap()
         )
     }
 
@@ -369,7 +373,8 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::reduce_dim::<R, E, E, instructions::Mean>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, instructions::Mean>(tensor, dim, Default::default())
+                .unwrap()
         )
     }
 
@@ -385,197 +390,89 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::reduce_dim::<R, E, E, instructions::Prod>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, instructions::Prod>(tensor, dim, Default::default())
+                .unwrap()
         )
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::exp(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Exp)
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::log(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log)
     }
 
     fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::log1p(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Log1p)
     }
 
     fn float_powf_scalar(lhs: FloatTensor<Self>, rhs: f32) -> FloatTensor<Self> {
+        struct Powf;
+
+        #[cube]
+        impl<F: Float> FloatUnaryOp<F> for Powf {
+            type Options = F;
+
+            fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+                Line::powf(input, Line::new(*options))
+            }
+        }
+
+        impl FloatUnaryOpFamily for Powf {
+            type Options<F: Float> = F;
+            type Unary<F: Float> = Self;
+        }
+
         execute_with_dtype!(
             float(lhs.dtype),
             F,
-            unary_op!(float(lhs, rhs.elem::<F>()) => |context, tensor, scalar| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>, scalar: C) -> Line<C> {
-                    Line::powf(input, Line::new(scalar))
-                }
-                execute::expand::<C>(context, tensor, scalar)
-            })
+            launch_unary_float::<R, F, Powf, _>(lhs, |_| ScalarArg::new(rhs.elem::<F>()))
         )
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::sqrt(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sqrt)
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::abs(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Abs)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::cos(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Cos)
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::sin(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Sin)
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::tanh(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Tanh)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::round(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Round)
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::floor(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Floor)
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::ceil(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Ceil)
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::erf(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Erf)
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::reduce_dim::<R, E, I, instructions::ArgMax>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, I, instructions::ArgMax>(tensor, dim, Default::default())
+                .unwrap()
         )
     }
 
@@ -583,7 +480,8 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::reduce_dim::<R, E, I, instructions::ArgMin>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, I, instructions::ArgMin>(tensor, dim, Default::default())
+                .unwrap()
         )
     }
 
@@ -604,17 +502,7 @@ where
     }
 
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_dtype!(
-            float(tensor.dtype),
-            F,
-            unary_op!(float(tensor) => |context, tensor| {
-                #[cube]
-                fn execute<C: Float>(input: Line<C>) -> Line<C> {
-                    Line::recip(input)
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        )
+        unary_basic::launch::<R, _>(tensor, |_| &BasicFloatUnaryKind::Recip)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {

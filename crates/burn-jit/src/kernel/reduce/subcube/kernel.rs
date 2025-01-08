@@ -88,7 +88,7 @@ pub fn reduce_dim_subcube<
 >(
     input: JitTensor<R>,
     dim: usize,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, String> {
     let topology = input.client.properties().hardware_properties();
 
     if !input.client.properties().feature_enabled(Feature::Plane)
@@ -130,5 +130,5 @@ pub fn reduce_dim_subcube<
         divisible_shape,
     );
 
-    output
+    Ok(output)
 }

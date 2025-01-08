@@ -6,6 +6,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::{
+        conv::ConvLaunchError,
         into_contiguous,
         matmul::{matmul, MatmulStrategy},
         slice,
@@ -29,7 +30,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let groups = options.groups;
@@ -94,9 +95,12 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
                 options.clone(),
                 kernel_h,
                 kernel_w,
-            );
+            )?;
         }
-        reshape(image, Shape::new([batch_size, im_channels, im_h, im_w]))
+        Ok(reshape(
+            image,
+            Shape::new([batch_size, im_channels, im_h, im_w]),
+        ))
     } else {
         let im_shape = Shape::new([batches_per_run, im_channels, im_h, im_w]);
         let image = empty_device::<R, E>(input.client.clone(), input.device.clone(), im_shape);
@@ -108,8 +112,8 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
             options,
             kernel_h,
             kernel_w,
-        );
-        image
+        )?;
+        Ok(image)
     }
 }
 
@@ -135,7 +139,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
     options: ConvTransposeOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
-) {
+) -> Result<(), ConvLaunchError> {
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
 
@@ -145,12 +149,14 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let input_shape = Shape::new([groups, input_ch_per_group, col_shape_1]);
     let input = reshape(input, input_shape);
 
-    let columns = matmul::<R, E>(weight, input, None, MatmulStrategy::default());
+    let columns = matmul::<R, E>(weight, input, None, MatmulStrategy::default())?;
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
     col2im::<R, E>(
         columns, bias, image, kernel_h, kernel_w, input_h, input_w, options,
     );
+
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

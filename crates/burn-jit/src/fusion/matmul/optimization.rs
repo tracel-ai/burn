@@ -122,7 +122,8 @@ impl<R: JitRuntime> MatmulOptimization<R> {
                 rhs_tensor,
                 None,
                 matmul::MatmulStrategy::default(),
-            );
+            )
+            .unwrap();
             (out_tensor, out)
         };
         context
