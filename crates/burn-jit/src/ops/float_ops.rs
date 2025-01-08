@@ -13,6 +13,7 @@ use burn_tensor::{DType, ElementConversion, FloatDType};
 use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;
+use cubecl::reduce::instructions;
 
 impl<R, F, I, BT> FloatTensorOps<Self> for JitBackend<R, F, I, BT>
 where
@@ -352,7 +353,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum::<R, E>(tensor, Default::default())
+            reduce::reduce::<R, E, E, instructions::Sum>(tensor, Default::default()).unwrap()
         )
     }
 
@@ -360,7 +361,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::reduce_dim::<R, E, E, instructions::Sum>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -368,7 +369,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::mean_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::reduce_dim::<R, E, E, instructions::Mean>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -376,7 +377,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::prod::<R, E>(tensor, Default::default())
+            reduce::reduce::<R, E, E, instructions::Prod>(tensor, Default::default()).unwrap()
         )
     }
 
@@ -384,7 +385,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::prod_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::reduce_dim::<R, E, E, instructions::Prod>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -574,7 +575,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmax::<R, E, I>(tensor, dim, Default::default())
+            reduce::reduce_dim::<R, E, I, instructions::ArgMax>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -582,7 +583,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmin::<R, E, I>(tensor, dim, Default::default())
+            reduce::reduce_dim::<R, E, I, instructions::ArgMin>(tensor, dim, Default::default()).unwrap()
         )
     }
 
