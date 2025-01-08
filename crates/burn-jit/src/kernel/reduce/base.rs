@@ -236,7 +236,8 @@ fn reduce_shared_false_plane_false<
             shared: false,
             use_planes: false,
         }),
-    ).map_err(|e| format!("{e}"))
+    )
+    .map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_true_plane_false<
@@ -258,7 +259,8 @@ fn reduce_shared_true_plane_false<
             shared: true,
             use_planes: false,
         }),
-    ).map_err(|e| format!("{e}"))
+    )
+    .map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_false_plane_true<
@@ -280,7 +282,8 @@ fn reduce_shared_false_plane_true<
             shared: false,
             use_planes: true,
         }),
-    ).map_err(|e| format!("{e}"))
+    )
+    .map_err(|e| format!("{e}"))
 }
 
 fn reduce_shared_true_plane_true<
@@ -302,5 +305,6 @@ fn reduce_shared_true_plane_true<
             shared: true,
             use_planes: true,
         }),
-    ).map_err(|e| format!("{e}"))
+    )
+    .map_err(|e| format!("{e}"))
 }
