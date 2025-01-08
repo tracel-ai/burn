@@ -63,13 +63,13 @@ macro_rules! reduce_operation {
             tensor: JitTensor<R>,
             dim: usize,
             strategy: ReduceStrategy,
-        ) -> JitTensor<R> {
+        ) -> Result<JitTensor<R>, String> {
             match strategy {
                 ReduceStrategy::Naive => reduce_dim_naive::<$ops, R, EI, EO>(tensor, dim),
                 ReduceStrategy::SharedMemory => reduce_dim_shared::<$ops, R, EI, EO>(tensor, dim),
                 ReduceStrategy::Subcube => reduce_dim_subcube::<$ops, R, EI, EO>(tensor, dim),
                 #[cfg(feature = "autotune")]
-                ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO>(tensor, dim),
+                ReduceStrategy::Autotune => Ok(reduce_dim_autotune::<$ops, R, EI, EO>(tensor, dim)),
             }
         }
     };

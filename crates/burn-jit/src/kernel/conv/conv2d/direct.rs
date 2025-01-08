@@ -5,7 +5,7 @@ use burn_tensor::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    kernel::into_contiguous,
+    kernel::{conv::ConvLaunchError, into_contiguous},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
@@ -125,7 +125,7 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let [batch_size, _, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let channels_per_group = out_channels / options.groups;
@@ -193,5 +193,5 @@ pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
         kernel_w_unroll,
     );
 
-    output
+    Ok(output)
 }

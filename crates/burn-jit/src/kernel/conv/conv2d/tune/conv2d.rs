@@ -126,7 +126,7 @@ fn should_run<R: JitRuntime, F: FloatElement>(
 
     let conv_problem = problem_from_key::<R, F>(key, out_h, out_w);
 
-    match index {
+    let should_run = match index {
         // im2col
         1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
         // Implicit gemm.
@@ -145,7 +145,10 @@ fn should_run<R: JitRuntime, F: FloatElement>(
         // GEMM balanced
         4 => check_algo!(Balanced, F, &op.input, &conv_problem),
         _ => true,
-    }
+    };
+
+    println!("{index} => {should_run}");
+    should_run
 }
 
 fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecision>(
@@ -166,9 +169,10 @@ fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecisio
     let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
     let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
 
-    let max_cube_dim = u16::MAX as u32;
+    let max_cube_dim = 65535;
 
     if let cubecl::CubeCount::Static(x, y, z) = cube_count {
+        println!("({x}, {y}, {z})");
         if x > max_cube_dim || y > max_cube_dim || z > max_cube_dim {
             return false;
         }

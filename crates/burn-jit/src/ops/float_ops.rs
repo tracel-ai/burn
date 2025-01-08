@@ -165,7 +165,7 @@ where
         execute_with_dtype!(
             float(lhs.dtype, rhs.dtype),
             E,
-            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default())
+            matmul::<R, E>(lhs, rhs, None, MatmulStrategy::default()).unwrap()
         )
     }
 
@@ -363,7 +363,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::sum_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -371,7 +371,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::mean_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::mean_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -387,7 +387,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::prod_dim::<R, E, E>(tensor, dim, Default::default())
+            reduce::prod_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -467,7 +467,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmax::<R, E, I>(tensor, dim, Default::default())
+            reduce::argmax::<R, E, I>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -475,7 +475,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmin::<R, E, I>(tensor, dim, Default::default())
+            reduce::argmin::<R, E, I>(tensor, dim, Default::default()).unwrap()
         )
     }
 

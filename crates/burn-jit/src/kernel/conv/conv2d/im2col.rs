@@ -6,7 +6,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     kernel::{
-        conv::index,
+        conv::{index, ConvLaunchError},
         into_contiguous, launch_binop,
         matmul::{matmul, MatmulStrategy},
         AddOp,
@@ -188,7 +188,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
@@ -237,13 +237,13 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
                 options.clone(),
                 out_h,
                 out_w,
-            );
+            )?;
         }
         let out = swap_dims(out, 1, 2);
         reshape(out, Shape::new([batch_size, out_channels, out_h, out_w]))
     } else {
         let out = empty_device::<R, E>(input.client.clone(), input.device.clone(), matmul_shape);
-        execute::<R, E>(input, weight, out.clone(), options, out_h, out_w);
+        execute::<R, E>(input, weight, out.clone(), options, out_h, out_w)?;
         let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
         swap_dims(out, 0, 1)
     };
@@ -252,7 +252,8 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
-    out
+
+    Ok(out)
 }
 
 fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
@@ -260,7 +261,7 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let [batch_size, _, height, width] = input.shape.dims();
     let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
     let groups = options.groups;
@@ -271,7 +272,7 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     let weight = reshape(weight, Shape::new([groups, out_c_per_grp, in_c_per_grp]));
     let in_shape = Shape::new([groups, in_c_per_grp, batch_size * height * width]);
     let input = reshape(input, in_shape);
-    let out = matmul::<R, E>(weight, input, None, MatmulStrategy::default());
+    let out = matmul::<R, E>(weight, input, None, MatmulStrategy::default())?;
     let mut out = reshape(out, Shape::new([out_channels, batch_size, height, width]));
 
     if let Some(bias) = bias {
@@ -279,7 +280,7 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
         out = launch_binop::<R, E, AddOp>(out, bias)
     }
 
-    swap_dims(out, 0, 1)
+    Ok(swap_dims(out, 0, 1))
 }
 
 fn execute<R: JitRuntime, E: FloatElement>(
@@ -289,7 +290,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
     options: ConvOptions<2>,
     out_h: usize,
     out_w: usize,
-) {
+) -> Result<(), ConvLaunchError> {
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
 
@@ -301,5 +302,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_shape_0, col_shape_1]));
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_shape_0]));
 
-    matmul::<R, E>(weight, columns, Some(out), Default::default());
+    matmul::<R, E>(weight, columns, Some(out), Default::default())?;
+
+    Ok(())
 }
