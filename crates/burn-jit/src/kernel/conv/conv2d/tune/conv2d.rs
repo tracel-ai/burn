@@ -126,7 +126,7 @@ fn should_run<R: JitRuntime, F: FloatElement>(
 
     let conv_problem = problem_from_key::<R, F>(key, out_h, out_w);
 
-    let should_run = match index {
+    match index {
         // im2col
         1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
         // Implicit gemm.
@@ -145,9 +145,7 @@ fn should_run<R: JitRuntime, F: FloatElement>(
         // GEMM balanced
         4 => check_algo!(Balanced, F, &op.input, &conv_problem),
         _ => true,
-    };
-
-    should_run
+    }
 }
 
 fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecision>(
