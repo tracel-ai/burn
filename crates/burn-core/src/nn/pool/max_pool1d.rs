@@ -79,6 +79,10 @@ impl MaxPool1d {
     ///
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
+    ///
+    /// ### Panics
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self

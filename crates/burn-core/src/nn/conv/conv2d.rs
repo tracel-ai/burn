@@ -141,6 +141,10 @@ impl<B: Backend> Conv2d<B> {
     ///
     /// - input: `[batch_size, channels_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
+    ///
+    /// ### Panics
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =

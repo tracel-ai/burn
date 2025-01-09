@@ -36,10 +36,6 @@ pub struct AvgPool1dConfig {
 /// legitimate values, and they contribute to the denominator
 /// when calculating the average. This is equivalent to
 /// `torch.nn.AvgPool2d` with `count_include_pad=True`.
-///
-/// TODO: Add support for `count_include_pad=False`, see
-/// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
-
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct AvgPool1d {
@@ -91,6 +87,10 @@ impl AvgPool1d {
     ///
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
+    ///
+    /// ### Panics
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self

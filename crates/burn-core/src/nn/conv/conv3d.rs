@@ -142,6 +142,10 @@ impl<B: Backend> Conv3d<B> {
     ///
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
+    ///
+    /// ### Panics
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(

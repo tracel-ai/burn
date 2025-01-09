@@ -150,6 +150,10 @@ impl<B: Backend> DeformConv2d<B> {
     /// - offset: `[batch_size, 2 * offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - mask: `[batch_size, offset_groups * kernel_height * kernel_width, height_out, width_out]`
     /// - output: `[batch_size, channels_out, height_out, width_out]`
+    ///
+    /// ### Panics
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
