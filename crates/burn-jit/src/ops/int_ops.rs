@@ -1,5 +1,5 @@
 use super::{expand, numeric, permute};
-use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
+use crate::kernel::{launch_unary_numeric, reduce, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
@@ -9,7 +9,6 @@ use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
-use cubecl::reduce::instructions;
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
@@ -194,36 +193,31 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::reduce::<R, I, I, instructions::Sum>(tensor, Default::default()).unwrap()
+        reduce::reduce::<R, I, I, reduce::Sum>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::reduce_dim::<R, I, I, instructions::Sum>(tensor, dim, Default::default())
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Sum>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::reduce::<R, I, I, instructions::Prod>(tensor, Default::default()).unwrap()
+        reduce::reduce::<R, I, I, reduce::Prod>(tensor, Default::default()).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::reduce_dim::<R, I, I, instructions::Prod>(tensor, dim, Default::default())
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Prod>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::reduce_dim::<R, I, I, instructions::Mean>(tensor, dim, Default::default())
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Mean>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::reduce_dim::<R, I, I, instructions::ArgMax>(tensor, dim, Default::default())
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::ArgMax>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::reduce_dim::<R, I, I, instructions::ArgMin>(tensor, dim, Default::default())
-            .unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::ArgMin>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_clamp(

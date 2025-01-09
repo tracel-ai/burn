@@ -1,9 +1,8 @@
-use crate::{
-    element::JitElement, ops::numeric::empty_device,
-    tensor::JitTensor, JitRuntime,
-};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 
 use super::autotune_reduce;
+
+pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 
 /// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
 ///
@@ -96,4 +95,3 @@ impl Default for ReduceStrategy {
         Self::Unspecified
     }
 }
-
