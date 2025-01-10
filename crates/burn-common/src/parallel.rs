@@ -1,51 +1,90 @@
 /// Macro for running a function in parallel.
+#[cfg(feature = "rayon")]
 #[macro_export(local_inner_macros)]
 macro_rules! run_par {
     (
         $func:expr
     ) => {{
-        #[cfg(feature = "rayon")]
-        use rayon::prelude::*;
+        use $crate::rayon::prelude::*;
 
-        #[cfg(feature = "rayon")]
         #[allow(clippy::redundant_closure_call)]
-        let output = rayon::scope(|_| $func());
+        $crate::rayon::scope(|_| $func())
+    }};
+}
 
-        #[cfg(not(feature = "rayon"))]
-        let output = $func();
-
-        output
+/// Macro for running a function in parallel.
+#[cfg(not(feature = "rayon"))]
+#[macro_export(local_inner_macros)]
+macro_rules! run_par {
+    (
+        $func:expr
+    ) => {{
+        $func()
     }};
 }
 
 /// Macro for iterating in parallel.
+#[cfg(not(feature = "rayon"))]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_par {
     (
         $iter:expr
     ) => {{
-        #[cfg(feature = "rayon")]
-        let output = $iter.into_par_iter();
+        $iter
+    }};
+}
 
-        #[cfg(not(feature = "rayon"))]
-        let output = $iter;
+/// Macro for iterating in parallel.
+#[cfg(feature = "rayon")]
+#[macro_export(local_inner_macros)]
+macro_rules! iter_par {
+    (
+        $iter:expr
+    ) => {{
+        $iter.into_par_iter()
+    }};
+}
 
-        output
+/// Macro for iterating in parallel.
+#[cfg(feature = "rayon")]
+#[macro_export(local_inner_macros)]
+macro_rules! iter_slice_par {
+    (
+        $slice:expr
+    ) => {{
+        $slice.into_par_iter()
+    }};
+}
+
+/// Macro for iterating in parallel.
+#[cfg(not(feature = "rayon"))]
+#[macro_export(local_inner_macros)]
+macro_rules! iter_slice_par {
+    (
+        $slice:expr
+    ) => {{
+        $slice.iter()
     }};
 }
 
 /// Macro for iterating over a range in parallel.
+#[cfg(feature = "rayon")]
 #[macro_export(local_inner_macros)]
 macro_rules! iter_range_par {
     (
         $start:expr, $end:expr
     ) => {{
-        #[cfg(feature = "rayon")]
-        let output = ($start..$end).into_par_iter();
+        ($start..$end).into_par_iter()
+    }};
+}
 
-        #[cfg(not(feature = "rayon"))]
-        let output = ($start..$end);
-
-        output
+/// Macro for iterating over a range in parallel.
+#[cfg(not(feature = "rayon"))]
+#[macro_export(local_inner_macros)]
+macro_rules! iter_range_par {
+    (
+        $start:expr, $end:expr
+    ) => {{
+        ($start..$end)
     }};
 }

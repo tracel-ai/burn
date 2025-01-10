@@ -100,7 +100,7 @@ impl QuantizedBytes {
 
     /// Splits the quantized values of the tensor from the quantization parameters.
     ///
-    /// Returns the packed values and a newly allocated vector containining the quantization parameters.
+    /// Returns the packed values and a newly allocated vector containing the quantization parameters.
     fn split_values_off(self) -> (Vec<u32>, Vec<u32>) {
         // The bytes can be created either from packed u32 or existing bytes with the same representation.
         let mut values = match self.bytes.align() {

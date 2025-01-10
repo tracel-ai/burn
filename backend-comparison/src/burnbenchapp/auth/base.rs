@@ -133,7 +133,7 @@ fn verify_tokens(tokens: &Tokens) -> bool {
         )
         .header(GITHUB_API_VERSION_HEADER, GITHUB_API_VERSION)
         .send();
-    response.map_or(false, |resp| resp.status().is_success())
+    response.is_ok_and(|resp| resp.status().is_success())
 }
 
 fn refresh_tokens(tokens: &Tokens) -> Option<Tokens> {
