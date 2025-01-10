@@ -68,6 +68,9 @@ impl Conv3dConfig {
     /// Initialize a new [conv3d](Conv3d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv3d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
+        if self.padding == PaddingConfig3d::Same {
+            checks::check_same_padding_support(&self.kernel_size);
+        }
 
         let shape = [
             self.channels[1],
@@ -142,10 +145,6 @@ impl<B: Backend> Conv3d<B> {
     ///
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
-    ///
-    /// ### Panics
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
     pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(
@@ -230,6 +229,14 @@ mod tests {
         let _ = config.init::<TestBackend>(&device);
 
         assert_eq!(config.initializer, init);
+    }
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let device = Default::default();
+        let config = Conv3dConfig::new([4, 4], [2, 2, 2]).with_padding(PaddingConfig3d::Same);
+        let _ = config.init::<TestBackend>(&device);
     }
 
     #[test]

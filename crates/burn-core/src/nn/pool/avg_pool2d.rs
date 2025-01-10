@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::conv::checks::check_same_padding_support;
 
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
@@ -18,6 +19,10 @@ pub struct AvgPool2dConfig {
     #[config(default = "[1, 1]")]
     pub strides: [usize; 2],
     /// The padding configuration.
+    ///
+    /// ### Warning
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If the padding is counted in the denominator when computing the average.
@@ -69,6 +74,9 @@ impl ModuleDisplay for AvgPool2d {
 impl AvgPool2dConfig {
     /// Initialize a new [avg pool 2d](AvgPool2d) module.
     pub fn init(&self) -> AvgPool2d {
+        if self.padding == PaddingConfig2d::Same {
+            check_same_padding_support(&self.kernel_size);
+        }
         AvgPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
@@ -87,10 +95,6 @@ impl AvgPool2d {
     ///
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
-    ///
-    /// ### Panics
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
@@ -110,6 +114,13 @@ impl AvgPool2d {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let config = AvgPool2dConfig::new([2, 2]).with_padding(PaddingConfig2d::Same);
+        let _ = config.init();
+    }
 
     #[test]
     fn display() {

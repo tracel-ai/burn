@@ -28,6 +28,10 @@ pub struct Conv1dConfig {
     #[config(default = "1")]
     pub groups: usize,
     /// The padding configuration.
+    ///
+    /// ### Warning
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
     /// If bias should be added to the output.
@@ -87,6 +91,9 @@ impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
         checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
+        if self.padding == PaddingConfig1d::Same {
+            checks::check_same_padding_support(&[self.kernel_size]);
+        }
 
         let shape = [
             self.channels_out,
@@ -129,10 +136,6 @@ impl<B: Backend> Conv1d<B> {
     ///
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
-    ///
-    /// ### Panics
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
         let padding = self
@@ -177,6 +180,14 @@ mod tests {
         conv.weight
             .to_data()
             .assert_approx_eq(&TensorData::zeros::<f32, _>(conv.weight.shape()), 3);
+    }
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let device = Default::default();
+        let config = Conv1dConfig::new(5, 5, 4).with_padding(PaddingConfig1d::Same);
+        let _ = config.init::<TestBackend>(&device);
     }
 
     #[test]
