@@ -17,6 +17,7 @@ mod max_pool2d;
 mod max_pool2d_backward;
 mod normal;
 mod quantization;
+mod reduce;
 mod repeat_dim;
 mod scatter;
 mod select;
@@ -77,6 +78,8 @@ macro_rules! testgen_all {
                 burn_jit::testgen_cat!();
                 burn_jit::testgen_clamp!();
                 burn_jit::testgen_unary!();
+
+                burn_jit::testgen_reduce!();
 
                 burn_jit::testgen_quantization!();
             }
