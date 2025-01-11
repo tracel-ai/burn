@@ -124,7 +124,8 @@ include_models!(
     transpose,
     unsqueeze,
     unsqueeze_opset11,
-    unsqueeze_opset16
+    unsqueeze_opset16,
+    split
 );
 
 #[cfg(test)]
@@ -2213,5 +2214,16 @@ mod tests {
         assert!(f_output.equal(f_expected).all().into_scalar());
         assert!(i_output.equal(i_expected).all().into_scalar());
         assert!(b_output.equal(b_expected).all().into_scalar());
+    }
+
+    #[test]
+    fn split() {
+        let device = Default::default();
+        let model = split::Model::<Backend>::new(&device);
+        let shape = [5, 2];
+        let input = Tensor::ones(shape, &device);
+
+        let split_tensors = model.forward(input);
+        assert_eq!(split_tensors.len(), 3);
     }
 }
