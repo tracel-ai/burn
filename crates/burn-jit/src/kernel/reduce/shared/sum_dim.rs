@@ -1,10 +1,10 @@
-use crate::{kernel::reduce::SumDim, JitElement};
+use crate::kernel::reduce::SumDim;
 use cubecl::prelude::*;
 
 use super::base::ReduceDimShared;
 
 #[cube]
-impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for SumDim {
+impl<EIn: Numeric, EOut: Numeric> ReduceDimShared<EIn, EOut> for SumDim {
     /// The reduction accumulator
     type Accumulator = SharedMemory<EIn>;
     type Value = EIn;

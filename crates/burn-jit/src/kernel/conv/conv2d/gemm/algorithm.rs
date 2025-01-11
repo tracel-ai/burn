@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
 use cubecl::{
     linalg::matmul::{
         components::{
-            stage::{self, StageSize},
-            tile::{self, accelerated::Accelerated16x16x16, Matmul as _},
-            MatmulKernel,
+            stage::{self, StageMatmulFamily},
+            tile::{accelerated::Accelerated, TileMatmulFamily},
+            InvalidConfigError,
         },
         kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
     },
@@ -13,52 +11,64 @@ use cubecl::{
 };
 
 use super::{
-    base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
-    homogeneous::base::ImplicitGemmConvolution,
-    spec::ConvSpec,
+    base::{ConvolutionConfigFactory, ConvolutionFamily, ConvolutionProblem},
+    homogeneous::base::ImplicitGemmConvolutionFamily,
+    precision::ConvPrecision,
+    selection::ConvSelection,
 };
 
 /// Specifications for a convolution algorithm
-pub trait Algorithm<CS: ConvSpec> {
-    type TileMatmul: tile::Matmul<CS::ES, CS::EA> + MatmulKernel;
+pub trait Algorithm {
+    type TileMatmul: TileMatmulFamily;
+    type StageMatmul: StageMatmulFamily;
+    type GlobalConvolution: ConvolutionFamily<Self::StageMatmul, Input = Self::Input>;
+    type Selection;
+    type Input;
 
-    type StageSize: StageSize;
-    type StageMatmul: stage::Matmul<CS::ES, CS::EG, CS::EA> + MatmulKernel;
-
-    type GlobalConvolution: Convolution<CS, Self::StageMatmul> + ConvolutionLaunch<CS::EG, CS::EG>;
-
-    /// Cube dim for launch
-    fn cube_dim() -> CubeDim;
-    /// The cube count for a given convolution problem
-    fn cube_count(problem: &ConvolutionProblem) -> CubeCount;
+    fn cube_dim(selection: &Self::Selection) -> CubeDim;
+    fn cube_count(selection: &Self::Selection, problem: &ConvolutionProblem) -> CubeCount;
 
     /// Make a convolution config from a convolution problem, and launch options
     fn make_config(
+        input: <Self::GlobalConvolution as ConvolutionConfigFactory>::Input,
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
         advanced_config: &AdvancedConfig,
-    ) -> <Self::GlobalConvolution as ConvolutionKernel<CS::EG, CS::EG>>::Config {
-        Self::GlobalConvolution::make_config(problem, cube_dim, cube_count, advanced_config)
+    ) -> Result<<Self::GlobalConvolution as ConvolutionConfigFactory>::Config, InvalidConfigError>
+    {
+        let config = Self::GlobalConvolution::make_config(
+            input,
+            problem,
+            cube_dim,
+            cube_count,
+            advanced_config,
+        );
+        Self::GlobalConvolution::check_config(&config)?;
+        Ok(config)
     }
 
     /// Check availability of the matmul algorithm
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
+        config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
     ) -> Result<(), MatmulAvailabilityError> {
-        Self::GlobalConvolution::check_availability::<R>(client)
+        Self::GlobalConvolution::check_availability::<R, CS>(client, config)
     }
 
     /// Determine whether the given convolution problem is valid to launch (within hardware limits)
-    fn can_launch<R: Runtime>(
+    fn can_launch<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
         problem: &ConvolutionProblem,
+        config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
+        selection: &Self::Selection,
     ) -> bool {
-        if problem.options.groups > 1 || Self::check_availability::<R>(client).is_err() {
+        if problem.options.groups > 1 || Self::check_availability::<R, CS>(client, config).is_err()
+        {
             return false;
         }
 
-        let cube_count = Self::cube_count(problem);
+        let cube_count = Self::cube_count(selection, problem);
         let (max_x, max_y, max_z) = R::max_cube_count();
         match cube_count {
             CubeCount::Static(x, y, z) => x <= max_x && y <= max_y && z <= max_z,
@@ -68,26 +78,26 @@ pub trait Algorithm<CS: ConvSpec> {
 }
 
 /// Cmma convolution
-pub struct Cmma<CS: ConvSpec, Stage: StageSize> {
-    pub _cp: PhantomData<CS>,
-    pub _stage: PhantomData<Stage>,
-}
+pub struct ImplicitCmmaConv;
 
-impl<CS: ConvSpec, Stage: StageSize> Algorithm<CS> for Cmma<CS, Stage> {
-    type TileMatmul = Accelerated16x16x16<CS::ES, CS::EA>;
-    type StageSize = Stage;
-    type StageMatmul =
-        stage::multi_buffer::Matmul<CS::ES, CS::EG, CS::EA, Self::TileMatmul, Self::StageSize>;
+impl Algorithm for ImplicitCmmaConv {
+    type TileMatmul = Accelerated;
+    type StageMatmul = stage::multi_buffer::MultiBufferMatmulFamily<Self::TileMatmul>;
+    type GlobalConvolution = ImplicitGemmConvolutionFamily<Self::StageMatmul>;
+    type Selection = ConvSelection;
+    type Input = <Self::GlobalConvolution as ConvolutionConfigFactory>::Input;
 
-    type GlobalConvolution = ImplicitGemmConvolution<CS, Self::StageMatmul>;
-
-    fn cube_dim() -> CubeDim {
-        CubeDim::new(CS::PLANE_DIM, Self::StageSize::NUM_M, 1)
+    fn cube_dim(selection: &ConvSelection) -> CubeDim {
+        CubeDim::new(
+            selection.matmul.plane_dim,
+            selection.matmul.num_stagess.m,
+            1,
+        )
     }
 
-    fn cube_count(problem: &ConvolutionProblem) -> CubeCount {
-        let m_stage = Self::StageSize::NUM_M * Self::TileMatmul::M;
-        let n_stage = Self::StageSize::NUM_N * Self::TileMatmul::N;
+    fn cube_count(selection: &ConvSelection, problem: &ConvolutionProblem) -> CubeCount {
+        let m_stage = selection.matmul.num_stagess.m * selection.matmul.tile.m;
+        let n_stage = selection.matmul.num_stagess.n * selection.matmul.tile.n;
         let cubes_needed_m = (problem.m as u32).div_ceil(m_stage);
         let cubes_needed_n = (problem.n as u32).div_ceil(n_stage);
 

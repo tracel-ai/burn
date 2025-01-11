@@ -1017,62 +1017,32 @@ mod tests {
         assert_eq!(dataset.get(3), None);
 
         const TWO_DOTS_AND_TRIANGLE_B1: BoundingBox = BoundingBox {
-            coords: [
-                3.1251719394773056,
-                18.0907840440165,
-                10.96011004126548,
-                10.740027510316379,
-            ],
+            coords: [3.125_172, 18.090_784, 10.960_11, 10.740_027],
             label: 0,
         };
 
         const TWO_DOTS_AND_TRIANGLE_B2: BoundingBox = BoundingBox {
-            coords: [
-                3.2572214580467658,
-                3.0371389270976605,
-                10.563961485557085,
-                10.828060522696012,
-            ],
+            coords: [3.257_221_5, 3.037_139, 10.563_961, 10.828_06],
             label: 0,
         };
 
         const TWO_DOTS_AND_TRIANGLE_B3: BoundingBox = BoundingBox {
-            coords: [
-                15.097661623108666,
-                3.3892709766162312,
-                12.632737276478679,
-                11.18019257221458,
-            ],
+            coords: [15.097_662, 3.389_271, 12.632_737, 11.180_193],
             label: 1,
         };
 
         const DOTS_TRIANGLE_B1: BoundingBox = BoundingBox {
-            coords: [
-                3.125171939477304,
-                17.914718019257222,
-                10.82806052269601,
-                11.004126547455297,
-            ],
+            coords: [3.125_172, 17.914_719, 10.828_06, 11.004_127],
             label: 0,
         };
 
         const DOTS_TRIANGLE_B2: BoundingBox = BoundingBox {
-            coords: [
-                15.27372764786794,
-                3.301237964236589,
-                12.192572214580478,
-                11.708390646492433,
-            ],
+            coords: [15.273_727, 3.301_238, 12.192_573, 11.708_39],
             label: 1,
         };
 
         const ONE_DOT_B1: BoundingBox = BoundingBox {
-            coords: [
-                10.07977991746905,
-                9.59559834938102,
-                10.960110041265464,
-                11.356258596973863,
-            ],
+            coords: [10.079_78, 9.595_598, 10.960_11, 11.356_258],
             label: 0,
         };
 

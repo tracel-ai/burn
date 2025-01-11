@@ -19,6 +19,8 @@ use crate::{
     FloatElement, JitRuntime,
 };
 
+use super::ConvLaunchError;
+
 #[derive(CubeLaunch)]
 struct DeformConv2dArgs<F: Float> {
     conv_stride_h: u32,
@@ -262,7 +264,7 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
     mask: Option<JitTensor<R>>,
     bias: Option<JitTensor<R>>,
     options: DeformConvOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);
@@ -298,15 +300,15 @@ pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
 
     let weight = reshape(weight, Shape::new([groups, out_c_per_group, col_size_0]));
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
-    let out = matmul::<R, E>(weight, columns, None, MatmulStrategy::default());
+    let out = matmul::<R, E>(weight, columns, None, MatmulStrategy::default())?;
 
     let out = reshape(out, Shape::new([out_channels, batch_size, out_h, out_w]));
     let out = swap_dims(out, 0, 1);
 
     if let Some(bias) = bias {
         let bias = reshape(bias, Shape::new([1, out_channels, 1, 1]));
-        launch_binop::<R, E, AddOp>(out, bias)
+        Ok(launch_binop::<R, E, AddOp>(out, bias))
     } else {
-        out
+        Ok(out)
     }
 }

@@ -1,5 +1,5 @@
 use crate::element::JitElement;
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::JitRuntime;
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
@@ -314,15 +314,29 @@ where
 
     /// Copy the current tensor.
     pub fn copy(&self) -> Self {
-        execute_with_dtype!(self.dtype, E, {
-            unary_op!(numeric(self.clone()) => |context, tensor| {
-                #[cube]
-                fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
-                    input
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        })
+        struct Copy;
+
+        #[cube]
+        impl<N: Numeric> NumericUnaryOp<N> for Copy {
+            type Options = ();
+
+            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
+                input
+            }
+        }
+
+        impl NumericUnaryOpFamily for Copy {
+            type Options<N: Numeric> = ();
+            type Unary<N: Numeric> = Self;
+        }
+
+        let tensor = self.clone();
+
+        execute_with_dtype!(
+            tensor.dtype,
+            E,
+            launch_unary_numeric::<R, E, Copy, _>(tensor, |_| ())
+        )
     }
 
     /// Check if the tensor is safe to mutate.

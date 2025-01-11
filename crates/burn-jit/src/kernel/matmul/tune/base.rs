@@ -83,22 +83,22 @@ fn matmul_accelerated<R: JitRuntime, E: FloatElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
     out: JitTensor<R>,
-) {
+) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Accelerated,
+        &Strategy::Standard,
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),
         &out.as_handle_ref(),
     )
-    .unwrap();
+    .map_err(|err| format!("{err:?}"))
 }
 
 fn matmul_tiling2d<R: JitRuntime, E: FloatElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
     out: JitTensor<R>,
-) {
+) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
         &Strategy::Tiling2D(Tiling2dConfig::default()),
         &lhs.client,
@@ -106,14 +106,14 @@ fn matmul_tiling2d<R: JitRuntime, E: FloatElement>(
         &rhs.as_handle_ref(),
         &out.as_handle_ref(),
     )
-    .unwrap();
+    .map_err(|err| format!("{err:?}"))
 }
 
 fn matmul_simple<R: JitRuntime, E: FloatElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
     out: JitTensor<R>,
-) {
+) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
         &Strategy::Simple,
         &lhs.client,
@@ -121,5 +121,5 @@ fn matmul_simple<R: JitRuntime, E: FloatElement>(
         &rhs.as_handle_ref(),
         &out.as_handle_ref(),
     )
-    .unwrap();
+    .map_err(|err| format!("{err:?}"))
 }

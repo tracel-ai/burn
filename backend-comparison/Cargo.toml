@@ -37,10 +37,10 @@ burn-common = { path = "../crates/burn-common", version = "0.16.0" }
 
 clap = { workspace = true }
 colored = { workspace = true }
+chrono = { workspace = true }
 cubecl = { workspace = true, features = ["wgpu"], default-features = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
-github-device-flow = { workspace = true }
 half = { workspace = true }
 indicatif = { workspace = true }
 os_info = { workspace = true }

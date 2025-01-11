@@ -7,16 +7,20 @@ use cubecl::{
     tf32, tune,
     tune::{local_tuner, tune_with, LocalTuner},
 };
-use half::{bf16, f16};
+use half::f16;
 
 use super::Conv2dAutotuneKey;
 use crate::{
     kernel::{
         conv::{
-            algorithm::Algorithm, batches_per_run, can_do_implicit_gemm, conv2d_direct,
-            conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, has_tf32, problem_from_key, spec::SingleConvSpec,
-            CmmaBalancedAlgorithm, CmmaLargeMAlgorithm,
+            algorithm::{Algorithm, ImplicitCmmaConv},
+            batches_per_run, can_do_implicit_gemm,
+            conv2d::gemm::base::ConvolutionProblem,
+            conv2d_direct, conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
+            conv2d_implicit_gemm, has_tf32,
+            precision::ConvPrecision,
+            problem_from_key,
+            selection::{Balanced, ConvSelector, Large},
         },
         prng::random_uniform,
     },
@@ -83,23 +87,14 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement>(
 
 macro_rules! check_algo {
     ($algo:tt, $float:ty, $input:expr, $problem:expr) => {
-        match (<$float>::as_elem(), has_tf32(&$input)) {
+        match (<$float>::as_elem_native_unchecked(), has_tf32(&$input)) {
             (Elem::Float(FloatKind::F32), true) => {
-                type Spec<F> = SingleConvSpec<32, F, tf32, f32>;
-                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
+                can_launch::<$algo, R, ($float, tf32, f32)>($input, $problem)
             }
-            (Elem::Float(FloatKind::F16), _) => {
-                type Spec<F> = SingleConvSpec<32, $float, f16, f16>;
-                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
+            (Elem::Float(FloatKind::Flex32), _) => {
+                can_launch::<$algo, R, ($float, f16, f32)>($input, $problem)
             }
-            (Elem::Float(FloatKind::BF16), _) => {
-                type Spec<F> = SingleConvSpec<32, $float, bf16, f32>;
-                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
-            }
-            _ => {
-                type Spec<F> = SingleConvSpec<32, $float, f16, f32>;
-                $algo::<Spec<$float>>::can_launch::<R>(&$input.client, &$problem)
-            }
+            _ => can_launch::<$algo, R, ($float, $float, f32)>($input, $problem),
         }
     };
 }
@@ -146,10 +141,45 @@ fn should_run<R: JitRuntime, F: FloatElement>(
             &op.input.client,
         ),
         // GEMM large m
-        3 => check_algo!(CmmaLargeMAlgorithm, F, op.input, conv_problem),
+        3 => check_algo!(Large, F, &op.input, &conv_problem),
         // GEMM balanced
-        4 => check_algo!(CmmaBalancedAlgorithm, F, op.input, conv_problem),
+        4 => check_algo!(Balanced, F, &op.input, &conv_problem),
         _ => true,
+    }
+}
+
+fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecision>(
+    input: &JitTensor<R>,
+    conv_problem: &ConvolutionProblem,
+) -> bool {
+    let plane_dim = match input
+        .client
+        .properties()
+        .hardware_properties()
+        .defined_plane_size()
+    {
+        Some(val) => val,
+        None => return false,
+    };
+
+    let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
+    let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
+    let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
+    let advanced_config = Default::default();
+
+    let config = ImplicitCmmaConv::make_config(
+        config_input,
+        conv_problem,
+        &cube_dim,
+        &cube_count,
+        &advanced_config,
+    );
+
+    match config {
+        Ok(config) => {
+            ImplicitCmmaConv::can_launch::<R, CS>(&input.client, conv_problem, &config, &selection)
+        }
+        Err(_) => false,
     }
 }
 

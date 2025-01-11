@@ -1,3 +1,4 @@
+use config::HomogeneousConfig;
 use cubecl::{
     linalg::{
         matmul::{
@@ -5,15 +6,15 @@ use cubecl::{
                 global::{
                     self,
                     full_load::{self, CyclicLoading, RhsLoader},
-                    unloader::Unloader,
-                    AccumulatorLoader, Config as _, Loader,
+                    output_loader::Unloader,
+                    AccumulatorLoader, GlobalConfig, InputLoader,
                 },
                 stage::{
                     self,
-                    multi_buffer::{LhsReader, RhsReader},
-                    TilingOrderConfig,
+                    multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
+                    StageMatmulFamily, TilingOrderConfig,
                 },
-                Ident, MatrixLayout, StageDim,
+                Ident, InvalidConfigError, MatrixLayout, StageDim,
             },
             kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
         },
@@ -24,34 +25,51 @@ use cubecl::{
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{
-    conv2d::gemm::base::{Convolution, ConvolutionKernel, ConvolutionLaunch, ConvolutionProblem},
+    conv2d::gemm::base::{
+        Convolution, ConvolutionConfigFactory, ConvolutionFamily, ConvolutionLaunch,
+        ConvolutionProblem,
+    },
     loader::im2col::SimpleIm2colLoader,
-    spec::ConvSpec,
+    precision::ConvPrecision,
 };
-use crate::kernel::conv::{conv2d::gemm::Config as _, loader::bias::BiasLoader};
+use crate::kernel::conv::{conv2d::gemm::ConvGemmConfig as _, loader::bias::BiasLoader};
+
+pub struct ImplicitGemmConvolutionFamily<SMM: StageMatmulFamily> {
+    _smm: PhantomData<SMM>,
+}
+
+impl<SMM> ConvolutionFamily<SMM> for ImplicitGemmConvolutionFamily<SMM>
+where
+    SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFamily>,
+{
+    type Convolution<CS: ConvPrecision> =
+        ImplicitGemmConvolution<CS, SMM::Matmul<CS::ES, CS::EG, CS::EA>>;
+}
 
 /// Performs matrix multiplication at the global level, with each plane sharing the same responsibilities
 /// - All planes load data to the stage
 /// - All planes are used in the stage matmul computation
-pub struct ImplicitGemmConvolution<CS: ConvSpec, SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>> {
+pub struct ImplicitGemmConvolution<
+    CS: ConvPrecision,
+    SMM: stage::StageMatmul<CS::ES, CS::EG, CS::EA>,
+> {
     _cs: PhantomData<CS>,
     _stage_matmul: PhantomData<SMM>,
 }
 
 #[cube]
-impl<CS: ConvSpec, SMM, SMMConf> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
+impl<CS: ConvPrecision, SMM> Convolution<CS, SMM> for ImplicitGemmConvolution<CS, SMM>
 where
-    SMMConf: stage::Config,
-    SMM: stage::Matmul<
+    SMM: stage::StageMatmul<
         CS::ES,
         CS::EG,
         CS::EA,
         LhsReader = LhsReader<CS::ES>,
         RhsReader = RhsReader<CS::ES>,
-        Config = SMMConf,
     >,
 {
     type LhsLoader = SimpleIm2colLoader<CS, Self::Config>;
+    type Config = HomogeneousConfig<full_load::Config<SMM::Config>>;
     type RhsLoader = RhsLoader<CS::EG, CS::ES, SMM::Config, CyclicLoading>;
     type AccumulatorLoader = BiasLoader<CS, SMM::Config>;
 
@@ -67,7 +85,7 @@ where
         k_range: (u32, u32),
         #[comptime] config: Self::Config,
     ) {
-        let k_step = SMM::K;
+        let k_step = config.k_step;
         let range = k_range.1 - k_range.0;
         #[allow(unknown_lints)] // `manual_div_ceil` only appeared in 1.83
         #[allow(clippy::manual_div_ceil)]
@@ -165,46 +183,53 @@ where
     }
 }
 
-impl<CS: ConvSpec, SMM> ConvolutionKernel<CS::EG, CS::EG> for ImplicitGemmConvolution<CS, SMM>
+impl<SMM> ConvolutionConfigFactory for ImplicitGemmConvolutionFamily<SMM>
 where
-    SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>,
+    SMM: StageMatmulFamily,
 {
-    type Config = config::Config<full_load::Config<SMM::Config>>;
+    type Config = config::HomogeneousConfig<full_load::Config<SMM::Config>>;
+    type Input = SMM::Input;
 
-    fn check_config(config: Self::Config) {
-        SMM::check_config(config.to_smm_config());
+    fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError> {
+        SMM::check_config(&config.to_smm_config())
     }
 
-    fn check_availability<R: Runtime>(
+    fn check_availability<R: Runtime, CS: ConvPrecision>(
         client: &ComputeClient<R::Server, R::Channel>,
+        config: &Self::Config,
     ) -> Result<(), MatmulAvailabilityError> {
-        SMM::check_availability::<R>(client)
+        SMM::check_availability::<R, (CS::EG, CS::ES, CS::EA)>(client, &config.to_smm_config())
     }
 
     fn make_config(
+        input: Self::Input,
         problem: &ConvolutionProblem,
         cube_dim: &CubeDim,
         cube_count: &CubeCount,
         advanced_config: &AdvancedConfig,
     ) -> Self::Config {
         let smm_config = SMM::make_config(
+            input,
             &problem.as_matmul_problem(),
             cube_dim,
             cube_count,
             advanced_config,
         );
+        let size = SMM::size(&smm_config);
 
-        config::Config::new(
+        config::HomogeneousConfig::new(
             full_load::Config::new(
                 smm_config,
-                problem.m as u32 % SMM::M != 0,
-                problem.n as u32 % SMM::N != 0,
-                problem.k as u32 % SMM::K != 0,
+                // TODO: Find the correct condition to avoid check bounds.
+                true,
+                true,
+                true,
                 problem.lhs_layout,
                 problem.rhs_layout,
                 problem.lhs_line_size as u32,
                 problem.rhs_line_size as u32,
                 problem.out_line_size as u32,
+                size.k,
             ),
             (problem.out_shape_y as u32, problem.out_shape_x as u32),
             problem.kernel_size,
@@ -214,18 +239,10 @@ where
     }
 }
 
-impl<
-        CS: ConvSpec,
-        SMM: stage::Matmul<
-            CS::ES,
-            CS::EG,
-            CS::EA,
-            LhsReader = LhsReader<CS::ES>,
-            RhsReader = RhsReader<CS::ES>,
-        >,
-    > ConvolutionLaunch<CS::EG, CS::EG> for ImplicitGemmConvolution<CS, SMM>
+impl<SMM: StageMatmulFamily<LhsReader = LhsReaderFamily, RhsReader = RhsReaderFamily>>
+    ConvolutionLaunch for ImplicitGemmConvolutionFamily<SMM>
 {
-    unsafe fn launch_unchecked<R: Runtime>(
+    unsafe fn launch_unchecked<CS: ConvPrecision, R: Runtime>(
         client: &ComputeClient<<R as Runtime>::Server, <R as Runtime>::Channel>,
         cube_dim: CubeDim,
         cube_count: CubeCount,
@@ -233,11 +250,9 @@ impl<
         weight: TensorArg<'_, R>,
         bias: TensorArg<'_, R>,
         out: TensorArg<'_, R>,
-        config: <Self as ConvolutionKernel<CS::EG, CS::EG>>::Config,
+        config: <Self as ConvolutionConfigFactory>::Config,
     ) {
-        Self::check_config(config);
-
-        implicit_conv::launch_unchecked::<CS, Self, SMM, R>(
+        implicit_conv::launch_unchecked::<CS::EG, CS::ES, CS::EA, Self, SMM, R>(
             client,
             cube_count,
             cube_dim,
@@ -253,14 +268,16 @@ impl<
 
 #[cube(launch_unchecked)]
 pub(crate) fn implicit_conv<
-    CS: ConvSpec,
-    GMM: Convolution<CS, SMM>,
-    SMM: stage::Matmul<CS::ES, CS::EG, CS::EA>,
+    EG: Numeric,
+    ES: Numeric,
+    EA: Numeric,
+    GMM: ConvolutionFamily<SMM>,
+    SMM: StageMatmulFamily,
 >(
-    lhs: &Tensor<Line<CS::EG>>,
-    rhs: &Tensor<Line<CS::EG>>,
-    bias: &Tensor<Line<CS::EG>>,
-    out: &mut Tensor<Line<CS::EG>>,
+    lhs: &Tensor<Line<EG>>,
+    rhs: &Tensor<Line<EG>>,
+    bias: &Tensor<Line<EG>>,
+    out: &mut Tensor<Line<EG>>,
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
@@ -268,17 +285,17 @@ pub(crate) fn implicit_conv<
     let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).num_elements_y_dim();
     let k_range = (0, rhs.shape(0));
 
-    let lhs = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(lhs);
-    let rhs = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(rhs);
-    let bias = VirtualTensor::<CS::EG>::new::<Tensor<Line<CS::EG>>>(bias);
-    let out = VirtualTensor::<CS::EG, ReadWrite>::new::<Tensor<Line<CS::EG>>>(out);
+    let lhs = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(lhs);
+    let rhs = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(rhs);
+    let bias = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(bias);
+    let out = VirtualTensor::<EG, ReadWrite>::new::<Tensor<Line<EG>>>(out);
 
-    GMM::execute(
-        GMM::init_lhs_loader(lhs, x_offset, k_range.0, config),
-        GMM::init_rhs_loader(rhs, k_range.0, y_offset, config),
-        GMM::init_bias_loader(bias, y_offset, config, has_bias),
-        GMM::init_unloader(out, x_offset, y_offset),
-        &mut GMM::init_accumulator(config),
+    GMM::Convolution::<(EG, ES, EA)>::execute(
+        GMM::Convolution::<(EG, ES, EA)>::init_lhs_loader(lhs, x_offset, k_range.0, config),
+        GMM::Convolution::<(EG, ES, EA)>::init_rhs_loader(rhs, k_range.0, y_offset, config),
+        GMM::Convolution::<(EG, ES, EA)>::init_bias_loader(bias, y_offset, config, has_bias),
+        GMM::Convolution::<(EG, ES, EA)>::init_unloader(out, x_offset, y_offset),
+        &mut GMM::Convolution::<(EG, ES, EA)>::init_accumulator(config),
         k_range,
         config,
     );
@@ -289,26 +306,24 @@ pub mod config {
 
     use burn_tensor::ops::ConvOptions;
     use cubecl::linalg::matmul::components::MatmulConfig;
+    use global::GlobalConfig;
 
     use crate::kernel::conv::conv2d::gemm::{self};
 
     use super::*;
 
     #[derive(CubeType, Copy, Clone, Debug, Hash, PartialEq, Eq)]
-    pub struct Config<M: global::Config> {
+    pub struct HomogeneousConfig<M: GlobalConfig> {
         matmul: M,
-
         out_shape: (u32, u32),
-
         kernel_size: (u32, u32),
         stride: (u32, u32),
         dilation: (u32, u32),
         padding: (i32, i32),
-
         pub has_bias: bool,
     }
 
-    impl<M: global::Config> Deref for Config<M> {
+    impl<M: GlobalConfig> Deref for HomogeneousConfig<M> {
         type Target = M;
 
         fn deref(&self) -> &Self::Target {
@@ -316,7 +331,7 @@ pub mod config {
         }
     }
 
-    impl<M: global::Config> global::Config for Config<M> {
+    impl<M: GlobalConfig> GlobalConfig for HomogeneousConfig<M> {
         type SmmConfig = M::SmmConfig;
 
         fn to_smm_config(&self) -> Self::SmmConfig {
@@ -368,7 +383,7 @@ pub mod config {
         }
     }
 
-    impl<M: global::Config> gemm::Config for Config<M> {
+    impl<M: GlobalConfig> gemm::ConvGemmConfig for HomogeneousConfig<M> {
         fn out_shape(&self, dim: u32) -> u32 {
             match dim {
                 0 => self.out_shape.0,
@@ -410,9 +425,9 @@ pub mod config {
         }
     }
 
-    impl<M: global::Config> MatmulConfig for Config<M> {}
+    impl<M: GlobalConfig> MatmulConfig for HomogeneousConfig<M> {}
 
-    impl<M: global::Config> Config<M> {
+    impl<M: GlobalConfig> HomogeneousConfig<M> {
         #[allow(clippy::too_many_arguments)]
         pub fn new(
             matmul: M,

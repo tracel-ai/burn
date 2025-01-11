@@ -1988,7 +1988,7 @@ where
     /// fn example<B: Backend<FloatElem: From<f32>>>() {
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
-    ///    let tensor = tensor.pad((1, 1, 1, 1), 0.0.into());
+    ///    let tensor = tensor.pad((1, 1, 1, 1), 0.0);
     ///    println!("{tensor}");
     ///    // [
     ///    //   [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1998,7 +1998,11 @@ where
     ///    // ]
     /// }
     /// ```
-    pub fn pad(self, padding: (usize, usize, usize, usize), value: K::Elem) -> Tensor<B, D, K> {
+    pub fn pad<E: ElementConversion>(
+        self,
+        padding: (usize, usize, usize, usize),
+        value: E,
+    ) -> Tensor<B, D, K> {
         let (left, right, top, bottom) = padding;
 
         let mut padded_dims: [usize; D] = self.dims();

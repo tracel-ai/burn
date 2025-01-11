@@ -1,3 +1,5 @@
+use cubecl::linalg::matmul::kernels::MatmulLaunchError;
+
 use super::init_matmul_output;
 use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 
@@ -30,7 +32,7 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
     rhs: JitTensor<R>,
     out: Option<JitTensor<R>>,
     strategy: MatmulStrategy,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, MatmulLaunchError> {
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
@@ -43,11 +45,11 @@ pub fn matmul<R: JitRuntime, E: FloatElement>(
                 &lhs.as_handle_ref(),
                 &rhs.as_handle_ref(),
                 &out.as_handle_ref(),
-            )
-            .unwrap();
-            out
+            )?;
+
+            Ok(out)
         }
         #[cfg(feature = "autotune")]
-        MatmulStrategy::Autotune => matmul_autotune::<R, E>(lhs, rhs, out),
+        MatmulStrategy::Autotune => Ok(matmul_autotune::<R, E>(lhs, rhs, out)),
     }
 }

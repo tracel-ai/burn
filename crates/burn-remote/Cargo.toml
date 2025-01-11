@@ -36,7 +36,7 @@ futures-util = { version = "0.3" }
 
 # Client dependencies
 async-channel = { workspace = true, optional = true }
-tokio-tungstenite = { version = "0.24", optional = true }
+tokio-tungstenite = { version = "0.26", optional = true }
 
 # Server dependencies
 axum = { version = "0.7.9", features = ["ws"], optional = true }

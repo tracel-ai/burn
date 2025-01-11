@@ -1,9 +1,7 @@
 use cubecl::prelude::*;
 
-use crate::JitElement;
-
 #[cube]
-pub trait ReduceDimSubcube<EIn: JitElement, EOut: JitElement>: Send + Sync + 'static {
+pub trait ReduceDimSubcube<EIn: Numeric, EOut: Numeric>: Send + Sync + 'static {
     type Accumulator: CubeType;
     type Value: CubeType;
 

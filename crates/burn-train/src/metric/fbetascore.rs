@@ -11,40 +11,44 @@ use burn_core::{
 use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-///The Precision Metric
+/// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
 #[derive(Default)]
-pub struct PrecisionMetric<B: Backend> {
+pub struct FBetaScoreMetric<B: Backend> {
     state: NumericMetricState,
     _b: PhantomData<B>,
     config: ClassificationMetricConfig,
+    beta: f64,
 }
 
-impl<B: Backend> PrecisionMetric<B> {
-    /// Precision metric for binary classification.
+impl<B: Backend> FBetaScoreMetric<B> {
+    /// F-beta score metric for binary classification.
     ///
     /// # Arguments
     ///
+    /// * `beta` - Positive real factor to weight recall's importance.
     /// * `threshold` - The threshold to transform a probability into a binary prediction.
     #[allow(dead_code)]
-    pub fn binary(threshold: f64) -> Self {
+    pub fn binary(beta: f64, threshold: f64) -> Self {
         Self {
             config: ClassificationMetricConfig {
                 decision_rule: DecisionRule::Threshold(threshold),
                 // binary classification results are the same independently of class_reduction
                 ..Default::default()
             },
+            beta,
             ..Default::default()
         }
     }
 
-    /// Precision metric for multiclass classification.
+    /// F-beta score metric for multiclass classification.
     ///
     /// # Arguments
     ///
+    /// * `beta` - Positive real factor to weight recall's importance.
     /// * `top_k` - The number of highest predictions considered to find the correct label (typically `1`).
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
-    pub fn multiclass(top_k: usize, class_reduction: ClassReduction) -> Self {
+    pub fn multiclass(beta: f64, top_k: usize, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
                 decision_rule: DecisionRule::TopK(
@@ -52,23 +56,26 @@ impl<B: Backend> PrecisionMetric<B> {
                 ),
                 class_reduction,
             },
+            beta,
             ..Default::default()
         }
     }
 
-    /// Precision metric for multi-label classification.
+    /// F-beta score metric for multi-label classification.
     ///
     /// # Arguments
     ///
-    /// * `threshold` - The threshold to transform a probability into a binary value.
+    /// * `beta` - Positive real factor to weight recall's importance.
+    /// * `threshold` - The threshold to transform a probability into a binary prediction.
     /// * `class_reduction` - [Class reduction](ClassReduction) type.
     #[allow(dead_code)]
-    pub fn multilabel(threshold: f64, class_reduction: ClassReduction) -> Self {
+    pub fn multilabel(beta: f64, threshold: f64, class_reduction: ClassReduction) -> Self {
         Self {
             config: ClassificationMetricConfig {
                 decision_rule: DecisionRule::Threshold(threshold),
                 class_reduction,
             },
+            beta,
             ..Default::default()
         }
     }
@@ -91,16 +98,21 @@ impl<B: Backend> PrecisionMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for PrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
+impl<B: Backend> Metric for FBetaScoreMetric<B> {
+    const NAME: &'static str = "FBetaScore";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
         let [sample_size, _] = input.predictions.dims();
 
         let cf_stats = ConfusionStats::new(input, &self.config);
-        let metric =
-            self.class_average(cf_stats.clone().true_positive() / cf_stats.predicted_positive());
+        let scaled_true_positive = cf_stats.clone().true_positive() * (1.0 + self.beta.powi(2));
+        let metric = self.class_average(
+            scaled_true_positive.clone()
+                / (scaled_true_positive
+                    + cf_stats.clone().false_negative() * self.beta.powi(2)
+                    + cf_stats.false_positive()),
+        );
 
         self.state.update(
             100.0 * metric,
@@ -114,7 +126,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for PrecisionMetric<B> {
+impl<B: Backend> Numeric for FBetaScoreMetric<B> {
     fn value(&self) -> f64 {
         self.state.value()
     }
@@ -124,49 +136,58 @@ impl<B: Backend> Numeric for PrecisionMetric<B> {
 mod tests {
     use super::{
         ClassReduction::{self, *},
-        Metric, MetricMetadata, Numeric, PrecisionMetric,
+        FBetaScoreMetric, Metric, MetricMetadata, Numeric,
     };
     use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
     use burn_core::tensor::TensorData;
     use rstest::rstest;
 
     #[rstest]
-    #[case::binary(THRESHOLD, 0.5)]
-    fn test_binary_precision(#[case] threshold: f64, #[case] expected: f64) {
+    #[case::binary_b1(1.0, THRESHOLD, 0.5)]
+    #[case::binary_b2(2.0, THRESHOLD, 0.5)]
+    fn test_binary_fscore(#[case] beta: f64, #[case] threshold: f64, #[case] expected: f64) {
         let input = dummy_classification_input(&ClassificationType::Binary).into();
-        let mut metric = PrecisionMetric::binary(threshold);
+        let mut metric = FBetaScoreMetric::binary(beta, threshold);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
     }
 
     #[rstest]
-    #[case::multiclass_micro_k1(Micro, 1, 3.0/5.0)]
-    #[case::multiclass_micro_k2(Micro, 2, 4.0/10.0)]
-    #[case::multiclass_macro_k1(Macro, 1, (0.5 + 0.5 + 1.0)/3.0)]
-    #[case::multiclass_macro_k2(Macro, 2, (0.5 + 1.0/4.0 + 0.5)/3.0)]
-    fn test_multiclass_precision(
+    #[case::multiclass_b1_micro_k1(1.0, Micro, 1, 3.0/5.0)]
+    #[case::multiclass_b1_micro_k2(1.0, Micro, 2, 2.0/(5.0/4.0 + 10.0/4.0))]
+    #[case::multiclass_b1_macro_k1(1.0, Macro, 1, (0.5 + 2.0/(1.0 + 2.0) + 2.0/(2.0 + 1.0))/3.0)]
+    #[case::multiclass_b1_macro_k2(1.0, Macro, 2, (2.0/(1.0 + 2.0) + 2.0/(1.0 + 4.0) + 0.5)/3.0)]
+    #[case::multiclass_b2_micro_k1(2.0, Micro, 1, 3.0/5.0)]
+    #[case::multiclass_b2_micro_k2(2.0, Micro, 2, 5.0*4.0/(4.0*5.0 + 10.0))]
+    #[case::multiclass_b2_macro_k1(2.0, Macro, 1, (0.5 + 5.0/(4.0 + 2.0) + 5.0/(8.0 + 1.0))/3.0)]
+    #[case::multiclass_b2_macro_k2(2.0, Macro, 2, (5.0/(4.0 + 2.0) + 5.0/(4.0 + 4.0) + 0.5)/3.0)]
+    fn test_multiclass_fscore(
+        #[case] beta: f64,
         #[case] class_reduction: ClassReduction,
         #[case] top_k: usize,
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multiclass).into();
-        let mut metric = PrecisionMetric::multiclass(top_k, class_reduction);
+        let mut metric = FBetaScoreMetric::multiclass(beta, top_k, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
     }
 
     #[rstest]
-    #[case::multilabel_micro(Micro, THRESHOLD, 5.0/8.0)]
-    #[case::multilabel_macro(Macro, THRESHOLD, (2.0/3.0 + 2.0/3.0 + 0.5)/3.0)]
-    fn test_multilabel_precision(
+    #[case::multilabel_micro(1.0, Micro, THRESHOLD, 2.0/(9.0/5.0 + 8.0/5.0))]
+    #[case::multilabel_macro(1.0, Macro, THRESHOLD, (2.0/(2.0 + 3.0/2.0) + 2.0/(1.0 + 3.0/2.0) + 2.0/(3.0+2.0))/3.0)]
+    #[case::multilabel_micro(2.0, Micro, THRESHOLD, 5.0/(4.0*9.0/5.0 + 8.0/5.0))]
+    #[case::multilabel_macro(2.0, Macro, THRESHOLD, (5.0/(8.0 + 3.0/2.0) + 5.0/(4.0 + 3.0/2.0) + 5.0/(12.0+2.0))/3.0)]
+    fn test_multilabel_fscore(
+        #[case] beta: f64,
         #[case] class_reduction: ClassReduction,
         #[case] threshold: f64,
         #[case] expected: f64,
     ) {
         let input = dummy_classification_input(&ClassificationType::Multilabel).into();
-        let mut metric = PrecisionMetric::multilabel(threshold, class_reduction);
+        let mut metric = FBetaScoreMetric::multilabel(beta, threshold, class_reduction);
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)

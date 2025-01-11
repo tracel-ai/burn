@@ -12,7 +12,7 @@ use cubecl::{
 use half::f16;
 
 use crate::{
-    kernel::{into_contiguous, slice, slice_assign},
+    kernel::{conv::ConvLaunchError, into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
@@ -35,8 +35,8 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
-    let is_tf32 = F::as_elem() == Elem::Float(FloatKind::F32)
+) -> Result<JitTensor<R>, ConvLaunchError> {
+    let is_tf32 = F::as_elem_native_unchecked() == Elem::Float(FloatKind::F32)
         && input
             .client
             .properties()
@@ -210,7 +210,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     let out = slice::<R, F>(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
-    permute(out, &[0, 3, 1, 2])
+    Ok(permute(out, &[0, 3, 1, 2]))
 }
 
 fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {
@@ -519,7 +519,7 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     let cmma_input_tile_size = cmma_m * cmma_k;
     let elems_per_thread = cmma_input_tile_size / warp_size;
-    let vec = vectorization_of(input);
+    let vec = input.line_size();
 
     let height = input.shape(1) as i32;
     let width = input.shape(2) as i32;
@@ -606,7 +606,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
         kernel_w, kernel_h, ..
     } = kernel_settings;
 
-    let vec = vectorization_of(weight);
+    let vec = weight.line_size();
     let cmma_filter_tile_size = cmma_k * cmma_n;
     let elems_per_thread = cmma_filter_tile_size / warp_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
@@ -654,10 +654,10 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> bool {
     let cmma_k = match (
-        E::as_elem(),
+        E::as_elem_native_unchecked(),
         client
             .properties()
-            .feature_enabled(Feature::Type(tf32::as_elem())),
+            .feature_enabled(Feature::Type(tf32::as_elem_native_unchecked())),
     ) {
         (Elem::Float(FloatKind::F32), true) => 8,
         _ => 16,
@@ -738,13 +738,18 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<(u8, u8, u8)> {
     let (requested_sizes, matrix_elem) = match (
-        F::as_elem(),
+        F::as_elem_native_unchecked(),
         client
             .properties()
-            .feature_enabled(Feature::Type(tf32::as_elem())),
+            .feature_enabled(Feature::Type(tf32::as_elem_native_unchecked())),
     ) {
-        (Elem::Float(FloatKind::F32), true) => (vec![(16, 8, 16)], tf32::as_elem()),
-        _ => (vec![(16, 16, 16), (32, 16, 8), (8, 16, 32)], f16::as_elem()),
+        (Elem::Float(FloatKind::F32), true) => {
+            (vec![(16, 8, 16)], tf32::as_elem_native_unchecked())
+        }
+        _ => (
+            vec![(16, 16, 16), (32, 16, 8), (8, 16, 32)],
+            f16::as_elem_native_unchecked(),
+        ),
     };
 
     requested_sizes
@@ -754,7 +759,7 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float>(
             client.properties().feature_enabled(Feature::Cmma {
                 a: matrix_elem,
                 b: matrix_elem,
-                c: F::as_elem(),
+                c: F::as_elem_native_unchecked(),
                 m: *m,
                 k: *k,
                 n: *n,

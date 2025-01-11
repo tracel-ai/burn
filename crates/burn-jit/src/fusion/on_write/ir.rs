@@ -154,7 +154,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
-    /// Resolve the [argument](Arg) to a [tensor arguemnt](TensorArg).
+    /// Resolve the [argument](Arg) to a [tensor argument](TensorArg).
     ///
     /// # Panics
     ///
@@ -293,7 +293,7 @@ impl From<DType> for ElemwisePrecision {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct ElemwiseConfig {
     pub rank: u32,

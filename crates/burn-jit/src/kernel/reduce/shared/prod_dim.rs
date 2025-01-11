@@ -1,10 +1,10 @@
-use crate::{kernel::reduce::ProdDim, JitElement};
+use crate::kernel::reduce::ProdDim;
 use cubecl::prelude::*;
 
 use super::base::ReduceDimShared;
 
 #[cube]
-impl<EIn: JitElement, EOut: JitElement> ReduceDimShared<EIn, EOut> for ProdDim {
+impl<EIn: Numeric, EOut: Numeric> ReduceDimShared<EIn, EOut> for ProdDim {
     /// The reduction accumulator
     type Accumulator = SharedMemory<EIn>;
     type Value = EIn;
