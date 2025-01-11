@@ -486,6 +486,13 @@ where
         Tensor::new(K::sum(self.primitive))
     }
 
+    /// Aggregate all elements along the given *dimension* or *axis* with the
+    /// cumulative sum operation.
+    pub fn cumsum(self, dim: usize) -> Tensor<B, D, K> {
+        check!(TensorCheck::aggregate_dim::<D>("CumSum", dim));
+        Tensor::new(K::cumsum(self.primitive, dim))
+    }
+
     /// Aggregate all elements along the given *dimension* or *axis*
     /// in the tensor with the mean operation.
     ///
@@ -2464,6 +2471,27 @@ where
     /// which is more high-level and designed for public use.
     fn sum(tensor: Self::Primitive) -> Self::Primitive;
 
+    /// Computes the cumulative sum of all the elements of the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension along which to sum.
+    ///
+    /// # Returns
+    ///
+    /// The cumulative sum of all the elements of the tensor along the specified dimension.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For summing all the elements of a tensor along a dimension, users should prefer the [Tensor::cumsum](Tensor::cumsum) function,
+    /// which is more high-level and designed for public use.
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive;
+
     /// Sums all the elements of the tensor along a dimension.
     ///
     /// # Arguments
@@ -3611,6 +3639,10 @@ impl<B: Backend> Numeric<B> for Int {
     ) -> <Int as TensorKind<B>>::Primitive {
         B::int_argsort(tensor, dim, descending)
     }
+
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        B::int_cumsum(tensor, dim)
+    }
 }
 
 impl<B: Backend> Numeric<B> for Float {
@@ -4123,6 +4155,13 @@ impl<B: Backend> Numeric<B> for Float {
         match tensor {
             TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
             TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
+        }
+    }
+
+    fn cumsum(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cumsum(tensor, dim)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_cumsum(tensor, dim)),
         }
     }
 }

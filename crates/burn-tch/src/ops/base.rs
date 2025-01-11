@@ -299,6 +299,13 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
+    pub fn cumsum(tensor: TchTensor, dim: usize) -> TchTensor {
+        TchTensor::from_existing(
+            tensor.tensor.cumsum(dim as i64, tensor.tensor.kind()),
+            tensor.storage,
+        )
+    }
+
     pub fn prod_dim(tensor: TchTensor, dim: usize) -> TchTensor {
         TchTensor::from_existing(
             tensor

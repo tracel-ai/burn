@@ -145,3 +145,31 @@ pub fn mask_where_broadcasted(
 
     CandleTensor::new(mask.tensor.where_cond(&value.tensor, &tensor).unwrap())
 }
+
+// Taken from: https://github.com/mokeyish/candle-ext/blob/main/src/cumsum.rs
+fn cumsum_ext<D: candle_core::shape::Dim>(
+    input: &candle_core::Tensor,
+    dim: D,
+) -> candle_core::Result<candle_core::Tensor> {
+    let dim = dim.to_index(input.shape(), "cumsum")?;
+    let dim_size = input.dim(dim)?;
+
+    let mut tensors = Vec::with_capacity(dim_size);
+
+    let mut a = input.clone();
+    for i in 0..dim_size {
+        if i > 0 {
+            a = a.narrow(dim, 1, dim_size - i)?;
+            let b = input.narrow(dim, 0, dim_size - i)?;
+            a = (a + b)?;
+        }
+        tensors.push(a.narrow(dim, 0, 1)?);
+    }
+    let cumsum = candle_core::Tensor::cat(&tensors, dim)?;
+    Ok(cumsum)
+}
+
+/// Cumulative sum (used for int tensors since the default candle implementation uses matmul).
+pub fn cumsum(tensor: CandleTensor, dim: usize) -> CandleTensor {
+    CandleTensor::new(cumsum_ext(&tensor.tensor, dim).unwrap())
+}

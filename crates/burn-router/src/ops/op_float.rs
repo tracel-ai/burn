@@ -1491,4 +1491,23 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         out
     }
+
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let dtype = tensor.dtype;
+        let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
+
+        let desc = ScalarOperationDescription {
+            lhs: tensor.into_description(),
+            rhs: dim,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::NumericFloat(
+            dtype,
+            NumericOperationDescription::CumSum(desc),
+        ));
+
+        out
+    }
 }

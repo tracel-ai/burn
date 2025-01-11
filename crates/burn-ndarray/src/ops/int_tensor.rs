@@ -351,4 +351,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     fn int_expand(tensor: NdArrayTensor<I>, shape: Shape) -> NdArrayTensor<I> {
         NdArrayOps::expand(tensor, shape)
     }
+
+    fn int_cumsum(tensor: NdArrayTensor<I>, dim: usize) -> NdArrayTensor<I> {
+        NdArrayMathOps::cumsum(tensor, dim)
+    }
 }

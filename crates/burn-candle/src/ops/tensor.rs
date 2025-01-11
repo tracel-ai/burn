@@ -481,4 +481,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
             CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
         }
     }
+
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.cumsum(dim).unwrap())
+    }
 }
