@@ -228,6 +228,8 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.neg()` or `-tensor`                                     | `-tensor`                                      |
 | `tensor.not_equal_elem(scalar)`                                 | `tensor.ne(scalar)`                            |
 | `tensor.ones_like()`                                            | `torch.ones_like(tensor)`                      |
+| `tensor.one_hot(num_classes)`                                   | `torch.nn.functional.one_hot`                  |
+| `tensor.one_hot_fill(num_classes, on_value, off_value, axis)`   | N/A                                            |
 | `tensor.pad(pads, value)`                                       | `torch.nn.functional.pad(input, pad, value)`   |
 | `tensor.powf(other)` or `tensor.powi(intother)`                 | `tensor.pow(other)`                            |
 | `tensor.powf_scalar(scalar)` or `tensor.powi_scalar(intscalar)` | `tensor.pow(scalar)`                           |
@@ -258,7 +260,6 @@ Those operations are only available for `Float` tensors.
 
 | Burn API                                      | PyTorch Equivalent                 |
 | --------------------------------------------- | ---------------------------------- |
-| `Tensor::one_hot(index, num_classes, device)` | N/A                                |
 | `tensor.cast(dtype)`                          | `tensor.to(dtype)`                 |
 | `tensor.ceil()`                               | `tensor.ceil()`                    |
 | `tensor.cos()`                                | `tensor.cos()`                     |
@@ -296,7 +297,6 @@ Those operations are only available for `Int` tensors.
 | `tensor.from_ints(ints)`                         | N/A                                                     |
 | `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
-| `tensor.one_hot(num_classes)`                    | N/A                                                     |
 
 ### Bool Operations
 
