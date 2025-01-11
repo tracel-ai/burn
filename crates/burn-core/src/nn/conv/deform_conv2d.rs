@@ -33,6 +33,10 @@ pub struct DeformConv2dConfig {
     #[config(default = "1")]
     pub offset_groups: usize,
     /// The padding configuration.
+    ///
+    /// ### Warning
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If bias should be added to the output.
@@ -73,6 +77,9 @@ impl DeformConv2dConfig {
     /// Initialize a new [DeformConv2d](DeformConv2d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> DeformConv2d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.weight_groups);
+        if self.padding == PaddingConfig2d::Same {
+            checks::check_same_padding_support(&self.kernel_size);
+        }
 
         let shape = [
             self.channels[1],
@@ -247,6 +254,14 @@ mod tests {
     fn channels_with_groups_is_invalid() {
         let device = Default::default();
         let config = DeformConv2dConfig::new([1, 4], [1, 1]).with_weight_groups(4);
+        let _ = config.init::<TestBackend>(&device);
+    }
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let device = Default::default();
+        let config = DeformConv2dConfig::new([4, 4], [2, 2]).with_padding(PaddingConfig2d::Same);
         let _ = config.init::<TestBackend>(&device);
     }
 
