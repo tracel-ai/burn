@@ -502,8 +502,8 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
                 ScalarArg::new(options.stride[1] as u32),
                 ScalarArg::new(options.dilation[0] as u32),
                 ScalarArg::new(options.dilation[1] as u32),
-                ScalarArg::new(options.padding[0] as f32),
-                ScalarArg::new(options.padding[1] as f32),
+                ScalarArg::new(E::new(options.padding[0] as f32)),
+                ScalarArg::new(E::new(options.padding[1] as f32)),
                 ScalarArg::new(options.offset_groups as u32),
                 ScalarArg::new(batch_size as u32),
                 ScalarArg::new(in_channels as u32),
@@ -524,13 +524,13 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
 }
 
 #[derive(CubeLaunch)]
-struct DeformConv2dCol2ImgArgs {
+struct DeformConv2dCol2ImgArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    pad_h: f32,
-    pad_w: f32,
+    pad_h: F,
+    pad_w: F,
     offset_groups: u32,
     batch_size: u32,
     in_channels: u32,
@@ -546,7 +546,7 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     mask: &Tensor<F>,
     columns: &Tensor<F>,
     grad_input: &mut Tensor<Atomic<FAdd::ProxyType>>,
-    args: &DeformConv2dCol2ImgArgs,
+    args: &DeformConv2dCol2ImgArgs<F>,
     #[comptime] use_mask: bool,
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
@@ -583,8 +583,8 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
     let offset_x_idx = ((offset_idx + 1) * out_h + out_y) * out_w + out_x;
 
-    let offset_y = f32::cast_from(offset[offset_base_idx + offset_y_idx]);
-    let offset_x = f32::cast_from(offset[offset_base_idx + offset_x_idx]);
+    let offset_y = offset[offset_base_idx + offset_y_idx];
+    let offset_x = offset[offset_base_idx + offset_x_idx];
 
     let mask_value = if use_mask {
         let mask_base_idx =
@@ -596,27 +596,28 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     };
 
     let y =
-        f32::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
+        F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
     let x =
-        f32::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
+        F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for dy in -1..=1 {
         //#[unroll]
         for dx in -1..=1 {
-            let yp = f32::floor(y) + dy as f32;
-            let xp = f32::floor(x) + dx as f32;
+            let yp = F::floor(y) + F::cast_from(dy);
+            let xp = F::floor(x) + F::cast_from(dx);
 
-            if yp >= 0.0
-                && yp < height as f32
-                && xp >= 0.0
-                && xp < width as f32
-                && f32::abs(y - yp) < 1.0
-                && f32::abs(x - xp) < 1.0
+            if yp >= F::new(0.0)
+                && yp < F::cast_from(height)
+                && xp >= F::new(0.0)
+                && xp < F::cast_from(width)
+                && F::abs(y - yp) < F::new(1.0)
+                && F::abs(x - xp) < F::new(1.0)
             {
                 let gradient_pos =
-                    ((batch * n_in_channels + in_channel) * height + yp as u32) * width + xp as u32;
+                    ((batch * n_in_channels + in_channel) * height + u32::cast_from(yp)) * width
+                        + u32::cast_from(xp);
 
-                let weight = (1.0 - f32::abs(y - yp)) * (1.0 - f32::abs(x - xp));
+                let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 
                 let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
 
