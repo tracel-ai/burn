@@ -5,10 +5,8 @@ use burn_tensor::{
     Shape,
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cube,
-    ir::{Elem, FloatKind},
-    prelude::*,
-    AtomicFeature, CubeDim, CubeLaunch, Feature,
+    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
+    Feature,
 };
 
 use crate::{
