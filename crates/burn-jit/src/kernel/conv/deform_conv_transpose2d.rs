@@ -5,8 +5,10 @@ use burn_tensor::{
     Shape,
 };
 use cubecl::{
-    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
-    Feature,
+    calculate_cube_count_elemwise, cube,
+    ir::{Elem, FloatKind},
+    prelude::*,
+    AtomicFeature, CubeDim, CubeLaunch, Feature,
 };
 
 use crate::{
@@ -450,8 +452,14 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     };
     let props = client.properties();
 
-    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
+    let mut supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
     let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
+
+    // Temporary workaround to fix broken `float atomicAdd` on CUDA. Remove once the tests pass
+    // without this.
+    if kind == FloatKind::F32 {
+        supports_fadd = false;
+    }
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
