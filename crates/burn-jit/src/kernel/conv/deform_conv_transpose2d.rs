@@ -1,8 +1,13 @@
+use std::marker::PhantomData;
+
 use burn_tensor::{
     ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, cube, prelude::*, CubeDim, CubeLaunch};
+use cubecl::{
+    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
+    Feature,
+};
 
 use crate::{
     element::BoolElement,
@@ -439,11 +444,25 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
+    let kind = match E::as_elem_native_unchecked() {
+        Elem::Float(kind) => kind,
+        _ => unreachable!("Should be float"),
+    };
+    let props = client.properties();
+
+    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
+    let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
+
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
 
-    // Force `f32` to enable bitcasting as `u32`
-    let grad_in = zeros_device::<R, f32>(
+    let grad_in_ty = match supports_fadd && supports_same_type {
+        // Use type as is to save a cast
+        true => zeros_device::<R, E>,
+        // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
+        false => zeros_device::<R, f32>,
+    };
+    let grad_in = grad_in_ty(
         client.clone(),
         device.clone(),
         Shape::new([batch_size, in_channels, height, width]),
@@ -458,7 +477,16 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements, cube_dim);
 
-    deform_col2img_kernel::launch::<E, R>(
+    let launch = match (supports_fadd, supports_same_type) {
+        // use same type intrinsic if supported
+        (true, true) => deform_col2img_kernel::launch::<E, IntrinsicFloatAtomicAdd<E>, R>,
+        // use f32 intrinsic if float add is supported at all
+        (true, false) => deform_col2img_kernel::launch::<E, IntrinsicFloatAtomicAdd<f32>, R>,
+        // fall back to compare and swap
+        _ => deform_col2img_kernel::launch::<E, CASFloatAtomicAdd, R>,
+    };
+
+    launch(
         &offset.client,
         cube_count,
         cube_dim,
@@ -484,7 +512,11 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
         use_mask,
     );
 
-    cast::<R, f32, E>(grad_in)
+    if !supports_same_type || !supports_fadd {
+        cast::<R, f32, E>(grad_in)
+    } else {
+        grad_in
+    }
 }
 
 #[derive(CubeLaunch)]
@@ -505,11 +537,11 @@ struct DeformConv2dCol2ImgArgs {
 }
 
 #[cube(launch)]
-fn deform_col2img_kernel<F: Float>(
+fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &Tensor<F>,
-    grad_input: &mut Tensor<AtomicU32>,
+    grad_input: &mut Tensor<Atomic<FAdd::ProxyType>>,
     args: &DeformConv2dCol2ImgArgs,
     #[comptime] use_mask: bool,
 ) {
@@ -563,7 +595,7 @@ fn deform_col2img_kernel<F: Float>(
         f32::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for dy in -1..=1 {
-        #[unroll]
+        //#[unroll]
         for dx in -1..=1 {
             let yp = f32::floor(y) + dy as f32;
             let xp = f32::floor(x) + dx as f32;
@@ -582,23 +614,53 @@ fn deform_col2img_kernel<F: Float>(
 
                 let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
 
-                float_atomic_add(&mut grad_input[gradient_pos], f32::cast_from(value));
+                FAdd::float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
             }
         }
     }
 }
 
 #[cube]
-fn float_atomic_add(ptr: &mut AtomicU32, value: f32) {
-    if value != 0.0 {
-        let mut v = AtomicU32::load(ptr);
-        loop {
-            let prev = v;
-            let v_float = f32::bitcast_from(v);
-            let new = u32::bitcast_from(v_float + value);
-            v = AtomicU32::compare_and_swap(ptr, v, new);
-            if prev == v {
-                break;
+trait FloatAtomicAdd: Send + Sync + 'static {
+    type ProxyType: Numeric;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F);
+}
+
+#[derive(CubeType)]
+struct IntrinsicFloatAtomicAdd<F: Float> {
+    _ty: PhantomData<F>,
+}
+
+#[derive(CubeType)]
+struct CASFloatAtomicAdd;
+
+#[cube]
+impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {
+    type ProxyType = FAdd;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<FAdd>, value: F) {
+        let value = FAdd::cast_from(value);
+        Atomic::add(ptr, value);
+    }
+}
+
+#[cube]
+impl FloatAtomicAdd for CASFloatAtomicAdd {
+    type ProxyType = u32;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F) {
+        let value = f32::cast_from(value);
+        if value != 0.0 {
+            let mut v = Atomic::load(ptr);
+            loop {
+                let prev = v;
+                let v_float = f32::bitcast_from(v);
+                let new = u32::bitcast_from(v_float + value);
+                v = Atomic::compare_and_swap(ptr, v, new);
+                if prev == v {
+                    break;
+                }
             }
         }
     }
