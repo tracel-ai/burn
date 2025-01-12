@@ -1,4 +1,5 @@
 mod binary;
+mod binary_int;
 mod cast;
 mod clamp;
 mod comparison;
@@ -9,6 +10,7 @@ mod unary_float;
 mod unary_numeric;
 
 pub(crate) use binary::*;
+pub(crate) use binary_int::*;
 pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;

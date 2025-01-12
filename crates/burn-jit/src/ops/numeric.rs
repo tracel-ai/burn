@@ -1,6 +1,6 @@
 use crate::kernel::{
-    launch_binop, launch_scalar_binop, AddOp, BitwiseAndOp, BitwiseNotOp, BitwiseOrOp,
-    BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
+    BitwiseAndOp, BitwiseNotOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
 };
 use crate::{element::JitElement, tensor::JitTensor};
 use crate::{FloatElement, IntElement, JitRuntime};
@@ -146,23 +146,23 @@ pub fn bitwise_and<R: JitRuntime, E: IntElement>(
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
     //launch_binop::<R, E, BitwiseAndOp>(lhs, rhs)
-    launch_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    launch_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
 }
 
 pub fn bitwise_and_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
     //launch_scalar_binop::<R, E, BitwiseAndOp>(lhs, rhs)
-    launch_scalar_binop::<R, E, BitwiseAndOp>(lhs, rhs)
+    launch_scalar_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
 }
 
 pub fn bitwise_or<R: JitRuntime, E: IntElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+    launch_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
 }
 
 pub fn bitwise_or_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
-    launch_scalar_binop::<R, E, BitwiseOrOp>(lhs, rhs)
+    launch_scalar_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
     //todo!();
 }
 
@@ -170,15 +170,15 @@ pub fn bitwise_xor<R: JitRuntime, E: IntElement>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
-    launch_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+    launch_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
     //todo!();
 }
 
 pub fn bitwise_xor_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
-    launch_scalar_binop::<R, E, BitwiseXorOp>(lhs, rhs)
+    launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
 }
 
 pub fn bitwise_not<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>) -> JitTensor<R> {
-    launch_scalar_binop::<R, E, BitwiseNotOp>(lhs, 1.elem());
+    launch_scalar_binop_int::<R, E, BitwiseNotOp>(lhs, 1.elem());
     todo!();
 }
