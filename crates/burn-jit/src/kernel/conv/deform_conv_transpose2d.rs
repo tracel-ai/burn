@@ -509,7 +509,7 @@ fn deform_col2img_kernel<F: Float>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &Tensor<F>,
-    grad_input: &mut Tensor<AtomicU32>,
+    grad_input: &mut Tensor<Atomic<u32>>,
     args: &DeformConv2dCol2ImgArgs,
     #[comptime] use_mask: bool,
 ) {
@@ -589,14 +589,14 @@ fn deform_col2img_kernel<F: Float>(
 }
 
 #[cube]
-fn float_atomic_add(ptr: &mut AtomicU32, value: f32) {
+fn float_atomic_add(ptr: &mut Atomic<u32>, value: f32) {
     if value != 0.0 {
-        let mut v = AtomicU32::load(ptr);
+        let mut v = Atomic::<u32>::load(ptr);
         loop {
             let prev = v;
             let v_float = f32::bitcast_from(v);
             let new = u32::bitcast_from(v_float + value);
-            v = AtomicU32::compare_and_swap(ptr, v, new);
+            v = Atomic::<u32>::compare_and_swap(ptr, v, new);
             if prev == v {
                 break;
             }
