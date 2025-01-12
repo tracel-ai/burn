@@ -17,7 +17,8 @@ pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
 /// Read data from a `JitTensor` synchronously
@@ -26,7 +27,8 @@ pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> Ten
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
 pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
@@ -34,8 +36,9 @@ pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
 ) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
+    let actual_len = tensor.shape.num_elements() * size_of::<BT>();
     TensorData::new(
-        BT::from_bytes(&bytes)
+        BT::from_bytes(&bytes[..actual_len])
             .iter()
             .map(|i| *i != BT::false_val())
             .collect(),
