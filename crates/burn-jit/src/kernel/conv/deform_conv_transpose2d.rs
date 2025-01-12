@@ -452,29 +452,23 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     };
     let props = client.properties();
 
-    let mut supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
+    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
     let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
-
-    // Temporary workaround to fix broken `float atomicAdd` on CUDA. Remove once the tests pass
-    // without this.
-    if kind == FloatKind::F32 {
-        supports_fadd = false;
-    }
 
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
 
-    let grad_in_ty = match supports_fadd && supports_same_type {
+    let shape = Shape::new([batch_size, in_channels, height, width]);
+    let grad_in = match supports_fadd && supports_same_type {
         // Use type as is to save a cast
-        true => zeros_device::<R, E>,
+        true => zeros_device::<R, E>(client.clone(), device.clone(), shape),
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
-        false => zeros_device::<R, f32>,
+        false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
     };
-    let grad_in = grad_in_ty(
-        client.clone(),
-        device.clone(),
-        Shape::new([batch_size, in_channels, height, width]),
-    );
+    let grad_arg = match supports_fadd && supports_same_type {
+        true => grad_in.as_tensor_arg::<E>(1),
+        false => grad_in.as_tensor_arg::<f32>(1),
+    };
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
@@ -487,38 +481,42 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
 
     let launch = match (supports_fadd, supports_same_type) {
         // use same type intrinsic if supported
-        (true, true) => deform_col2img_kernel::launch::<E, IntrinsicFloatAtomicAdd<E>, R>,
+        (true, true) => deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<E>, R>,
         // use f32 intrinsic if float add is supported at all
-        (true, false) => deform_col2img_kernel::launch::<E, IntrinsicFloatAtomicAdd<f32>, R>,
+        (true, false) => {
+            deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<f32>, R>
+        }
         // fall back to compare and swap
-        _ => deform_col2img_kernel::launch::<E, CASFloatAtomicAdd, R>,
+        _ => deform_col2img_kernel::launch_unchecked::<E, CASFloatAtomicAdd, R>,
     };
 
-    launch(
-        &offset.client,
-        cube_count,
-        cube_dim,
-        offset.as_tensor_arg::<E>(1),
-        mask.as_tensor_arg::<E>(1),
-        columns.as_tensor_arg::<E>(1),
-        grad_in.as_tensor_arg::<E>(1),
-        DeformConv2dCol2ImgArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as f32),
-            ScalarArg::new(options.padding[1] as f32),
-            ScalarArg::new(options.offset_groups as u32),
-            ScalarArg::new(batch_size as u32),
-            ScalarArg::new(in_channels as u32),
-            ScalarArg::new(height as u32),
-            ScalarArg::new(width as u32),
-            ScalarArg::new(kernel_height as u32),
-            ScalarArg::new(kernel_width as u32),
-        ),
-        use_mask,
-    );
+    unsafe {
+        launch(
+            &offset.client,
+            cube_count,
+            cube_dim,
+            offset.as_tensor_arg::<E>(1),
+            mask.as_tensor_arg::<E>(1),
+            columns.as_tensor_arg::<E>(1),
+            grad_arg,
+            DeformConv2dCol2ImgArgsLaunch::new(
+                ScalarArg::new(options.stride[0] as u32),
+                ScalarArg::new(options.stride[1] as u32),
+                ScalarArg::new(options.dilation[0] as u32),
+                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.padding[0] as f32),
+                ScalarArg::new(options.padding[1] as f32),
+                ScalarArg::new(options.offset_groups as u32),
+                ScalarArg::new(batch_size as u32),
+                ScalarArg::new(in_channels as u32),
+                ScalarArg::new(height as u32),
+                ScalarArg::new(width as u32),
+                ScalarArg::new(kernel_height as u32),
+                ScalarArg::new(kernel_width as u32),
+            ),
+            use_mask,
+        )
+    };
 
     if !supports_same_type || !supports_fadd {
         cast::<R, f32, E>(grad_in)
@@ -544,7 +542,7 @@ struct DeformConv2dCol2ImgArgs {
     kernel_width: u32,
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
@@ -554,7 +552,9 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     #[comptime] use_mask: bool,
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
-    let _ = mask[0]; // Keep mask in bind group
+    if ABSOLUTE_POS >= columns.len() {
+        return;
+    }
 
     let n_in_channels = args.in_channels;
     let height = args.height;
