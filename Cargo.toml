@@ -104,8 +104,8 @@ text_placeholder = "0.5.1"
 wgpu = "23.0.0"
 
 # Benchmarks and Burnbench
-chrono = "0.4.39"
 arboard = "3.4.1"
+chrono = "0.4.39"
 os_info = "3.9.0"
 wsl = "0.1.0"
 
@@ -153,8 +153,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8244dbb4660e373ff1ffb780feb73a5b899e5977" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8244dbb4660e373ff1ffb780feb73a5b899e5977" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b179e368c5404e871176155262cfd5221ae0ed60" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b179e368c5404e871176155262cfd5221ae0ed60" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
