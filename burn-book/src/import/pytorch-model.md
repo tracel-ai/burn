@@ -162,17 +162,13 @@ struct NetConfig {
     n_head: usize,
     n_layer: usize,
     d_model: usize,
-    // Candle's pickle has a bug with float serialization
-    // https://github.com/huggingface/candle/issues/1729
-    // some_float: f64,
+    some_float: f64,
     some_int: i32,
     some_bool: bool,
     some_str: String,
     some_list_int: Vec<i32>,
     some_list_str: Vec<String>,
-    // Candle's pickle has a bug with float serialization
-    // https://github.com/huggingface/candle/issues/1729
-    // some_list_float: Vec<f64>,
+    some_list_float: Vec<f64>,
     some_dict: HashMap<String, String>,
 }
 
