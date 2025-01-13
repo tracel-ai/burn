@@ -34,4 +34,4 @@ js-sys = "0.3"
 
 [build-dependencies]
 # Used to generate code from ONNX model
-burn-import = { path = "../../crates/burn-import" }
+burn-import = { path = "../../crates/burn-import", default-features = false, features = ["onnx"]}

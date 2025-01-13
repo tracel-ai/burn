@@ -20,7 +20,8 @@ onnx = []
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.16.0", features = ["ndarray"] }
+burn = { path = "../burn", version = "0.16.0", default-features = false, features = ["std"]}
+burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", default-features = false }
 onnx-ir = { path = "../onnx-ir", version = "0.16.0" }
 candle-core = { workspace = true }
 derive-new = { workspace = true }
