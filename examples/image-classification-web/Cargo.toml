@@ -17,7 +17,6 @@ half_precision = []
 burn = { path = "../../crates/burn", version = "0.16.0", default-features = false, features = [
     "ndarray", "wgpu",
 ] }
-cubecl-runtime = { version = "0.3.0", features = ["channel-mpsc"] } # missing feature flags
 burn-candle = { path = "../../crates/burn-candle", version = "0.16.0", default-features = false }
 
 log = { workspace = true }
@@ -35,4 +34,4 @@ js-sys = "0.3"
 
 [build-dependencies]
 # Used to generate code from ONNX model
-burn-import = { path = "../../crates/burn-import" }
+burn-import = { path = "../../crates/burn-import", default-features = false, features = ["onnx"]}

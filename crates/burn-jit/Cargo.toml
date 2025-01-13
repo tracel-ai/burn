@@ -26,14 +26,14 @@ export_tests = [
 ]
 fusion = ["burn-fusion"]
 fusion-experimental = ["fusion"]
+std = ["cubecl/std", "burn-tensor/std"]
 
-std = ["cubecl/std"]
 template = []
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.16.0" }
 burn-fusion = { path = "../burn-fusion", version = "0.16.0", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "0.16.0", features = [
+burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false, features = [
     "cubecl",
     "repr",
 ] }

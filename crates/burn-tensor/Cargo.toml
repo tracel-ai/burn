@@ -16,7 +16,7 @@ cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-default = ["std", "repr"]
+default = ["std", "repr", "burn-common/rayon"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
@@ -26,7 +26,6 @@ std = [
     "half/std",
     "num-traits/std",
     "burn-common/std",
-    "burn-common/rayon",
     "colored",
 ]
 
