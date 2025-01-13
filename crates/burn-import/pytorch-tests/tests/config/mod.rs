@@ -9,17 +9,13 @@ struct NetConfig {
     n_head: usize,
     n_layer: usize,
     d_model: usize,
-    // Candle's pickle has a bug with float serialization
-    // https://github.com/huggingface/candle/issues/1729
-    // some_float: f64,
+    some_float: f64,
     some_int: i32,
     some_bool: bool,
     some_str: String,
     some_list_int: Vec<i32>,
     some_list_str: Vec<String>,
-    // Candle's pickle has a bug with float serialization
-    // https://github.com/huggingface/candle/issues/1729
-    // some_list_float: Vec<f64>,
+    some_list_float: Vec<f64>,
     some_dict: HashMap<String, String>,
 }
 
@@ -35,17 +31,13 @@ mod tests {
             n_head: 2,
             n_layer: 3,
             d_model: 512,
-            // Candle's pickle has a bug with float serialization
-            // https://github.com/huggingface/candle/issues/1729
-            // some_float: 0.1,
+            some_float: 0.1,
             some_int: 1,
             some_bool: true,
             some_str: "hello".to_string(),
             some_list_int: vec![1, 2, 3],
             some_list_str: vec!["hello".to_string(), "world".to_string()],
-            // Candle's pickle has a bug with float serialization
-            // https://github.com/huggingface/candle/issues/1729
-            // some_list_float: vec![0.1, 0.2, 0.3],
+            some_list_float: vec![0.1, 0.2, 0.3],
             some_dict: {
                 let mut map = HashMap::new();
                 map.insert("some_key".to_string(), "some_value".to_string());
