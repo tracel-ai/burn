@@ -104,8 +104,8 @@ text_placeholder = "0.5.1"
 wgpu = "23.0.0"
 
 # Benchmarks and Burnbench
-chrono = "0.4.39"
 arboard = "3.4.1"
+chrono = "0.4.39"
 os_info = "3.9.0"
 wsl = "0.1.0"
 

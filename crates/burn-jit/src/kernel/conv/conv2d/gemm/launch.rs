@@ -80,8 +80,10 @@ fn conv2d_gemm_cmma_strategy<
     } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
     {
         conv2d_gemm_with_algo::<R, (F, F, f32), Alg, S>(input, weight, bias, options)
-    } else {
+    } else if has_tf32(&input) {
         conv2d_gemm_with_algo::<R, (F, tf32, f32), Alg, S>(input, weight, bias, options)
+    } else {
+        conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
     }
 }
 

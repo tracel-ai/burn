@@ -25,7 +25,9 @@ export_tests = [
     "paste",
 ]
 fusion = ["burn-fusion"]
+fusion-experimental = ["fusion"]
 std = ["cubecl/std", "burn-tensor/std"]
+
 template = []
 
 [dependencies]
