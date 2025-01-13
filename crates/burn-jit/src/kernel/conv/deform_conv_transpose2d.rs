@@ -601,7 +601,7 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
         F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for dy in -1..=1 {
-        //#[unroll]
+        #[unroll]
         for dx in -1..=1 {
             let yp = F::floor(y) + F::cast_from(dy);
             let xp = F::floor(x) + F::cast_from(dx);
