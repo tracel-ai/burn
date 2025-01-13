@@ -84,7 +84,7 @@ pub(crate) fn create_key<Run: JitRuntime>(
 }
 
 #[tune(
-    operations(reduce_shared_false_plane_false, reduce_shared_true_plane_false, reduce_shared_false_plane_true, reduce_shared_true_plane_true),
+    operations(reduce, reduce_shared, reduce_plane, reduce_shared_plane),
     create_key = create_key::<Run>,
     should_run = should_run
 )]
@@ -125,7 +125,7 @@ fn should_run<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::redu
     }
 }
 
-fn reduce_shared_false_plane_false<
+fn reduce<
     Run: JitRuntime,
     In: JitElement,
     Out: JitElement,
@@ -148,7 +148,7 @@ fn reduce_shared_false_plane_false<
     .map_err(|e| format!("{e}"))
 }
 
-fn reduce_shared_true_plane_false<
+fn reduce_shared<
     Run: JitRuntime,
     In: JitElement,
     Out: JitElement,
@@ -171,7 +171,7 @@ fn reduce_shared_true_plane_false<
     .map_err(|e| format!("{e}"))
 }
 
-fn reduce_shared_false_plane_true<
+fn reduce_plane<
     Run: JitRuntime,
     In: JitElement,
     Out: JitElement,
@@ -194,7 +194,7 @@ fn reduce_shared_false_plane_true<
     .map_err(|e| format!("{e}"))
 }
 
-fn reduce_shared_true_plane_true<
+fn reduce_shared_plane<
     Run: JitRuntime,
     In: JitElement,
     Out: JitElement,
