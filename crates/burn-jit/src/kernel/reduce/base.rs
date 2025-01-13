@@ -98,4 +98,4 @@ impl Default for ReduceStrategy {
         #[cfg(not(feature = "autotune"))]
         return Self::Unspecified;
     }
-    }
+}

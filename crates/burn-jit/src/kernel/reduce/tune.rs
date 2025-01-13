@@ -125,12 +125,7 @@ fn should_run<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::redu
     }
 }
 
-fn reduce<
-    Run: JitRuntime,
-    In: JitElement,
-    Out: JitElement,
-    Rd: cubecl::reduce::Reduce,
->(
+fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
@@ -148,12 +143,7 @@ fn reduce<
     .map_err(|e| format!("{e}"))
 }
 
-fn reduce_shared<
-    Run: JitRuntime,
-    In: JitElement,
-    Out: JitElement,
-    Rd: cubecl::reduce::Reduce,
->(
+fn reduce_shared<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
@@ -171,12 +161,7 @@ fn reduce_shared<
     .map_err(|e| format!("{e}"))
 }
 
-fn reduce_plane<
-    Run: JitRuntime,
-    In: JitElement,
-    Out: JitElement,
-    Rd: cubecl::reduce::Reduce,
->(
+fn reduce_plane<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     axis: usize,
