@@ -124,6 +124,10 @@ path = "benches/resnet.rs"
 harness = false
 name = "autodiff"
 
+[[bench]]
+harness = false
+name = "reduce"
+
 [[bin]]
 name = "burnbench"
 path = "src/bin/burnbench.rs"
