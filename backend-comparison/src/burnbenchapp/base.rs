@@ -123,6 +123,8 @@ enum BenchmarkValues {
     Conv2d,
     #[strum(to_string = "conv3d")]
     Conv3d,
+    #[strum(to_string = "reduce")]
+    Reduce,
 }
 
 pub fn execute() {

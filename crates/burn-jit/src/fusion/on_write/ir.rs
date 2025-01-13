@@ -154,7 +154,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
-    /// Resolve the [argument](Arg) to a [tensor arguemnt](TensorArg).
+    /// Resolve the [argument](Arg) to a [tensor argument](TensorArg).
     ///
     /// # Panics
     ///

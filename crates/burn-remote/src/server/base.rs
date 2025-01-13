@@ -102,7 +102,10 @@ impl<B: ReprBackend> WsServer<B> {
                     let response = callback.recv().unwrap();
                     let bytes = rmp_serde::to_vec(&response).unwrap();
 
-                    socket.send(ws::Message::Binary(bytes)).await.unwrap();
+                    socket
+                        .send(ws::Message::Binary(bytes.into()))
+                        .await
+                        .unwrap();
                 }
             }
             Err(err) => panic!("Can't start the response handler {err:?}"),
