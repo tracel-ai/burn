@@ -37,7 +37,7 @@ impl Shape {
     /// Change the shape to one dimensional with the same number of elements.
     pub fn flatten(&self) -> Self {
         Self {
-            dims: vec![self.dims.iter().product()],
+            dims: [self.dims.iter().product()].into(),
         }
     }
 }
