@@ -25,6 +25,8 @@ export_tests = [
     "paste",
 ]
 fusion = ["burn-fusion"]
+fusion-experimental = ["fusion"]
+
 std = ["cubecl/std"]
 template = []
 
