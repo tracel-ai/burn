@@ -806,8 +806,6 @@ dependencies = [
  "serde_json",
  "syn 2.0.96",
  "thiserror 2.0.11",
- "syn 2.0.95",
- "thiserror 2.0.11",
  "tracing-core",
  "tracing-subscriber",
  "zip 2.2.2",
