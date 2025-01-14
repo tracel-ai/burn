@@ -114,4 +114,11 @@ mod tests {
 
         assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
     }
+
+    #[test]
+    #[should_panic = "Dropout probability should be between 0 and 1,"]
+    fn dropout_prob_invalid() {
+        let config = DropoutConfig::new(-10.);
+        let _layer = config.init();
+    }
 }
