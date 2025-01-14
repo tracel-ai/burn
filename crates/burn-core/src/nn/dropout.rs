@@ -30,6 +30,12 @@ pub struct Dropout {
 impl DropoutConfig {
     /// Initialize a new [dropout](Dropout) module.
     pub fn init(&self) -> Dropout {
+        if self.prob < 0.0 || self.prob > 1.0 {
+            panic!(
+                "Dropout probability should be between 0 and 1, but got {}",
+                self.prob
+            );
+        }
         Dropout { prob: self.prob }
     }
 }
