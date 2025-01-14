@@ -33,7 +33,7 @@ wgpu-spirv-fusion = ["wgpu-spirv", "burn/fusion"]
 [dependencies]
 arboard = { workspace = true }
 burn = { path = "../crates/burn", default-features = false }
-burn-common = { path = "../crates/burn-common", version = "0.16.0" }
+burn-common = { path = "../crates/burn-common", version = "0.17.0" }
 
 clap = { workspace = true }
 colored = { workspace = true }
