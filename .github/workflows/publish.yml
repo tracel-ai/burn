@@ -23,7 +23,7 @@ jobs:
   publish-burn-remote:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     with:
-      crate: burn-derive
+      crate: burn-remote
     needs:
       - publish-burn-common
       - publish-burn-tensor
