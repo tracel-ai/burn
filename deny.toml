@@ -76,6 +76,7 @@ allow = [
     "Apache-2.0",
     "BSD-3-Clause",
     "BSD-2-Clause",
+    "BSL-1.0", # in NOTICES.md
     "CC0-1.0",
     "ISC",
     "MIT",
@@ -92,5 +93,4 @@ exceptions = [
     # Each entry is the crate and version constraint, and its specific allow
     # list
     #{ allow = ["license_name"], name = "crate", version = "*" },
-    { allow = ["BSL-1.0"], name = "clipboard-win", version = "*" }, # in NOTICES.md
 ]

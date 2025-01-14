@@ -43,10 +43,6 @@ axum = { version = "0.8.1", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
-[dev-dependencies]
-# We activate the features client and server during dev.
-burn-remote = { path = ".", version = "0.16.0", features=["client", "server"] }
-
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

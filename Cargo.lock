@@ -874,7 +874,6 @@ dependencies = [
  "async-channel",
  "axum",
  "burn-common",
- "burn-remote",
  "burn-router",
  "burn-tensor",
  "derive-new 0.7.0",
