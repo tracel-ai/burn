@@ -33,6 +33,13 @@ impl Shape {
         dims[..D].copy_from_slice(&self.dims[..D]);
         dims
     }
+
+    /// Change the shape to one dimensional with the same number of elements.
+    pub fn flatten(&self) -> Self {
+        Self {
+            dims: [self.dims.iter().product()].into(),
+        }
+    }
 }
 
 impl<const D: usize> From<[usize; D]> for Shape {

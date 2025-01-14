@@ -1,5 +1,5 @@
 use super::{expand, numeric, permute};
-use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
+use crate::kernel::{launch_unary_numeric, reduce, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
@@ -193,31 +193,31 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::sum::<R, I>(tensor, Default::default())
+        reduce::reduce::<R, I, I, reduce::Sum>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::sum_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Sum>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::prod::<R, I>(tensor, Default::default())
+        reduce::reduce::<R, I, I, reduce::Prod>(tensor, Default::default()).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::prod_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Prod>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::mean_dim::<R, I, I>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::Mean>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmax::<R, I, I>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::ArgMax>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmin::<R, I, I>(tensor, dim, Default::default()).unwrap()
+        reduce::reduce_dim::<R, I, I, reduce::ArgMin>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_clamp(
