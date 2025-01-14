@@ -6,6 +6,31 @@ on:
       - "v*"
 
 jobs:
+  publish-burn-router:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    with:
+      crate: burn-router
+    needs:
+      - publish-burn-common
+      - publish-burn-tensor
+      # dev dependencies
+      - publish-burn-autodiff
+      - publish-burn-ndarray
+      - publish-burn-wgpu
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  publish-burn-remote:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    with:
+      crate: burn-derive
+    needs:
+      - publish-burn-common
+      - publish-burn-tensor
+      - publish-burn-router
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-derive:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     with:
@@ -162,6 +187,7 @@ jobs:
       - publish-burn-tch
       - publish-burn-ndarray
       - publish-burn-candle
+      - publish-burn-remote
     with:
       crate: burn-core
     secrets:
