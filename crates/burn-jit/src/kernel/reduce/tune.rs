@@ -68,12 +68,12 @@ impl ReduceAutotuneKey {
             .filter_map(|(stride, shape)| (*stride > reduce_axis_stride).then_some(shape))
             .product();
 
-        Self {
+        Self::new(
             dtype,
             reduce_axis_shape,
             reduce_axis_stride,
             outer_axes_product,
-        }
+        )
     }
 }
 
