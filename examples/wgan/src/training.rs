@@ -12,23 +12,34 @@ use std::path::Path;
 
 #[derive(Config)]
 pub struct TrainingConfig {
+    pub model: ModelConfig,
     pub optimizer: RmsPropConfig,
+
+    #[config(default = 200)]
     pub num_epochs: usize,
-    pub num_critic: usize,
+    #[config(default = 512)]
     pub batch_size: usize,
+    #[config(default = 8)]
     pub num_workers: usize,
+    #[config(default = 5)]
     pub seed: u64,
+    #[config(default = 5e-5)]
     pub lr: f64,
-    pub latent_dim: usize,
-    pub image_size: usize,
-    pub channels: usize,
+
+    /// Number of training steps for discriminator before generator is trained per iteration
+    #[config(default = 5)]
+    pub num_critic: usize,
+    /// Lower and upper clip value for disc. weights
+    #[config(default = 0.01)]
     pub clip_value: f32,
+    /// Save a sample of images every `sample_interval` epochs
+    #[config(default = 10)]
     pub sample_interval: usize,
 }
 
 // Create the directory to save the model and model config
 fn create_artifact_dir(artifact_dir: &str) {
-    // Remove existing artifacts before to get an accurate learner summary
+    // Remove existing artifacts
     std::fs::remove_dir_all(artifact_dir).ok();
     std::fs::create_dir_all(artifact_dir).ok();
 }
@@ -78,44 +89,9 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
     imgbuf.save(path)
 }
 
-pub fn train<B: AutodiffBackend>(
-    artifact_dir: &str,
-    num_epochs: usize,
-    num_critic: usize,
-    batch_size: usize,
-    num_workers: usize,
-    seed: u64,
-    lr: f64,
-    latent_dim: usize,
-    image_size: usize,
-    channels: usize,
-    clip_value: f32,
-    sample_interval: usize,
-    device: B::Device,
-) {
+pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
     create_artifact_dir(artifact_dir);
-    // Create the configuration
-    let config_optimizer = RmsPropConfig::new()
-        .with_alpha(0.99)
-        .with_momentum(0.0)
-        .with_epsilon(0.00000008)
-        .with_weight_decay(None)
-        .with_centered(false);
-    let config = TrainingConfig::new(
-        config_optimizer,
-        num_epochs,
-        num_critic,
-        batch_size,
-        num_workers,
-        seed,
-        lr,
-        latent_dim,
-        image_size,
-        channels,
-        clip_value,
-        sample_interval,
-    );
-    let config_model = ModelConfig::new(config.latent_dim, config.image_size, config.channels);
+
     // Create the Clip module mapper
     let mut clip = Clip {
         min: -config.clip_value,
@@ -129,7 +105,7 @@ pub fn train<B: AutodiffBackend>(
     B::seed(config.seed);
 
     // Create the model and optimizer
-    let (mut generator, mut discriminator) = config_model.init::<B>(&device);
+    let (mut generator, mut discriminator) = config.model.init::<B>(&device);
     let mut optimizer_g = config.optimizer.init();
     let mut optimizer_d = config.optimizer.init();
 
@@ -143,14 +119,13 @@ pub fn train<B: AutodiffBackend>(
         .num_workers(config.num_workers)
         .build(MnistDataset::train());
 
-    let mut batches_done = 0;
     // Iterate over our training for X epochs
-    for epoch in 1..config.num_epochs + 1 {
+    for epoch in 0..config.num_epochs {
         // Implement our training loop
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             // Generate a batch of fake images from noise (standarded normal distribution)
             let noise = Tensor::<B, 2>::random(
-                [config.batch_size, config.latent_dim],
+                [config.batch_size, config.model.latent_dim],
                 Distribution::Normal(0.0, 1.0),
                 &device,
             );
@@ -158,9 +133,9 @@ pub fn train<B: AutodiffBackend>(
             let fake_images = generator.forward(noise.clone()).detach(); // [batch_size, channels*height*width]
             let fake_images = fake_images.reshape([
                 config.batch_size,
-                config.channels,
-                config.image_size,
-                config.image_size,
+                config.model.channels,
+                config.model.image_size,
+                config.model.image_size,
             ]);
             // Adversarial loss
             let loss_d = -discriminator.forward(batch.images).mean()
@@ -179,8 +154,12 @@ pub fn train<B: AutodiffBackend>(
             if iteration % config.num_critic == 0 {
                 // Generate a batch of images again without detaching
                 let critic_fake_images = generator.forward(noise.clone());
-                let critic_fake_images =
-                    critic_fake_images.reshape([batch_size, channels, image_size, image_size]);
+                let critic_fake_images = critic_fake_images.reshape([
+                    config.batch_size,
+                    config.model.channels,
+                    config.model.image_size,
+                    config.model.image_size,
+                ]);
                 // Adversarial loss. Minimize it to make the fake images as truth
                 let loss_g = -discriminator.forward(critic_fake_images).mean();
 
@@ -193,7 +172,7 @@ pub fn train<B: AutodiffBackend>(
                     .ceil() as usize;
                 println!(
                     "[Epoch {}/{}] [Batch {}/{}] [D loss: {}] [G loss: {}]",
-                    epoch,
+                    epoch + 1,
                     config.num_epochs,
                     iteration,
                     batch_num,
@@ -201,8 +180,8 @@ pub fn train<B: AutodiffBackend>(
                     loss_g.into_scalar()
                 );
             }
-            //  If at save interval => save the first 25 generated image
-            if batches_done % config.sample_interval == 0 {
+            //  If at save interval => save the first 25 generated images
+            if epoch % config.sample_interval == 0 && iteration == 0 {
                 // [B, C, H, W] to [B, H, C, W] to [B, H, W, C]
                 let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
                 // Normalize the images. The Rgb32 images should be in range 0.0-1.0
@@ -212,12 +191,10 @@ pub fn train<B: AutodiffBackend>(
                         - fake_images.clone().min().reshape([1, 1, 1, 1]));
                 // Add 0.5/255.0 to the images, refer to pytorch save_image source
                 let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
-                // Save images in current directory
-                let path = format!("image{}.png", batches_done);
-                let path = Path::new(&path);
+                // Save images in artifact directory
+                let path = format!("{artifact_dir}/image-{}.png", epoch);
                 save_image::<B, _>(fake_images, 5, path).unwrap();
             }
-            batches_done += 1;
         }
     }
 

@@ -11,9 +11,8 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+cuda-jit = ["burn/cuda-jit"]
 
 [dependencies]
-burn = { version="0.15.0", features=["train", "vision"] }
-image = { version="0.25.5" }
-# Command line parser
-clap = { version="4.5.21", features=["derive"] }
+burn = { path = "../../crates/burn", features=["train", "vision"] }
+image = { workspace = true }

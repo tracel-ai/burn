@@ -1,5 +1,4 @@
-pub mod cli;
 pub mod dataset;
-pub mod generating;
+pub mod infer;
 pub mod model;
 pub mod training;

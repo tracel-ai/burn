@@ -86,9 +86,13 @@ impl<B: Backend> Discriminator<B> {
 // Use model config to construct a generative and adverserial model
 #[derive(Config, Debug)]
 pub struct ModelConfig {
-    latent_dim: usize, // dimensionality of the latent sapce
-    image_size: usize,
-    channels: usize,
+    /// Dimensionality of the latent space
+    #[config(default = 100)]
+    pub latent_dim: usize,
+    #[config(default = 28)]
+    pub image_size: usize,
+    #[config(default = 1)]
+    pub channels: usize,
 }
 
 impl ModelConfig {
