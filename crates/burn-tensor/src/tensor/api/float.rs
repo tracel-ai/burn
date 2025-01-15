@@ -613,4 +613,13 @@ where
             .bool_not()
             .bool_and(self.is_inf().bool_not())
     }
+
+    /// Sample the tensor's values as a one-dimensional
+    pub fn grid_sample_1d(self, dim: usize, locations: Tensor<B, D>) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_grid_sample_1d(
+            self.primitive.tensor(),
+            dim,
+            locations.primitive.tensor(),
+        )))
+    }
 }

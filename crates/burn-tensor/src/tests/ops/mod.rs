@@ -30,6 +30,7 @@ mod floor;
 mod full;
 mod gather_scatter;
 mod inf;
+mod grid_sample;
 mod init;
 mod iter_dim;
 mod log;
