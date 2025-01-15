@@ -567,6 +567,8 @@ Additional examples:
   sample.
 - [Text Generation](./examples/text-generation) : Trains a text generation transformer model on the
   DbPedia dataset.
+- [Wasserstein GAN MNIST](./examples/wgan) : Trains a WGAN model to generate new handwritten digits
+  based on MNIST.
 
 For more practical insights, you can clone the repository and run any of them directly on your
 computer!
