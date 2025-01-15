@@ -2041,12 +2041,12 @@ where
     /// fn example<B: Backend>(){
     ///     let device = Default::default();
     ///     let indices: Tensor<B, 1> = Tensor::from_floats([0.0, 1.0, 2.0, 3.0], &device);
-    ///     let one_hot: Tensor<B, 4> = indices.one_hot(4);
+    ///     let one_hot: Tensor<B, 2> = indices.one_hot(4);
     ///     println!("{}", one_hot.to_data());
     ///     // [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
     /// }
     /// ```
-    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2> {
+    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2, K> {
         check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
         self.one_hot_fill(num_classes, 1.0, 0.0, -1)
     }
@@ -2080,13 +2080,14 @@ where
     ///     // [0.0, 0.0, 5.0]]]
     /// }
     /// ```
-    pub fn one_hot_fill<K2: Numeric<B>, const D2: usize>(
+    pub fn one_hot_fill<const D2: usize>(
         self,
         num_classes: usize,
         on_value: f32,
         off_value: f32,
         axis: i64,
-    ) -> Tensor<B, D2, K2> {
+    ) -> Tensor<B, D2, K> {
+        check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
         // Initialize shape from the current tensor dimensions and prepare for modification
         let mut shape = self.shape().dims::<D>().to_vec();
         let device = self.device();
@@ -2113,11 +2114,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-        check!(TensorCheck::one_hot_tensor(
-            adjusted_indices.clone(),
-            num_classes
-        ));
-        // Unsqueeze the indices tensor along the specified axis
+                                                                              // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value

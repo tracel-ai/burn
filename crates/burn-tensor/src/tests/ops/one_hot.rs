@@ -23,9 +23,8 @@ mod tests {
     #[test]
     fn float_should_support_one_hot_index() {
         let tensor = TestTensor::<1>::from([2.0]);
-        let one_hot_tensor: Tensor<TestBackend, 1, Float> =
-            tensor.one_hot::<2>(10).flatten::<1>(0, 1);
-        let expected = TensorData::from([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let one_hot_tensor: Tensor<TestBackend, 2> = tensor.one_hot::<2>(10);
+        let expected = TensorData::from([[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]);
         one_hot_tensor.into_data().assert_eq(&expected, false);
     }
 
@@ -46,7 +45,7 @@ mod tests {
     #[test]
     fn int_should_support_one_hot() {
         let tensor = TestTensorInt::<1>::from([0, 1, 4]);
-        let one_hot_tensor: Tensor<TestBackend, 2, Int> = tensor.one_hot(5).int();
+        let one_hot_tensor: Tensor<TestBackend, 2, Int> = tensor.one_hot(5);
         let expected = TensorData::from([[1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 0, 0, 1]]);
         one_hot_tensor.into_data().assert_eq(&expected, false);
     }
@@ -55,14 +54,14 @@ mod tests {
     #[should_panic]
     fn int_one_hot_should_panic_when_index_exceeds_number_of_classes() {
         let tensor = TestTensorInt::<1>::from([5]);
-        let result: Tensor<TestBackend, 2, Int> = tensor.one_hot(5).int();
+        let result: Tensor<TestBackend, 2, Int> = tensor.one_hot(5);
     }
 
     #[test]
     #[should_panic]
     fn int_one_hot_should_panic_when_number_of_classes_is_zero() {
         let tensor = TestTensorInt::<1>::from([2]);
-        let result: Tensor<TestBackend, 2, Int> = tensor.one_hot(0).int();
+        let result: Tensor<TestBackend, 2, Int> = tensor.one_hot(0);
     }
 
     #[test]
@@ -81,12 +80,12 @@ mod tests {
     #[test]
     fn one_hot_fill_with_negative_axis_and_indices() {
         let tensor = TestTensorInt::<2>::from([[0, 2], [1, -1]]);
-        let expected = TensorData::from(as_type!(FloatType: [
-            [[5.0, 0.0, 0.0], [0.0, 0.0, 5.0]],
-            [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]]
+        let expected = TensorData::from(as_type!(IntType: [
+            [[5, 0, 0], [0, 0, 5]],
+            [[0, 5, 0], [0, 0, 5]]
         ]));
 
-        let one_hot_tensor: Tensor<TestBackend, 3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+        let one_hot_tensor: Tensor<TestBackend, 3, Int> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
