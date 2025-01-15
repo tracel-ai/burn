@@ -79,13 +79,13 @@ mod tests {
 
     #[test]
     fn one_hot_fill_with_negative_axis_and_indices() {
-        let tensor = TestTensorInt::<2>::from([[0, 2], [1, -1]]);
-        let expected = TensorData::from(as_type!(IntType: [
-            [[5, 0, 0], [0, 0, 5]],
-            [[0, 5, 0], [0, 0, 5]]
+        let tensor = TestTensor::<2>::from([[0, 2], [1, -1]]);
+        let expected = TensorData::from(as_type!(FloatType: [
+            [[5.0, 0.0, 0.0], [0.0, 0.0, 5.0]],
+            [[0.0, 5.0, 0.0], [0.0, 0.0, 5.0]]
         ]));
 
-        let one_hot_tensor: Tensor<TestBackend, 3, Int> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
+        let one_hot_tensor: Tensor<TestBackend, 3> = tensor.one_hot_fill(3, 5.0, 0.0, -1);
 
         one_hot_tensor.into_data().assert_eq(&expected, true);
     }
