@@ -8,9 +8,9 @@ version.workspace = true
 
 [features]
 default = ["wgpu"]
-cuda-jit = ["burn/cuda-jit"]
+cuda = ["burn/cuda"]
 wgpu = ["burn/wgpu"]
-wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
+vulkan = ["wgpu", "burn/vulkan"]
 ndarray = ["burn/ndarray"]
 
 [dependencies]
