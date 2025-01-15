@@ -372,4 +372,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
     }
+
+    fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        super::base::cumsum(tensor, dim)
+    }
 }

@@ -681,6 +681,24 @@ pub trait QTensorOps<B: Backend> {
         )
     }
 
+    /// Computes the cumulative sum of all elements in the tensor along a dimension.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to sum.
+    /// * `dim` - The dimension to sum along.
+    ///
+    /// # Returns
+    ///
+    /// The cumulative sum of all elements in the tensor along the dimension.
+    fn q_cumsum(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            ty Self,
+            float_op |tensor| B::float_cumsum(tensor, dim),
+            tensor
+        )
+    }
+
     /// Sum of all elements in a tensor along a dimension.
     ///
     /// # Arguments

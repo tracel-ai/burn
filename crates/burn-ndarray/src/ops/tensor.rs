@@ -575,4 +575,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
             _ => panic!("Invalid cast types"),
         }
     }
+
+    fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
+    }
 }

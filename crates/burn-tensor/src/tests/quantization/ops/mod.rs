@@ -9,6 +9,7 @@ mod ceil;
 mod chunk;
 mod clamp;
 mod cos;
+mod cumsum;
 mod div;
 mod erf;
 mod exp;

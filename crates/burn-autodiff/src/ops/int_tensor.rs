@@ -127,6 +127,10 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_sum(tensor)
     }
 
+    fn int_cumsum(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
+        B::int_cumsum(tensor, dim)
+    }
+
     fn int_sum_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_sum_dim(tensor, dim)
     }

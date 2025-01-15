@@ -416,4 +416,8 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         TchOps::argsort(tensor, dim, descending)
     }
+
+    fn int_cumsum(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        TchOps::cumsum(tensor, dim)
+    }
 }

@@ -262,6 +262,16 @@ where
         NdArrayTensor::from_data(data)
     }
 
+    pub fn cumsum(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        let mut array = tensor.array.into_owned();
+        array.accumulate_axis_inplace(Axis(dim), |&prev, curr| {
+            *curr += prev;
+        });
+        let array = array.into_shared();
+
+        NdArrayTensor { array }
+    }
+
     pub fn mean_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
         let ndims = tensor.shape().num_dims();
         match ndims {

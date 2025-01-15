@@ -401,19 +401,21 @@ pub enum NumericOperationDescription<E> {
     /// Float => [sum dim](crate::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](crate::ops::IntTensorOps::int_sum_dim).
     SumDim(ScalarOperationDescription<usize>),
-
+    /// Operation corresponding to:
+    ///
+    /// Float => [cumsum](crate::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](crate::ops::IntTensorOps::int_cumsum).
+    CumSum(ScalarOperationDescription<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [prod](crate::ops::FloatTensorOps::float_prod).
     /// Int => [prod](crate::ops::IntTensorOps::int_prod).
     Prod(UnaryOperationDescription),
-
     /// Operation corresponding to:
     ///
     /// Float => [prod dim](crate::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](crate::ops::IntTensorOps::int_prod_dim).
     ProdDim(ScalarOperationDescription<usize>),
-
     /// Operation corresponding to:
     ///
     /// Float => [equal elem](crate::ops::FloatTensorOps::float_equal_elem).
@@ -1503,6 +1505,7 @@ impl<E: Element> NumericOperationDescription<E> {
             NumericOperationDescription::Powf(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
+            NumericOperationDescription::CumSum(desc) => vec![&desc.lhs, &desc.out],
         }
     }
 }
@@ -1761,6 +1764,7 @@ impl<E> core::hash::Hash for NumericOperationDescription<E> {
             NumericOperationDescription::Clamp(desc) => desc.hash(state),
             NumericOperationDescription::IntRandom(desc) => desc.hash(state),
             NumericOperationDescription::Powf(desc) => desc.hash(state),
+            NumericOperationDescription::CumSum(desc) => desc.hash(state),
         }
     }
 }
