@@ -25,6 +25,10 @@ include_models!(
     clip_opset16,
     clip_opset7,
     concat,
+    constant_f32,
+    constant_f64,
+    constant_i32,
+    constant_i64,
     constant_of_shape,
     constant_of_shape_full_like,
     conv1d,
@@ -2181,6 +2185,46 @@ mod tests {
         let output = model.forward(input.into());
 
         assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn add_constant_f32() {
+        let device = Default::default();
+        let model = constant_f32::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f32, _>(Shape::from([2, 3, 4]));
+        let expected_output = TensorData::full::<f32, _>(Shape::from([2, 3, 4]), 2f32);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
+    }
+
+    #[test]
+    fn add_constant_f64() {
+        let device = Default::default();
+        let model = constant_f64::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 3, 4]));
+        let expected_output = TensorData::full(Shape::from([2, 3, 4]), 2f32);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
+    }
+
+    #[test]
+    fn add_constant_i32() {
+        let device = Default::default();
+        let model = constant_i32::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<i32, _>(Shape::from([2, 3, 4]));
+        let expected_output = TensorData::full(Shape::from([2, 3, 4]), 2i64);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
+    }
+
+    #[test]
+    fn add_constant_i64() {
+        let device = Default::default();
+        let model = constant_i64::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<i64, _>(Shape::from([2, 3, 4]));
+        let expected_output = TensorData::full(Shape::from([2, 3, 4]), 2i64);
+        let output = model.forward(input.into());
+        assert_eq!(expected_output, output.to_data());
     }
 
     #[test]
