@@ -67,7 +67,6 @@ network = ["burn-core/network"]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # Records
-record-backward-compat = ["burn-core/record-backward-compat"]
 record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 [dependencies]
