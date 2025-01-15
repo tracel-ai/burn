@@ -29,7 +29,7 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
         config.model.image_size,
     ]);
     // [B, C, H, W] to [B, H, C, W] to [B, H, W, C]
-    let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
+    let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice(0..25);
     // Normalize the images. The Rgb32 images should be in range 0.0-1.0
     let fake_images = (fake_images.clone() - fake_images.clone().min().reshape([1, 1, 1, 1]))
         / (fake_images.clone().max().reshape([1, 1, 1, 1])

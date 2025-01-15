@@ -69,7 +69,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
         for col in 0..ncol {
             let image: Tensor<B, 3> = images
                 .clone()
-                .slice([(row * nrow + col) as usize..(row * nrow + col + 1) as usize])
+                .slice((row * nrow + col) as usize..(row * nrow + col + 1) as usize)
                 .squeeze(0);
             // The Rgb32 should be in range 0.0-1.0
             let image = image.into_data().iter::<f32>().collect::<Vec<f32>>();
@@ -183,7 +183,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
             //  If at save interval => save the first 25 generated images
             if epoch % config.sample_interval == 0 && iteration == 0 {
                 // [B, C, H, W] to [B, H, C, W] to [B, H, W, C]
-                let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice([0..25]);
+                let fake_images = fake_images.swap_dims(2, 1).swap_dims(3, 2).slice(0..25);
                 // Normalize the images. The Rgb32 images should be in range 0.0-1.0
                 let fake_images = (fake_images.clone()
                     - fake_images.clone().min().reshape([1, 1, 1, 1]))
