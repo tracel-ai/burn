@@ -17,13 +17,12 @@ use super::{
     unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
-use burn::backend::NdArray;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
 /// Backend used for serialization.
-pub type SerializationBackend = NdArray<f32>;
+pub type SerializationBackend = burn_ndarray::NdArray<f32>;
 
 /// Codegen trait that should be implemented by all [node](Node) entries.
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {

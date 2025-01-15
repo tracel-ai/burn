@@ -129,21 +129,21 @@ test-wgpu-spirv = [
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-common = { path = "../burn-common", version = "0.16.0", default-features = false }
-burn-dataset = { path = "../burn-dataset", version = "0.16.0", optional = true, default-features = false }
-burn-derive = { path = "../burn-derive", version = "0.16.0" }
-burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
+burn-dataset = { path = "../burn-dataset", version = "0.17.0", optional = true, default-features = false }
+burn-derive = { path = "../burn-derive", version = "0.17.0" }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "0.16.0", optional = true }
-burn-candle = { path = "../burn-candle", version = "0.16.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.16.0", optional = true, default-features = false }
-burn-hip = { path = "../burn-hip", version = "0.16.0", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "0.16.0", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "0.16.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.16.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.16.0", optional = true, default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.17.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.17.0", optional = true, default-features = false }
+burn-hip = { path = "../burn-hip", version = "0.17.0", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.17.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.17.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", optional = true, default-features = false }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }
@@ -173,13 +173,13 @@ thiserror = { workspace = true, optional = true }
 portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
-burn-dataset = { path = "../burn-dataset", version = "0.16.0", features = [
+burn-dataset = { path = "../burn-dataset", version = "0.17.0", features = [
     "fake",
 ] }
 tempfile = { workspace = true }
 
-burn-autodiff = { path = "../burn-autodiff", version = "0.16.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.16.0", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]

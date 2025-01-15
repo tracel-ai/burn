@@ -13,11 +13,10 @@ crate-type = ["cdylib"]
 default = ["ndarray"]
 
 ndarray = ["burn/ndarray"]
-wgpu = ["burn/wgpu", "cubecl-runtime"]
+wgpu = ["burn/wgpu"]
 
 [dependencies]
 burn = { path = "../../crates/burn", default-features = false }
-cubecl-runtime = { version = "0.3.0", optional = true, features = ["channel-mpsc"] } # missing feature flag
 serde = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
