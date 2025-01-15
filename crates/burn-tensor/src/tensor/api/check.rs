@@ -478,7 +478,10 @@ impl TensorCheck {
         if D + 1 != D2 {
             check = check.register(
                 "One Hot",
-                TensorError::new("Tensor of rank one greater than input tensor 'indices', i.e. rank(output) = rank(indices) + 1")
+                TensorError::new(
+                    "The one-hot tensor rank must correspond to the rank of the tensor + 1",
+                )
+                .details(format!("Expected D2={}, got {D2}", D + 1)),
             );
         }
         check
