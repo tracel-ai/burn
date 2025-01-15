@@ -472,15 +472,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         self.graph_output_types.iter().for_each(|output| {
             let name = output.name();
             let ty = output.ty();
-
-            if multiple_output {
-                output_type_def.extend(quote! {
-                    #ty,
-                });
-                output_return_def.extend(quote! {
-                    #name,
-                });
-            } else {
+            {
                 output_type_def.extend(quote! {
                     #ty
                 });
