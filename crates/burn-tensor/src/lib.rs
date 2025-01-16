@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-// Allow deprecated `Data` and `DataSerialize`
-#![allow(deprecated)]
 
 //! This library provides multiple tensor implementations hidden behind an easy to use API
 //! that supports reverse mode automatic differentiation.
@@ -59,6 +57,8 @@ mod cube_wgpu {
     use crate::backend::{DeviceId, DeviceOps};
     use cubecl::wgpu::WgpuDevice;
 
+    // Allow deprecated `WgpuDevice::BestAvailable`
+    #[allow(deprecated)]
     impl DeviceOps for WgpuDevice {
         fn id(&self) -> DeviceId {
             match self {
