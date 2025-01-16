@@ -96,7 +96,7 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    /// "init" is used to create other objects, while "new" is usally used to create itself.
+    /// Initialize the generator and discriminator models based on the config.
     pub fn init<B: Backend>(&self, device: &B::Device) -> (Generator<B>, Discriminator<B>) {
         // Construct the initialized generator
         let layer1 = LayerBlock::new(self.latent_dim, 128, device);

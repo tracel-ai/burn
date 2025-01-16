@@ -23,7 +23,7 @@ pub struct TrainingConfig {
     pub num_workers: usize,
     #[config(default = 5)]
     pub seed: u64,
-    #[config(default = 5e-5)]
+    #[config(default = 3e-4)]
     pub lr: f64,
 
     /// Number of training steps for discriminator before generator is trained per iteration
