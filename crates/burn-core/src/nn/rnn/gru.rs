@@ -24,10 +24,10 @@ pub struct GruConfig {
     ///
     /// This configuration option controls how the reset gate is applied to the hidden state.
     /// * `true` - (Default) Match the initial arXiv version of the paper [Learning Phrase Representations using RNN Encoder-Decoder for
-    /// Statistical Machine Translation (v1)](https://arxiv.org/abs/1406.1078v1) and apply the reset gate after multiplication by
-    /// the weights. This matches the behavior of [PyTorch GRU](https://pytorch.org/docs/stable/generated/torch.nn.GRU.html#torch.nn.GRU).
+    ///   Statistical Machine Translation (v1)](https://arxiv.org/abs/1406.1078v1) and apply the reset gate after multiplication by
+    ///   the weights. This matches the behavior of [PyTorch GRU](https://pytorch.org/docs/stable/generated/torch.nn.GRU.html#torch.nn.GRU).
     /// * `false` - Match the most recent revision of [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine
-    /// Translation (v3)](https://arxiv.org/abs/1406.1078) and apply the reset gate before the weight multiplication.
+    ///   Translation (v3)](https://arxiv.org/abs/1406.1078) and apply the reset gate before the weight multiplication.
     ///
     /// The differing implementations can give slightly different numerical results and have different efficiencies. For more
     /// motivation for why the `true` can be more efficient see [Optimizing RNNs with Differentiable Graphs](https://svail.github.io/diff_graphs).
@@ -247,29 +247,16 @@ mod tests {
     use crate::tensor::{Distribution, TensorData};
     use crate::{module::Param, nn::LinearRecord, TestBackend};
 
-    /// Test forward pass with simple input vector.
-    ///
-    /// z_t = sigmoid(0.5*0.1 + 0.5*0) = 0.5125
-    /// r_t = sigmoid(0.6*0.1 + 0.*0) = 0.5150
-    /// g_t = tanh(0.7*0.1 + 0.7*0) = 0.0699
-    ///
-    /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
-    #[test]
-    fn tests_forward_single_input_single_feature() {
-        TestBackend::seed(0);
-        let config = GruConfig::new(1, 1, false);
-        let device = Default::default();
-        let mut gru = config.init::<TestBackend>(&device);
-
-        fn create_gate_controller(
+    fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
+        fn create_gate_controller<B: Backend>(
             weights: f32,
             biases: f32,
             d_input: usize,
             d_output: usize,
             bias: bool,
             initializer: Initializer,
-            device: &<TestBackend as Backend>::Device,
-        ) -> GateController<TestBackend> {
+            device: &B::Device,
+        ) -> GateController<B> {
             let record_1 = LinearRecord {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
@@ -288,6 +275,9 @@ mod tests {
             )
         }
 
+        let config = GruConfig::new(1, 1, false).with_reset_after(reset_after);
+        let mut gru = config.init::<B>(device);
+
         gru.update_gate = create_gate_controller(
             0.5,
             0.0,
@@ -295,7 +285,7 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
-            &device,
+            device,
         );
         gru.reset_gate = create_gate_controller(
             0.6,
@@ -304,7 +294,7 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
-            &device,
+            device,
         );
         gru.new_gate = create_gate_controller(
             0.7,
@@ -313,18 +303,72 @@ mod tests {
             1,
             false,
             Initializer::XavierNormal { gain: 1.0 },
-            &device,
+            device,
         );
+        gru
+    }
+
+    /// Test forward pass with simple input vector.
+    ///
+    /// z_t = sigmoid(0.5*0.1 + 0.5*0) = 0.5125
+    /// r_t = sigmoid(0.6*0.1 + 0.*0) = 0.5150
+    /// g_t = tanh(0.7*0.1 + 0.7*0) = 0.0699
+    ///
+    /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
+    #[test]
+    fn tests_forward_single_input_single_feature() {
+        TestBackend::seed(0);
+        let device = Default::default();
+        let mut gru = init_gru::<TestBackend>(false, &device);
+
+        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
+        let expected = TensorData::from([[0.034]]);
+
+        // Reset gate applied to hidden state before the matrix multiplication
+        let state = gru.forward(input.clone(), None);
+
+        let output = state
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze::<2>(0);
+
+        output.to_data().assert_approx_eq(&expected, 3);
+
+        // Reset gate applied to hidden state after the matrix multiplication
+        gru.reset_after = true; // override forward behavior
+        let state = gru.forward(input, None);
+
+        let output = state
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze::<2>(0);
+
+        output.to_data().assert_approx_eq(&expected, 3);
+    }
+
+    #[test]
+    fn tests_forward_seq_len_3() {
+        TestBackend::seed(0);
+        let device = Default::default();
+        let mut gru = init_gru::<TestBackend>(true, &device);
 
         let input =
             Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
+        let expected = TensorData::from([[0.0341], [0.0894], [0.1575]]);
 
-        let result = gru.forward(input, None);
+        let result = gru.forward(input.clone(), None);
         let output = result
             .select(0, Tensor::arange(0..1, &device))
             .squeeze::<2>(0);
 
-        let expected = TensorData::from([[0.0341], [0.0894], [0.1575]]);
+        output.to_data().assert_approx_eq(&expected, 3);
+
+        // Reset gate applied to hidden state before the matrix multiplication
+        gru.reset_after = false; // override forward behavior
+        let state = gru.forward(input, None);
+
+        let output = state
+            .select(0, Tensor::arange(0..1, &device))
+            .squeeze::<2>(0);
+
         output.to_data().assert_approx_eq(&expected, 3);
     }
 
