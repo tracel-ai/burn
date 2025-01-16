@@ -12,9 +12,9 @@ documentation = "https://docs.rs/burn-train"
 version.workspace = true
 
 [features]
-default = ["metrics", "tui"]
+default = ["sys-metrics", "tui"]
 doc = ["default"]
-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
+sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 
 [dependencies]
@@ -28,7 +28,7 @@ tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-core = { workspace = true }
 
-# Metrics
+# System Metrics
 nvml-wrapper = { workspace = true, optional = true }
 sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }

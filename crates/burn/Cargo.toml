@@ -24,7 +24,7 @@ train = ["burn-train", "autodiff", "dataset"]
 tui = ["burn-train?/tui"]
 
 ##  Includes system info metrics (CPU/GPU usage, etc)
-metrics = ["burn-train?/metrics"]
+metrics = ["burn-train?/sys-metrics"]
 
 # Datasets
 dataset = ["burn-core/dataset"]
