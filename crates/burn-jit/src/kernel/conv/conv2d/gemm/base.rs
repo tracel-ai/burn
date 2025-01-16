@@ -6,7 +6,7 @@ use cubecl::linalg::{
             stage::{StageMatmul, StageMatmulFamily},
             InvalidConfigError, MatmulProblem, MatrixLayout,
         },
-        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
+        kernels::matmul::AdvancedConfig,
     },
     tensor::{ReadWrite, VirtualTensor},
 };
@@ -90,12 +90,6 @@ pub trait ConvolutionConfigFactory: Send + Sync + 'static {
 
     /// Asserts that the configuration for this matmul will lead to a valid computation
     fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError>;
-
-    /// Checks if the client can handle the features used in this computation
-    fn check_availability<R: Runtime, CS: ConvPrecision>(
-        client: &ComputeClient<R::Server, R::Channel>,
-        config: &Self::Config,
-    ) -> Result<(), MatmulAvailabilityError>;
 
     fn make_config(
         input: Self::Input,

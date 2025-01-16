@@ -1,26 +1,12 @@
-use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
-    ElementConversion, Shape,
-};
-use cubecl::{
-    ir::{Elem, FloatKind},
-    tf32, tune,
-    tune::{local_tuner, tune_with, LocalTuner},
-};
-use half::f16;
+use burn_tensor::{ops::ConvOptions, ElementConversion, Shape};
+use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
 
 use super::Conv2dAutotuneKey;
 use crate::{
     kernel::{
         conv::{
-            algorithm::{Algorithm, ImplicitCmmaConv},
-            batches_per_run, can_do_implicit_gemm,
-            conv2d::gemm::base::ConvolutionProblem,
             conv2d_direct, conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
-            conv2d_implicit_gemm, has_tf32,
-            precision::ConvPrecision,
-            problem_from_key,
-            selection::{Balanced, ConvSelector, Large},
+            conv2d_implicit_gemm,
         },
         prng::random_uniform,
     },
@@ -39,31 +25,33 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
+    let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
+        .with_tunable(conv2d_direct::<R, E>)
+        .with_tunable(conv2d_im2col::<R, E>)
+        .with_tunable(conv2d_implicit_gemm::<R, E>)
+        .with_tunable(conv2d_gemm_cmma_large_m::<R, E>)
+        .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
+
     TUNER.execute(
         &JitTuneId::new::<R>(&input.device),
         &client,
-        Box::new(Conv2dOperations::<R, E>::new(input, weights, bias, options)),
+        &tunables,
+        (input, weights, bias, options),
     )
 }
 
-#[tune(
-    operations(
-        conv2d_direct,
-        conv2d_im2col,
-        conv2d_implicit_gemm,
-        conv2d_gemm_cmma_large_m,
-        conv2d_gemm_cmma_balanced
-    ),
-    create_key = create_key::<R, E>,
-    should_run = should_run
-)]
-pub fn conv2d_operations<R: JitRuntime, E: FloatElement>(
-    key: JitAutotuneKey,
-    input: JitTensor<R>,
-    weights: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
-    options: ConvOptions<2>,
-) -> JitTensor<R> {
+pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
+    key: &JitAutotuneKey,
+    input: &JitTensor<R>,
+    _weights: &JitTensor<R>,
+    _bias: &Option<JitTensor<R>>,
+    options: &ConvOptions<2>,
+) -> (
+    JitTensor<R>,
+    JitTensor<R>,
+    Option<JitTensor<R>>,
+    ConvOptions<2>,
+) {
     let device = &input.device;
     let key = match key {
         JitAutotuneKey::Conv2d(key) => key,
@@ -82,105 +70,7 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement>(
         .has_bias
         .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
 
-    tune_with!(input, weights, bias, options)
-}
-
-macro_rules! check_algo {
-    ($algo:tt, $float:ty, $input:expr, $problem:expr) => {
-        match (<$float>::as_elem_native_unchecked(), has_tf32(&$input)) {
-            (Elem::Float(FloatKind::F32), true) => {
-                can_launch::<$algo, R, ($float, tf32, f32)>($input, $problem)
-            }
-            (Elem::Float(FloatKind::Flex32), _) => {
-                can_launch::<$algo, R, ($float, f16, f32)>($input, $problem)
-            }
-            _ => can_launch::<$algo, R, ($float, $float, f32)>($input, $problem),
-        }
-    };
-}
-
-fn should_run<R: JitRuntime, F: FloatElement>(
-    op: &Conv2dOperations<R, F>,
-    key: &JitAutotuneKey,
-    index: usize,
-) -> bool {
-    let key = match key {
-        JitAutotuneKey::Conv2d(key) => key,
-        _ => unreachable!(),
-    };
-
-    let out_h = calculate_conv_output_size(
-        key.kernel_size[0],
-        key.stride[0],
-        key.padding[0],
-        key.dilation[0],
-        key.height,
-    );
-    let out_w = calculate_conv_output_size(
-        key.kernel_size[1],
-        key.stride[1],
-        key.padding[1],
-        key.dilation[1],
-        key.width,
-    );
-
-    let conv_problem = problem_from_key::<R, F>(key, out_h, out_w);
-
-    match index {
-        // im2col
-        1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
-        // Implicit gemm.
-        2 => can_do_implicit_gemm::<R, F>(
-            key.batch_size,
-            key.in_channels,
-            key.out_channels,
-            key.kernel_size,
-            op.options.groups,
-            out_h,
-            out_w,
-            &op.input.client,
-        ),
-        // GEMM large m
-        3 => check_algo!(Large, F, &op.input, &conv_problem),
-        // GEMM balanced
-        4 => check_algo!(Balanced, F, &op.input, &conv_problem),
-        _ => true,
-    }
-}
-
-fn can_launch<S: ConvSelector<ImplicitCmmaConv>, R: JitRuntime, CS: ConvPrecision>(
-    input: &JitTensor<R>,
-    conv_problem: &ConvolutionProblem,
-) -> bool {
-    let plane_dim = match input
-        .client
-        .properties()
-        .hardware_properties()
-        .defined_plane_size()
-    {
-        Some(val) => val,
-        None => return false,
-    };
-
-    let (selection, config_input) = S::select_kernel::<R, CS>(plane_dim);
-    let cube_dim = ImplicitCmmaConv::cube_dim(&selection);
-    let cube_count = ImplicitCmmaConv::cube_count(&selection, conv_problem);
-    let advanced_config = Default::default();
-
-    let config = ImplicitCmmaConv::make_config(
-        config_input,
-        conv_problem,
-        &cube_dim,
-        &cube_count,
-        &advanced_config,
-    );
-
-    match config {
-        Ok(config) => {
-            ImplicitCmmaConv::can_launch::<R, CS>(&input.client, conv_problem, &config, &selection)
-        }
-        Err(_) => false,
-    }
+    (input, weights, bias, options.clone())
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
