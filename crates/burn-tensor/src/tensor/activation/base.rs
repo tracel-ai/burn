@@ -144,6 +144,8 @@ pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D>
 }
 
 /// Applies the hard sigmoid function
+///
+/// `hard_sigmoid(x) = max(0, min(1, alpha * x + beta))`
 pub fn hard_sigmoid<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     alpha: f64,
