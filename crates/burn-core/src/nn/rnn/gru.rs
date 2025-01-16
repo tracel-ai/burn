@@ -20,6 +20,21 @@ pub struct GruConfig {
     pub d_hidden: usize,
     /// If a bias should be applied during the Gru transformation.
     pub bias: bool,
+    /// If reset gate should be applied after weight multiplication.
+    ///
+    /// This configuration option controls how the reset gate is applied to the hidden state.
+    /// * `true` - (Default) Match the initial arXiv version of the paper [Learning Phrase Representations using RNN Encoder-Decoder for
+    /// Statistical Machine Translation (v1)](https://arxiv.org/abs/1406.1078v1) and apply the reset gate after multiplication by
+    /// the weights. This matches the behavior of [PyTorch GRU](https://pytorch.org/docs/stable/generated/torch.nn.GRU.html#torch.nn.GRU).
+    /// * `false` - Match the most recent revision of [Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine
+    /// Translation (v3)](https://arxiv.org/abs/1406.1078) and apply the reset gate before the weight multiplication.
+    ///
+    /// The differing implementations can give slightly different numerical results and have different efficiencies. For more
+    /// motivation for why the `true` can be more efficient see [Optimizing RNNs with Differentiable Graphs](https://svail.github.io/diff_graphs).
+    ///
+    /// To set this field to `false` use [`with_reset_after`](`GruConfig::with_reset_after`).
+    #[config(default = "true")]
+    pub reset_after: bool,
     /// Gru initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
@@ -41,6 +56,8 @@ pub struct Gru<B: Backend> {
     pub new_gate: GateController<B>,
     /// The size of the hidden state.
     pub d_hidden: usize,
+    /// If reset gate should be applied after weight multiplication.
+    pub reset_after: bool,
 }
 
 impl<B: Backend> ModuleDisplay for Gru<B> {
@@ -58,6 +75,7 @@ impl<B: Backend> ModuleDisplay for Gru<B> {
             .add("d_input", &d_input)
             .add("d_hidden", &self.d_hidden)
             .add("bias", &bias)
+            .add("reset_after", &self.reset_after)
             .optional()
     }
 }
@@ -94,6 +112,7 @@ impl GruConfig {
             reset_gate,
             new_gate,
             d_hidden: self.d_hidden,
+            reset_after: self.reset_after,
         }
     }
 }
@@ -138,8 +157,12 @@ impl<B: Backend> Gru<B> {
             let reset_values = activation::sigmoid(biased_rg_input_sum); // Colloquially referred to as r(t)
 
             // n(ew)g(ate) tensor
-            let biased_ng_input_sum =
-                self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate);
+            let biased_ng_input_sum = if self.reset_after {
+                self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate)
+            } else {
+                let reset_t = hidden_t.clone().mul(reset_values); // Passed as input to new_gate
+                self.gate_product(&input_t, &reset_t, None, &self.new_gate)
+            };
             let candidate_state = biased_ng_input_sum.tanh(); // Colloquially referred to as g(t)
 
             // calculate linear interpolation between previous hidden state and candidate state:
@@ -325,7 +348,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{}", layer),
-            "Gru {d_input: 2, d_hidden: 8, bias: true, params: 288}"
+            "Gru {d_input: 2, d_hidden: 8, bias: true, reset_after: true, params: 288}"
         );
     }
 }
