@@ -19,9 +19,9 @@ server = ["axum", "tracing-core", "tracing-subscriber"]
 
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.16.0", default-features = true, features = ["repr"]}
-burn-common = { path = "../burn-common", version = "0.16.0", default-features = true}
-burn-router = { path = "../burn-router", version = "0.16.0", default-features = true}
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = true, features = ["repr"]}
+burn-common = { path = "../burn-common", version = "0.17.0", default-features = true}
+burn-router = { path = "../burn-router", version = "0.17.0", default-features = true}
 
 # Basic dependencies
 derive-new = {workspace = true }
@@ -42,10 +42,6 @@ tokio-tungstenite = { version = "0.26", optional = true }
 axum = { version = "0.8.1", features = ["ws"], optional = true }
 tracing-core = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-
-[dev-dependencies]
-# We activate the features client and server during dev.
-burn-remote = { path = ".", version = "0.16.0", features=["client", "server"] }
 
 [package.metadata.docs.rs]
 features = ["doc"]

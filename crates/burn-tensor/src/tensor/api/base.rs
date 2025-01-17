@@ -805,6 +805,7 @@ where
     /// # Arguments
     ///
     /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
+    ///   - A single `core::ops::Range<usize>` (slice the first dimension)
     ///   - An array of `core::ops::Range<usize>`
     ///   - An array of `Option<(i64, i64)>`
     ///   - An array of `(i64, i64)` tuples
@@ -2985,6 +2986,13 @@ impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
             .collect::<Vec<_>>();
 
         ranges.try_into().unwrap()
+    }
+}
+
+impl RangesArg<1> for core::ops::Range<usize> {
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; 1] {
+        let (start, end) = Self::clamp_range(self.start, self.end, shape.dims[0]);
+        [(start..end)]
     }
 }
 

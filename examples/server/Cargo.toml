@@ -15,4 +15,4 @@ ndarray = ["burn/ndarray"]
 
 [dependencies]
 cfg-if = { workspace = true }
-burn = { path = "../../crates/burn", version = "0.16.0", features = ["server"] }
+burn = { path = "../../crates/burn", version = "0.17.0", features = ["server"] }

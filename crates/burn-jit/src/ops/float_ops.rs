@@ -355,7 +355,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum::<R, E>(tensor, Default::default())
+            reduce::reduce::<R, E, E, reduce::Sum>(tensor, Default::default()).unwrap()
         )
     }
 
@@ -363,7 +363,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::sum_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, reduce::Sum>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -371,7 +371,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::mean_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, reduce::Mean>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -379,7 +379,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::prod::<R, E>(tensor, Default::default())
+            reduce::reduce::<R, E, E, reduce::Prod>(tensor, Default::default()).unwrap()
         )
     }
 
@@ -387,7 +387,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::prod_dim::<R, E, E>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, E, reduce::Prod>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -467,7 +467,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmax::<R, E, I>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, I, reduce::ArgMax>(tensor, dim, Default::default()).unwrap()
         )
     }
 
@@ -475,7 +475,7 @@ where
         execute_with_dtype!(
             float(tensor.dtype),
             E,
-            reduce::argmin::<R, E, I>(tensor, dim, Default::default()).unwrap()
+            reduce::reduce_dim::<R, E, I, reduce::ArgMin>(tensor, dim, Default::default()).unwrap()
         )
     }
 

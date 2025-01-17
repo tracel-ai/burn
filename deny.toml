@@ -75,12 +75,15 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "Apache-2.0",
     "BSD-3-Clause",
+    "BSD-2-Clause",
+    "BSL-1.0", # in NOTICES.md
     "CC0-1.0",
     "ISC",
     "MIT",
     "MPL-2.0",
     "OpenSSL",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Unlicense",
     "Zlib",
 ]

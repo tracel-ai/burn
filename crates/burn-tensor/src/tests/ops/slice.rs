@@ -48,6 +48,17 @@ mod tests {
     }
 
     #[test]
+    fn should_support_slice_range_first_dim() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
+
+        let output = tensor.slice(0..1);
+        let expected = TensorData::from([[0.0, 1.0, 2.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
     fn should_support_partial_sliceing_3d() {
         let tensor = TestTensor::<3>::from_floats(
             [
