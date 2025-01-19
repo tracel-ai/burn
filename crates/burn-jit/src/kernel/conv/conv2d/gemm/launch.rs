@@ -108,6 +108,10 @@ pub fn conv2d_gemm_with_algo<
 where
     SP::EG: JitElement,
 {
+    if options.groups != 1 {
+        return Err(ConvLaunchError::Groups(options.groups));
+    }
+
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
