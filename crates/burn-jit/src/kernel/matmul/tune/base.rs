@@ -1,7 +1,7 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
     linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy},
-    tune::{local_tuner, tune_with, LocalTuner, TunableSet},
+    tune::{local_tuner, LocalTuner, TunableSet},
 };
 
 use crate::{
@@ -27,7 +27,7 @@ fn matmul_input_gen<R: JitRuntime, E: FloatElement>(
 
     let out = empty_device::<R, E>(out.client.clone(), out.device.clone(), out.shape.clone());
 
-    tune_with!(lhs, rhs, out)
+    (lhs, rhs, out)
 }
 
 /// Executes autotune on matmul operations

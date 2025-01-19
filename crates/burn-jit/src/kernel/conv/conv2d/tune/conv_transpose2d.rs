@@ -1,5 +1,5 @@
 use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
-use cubecl::tune::{local_tuner, tune_with, LocalTuner, TunableSet};
+use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
 
 use crate::{
     kernel::{
@@ -64,7 +64,7 @@ pub fn create_transpose2d_input<R: JitRuntime, E: FloatElement>(
     let bias = key
         .has_bias
         .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
-    tune_with!(input, weights, bias, options.clone())
+    (input, weights, bias, options.clone())
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
