@@ -6,6 +6,7 @@ use cmma::{Matrix, MatrixIdent, MatrixLayout};
 use cubecl::{
     cube,
     ir::{Elem, FloatKind},
+    linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
     prelude::*,
     Compiler, CubeCount, CubeDim, Feature,
 };
@@ -66,7 +67,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
 
     let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
 
-    if !can_do_implicit_gemm::<R, F>(
+    check_availability::<R, F>(
         batch_size,
         in_channels,
         out_channels,
@@ -75,15 +76,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
         out_h,
         out_w,
         &input.client,
-    ) {
-        panic!(
-            "Requirements for implicit GEMM not met:
-- CMMA must be available
-- `groups` must be 1
-- subcube size must be non-variable (might not hold on Intel)
-        "
-        );
-    }
+    )?;
 
     // If input is contiguous NCHW, use custom transpose kernel
     let input = match input.is_contiguous() {
@@ -643,7 +636,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
+pub(crate) fn check_availability<R: JitRuntime, E: FloatElement>(
     batch_size: usize,
     in_channels: usize,
     out_channels: usize,
@@ -652,7 +645,7 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
     client: &ComputeClient<R::Server, R::Channel>,
-) -> bool {
+) -> Result<(), ConvLaunchError> {
     let cmma_k = match (
         E::as_elem_native_unchecked(),
         client
@@ -672,19 +665,43 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let size = find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
+    let (cmma_m, cmma_n, cmma_k) =
+        find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32).ok_or_else(
+            || {
+                ConvLaunchError::Matmul(MatmulLaunchError::Unavailable(
+                    MatmulAvailabilityError::CmmaInstructionUnavailable {
+                        input: E::as_elem_native_unchecked(),
+                        output: E::as_elem_native_unchecked(),
+                        m: 16,
+                        n: 16,
+                        k: cmma_k as u32,
+                    },
+                ))
+            },
+        )?;
 
-    if let Some((cmma_m, cmma_k, cmma_n)) = size {
-        let warps_per_cube = 8;
+    let warps_per_cube = 8;
 
-        let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
-        let topology = client.properties().hardware_properties();
-        let not_intel = topology.plane_size_min >= 32;
-
-        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && groups == 1 && not_intel
-    } else {
-        false
+    let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
+    if <R::Compiler as Compiler>::max_shared_memory_size() < smem_size {
+        return Err(ConvLaunchError::Matmul(MatmulLaunchError::InvalidConfig(
+            Box::new("Not enough shared memory"),
+        )));
     }
+
+    let topology = client.properties().hardware_properties();
+    if topology.plane_size_min < 32 {
+        return Err(ConvLaunchError::Matmul(MatmulLaunchError::Unavailable(
+            MatmulAvailabilityError::PlaneDimUnsupported {
+                plane_dim: topology.plane_size_min,
+            },
+        )));
+    }
+
+    if groups != 1 {
+        return Err(ConvLaunchError::Groups(groups));
+    }
+    Ok(())
 }
 
 fn padded_k(

@@ -5,8 +5,9 @@ use burn::nn::PaddingConfig1d;
 use burn::nn::PaddingConfig2d;
 use burn::nn::PaddingConfig3d;
 
-fn convert_primitive<T: ToString>(primitive: T) -> TokenStream {
-    let value = primitive.to_string();
+fn convert_primitive<T: core::fmt::Debug>(primitive: T) -> TokenStream {
+    let value = format!("{:?}", primitive);
+
     value.parse().unwrap()
 }
 

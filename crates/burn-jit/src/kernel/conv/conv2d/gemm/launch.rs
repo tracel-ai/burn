@@ -7,7 +7,7 @@ use burn_tensor::{
 use cubecl::{
     flex32,
     ir::{Elem, FloatKind},
-    linalg::matmul::{self, components::MatrixLayout},
+    linalg::matmul::{self},
     tensor_line_size, tf32, Feature,
 };
 use half::{bf16, f16};
@@ -23,7 +23,7 @@ use crate::{
                 algorithm::{Algorithm, ImplicitCmmaConv},
                 base::{ConvolutionLaunch, ConvolutionProblem},
             },
-            nchw_to_nhwc, Conv2dAutotuneKey, ConvLaunchError,
+            nchw_to_nhwc, ConvLaunchError,
         },
         into_contiguous,
     },
@@ -108,6 +108,10 @@ pub fn conv2d_gemm_with_algo<
 where
     SP::EG: JitElement,
 {
+    if options.groups != 1 {
+        return Err(ConvLaunchError::Groups(options.groups));
+    }
+
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -224,58 +228,6 @@ where
     // Reset to NCHW
     let out = reshape(out, Shape::new([batch_size, out_h, out_w, out_channels]));
     Ok(permute(out, &[0, 3, 1, 2]))
-}
-
-pub fn problem_from_key<R: JitRuntime, F: FloatElement>(
-    key: &Conv2dAutotuneKey,
-    out_h: usize,
-    out_w: usize,
-) -> ConvolutionProblem {
-    let in_stride_2 = key.in_channels;
-    let in_stride_1 = key.width * in_stride_2;
-    let in_stride_0 = key.height * in_stride_1;
-
-    let m = key.batch_size * out_h * out_w;
-    let n = key.out_channels;
-    let k = key.kernel_size[0] * key.kernel_size[1] * key.in_channels;
-
-    let options = ConvOptions {
-        stride: key.stride,
-        padding: key.padding,
-        dilation: key.dilation,
-        groups: key.groups,
-    };
-
-    // Target 128 bit accesses
-    let available_vectorizations = R::supported_line_sizes()
-        .iter()
-        .copied()
-        .filter(|it| *it as usize * size_of::<F>() <= 16)
-        .collect::<Vec<_>>();
-    let lhs_line_size = tensor_line_size(
-        &available_vectorizations,
-        &[key.batch_size, key.height, key.width, key.in_channels],
-        &[in_stride_0, in_stride_1, in_stride_2, 1],
-        3,
-    );
-    let rhs_line_size = tensor_line_size(&available_vectorizations, &[k, n], &[n, 1], 1);
-    let out_line_size = tensor_line_size(&available_vectorizations, &[m, n], &[n, 1], 1);
-
-    ConvolutionProblem {
-        m,
-        n,
-        k,
-        lhs_layout: MatrixLayout::RowMajor,
-        rhs_layout: MatrixLayout::RowMajor,
-        lhs_line_size,
-        rhs_line_size,
-        out_line_size,
-        kernel_size: (key.kernel_size[0] as u32, key.kernel_size[1] as u32),
-        options,
-        out_shape_y: out_h,
-        out_shape_x: out_w,
-        has_bias: key.has_bias,
-    }
 }
 
 pub(crate) fn has_tf32<R: JitRuntime>(c: &JitTensor<R>) -> bool {
