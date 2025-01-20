@@ -5,7 +5,7 @@ use tar::Archive;
 use burn::data::{dataset::vision::ImageFolderDataset, network::downloader};
 
 /// CIFAR-10 mirror from [fastai](https://github.com/fastai/fastai/blob/master/fastai/data/external.py#L44).
-/// Licensed under the [Appache License](https://github.com/fastai/fastai/blob/master/LICENSE).
+/// Licensed under the [Apache License](https://github.com/fastai/fastai/blob/master/LICENSE).
 const URL: &str = "https://s3.amazonaws.com/fast-ai-sample/cifar10.tgz";
 
 /// The [CIFAR-10](https://www.cs.toronto.edu/%7Ekriz/cifar.html) dataset consists of 60,000 32x32

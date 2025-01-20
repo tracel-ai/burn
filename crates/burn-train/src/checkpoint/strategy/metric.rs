@@ -114,7 +114,7 @@ mod tests {
         process_train(&mut processor, 0.3, epoch);
         end_epoch(&mut processor, epoch);
 
-        // Should save the current record and delete the pervious one.
+        // Should save the current record and delete the previous one.
         assert_eq!(
             vec![CheckpointingAction::Delete(1), CheckpointingAction::Save],
             strategy.checkpointing(epoch, &store)
