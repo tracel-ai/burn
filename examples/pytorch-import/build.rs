@@ -17,7 +17,7 @@ fn main() {
 
     // Load PyTorch weights into a model record.
     let record: model::ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-        .load("pytorch/mnist.pt".into(), &device)
+        .load("pytorch/mnist.safetensors".into(), &device)
         .expect("Failed to decode state");
 
     // Save the model record to a file.
