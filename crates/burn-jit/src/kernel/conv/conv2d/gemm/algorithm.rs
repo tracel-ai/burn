@@ -5,7 +5,7 @@ use cubecl::{
             tile::{accelerated::Accelerated, TileMatmulFamily},
             InvalidConfigError,
         },
-        kernels::{matmul::AdvancedConfig, MatmulAvailabilityError},
+        kernels::matmul::AdvancedConfig,
     },
     prelude::*,
 };
@@ -13,7 +13,6 @@ use cubecl::{
 use super::{
     base::{ConvolutionConfigFactory, ConvolutionFamily, ConvolutionProblem},
     homogeneous::base::ImplicitGemmConvolutionFamily,
-    precision::ConvPrecision,
     selection::ConvSelection,
 };
 
@@ -46,34 +45,6 @@ pub trait Algorithm {
         );
         Self::GlobalConvolution::check_config(&config)?;
         Ok(config)
-    }
-
-    /// Check availability of the matmul algorithm
-    fn check_availability<R: Runtime, CS: ConvPrecision>(
-        client: &ComputeClient<R::Server, R::Channel>,
-        config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
-    ) -> Result<(), MatmulAvailabilityError> {
-        Self::GlobalConvolution::check_availability::<R, CS>(client, config)
-    }
-
-    /// Determine whether the given convolution problem is valid to launch (within hardware limits)
-    fn can_launch<R: Runtime, CS: ConvPrecision>(
-        client: &ComputeClient<R::Server, R::Channel>,
-        problem: &ConvolutionProblem,
-        config: &<Self::GlobalConvolution as ConvolutionConfigFactory>::Config,
-        selection: &Self::Selection,
-    ) -> bool {
-        if problem.options.groups > 1 || Self::check_availability::<R, CS>(client, config).is_err()
-        {
-            return false;
-        }
-
-        let cube_count = Self::cube_count(selection, problem);
-        let (max_x, max_y, max_z) = R::max_cube_count();
-        match cube_count {
-            CubeCount::Static(x, y, z) => x <= max_x && y <= max_y && z <= max_z,
-            _ => true,
-        }
     }
 }
 
