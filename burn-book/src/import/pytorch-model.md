@@ -3,8 +3,8 @@
 ## Introduction
 
 Whether you've trained your model in PyTorch or you want to use a pre-trained model from PyTorch,
-you can import them into Burn. Burn supports importing PyTorch model weights with `.pt` file
-extension. Compared to ONNX models, `.pt` files only contain the weights of the model, so you will
+you can import them into Burn. Burn supports importing PyTorch model weights with `.pt` and `.safetensors` file
+extension. Compared to ONNX models, `.pt` and `.safetensors` files only contain the weights of the model, so you will
 need to reconstruct the model architecture in Burn.
 
 Here in this document we will show the full workflow of exporting a PyTorch model and importing it.
