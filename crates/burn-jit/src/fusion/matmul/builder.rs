@@ -47,7 +47,13 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
                 let rhs = self.builder.input_unhandled(&op.rhs);
                 let out = self.builder.output_unhandled(&op.out);
 
-                self.matmul = Some(FusedMatmul::new(lhs, rhs, out, op.clone()));
+                self.matmul = Some(FusedMatmul::new(
+                    lhs,
+                    rhs,
+                    out,
+                    op.clone(),
+                    Default::default(),
+                ));
             } else {
                 self.builder.close();
             }
