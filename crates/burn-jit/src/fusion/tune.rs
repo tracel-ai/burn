@@ -9,7 +9,7 @@ use burn_fusion::stream::{Context, ContextOwned};
 /// operation.
 pub enum TuneContext<'a, R: JitRuntime> {
     Original(&'a mut Context<'a, JitFusionHandle<R>>),
-    Fork(ContextOwned<JitFusionHandle<R>>),
+    Fork(Box<ContextOwned<JitFusionHandle<R>>>),
 }
 
 /// Fusion input wrapper containing the context and the optimization.
@@ -35,7 +35,7 @@ pub struct TuneInput<R: JitRuntime, O> {
 /// the best kernel to use, which can be async.
 enum UnsafeTuneContext<R: JitRuntime> {
     Original(*mut Context<'static, JitFusionHandle<R>>),
-    Fork(ContextOwned<JitFusionHandle<R>>),
+    Fork(Box<ContextOwned<JitFusionHandle<R>>>),
 }
 
 unsafe impl<R: JitRuntime> Send for UnsafeTuneContext<R> {}
@@ -67,7 +67,11 @@ impl<R: JitRuntime, O> TuneInput<R, O> {
 
 impl<R: JitRuntime> UnsafeTuneContext<R> {
     fn new(context: &mut Context<'_, JitFusionHandle<R>>) -> Self {
-        Self::Original(core::ptr::from_mut(context) as *mut Context<'static, JitFusionHandle<R>>)
+        let ptr = core::ptr::from_mut(context);
+
+        // It is necessary for the lifetime.
+        #[allow(clippy::unnecessary_cast)]
+        Self::Original(ptr as *mut Context<'static, _>)
     }
 
     fn get(&self) -> TuneContext<'static, R> {
@@ -75,7 +79,7 @@ impl<R: JitRuntime> UnsafeTuneContext<R> {
             UnsafeTuneContext::Original(ptr) => {
                 TuneContext::Original(unsafe { ptr.as_mut().unwrap() })
             }
-            UnsafeTuneContext::Fork(context) => TuneContext::Fork(context.fork()),
+            UnsafeTuneContext::Fork(context) => TuneContext::Fork(Box::new(context.fork())),
         }
     }
 }
@@ -84,7 +88,7 @@ impl<R: JitRuntime, O> Clone for TuneInput<R, O> {
     fn clone(&self) -> Self {
         Self {
             context: self.context.clone(),
-            optimization: self.optimization.clone(),
+            optimization: self.optimization,
         }
     }
 }
@@ -99,6 +103,6 @@ impl<R: JitRuntime> Clone for UnsafeTuneContext<R> {
             }
             UnsafeTuneContext::Fork(context) => context.fork(),
         };
-        UnsafeTuneContext::Fork(context)
+        UnsafeTuneContext::Fork(Box::new(context))
     }
 }

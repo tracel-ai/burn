@@ -29,7 +29,7 @@ pub fn fused_matmul_autotune<R: JitRuntime, BT: BoolElement>(
 ) {
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, JitTuneId> = local_tuner!();
 
-    let tunables = TunableSet::new(create_key::<R, BT>, input_gen::<R, BT>)
+    let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_standard_fused::<R, BT>)
         .with_tunable(tune_specialized_fused::<R, BT>)
         .with_tunable(tune_pipelined_fused::<R, BT>)
@@ -43,7 +43,7 @@ pub fn fused_matmul_autotune<R: JitRuntime, BT: BoolElement>(
     );
 }
 
-pub(crate) fn create_key<R: JitRuntime, BT: BoolElement>(
+pub(crate) fn create_key<R: JitRuntime>(
     input: &TuneInput<R, MatmulOptimization<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
@@ -64,7 +64,7 @@ pub(crate) fn create_key<R: JitRuntime, BT: BoolElement>(
     FusedMatmulAutotuneKey::new(key, opt.len)
 }
 
-fn input_gen<R: JitRuntime, BT: BoolElement>(
+fn input_gen<R: JitRuntime>(
     _key: &FusedMatmulAutotuneKey,
     input: &TuneInput<R, MatmulOptimization<R>>,
 ) -> TuneInput<R, MatmulOptimization<R>> {
