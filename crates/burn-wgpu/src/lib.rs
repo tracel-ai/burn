@@ -12,8 +12,8 @@ pub use burn_jit::{
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
-pub use cubecl::ir::CubeDim;
 pub use cubecl::wgpu::*;
+pub use cubecl::CubeDim;
 
 pub type Wgsl = cubecl::wgpu::WgslCompiler;
 #[cfg(feature = "spirv")]
