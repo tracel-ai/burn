@@ -59,6 +59,99 @@ pub(crate) struct OperationConverter {
     scalar_u8: Vec<u8>,
 }
 
+pub struct ContextOwned<H> {
+    tensors: HashMap<TensorId, TensorDescription>,
+    handles: HandleContainer<H>,
+    scalar_f32: Vec<f32>,
+    scalar_f16: Vec<f16>,
+    scalar_bf16: Vec<bf16>,
+    scalar_i64: Vec<i64>,
+    scalar_i32: Vec<i32>,
+    scalar_i16: Vec<i16>,
+    scalar_i8: Vec<i8>,
+    scalar_u64: Vec<u64>,
+    scalar_u32: Vec<u32>,
+    scalar_u16: Vec<u16>,
+    scalar_u8: Vec<u8>,
+}
+
+impl<'a, H> Into<Context<'a, H>> for &'a mut ContextOwned<H> {
+    fn into(self) -> Context<'a, H> {
+        Context {
+            tensors: &mut self.tensors,
+            handles: &mut self.handles,
+            scalar_f32: &self.scalar_f32,
+            scalar_f16: &self.scalar_f16,
+            scalar_bf16: &self.scalar_bf16,
+            scalar_i64: &self.scalar_i64,
+            scalar_i32: &self.scalar_i32,
+            scalar_i16: &self.scalar_i16,
+            scalar_i8: &self.scalar_i8,
+            scalar_u64: &self.scalar_u64,
+            scalar_u32: &self.scalar_u32,
+            scalar_u16: &self.scalar_u16,
+            scalar_u8: &self.scalar_u8,
+        }
+    }
+}
+
+impl<H: Clone> ContextOwned<H> {
+    pub fn as_context(&mut self) -> Context<'_, H> {
+        Context {
+            tensors: &mut self.tensors,
+            handles: &mut self.handles,
+            scalar_f32: &self.scalar_f32,
+            scalar_f16: &self.scalar_f16,
+            scalar_bf16: &self.scalar_bf16,
+            scalar_i64: &self.scalar_i64,
+            scalar_i32: &self.scalar_i32,
+            scalar_i16: &self.scalar_i16,
+            scalar_i8: &self.scalar_i8,
+            scalar_u64: &self.scalar_u64,
+            scalar_u32: &self.scalar_u32,
+            scalar_u16: &self.scalar_u16,
+            scalar_u8: &self.scalar_u8,
+        }
+    }
+    pub fn fork(&self) -> ContextOwned<H> {
+        ContextOwned {
+            tensors: self.tensors.clone(),
+            handles: self.handles.fork(),
+            scalar_f32: self.scalar_f32.clone(),
+            scalar_f16: self.scalar_f16.clone(),
+            scalar_bf16: self.scalar_bf16.clone(),
+            scalar_i64: self.scalar_i64.clone(),
+            scalar_i32: self.scalar_i32.clone(),
+            scalar_i16: self.scalar_i16.clone(),
+            scalar_i8: self.scalar_i8.clone(),
+            scalar_u64: self.scalar_u64.clone(),
+            scalar_u32: self.scalar_u32.clone(),
+            scalar_u16: self.scalar_u16.clone(),
+            scalar_u8: self.scalar_u8.clone(),
+        }
+    }
+}
+
+impl<'a, H: Clone> Context<'a, H> {
+    pub fn fork(&self) -> ContextOwned<H> {
+        ContextOwned {
+            tensors: self.tensors.clone(),
+            handles: self.handles.fork(),
+            scalar_f32: self.scalar_f32.clone(),
+            scalar_f16: self.scalar_f16.clone(),
+            scalar_bf16: self.scalar_bf16.clone(),
+            scalar_i64: self.scalar_i64.clone(),
+            scalar_i32: self.scalar_i32.clone(),
+            scalar_i16: self.scalar_i16.clone(),
+            scalar_i8: self.scalar_i8.clone(),
+            scalar_u64: self.scalar_u64.clone(),
+            scalar_u32: self.scalar_u32.clone(),
+            scalar_u16: self.scalar_u16.clone(),
+            scalar_u8: self.scalar_u8.clone(),
+        }
+    }
+}
+
 pub(crate) trait RelativeOps {
     /// Convert (usually an [`OperationDescription`]) to a relative form.
     ///

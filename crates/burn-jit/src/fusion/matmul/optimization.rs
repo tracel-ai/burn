@@ -26,16 +26,23 @@ use crate::fusion::on_write::{
 
 use super::args::FusedMatmulInputLaunch;
 use super::spec::FusedMatmulSpec;
+use super::tune::fused_matmul_autotune;
 
 #[derive(new)]
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: JitRuntime> {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
-    client: ComputeClient<R::Server, R::Channel>,
-    device: R::Device,
-    len: usize,
-    matmul: FusedMatmul,
+    pub(crate) client: ComputeClient<R::Server, R::Channel>,
+    pub(crate) device: R::Device,
+    pub(crate) len: usize,
+    pub(crate) matmul: FusedMatmul,
+}
+
+impl<R: JitRuntime> Clone for MatmulOptimization<R> {
+    fn clone(&self) -> Self {
+        todo!()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,9 +57,11 @@ pub struct MatmulOptimizationState {
 impl<R: JitRuntime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        if self.execute_fused::<BT>(context).is_err() {
-            self.execute_fallback::<BT>(context);
-        }
+        fused_matmul_autotune::<R, BT>(self, context)
+
+        //if self.execute_fused::<BT>(context).is_err() {
+        //    self.execute_fallback::<BT>(context);
+        //}
     }
 
     /// Number of operations fused.
@@ -82,15 +91,15 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         }
     }
 
-    fn execute_fused<BT: BoolElement>(
-        &mut self,
+    pub fn execute_fused<BT: BoolElement>(
+        &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace
             .run::<R, BT, FusedMatmul>(&self.client, &self.device, context, &self.matmul)
     }
 
-    fn execute_fallback<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, JitFusionHandle<R>>) {
         match self.matmul.lhs.precision() {
             ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
             ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
@@ -100,7 +109,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
     }
 
     fn run_fallback<BT: BoolElement, EG: FloatElement>(
-        &mut self,
+        &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
         let (out_tensor, out_desc) = {
@@ -141,7 +150,7 @@ pub struct FusedMatmul {
     lhs: Arg,
     rhs: Arg,
     out: Arg,
-    op: BinaryOperationDescription,
+    pub(crate) op: BinaryOperationDescription,
 }
 
 #[derive(Debug)]

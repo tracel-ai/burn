@@ -425,7 +425,7 @@ dependencies = [
  "strum_macros",
  "sysinfo 0.32.1",
  "tracing-subscriber",
- "wgpu",
+ "wgpu 23.0.1",
  "wsl",
 ]
 
@@ -1581,7 +1581,6 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1596,7 +1595,6 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "derive-new 0.6.0",
  "embassy-futures",
@@ -1613,7 +1611,6 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bitflags 2.8.0",
  "bytemuck",
@@ -1633,7 +1630,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1647,7 +1643,6 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1663,7 +1658,6 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1689,7 +1683,6 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1701,7 +1694,6 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1716,7 +1708,6 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "cubecl-common",
  "cubecl-core",
@@ -1732,7 +1723,6 @@ dependencies = [
 [[package]]
 name = "cubecl-reduce"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "cubecl-core",
  "cubecl-runtime",
@@ -1742,7 +1732,6 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1764,7 +1753,6 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "bitflags 2.8.0",
  "cubecl-common",
@@ -1779,7 +1767,6 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.5.0"
-source = "git+https://github.com/tracel-ai/cubecl?rev=2cc42af02671d90255ab823e29a4a3ad2e564333#2cc42af02671d90255ab823e29a4a3ad2e564333"
 dependencies = [
  "ash",
  "async-channel",
@@ -1794,7 +1781,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "log",
  "web-time",
- "wgpu",
+ "wgpu 24.0.0",
 ]
 
 [[package]]
@@ -2838,6 +2825,18 @@ name = "glow"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d51fa363f025f5c111e03f13eda21162faeacb6911fe8caa0c0349f9cf0c4483"
+dependencies = [
+ "js-sys",
+ "slotmap",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "glow"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e5ea60d70410161c8bf5da3fdfeaa1c72ed2c15f8bbb9d19fe3a4fad085f08"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -3908,6 +3907,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "metal"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f569fb946490b5743ad69813cb19629130ce9374034abe31614a36402d18f99e"
+dependencies = [
+ "bitflags 2.8.0",
+ "block",
+ "core-graphics-types",
+ "foreign-types 0.5.0",
+ "log",
+ "objc",
+ "paste",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4031,6 +4045,28 @@ dependencies = [
  "spirv 0.3.0+sdk-1.3.268.0",
  "termcolor",
  "thiserror 1.0.69",
+ "unicode-xid",
+]
+
+[[package]]
+name = "naga"
+version = "24.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e380993072e52eef724eddfcde0ed013b0c023c3f0417336ed041aa9f076994e"
+dependencies = [
+ "arrayvec",
+ "bit-set",
+ "bitflags 2.8.0",
+ "cfg_aliases 0.2.1",
+ "codespan-reporting",
+ "hexf-parse",
+ "indexmap",
+ "log",
+ "rustc-hash 1.1.0",
+ "spirv 0.3.0+sdk-1.3.268.0",
+ "strum",
+ "termcolor",
+ "thiserror 2.0.11",
  "unicode-xid",
 ]
 
@@ -4623,6 +4659,15 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "ordered-float"
+version = "4.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "os_info"
@@ -8029,7 +8074,7 @@ dependencies = [
  "document-features",
  "js-sys",
  "log",
- "naga",
+ "naga 23.1.0",
  "parking_lot 0.12.3",
  "profiling",
  "raw-window-handle",
@@ -8038,9 +8083,35 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "wgpu-core",
- "wgpu-hal",
- "wgpu-types",
+ "wgpu-core 23.0.1",
+ "wgpu-hal 23.0.1",
+ "wgpu-types 23.0.0",
+]
+
+[[package]]
+name = "wgpu"
+version = "24.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e41253fc7b660735e2a2d9a58c563f2a047d3cc3445293d8f4095538c9e8afbe"
+dependencies = [
+ "arrayvec",
+ "bitflags 2.8.0",
+ "cfg_aliases 0.2.1",
+ "document-features",
+ "js-sys",
+ "log",
+ "naga 24.0.0",
+ "parking_lot 0.12.3",
+ "profiling",
+ "raw-window-handle",
+ "smallvec",
+ "static_assertions",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu-core 24.0.0",
+ "wgpu-hal 24.0.0",
+ "wgpu-types 24.0.0",
 ]
 
 [[package]]
@@ -8056,7 +8127,7 @@ dependencies = [
  "document-features",
  "indexmap",
  "log",
- "naga",
+ "naga 23.1.0",
  "once_cell",
  "parking_lot 0.12.3",
  "profiling",
@@ -8064,8 +8135,33 @@ dependencies = [
  "rustc-hash 1.1.0",
  "smallvec",
  "thiserror 1.0.69",
- "wgpu-hal",
- "wgpu-types",
+ "wgpu-hal 23.0.1",
+ "wgpu-types 23.0.0",
+]
+
+[[package]]
+name = "wgpu-core"
+version = "24.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82a39b8842dc9ffcbe34346e3ab6d496b32a47f6497e119d762c97fcaae3cb37"
+dependencies = [
+ "arrayvec",
+ "bit-vec",
+ "bitflags 2.8.0",
+ "cfg_aliases 0.2.1",
+ "document-features",
+ "indexmap",
+ "log",
+ "naga 24.0.0",
+ "once_cell",
+ "parking_lot 0.12.3",
+ "profiling",
+ "raw-window-handle",
+ "rustc-hash 1.1.0",
+ "smallvec",
+ "thiserror 2.0.11",
+ "wgpu-hal 24.0.0",
+ "wgpu-types 24.0.0",
 ]
 
 [[package]]
@@ -8083,7 +8179,7 @@ dependencies = [
  "bytemuck",
  "cfg_aliases 0.1.1",
  "core-graphics-types",
- "glow",
+ "glow 0.14.2",
  "glutin_wgl_sys",
  "gpu-alloc",
  "gpu-allocator",
@@ -8094,7 +8190,7 @@ dependencies = [
  "libloading",
  "log",
  "metal 0.29.0",
- "naga",
+ "naga 23.1.0",
  "ndk-sys",
  "objc",
  "once_cell",
@@ -8108,7 +8204,53 @@ dependencies = [
  "thiserror 1.0.69",
  "wasm-bindgen",
  "web-sys",
- "wgpu-types",
+ "wgpu-types 23.0.0",
+ "windows 0.58.0",
+ "windows-core 0.58.0",
+]
+
+[[package]]
+name = "wgpu-hal"
+version = "24.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a782e5056b060b0b4010881d1decddd059e44f2ecd01e2db2971b48ad3627e5"
+dependencies = [
+ "android_system_properties",
+ "arrayvec",
+ "ash",
+ "bit-set",
+ "bitflags 2.8.0",
+ "block",
+ "bytemuck",
+ "cfg_aliases 0.2.1",
+ "core-graphics-types",
+ "glow 0.16.0",
+ "glutin_wgl_sys",
+ "gpu-alloc",
+ "gpu-allocator",
+ "gpu-descriptor",
+ "js-sys",
+ "khronos-egl",
+ "libc",
+ "libloading",
+ "log",
+ "metal 0.31.0",
+ "naga 24.0.0",
+ "ndk-sys",
+ "objc",
+ "once_cell",
+ "ordered-float",
+ "parking_lot 0.12.3",
+ "profiling",
+ "range-alloc",
+ "raw-window-handle",
+ "renderdoc-sys",
+ "rustc-hash 1.1.0",
+ "smallvec",
+ "thiserror 2.0.11",
+ "wasm-bindgen",
+ "web-sys",
+ "wgpu-types 24.0.0",
  "windows 0.58.0",
  "windows-core 0.58.0",
 ]
@@ -8121,6 +8263,18 @@ checksum = "610f6ff27778148c31093f3b03abc4840f9636d58d597ca2f5977433acfe0068"
 dependencies = [
  "bitflags 2.8.0",
  "js-sys",
+ "web-sys",
+]
+
+[[package]]
+name = "wgpu-types"
+version = "24.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50ac044c0e76c03a0378e7786ac505d010a873665e2d51383dcff8dd227dc69c"
+dependencies = [
+ "bitflags 2.8.0",
+ "js-sys",
+ "log",
  "web-sys",
 ]
 
