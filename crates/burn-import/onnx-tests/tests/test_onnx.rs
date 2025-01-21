@@ -2189,6 +2189,7 @@ mod tests {
 
     #[test]
     fn add_constant_f32() {
+        type Backend = burn_ndarray::NdArray<f32>;
         let device = Default::default();
         let model = constant_f32::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<f32, _>(Shape::from([2, 3, 4]));
@@ -2199,26 +2200,29 @@ mod tests {
 
     #[test]
     fn add_constant_f64() {
+        type Backend = burn_ndarray::NdArray<f64>;
         let device = Default::default();
         let model = constant_f64::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<f64, _>(Shape::from([2, 3, 4]));
-        let expected_output = Tensor::<Backend, 3>::full([2, 3, 4], 2f32, &device).to_data();
+        let expected_output = Tensor::<Backend, 3>::full([2, 3, 4], 2f64, &device).to_data();
         let output = model.forward(input.into());
         assert_eq!(expected_output, output.to_data());
     }
 
     #[test]
     fn add_constant_i32() {
+        type Backend = burn_ndarray::NdArray<f32, i32>;
         let device = Default::default();
         let model = constant_i32::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<i32, _>(Shape::from([2, 3, 4]));
-        let expected_output = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2i64, &device).to_data();
+        let expected_output = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2i32, &device).to_data();
         let output = model.forward(input.into());
         assert_eq!(expected_output, output.to_data());
     }
 
     #[test]
     fn add_constant_i64() {
+        type Backend = burn_ndarray::NdArray<f32, i64>;
         let device = Default::default();
         let model = constant_i64::Model::<Backend>::new(&device);
         let input = TensorData::zeros::<i64, _>(Shape::from([2, 3, 4]));
