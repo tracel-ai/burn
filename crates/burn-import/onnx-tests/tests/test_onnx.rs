@@ -2188,51 +2188,26 @@ mod tests {
     }
 
     #[test]
-    fn add_constant_f32() {
+    fn add_constant() {
         let device = Default::default();
-        let model = constant_f32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        const CONST_VALUE: i32 = 2;
 
-        let output = model.forward(input);
+        let float_input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
+        let float_expected = Tensor::<Backend, 3>::full([2, 3, 4], CONST_VALUE, &device).to_data();
 
-        output.to_data().assert_eq(&expected, true);
-    }
+        let f32_output = constant_f32::Model::<Backend>::new(&device).forward(float_input.clone());
+        f32_output.to_data().assert_eq(&float_expected, true);
+        let f64_output = constant_f64::Model::<Backend>::new(&device).forward(float_input.clone());
+        f64_output.to_data().assert_eq(&float_expected, true);
 
-    #[test]
-    fn add_constant_f64() {
-        let device = Default::default();
-        let model = constant_f64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3>::full([2, 3, 4], 2, &device).to_data();
+        let int_input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
+        let int_expected =
+            Tensor::<Backend, 3, Int>::full([2, 3, 4], CONST_VALUE, &device).to_data();
 
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_constant_i32() {
-        let device = Default::default();
-        let model = constant_i32::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
-
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
-    }
-
-    #[test]
-    fn add_constant_i64() {
-        let device = Default::default();
-        let model = constant_i64::Model::<Backend>::new(&device);
-        let input = Tensor::<Backend, 3, Int>::zeros(Shape::from([2, 3, 4]), &device);
-        let expected = Tensor::<Backend, 3, Int>::full([2, 3, 4], 2, &device).to_data();
-
-        let output = model.forward(input);
-
-        output.to_data().assert_eq(&expected, true);
+        let i32_output = constant_i32::Model::<Backend>::new(&device).forward(int_input.clone());
+        i32_output.to_data().assert_eq(&int_expected, true);
+        let i64_output = constant_i64::Model::<Backend>::new(&device).forward(int_input.clone());
+        i64_output.to_data().assert_eq(&int_expected, true);
     }
 
     #[test]
