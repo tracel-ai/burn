@@ -1,5 +1,8 @@
 use super::{expand, numeric, permute};
-use crate::kernel::{launch_unary_numeric, reduce, NumericUnaryOp, NumericUnaryOpFamily};
+use crate::kernel::{
+    launch_unary_int, launch_unary_numeric, reduce, IntUnaryOp, IntUnaryOpFamily, NumericUnaryOp,
+    NumericUnaryOpFamily,
+};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
@@ -8,7 +11,7 @@ use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use cubecl::frontend::Numeric;
-use cubecl::prelude::*;
+use cubecl::prelude::{BitwiseNot, *};
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
@@ -295,44 +298,46 @@ where
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_and::<R, I>(lhs, rhs)
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_and_scalar::<R, I>(lhs, rhs)
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_or::<R, I>(lhs, rhs)
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_or_scalar(lhs, rhs)
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_xor::<R, I>(lhs, rhs)
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
         numeric::bitwise_xor_scalar(lhs, rhs)
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        // not implemented
-        //todo!()
-        numeric::bitwise_not::<R, I>(tensor)
+        struct BitwiseNot;
+
+        #[cube]
+        impl<I: Int> IntUnaryOp<I> for BitwiseNot {
+            type Options = ();
+
+            fn execute(input: Line<I>, _options: &Self::Options) -> Line<I> {
+                Line::bitwise_not(input)
+            }
+        }
+
+        impl IntUnaryOpFamily for BitwiseNot {
+            type Options<I: Int> = ();
+            type Unary<I: Int> = Self;
+        }
+
+        launch_unary_int::<R, I, BitwiseNot, _>(tensor, |_| ())
     }
 }

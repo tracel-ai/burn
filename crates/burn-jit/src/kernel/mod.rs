@@ -7,6 +7,7 @@ mod contiguous;
 mod index;
 mod mask;
 mod unary_float;
+mod unary_int;
 mod unary_numeric;
 
 pub(crate) use binary::*;
@@ -15,6 +16,7 @@ pub use cast::*;
 pub use contiguous::*;
 pub use mask::*;
 pub(crate) use unary_float::*;
+pub(crate) use unary_int::*;
 pub(crate) use unary_numeric::*;
 
 pub use cubecl::{Kernel, PLANE_DIM_APPROX};
