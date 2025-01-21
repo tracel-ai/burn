@@ -1,3 +1,5 @@
+#![recursion_limit = "141"]
+
 pub fn start() {
     let port = std::env::var("REMOTE_BACKEND_PORT")
         .map(|port| match port.parse::<u16>() {
