@@ -116,7 +116,7 @@ impl<H: Clone> ContextOwned<H> {
     }
 }
 
-impl<'a, H: Clone> Context<'a, H> {
+impl<H: Clone> Context<'_, H> {
     /// Fork the context into an [owned context](ContextOwned).
     pub fn fork(&self) -> ContextOwned<H> {
         ContextOwned {

@@ -37,7 +37,7 @@ impl<H: Clone> HandleContainer<H> {
 
         Self {
             handles,
-            counter: self.counter.clone(),
+            counter: self.counter,
             handles_orphan: self.handles_orphan.clone(),
         }
     }
