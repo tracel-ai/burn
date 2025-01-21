@@ -99,7 +99,7 @@ fn im2col_kernel<F: Float>(
 
 #[cfg(not(test))]
 pub(crate) fn batches_per_run(batch_size: usize, out_h: usize, out_w: usize) -> Option<usize> {
-    let cube_count_per_batch = (out_h * out_w).div_ceil(cubecl::PLANE_DIM_APPROX);
+    let cube_count_per_batch = (out_h * out_w).div_ceil(burn_common::PLANE_DIM_APPROX);
     let max_cube_count = u16::MAX as usize;
     let max_simultaneous = (max_cube_count / cube_count_per_batch).min(batch_size);
     if max_simultaneous == 0 {
