@@ -12,7 +12,9 @@ use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::{MatmulSelector, StandardSelector};
+use cubecl::linalg::matmul::kernels::matmul::{
+    MatmulSelector, PipelinedSelector, SpecializedSelector, StandardSelector,
+};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};
@@ -349,15 +351,43 @@ impl FusedMatmul {
             }
         };
 
-        match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
-            client,
-            FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-            outputs,
-            problem,
-            plane_size,
-        ) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(FusedMatmulError::LaunchError(err)),
+        match self.selector {
+            FusedMatmulSelector::Standard => {
+                match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::Pipelined => {
+                match matmul_launch_kernel::<R, EG, PipelinedSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::Specialized => {
+                match matmul_launch_kernel::<R, EG, SpecializedSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
         }
     }
 }
