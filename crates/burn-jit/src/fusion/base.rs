@@ -125,20 +125,16 @@ impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        let mut optimizations: Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> =
-            vec![Box::new(ElementWiseBuilder::<R>::new(
+        vec![
+            Box::new(ElementWiseBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
-            ))];
-
-        if cfg!(feature = "fusion-experimental") {
-            optimizations.push(Box::new(MatmulBuilder::<R>::new(
+            )),
+            Box::new(MatmulBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
-            )));
-        }
-
-        optimizations
+            )),
+        ]
     }
 }
 
