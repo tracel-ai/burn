@@ -68,7 +68,7 @@ We are using ndarray, so we just need to define the NdArray backend as usual
 use burn::{backend::NdArray, tensor::Tensor};
 
 type Backend = NdArray<f32>;
-type BackendDeice = <Backend as burn::tensor::backend::Backend>::Device;
+type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
 ```
 
 Then inside the `main` function add 
@@ -76,7 +76,7 @@ Then inside the `main` function add
 use your_model::Model;
 
 // Get a default device for the backend
-let device = BackendDeice::default();
+let device = BackendDevice::default();
 
 // Create a new model and load the state
 let model: Model<Backend> = Model::default();
