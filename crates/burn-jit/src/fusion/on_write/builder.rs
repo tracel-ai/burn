@@ -19,7 +19,8 @@ pub(crate) struct FuseOnWriteBuilder {
     builder: TryFuseBuilder,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
-    num_ops: usize,
+    pub(crate) num_ops: usize,
+    pub(crate) num_reshapes: usize,
     max_bindings: u32,
 }
 
@@ -38,19 +39,26 @@ impl TryFuseBuilder {
         }
     }
 
-    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder)) -> bool {
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder) -> bool) -> bool {
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
-            add_ops(&mut self.builder);
+
+            if !add_ops(&mut self.builder) {
+                return false;
+            }
             return true;
         }
 
         let mut cloned = self.builder.clone();
-        add_ops(&mut cloned);
+        if !add_ops(&mut cloned) {
+            return false;
+        }
+
         if cloned.estimate_bindings() > self.max_bindings {
             return false;
         }
+
         self.builder = cloned;
         true
     }
@@ -141,6 +149,7 @@ impl FuseOnWriteBuilder {
         Self {
             builder: TryFuseBuilder::new(max_bindings, bool_precision),
             num_ops: 0,
+            num_reshapes: 0,
             max_bindings,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
@@ -172,6 +181,28 @@ impl FuseOnWriteBuilder {
             BaseOperationDescription::Cast(desc) => self.register_unary_ops(desc, |input, out| {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
+            BaseOperationDescription::Reshape(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.builder.register(|build| {
+                    let input = match build.input_reshaped(&desc.input, &desc.out) {
+                        Some(val) => val,
+                        None => return false,
+                    };
+                    let out = build.output(&desc.out);
+
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
+                }) {
+                    self.num_reshapes += 1;
+                    true
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -302,7 +333,9 @@ impl FuseOnWriteBuilder {
                         lhs,
                         rhs,
                         out,
-                    })
+                    });
+
+                    true
                 })
             }
             NumericOperationDescription::MaskFill(desc) => {
@@ -321,7 +354,9 @@ impl FuseOnWriteBuilder {
                         lhs,
                         rhs,
                         out,
-                    })
+                    });
+
+                    true
                 })
             }
             NumericOperationDescription::Ones(desc) => {
@@ -336,7 +371,9 @@ impl FuseOnWriteBuilder {
                 self.builder.register(|build| {
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             NumericOperationDescription::Zeros(desc) => {
@@ -351,7 +388,9 @@ impl FuseOnWriteBuilder {
                 self.builder.register(|build| {
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             NumericOperationDescription::Full((desc, elem)) => {
@@ -363,7 +402,9 @@ impl FuseOnWriteBuilder {
                     let input = build.scalar(elem, desc.dtype);
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             _ => false,
@@ -383,7 +424,9 @@ impl FuseOnWriteBuilder {
             let rhs = build.input(&desc.rhs);
             let out = build.output(&desc.out);
 
-            build.register_operation(func(lhs, rhs, out))
+            build.register_operation(func(lhs, rhs, out));
+
+            true
         })
     }
 
@@ -398,7 +441,8 @@ impl FuseOnWriteBuilder {
         self.builder.register(|build| {
             let input = build.input(&desc.input);
             let out = build.output(&desc.out);
-            build.register_operation(func(input, out))
+            build.register_operation(func(input, out));
+            true
         })
     }
 
@@ -420,15 +464,40 @@ impl FuseOnWriteBuilder {
             let rhs = build.scalar(&desc.rhs, elem);
             let out = build.output(&desc.out);
 
-            build.register_operation(func(lhs, rhs, out))
+            build.register_operation(func(lhs, rhs, out));
+
+            true
         })
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
         if self.current_output_shape.is_empty() {
             self.current_output_shape.clone_from(&out.shape);
-        } else if self.current_output_shape != out.shape {
+            return true;
+        }
+
+        // Last axis should be equal.
+        if self.current_output_shape.last() != out.shape.last() {
             return false;
+        }
+
+        let rank = self.current_output_shape.len();
+
+        // Rank should be equal.
+        if rank != out.shape.len() {
+            return false;
+        }
+
+        for i in 0..(rank - 1) {
+            let curr = self.current_output_shape[i];
+            let new = out.shape[i];
+
+            // Broadcast is supported.
+            //
+            // 0 is the shape id for a global shape of 1.
+            if curr != new && new != 0 {
+                return false;
+            }
         }
 
         true

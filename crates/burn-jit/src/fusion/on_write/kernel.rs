@@ -550,9 +550,6 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
-            ElemwiseOp::Reshape { .. } => {
-                // Nothing to do.
-            }
             ElemwiseOp::ConditionalAssign {
                 cond,
                 lhs,

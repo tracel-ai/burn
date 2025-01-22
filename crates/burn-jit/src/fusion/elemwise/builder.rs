@@ -52,7 +52,9 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
     }
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {
-        self.builder.properties()
+        let mut props = self.builder.properties();
+        props.ready = props.ready && self.builder.num_ops > self.builder.num_reshapes;
+        props
     }
 
     fn len(&self) -> usize {

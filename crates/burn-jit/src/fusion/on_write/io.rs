@@ -32,20 +32,14 @@ pub fn read<C: CubePrimitive>(
             ElemwisePrecision::I8 => Line::cast_from(locals.l_i8.find(pos)),
             ElemwisePrecision::Bool => Line::cast_from(locals.l_bool.find(pos)),
         },
-        Arg::Scalar(pos, precision) => match comptime![precision] {
-            ElemwisePrecision::F32 => Line::cast_from(*inputs.s_f32.index(pos)),
-            ElemwisePrecision::F16 => Line::cast_from(*inputs.s_f16.index(pos)),
-            ElemwisePrecision::BF16 => Line::cast_from(*inputs.s_bf16.index(pos)),
-            ElemwisePrecision::U64 => Line::cast_from(*inputs.s_u64.index(pos)),
-            ElemwisePrecision::U32 => Line::cast_from(*inputs.s_u32.index(pos)),
-            ElemwisePrecision::U16 => Line::cast_from(*inputs.s_u16.index(pos)),
-            ElemwisePrecision::U8 => Line::cast_from(*inputs.s_u8.index(pos)),
-            ElemwisePrecision::I64 => Line::cast_from(*inputs.s_i64.index(pos)),
-            ElemwisePrecision::I32 => Line::cast_from(*inputs.s_i32.index(pos)),
-            ElemwisePrecision::I16 => Line::cast_from(*inputs.s_i16.index(pos)),
-            ElemwisePrecision::I8 => Line::cast_from(*inputs.s_i8.index(pos)),
-            _ => comptime![panic!("Unsupported precision {precision:?}")],
-        },
+        Arg::Scalar(..) => {
+            let scalar = read_scalar::<C>(inputs, arg);
+            Line::new(scalar)
+        }
+        Arg::ScalarShape(_) => {
+            let scalar = read_scalar_shape(inputs, arg);
+            Line::cast_from(scalar)
+        }
         Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
         Arg::InputReshaped {
             original, shape, ..
@@ -83,6 +77,17 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         _ => comptime![panic!("Not a scalar")],
+    }
+}
+
+#[cube]
+pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
+    match arg {
+        Arg::ScalarShape(pos) => {
+            let offset = comptime![inputs.s_u32.len() - pos - 1];
+            *inputs.s_u32.index(offset)
+        }
+        _ => comptime![panic!["Not a scalar shape"]],
     }
 }
 
@@ -767,12 +772,15 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     let offset_ref = offset_layout * tensor.line_size();
     let mut offset = 0u32;
 
-    #[unroll]
+    // Need to unroll when fusing a reshape.
+    let unroll = comptime![shape.is_some()];
+
+    #[unroll(unroll)]
     for i in dim_start..dim_end {
         let shape_i = match comptime![shape.clone()] {
             Some(s) => {
                 let arg = comptime![s.index(i.clone())];
-                read_scalar::<u32>(inputs, comptime![arg.clone()])
+                read_scalar_shape(inputs, comptime![arg.clone()])
             }
             None => tensor.shape(i),
         };

@@ -11,10 +11,10 @@ pub enum Arg {
     Local(u32, ElemwisePrecision),
     Output(u32, ElemwisePrecision, LayoutInfo),
     Scalar(u32, ElemwisePrecision),
+    ScalarShape(u32),
     /// Only constant that can be encoded into an u32 can be used as literal.
     Literal(u32, ElemwisePrecision),
     InputReshaped {
-        id: u32,
         original: Box<Arg>,
         shape: Sequence<Arg>,
     },
@@ -39,6 +39,7 @@ impl Arg {
             Arg::Output(_, p, _) => p,
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
+            Arg::ScalarShape(_) => return ElemwisePrecision::U32,
             Arg::InputReshaped { original, .. } => return original.precision(),
         }
     }
@@ -88,11 +89,6 @@ pub enum ElemwiseOp {
         lhs: Arg,
         rhs: Arg,
         out: Arg,
-    },
-    Reshape {
-        input: Arg,
-        out: Arg,
-        shape: Sequence<Arg>,
     },
 }
 

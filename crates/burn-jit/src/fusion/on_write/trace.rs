@@ -19,6 +19,7 @@ pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
+    shapes: Vec<TensorDescription>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
@@ -493,6 +494,14 @@ impl FuseOnWriteTrace {
                     ElemwisePrecision::U8 => inputs.s_u8.push(ScalarArg::new(context.scalar_u8[i])),
                     ElemwisePrecision::Bool => todo!(),
                 }
+            }
+        }
+
+        for relative in self.shapes.iter().rev() {
+            let global = context.tensors.get(&relative.id).unwrap();
+
+            for shape in global.shape.iter().rev() {
+                inputs.s_u32.push(ScalarArg::new(*shape as u32))
             }
         }
 

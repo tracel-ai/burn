@@ -6,6 +6,7 @@ use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Element,
 };
+use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
@@ -14,6 +15,7 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
+    shapes: Vec<TensorDescription>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, ElemwiseOp>,
     pub bool_precision: ElemwisePrecision,
@@ -28,6 +30,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
+            shapes: Vec::default(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
@@ -130,6 +133,65 @@ impl FuseOnWriteTraceBuilder {
         }
     }
 
+    pub fn input_reshaped(
+        &mut self,
+        tensor: &TensorDescription,
+        output: &TensorDescription,
+    ) -> Option<Arg> {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+
+        match self.locals.get(precision, tensor.id) {
+            // Can't fused an already fused input.
+            //
+            // TODO: Can fuse one that is in global memory.
+            Some(_) => {
+                if self.outputs.get(precision_input, tensor.id).is_some() {
+                    return None;
+                }
+
+                // self.inputs.update(precision_input, tensor);
+                None
+            }
+            None => {
+                let new_input = self.inputs.insert(precision_input, tensor.clone());
+                let out = self.locals.create(precision, tensor.id);
+                let original = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
+
+                let mut shape = Sequence::new();
+
+                let index = self.shapes.len();
+                self.shapes.push(output.clone());
+                let rank = output.shape.len();
+
+                for i in 0..output.shape.len() {
+                    let id = index * rank + i;
+                    shape.push(Arg::ScalarShape(id as u32));
+                }
+
+                let input = Arg::InputReshaped {
+                    original: Box::new(original),
+                    shape,
+                };
+
+                self.reads.insert(
+                    tensor.id,
+                    ElemwiseOp::Assign(UnaryElemwiseArgs {
+                        input,
+                        out: out.clone(),
+                    }),
+                );
+
+                Some(out)
+            }
+        }
+    }
+
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
 
@@ -168,11 +230,14 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
+        let shapes = self.shapes.clone();
+
         // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace::new(
             outputs,
             inputs,
             scalars,
+            shapes,
             ops,
             reads,
             writes,
@@ -334,10 +399,6 @@ impl FuseOnWriteTraceBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
-            ElemwiseOp::Reshape { input, out, .. } => {
-                mark(input, &mut local_tensor_ids_input);
-                mark(out, &mut local_tensor_ids_output);
-            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
