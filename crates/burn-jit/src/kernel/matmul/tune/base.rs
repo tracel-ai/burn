@@ -1,10 +1,7 @@
 use burn_tensor::{Element, ElementConversion};
 use cubecl::{
-    ir::{Elem, FloatKind},
     linalg::matmul::{kernels::tiling2d::Tiling2dConfig, Strategy},
-    tune,
-    tune::{local_tuner, tune_with, LocalTuner},
-    Feature,
+    tune::{local_tuner, LocalTuner, TunableSet},
 };
 
 use crate::{
@@ -18,44 +15,19 @@ use crate::{
 
 use super::key::create_key;
 
-#[tune(
-    operations(matmul_tiling2d, matmul_accelerated, matmul_simple),
-    create_key = create_key::<R, E>,
-    should_run = should_run
-)]
-fn matmul_ops<R: JitRuntime, E: FloatElement>(
-    key: JitAutotuneKey,
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: JitTensor<R>,
-) {
+fn matmul_input_gen<R: JitRuntime, E: FloatElement>(
+    _key: &JitAutotuneKey,
+    lhs: &JitTensor<R>,
+    rhs: &JitTensor<R>,
+    out: &JitTensor<R>,
+) -> (JitTensor<R>, JitTensor<R>, JitTensor<R>) {
     let random_bounds: (E, E) = ((-10.0).elem::<E>(), (10.0).elem::<E>());
     let lhs = random_like_uniform(lhs, random_bounds.0, random_bounds.1);
     let rhs = random_like_uniform(rhs, random_bounds.0, random_bounds.1);
 
     let out = empty_device::<R, E>(out.client.clone(), out.device.clone(), out.shape.clone());
 
-    tune_with!(lhs, rhs, out)
-}
-
-fn should_run<R: JitRuntime, E: FloatElement>(
-    op: &MatmulOps<R, E>,
-    _key: &JitAutotuneKey,
-    index: usize,
-) -> bool {
-    match index {
-        // Accelerated
-        // TODO: Add way to query actual requirements from cubecl
-        1 => op.lhs.client.properties().feature_enabled(Feature::Cmma {
-            a: Elem::Float(FloatKind::F16),
-            b: Elem::Float(FloatKind::F16),
-            c: Elem::Float(FloatKind::F32),
-            m: 16,
-            k: 16,
-            n: 16,
-        }),
-        _ => true,
-    }
+    (lhs, rhs, out)
 }
 
 /// Executes autotune on matmul operations
@@ -70,10 +42,16 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
+    let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
+        .with_tunable(matmul_tiling2d::<R, E>)
+        .with_tunable(matmul_accelerated::<R, E>)
+        .with_tunable(matmul_simple::<R, E>);
+
     TUNER.execute(
         &JitTuneId::new::<R>(&lhs.device),
         &client,
-        Box::new(MatmulOps::<R, E>::new(lhs, rhs, output.clone())),
+        &tunables,
+        (lhs, rhs, output.clone()),
     );
 
     output

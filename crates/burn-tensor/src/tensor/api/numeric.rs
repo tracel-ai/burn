@@ -2034,6 +2034,103 @@ where
         // Assign the original tensor data to the appropriate slice of the padded tensor
         padded_tensor.slice_assign(ranges, self)
     }
+    /// Create a one hot tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>(){
+    ///     let device = Default::default();
+    ///     let indices: Tensor<B, 1> = Tensor::from_floats([0.0, 1.0, 2.0, 3.0], &device);
+    ///     let one_hot: Tensor<B, 2> = indices.one_hot(4);
+    ///     println!("{}", one_hot.to_data());
+    ///     // [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]]
+    /// }
+    /// ```
+    pub fn one_hot<const D2: usize>(self, num_classes: usize) -> Tensor<B, D2, K> {
+        check!(TensorCheck::one_hot_tensor(self.clone(), num_classes));
+        self.one_hot_fill(num_classes, 1.0, 0.0, -1)
+    }
+
+    /// Create a one-hot encoded tensor with configurable `num_classes`, `on_value`, `off_value`, and `axis` including high-ranked tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_classes`: The number of classes for the one-hot encoding, which defines the size of the one-hot dimension.
+    /// * `on_value`: The value to assign for active positions (corresponding to indices).
+    /// * `off_value`: The value to assign for inactive positions.
+    /// * `axis`: The axis along which the one-hot dimension is added. Supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with one additional dimension for the one-hot encoding, where active positions are filled with `on_value` and others with `off_value`.
+    ///
+    /// # Example
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Float};
+    /// fn example<B: Backend<FloatElem: From<f32>>>() {
+    ///     let device = B::Device::default();
+    ///     let indices: Tensor<B, 2, Float> = Tensor::from_floats([[0., 2.], [1., -1.]], &device);
+    ///     // One-hot encoding
+    ///     let tensor:Tensor<B, 3, Float> = indices.one_hot_fill(3, 5.0.into(), 0.0.into(), -1);
+    ///     println!("{tensor}");
+    ///     // [[[5.0, 0.0, 0.0],
+    ///     // [0.0, 0.0, 5.0]],
+    ///     // [[0.0, 5.0, 0.0],
+    ///     // [0.0, 0.0, 5.0]]]
+    /// }
+    /// ```
+    pub fn one_hot_fill<const D2: usize>(
+        self,
+        num_classes: usize,
+        on_value: f32,
+        off_value: f32,
+        axis: i64,
+    ) -> Tensor<B, D2, K> {
+        check!(TensorCheck::one_hot_tensor_rank::<D, D2>());
+        // Initialize shape from the current tensor dimensions and prepare for modification
+        let mut shape = self.shape().dims::<D>().to_vec();
+        let device = self.device();
+        let rank = self.dims().len();
+
+        // Adjust negative axis to a positive index
+        let axis = if axis < 0 {
+            axis + rank as i64 + 1
+        } else {
+            axis
+        };
+
+        // Ensure axis is within valid range
+        if axis < 0 || axis > rank as i64 {
+            panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
+        }
+        // Convert the input tensor to integer indices
+        let indices: Tensor<B, D, Int> =
+            Tensor::from_data(self.to_data().convert::<i64>(), &device);
+        // Insert the new dimension for the one-hot representation
+        shape.insert(axis as usize, num_classes);
+        // Adjust indices to valid range and handle invalid indices
+        let adjusted_indices = indices
+            .clone()
+            .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
+            .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
+                                                                              // Unsqueeze the indices tensor along the specified axis
+        let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
+
+        // Initialize the output tensor with the off_value
+        let output = Tensor::full(shape.clone(), off_value, &device);
+
+        // Prepare scatter tensor for on_value and off_value adjustments
+        let scatter_on_values = Tensor::full(indices_unsqueezed.shape(), on_value, &device)
+            - Tensor::full(indices_unsqueezed.shape(), off_value, &self.device());
+
+        // Scatter on_value at the appropriate indices to create the one-hot representation
+        output.scatter(axis as usize, indices_unsqueezed, scatter_on_values)
+    }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is NaN.
     ///

@@ -1,9 +1,27 @@
+use core::fmt::Debug;
 use cubecl::{linalg::matmul::kernels::MatmulLaunchError, tune::AutotuneError};
 
-#[derive(Debug)]
 pub enum ConvLaunchError {
     Matmul(MatmulLaunchError),
+    Groups(usize),
     Unknown,
+}
+
+impl Debug for ConvLaunchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConvLaunchError::Matmul(err) => {
+                write!(f, "{err:?}")
+            }
+            ConvLaunchError::Groups(groups) => {
+                writeln!(
+                    f,
+                    "Unable to launch matmul because groups must be one, is actually {groups}",
+                )
+            }
+            ConvLaunchError::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl From<MatmulLaunchError> for ConvLaunchError {

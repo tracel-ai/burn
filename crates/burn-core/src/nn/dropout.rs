@@ -30,6 +30,12 @@ pub struct Dropout {
 impl DropoutConfig {
     /// Initialize a new [dropout](Dropout) module.
     pub fn init(&self) -> Dropout {
+        if self.prob < 0.0 || self.prob > 1.0 {
+            panic!(
+                "Dropout probability should be between 0 and 1, but got {}",
+                self.prob
+            );
+        }
         Dropout { prob: self.prob }
     }
 }
@@ -107,5 +113,12 @@ mod tests {
         let layer = config.init();
 
         assert_eq!(alloc::format!("{}", layer), "Dropout {prob: 0.5}");
+    }
+
+    #[test]
+    #[should_panic = "Dropout probability should be between 0 and 1,"]
+    fn dropout_prob_invalid() {
+        let config = DropoutConfig::new(-10.);
+        let _layer = config.init();
     }
 }

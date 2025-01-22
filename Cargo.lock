@@ -399,7 +399,7 @@ dependencies = [
 
 [[package]]
 name = "backend-comparison"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "arboard",
  "burn",
@@ -511,9 +511,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bitflags"
-version = "2.7.0"
+version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1be3f42a67d6d345ecd59f675f3f012d6974981560836e938c22b424b85ce1be"
+checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 dependencies = [
  "serde",
 ]
@@ -617,7 +617,7 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "burn"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-core",
  "burn-train",
@@ -625,7 +625,7 @@ dependencies = [
 
 [[package]]
 name = "burn-autodiff"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -637,7 +637,7 @@ dependencies = [
 
 [[package]]
 name = "burn-candle"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-tch",
@@ -649,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "burn-common"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "cubecl-common",
  "dashmap",
@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "burn-core"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "ahash",
  "bincode",
@@ -702,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "burn-cuda"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-fusion",
  "burn-jit",
@@ -717,7 +717,7 @@ dependencies = [
 
 [[package]]
 name = "burn-dataset"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-common",
  "csv",
@@ -749,7 +749,7 @@ dependencies = [
 
 [[package]]
 name = "burn-derive"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "derive-new 0.7.0",
  "proc-macro2",
@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "burn-fusion"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-common",
  "burn-tensor",
@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "burn-hip"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-fusion",
  "burn-jit",
@@ -788,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "burn-import"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -814,7 +814,7 @@ dependencies = [
 
 [[package]]
 name = "burn-jit"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "burn-ndarray"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "atomic_float",
  "blas-src",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "burn-no-std-tests"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-ndarray",
@@ -869,12 +869,11 @@ dependencies = [
 
 [[package]]
 name = "burn-remote"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "async-channel",
  "axum",
  "burn-common",
- "burn-remote",
  "burn-router",
  "burn-tensor",
  "derive-new 0.7.0",
@@ -891,7 +890,7 @@ dependencies = [
 
 [[package]]
 name = "burn-router"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
@@ -905,7 +904,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tch"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-tensor",
@@ -918,7 +917,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "bincode",
  "burn-common",
@@ -939,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "burn-tensor-testgen"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -947,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "burn-train"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "async-channel",
  "burn-core",
@@ -967,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "burn-wgpu"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn-fusion",
  "burn-jit",
@@ -1143,12 +1142,6 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
-
-[[package]]
-name = "cfg_aliases"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "cfg_aliases"
@@ -1523,7 +1516,7 @@ version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "829d955a0bb380ef178a640b91779e3987da38c9aea133b20614cfed8cdea9c6"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "crossterm_winapi",
  "mio",
  "parking_lot 0.12.3",
@@ -1582,6 +1575,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1596,12 +1590,17 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
+ "bytemuck",
  "derive-new 0.6.0",
+ "derive_more 1.0.0",
  "embassy-futures",
  "futures-lite",
  "getrandom",
+ "half",
  "log",
+ "num-traits",
  "portable-atomic",
  "rand",
  "serde",
@@ -1612,9 +1611,12 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
+ "bitflags 2.8.0",
  "bytemuck",
  "cubecl-common",
+ "cubecl-ir",
  "cubecl-macros",
  "cubecl-runtime",
  "derive-new 0.6.0",
@@ -1630,6 +1632,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1643,6 +1646,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1658,6 +1662,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1681,8 +1686,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cubecl-ir"
+version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
+dependencies = [
+ "cubecl-common",
+ "float-ord",
+ "half",
+ "num-traits",
+ "serde",
+ "type_hash",
+]
+
+[[package]]
 name = "cubecl-linalg"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "bytemuck",
  "cubecl-core",
@@ -1694,6 +1713,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1708,9 +1728,10 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "cubecl-common",
- "cubecl-core",
+ "cubecl-ir",
  "float-ord",
  "log",
  "num",
@@ -1723,6 +1744,7 @@ dependencies = [
 [[package]]
 name = "cubecl-reduce"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "cubecl-core",
  "cubecl-runtime",
@@ -1732,10 +1754,11 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "async-channel",
  "async-lock",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "cubecl-common",
  "derive-new 0.6.0",
  "dirs",
@@ -1746,13 +1769,16 @@ dependencies = [
  "serde",
  "serde_json",
  "spin",
+ "variadics_please",
  "wasm-bindgen-futures",
 ]
 
 [[package]]
 name = "cubecl-spirv"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
+ "bitflags 2.8.0",
  "cubecl-common",
  "cubecl-core",
  "cubecl-opt",
@@ -1765,12 +1791,13 @@ dependencies = [
 [[package]]
 name = "cubecl-wgpu"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c#dd0c2fa86bc58133cde596e13ddb1d7ad33ac44c"
 dependencies = [
  "ash",
  "async-channel",
  "bytemuck",
  "cfg-if",
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "cubecl-common",
  "cubecl-core",
  "cubecl-runtime",
@@ -1794,7 +1821,7 @@ dependencies = [
 
 [[package]]
 name = "custom-csv-dataset"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "csv",
@@ -1804,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "custom-cubecl-kernel"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-jit",
@@ -1817,7 +1844,7 @@ dependencies = [
 
 [[package]]
 name = "custom-image-dataset"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "flate2",
@@ -1826,7 +1853,7 @@ dependencies = [
 
 [[package]]
 name = "custom-renderer"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1838,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "custom-training-loop"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1850,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "custom-wgpu-kernel"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "bytemuck",
@@ -1911,9 +1938,9 @@ dependencies = [
 
 [[package]]
 name = "data-encoding"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8566979429cf69b49a5c740c60791108e86440e8be149bbea4fe54d2c32d6e2"
+checksum = "0e60eed09d8c01d3cee5b7d30acb059b76614c918fa0f992e0dd6eeb10daad6f"
 
 [[package]]
 name = "deflate64"
@@ -2813,16 +2840,16 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf760ebf69878d9fd8f110c89703d90ce35095324d1f1edcb595c63945ee757"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "ignore",
  "walkdir",
 ]
 
 [[package]]
 name = "glow"
-version = "0.14.2"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51fa363f025f5c111e03f13eda21162faeacb6911fe8caa0c0349f9cf0c4483"
+checksum = "c5e5ea60d70410161c8bf5da3fdfeaa1c72ed2c15f8bbb9d19fe3a4fad085f08"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -2845,7 +2872,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fbcd2dba93594b227a1f57ee09b8b9da8892c34d55aa332e034a228d0fe6a171"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "gpu-alloc-types",
 ]
 
@@ -2855,7 +2882,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98ff03b468aa837d70984d55f5d3f846f6ec31fe34bbb97c4f85219caeee1ca4"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
 ]
 
 [[package]]
@@ -2876,7 +2903,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcf29e94d6d243368b7a56caa16bc213e4f9f8ed38c4d9557069527b5d5281ca"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "gpu-descriptor-types",
  "hashbrown 0.15.2",
 ]
@@ -2887,12 +2914,12 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
 ]
 
 [[package]]
 name = "guide"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "log",
@@ -3392,7 +3419,7 @@ dependencies = [
 
 [[package]]
 name = "image-classification-web"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-candle",
@@ -3646,7 +3673,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "libc",
  "redox_syscall 0.5.8",
 ]
@@ -3698,9 +3725,9 @@ checksum = "9374ef4228402d4b7e403e5838cb880d9ee663314b0a900d5a6aabf0c213552e"
 
 [[package]]
 name = "log"
-version = "0.4.22"
+version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
+checksum = "04cbf5b083de1c7e0222a7a51dbfdba1cbe1c6ab0b15e29fff3f6c077fd9cd9f"
 
 [[package]]
 name = "loop9"
@@ -3868,7 +3895,7 @@ version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c43f73953f8cbe511f021b58f18c3ce1c3d1ae13fe953293e13345bf83217f25"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block",
  "core-graphics-types",
  "foreign-types 0.5.0",
@@ -3883,7 +3910,22 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ecfd3296f8c56b7c1f6fbac3c71cefa9d78ce009850c45000015f206dc7fa21"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
+ "block",
+ "core-graphics-types",
+ "foreign-types 0.5.0",
+ "log",
+ "objc",
+ "paste",
+]
+
+[[package]]
+name = "metal"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f569fb946490b5743ad69813cb19629130ce9374034abe31614a36402d18f99e"
+dependencies = [
+ "bitflags 2.8.0",
  "block",
  "core-graphics-types",
  "foreign-types 0.5.0",
@@ -3928,7 +3970,7 @@ dependencies = [
 
 [[package]]
 name = "mnist"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "log",
@@ -3937,7 +3979,7 @@ dependencies = [
 
 [[package]]
 name = "mnist-inference-web"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "console_error_panic_hook",
@@ -3949,7 +3991,7 @@ dependencies = [
 
 [[package]]
 name = "model"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "burn",
  "burn-import",
@@ -4000,28 +4042,29 @@ dependencies = [
 
 [[package]]
 name = "naga"
-version = "23.1.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "364f94bc34f61332abebe8cad6f6cd82a5b65cff22c828d05d0968911462ca4f"
+checksum = "e380993072e52eef724eddfcde0ed013b0c023c3f0417336ed041aa9f076994e"
 dependencies = [
  "arrayvec",
  "bit-set",
- "bitflags 2.7.0",
- "cfg_aliases 0.1.1",
+ "bitflags 2.8.0",
+ "cfg_aliases",
  "codespan-reporting",
  "hexf-parse",
  "indexmap",
  "log",
  "rustc-hash 1.1.0",
- "spirv",
+ "spirv 0.3.0+sdk-1.3.268.0",
+ "strum",
  "termcolor",
- "thiserror 1.0.69",
+ "thiserror 2.0.11",
  "unicode-xid",
 ]
 
 [[package]]
 name = "named-tensor"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "serde",
@@ -4293,7 +4336,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9bff0aa1d48904a1385ea2a8b97576fbdcbc9a3cfccd0d31fe978e1c4038c5"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "libloading",
  "nvml-wrapper-sys",
  "static_assertions",
@@ -4342,7 +4385,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4e89ad9e3d7d297152b17d39ed92cd50ca8063a89a9fa569046d41568891eff"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block2",
  "libc",
  "objc2",
@@ -4358,7 +4401,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "617fbf49e071c178c0b24c080767db52958f716d9eabdf0890523aeae54773ef"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block2",
  "objc2",
  "objc2-foundation",
@@ -4388,7 +4431,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee638a5da3799329310ad4cfa62fbf045d5f56e3ef5ba4149e7452dcf89d5a8"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block2",
  "libc",
  "objc2",
@@ -4400,7 +4443,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd0cba1276f6023976a406a14ffa85e1fdd19df6b0f737b063b95f6c8c7aadd6"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block2",
  "objc2",
  "objc2-foundation",
@@ -4412,7 +4455,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e42bee7bff906b14b167da2bac5efe6b6a07e6f7c0a21a7308d40c960242dc7a"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block2",
  "objc2",
  "objc2-foundation",
@@ -4497,7 +4540,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-inference"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-import",
@@ -4506,7 +4549,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-ir"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "bytemuck",
  "half",
@@ -4523,7 +4566,7 @@ dependencies = [
 
 [[package]]
 name = "onnx-tests"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-import",
@@ -4565,7 +4608,7 @@ version = "0.10.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6174bc48f102d208783c2c84bf931bb75927a617866870de8a4ea85597f871f5"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "cfg-if",
  "foreign-types 0.3.2",
  "libc",
@@ -4608,6 +4651,15 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "ordered-float"
+version = "4.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "os_info"
@@ -4913,7 +4965,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd5df9b55e614088a3270b06f8649dce76537c268d6b1ca4d9c37008b2be5949"
 dependencies = [
  "ahash",
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "bytemuck",
  "chrono",
  "chrono-tz",
@@ -4962,7 +5014,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea1b431ed816cba1120cff200f06b962748001bbb2e615ce53cfbbdf701cc136"
 dependencies = [
  "ahash",
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "hashbrown 0.15.2",
  "num-traits",
  "once_cell",
@@ -5054,7 +5106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a8ca74f42e7b47cad241b36b98d991cc7fbb51b8d0695a055eb937588d1f310"
 dependencies = [
  "ahash",
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "memchr",
  "once_cell",
  "polars-arrow",
@@ -5199,7 +5251,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23de436f33f4d1134c58f24e7059a221b957ec20730807e0ef0c80c8e4b3d06a"
 dependencies = [
  "ahash",
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "bytemuck",
  "bytes",
  "chrono",
@@ -5584,7 +5636,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-import"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-import",
@@ -5593,7 +5645,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-tests"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "burn-autodiff",
@@ -5672,7 +5724,7 @@ version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c40286217b4ba3a71d644d752e6a0b71f13f1b6a2c5311acfcbe0c2418ed904"
 dependencies = [
- "cfg_aliases 0.2.1",
+ "cfg_aliases",
  "libc",
  "once_cell",
  "socket2",
@@ -5763,7 +5815,7 @@ version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eabd94c2f37801c20583fc49dd5cd6b0ba68c716787c2dd6ed18571e1e63117b"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "cassowary",
  "compact_str",
  "crossterm",
@@ -5844,7 +5896,7 @@ version = "11.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ab240315c661615f2ee9f0f2cd32d5a7343a84d5ebcccb99d46e6637565e7b0"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
 ]
 
 [[package]]
@@ -5931,7 +5983,7 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03a862b389f93e68874fbf580b9de08dd02facb9a788ebadaf4a3fd33cf58834"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
 ]
 
 [[package]]
@@ -6121,12 +6173,11 @@ dependencies = [
 
 [[package]]
 name = "rspirv"
-version = "0.12.0+sdk-1.3.268.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69cf3a93856b6e5946537278df0d3075596371b1950ccff012f02b0f7eafec8d"
+version = "0.12.0+sdk-1.3.296.0"
+source = "git+https://github.com/gfx-rs/rspirv.git?rev=e19c11fdb30295127cff1d018189bd436892415e#e19c11fdb30295127cff1d018189bd436892415e"
 dependencies = [
  "rustc-hash 1.1.0",
- "spirv",
+ "spirv 0.3.0+sdk-1.3.296.0",
 ]
 
 [[package]]
@@ -6165,7 +6216,7 @@ version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "fallible-iterator",
  "fallible-streaming-iterator",
  "hashlink",
@@ -6216,7 +6267,7 @@ version = "0.38.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a78891ee6bf2340288408954ac787aa063d8e8817e9f53abb37c695c6d834ef6"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -6397,7 +6448,7 @@ version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "core-foundation 0.9.4",
  "core-foundation-sys",
  "libc",
@@ -6410,7 +6461,7 @@ version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271720403f46ca04f7ba6f55d438f8bd878d6b8ca0a1046e8228c4145bcbb316"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "core-foundation 0.10.0",
  "core-foundation-sys",
  "libc",
@@ -6481,9 +6532,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.135"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b0d7ba2887406110130a978386c4e1befb98c674b4fba677954e4db976630d9"
+checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
 dependencies = [
  "itoa",
  "memchr",
@@ -6559,7 +6610,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "cfg-if",
@@ -6672,7 +6723,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simple-regression"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "log",
@@ -6765,7 +6816,15 @@ version = "0.3.0+sdk-1.3.268.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eda41003dc44290527a59b13432d4a0379379fa074b70174882adfbdfd917844"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
+]
+
+[[package]]
+name = "spirv"
+version = "0.3.0+sdk-1.3.296.0"
+source = "git+https://github.com/gfx-rs/rspirv.git?rev=e19c11fdb30295127cff1d018189bd436892415e#e19c11fdb30295127cff1d018189bd436892415e"
+dependencies = [
+ "bitflags 2.8.0",
 ]
 
 [[package]]
@@ -6926,7 +6985,7 @@ version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec7dddc5f0fee506baf8b9fdb989e242f17e4b11c61dfbb0635b705217199eea"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "byteorder",
  "enum-as-inner",
  "libc",
@@ -6968,7 +7027,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "core-foundation 0.9.4",
  "system-configuration-sys",
 ]
@@ -7075,7 +7134,7 @@ dependencies = [
 
 [[package]]
 name = "text-classification"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "derive-new 0.7.0",
@@ -7085,7 +7144,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation"
-version = "0.16.0"
+version = "0.17.0"
 dependencies = [
  "burn",
  "derive-new 0.7.0",
@@ -7562,6 +7621,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "type_hash"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03c86f48f11992d3e379358c63cb25736c0b23944ff000d1583bbccad2b0b7c6"
+dependencies = [
+ "type_hash_core",
+ "type_hash_macros",
+]
+
+[[package]]
+name = "type_hash_core"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87b1e93e2cd97790892dbe2d2813fbaa6eebaeb960265f59e363e79e51e4997a"
+dependencies = [
+ "fnv",
+]
+
+[[package]]
+name = "type_hash_macros"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "746fc164e076483ef087b3989f7aa80ffd9320fa558f3cb72cecfb9bb1dbc41e"
+dependencies = [
+ "either",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7752,9 +7842,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.11.1"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b913a3b5fe84142e269d63cc62b64319ccaf89b748fc31fe025177f767a756c4"
+checksum = "744018581f9a3454a9e15beb8a33b017183f1e7c0cd170232a2d1453b23a51c4"
 dependencies = [
  "getrandom",
  "rand",
@@ -7787,6 +7877,17 @@ dependencies = [
  "halfbrown",
  "itoa",
  "ryu",
+]
+
+[[package]]
+name = "variadics_please"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b6d82be61465f97d42bd1d15bf20f3b0a3a0905018f38f9d6f6962055b0b5c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.96",
 ]
 
 [[package]]
@@ -7978,13 +8079,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "53a85b86a771b1c87058196170769dd264f66c0782acf1ae6cc51bfd64b39082"
 
 [[package]]
+name = "wgan"
+version = "0.1.0"
+dependencies = [
+ "burn",
+ "image",
+]
+
+[[package]]
 name = "wgpu"
-version = "23.0.1"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80f70000db37c469ea9d67defdc13024ddf9a5f1b89cb2941b812ad7cde1735a"
+checksum = "e41253fc7b660735e2a2d9a58c563f2a047d3cc3445293d8f4095538c9e8afbe"
 dependencies = [
  "arrayvec",
- "cfg_aliases 0.1.1",
+ "bitflags 2.8.0",
+ "cfg_aliases",
  "document-features",
  "js-sys",
  "log",
@@ -8004,14 +8114,14 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "23.0.1"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d63c3c478de8e7e01786479919c8769f62a22eec16788d8c2ac77ce2c132778a"
+checksum = "82a39b8842dc9ffcbe34346e3ab6d496b32a47f6497e119d762c97fcaae3cb37"
 dependencies = [
  "arrayvec",
  "bit-vec",
- "bitflags 2.7.0",
- "cfg_aliases 0.1.1",
+ "bitflags 2.8.0",
+ "cfg_aliases",
  "document-features",
  "indexmap",
  "log",
@@ -8022,25 +8132,25 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash 1.1.0",
  "smallvec",
- "thiserror 1.0.69",
+ "thiserror 2.0.11",
  "wgpu-hal",
  "wgpu-types",
 ]
 
 [[package]]
 name = "wgpu-hal"
-version = "23.0.1"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89364b8a0b211adc7b16aeaf1bd5ad4a919c1154b44c9ce27838213ba05fd821"
+checksum = "5a782e5056b060b0b4010881d1decddd059e44f2ecd01e2db2971b48ad3627e5"
 dependencies = [
  "android_system_properties",
  "arrayvec",
  "ash",
  "bit-set",
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "block",
  "bytemuck",
- "cfg_aliases 0.1.1",
+ "cfg_aliases",
  "core-graphics-types",
  "glow",
  "glutin_wgl_sys",
@@ -8052,11 +8162,12 @@ dependencies = [
  "libc",
  "libloading",
  "log",
- "metal 0.29.0",
+ "metal 0.31.0",
  "naga",
  "ndk-sys",
  "objc",
  "once_cell",
+ "ordered-float",
  "parking_lot 0.12.3",
  "profiling",
  "range-alloc",
@@ -8064,7 +8175,7 @@ dependencies = [
  "renderdoc-sys",
  "rustc-hash 1.1.0",
  "smallvec",
- "thiserror 1.0.69",
+ "thiserror 2.0.11",
  "wasm-bindgen",
  "web-sys",
  "wgpu-types",
@@ -8074,12 +8185,13 @@ dependencies = [
 
 [[package]]
 name = "wgpu-types"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "610f6ff27778148c31093f3b03abc4840f9636d58d597ca2f5977433acfe0068"
+checksum = "50ac044c0e76c03a0378e7786ac505d010a873665e2d51383dcff8dd227dc69c"
 dependencies = [
- "bitflags 2.7.0",
+ "bitflags 2.8.0",
  "js-sys",
+ "log",
  "web-sys",
 ]
 
@@ -8486,7 +8598,7 @@ checksum = "c5b940ebc25896e71dd073bad2dbaa2abfe97b0a391415e22ad1326d9c54e3c4"
 
 [[package]]
 name = "xtask"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "log",
  "rstest",

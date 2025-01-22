@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, Int, Shape, Tensor};
+use crate::{backend::Backend, BasicOps, Numeric, Shape, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -447,22 +447,8 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_index(index: usize, num_classes: usize) -> Self {
-        let mut check = Self::Ok;
-        if index >= num_classes {
-            check = check.register(
-                "One Hot",
-                TensorError::new(format!(
-                    "Can't create a one hot tensor with index ({index}) greater or equal to the number of classes ({num_classes})",
-                )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn one_hot_tensor<B: Backend>(
-        index_tensor: Tensor<B, 1, Int>,
+    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Numeric<B>>(
+        index_tensor: Tensor<B, D, K>,
         num_classes: usize,
     ) -> Self {
         let mut check = Self::Ok;
@@ -483,6 +469,20 @@ impl TensorCheck {
                 "One Hot",
                 TensorError::new("Can't create a one hot tensor with less then 2 classes"),
             )
+        }
+        check
+    }
+
+    pub(crate) fn one_hot_tensor_rank<const D: usize, const D2: usize>() -> Self {
+        let mut check = Self::Ok;
+        if D + 1 != D2 {
+            check = check.register(
+                "One Hot",
+                TensorError::new(
+                    "The one-hot tensor rank must correspond to the rank of the tensor + 1",
+                )
+                .details(format!("Expected D2={}, got {D2}", D + 1)),
+            );
         }
         check
     }
