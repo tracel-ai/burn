@@ -8,13 +8,13 @@ use burn_tensor::ops::{
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
     ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    GatherOperationDescription, IntOperationDescription, MaskFillOperationDescription,
-    MaskWhereOperationDescription, NumericOperationDescription, OperationDescription,
-    PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-    RepeatDimOperationDescription, ReshapeDescription, ScalarOperationDescription,
-    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-    SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
-    UnaryOperationDescription,
+    FromDataOperationDescription, GatherOperationDescription, IntOperationDescription,
+    MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
+    OperationDescription, PermuteOperationDescription, RandomOperationDescription,
+    ReduceDimWithIndicesDescription, RepeatDimOperationDescription, ReshapeDescription,
+    ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
+    SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+    SwapDimsDescription, UnaryOperationDescription,
 };
 use burn_tensor::{
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
@@ -45,7 +45,18 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(device);
-        client.register_tensor_data(data.convert::<<Self as Backend>::IntElem>())
+        let out = client.register_empty_tensor(data.shape.clone(), IntElem::<Self>::dtype());
+
+        let desc = FromDataOperationDescription {
+            data,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::BaseInt(
+            BaseOperationDescription::FromData(desc),
+        ));
+
+        out
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {

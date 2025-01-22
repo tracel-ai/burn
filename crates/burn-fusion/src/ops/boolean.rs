@@ -1,5 +1,6 @@
 use burn_tensor::{
     ops::{binary_ops_shape, FloatTensor, IntTensor},
+    repr::{FromDataOperationDescription, TensorDescription},
     DType, Element, TensorData,
 };
 use std::marker::PhantomData;
@@ -24,15 +25,32 @@ use burn_tensor::{
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::bool_empty(shape.clone(), device);
+        #[derive(new)]
+        struct EmptyOps<B: FusionBackend> {
+            desc: TensorDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::bool_tensor_handle(tensor),
-            shape.dims,
-            StreamId::current(),
-            DType::Bool,
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::bool_empty(Shape::from(&self.desc.shape), &self.device);
+                handles.register_bool_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), DType::Bool);
+
+        let desc = out.to_description_out();
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseBool(BaseOperationDescription::Empty(desc.clone())),
+            EmptyOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
@@ -40,16 +58,35 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_from_data(data: burn_tensor::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::bool_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        #[derive(new)]
+        struct FromDataOps<B: FusionBackend> {
+            desc: FromDataOperationDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::bool_tensor_handle(tensor),
-            shape.dims,
-            StreamId::current(),
-            DType::Bool,
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::bool_from_data(self.desc.data, &self.device);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(data.shape.clone(), DType::Bool);
+
+        let desc = FromDataOperationDescription {
+            out: out.to_description_out(),
+            data,
+        };
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseBool(BaseOperationDescription::FromData(desc.clone())),
+            FromDataOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

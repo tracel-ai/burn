@@ -16,16 +16,35 @@ use std::{marker::PhantomData, ops::Range};
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::float_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
+        #[derive(new)]
+        struct FromDataOps<B: FusionBackend> {
+            desc: FromDataOperationDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::float_tensor_handle(tensor),
-            shape.dims,
-            StreamId::current(),
-            B::FloatElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::float_from_data(self.desc.data, &self.device);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(data.shape.clone(), B::FloatElem::dtype());
+
+        let desc = FromDataOperationDescription {
+            out: out.to_description_out(),
+            data,
+        };
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::FromData(desc.clone())),
+            FromDataOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     fn float_random(
@@ -233,16 +252,32 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>) -> FloatTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let stream = StreamId::current();
-        let tensor = B::float_empty(shape.clone(), device);
+        #[derive(new)]
+        struct EmptyOps<B: FusionBackend> {
+            desc: TensorDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::float_tensor_handle(tensor),
-            shape.dims,
-            stream,
-            B::FloatElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::float_empty(Shape::from(&self.desc.shape), &self.device);
+                handles.register_float_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), B::FloatElem::dtype());
+
+        let desc = out.to_description_out();
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseFloat(BaseOperationDescription::Empty(desc.clone())),
+            EmptyOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     fn float_add(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
