@@ -438,6 +438,7 @@ impl FuseOnWriteTrace {
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
+            SequenceArg::new(),
         );
 
         for hi in handle_inputs.iter() {
@@ -504,6 +505,7 @@ impl FuseOnWriteTrace {
         vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
+            SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),

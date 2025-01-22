@@ -51,6 +51,7 @@ impl MatmulArgs for FusedMatmulArgs {
             LayoutInfo::IsRef,
             precision,
             &state.config,
+            None,
         )
     }
 
@@ -70,6 +71,7 @@ impl MatmulArgs for FusedMatmulArgs {
             LayoutInfo::IsRef,
             precision,
             &state.config,
+            None,
         )
     }
 
@@ -77,8 +79,8 @@ impl MatmulArgs for FusedMatmulArgs {
         let mut values = Registry::<Arg, Line<EG>>::new();
         let mut args = comptime![Sequence::<Arg>::new()];
 
-        values.insert(state.out, value);
-        comptime![args.push(state.out)];
+        values.insert(comptime![state.out.clone()], value);
+        comptime![args.push(state.out.clone())];
 
         fuse_on_write(
             unsafe { &(*state.inputs) },
@@ -225,9 +227,9 @@ impl FusedMatmulState {
             inputs: &inputs.global,
             outputs,
             config: comptime![config.clone()],
-            lhs: comptime![inputs.lhs],
-            rhs: comptime![inputs.rhs],
-            out: comptime![inputs.out],
+            lhs: comptime![inputs.lhs.clone()],
+            rhs: comptime![inputs.rhs.clone()],
+            out: comptime![inputs.out.clone()],
         }
     }
 }

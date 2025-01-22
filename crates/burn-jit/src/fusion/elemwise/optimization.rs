@@ -141,7 +141,7 @@ fn elemwise_fuse(
     let args = comptime![Sequence::<Arg>::new()];
     let pos = ABSOLUTE_POS;
 
-    let length = match comptime![config.ref_layout] {
+    let length = match comptime![config.ref_layout.clone()] {
         Arg::Input(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
             ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),

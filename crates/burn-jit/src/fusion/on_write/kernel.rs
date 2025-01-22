@@ -33,8 +33,8 @@ pub fn fuse_on_write<E: CubePrimitive>(
     // Write the values given as arguments.
     #[unroll]
     for i in 0..write_args.len() {
-        let arg = comptime![*write_args.index(i)];
-        let val = write_values.find(arg);
+        let arg = comptime![write_args.index(i).clone()];
+        let val = write_values.find(comptime![arg.clone()]);
 
         write::<E>(inputs, outputs, &mut locals, write_pos, val, arg, config);
     }
@@ -550,6 +550,9 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 }
                 _ => comptime![panic!("Unsupported precision {op:?}")],
             },
+            ElemwiseOp::Reshape { .. } => {
+                // Nothing to do.
+            }
             ElemwiseOp::ConditionalAssign {
                 cond,
                 lhs,
@@ -677,7 +680,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                     out,
                     config,
                 ),
-                _ => comptime![panic!("Unsupported precision {op:?}")],
+                _ => comptime![panic!("Unsupported precision")],
             },
         }
     }

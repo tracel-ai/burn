@@ -4,7 +4,7 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
 pub enum Arg {
     Input(u32, ElemwisePrecision, LayoutInfo),
@@ -13,11 +13,14 @@ pub enum Arg {
     Scalar(u32, ElemwisePrecision),
     /// Only constant that can be encoded into an u32 can be used as literal.
     Literal(u32, ElemwisePrecision),
+    InputReshaped {
+        id: u32,
+        original: Box<Arg>,
+        shape: Sequence<Arg>,
+    },
 }
 
-#[derive(
-    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Layout information.
 pub enum LayoutInfo {
     /// The layout if the same as the reference.
@@ -36,6 +39,7 @@ impl Arg {
             Arg::Output(_, p, _) => p,
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
+            Arg::InputReshaped { original, .. } => return original.precision(),
         }
     }
 }
@@ -85,6 +89,19 @@ pub enum ElemwiseOp {
         rhs: Arg,
         out: Arg,
     },
+    Reshape {
+        input: Arg,
+        out: Arg,
+        shape: Sequence<Arg>,
+    },
+}
+
+#[derive(CubeLaunch)]
+pub struct ReshapedTensor {
+    #[cube(comptime)]
+    original: Arg,
+    #[cube(comptime)]
+    shape: Sequence<Arg>,
 }
 
 #[derive(CubeLaunch)]
@@ -112,6 +129,7 @@ pub struct GlobalArgs {
     pub s_u32: Sequence<u32>,
     pub s_u16: Sequence<u16>,
     pub s_u8: Sequence<u8>,
+    pub t_reshaped: Sequence<ReshapedTensor>,
 }
 
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {

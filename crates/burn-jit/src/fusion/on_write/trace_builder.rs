@@ -54,7 +54,7 @@ impl FuseOnWriteTraceBuilder {
 
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         let arg = self.output(tensor);
-        self.outputs_unhandled.push(arg);
+        self.outputs_unhandled.push(arg.clone());
         arg
     }
 
@@ -98,7 +98,10 @@ impl FuseOnWriteTraceBuilder {
 
                 self.reads.insert(
                     tensor.id,
-                    ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }),
+                    ElemwiseOp::Assign(UnaryElemwiseArgs {
+                        input,
+                        out: out.clone(),
+                    }),
                 );
 
                 out
@@ -331,6 +334,10 @@ impl FuseOnWriteTraceBuilder {
                 &mut local_tensor_ids_input,
                 &mut local_tensor_ids_output,
             ),
+            ElemwiseOp::Reshape { input, out, .. } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(out, &mut local_tensor_ids_output);
+            }
         };
 
         // For all operators, mark their local tensor id in the proper set.
