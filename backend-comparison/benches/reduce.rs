@@ -18,6 +18,7 @@ struct ReduceBenchmark<B: Backend> {
 impl<B: Backend> ReduceBenchmark<B> {
     pub fn new(instruction: Instruction, device: B::Device) -> Self {
         let shape = Shape::new([4096, 512, 64]);
+        // let shape = Shape::new([128, 128, 64]);
         let tensor = Tensor::random(shape.clone(), Distribution::Default, &device);
         Self {
             instruction,

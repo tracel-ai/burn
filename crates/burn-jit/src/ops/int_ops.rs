@@ -193,7 +193,7 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I, reduce::Sum>(tensor, Default::default()).unwrap()
+        reduce::sum::<R, I>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
