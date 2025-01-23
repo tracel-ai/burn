@@ -12,7 +12,9 @@ use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::{MatmulSelector, StandardSelector};
+use cubecl::linalg::matmul::kernels::matmul::{
+    MatmulSelector, PipelinedSelector, SpecializedSelector, StandardSelector,
+};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};
@@ -26,16 +28,18 @@ use crate::fusion::on_write::{
 
 use super::args::FusedMatmulInputLaunch;
 use super::spec::FusedMatmulSpec;
+use super::tune::fused_matmul_autotune;
 
-#[derive(new)]
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: JitRuntime> {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
-    client: ComputeClient<R::Server, R::Channel>,
-    device: R::Device,
-    len: usize,
-    matmul: FusedMatmul,
+    pub(crate) client: ComputeClient<R::Server, R::Channel>,
+    pub(crate) device: R::Device,
+    pub(crate) len: usize,
+    pub(crate) matmul_standard: FusedMatmul,
+    pub(crate) matmul_pipelined: FusedMatmul,
+    pub(crate) matmul_specialized: FusedMatmul,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -43,13 +47,46 @@ pub struct MatmulOptimization<R: JitRuntime> {
 pub struct MatmulOptimizationState {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
-    matmul: FusedMatmul,
+    matmul_standard: FusedMatmul,
+    matmul_pipelined: FusedMatmul,
+    matmul_specialized: FusedMatmul,
     len: usize,
 }
 
 impl<R: JitRuntime> MatmulOptimization<R> {
+    pub fn new(
+        trace: FuseOnWriteTrace,
+        trace_fallback: FuseOnWriteTrace,
+        client: ComputeClient<R::Server, R::Channel>,
+        device: R::Device,
+        len: usize,
+        matmul: FusedMatmul,
+    ) -> Self {
+        let mut matmul_standard = matmul.clone();
+        let mut matmul_specialized = matmul.clone();
+        let mut matmul_pipelined = matmul;
+
+        matmul_standard.selector = FusedMatmulSelector::Standard;
+        matmul_specialized.selector = FusedMatmulSelector::Specialized;
+        matmul_pipelined.selector = FusedMatmulSelector::Pipelined;
+
+        Self {
+            trace,
+            trace_fallback,
+            client,
+            device,
+            len,
+            matmul_standard,
+            matmul_pipelined,
+            matmul_specialized,
+        }
+    }
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+        #[cfg(feature = "autotune")]
+        fused_matmul_autotune::<R, BT>(self, context);
+
+        #[cfg(not(feature = "autotune"))]
         if self.execute_fused::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
@@ -68,7 +105,9 @@ impl<R: JitRuntime> MatmulOptimization<R> {
             len: state.len,
             client: R::client(device),
             device: device.clone(),
-            matmul: state.matmul.clone(),
+            matmul_standard: state.matmul_standard.clone(),
+            matmul_specialized: state.matmul_specialized.clone(),
+            matmul_pipelined: state.matmul_pipelined.clone(),
         }
     }
 
@@ -77,21 +116,51 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         MatmulOptimizationState {
             trace: self.trace.clone(),
             trace_fallback: self.trace_fallback.clone(),
-            matmul: self.matmul.clone(),
+            matmul_standard: self.matmul_standard.clone(),
+            matmul_specialized: self.matmul_specialized.clone(),
+            matmul_pipelined: self.matmul_pipelined.clone(),
             len: self.len,
         }
     }
 
-    fn execute_fused<BT: BoolElement>(
-        &mut self,
+    pub fn execute_standard_fused<BT: BoolElement>(
+        &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
-        self.trace
-            .run::<R, BT, FusedMatmul>(&self.client, &self.device, context, &self.matmul)
+        self.trace.run::<R, BT, FusedMatmul>(
+            &self.client,
+            &self.device,
+            context,
+            &self.matmul_standard,
+        )
     }
 
-    fn execute_fallback<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        match self.matmul.lhs.precision() {
+    pub fn execute_specialized_fused<BT: BoolElement>(
+        &self,
+        context: &mut Context<'_, JitFusionHandle<R>>,
+    ) -> Result<(), FusedMatmulError> {
+        self.trace.run::<R, BT, FusedMatmul>(
+            &self.client,
+            &self.device,
+            context,
+            &self.matmul_specialized,
+        )
+    }
+
+    pub fn execute_pipelined_fused<BT: BoolElement>(
+        &self,
+        context: &mut Context<'_, JitFusionHandle<R>>,
+    ) -> Result<(), FusedMatmulError> {
+        self.trace.run::<R, BT, FusedMatmul>(
+            &self.client,
+            &self.device,
+            context,
+            &self.matmul_pipelined,
+        )
+    }
+
+    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, JitFusionHandle<R>>) {
+        match self.matmul_standard.lhs.precision() {
             ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
             ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
             ElemwisePrecision::BF16 => self.run_fallback::<BT, bf16>(context),
@@ -100,13 +169,25 @@ impl<R: JitRuntime> MatmulOptimization<R> {
     }
 
     fn run_fallback<BT: BoolElement, EG: FloatElement>(
-        &mut self,
+        &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
     ) {
         let (out_tensor, out_desc) = {
-            let lhs = context.tensors.get(&self.matmul.op.lhs.id).unwrap().clone();
-            let rhs = context.tensors.get(&self.matmul.op.rhs.id).unwrap().clone();
-            let out = context.tensors.get(&self.matmul.op.out.id).unwrap().clone();
+            let lhs = context
+                .tensors
+                .get(&self.matmul_standard.op.lhs.id)
+                .unwrap()
+                .clone();
+            let rhs = context
+                .tensors
+                .get(&self.matmul_standard.op.rhs.id)
+                .unwrap()
+                .clone();
+            let out = context
+                .tensors
+                .get(&self.matmul_standard.op.out.id)
+                .unwrap()
+                .clone();
 
             let lhs_handle = context.handles.get_handle(&lhs.id, &TensorStatus::ReadOnly);
             let rhs_handle = context.handles.get_handle(&rhs.id, &TensorStatus::ReadOnly);
@@ -136,12 +217,21 @@ impl<R: JitRuntime> MatmulOptimization<R> {
     }
 }
 
+#[derive(Default, Clone, Serialize, Deserialize, Debug)]
+pub enum FusedMatmulSelector {
+    #[default]
+    Standard,
+    Pipelined,
+    Specialized,
+}
+
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
 pub struct FusedMatmul {
     lhs: Arg,
     rhs: Arg,
     out: Arg,
-    op: BinaryOperationDescription,
+    pub(crate) op: BinaryOperationDescription,
+    pub(crate) selector: FusedMatmulSelector,
 }
 
 #[derive(Debug)]
@@ -261,15 +351,43 @@ impl FusedMatmul {
             }
         };
 
-        match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
-            client,
-            FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
-            outputs,
-            problem,
-            plane_size,
-        ) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(FusedMatmulError::LaunchError(err)),
+        match self.selector {
+            FusedMatmulSelector::Standard => {
+                match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::Pipelined => {
+                match matmul_launch_kernel::<R, EG, PipelinedSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::Specialized => {
+                match matmul_launch_kernel::<R, EG, SpecializedSelector<Accelerated>>(
+                    client,
+                    FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
+                    outputs,
+                    problem,
+                    plane_size,
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
         }
     }
 }

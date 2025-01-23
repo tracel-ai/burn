@@ -26,6 +26,23 @@ pub struct HandleContainer<H> {
     pub handles_orphan: Vec<TensorId>,
 }
 
+impl<H: Clone> HandleContainer<H> {
+    /// Fork the container, useful for autotune.
+    pub fn fork(&self) -> Self {
+        let mut handles = HashMap::with_capacity(self.handles.len());
+
+        for (id, handle) in self.handles.iter() {
+            handles.insert(*id, handle.clone());
+        }
+
+        Self {
+            handles,
+            counter: self.counter,
+            handles_orphan: self.handles_orphan.clone(),
+        }
+    }
+}
+
 impl<H> core::fmt::Debug for HandleContainer<H> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("HandleContainer")
@@ -37,6 +54,7 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
 }
 
 /// Backend [tensor handle](ReprBackend::Handle) wrapper tracking their creation state
+#[derive(Clone)]
 pub enum Handle<H> {
     /// No [tensor handle](ReprBackend::Handle) has been created yet
     NotInit,
