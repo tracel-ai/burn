@@ -68,10 +68,19 @@ pub fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::redu
     mut tensor: JitTensor<Run>,
     strategy: ReduceStrategy,
 ) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
-    for axis in 0..tensor.shape.num_dims() {
+    // In practice, it looks like starting by the axis with the smallest shape
+    // and going in increasing order lead to the fastest calculation.
+    let sorted_axis = argsort(&tensor.shape.dims);
+    for axis in sorted_axis {
         tensor = reduce_dim::<Run, In, Out, Rd>(tensor, axis, strategy)?;
     }
     Ok(tensor)
+}
+
+fn argsort(shape: &[usize]) -> Vec<usize> {
+    let mut indices = (0..shape.len()).collect::<Vec<_>>();
+    indices.sort_by_key(|&i| &shape[i]);
+    indices
 }
 
 /// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
