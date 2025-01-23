@@ -75,7 +75,7 @@ pub enum OperationDescription {
     /// Operation specific to a bool tensor.
     Bool(BoolOperationDescription),
     /// Operation specific to an int tensor.
-    Int(DType, IntOperationDescription<i32>),
+    Int(DType, IntOperationDescription),
     /// Operation specific to a float tensor.
     Float(DType, FloatOperationDescription),
     /// Module operation.
@@ -517,7 +517,7 @@ pub enum NumericOperationDescription<E> {
 
 /// Operation description specific to an int tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum IntOperationDescription<E> {
+pub enum IntOperationDescription {
     /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOperationDescription),
     /// Operation corresponding to:
@@ -527,7 +527,7 @@ pub enum IntOperationDescription<E> {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise and scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
-    BitwiseAndScalar(ScalarOperationDescription<E>),
+    BitwiseAndScalar(ScalarOperationDescription<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or](crate::ops::IntTensorOps::bitwise_or).
@@ -535,7 +535,7 @@ pub enum IntOperationDescription<E> {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or scalar](crate::ops::IntTensorOps::bitwise_or_scalar).
-    BitwiseOrScalar(ScalarOperationDescription<E>),
+    BitwiseOrScalar(ScalarOperationDescription<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor](crate::ops::IntTensorOps::bitwise_xor).
@@ -543,7 +543,7 @@ pub enum IntOperationDescription<E> {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor scalar](crate::ops::IntTensorOps::bitwise_xor_scalar).
-    BitwiseXorScalar(ScalarOperationDescription<E>),
+    BitwiseXorScalar(ScalarOperationDescription<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise not](crate::ops::IntTensorOps::bitwise_not).
@@ -555,7 +555,7 @@ pub enum IntOperationDescription<E> {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise left shift scalar](crate::ops::IntTensorOps::bitwise_left_shift_scalar).
-    BitwiseLeftShiftScalar(ScalarOperationDescription<E>),
+    BitwiseLeftShiftScalar(ScalarOperationDescription<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift](crate::ops::IntTensorOps::bitwise_right_shift).
@@ -563,7 +563,7 @@ pub enum IntOperationDescription<E> {
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift scalar](crate::ops::IntTensorOps::bitwise_right_shift_scalar).
-    BitwiseRightShiftScalar(ScalarOperationDescription<E>),
+    BitwiseRightShiftScalar(ScalarOperationDescription<i32>),
 }
 
 /// Operation description specific to a bool tensor.
@@ -1584,7 +1584,7 @@ impl FloatOperationDescription {
     }
 }
 
-impl<E: Element> IntOperationDescription<E> {
+impl IntOperationDescription {
     fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             IntOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],

@@ -172,7 +172,9 @@ impl RelativeOps for OperationDescription {
             }
             OperationDescription::Int(dtype, ops) => OperationDescription::Int(
                 *dtype,
-                ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
+                RelativeOpsScalar::<i32>::to_relative(ops, converter, |converter, e| {
+                    converter.relative_int(e, dtype)
+                }),
             ),
             OperationDescription::Float(dtype, ops) => OperationDescription::Float(
                 *dtype,
@@ -610,10 +612,10 @@ impl RelativeOps for BoolOperationDescription {
     }
 }
 
-impl<E: Element> RelativeOpsScalar<E> for IntOperationDescription<E> {
+impl RelativeOpsScalar<i32> for IntOperationDescription {
     fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
-        F: Fn(&mut OperationConverter, &E) -> E,
+        F: Fn(&mut OperationConverter, &i32) -> i32,
     {
         match self {
             IntOperationDescription::IntoFloat(desc) => {
