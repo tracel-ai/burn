@@ -21,6 +21,12 @@ pub use burn_wgpu as wgpu;
 #[cfg(feature = "wgpu")]
 pub use burn_wgpu::Wgpu;
 
+#[cfg(feature = "webgpu")]
+pub use burn_wgpu::WebGpu;
+
+#[cfg(feature = "vulkan")]
+pub use burn_wgpu::Vulkan;
+
 #[cfg(feature = "cuda")]
 pub use burn_cuda as cuda;
 

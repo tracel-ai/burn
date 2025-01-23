@@ -1,8 +1,8 @@
-use burn::{backend::Wgpu, data::dataset::Dataset};
+use burn::{backend::WebGpu, data::dataset::Dataset};
 use guide::inference;
 
 fn main() {
-    type MyBackend = Wgpu<f32, i32>;
+    type MyBackend = WebGpu<f32, i32>;
 
     let device = burn::backend::wgpu::WgpuDevice::default();
 

@@ -59,6 +59,7 @@ server = ["burn-core/server"]
 tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
 vulkan = ["burn-core/vulkan"]
+webgpu = ["burn-core/webgpu"]
 
 # Network utils
 network = ["burn-core/network"]

@@ -76,6 +76,7 @@
 //!   - `vision`: Enables vision datasets (MnistDataset)
 //! - Backends
 //!   - `wgpu`: Makes available the WGPU backend
+//!   - `webgpu`: Makes available the `wgpu` backend with the WebGPU Shading Language (WGSL) compiler
 //!   - `vulkan`: Makes available the `wgpu` backend with the alternative SPIR-V compiler
 //!   - `cuda`: Makes available the CUDA backend
 //!   - `hip`: Makes available the HIP backend

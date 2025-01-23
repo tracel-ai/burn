@@ -105,7 +105,8 @@ hip = ["burn-hip"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 wgpu = ["burn-wgpu"]
-vulkan = ["wgpu", "burn-wgpu/spirv"]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror", "regex"]
