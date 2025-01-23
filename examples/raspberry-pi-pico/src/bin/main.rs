@@ -10,7 +10,7 @@ use embassy_rp as _;
 use embedded_alloc::Heap;
 
 type Backend = NdArray<f32>;
-type BackendDeice = <Backend as burn::tensor::backend::Backend>::Device;
+type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
 
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
@@ -25,7 +25,7 @@ async fn main(_spawner: Spawner) {
     }
 
     // Get a default device for the backend
-    let device = BackendDeice::default();
+    let device = BackendDevice::default();
 
     // Create a new model and load the state
     let model: Model<Backend> = Model::default();
@@ -47,7 +47,7 @@ async fn main(_spawner: Spawner) {
     }
 }
 
-fn run_model<'a>(model: &Model<NdArray>, device: &BackendDeice, input: f32) -> Tensor<Backend, 2> {
+fn run_model<'a>(model: &Model<NdArray>, device: &BackendDevice, input: f32) -> Tensor<Backend, 2> {
     // Define the tensor
     let input = Tensor::<Backend, 2>::from_floats([[input]], &device);
 

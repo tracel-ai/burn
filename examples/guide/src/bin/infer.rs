@@ -1,3 +1,4 @@
+#![recursion_limit = "131"]
 use burn::{backend::WebGpu, data::dataset::Dataset};
 use guide::inference;
 

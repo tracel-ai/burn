@@ -15,7 +15,8 @@ pub use mask::*;
 pub(crate) use unary_float::*;
 pub(crate) use unary_numeric::*;
 
-pub use cubecl::{Kernel, PLANE_DIM_APPROX};
+pub use burn_common::PLANE_DIM_APPROX;
+pub use cubecl::Kernel;
 
 /// Convolution kernels
 pub mod conv;

@@ -12,7 +12,7 @@ pub use burn_jit::{
 pub use burn_jit::{tensor::JitTensor, JitBackend};
 pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
-pub use cubecl::ir::CubeDim;
+pub use cubecl::CubeDim;
 
 pub use cubecl::wgpu::{
     init_device, init_setup, init_setup_async, MemoryConfiguration, RuntimeOptions, WgpuDevice,

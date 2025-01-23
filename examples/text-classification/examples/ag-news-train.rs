@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{decay::WeightDecayConfig, AdamConfig},
