@@ -84,7 +84,7 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
 pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
     match arg {
         Arg::ScalarShape(pos) => {
-            let offset = comptime![inputs.s_u32.len() - pos - 1];
+            let offset = comptime![{ inputs.s_u32.len() - pos - 1 }];
             *inputs.s_u32.index(offset)
         }
         _ => comptime![panic!["Not a scalar shape"]],

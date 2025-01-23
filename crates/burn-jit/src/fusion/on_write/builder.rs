@@ -182,6 +182,10 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationDescription::Reshape(desc) => {
+                if self.current_output_shape.is_empty() {
+                    return false;
+                }
+
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }

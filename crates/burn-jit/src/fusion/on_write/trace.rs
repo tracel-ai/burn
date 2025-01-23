@@ -439,7 +439,6 @@ impl FuseOnWriteTrace {
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
-            SequenceArg::new(),
         );
 
         for hi in handle_inputs.iter() {
@@ -497,13 +496,16 @@ impl FuseOnWriteTrace {
             }
         }
 
+        let mut tmp = vec![];
         for relative in self.shapes.iter().rev() {
             let global = context.tensors.get(&relative.id).unwrap();
 
             for shape in global.shape.iter().rev() {
+                tmp.push(shape);
                 inputs.s_u32.push(ScalarArg::new(*shape as u32))
             }
         }
+        println!("Shape {:?}", tmp);
 
         inputs
     }
@@ -514,7 +516,6 @@ impl FuseOnWriteTrace {
         vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
-            SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),
             SequenceArg::new(),

@@ -125,7 +125,6 @@ pub struct GlobalArgs {
     pub s_u32: Sequence<u32>,
     pub s_u16: Sequence<u16>,
     pub s_u8: Sequence<u8>,
-    pub t_reshaped: Sequence<ReshapedTensor>,
 }
 
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {

@@ -169,8 +169,10 @@ impl FuseOnWriteTraceBuilder {
                 self.shapes.push(output.clone());
                 let rank = output.shape.len();
 
+                println!("output {output:?}");
                 for i in 0..output.shape.len() {
                     let id = index * rank + i;
+                    println!("id {id:?}");
                     shape.push(Arg::ScalarShape(id as u32));
                 }
 
