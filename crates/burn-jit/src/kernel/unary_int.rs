@@ -102,3 +102,47 @@ where
         }
     }
 }
+
+pub(crate) mod unary_basic_int {
+
+    use super::*;
+
+    pub(crate) fn launch<R, Args, I>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+    where
+        R: JitRuntime,
+        for<'a> Args: FnOnce(&'a ()) -> &'a BasicIntUnaryKind,
+        I: IntElement,
+    {
+        launch_unary_int::<R, I, BasicIntUnary, _>(tensor, |input| {
+            BasicIntUnaryOptionsLaunch::new(args(input))
+        })
+    }
+
+    #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+    pub enum BasicIntUnaryKind {
+        BitwiseNot,
+    }
+
+    #[derive(CubeLaunch)]
+    struct BasicIntUnaryOptions {
+        #[cube(comptime)]
+        kind: BasicIntUnaryKind,
+    }
+    struct BasicIntUnary;
+
+    #[cube]
+    impl<I: Int> IntUnaryOp<I> for BasicIntUnary {
+        type Options = BasicIntUnaryOptions;
+
+        fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
+            match comptime![options.kind] {
+                BasicIntUnaryKind::BitwiseNot => Line::bitwise_not(input),
+            }
+        }
+    }
+
+    impl IntUnaryOpFamily for BasicIntUnary {
+        type Options<I: Int> = BasicIntUnaryOptions;
+        type Unary<I: Int> = Self;
+    }
+}

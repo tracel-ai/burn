@@ -1,7 +1,9 @@
+use self::unary_basic_int::BasicIntUnaryKind;
+
 use super::{expand, numeric, permute};
 use crate::kernel::{
-    launch_binop_int, launch_scalar_binop_int, launch_unary_int, launch_unary_numeric, reduce,
-    BitwiseShlOp, BitwiseShrOp, IntUnaryOp, IntUnaryOpFamily, NumericUnaryOp, NumericUnaryOpFamily,
+    launch_binop_int, launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+    BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily,
 };
 use crate::{
     element::BoolElement,
@@ -11,7 +13,7 @@ use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use cubecl::frontend::Numeric;
-use cubecl::prelude::{BitwiseNot, *};
+use cubecl::prelude::*;
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
@@ -322,23 +324,7 @@ where
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        struct BitwiseNot;
-
-        #[cube]
-        impl<I: Int> IntUnaryOp<I> for BitwiseNot {
-            type Options = ();
-
-            fn execute(input: Line<I>, _options: &Self::Options) -> Line<I> {
-                Line::bitwise_not(input)
-            }
-        }
-
-        impl IntUnaryOpFamily for BitwiseNot {
-            type Options<I: Int> = ();
-            type Unary<I: Int> = Self;
-        }
-
-        launch_unary_int::<R, I, BitwiseNot, _>(tensor, |_| ())
+        unary_basic_int::launch::<R, _, I>(tensor, |_| &BasicIntUnaryKind::BitwiseNot)
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {

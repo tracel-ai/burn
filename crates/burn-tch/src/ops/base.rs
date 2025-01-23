@@ -541,7 +541,7 @@ impl TchOps {
             lhs,
             rhs,
             |lhs, rhs| lhs.f_bitwise_left_shift_(rhs).unwrap(),
-            |lhs, rhs| rhs.f_bitwise_left_shift_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_left_shift(rhs).unwrap(),
             |lhs, rhs| lhs.f_bitwise_left_shift(rhs).unwrap(),
         )
     }
@@ -569,7 +569,7 @@ impl TchOps {
             lhs,
             rhs,
             |lhs, rhs| lhs.f_bitwise_right_shift_(rhs).unwrap(),
-            |lhs, rhs| rhs.f_bitwise_right_shift_(lhs).unwrap(),
+            |lhs, rhs| lhs.f_bitwise_right_shift(rhs).unwrap(),
             |lhs, rhs| lhs.f_bitwise_right_shift(rhs).unwrap(),
         )
     }

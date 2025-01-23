@@ -793,31 +793,19 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 IntOperationDescription::BitwiseAnd(desc) => {
-                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
-
-                    let output = B::bitwise_and(lhs, rhs);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    binary_int_ops!(handles, desc, B::bitwise_and)
                 }
                 IntOperationDescription::BitwiseAndScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::bitwise_and_scalar)
                 }
                 IntOperationDescription::BitwiseOr(desc) => {
-                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
-
-                    let output = B::bitwise_or(lhs, rhs);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    binary_int_ops!(handles, desc, B::bitwise_or)
                 }
                 IntOperationDescription::BitwiseOrScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::bitwise_or_scalar)
                 }
                 IntOperationDescription::BitwiseXor(desc) => {
-                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
-
-                    let output = B::bitwise_xor(lhs, rhs);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    binary_int_ops!(handles, desc, B::bitwise_xor)
                 }
                 IntOperationDescription::BitwiseXorScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::bitwise_xor_scalar)
@@ -826,18 +814,10 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::bitwise_not)
                 }
                 IntOperationDescription::BitwiseLeftShift(desc) => {
-                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
-
-                    let output = B::bitwise_left_shift(lhs, rhs);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    binary_int_ops!(handles, desc, B::bitwise_left_shift)
                 }
                 IntOperationDescription::BitwiseRightShift(desc) => {
-                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
-
-                    let output = B::bitwise_right_shift(lhs, rhs);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    binary_int_ops!(handles, desc, B::bitwise_right_shift)
                 }
                 IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar)

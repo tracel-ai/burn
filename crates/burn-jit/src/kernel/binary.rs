@@ -24,10 +24,6 @@ pub(crate) struct SubOp;
 pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
-// pub(crate) struct BitwiseAndOp;
-// pub(crate) struct BitwiseOrOp;
-// pub(crate) struct BitwiseXorOp;
-// pub(crate) struct BitwiseNotOp;
 
 /// Since Powf only works on float, but we still want to implement the numeric binary op family, we
 /// set another precision in the family type to cast, when necessary, the input value to a valid
@@ -112,35 +108,6 @@ impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
         Line::cast_from(out)
     }
 }
-
-// #[cube]
-// impl<N: Int> BinaryOp<N> for BitwiseAndOp {
-//     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-//         //lhs + rhs
-//         lhs & rhs
-//     }
-// }
-
-// #[cube]
-// impl<N: Int> BinaryOp<N> for BitwiseOrOp {
-//     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-//         lhs | rhs
-//     }
-// }
-
-// #[cube]
-// impl<N: Int> BinaryOp<N> for BitwiseXorOp {
-//     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-//         lhs ^ rhs
-//     }
-// }
-
-// #[cube]
-// impl<N: Int> BinaryOp<N> for BitwiseNotOp {
-//     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-//         lhs + rhs
-//     }
-// }
 
 #[cube(launch_unchecked)]
 pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
