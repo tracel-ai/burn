@@ -248,12 +248,7 @@ impl RelativeOps for OperationDescription {
             OperationDescription::Bool(ops) => {
                 OperationDescription::Bool(ops.to_relative(converter))
             }
-            OperationDescription::Int(dtype, ops) => OperationDescription::Int(
-                *dtype,
-                RelativeOpsScalar::<i32>::to_relative(ops, converter, |converter, e| {
-                    converter.relative_int(e, dtype)
-                }),
-            ),
+            OperationDescription::Int(ops) => OperationDescription::Int(ops.to_relative(converter)),
             OperationDescription::Float(dtype, ops) => OperationDescription::Float(
                 *dtype,
                 RelativeOpsScalar::<f32>::to_relative(ops, converter, |converter, e| {
@@ -690,11 +685,8 @@ impl RelativeOps for BoolOperationDescription {
     }
 }
 
-impl RelativeOpsScalar<i32> for IntOperationDescription {
-    fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
-    where
-        F: Fn(&mut OperationConverter, &i32) -> i32,
-    {
+impl RelativeOps for IntOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
             IntOperationDescription::IntoFloat(desc) => {
                 IntOperationDescription::IntoFloat(UnaryOperationDescription {
@@ -712,7 +704,7 @@ impl RelativeOpsScalar<i32> for IntOperationDescription {
             IntOperationDescription::BitwiseAndScalar(desc) => {
                 IntOperationDescription::BitwiseAndScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -726,7 +718,7 @@ impl RelativeOpsScalar<i32> for IntOperationDescription {
             IntOperationDescription::BitwiseOrScalar(desc) => {
                 IntOperationDescription::BitwiseOrScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -740,7 +732,7 @@ impl RelativeOpsScalar<i32> for IntOperationDescription {
             IntOperationDescription::BitwiseXorScalar(desc) => {
                 IntOperationDescription::BitwiseXorScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -760,7 +752,7 @@ impl RelativeOpsScalar<i32> for IntOperationDescription {
             IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
                 IntOperationDescription::BitwiseLeftShiftScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -774,7 +766,7 @@ impl RelativeOpsScalar<i32> for IntOperationDescription {
             IntOperationDescription::BitwiseRightShiftScalar(desc) => {
                 IntOperationDescription::BitwiseRightShiftScalar(ScalarOperationDescription {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }

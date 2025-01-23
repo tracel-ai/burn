@@ -914,7 +914,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
 
         let desc = UnaryOperationDescription {
@@ -923,7 +922,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::IntoFloat(desc),
         ));
 
@@ -1188,7 +1186,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseAnd(desc),
         ));
 
@@ -1207,7 +1204,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseOr(desc),
         ));
 
@@ -1226,7 +1222,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseXor(desc),
         ));
 
@@ -1244,7 +1239,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseNot(desc),
         ));
 
@@ -1263,7 +1257,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseAndScalar(desc),
         ));
 
@@ -1282,7 +1275,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseOrScalar(desc),
         ));
 
@@ -1301,7 +1293,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseXorScalar(desc),
         ));
 
@@ -1320,7 +1311,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseLeftShift(desc),
         ));
 
@@ -1339,7 +1329,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseLeftShiftScalar(desc),
         ));
 
@@ -1358,7 +1347,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseRightShift(desc),
         ));
 
@@ -1377,7 +1365,6 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         };
 
         client.register(OperationDescription::Int(
-            dtype,
             IntOperationDescription::BitwiseRightShiftScalar(desc),
         ));
 

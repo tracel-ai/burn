@@ -785,7 +785,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Int(_dtype, op) => match op {
+            OperationDescription::Int(op) => match op {
                 IntOperationDescription::IntoFloat(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 

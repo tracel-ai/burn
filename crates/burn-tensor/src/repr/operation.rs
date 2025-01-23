@@ -75,7 +75,7 @@ pub enum OperationDescription {
     /// Operation specific to a bool tensor.
     Bool(BoolOperationDescription),
     /// Operation specific to an int tensor.
-    Int(DType, IntOperationDescription),
+    Int(IntOperationDescription),
     /// Operation specific to a float tensor.
     Float(DType, FloatOperationDescription),
     /// Module operation.
@@ -1364,7 +1364,7 @@ impl OperationDescription {
             OperationDescription::NumericFloat(_dtype, ops) => ops.nodes(),
             OperationDescription::NumericInt(_dtype, ops) => ops.nodes(),
             OperationDescription::Bool(ops) => ops.nodes(),
-            OperationDescription::Int(_dtype, ops) => ops.nodes(),
+            OperationDescription::Int(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
             OperationDescription::Custom(ops) => ops.nodes(),
