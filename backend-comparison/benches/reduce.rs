@@ -43,7 +43,7 @@ impl<B: Backend> Benchmark for ReduceBenchmark<B> {
                 self.tensor.clone().sum_dim(axis);
             }
             Instruction::Sum => {
-                self.tensor.clone().sum();
+                self.tensor.clone().sum_dim(2).sum_dim(1).sum_dim(0);
             }
         }
     }
