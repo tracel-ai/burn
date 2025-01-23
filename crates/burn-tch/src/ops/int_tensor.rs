@@ -453,4 +453,26 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     ) -> IntTensor<Self> {
         TchOps::bitwise_xor_scalar(lhs, rhs)
     }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_left_shift(lhs, rhs)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        TchOps::bitwise_right_shift(lhs, rhs)
+    }
+
+    fn bitwise_left_shift_scalar(
+        lhs: IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> IntTensor<Self> {
+        TchOps::bitwise_left_shift_scalar(lhs, rhs)
+    }
+
+    fn bitwise_right_shift_scalar(
+        lhs: IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> IntTensor<Self> {
+        TchOps::bitwise_right_shift_scalar(lhs, rhs)
+    }
 }

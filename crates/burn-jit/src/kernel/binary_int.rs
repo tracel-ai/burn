@@ -20,7 +20,6 @@ pub(crate) trait BinaryOpInt<C: Int>: 'static + Send + Sync {
 pub(crate) struct BitwiseAndOp;
 pub(crate) struct BitwiseOrOp;
 pub(crate) struct BitwiseXorOp;
-pub(crate) struct BitwiseNotOp;
 pub(crate) struct BitwiseShrOp;
 pub(crate) struct BitwiseShlOp;
 
@@ -33,10 +32,6 @@ impl BinaryOpIntFamily for BitwiseOrOp {
 }
 
 impl BinaryOpIntFamily for BitwiseXorOp {
-    type BinaryOp<C: Int> = Self;
-}
-
-impl BinaryOpIntFamily for BitwiseNotOp {
     type BinaryOp<C: Int> = Self;
 }
 
@@ -66,13 +61,6 @@ impl<N: Int> BinaryOpInt<N> for BitwiseOrOp {
 impl<N: Int> BinaryOpInt<N> for BitwiseXorOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs ^ rhs
-    }
-}
-
-#[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseNotOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        lhs + rhs
     }
 }
 

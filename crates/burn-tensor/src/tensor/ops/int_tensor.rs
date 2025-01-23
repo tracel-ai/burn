@@ -1207,11 +1207,15 @@ pub trait IntTensorOps<B: Backend> {
     /// Bitwise NOT operation for Int Tensors
     fn bitwise_not(tensor: IntTensor<B>) -> IntTensor<B>;
 
-    // fn int_bitwise_left_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+    /// Bitwise left shift operation for Int Tensors
+    fn bitwise_left_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
-    // fn int_bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    /// Bitwise left shift operation for Int Tensors with a scalar
+    fn bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 
-    // fn int_bitwise_right_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+    /// Bitwise right shift operation for Int Tensors
+    fn bitwise_right_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
-    // fn int_bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    /// Bitwise right shift operation for Int Tensors with a scalar
+    fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 }

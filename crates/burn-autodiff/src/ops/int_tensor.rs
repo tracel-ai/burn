@@ -376,4 +376,20 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
         B::bitwise_not(tensor)
     }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_left_shift(lhs, rhs)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_left_shift_scalar(lhs, rhs)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        B::bitwise_right_shift(lhs, rhs)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+        B::bitwise_right_shift_scalar(lhs, rhs)
+    }
 }

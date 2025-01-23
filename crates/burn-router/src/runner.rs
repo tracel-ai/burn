@@ -825,6 +825,26 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                 IntOperationDescription::BitwiseNot(desc) => {
                     unary_int_ops!(handles, desc, B::bitwise_not)
                 }
+                IntOperationDescription::BitwiseLeftShift(desc) => {
+                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
+
+                    let output = B::bitwise_left_shift(lhs, rhs);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                IntOperationDescription::BitwiseRightShift(desc) => {
+                    let lhs = handles.get_int_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
+
+                    let output = B::bitwise_right_shift(lhs, rhs);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar)
+                }
+                IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_right_shift_scalar)
+                }
             },
             OperationDescription::Float(_dtype, op) => match op {
                 FloatOperationDescription::Exp(desc) => {

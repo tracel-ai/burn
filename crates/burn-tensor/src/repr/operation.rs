@@ -522,32 +522,48 @@ pub enum IntOperationDescription<E> {
     IntoFloat(UnaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_and).
+    /// Int => [bitwise and](crate::ops::IntTensorOps::bitwise_and).
     BitwiseAnd(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Int => [div scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
+    /// Int => [bitwise and scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
     BitwiseAndScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_or).
+    /// Int => [bitwise or](crate::ops::IntTensorOps::bitwise_or).
     BitwiseOr(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_or_scalar).
+    /// Int => [bitwise or scalar](crate::ops::IntTensorOps::bitwise_or_scalar).
     BitwiseOrScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_xor).
+    /// Int => [bitwise xor](crate::ops::IntTensorOps::bitwise_xor).
     BitwiseXor(BinaryOperationDescription),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_xor_scalar).
+    /// Int => [bitwise xor scalar](crate::ops::IntTensorOps::bitwise_xor_scalar).
     BitwiseXorScalar(ScalarOperationDescription<E>),
     /// Operation corresponding to:
     ///
-    /// Int => [add](crate::ops::IntTensorOps::bitwise_not).
+    /// Int => [bitwise not](crate::ops::IntTensorOps::bitwise_not).
     BitwiseNot(UnaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise left shift](crate::ops::IntTensorOps::bitwise_left_shift).
+    BitwiseLeftShift(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise left shift scalar](crate::ops::IntTensorOps::bitwise_left_shift_scalar).
+    BitwiseLeftShiftScalar(ScalarOperationDescription<E>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise right shift](crate::ops::IntTensorOps::bitwise_right_shift).
+    BitwiseRightShift(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise right shift scalar](crate::ops::IntTensorOps::bitwise_right_shift_scalar).
+    BitwiseRightShiftScalar(ScalarOperationDescription<E>),
 }
 
 /// Operation description specific to a bool tensor.
@@ -1592,6 +1608,18 @@ impl<E: Element> IntOperationDescription<E> {
             }
             IntOperationDescription::BitwiseNot(desc) => {
                 vec![&desc.input, &desc.out]
+            }
+            IntOperationDescription::BitwiseLeftShift(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseRightShift(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
             }
         }
     }

@@ -670,6 +670,34 @@ impl<E: Element> RelativeOpsScalar<E> for IntOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
+            IntOperationDescription::BitwiseLeftShift(desc) => {
+                IntOperationDescription::BitwiseLeftShift(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                IntOperationDescription::BitwiseLeftShiftScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseRightShift(desc) => {
+                IntOperationDescription::BitwiseRightShift(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                IntOperationDescription::BitwiseRightShiftScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: local_elem(converter, &desc.rhs),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

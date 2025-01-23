@@ -134,4 +134,24 @@ where
     pub fn bitwise_xor_scalar(self, other: B::IntElem) -> Self {
         Self::new(B::bitwise_xor_scalar(self.primitive, other))
     }
+
+    /// Applies the bitwise left shift operation with the integers in the tensor.
+    pub fn bitwise_left_shift(self, other: Self) -> Self {
+        Self::new(B::bitwise_left_shift(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise right shift operation with the integers in the tensor.
+    pub fn bitwise_right_shift(self, other: Self) -> Self {
+        Self::new(B::bitwise_right_shift(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise left shift operation with the integers in the tensor.
+    pub fn bitwise_left_shift_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_left_shift_scalar(self.primitive, other))
+    }
+
+    /// Applies the bitwise right shift operation with the integers in the tensor.
+    pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
+    }
 }

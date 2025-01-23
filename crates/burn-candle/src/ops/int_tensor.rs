@@ -399,4 +399,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
         unimplemented!("bitwise_not is not implemented for Candle IntTensor");
     }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
+    }
 }

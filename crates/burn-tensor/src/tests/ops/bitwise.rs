@@ -121,4 +121,52 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([6, 4]), false);
     }
+
+    #[test]
+    fn should_apply_bitwise_left_shift_2d() {
+        let tensor_1 = TestTensorInt::<2>::from([[3, 4, 5], [9, 3, 8]]);
+        let tensor_2 = TestTensorInt::from([[1, 2, 3], [4, 5, 6]]);
+
+        let output = tensor_1.bitwise_left_shift(tensor_2);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[6, 16, 40], [144, 96, 512]]), false);
+    }
+
+    #[test]
+    fn should_apply_bitwise_left_shift_scalar_2d() {
+        let tensor_1 = TestTensorInt::<2>::from([[3, 4, 5], [9, 3, 8]]);
+        let scalar = 2;
+
+        let output = tensor_1.bitwise_left_shift_scalar(scalar);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[12, 16, 20], [36, 12, 32]]), false);
+    }
+
+    #[test]
+    fn should_apply_bitwise_right_shift_2d() {
+        let tensor_1 = TestTensorInt::<2>::from([[3, 4, 5], [9, 3, 8]]);
+        let tensor_2 = TestTensorInt::from([[1, 2, 3], [4, 5, 6]]);
+
+        let output = tensor_1.bitwise_right_shift(tensor_2);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[1, 1, 0], [0, 0, 0]]), false);
+    }
+
+    #[test]
+    fn should_apply_bitwise_right_shift_scalar_2d() {
+        let tensor_1 = TestTensorInt::<2>::from([[3, 4, 5], [9, 3, 8]]);
+        let scalar = 2;
+
+        let output = tensor_1.bitwise_right_shift_scalar(scalar);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[0, 1, 1], [2, 0, 2]]), false);
+    }
 }

@@ -310,13 +310,6 @@ macro_rules! testgen_with_int_param {
         burn_tensor::testgen_sub!();
         burn_tensor::testgen_transpose!();
         burn_tensor::testgen_gather_scatter!();
-        // burn_tensor::testgen_bitwise_and!();
-        // burn_tensor::testgen_bitwise_or!();
-        // burn_tensor::testgen_bitwise_xor!();
-        // burn_tensor::testgen_bitwise_and_scalar!();
-        // burn_tensor::testgen_bitwise_or_scalar!();
-        // burn_tensor::testgen_bitwise_xor_scalar!();
-        // burn_tensor::testgen_bitwise_not!();
         burn_tensor::testgen_bitwise!();
 
         // test stats

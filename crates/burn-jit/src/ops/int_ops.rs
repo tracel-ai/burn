@@ -1,7 +1,7 @@
 use super::{expand, numeric, permute};
 use crate::kernel::{
-    launch_unary_int, launch_unary_numeric, reduce, IntUnaryOp, IntUnaryOpFamily, NumericUnaryOp,
-    NumericUnaryOpFamily,
+    launch_binop_int, launch_scalar_binop_int, launch_unary_int, launch_unary_numeric, reduce,
+    BitwiseShlOp, BitwiseShrOp, IntUnaryOp, IntUnaryOpFamily, NumericUnaryOp, NumericUnaryOpFamily,
 };
 use crate::{
     element::BoolElement,
@@ -339,5 +339,29 @@ where
         }
 
         launch_unary_int::<R, I, BitwiseNot, _>(tensor, |_| ())
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
+        let rhs_cast = kernel::cast::<R, I, u32>(rhs);
+        launch_binop_int::<R, u32, kernel::BitwiseShlOp>(lhs_cast, rhs_cast)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
+        let rhs_cast = rhs.elem::<u32>();
+        launch_scalar_binop_int::<R, u32, BitwiseShlOp>(lhs_cast, rhs_cast)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
+        let rhs_cast = kernel::cast::<R, I, u32>(rhs);
+        launch_binop_int::<R, u32, BitwiseShrOp>(lhs_cast, rhs_cast)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
+        let rhs_cast = rhs.elem::<u32>();
+        launch_scalar_binop_int::<R, u32, BitwiseShrOp>(lhs_cast, rhs_cast)
     }
 }
