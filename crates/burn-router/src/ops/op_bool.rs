@@ -4,9 +4,9 @@ use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntEle
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    OperationDescription, PermuteOperationDescription, RepeatDimOperationDescription,
-    ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+    FromDataOperationDescription, OperationDescription, PermuteOperationDescription,
+    RepeatDimOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
+    SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
 };
 use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
 
@@ -31,7 +31,18 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        client.register_tensor_data(data.convert::<bool>())
+        let out = client.register_empty_tensor(data.shape.clone(), DType::Bool);
+
+        let desc = FromDataOperationDescription {
+            data,
+            out: out.to_description_out(),
+        };
+
+        client.register(OperationDescription::BaseBool(
+            BaseOperationDescription::FromData(desc),
+        ));
+
+        out
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

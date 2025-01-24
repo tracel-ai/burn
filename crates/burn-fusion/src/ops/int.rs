@@ -15,16 +15,32 @@ use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::int_empty(shape.clone(), device);
-        let stream = StreamId::current();
+        #[derive(new)]
+        struct EmptyOps<B: FusionBackend> {
+            desc: TensorDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::int_tensor_handle(tensor),
-            shape.dims,
-            stream,
-            B::IntElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::int_empty(Shape::from(&self.desc.shape), &self.device);
+                handles.register_int_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), B::IntElem::dtype());
+
+        let desc = out.to_description_out();
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Empty(desc.clone())),
+            EmptyOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -32,17 +48,35 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::int_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
-        let stream = StreamId::current();
+        #[derive(new)]
+        struct FromDataOps<B: FusionBackend> {
+            desc: FromDataOperationDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::int_tensor_handle(tensor),
-            shape.dims,
-            stream,
-            B::IntElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::int_from_data(self.desc.data, &self.device);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(data.shape.clone(), B::IntElem::dtype());
+
+        let desc = FromDataOperationDescription {
+            out: out.to_description_out(),
+            data,
+        };
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::FromData(desc.clone())),
+            FromDataOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {

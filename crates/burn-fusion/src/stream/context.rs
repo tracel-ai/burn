@@ -1210,6 +1210,12 @@ impl RelativeOps for BaseOperationDescription {
             BaseOperationDescription::Empty(desc) => {
                 BaseOperationDescription::Empty(desc.to_relative(converter))
             }
+            BaseOperationDescription::FromData(desc) => {
+                BaseOperationDescription::FromData(FromDataOperationDescription {
+                    data: desc.data.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
