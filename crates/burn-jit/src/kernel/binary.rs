@@ -59,10 +59,6 @@ impl<F: Float> BinaryOpFamily for PowOp<F> {
     type BinaryOp<C: Numeric> = Self;
 }
 
-// impl BinaryOpFamily for BitwiseAndOp {
-//     type BinaryOp<C: Numeric> = Self;
-// }
-
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {

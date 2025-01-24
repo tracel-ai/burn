@@ -3452,27 +3452,6 @@ where
         dim: usize,
         descending: bool,
     ) -> <Int as TensorKind<B>>::Primitive;
-
-    // /// Applies logical `and` operation element-wise between two tensors.
-    // fn bitwise_and(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
-    // /// Applies logical `and` operation element-wise between a tensor and a scalar.
-    // fn bitwise_and_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
-
-    // /// Applies logical `or` operation element-wise between two tensors.
-    // fn bitwise_or(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
-    // /// Applies logical `or` operation element-wise between a tensor and a scalar.
-    // fn bitwise_or_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
-
-    // /// Applies logical `xor` operation element-wise between two tensors.
-    // fn bitwise_xor(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
-    // /// Applies logical `xor` operation element-wise between a tensor and a scalar.
-    // fn bitwise_xor_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
-
-    // /// Applies logical `not` operation element-wise on a tensor.
-    // fn bitwise_not(tensor: Self::Primitive) -> Self::Primitive;
 }
 
 impl<B: Backend> Numeric<B> for Int {
