@@ -28,6 +28,7 @@ pub struct ElemwiseOptimizationState {
 impl<R: JitRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+        println!("{:?}", self.trace);
         self.trace
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();

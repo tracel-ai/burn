@@ -19,9 +19,9 @@ pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes: Vec<TensorDescription>,
+    shapes: Vec<TensorId>,
     ops: Vec<ElemwiseOp>,
-    reads: BTreeMap<TensorId, ElemwiseOp>,
+    reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
     inputs_unhandled: Vec<TensorId>,
 }
@@ -104,7 +104,7 @@ struct LaunchAnalysis<'a, R: JitRuntime> {
     handle_inputs: Vec<HandleInput<R>>,
     handle_outputs: Vec<HandleOutput<R>>,
     reference: Option<Reference>,
-    reads: BTreeMap<TensorId, ElemwiseOp>,
+    reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
     rank: usize,
     vectorization: u8,
@@ -162,9 +162,12 @@ impl FuseOnWriteTrace {
         let outputs =
             self.register_outputs::<_, BT>(&analysis.handle_outputs, analysis.vectorization);
 
-        let mut ops = Sequence::new();
-        for op in analysis.reads.into_values() {
-            ops.push(op);
+        let mut ops = Sequence::<ElemwiseOp>::new();
+
+        for read_ops in analysis.reads.into_values() {
+            for op in read_ops {
+                ops.push(op);
+            }
         }
 
         for op in self.ops.iter() {
@@ -261,6 +264,7 @@ impl FuseOnWriteTrace {
             if status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
+                && !self.shapes.contains(&tensor_relative.id)
             {
                 analysis.potential_inplaces.push(PotentialInplace {
                     input_pos: i,
@@ -321,11 +325,13 @@ impl FuseOnWriteTrace {
                         strides: handle_input.handle.strides.clone(),
                     });
 
-                    if let Some(ElemwiseOp::Assign(op)) =
-                        analysis.reads.get_mut(&handle_input.relative_id)
-                    {
-                        op.input.add_layout_info(LayoutInfo::IsRef);
-                    };
+                    if let Some(ops) = analysis.reads.get_mut(&handle_input.relative_id) {
+                        for op in ops.iter_mut() {
+                            if let ElemwiseOp::Assign(op) = op {
+                                op.input.add_layout_info(LayoutInfo::IsRef);
+                            };
+                        }
+                    }
 
                     if let Some(ElemwiseOp::Assign(op)) =
                         analysis.writes.get_mut(&tensor_relative.id)
@@ -402,8 +408,12 @@ impl FuseOnWriteTrace {
         for hi in analysis.handle_inputs.iter() {
             if let Some(reference) = analysis.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
-                    if let Some(ElemwiseOp::Assign(op)) = analysis.reads.get_mut(&hi.relative_id) {
-                        op.input.add_layout_info(LayoutInfo::SameAsRef);
+                    if let Some(ops) = analysis.reads.get_mut(&hi.relative_id) {
+                        for op in ops.iter_mut() {
+                            if let ElemwiseOp::Assign(op) = op {
+                                op.input.add_layout_info(LayoutInfo::SameAsRef);
+                            }
+                        }
                     }
                 }
             }
@@ -496,16 +506,13 @@ impl FuseOnWriteTrace {
             }
         }
 
-        let mut tmp = vec![];
         for relative in self.shapes.iter().rev() {
-            let global = context.tensors.get(&relative.id).unwrap();
+            let global = context.tensors.get(relative).unwrap();
 
             for shape in global.shape.iter().rev() {
-                tmp.push(shape);
                 inputs.s_u32.push(ScalarArg::new(*shape as u32))
             }
         }
-        println!("Shape {:?}", tmp);
 
         inputs
     }

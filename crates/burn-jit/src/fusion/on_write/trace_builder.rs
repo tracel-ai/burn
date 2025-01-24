@@ -15,9 +15,9 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes: Vec<TensorDescription>,
+    shapes: Vec<TensorId>,
     ops: Vec<ElemwiseOp>,
-    reads: BTreeMap<TensorId, ElemwiseOp>,
+    reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub bool_precision: ElemwisePrecision,
     outputs_unhandled: Vec<Arg>,
     inputs_unhandled: Vec<TensorId>,
@@ -99,13 +99,17 @@ impl FuseOnWriteTraceBuilder {
                 let out = self.locals.create(precision, tensor.id);
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
-                self.reads.insert(
-                    tensor.id,
-                    ElemwiseOp::Assign(UnaryElemwiseArgs {
-                        input,
-                        out: out.clone(),
-                    }),
-                );
+                let reads = if !self.reads.contains_key(&tensor.id) {
+                    self.reads.insert(tensor.id, Vec::with_capacity(1));
+                    self.reads.get_mut(&tensor.id).unwrap()
+                } else {
+                    self.reads.get_mut(&tensor.id).unwrap()
+                };
+
+                reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
+                    input,
+                    out: out.clone(),
+                }));
 
                 out
             }
@@ -146,52 +150,56 @@ impl FuseOnWriteTraceBuilder {
             _ => precision,
         };
 
-        match self.locals.get(precision, tensor.id) {
-            // Can't fused an already fused input.
-            //
-            // TODO: Can fuse one that is in global memory.
+        let input_index = match self.locals.get(precision, tensor.id) {
             Some(_) => {
+                // Can't fused an already fused input.
                 if self.outputs.get(precision_input, tensor.id).is_some() {
                     return None;
                 }
 
-                // self.inputs.update(precision_input, tensor);
-                None
-            }
-            None => {
-                let new_input = self.inputs.insert(precision_input, tensor.clone());
-                let out = self.locals.create(precision, tensor.id);
-                let original = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
-
-                let mut shape = Sequence::new();
-
-                let index = self.shapes.len();
-                self.shapes.push(output.clone());
-                let rank = output.shape.len();
-
-                println!("output {output:?}");
-                for i in 0..output.shape.len() {
-                    let id = index * rank + i;
-                    println!("id {id:?}");
-                    shape.push(Arg::ScalarShape(id as u32));
+                match self.inputs.get_index(precision_input, tensor.id) {
+                    Some(index) => {
+                        self.inputs.update(precision_input, tensor);
+                        index as u32
+                    }
+                    None => return None,
                 }
-
-                let input = Arg::InputReshaped {
-                    original: Box::new(original),
-                    shape,
-                };
-
-                self.reads.insert(
-                    tensor.id,
-                    ElemwiseOp::Assign(UnaryElemwiseArgs {
-                        input,
-                        out: out.clone(),
-                    }),
-                );
-
-                Some(out)
             }
+            None => self.inputs.insert(precision_input, tensor.clone()),
+        };
+
+        let out = self.locals.create(precision, tensor.id);
+        let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
+
+        let mut shape = Sequence::new();
+
+        let index = self.shapes.len();
+        self.shapes.push(output.id.clone());
+        let rank = output.shape.len();
+
+        for i in 0..output.shape.len() {
+            let id = index * rank + i;
+            shape.push(Arg::ScalarShape(id as u32));
         }
+
+        let input = Arg::InputReshaped {
+            original: Box::new(original),
+            shape,
+        };
+
+        let reads = if !self.reads.contains_key(&tensor.id) {
+            self.reads.insert(tensor.id, Vec::with_capacity(1));
+            self.reads.get_mut(&tensor.id).unwrap()
+        } else {
+            self.reads.get_mut(&tensor.id).unwrap()
+        };
+
+        reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
+            input,
+            out: out.clone(),
+        }));
+
+        Some(out)
     }
 
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
@@ -404,8 +412,10 @@ impl FuseOnWriteTraceBuilder {
         };
 
         // For all operators, mark their local tensor id in the proper set.
-        for (_, op) in self.reads.iter() {
-            mark_op(op);
+        for (_, ops) in self.reads.iter() {
+            for op in ops {
+                mark_op(op);
+            }
         }
 
         for op in self.ops.iter() {

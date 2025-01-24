@@ -62,6 +62,10 @@ impl LinearConfig {
     }
 }
 
+// into_contuiguous
+// strides contibous
+// shape
+
 impl<B: Backend> Linear<B> {
     /// Applies the forward pass on the input tensor.
     ///
@@ -75,20 +79,14 @@ impl<B: Backend> Linear<B> {
             return Self::forward::<2>(self, input.unsqueeze()).flatten(0, 1);
         }
 
-        // let weight = self.weight.val().unsqueeze();
+        let weight = self.weight.val().unsqueeze();
+        let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
+        let output = input.matmul(weight);
 
-        let output = input * 5;
-
-        match &self.bias {
-            Some(bias) => output + bias.val().unsqueeze(),
+        match bias {
+            Some(bias) => output + bias,
             None => output,
         }
-
-        // let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
-        // match bias {
-        //     Some(bias) => output + bias,
-        //     None => output,
-        // }
     }
 }
 
@@ -194,16 +192,13 @@ mod tests {
         let config = LinearConfig::new(2, 3).with_initializer(Initializer::Constant { value });
         let linear = config.init::<TestBackend>(&device);
 
-        let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([3]), &device);
-        let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 3]), &device);
+        let input_1d = Tensor::<TestBackend, 1>::ones(Shape::new([2]), &device);
+        let input_2d = Tensor::<TestBackend, 2>::ones(Shape::new([1, 2]), &device);
 
         let result_1d = linear.forward(input_1d).unsqueeze::<2>();
-        println!("{result_1d}");
         let result_2d = linear.forward(input_2d);
-        println!("{result_2d}");
 
         assert_eq!(result_1d.into_data(), result_2d.into_data());
-        panic!("Test");
     }
 
     #[test]

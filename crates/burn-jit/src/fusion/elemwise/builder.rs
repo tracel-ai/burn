@@ -31,6 +31,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
 
 impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_tensor::repr::OperationDescription) {
+        println!("{:?}", operation);
         self.builder.register(operation)
     }
 
@@ -48,7 +49,9 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
     }
 
     fn status(&self) -> burn_fusion::OptimizationStatus {
-        self.builder.status()
+        let state = self.builder.status();
+        println!("{state:?}");
+        state
     }
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {

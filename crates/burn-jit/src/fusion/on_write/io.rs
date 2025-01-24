@@ -84,7 +84,7 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: Arg) 
 pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
     match arg {
         Arg::ScalarShape(pos) => {
-            let offset = comptime![{ inputs.s_u32.len() - pos - 1 }];
+            let offset = comptime![inputs.s_u32.len() - pos - 1];
             *inputs.s_u32.index(offset)
         }
         _ => comptime![panic!["Not a scalar shape"]],
@@ -498,94 +498,94 @@ fn get_offset<C: CubePrimitive>(
         Arg::Input(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => {
                 let layout = inputs.t_f32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::F16 => {
                 let layout = inputs.t_f16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::BF16 => {
                 let layout = inputs.t_bf16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U64 => {
                 let layout = inputs.t_u64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U32 => {
                 let layout = inputs.t_u32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U16 => {
                 let layout = inputs.t_u16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U8 => {
                 let layout = inputs.t_u8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I64 => {
                 let layout = inputs.t_i64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I32 => {
                 let layout = inputs.t_i32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I16 => {
                 let layout = inputs.t_i16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I8 => {
                 let layout = inputs.t_i8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Output(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => {
                 let layout = outputs.t_f32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::F16 => {
                 let layout = outputs.t_f16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::BF16 => {
                 let layout = outputs.t_bf16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U64 => {
                 let layout = outputs.t_u64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U32 => {
                 let layout = outputs.t_u32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U16 => {
                 let layout = outputs.t_u16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::U8 => {
                 let layout = outputs.t_u8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I64 => {
                 let layout = outputs.t_i64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I32 => {
                 let layout = outputs.t_i32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I16 => {
                 let layout = outputs.t_i16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             ElemwisePrecision::I8 => {
                 let layout = outputs.t_i8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, 0, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, config.rank, shape)
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
@@ -764,29 +764,81 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     inputs: &GlobalArgs,
     tensor: &Tensor<Line<N>>,
     layout: &Tensor<Line<L>>,
-    offset_layout: u32,
-    dim_start: u32,
-    dim_end: u32,
+    index: u32,
+    #[comptime] rank: u32,
     #[comptime] shape: Option<Sequence<Arg>>,
 ) -> u32 {
-    let offset_ref = offset_layout * tensor.line_size();
-    let mut offset = 0u32;
-
     // Need to unroll when fusing a reshape.
-    let unroll = comptime![shape.is_some()];
+    match comptime![shape.clone()] {
+        Some(shape) => {
+            let index_standard = reshaped_index_standard(inputs, layout, index, rank, shape);
+            convert_index_standard_to_original_index(tensor, rank, index_standard)
+        }
+        None => {
+            let index = index * tensor.line_size();
+            let mut offset = 0u32;
 
-    #[unroll(unroll)]
-    for i in dim_start..dim_end {
-        let shape_i = match comptime![shape.clone()] {
-            Some(s) => {
-                let arg = comptime![s.index(i.clone())];
-                read_scalar_shape(inputs, comptime![arg.clone()])
+            for i in 0..rank {
+                let coordinate = layout.coordinate(index, i);
+                offset += coordinate * tensor.stride(i);
             }
-            None => tensor.shape(i),
-        };
-        let ogwl = offset_ref / layout.stride(i);
-        offset += ogwl % shape_i * tensor.stride(i);
+
+            let offset = offset / tensor.line_size();
+
+            offset
+        }
+    }
+}
+
+#[cube]
+fn reshaped_index_standard<N: CubePrimitive>(
+    inputs: &GlobalArgs,
+    layout: &Tensor<Line<N>>,
+    index: u32,
+    #[comptime] rank: u32,
+    #[comptime] shape: Sequence<Arg>,
+) -> u32 {
+    let index = index * layout.line_size();
+    let mut offset = 0u32;
+    let mut stride_curr = 1u32;
+    let shapes = comptime![shape.rev()];
+
+    // let mut j = comptime![0u32];
+
+    #[unroll]
+    for r in 0..rank {
+        let arg = comptime![shapes.index(r.clone())];
+        let i = rank - r;
+        let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
+        let coordinate = layout.coordinate(index, i);
+
+        offset += coordinate * stride_curr;
+        stride_curr *= shape_i;
     }
 
-    offset / tensor.line_size()
+    let offset = offset / layout.line_size();
+
+    offset
+}
+
+#[cube]
+fn convert_index_standard_to_original_index<N: CubePrimitive>(
+    original: &Tensor<Line<N>>,
+    rank: u32,
+    index_standard: u32,
+) -> u32 {
+    let mut remaining = index_standard;
+    let mut index = 0;
+
+    #[unroll]
+    for i in 0..rank {
+        let shape = original.shape(i);
+        let stride = original.stride(i);
+        let coordinate = remaining % shape;
+
+        remaining /= shape;
+        index += coordinate * stride;
+    }
+
+    index
 }

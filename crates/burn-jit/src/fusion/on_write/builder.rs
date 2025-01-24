@@ -182,9 +182,9 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationDescription::Reshape(desc) => {
-                if self.current_output_shape.is_empty() {
-                    return false;
-                }
+                // if self.current_output_shape.is_empty() {
+                //     return false;
+                // }
 
                 if !self.output_is_compatible(&desc.out) {
                     return false;
@@ -481,9 +481,9 @@ impl FuseOnWriteBuilder {
         }
 
         // Last axis should be equal.
-        if self.current_output_shape.last() != out.shape.last() {
-            return false;
-        }
+        // if self.current_output_shape.last() != out.shape.last() {
+        //     return false;
+        // }
 
         let rank = self.current_output_shape.len();
 
@@ -492,16 +492,19 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        for i in 0..(rank - 1) {
+        for i in 0..rank {
             let curr = self.current_output_shape[i];
             let new = out.shape[i];
 
             // Broadcast is supported.
             //
             // 0 is the shape id for a global shape of 1.
-            if curr != new && new != 0 {
+            if curr != new && new != 0 && curr != 0 {
+                println!("ALLO {curr} {new}");
                 return false;
             }
+
+            self.current_output_shape[0] = usize::max(curr, new);
         }
 
         true
