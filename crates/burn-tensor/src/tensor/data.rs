@@ -36,7 +36,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    pub(crate) bytes: Bytes,
+    bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,

@@ -1695,8 +1695,6 @@ impl ModuleOperationDescription {
 impl core::hash::Hash for FromDataOperationDescription {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
-
-        self.data.bytes.hash(state);
     }
 }
 
