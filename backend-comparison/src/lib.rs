@@ -91,12 +91,12 @@ macro_rules! bench_on_backend {
         let feature_name = "wgpu-spirv";
         #[cfg(feature = "wgpu-spirv-fusion")]
         let feature_name = "wgpu-spirv-fusion";
-        #[cfg(feature = "cuda-jit")]
-        let feature_name = "cuda-jit";
-        #[cfg(feature = "cuda-jit-fusion")]
-        let feature_name = "cuda-jit-fusion";
-        #[cfg(feature = "hip-jit")]
-        let feature_name = "hip-jit";
+        #[cfg(feature = "cuda")]
+        let feature_name = "cuda";
+        #[cfg(feature = "cuda-fusion")]
+        let feature_name = "cuda-fusion";
+        #[cfg(feature = "hip")]
+        let feature_name = "hip";
 
         #[cfg(any(feature = "wgpu"))]
         {
@@ -172,16 +172,16 @@ macro_rules! bench_on_backend {
             $fn_name::<Candle>(&device, feature_name, url, token);
         }
 
-        #[cfg(feature = "cuda-jit")]
+        #[cfg(feature = "cuda")]
         {
-            use burn::backend::cuda_jit::{Cuda, CudaDevice};
+            use burn::backend::cuda::{Cuda, CudaDevice};
 
             $fn_name::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
         }
 
-        #[cfg(feature = "hip-jit")]
+        #[cfg(feature = "hip")]
         {
-            use burn::backend::hip_jit::{Hip, HipDevice};
+            use burn::backend::hip::{Hip, HipDevice};
 
             $fn_name::<Hip<half::f16>>(&HipDevice::default(), feature_name, url, token);
         }

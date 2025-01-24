@@ -1,5 +1,5 @@
 use burn::{
-    backend::{Autodiff, Wgpu},
+    backend::{Autodiff, WebGpu},
     data::dataset::Dataset,
     optim::AdamConfig,
 };
@@ -10,7 +10,7 @@ use guide::{
 };
 
 fn main() {
-    type MyBackend = Wgpu<f32, i32>;
+    type MyBackend = WebGpu<f32, i32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
 
     // Create a default Wgpu device

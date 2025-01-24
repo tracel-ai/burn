@@ -83,7 +83,7 @@ pub(crate) fn handle_command(
                         vec!["--features", "test-wgpu-spirv"],
                         None,
                         None,
-                        "std wgpu-spirv",
+                        "std vulkan",
                     )?;
                 }
             }

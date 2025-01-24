@@ -81,13 +81,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::{launch, ElemType};
-    use burn::backend::{cuda_jit::CudaDevice, CudaJit};
+    use burn::backend::{cuda::CudaDevice, Cuda};
 
     pub fn run() {
-        launch::<CudaJit<ElemType, i32>>(CudaDevice::default());
+        launch::<Cuda<ElemType, i32>>(CudaDevice::default());
     }
 }
 
@@ -105,6 +105,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

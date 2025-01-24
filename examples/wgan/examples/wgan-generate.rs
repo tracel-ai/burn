@@ -66,13 +66,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::launch;
-    use burn::backend::{Autodiff, CudaJit};
+    use burn::backend::{Autodiff, Cuda};
 
     pub fn run() {
-        launch::<Autodiff<CudaJit>>(Default::default());
+        launch::<Autodiff<Cuda>>(Default::default());
     }
 }
 
@@ -90,6 +90,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

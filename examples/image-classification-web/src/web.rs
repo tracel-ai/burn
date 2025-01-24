@@ -14,7 +14,7 @@ use burn::{
     tensor::activation::softmax,
 };
 
-use burn::backend::wgpu::{AutoGraphicsApi, Wgpu, WgpuDevice};
+use burn::backend::wgpu::{graphics::AutoGraphicsApi, WebGpu, WgpuDevice};
 use burn_candle::Candle;
 
 use serde::Serialize;
@@ -37,8 +37,8 @@ pub enum ModelType {
     /// The model is loaded to the NdArray backend
     WithNdArrayBackend(Model<NdArray<f32>>),
 
-    /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Wgpu<f32, i32>>),
+    /// The model is loaded to the WebGpu backend
+    WithWgpuBackend(Model<WebGpu<f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)

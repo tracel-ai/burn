@@ -17,9 +17,16 @@ default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
 doc = ["burn-jit/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
 fusion = ["burn-fusion", "burn-jit/fusion"]
-spirv = ["cubecl/wgpu-spirv"]
 std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
+
+# Backends
+webgpu = ["cubecl-wgsl"]
+vulkan = ["cubecl-spirv"]
+
+# Compilers
+cubecl-wgsl = []
+cubecl-spirv = ["cubecl/wgpu-spirv"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }

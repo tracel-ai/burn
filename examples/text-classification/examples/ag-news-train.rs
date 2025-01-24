@@ -103,18 +103,18 @@ mod remote {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::{launch, ElemType};
-    use burn::backend::{Autodiff, CudaJit};
+    use burn::backend::{Autodiff, Cuda};
 
     pub fn run() {
-        launch::<Autodiff<CudaJit<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Cuda<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
-#[cfg(feature = "hip-jit")]
-mod hip_jit {
+#[cfg(feature = "hip")]
+mod hip {
     use crate::{launch, ElemType};
     use burn::backend::{Autodiff, HipJit};
 
@@ -137,10 +137,10 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
-    #[cfg(feature = "hip-jit")]
-    hip_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
+    #[cfg(feature = "hip")]
+    hip::run();
     #[cfg(feature = "remote")]
     remote::run();
 }
