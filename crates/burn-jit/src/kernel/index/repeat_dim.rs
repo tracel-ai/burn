@@ -4,7 +4,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 #[cube(launch_unchecked)]
 fn repeat_dim_kernel<E: CubePrimitive>(input: &Tensor<E>, output: &mut Tensor<E>, dim: u32) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let mut offset_input = 0;
