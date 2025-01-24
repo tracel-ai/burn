@@ -57,6 +57,7 @@ impl IntElement for i64 {}
 impl IntElement for i32 {}
 impl IntElement for i16 {}
 impl IntElement for i8 {}
+impl IntElement for u32 {}
 
 impl BoolElement for u8 {}
 impl BoolElement for u32 {}
