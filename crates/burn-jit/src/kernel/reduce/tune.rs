@@ -256,7 +256,7 @@ impl SumAutotuneKey {
 mod sum_ops {
     #![allow(missing_docs)]
 
-    use burn_tensor::{Shape, TensorData};
+    use burn_tensor::TensorData;
     use cubecl::reduce::instructions::Sum;
 
     use crate::ops::from_data;
@@ -275,9 +275,8 @@ mod sum_ops {
         input: JitTensor<Run>,
     ) -> Result<JitTensor<Run>, String> {
         let device = input.device.clone();
-        let shape_out: Shape = vec![1_usize; input.shape.num_dims()].into();
         cubecl::reduce::shared_sum::<Run, E>(&input.client, input.as_handle_ref(), C)
-            .map(|output| from_data::<Run, E>(TensorData::new(vec![output], shape_out), &device))
+            .map(|output| from_data::<Run, E>(TensorData::new(vec![output], vec![1]), &device))
             .map_err(|e| e.to_string())
     }
 

@@ -21,13 +21,12 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
 ) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
     let client = tensor.client.clone();
     let device = tensor.device.clone();
-    let shape_out: Shape = vec![1_usize; tensor.shape.num_dims()].into();
 
     match cube_count {
         SumStrategy::OneShot(cube_count) => {
             let output = shared_sum::<Run, E>(&client, tensor.as_handle_ref(), cube_count)?;
             Ok(from_data::<Run, E>(
-                TensorData::new(vec![output], shape_out),
+                TensorData::new(vec![output], vec![1]),
                 &device,
             ))
         }
@@ -74,6 +73,9 @@ pub fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::redu
     for axis in sorted_axis {
         tensor = reduce_dim::<Run, In, Out, Rd>(tensor, axis, strategy)?;
     }
+    // reshape to scalar tensor
+    tensor.shape = Shape::new([1]);
+    tensor.strides = vec![1];
     Ok(tensor)
 }
 
