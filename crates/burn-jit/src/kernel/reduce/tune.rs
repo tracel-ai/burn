@@ -12,7 +12,6 @@ use crate::{
     kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::JitTensor,
     JitAutotuneKey, JitElement, JitRuntime, JitTuneId,
 };
-use reduce_ops::*;
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<
@@ -25,7 +24,9 @@ pub fn autotune_reduce<
     input: JitTensor<Run>,
     output: JitTensor<Run>,
     dim: usize,
-) -> Result<(), cubecl::reduce::ReduceError> {
+) {
+    use reduce_ops::*;
+
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<Run>, reduce_input_gen::<Run, In, Out>)
@@ -40,12 +41,10 @@ pub fn autotune_reduce<
         &tunables,
         (input, output, dim),
     );
-
-    Ok(())
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-/// Autotune key representative of redue versions
+/// Autotune key representative of reduce versions
 pub struct ReduceAutotuneKey {
     dtype: burn_tensor::DType,
     #[autotune(anchor)]
@@ -205,5 +204,89 @@ mod reduce_ops {
             }),
         )
         .map_err(|e| format!("{e}"))
+    }
+}
+
+/// Executes autotune on reduce operations.
+pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
+    client: &ComputeClient<Run::Server, Run::Channel>,
+    input: JitTensor<Run>,
+) -> JitTensor<Run> {
+    use sum_ops::*;
+
+    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+
+    let tunables = TunableSet::new(create_key_sum::<Run>, sum_input_gen::<Run, E>)
+        .with_tunable(sum_one_shot::<Run, E, 1>)
+        .with_tunable(sum_one_shot::<Run, E, 2>)
+        .with_tunable(sum_one_shot::<Run, E, 4>)
+        .with_tunable(sum_one_shot::<Run, E, 8>)
+        .with_tunable(sum_one_shot::<Run, E, 16>)
+        .with_tunable(sum_one_shot::<Run, E, 32>)
+        .with_tunable(sum_one_shot::<Run, E, 64>)
+        .with_tunable(sum_chained::<Run, E>);
+
+    TUNER.execute(
+        &JitTuneId::new::<Run>(&input.device),
+        client,
+        &tunables,
+        input,
+    )
+}
+
+pub(crate) fn create_key_sum<Run: JitRuntime>(input: &JitTensor<Run>) -> JitAutotuneKey {
+    JitAutotuneKey::Sum(SumAutotuneKey::generate(input))
+}
+
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
+/// Autotune key representative of sum versions
+pub struct SumAutotuneKey {
+    dtype: burn_tensor::DType,
+    #[autotune(anchor)]
+    length: usize,
+}
+
+impl SumAutotuneKey {
+    pub(crate) fn generate<Run: JitRuntime>(input: &JitTensor<Run>) -> Self {
+        let dtype = input.dtype;
+        let length = input.shape.num_elements();
+        Self { dtype, length }
+    }
+}
+mod sum_ops {
+    #![allow(missing_docs)]
+
+    use burn_tensor::TensorData;
+    use cubecl::reduce::instructions::Sum;
+
+    use crate::ops::from_data;
+
+    use super::*;
+
+    pub(crate) fn sum_input_gen<Run: JitRuntime, E: JitElement>(
+        _key: &JitAutotuneKey,
+        input: &JitTensor<Run>,
+    ) -> JitTensor<Run> {
+        let random_bounds: (E, E) = ((-10.0_f32).elem::<E>(), (10.0_f32).elem::<E>());
+        random_like_uniform(input, random_bounds.0, random_bounds.1)
+    }
+
+    pub(crate) fn sum_one_shot<Run: JitRuntime, E: JitElement, const C: u32>(
+        input: JitTensor<Run>,
+    ) -> Result<JitTensor<Run>, String> {
+        let device = input.device.clone();
+        cubecl::reduce::shared_sum::<Run, E>(&input.client, input.as_handle_ref(), C)
+            .map(|output| from_data::<Run, E>(TensorData::new(vec![output], vec![1]), &device))
+            .map_err(|e| e.to_string())
+    }
+
+    pub(crate) fn sum_chained<Run: JitRuntime, E: JitElement>(
+        input: JitTensor<Run>,
+    ) -> Result<JitTensor<Run>, String> {
+        crate::kernel::reduce::reduce::<Run, E, E, Sum>(
+            input,
+            crate::kernel::reduce::ReduceStrategy::Autotune,
+        )
+        .map_err(|e| e.to_string())
     }
 }

@@ -1,7 +1,7 @@
 use crate::kernel::{
     conv::{Conv2dAutotuneKey, ConvTranspose2dAutotuneKey},
     matmul::MatmulAutotuneKey,
-    reduce::ReduceAutotuneKey,
+    reduce::{ReduceAutotuneKey, SumAutotuneKey},
 };
 use cubecl::tune::AutotuneKey;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ pub enum JitAutotuneKey {
     Matmul(MatmulAutotuneKey),
     /// Key for reduce dim operations
     Reduce(ReduceAutotuneKey),
+    /// Key for sum operations
+    Sum(SumAutotuneKey),
     /// Key for convolution operations
     Conv2d(Conv2dAutotuneKey),
     /// Key for transpose convolution operations
@@ -25,6 +27,7 @@ impl Display for JitAutotuneKey {
         match self {
             JitAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
             JitAutotuneKey::Reduce(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            JitAutotuneKey::Sum(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
             JitAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
             JitAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
         }
