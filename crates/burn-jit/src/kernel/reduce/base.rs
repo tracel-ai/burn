@@ -9,7 +9,7 @@ use burn_tensor::{Shape, TensorData};
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
 
-/// Specialize reduce function to computhe the sum of all elements of the `input` tensor and return
+/// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
 /// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
 ///
 /// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
