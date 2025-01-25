@@ -5,7 +5,7 @@ use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 #[cube(launch_unchecked)]
 fn interpolate_nearest_backward_kernel<F: Float>(grad: &Tensor<F>, output: &mut Tensor<F>) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let out_h = output.shape(2);

@@ -5,7 +5,7 @@ use crate::{tensor::JitTensor, FloatElement, JitRuntime};
 #[cube(launch)]
 fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);

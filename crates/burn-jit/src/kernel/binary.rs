@@ -112,7 +112,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
     output: &mut Tensor<Line<C>>,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
@@ -132,7 +132,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     let mut offset_rhs = ABSOLUTE_POS;
 
     if offset_out >= out.len() {
-        return;
+        terminate!();
     }
 
     if to_contiguous_lhs {

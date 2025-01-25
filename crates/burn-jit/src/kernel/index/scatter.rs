@@ -46,7 +46,7 @@ fn scatter_kernel<T: Numeric, I: Int>(
 
     let should_stop = ABSOLUTE_POS >= num_elems;
     if should_stop {
-        return;
+        terminate!();
     }
 
     for i in 0..shape_value {

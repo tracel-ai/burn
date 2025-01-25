@@ -12,7 +12,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     dim: &u32,
 ) {
     if ABSOLUTE_POS >= indices.len() {
-        return;
+        terminate!();
     }
 
     let index = indices[ABSOLUTE_POS];

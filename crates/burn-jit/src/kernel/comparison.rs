@@ -82,7 +82,7 @@ pub(crate) fn kernel_scalar_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
     let offset_output = ABSOLUTE_POS;
 
     if offset_output >= output.len() {
-        return;
+        terminate!();
     }
 
     output[ABSOLUTE_POS] = Line::cast_from(O::execute(input[ABSOLUTE_POS], Line::new(scalar)));
@@ -102,7 +102,7 @@ pub(crate) fn kernel_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
     let mut offset_rhs = ABSOLUTE_POS;
 
     if offset_out >= out.len() {
-        return;
+        terminate!();
     }
 
     if to_contiguous_lhs {

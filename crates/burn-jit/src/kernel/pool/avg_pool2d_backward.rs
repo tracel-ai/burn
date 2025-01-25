@@ -24,7 +24,7 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
     #[comptime] count_include_pad: bool,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);

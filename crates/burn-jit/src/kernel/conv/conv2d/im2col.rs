@@ -53,7 +53,7 @@ fn im2col_kernel<F: Float>(
     let out_w = args.out_w;
 
     if ABSOLUTE_POS > args.num_elements {
-        return;
+        terminate!();
     }
 
     let out_x = ABSOLUTE_POS % out_w;

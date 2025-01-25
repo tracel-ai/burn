@@ -275,7 +275,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     // Alternatively : [batch, offset_channels, out_h, out_w]
 
     if ABSOLUTE_POS >= grad_offset.len() {
-        return;
+        terminate!();
     }
 
     let offset_channels = offset.shape(1);
@@ -551,7 +551,7 @@ fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
     if ABSOLUTE_POS >= columns.len() {
-        return;
+        terminate!();
     }
 
     let n_in_channels = args.in_channels;

@@ -35,7 +35,7 @@ fn direct_conv2d_kernel<F: Float>(
     #[comptime] kernel_size_1_unroll: Option<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let in_channels = weight.shape(1);

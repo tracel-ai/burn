@@ -27,7 +27,7 @@ pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
     let offset_output = ABSOLUTE_POS;
 
     if offset_output >= output.len() {
-        return;
+        terminate!();
     }
 
     if comptime![to_contiguous] {
