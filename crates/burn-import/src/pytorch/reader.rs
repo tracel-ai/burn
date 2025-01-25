@@ -19,7 +19,7 @@ use burn::{
     tensor::backend::Backend,
 };
 
-use candle_core::{pickle, WithDType};
+use candle_core::{pickle, safetensors, Device, WithDType};
 use half::{bf16, f16};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Serialize};
@@ -42,11 +42,22 @@ where
     PS: PrecisionSettings,
     B: Backend,
 {
-    // Read the pickle file and return a vector of Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all_with_key(path, top_level_key)?
-        .into_iter()
-        .map(|(key, tensor)| (key, CandleTensor(tensor)))
-        .collect();
+    //check if it's a safetensors file
+    let is_safetensors = path.extension().is_some_and(|ext| ext == "safetensors");
+
+    let tensors: HashMap<String, CandleTensor> = if is_safetensors {
+        // Read the safetensors file and return a vector of Candle tensors
+        safetensors::load(path, &Device::Cpu)?
+            .into_iter()
+            .map(|(key, tensor)| (key, CandleTensor(tensor)))
+            .collect()
+    } else {
+        // Read the pickle file and return a vector of Candle tensors
+        pickle::read_all_with_key(path, top_level_key)?
+            .into_iter()
+            .map(|(key, tensor)| (key, CandleTensor(tensor)))
+            .collect()
+    };
 
     // Remap the keys (replace the keys in the map with the new keys)
     let (tensors, remapped_keys) = remap(tensors, key_remap);
