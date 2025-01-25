@@ -16,7 +16,7 @@ fn mask_fill_readonly_kernel<T: Numeric, B: Int>(
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let index_input = index_offset_with_layout(input, output, ABSOLUTE_POS, 0, rank, true);
@@ -35,7 +35,7 @@ fn mask_fill_inplace_kernel<T: Numeric, B: Int>(
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= input.len() {
-        return;
+        terminate!();
     }
 
     let index_mask = index_offset_with_layout(mask, input, ABSOLUTE_POS, 0, rank, true);

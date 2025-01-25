@@ -31,7 +31,7 @@ pub fn full_device<R: JitRuntime, E: JitElement>(
     #[cube(launch)]
     pub fn full_kernel<C: Numeric>(tensor: &mut Tensor<C>, value: C) {
         if ABSOLUTE_POS >= tensor.len() {
-            return;
+            terminate!();
         }
 
         tensor[ABSOLUTE_POS] = value;

@@ -7,7 +7,7 @@ use burn_tensor::{
 use cubecl::{
     flex32,
     ir::{Elem, FloatKind},
-    linalg::matmul::{self},
+    linalg::matmul::{self, kernels::MatmulLaunchError},
     tensor_line_size, tf32, Feature,
 };
 use half::{bf16, f16};
@@ -195,18 +195,14 @@ where
     let cube_count = Alg::cube_count(&selection, &problem);
 
     let advanced_config = Default::default();
-    let config = match Alg::make_config(
+    let config = Alg::make_config(
         config_input,
         &problem,
         &cube_dim,
         &cube_count,
         &advanced_config,
-    ) {
-        Ok(val) => val,
-        Err(err) => {
-            panic!("Can't launch conv kernel because of an invalid config: {err}")
-        }
-    };
+    )
+    .map_err(MatmulLaunchError::InvalidConfig)?;
 
     let bias = bias.unwrap_or_else(|| {
         empty_device::<R, SP::EG>(input.client.clone(), input.device.clone(), Shape::new([1]))

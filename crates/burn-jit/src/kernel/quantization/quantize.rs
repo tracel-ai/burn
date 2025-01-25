@@ -34,7 +34,7 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     output: &mut Array<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let scale = scale[0];
@@ -43,13 +43,13 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 1 {
         output[ABSOLUTE_POS] = u32::bitcast_from(scale);
-        return;
+        terminate!();
     }
 
     // Cast the offset to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 2 {
         output[ABSOLUTE_POS] = u32::bitcast_from(offset);
-        return;
+        terminate!();
     }
 
     let line_size = comptime!(input.line_size());
@@ -120,7 +120,7 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
     output: &mut Array<u32>,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let scale = scale[0];
@@ -128,7 +128,7 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
     // Cast the scale to u32 and write the value in the output
     if ABSOLUTE_POS == output.len() - 1 {
         output[ABSOLUTE_POS] = u32::bitcast_from(scale);
-        return;
+        terminate!();
     }
 
     let line_size = comptime!(input.line_size());
