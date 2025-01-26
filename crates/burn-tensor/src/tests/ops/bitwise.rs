@@ -124,6 +124,10 @@ mod tests {
 
     #[test]
     fn should_apply_bitwise_left_shift_2d() {
+        if (IntType::MAX as u32) < 512 {
+            return;
+        }
+
         let tensor_1 = TestTensorInt::<2>::from([[3, 4, 5], [9, 3, 8]]);
         let tensor_2 = TestTensorInt::from([[1, 2, 3], [4, 5, 6]]);
 
