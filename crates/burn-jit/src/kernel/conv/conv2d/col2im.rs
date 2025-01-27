@@ -241,7 +241,7 @@ fn col2im_kernel<F: Float>(
     #[comptime] has_bias: bool,
 ) {
     if ABSOLUTE_POS >= image.len() {
-        return;
+        terminate!();
     }
 
     let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w;
