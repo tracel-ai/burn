@@ -88,7 +88,7 @@ fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
-autotune = ["burn-wgpu?/autotune"]
+autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-hip?/autotune"]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 metal = ["burn-candle?/metal"]
 openblas = ["burn-ndarray?/blas-openblas"]
