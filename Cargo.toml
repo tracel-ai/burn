@@ -141,7 +141,7 @@ serde = { version = "1.0.217", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.137", default-features = false }
-uuid = { version = "1.12.0", default-features = false }
+uuid = { version = "1.12.1", default-features = false }
 
 libc = "0.2.169"
 nvml-wrapper = "0.10.0"
