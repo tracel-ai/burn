@@ -6,7 +6,10 @@
 ))]
 mod ndarray {
     use burn::{
-        backend::{ndarray::{NdArray, NdArrayDevice}, Autodiff},
+        backend::{
+            ndarray::{NdArray, NdArrayDevice},
+            Autodiff,
+        },
         grad_clipping::GradientClippingConfig,
         optim::AdamConfig,
     };
@@ -14,14 +17,20 @@ mod ndarray {
         cli::{Cli, Commands},
         inference::infer,
         model::LstmNetworkConfig,
-        training::{TrainingConfig, train},
+        training::{train, TrainingConfig},
     };
 
     pub fn run(cli: Cli) {
         let device = NdArrayDevice::Cpu;
 
         match cli.command {
-            Commands::Train {artifact_dir, num_epochs, batch_size, num_workers, lr} => {
+            Commands::Train {
+                artifact_dir,
+                num_epochs,
+                batch_size,
+                num_workers,
+                lr,
+            } => {
                 let config = TrainingConfig::new(
                     LstmNetworkConfig::new(),
                     // Gradient clipping via optimizer config
@@ -29,12 +38,13 @@ mod ndarray {
                     num_epochs,
                     batch_size,
                     num_workers,
-                    lr);
+                    lr,
+                );
                 train::<Autodiff<NdArray>>(&artifact_dir, config, device);
-            },
-            Commands::Infer {artifact_dir} => {
+            }
+            Commands::Infer { artifact_dir } => {
                 infer::<NdArray>(&artifact_dir, device);
-            },
+            }
         }
     }
 }
@@ -42,22 +52,31 @@ mod ndarray {
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::{
-        backend::{libtorch::{LibTorch, LibTorchDevice}, Autodiff},
+        backend::{
+            libtorch::{LibTorch, LibTorchDevice},
+            Autodiff,
+        },
         grad_clipping::GradientClippingConfig,
-        optim::AdamConfig
+        optim::AdamConfig,
     };
     use lstm::{
         cli::{Cli, Commands},
         inference::infer,
         model::LstmNetworkConfig,
-        training::{TrainingConfig, train},
+        training::{train, TrainingConfig},
     };
 
     pub fn run(cli: Cli) {
         let device = LibTorchDevice::Cpu;
 
         match cli.command {
-            Commands::Train {artifact_dir, num_epochs, batch_size, num_workers, lr} => {
+            Commands::Train {
+                artifact_dir,
+                num_epochs,
+                batch_size,
+                num_workers,
+                lr,
+            } => {
                 let config = TrainingConfig::new(
                     LstmNetworkConfig::new(),
                     // Gradient clipping via optimizer config
@@ -65,12 +84,13 @@ mod tch_cpu {
                     num_epochs,
                     batch_size,
                     num_workers,
-                    lr);
+                    lr,
+                );
                 train::<Autodiff<LibTorch>>(&artifact_dir, config, device);
-            },
-            Commands::Infer {artifact_dir} => {
+            }
+            Commands::Infer { artifact_dir } => {
                 infer::<LibTorch>(&artifact_dir, device);
-            },
+            }
         }
     }
 }
@@ -78,15 +98,18 @@ mod tch_cpu {
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::{
-        backend::{libtorch::{LibTorch, LibTorchDevice}, Autodiff},
+        backend::{
+            libtorch::{LibTorch, LibTorchDevice},
+            Autodiff,
+        },
         grad_clipping::GradientClippingConfig,
-        optim::AdamConfig
+        optim::AdamConfig,
     };
     use lstm::{
         cli::{Cli, Commands},
         inference::infer,
         model::LstmNetworkConfig,
-        training::{TrainingConfig, train},
+        training::{train, TrainingConfig},
     };
 
     pub fn run(cli: Cli) {
@@ -96,7 +119,13 @@ mod tch_gpu {
         let device = LibTorchDevice::Mps;
 
         match cli.command {
-            Commands::Train {artifact_dir, num_epochs, batch_size, num_workers, lr} => {
+            Commands::Train {
+                artifact_dir,
+                num_epochs,
+                batch_size,
+                num_workers,
+                lr,
+            } => {
                 let config = TrainingConfig::new(
                     LstmNetworkConfig::new(),
                     // Gradient clipping via optimizer config
@@ -104,12 +133,13 @@ mod tch_gpu {
                     num_epochs,
                     batch_size,
                     num_workers,
-                    lr);
+                    lr,
+                );
                 train::<Autodiff<LibTorch>>(&artifact_dir, config, device);
             },
-            Commands::Infer {artifact_dir} => {
+            Commands::Infer { artifact_dir } => {
                 infer::<LibTorch>(&artifact_dir, device);
-            },
+            }
         }
     }
 }
@@ -117,22 +147,31 @@ mod tch_gpu {
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use burn::{
-        backend::{wgpu::{Wgpu, WgpuDevice}, Autodiff},
+        backend::{
+            wgpu::{Wgpu, WgpuDevice},
+            Autodiff,
+        },
         grad_clipping::GradientClippingConfig,
-        optim::AdamConfig
+        optim::AdamConfig,
     };
     use lstm::{
         cli::{Cli, Commands},
         inference::infer,
         model::LstmNetworkConfig,
-        training::{TrainingConfig, train},
+        training::{train, TrainingConfig},
     };
 
     pub fn run(cli: Cli) {
         let device = WgpuDevice::default();
 
         match cli.command {
-            Commands::Train {artifact_dir, num_epochs, batch_size, num_workers, lr} => {
+            Commands::Train {
+                artifact_dir,
+                num_epochs,
+                batch_size,
+                num_workers,
+                lr,
+            } => {
                 let config = TrainingConfig::new(
                     LstmNetworkConfig::new(),
                     // Gradient clipping via optimizer config
@@ -140,12 +179,13 @@ mod wgpu {
                     num_epochs,
                     batch_size,
                     num_workers,
-                    lr);
+                    lr,
+                );
                 train::<Autodiff<Wgpu>>(&artifact_dir, config, device);
-            },
-            Commands::Infer {artifact_dir} => {
+            }
+            Commands::Infer { artifact_dir } => {
                 infer::<Wgpu>(&artifact_dir, device);
-            },
+            }
         }
     }
 }

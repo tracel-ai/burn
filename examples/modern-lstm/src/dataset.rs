@@ -6,7 +6,7 @@ use burn::{
     prelude::*,
 };
 use rand::Rng;
-use rand_distr::{Normal, Distribution};
+use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
     
 // Dataset parameters
@@ -31,14 +31,15 @@ impl SequenceDatasetItem {
         for _i in 0..seq_length {
             // Next number is sum of previous two plus noise
             let normal = Normal::new(0.0, noise_level).unwrap();
-            let next_val = seq[seq.len()-2] + seq[seq.len()-1] + normal.sample(&mut rand::thread_rng());
+            let next_val =
+                seq[seq.len()-2] + seq[seq.len()-1] + normal.sample(&mut rand::thread_rng());
             seq.push(next_val);
         }
 
         Self {
             // Convert to sequence and target
-            sequence: seq[0..seq.len()-1].to_vec(),   // All but last
-            target: seq[seq.len()-1],                 // Last value
+            sequence: seq[0..seq.len() - 1].to_vec(), // All but last
+            target: seq[seq.len() - 1],               // Last value
         }
     }
 }
@@ -78,14 +79,12 @@ pub struct SequenceBatcher<B: Backend> {
 #[derive(Clone, Debug)]
 pub struct SequenceBatch<B: Backend> {
     pub sequences: Tensor<B, 3>, // [batch_size, seq_length, input_size]
-    pub targets: Tensor<B, 2>, // [batch_size, 1]
+    pub targets: Tensor<B, 2>,   // [batch_size, 1]
 }
 
 impl<B: Backend> SequenceBatcher<B> {
     pub fn new(device: B::Device) -> Self {
-        Self {
-            device,
-        }
+        Self { device }
     }
 }
 

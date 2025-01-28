@@ -1,5 +1,8 @@
 use burn::{
-    nn::{LayerNorm, LayerNormConfig, Dropout, DropoutConfig, Initializer, Linear, LinearConfig, LstmState, Sigmoid, Tanh},
+    nn::{
+        Dropout, DropoutConfig, Initializer, LayerNorm, LayerNormConfig, Linear, LinearConfig,
+        LstmState, Sigmoid, Tanh,
+    },
     prelude::*,
 };
 
@@ -50,20 +53,30 @@ impl LstmCellConfig {
     // 1. Orthogonal initialization for better gradient flow (here we use Xavier because of the lack of Orthogonal in burn)
     // 2. Initialize forget gate bias to 1.0 to prevent forgetting at start of training
     pub fn init<B: Backend>(&self, device: &B::Device) -> LstmCell<B> {
-        let initializer = Initializer::XavierNormal{gain:1.0};
+        let initializer = Initializer::XavierNormal { gain: 1.0 };
         let init_bias = Tensor::<B, 1>::ones([self.hidden_size], &device);
         
         let mut weight_ih = LinearConfig::new(self.input_size, 4 * self.hidden_size)
             .with_initializer(initializer.clone())
             .init(device);
         // Set forget gate bias to 1.0 (helps with learning long sequences)
-        let bias = weight_ih.bias.clone().unwrap().val().slice_assign([self.hidden_size..2*self.hidden_size], init_bias.clone());
+        let bias = weight_ih
+            .bias
+            .clone()
+            .unwrap()
+            .val()
+            .slice_assign([self.hidden_size..2*self.hidden_size], init_bias.clone());
         weight_ih.bias = weight_ih.bias.map(|p| p.map(|_t| bias));
 
         let mut weight_hh = LinearConfig::new(self.hidden_size, 4 * self.hidden_size)
             .with_initializer(initializer)
             .init(device);
-        let bias = weight_hh.bias.clone().unwrap().val().slice_assign([self.hidden_size..2*self.hidden_size], init_bias);
+        let bias = weight_hh
+            .bias
+            .clone()
+            .unwrap()
+            .val()
+            .slice_assign([self.hidden_size..2*self.hidden_size], init_bias);
         weight_hh.bias = weight_hh.bias.map(|p| p.map(|_t| bias));
 
         LstmCell {
@@ -85,17 +98,13 @@ impl<B: Backend> LstmCell<B> {
     //     state: Tuple of (h_{t-1}, c_{t-1}) each of shape (batch_size, hidden_size)
     // Returns:
     //  Tuple of (h_t, c_t) representing new hidden and cell states
-    pub fn forward(
-        &self,
-        x: Tensor<B, 2>,
-        state: LstmState<B, 2>,
-    ) -> LstmState<B, 2> {
+    pub fn forward(&self, x: Tensor<B, 2>, state: LstmState<B, 2>) -> LstmState<B, 2> {
         let (h_prev, c_prev) = (state.hidden, state.cell);
 
         // Combined matrix multiplication for all gates
         // Shape: (batch_size, 4 * hidden_size)
-        let gates_x = self.weight_ih.forward(x);        // Transform input
-        let gates_h = self.weight_hh.forward(h_prev);   // Transform previous hidden state
+        let gates_x = self.weight_ih.forward(x); // Transform input
+        let gates_h = self.weight_hh.forward(h_prev); // Transform previous hidden state
 
         // Apply layer normalization
         let gates_x = self.norm_x.forward(gates_x);
@@ -130,11 +139,7 @@ impl<B: Backend> LstmCell<B> {
     }
 
     // Initialize cell state and hidden state if provided or with zeros
-    pub fn init_state(
-        &self,
-        batch_size: usize,
-        device: &B::Device,
-    ) -> LstmState<B, 2> {
+    pub fn init_state(&self, batch_size: usize, device: &B::Device) -> LstmState<B, 2> {
         let cell = Tensor::zeros([batch_size, self.hidden_size], device);
         let hidden = Tensor::zeros([batch_size, self.hidden_size], device);
         
@@ -164,15 +169,25 @@ impl StackedLstmConfig {
         for i in 0..self.num_layers {
             if i == 0 {
                 if i < self.num_layers - 1 {
-                    layers.push(LstmCellConfig::new(self.input_size, self.hidden_size, self.dropout).init(device));
+                    layers.push(
+                        LstmCellConfig::new(self.input_size, self.hidden_size, self.dropout)
+                            .init(device),
+                    );
                 } else {  // No dropout on last layer
-                    layers.push(LstmCellConfig::new(self.input_size, self.hidden_size, 0.0).init(device));
+                    layers.push(
+                        LstmCellConfig::new(self.input_size, self.hidden_size, 0.0).init(device),
+                    );
                 }
             } else {
                 if i < self.num_layers -1 {
-                    layers.push(LstmCellConfig::new(self.hidden_size, self.hidden_size, self.dropout).init(device));
+                    layers.push(
+                        LstmCellConfig::new(self.hidden_size, self.hidden_size, self.dropout)
+                            .init(device),
+                    );
                 } else {  // No dropout on last layer
-                    layers.push(LstmCellConfig::new(self.hidden_size, self.hidden_size, 0.0).init(device));
+                    layers.push(
+                        LstmCellConfig::new(self.hidden_size, self.hidden_size, 0.0).init(device),
+                    );
                 }
             }
         }
@@ -194,7 +209,7 @@ impl<B: Backend> StackedLstm<B> {
         &self,
         x: Tensor<B, 3>,
         states: Option<Vec<LstmState<B, 2>>>,
-    ) -> (Tensor::<B, 3>, Vec<LstmState<B, 2>>) {
+    ) -> (Tensor<B, 3>, Vec<LstmState<B, 2>>) {
         let [batch_size, seq_length, _] = x.dims();
         let device = x.device();
 
@@ -205,15 +220,19 @@ impl<B: Backend> StackedLstm<B> {
                     temp.push(layer.init_state(batch_size, &device));
                 }
                 temp
-            },
+            }
             _ => states.unwrap(),
         };
 
         let mut layer_outputs = vec![];
         for t in 0..seq_length {
-            let mut input_t = x.clone().slice([None, Some((t as i64, t as i64 + 1)), None]).squeeze::<2>(1);
+            let mut input_t = x
+                .clone()
+                .slice([None, Some((t as i64, t as i64 + 1)), None])
+                .squeeze::<2>(1);
             for (i, lstm_cell) in self.layers.iter().enumerate() {
-                let mut state: LstmState<B, 2> = LstmState::new(states[i].cell.clone(), states[i].hidden.clone());
+                let mut state: LstmState<B, 2> =
+                    LstmState::new(states[i].cell.clone(), states[i].hidden.clone());
                 state = lstm_cell.forward(input_t, state);
                 input_t = state.hidden.clone();
                 states[i] = state;
@@ -263,13 +282,23 @@ pub struct LstmNetworkConfig {
 impl LstmNetworkConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> LstmNetwork<B> {
         // Forward direction LSTM
-        let stacked_lstm = StackedLstmConfig::new(self.input_size, self.hidden_size, self.num_layers, self.dropout)
-            .init(device);
+        let stacked_lstm = StackedLstmConfig::new(
+            self.input_size,
+            self.hidden_size,
+            self.num_layers,
+            self.dropout,
+        )
+        .init(device);
 
         // Optional backward direction LSTM for bidirectional processing
         let (reverse_lstm, hidden_size) = if self.bidirectional {
-            let lstm = StackedLstmConfig::new(self.input_size, self.hidden_size, self.num_layers, self.dropout)
-                .init(device);
+            let lstm = StackedLstmConfig::new(
+                self.input_size,
+                self.hidden_size,
+                self.num_layers,
+                self.dropout,
+            )
+            .init(device);
             (Some(lstm), 2*self.hidden_size)
         } else {
             (None, self.hidden_size)
@@ -302,11 +331,7 @@ impl<B: Backend> LstmNetwork<B> {
     //
     // Returns:
     //     Output tensor of shape (batch_size, output_size)
-    pub fn forward(
-        &self,
-        x: Tensor<B, 3>,
-        states: Option<Vec<LstmState<B, 2>>>,
-    ) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<B, 3>, states: Option<Vec<LstmState<B, 2>>>) -> Tensor<B, 2> {
         let seq_length = x.dims()[1] as i64;
         // Forward direction
         let (mut output, _states) = self.stacked_lstm.forward(x.clone(), states);
@@ -320,15 +345,17 @@ impl<B: Backend> LstmNetwork<B> {
                 // Concatenate forward and backward outputs along the feature dimension
                 output = Tensor::cat(vec![output, reverse_output], 2);
                 output
-            },
-            None => output
+            }
+            None => output,
         };
 
         // Apply dropout before final layer
         output = self.dropout.forward(output);
         // Use final timestep output for prediction
         let final_output = self.fc.forward(
-            output.slice([None, Some((seq_length-1, seq_length)), None]).squeeze::<2>(1)
+            output
+                .slice([None, Some((seq_length-1, seq_length)), None])
+                .squeeze::<2>(1),
         );
 
         final_output

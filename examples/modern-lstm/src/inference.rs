@@ -1,19 +1,17 @@
 use crate::{
     dataset::{
-        SequenceBatcher,
-        SequenceDataset,
-        SequenceDatasetItem,
-        NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL,
+        SequenceBatcher, SequenceDataset, SequenceDatasetItem, NOISE_LEVEL, NUM_SEQUENCES,
+        SEQ_LENGTH,
     },
-    training::TrainingConfig,
     model::LstmNetwork,
+    training::TrainingConfig,
 };
-use polars::prelude::*;
 use burn::{
-    data::{dataset::Dataset, dataloader::batcher::Batcher},
+    data::{dataloader::batcher::Batcher, dataset::Dataset},
     prelude::*,
     record::{CompactRecorder, Recorder},
 };
+use polars::prelude::*;
 
 pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     // Loading model
@@ -41,6 +39,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     let results = df![
         "predicted" => &predicted.to_vec::<f32>().unwrap(),
         "expected" => &expected.to_vec::<f32>().unwrap(),
-    ].unwrap();
+    ]
+    .unwrap();
     println!("{}", &results.head(Some(10)));
 }

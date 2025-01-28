@@ -9,9 +9,7 @@ use burn::{
 };
 
 use crate::dataset::{
-    SequenceBatcher,
-    SequenceDataset,
-    NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL, RANDOM_SEED,
+    SequenceBatcher, SequenceDataset, NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, 
 };
 use crate::model::{LstmNetwork, LstmNetworkConfig};
 
@@ -61,7 +59,11 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
         // 20% size of training
-        .build(SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL));
+        .build(SequenceDataset::new(
+            NUM_SEQUENCES / 5,
+            SEQ_LENGTH,
+            NOISE_LEVEL,
+        ));
 
     let train_num_items = dataloader_train.num_items();
     let valid_num_items = dataloader_valid.num_items();
