@@ -1,3 +1,7 @@
+use crate::dataset::{
+    SequenceBatcher, SequenceDataset, NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH,
+};
+use crate::model::{LstmNetwork, LstmNetworkConfig};
 use burn::{
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,
@@ -7,10 +11,6 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
 };
-use crate::dataset::{
-    SequenceBatcher, SequenceDataset, NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH,
-};
-use crate::model::{LstmNetwork, LstmNetworkConfig};
 
 #[derive(Config)]
 pub struct TrainingConfig {
