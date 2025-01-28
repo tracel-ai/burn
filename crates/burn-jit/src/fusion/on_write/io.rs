@@ -1,5 +1,8 @@
 use super::ir::*;
-use cubecl::prelude::*;
+use cubecl::{
+    ir::{ExpandElement, Variable},
+    prelude::*,
+};
 
 #[cube]
 /// Read the value from the [arg](Arg) and cast it to the generic cube primitive.
@@ -355,7 +358,7 @@ pub fn write<C: CubePrimitive>(
                     }
                 };
                 let tensor = outputs.t_f16.index_mut(pos);
-                tensor[offset] = Line::cast_from(value);
+                tensor[offset] = Line::cast_from(offset);
             }
             ElemwisePrecision::BF16 => {
                 let tensor = outputs.t_bf16.index(pos);
@@ -775,17 +778,15 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
             convert_index_standard_to_original_index(tensor, rank, index_standard)
         }
         None => {
-            let index = index * tensor.line_size();
+            let offset_ref = index * tensor.line_size();
             let mut offset = 0u32;
 
-            for i in 0..rank {
-                let coordinate = layout.coordinate(index, i);
-                offset += coordinate * tensor.stride(i);
+            for i in 0u32..rank {
+                let coordinate_broadcasted = (offset_ref / layout.stride(i)) % tensor.shape(i);
+                offset += coordinate_broadcasted * tensor.stride(i);
             }
 
-            let offset = offset / tensor.line_size();
-
-            offset
+            offset / tensor.line_size()
         }
     }
 }
@@ -801,24 +802,31 @@ fn reshaped_index_standard<N: CubePrimitive>(
     let index = index * layout.line_size();
     let mut offset = 0u32;
     let mut stride_curr = 1u32;
-    let shapes = comptime![shape.rev()];
-
-    // let mut j = comptime![0u32];
 
     #[unroll]
     for r in 0..rank {
-        let arg = comptime![shapes.index(r.clone())];
-        let i = rank - r;
+        let i = comptime![index_i(rank, r)];
+        let arg = comptime![shape.index(i.clone())];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
-        let coordinate = layout.coordinate(index, i);
 
-        offset += coordinate * stride_curr;
+        let ogwl = index / layout.stride(i);
+        offset += ogwl % shape_i * stride_curr;
+
         stride_curr *= shape_i;
     }
 
-    let offset = offset / layout.line_size();
-
     offset
+}
+
+fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> ExpandElementTyped<u32> {
+    let elem = iter.into();
+    let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
+    let result = rank - elem - 1;
+    println!("Result rank {rank:?} elem {elem:?} {result:?}");
+    let scalar: Variable = result.into();
+    let expand: ExpandElement = ExpandElement::Plain(scalar);
+
+    expand.into()
 }
 
 #[cube]
@@ -830,7 +838,7 @@ fn convert_index_standard_to_original_index<N: CubePrimitive>(
     let mut remaining = index_standard;
     let mut index = 0;
 
-    #[unroll]
+    // #[unroll]
     for i in 0..rank {
         let shape = original.shape(i);
         let stride = original.stride(i);
@@ -840,5 +848,5 @@ fn convert_index_standard_to_original_index<N: CubePrimitive>(
         index += coordinate * stride;
     }
 
-    index
+    index / original.line_size()
 }

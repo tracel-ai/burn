@@ -50,8 +50,8 @@ pub trait TraceRunner<R: JitRuntime> {
     ) -> u8 {
         // The default version uses the last dimension as vectorization axis and assumes a
         // perpendicular contiguous line.
-
         let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+            println!("Desc Input {desc:?}");
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -70,6 +70,7 @@ pub trait TraceRunner<R: JitRuntime> {
         };
 
         let vectorization_output = |desc: &TensorDescription| {
+            println!("Desc Output {desc:?}");
             let rank = desc.shape.len();
 
             for s in R::line_size_elem(&desc.dtype.into()) {
@@ -510,6 +511,7 @@ impl FuseOnWriteTrace {
             let global = context.tensors.get(relative).unwrap();
 
             for shape in global.shape.iter().rev() {
+                println!("{shape}");
                 inputs.s_u32.push(ScalarArg::new(*shape as u32))
             }
         }
