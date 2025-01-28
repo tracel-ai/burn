@@ -30,7 +30,7 @@ pub struct LstmCell<B: Backend> {
     // weight_hh layer uses combined weights for [i_t, f_t, g_t, o_t] for hidden state h_{t-1}
     pub weight_ih: Linear<B>,
     pub weight_hh: Linear<B>,
-    // Layer Normalization for better training stability. Don't use BatchNorm because the input distribution is always changing for LSTM. 
+    // Layer Normalization for better training stability. Don't use BatchNorm because the input distribution is always changing for LSTM.
     pub norm_x: LayerNorm<B>, // Normalize gate pre-activations
     pub norm_h: LayerNorm<B>, // Normalize hidden state
     pub norm_c: LayerNorm<B>, // Normalize cell state
@@ -55,7 +55,7 @@ impl LstmCellConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> LstmCell<B> {
         let initializer = Initializer::XavierNormal { gain: 1.0 };
         let init_bias = Tensor::<B, 1>::ones([self.hidden_size], &device);
-        
+
         let mut weight_ih = LinearConfig::new(self.input_size, 4 * self.hidden_size)
             .with_initializer(initializer.clone())
             .init(device);
@@ -65,7 +65,7 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2*self.hidden_size], init_bias.clone());
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias.clone());
         weight_ih.bias = weight_ih.bias.map(|p| p.map(|_t| bias));
 
         let mut weight_hh = LinearConfig::new(self.hidden_size, 4 * self.hidden_size)
@@ -76,7 +76,7 @@ impl LstmCellConfig {
             .clone()
             .unwrap()
             .val()
-            .slice_assign([self.hidden_size..2*self.hidden_size], init_bias);
+            .slice_assign([self.hidden_size..2 * self.hidden_size], init_bias);
         weight_hh.bias = weight_hh.bias.map(|p| p.map(|_t| bias));
 
         LstmCell {
@@ -173,18 +173,20 @@ impl StackedLstmConfig {
                         LstmCellConfig::new(self.input_size, self.hidden_size, self.dropout)
                             .init(device),
                     );
-                } else {  // No dropout on last layer
+                } else {
+                    // No dropout on last layer
                     layers.push(
                         LstmCellConfig::new(self.input_size, self.hidden_size, 0.0).init(device),
                     );
                 }
             } else {
-                if i < self.num_layers -1 {
+                if i < self.num_layers - 1 {
                     layers.push(
                         LstmCellConfig::new(self.hidden_size, self.hidden_size, self.dropout)
                             .init(device),
                     );
-                } else {  // No dropout on last layer
+                } else {
+                    // No dropout on last layer
                     layers.push(
                         LstmCellConfig::new(self.hidden_size, self.hidden_size, 0.0).init(device),
                     );
@@ -239,7 +241,7 @@ impl<B: Backend> StackedLstm<B> {
             }
             layer_outputs.push(input_t);
         }
-        
+
         // Stack output along sequence dimension
         let output = Tensor::stack(layer_outputs, 1);
 
@@ -299,11 +301,11 @@ impl LstmNetworkConfig {
                 self.dropout,
             )
             .init(device);
-            (Some(lstm), 2*self.hidden_size)
+            (Some(lstm), 2 * self.hidden_size)
         } else {
             (None, self.hidden_size)
         };
-        
+
         let fc = LinearConfig::new(hidden_size, self.output_size).init(device);
         let dropout = DropoutConfig::new(self.dropout).init();
 
@@ -335,7 +337,7 @@ impl<B: Backend> LstmNetwork<B> {
         let seq_length = x.dims()[1] as i64;
         // Forward direction
         let (mut output, _states) = self.stacked_lstm.forward(x.clone(), states);
-        
+
         output = match &self.reverse_lstm {
             Some(reverse_lstm) => {
                 //Process sequence in reverse direction
@@ -354,7 +356,7 @@ impl<B: Backend> LstmNetwork<B> {
         // Use final timestep output for prediction
         let final_output = self.fc.forward(
             output
-                .slice([None, Some((seq_length-1, seq_length)), None])
+                .slice([None, Some((seq_length - 1, seq_length)), None])
                 .squeeze::<2>(1),
         );
 

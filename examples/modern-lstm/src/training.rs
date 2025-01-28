@@ -53,7 +53,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .shuffle(RANDOM_SEED)
         .num_workers(config.num_workers)
         .build(SequenceDataset::new(NUM_SEQUENCES, SEQ_LENGTH, NOISE_LEVEL));
-    
+
     let dataloader_valid = DataLoaderBuilder::new(batcher_valid)
         .batch_size(config.batch_size)
         .shuffle(RANDOM_SEED)
@@ -82,7 +82,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
             let output = model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
             train_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
-            
+
             // Gradients for the current backward pass
             let grads = loss.backward();
             // Gradients linked to each parameter of the model

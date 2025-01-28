@@ -136,7 +136,7 @@ mod tch_gpu {
                     lr,
                 );
                 train::<Autodiff<LibTorch>>(&artifact_dir, config, device);
-            },
+            }
             Commands::Infer { artifact_dir } => {
                 infer::<LibTorch>(&artifact_dir, device);
             }

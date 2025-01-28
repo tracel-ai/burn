@@ -32,7 +32,7 @@ impl SequenceDatasetItem {
             // Next number is sum of previous two plus noise
             let normal = Normal::new(0.0, noise_level).unwrap();
             let next_val =
-                seq[seq.len()-2] + seq[seq.len()-1] + normal.sample(&mut rand::thread_rng());
+                seq[seq.len() - 2] + seq[seq.len() - 1] + normal.sample(&mut rand::thread_rng());
             seq.push(next_val);
         }
 
