@@ -54,7 +54,7 @@ impl LstmCellConfig {
     // 2. Initialize forget gate bias to 1.0 to prevent forgetting at start of training
     pub fn init<B: Backend>(&self, device: &B::Device) -> LstmCell<B> {
         let initializer = Initializer::XavierNormal { gain: 1.0 };
-        let init_bias = Tensor::<B, 1>::ones([self.hidden_size], &device);
+        let init_bias = Tensor::<B, 1>::ones([self.hidden_size], device);
 
         let mut weight_ih = LinearConfig::new(self.input_size, 4 * self.hidden_size)
             .with_initializer(initializer.clone())
@@ -179,18 +179,16 @@ impl StackedLstmConfig {
                         LstmCellConfig::new(self.input_size, self.hidden_size, 0.0).init(device),
                     );
                 }
+            } else if i < self.num_layers - 1 {
+                layers.push(
+                    LstmCellConfig::new(self.hidden_size, self.hidden_size, self.dropout)
+                        .init(device),
+                );
             } else {
-                if i < self.num_layers - 1 {
-                    layers.push(
-                        LstmCellConfig::new(self.hidden_size, self.hidden_size, self.dropout)
-                            .init(device),
-                    );
-                } else {
-                    // No dropout on last layer
-                    layers.push(
-                        LstmCellConfig::new(self.hidden_size, self.hidden_size, 0.0).init(device),
-                    );
-                }
+                // No dropout on last layer
+                layers.push(
+                    LstmCellConfig::new(self.hidden_size, self.hidden_size, 0.0).init(device),
+                );
             }
         }
         StackedLstm { layers }
