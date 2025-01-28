@@ -4,8 +4,8 @@ A sophisticated implementation of Long Short-Term Memory (LSTM) networks in Burn
 `LstmNetwork` is the top-level module with bidirectional support and output projection. It can support multiple LSTM variants by setting appropriate `bidirectional` and `num_layers`：
 * LSTM: `num_layers = 1` and `bidirectional = false`
 * Stacked LSTM: `num_layers > 1` and `bidirectional = false`
-* Birectional LSTM: `num_layers = 1` and `bidirectional = true`
-* Birectional Stacked LSTM: `num_layers > 1` and `birectional = true`
+* Bidirectional LSTM: `num_layers = 1` and `bidirectional = true`
+* Bidirectional Stacked LSTM: `num_layers > 1` and `bidirectional = true`
 
 This implementation is complementary to Burn's official LSTM, users can choose either one depends on the project's specific needs.
 
