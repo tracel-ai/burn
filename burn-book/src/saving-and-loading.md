@@ -4,7 +4,7 @@ Saving your trained machine learning model is quite easy, no matter the output f
 mentioned in the [Record](./building-blocks/record.md) section, different formats are supported to
 serialize/deserialize models. By default, we use the `NamedMpkFileRecorder` which uses the
 [MessagePack](https://msgpack.org/) binary serialization format with the help of
-[smp_serde](https://docs.rs/rmp-serde/).
+[rmp_serde](https://docs.rs/rmp-serde/).
 
 ```rust, ignore
 // Save model in MessagePack format with full precision

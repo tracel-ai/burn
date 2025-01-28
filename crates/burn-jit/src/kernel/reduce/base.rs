@@ -1,3 +1,4 @@
+#[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
 use crate::{
     element::JitElement,
@@ -31,6 +32,7 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
             ))
         }
         SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),
+        #[cfg(feature = "autotune")]
         SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
     }
 }
@@ -53,7 +55,7 @@ impl Default for SumStrategy {
         return Self::Autotune;
 
         #[cfg(not(feature = "autotune"))]
-        return Self::Static(4);
+        return Self::OneShot(4);
     }
 }
 

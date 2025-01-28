@@ -7,7 +7,7 @@ publish = false
 version.workspace = true
 
 [dependencies]
-burn = {path = "../../crates/burn", features=["autodiff", "wgpu", "vision"]}
+burn = {path = "../../crates/burn", features=["autodiff", "webgpu", "vision"]}
 guide = {path = "../guide"}
 
 # Serialization

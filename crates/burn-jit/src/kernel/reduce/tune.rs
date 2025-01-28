@@ -208,6 +208,7 @@ mod reduce_ops {
 }
 
 /// Executes autotune on reduce operations.
+#[cfg(feature = "autotune")]
 pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
     client: &ComputeClient<Run::Server, Run::Channel>,
     input: JitTensor<Run>,
@@ -280,6 +281,7 @@ mod sum_ops {
             .map_err(|e| e.to_string())
     }
 
+    #[cfg(feature = "autotune")]
     pub(crate) fn sum_chained<Run: JitRuntime, E: JitElement>(
         input: JitTensor<Run>,
     ) -> Result<JitTensor<Run>, String> {
