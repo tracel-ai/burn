@@ -142,7 +142,7 @@ impl<B: Backend> LstmCell<B> {
     pub fn init_state(&self, batch_size: usize, device: &B::Device) -> LstmState<B, 2> {
         let cell = Tensor::zeros([batch_size, self.hidden_size], device);
         let hidden = Tensor::zeros([batch_size, self.hidden_size], device);
-        
+
         LstmState::new(cell, hidden)
     }
 }

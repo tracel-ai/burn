@@ -8,7 +8,7 @@ use burn::{
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
-    
+
 // Dataset parameters
 pub const NUM_SEQUENCES: usize = 1000;
 pub const SEQ_LENGTH: usize = 10;
@@ -26,7 +26,7 @@ impl SequenceDatasetItem {
     pub fn new(seq_length: usize, noise_level: f32) -> Self {
         // Start with two random numbers between 0 and 1
         let mut seq = vec![rand::thread_rng().gen(), rand::thread_rng().gen()];
-        
+
         // Generate sequence
         for _i in 0..seq_length {
             // Next number is sum of previous two plus noise
