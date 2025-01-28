@@ -11,10 +11,9 @@ use burn_tensor::repr::{
     GatherOperationDescription, IntOperationDescription, MaskFillOperationDescription,
     MaskWhereOperationDescription, NumericOperationDescription, OperationDescription,
     PermuteOperationDescription, RandomOperationDescription, ReduceDimWithIndicesDescription,
-    RepeatDimOperationDescription, ReshapeDescription, ScalarOperationDescription,
-    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
-    SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
-    UnaryOperationDescription,
+    RepeatDimOperationDescription, ScalarOperationDescription, ScatterOperationDescription,
+    SelectAssignOperationDescription, SelectOperationDescription, SliceAssignOperationDescription,
+    SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
 };
 use burn_tensor::{
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
@@ -63,7 +62,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

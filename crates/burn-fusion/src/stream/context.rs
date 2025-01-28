@@ -1077,7 +1077,7 @@ impl RelativeOps for BaseOperationDescription {
                 BaseOperationDescription::ToDevice(desc.to_relative(converter))
             }
             BaseOperationDescription::Reshape(desc) => {
-                BaseOperationDescription::Reshape(ReshapeDescription {
+                BaseOperationDescription::Reshape(UnaryOperationDescription {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })

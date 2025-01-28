@@ -208,7 +208,7 @@ pub enum BaseOperationDescription {
     /// Float => [reshape](crate::ops::FloatTensorOps::float_reshape).
     /// Int => [reshape](crate::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](crate::ops::BoolTensorOps::bool_reshape).
-    Reshape(ReshapeDescription),
+    Reshape(UnaryOperationDescription),
 
     /// Operation corresponding to:
     ///
@@ -584,13 +584,6 @@ pub struct FlipOperationDescription {
 pub struct RandomOperationDescription {
     pub out: TensorDescription,
     pub distribution: Distribution,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct ReshapeDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]

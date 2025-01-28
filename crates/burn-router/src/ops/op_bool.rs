@@ -5,8 +5,8 @@ use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
     OperationDescription, PermuteOperationDescription, RepeatDimOperationDescription,
-    ReshapeDescription, SliceAssignOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+    SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
+    UnaryOperationDescription,
 };
 use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
 
@@ -81,7 +81,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

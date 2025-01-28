@@ -358,7 +358,7 @@ pub fn write<C: CubePrimitive>(
                     }
                 };
                 let tensor = outputs.t_f16.index_mut(pos);
-                tensor[offset] = Line::cast_from(offset);
+                tensor[offset] = Line::cast_from(value);
             }
             ElemwisePrecision::BF16 => {
                 let tensor = outputs.t_bf16.index(pos);
@@ -782,8 +782,8 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
             let mut offset = 0u32;
 
             for i in 0u32..rank {
-                let coordinate_broadcasted = (offset_ref / layout.stride(i)) % tensor.shape(i);
-                offset += coordinate_broadcasted * tensor.stride(i);
+                let ogwl = offset_ref / layout.stride(i);
+                offset += ogwl % tensor.shape(i) * tensor.stride(i);
             }
 
             offset / tensor.line_size()

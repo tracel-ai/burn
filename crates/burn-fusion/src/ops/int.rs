@@ -69,7 +69,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         #[derive(new)]
         struct ReshapeDimsOps<B: FusionBackend> {
-            desc: ReshapeDescription,
+            desc: UnaryOperationDescription,
             _b: PhantomData<B>,
         }
 
@@ -86,7 +86,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape.dims, B::IntElem::dtype());
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

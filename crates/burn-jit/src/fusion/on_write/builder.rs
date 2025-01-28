@@ -105,6 +105,12 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
                     return;
                 }
             }
+            OperationDescription::BaseBool(ops) => {
+                if !self.register_base(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             _ => {
                 self.status = OptimizationStatus::Closed;
                 return;
@@ -116,7 +122,9 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
-        self.builder.build(self.current_output_shape.clone())
+        let trace = self.builder.build(self.current_output_shape.clone());
+        println!("Trace {trace:?}");
+        trace
     }
 
     fn len(&self) -> usize {
@@ -182,6 +190,12 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationDescription::Reshape(desc) => {
+                if desc.input.shape == desc.out.shape {
+                    return self.register_unary_ops(desc, |input, out| {
+                        ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
+                    });
+                }
+
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -485,8 +499,11 @@ impl FuseOnWriteBuilder {
 
         // Rank should be equal.
         if rank != out.shape.len() {
+            println!("Not same rank");
             return false;
         }
+
+        let mut updated = self.current_output_shape.clone();
 
         for i in 0..rank {
             let curr = self.current_output_shape[i];
@@ -496,12 +513,13 @@ impl FuseOnWriteBuilder {
             //
             // 0 is the shape id for a global shape of 1.
             if curr != new && new != 0 && curr != 0 {
-                println!("ALLO {curr} {new}");
+                println!("Not compatible");
                 return false;
             }
 
-            self.current_output_shape[0] = usize::max(curr, new);
+            updated[0] = usize::max(curr, new);
         }
+        core::mem::swap(&mut updated, &mut self.current_output_shape);
 
         true
     }

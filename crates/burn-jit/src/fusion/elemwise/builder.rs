@@ -31,6 +31,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
 
 impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_tensor::repr::OperationDescription) {
+        println!("op {operation:?}");
         self.builder.register(operation)
     }
 
