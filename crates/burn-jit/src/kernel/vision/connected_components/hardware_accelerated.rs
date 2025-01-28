@@ -56,6 +56,10 @@ fn strip_labeling<BT: CubePrimitive>(
     labels: &Tensor<Atomic<u32>>,
     #[comptime] connectivity: Connectivity,
 ) {
+    if UNIT_POS_PLANE >= 32 {
+        terminate!();
+    }
+
     let mut shared_pixels = SharedMemory::<u32>::new(BLOCK_H);
 
     let batch = ABSOLUTE_POS_Z;
@@ -413,11 +417,8 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
 
     let props = client.properties().hardware_properties();
 
-    if props.plane_size_min != 32 || props.plane_size_min != props.plane_size_max {
-        return Err(
-            "Currently only supports 32 wide planes because it's heavily tied to plane op width"
-                .into(),
-        );
+    if props.plane_size_min < 32 {
+        return Err("Requires plane size of at least 32".into());
     }
 
     let [batches, channels, rows, cols] = img.shape.dims();
@@ -426,6 +427,9 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
     let shape = Shape::new([batches, rows, cols]);
     let labels = zeros_device::<R, u32>(client.clone(), device.clone(), shape);
 
+    // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
+    // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
+    // size at compile time.
     let warp_size = 32;
     let cube_dim = CubeDim::new_2d(warp_size, BLOCK_H);
     let cube_count = CubeCount::Static(1, (rows as u32).div_ceil(cube_dim.y), batches as u32);
