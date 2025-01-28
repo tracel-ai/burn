@@ -1,0 +1,24 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+name = "safetensors-import"
+publish = false
+version = "0.17.0"
+
+[dependencies]
+burn = { path = "../../crates/burn", features = [
+    "ndarray",
+    "dataset",
+    "vision",
+] }
+
+stmodel = { path = "./stmodel" }
+
+
+[build-dependencies]
+stmodel = { path = "./stmodel" }
+burn = { path = "../../crates/burn", features = ["ndarray"] }
+burn-import = { path = "../../crates/burn-import", features = [
+    "safetensors",
+], default-features = false }

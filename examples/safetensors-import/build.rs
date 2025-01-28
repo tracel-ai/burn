@@ -7,7 +7,7 @@ use burn::{
     backend::NdArray,
     record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
 };
-use burn_import::pytorch::PyTorchFileRecorder;
+use burn_import::safetensors::SafeTensorsFileRecorder;
 
 // Basic backend type (not used directly here).
 type B = NdArray<f32>;
@@ -16,9 +16,10 @@ fn main() {
     let device = Default::default();
 
     // Load PyTorch weights into a model record.
-    let record: model::ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-        .load("pytorch/mnist.pt".into(), &device)
-        .expect("Failed to decode state");
+    let record: stmodel::ModelRecord<B> =
+        SafeTensorsFileRecorder::<FullPrecisionSettings>::default()
+            .load("pytorch/mnist.safetensors".into(), &device)
+            .expect("Failed to decode state");
 
     // Save the model record to a file.
     let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();

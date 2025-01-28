@@ -9,6 +9,7 @@ members = [
     "crates/*",
     "crates/burn-import/pytorch-tests",
     "crates/burn-import/onnx-tests",
+    "crates/burn-import/safetensors-tests",
     "examples/*",
     "examples/pytorch-import/model",
     "xtask",

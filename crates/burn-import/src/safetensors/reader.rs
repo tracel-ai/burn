@@ -19,7 +19,7 @@ use burn::{
     tensor::backend::Backend,
 };
 
-use candle_core::{pickle, WithDType};
+use candle_core::{safetensors, Device, WithDType};
 use half::{bf16, f16};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Serialize};
@@ -34,7 +34,6 @@ use serde::{de::DeserializeOwned, Serialize};
 pub fn from_file<PS, D, B>(
     path: &Path,
     key_remap: Vec<(Regex, String)>,
-    top_level_key: Option<&str>,
     debug: bool,
 ) -> Result<D, Error>
 where
@@ -42,8 +41,8 @@ where
     PS: PrecisionSettings,
     B: Backend,
 {
-    // Read the pickle file and return a vector of Candle tensors
-    let tensors: HashMap<String, CandleTensor> = pickle::read_all_with_key(path, top_level_key)?
+    // Read the safetensors file and return a vector of Candle tensors
+    let tensors: HashMap<String, CandleTensor> = safetensors::load(path, &Device::Cpu)?
         .into_iter()
         .map(|(key, tensor)| (key, CandleTensor(tensor)))
         .collect();

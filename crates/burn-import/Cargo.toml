@@ -15,12 +15,15 @@ version.workspace = true
 default-run = "onnx2burn"
 
 [features]
-default = ["onnx", "pytorch"]
+default = ["onnx", "pytorch", "safetensors"]
 onnx = []
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
+safetensors = ["burn/record-item-custom-serde", "thiserror", "zip"]
 
 [dependencies]
-burn = { path = "../burn", version = "0.17.0", default-features = false, features = ["std"]}
+burn = { path = "../burn", version = "0.17.0", default-features = false, features = [
+    "std",
+] }
 burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", default-features = false }
 onnx-ir = { path = "../onnx-ir", version = "0.17.0" }
 candle-core = { workspace = true }

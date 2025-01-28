@@ -1,0 +1,10 @@
+[package]
+name = "stmodel"
+version = "0.6.0"
+edition = "2021"
+
+[dependencies]
+burn = { path = "../../../crates/burn" }
+burn-import = { path = "../../../crates/burn-import", features = [
+    "safetensors",
+], default-features = false }

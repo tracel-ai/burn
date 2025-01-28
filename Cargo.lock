@@ -6339,6 +6339,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "safetensors-import"
+version = "0.17.0"
+dependencies = [
+ "burn",
+ "burn-import",
+ "stmodel",
+]
+
+[[package]]
+name = "safetensors-tests"
+version = "0.17.0"
+dependencies = [
+ "burn",
+ "burn-autodiff",
+ "burn-import",
+ "burn-ndarray",
+ "float-cmp",
+ "serde",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6844,6 +6865,14 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "stmodel"
+version = "0.6.0"
+dependencies = [
+ "burn",
+ "burn-import",
+]
 
 [[package]]
 name = "streaming-decompression"
