@@ -5,12 +5,6 @@ macro_rules! testgen_all {
     () => {
         use burn_tensor::{Bool, Float, Int};
 
-        pub type TestBackend = JitBackend<TestRuntime, f32, i32, u32>;
-
-        type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-        type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int>;
-        type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
-
         pub mod vision {
             pub use super::*;
 

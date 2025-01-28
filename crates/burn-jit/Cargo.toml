@@ -20,9 +20,10 @@ export_tests = [
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
-    "burn-vision?/export_tests",
+    "burn-vision/export_tests",
     "burn-ndarray",
     "fusion",
+    "vision",
     "paste",
 ]
 fusion = ["burn-fusion"]

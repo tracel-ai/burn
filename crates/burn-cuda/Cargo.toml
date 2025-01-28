@@ -37,9 +37,6 @@ log = { workspace = true }
 burn-jit = { path = "../burn-jit", version = "0.17.0", default-features = false, features = [
   "export_tests",
 ] }
-burn-vision = { path = "../burn-vision", version = "0.17.0", default-features = false, features = [
-  "export_tests",
-] }
 paste = { workspace = true }
 
 

@@ -21,12 +21,12 @@ std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
 
 # Backends
-webgpu = ["cubecl-wgsl"]
 vulkan = ["cubecl-spirv"]
+webgpu = ["cubecl-wgsl"]
 
 # Compilers
-cubecl-wgsl = []
 cubecl-spirv = ["cubecl/wgpu-spirv"]
+cubecl-wgsl = []
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
@@ -40,9 +40,6 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = 
 
 [dev-dependencies]
 burn-jit = { path = "../burn-jit", version = "0.17.0", default-features = false, features = [
-    "export_tests",
-] }
-burn-vision = { path = "../burn-vision", version = "0.17.0", features = [
     "export_tests",
 ] }
 half = { workspace = true }
