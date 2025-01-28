@@ -111,4 +111,5 @@ mod tests {
     burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
     #[cfg(not(feature = "spirv"))]
     burn_jit::testgen_all!([f32], [i32], [u32]);
+    burn_vision::testgen_all!();
 }

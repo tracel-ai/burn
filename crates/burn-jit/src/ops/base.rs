@@ -76,6 +76,7 @@ pub(crate) fn swap_dims<R: JitRuntime>(
     tensor
 }
 
+/// Permute a tensor's dimensions
 pub fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();

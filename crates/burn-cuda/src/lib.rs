@@ -21,4 +21,5 @@ mod tests {
 
     // TODO: Add tests for bf16
     burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
+    burn_vision::testgen_all!();
 }

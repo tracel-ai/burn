@@ -23,7 +23,8 @@ pub struct JitTensor<R: JitRuntime> {
     pub device: R::Device,
     /// The strides of the tensor.
     pub strides: Vec<usize>,
-    pub(crate) dtype: DType,
+    /// The datatype of the tensor.
+    pub dtype: DType,
 }
 
 impl<R: JitRuntime, E: JitElement> From<JitTensor<R>> for TensorHandle<R, E> {
