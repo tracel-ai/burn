@@ -80,7 +80,6 @@ pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     }
 }
 
-
 #[cube]
 pub(crate) fn quantize_symmetric_int8<F: Float>(
     value: Line<F>,

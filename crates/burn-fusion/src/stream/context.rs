@@ -42,8 +42,6 @@ pub struct Context<'a, H> {
 pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorDescription>,
     tensors_global2relative: HashMap<TensorId, TensorDescription>,
-    /// Only useful to create new shape ID.
-    /// You should use tensor descriptions to retrieve the proper shape.
     shapes_global2relative: HashMap<usize, usize>,
     scalar_f32: Vec<f32>,
     scalar_f16: Vec<f16>,
@@ -205,9 +203,11 @@ impl OperationConverter {
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
+
         self.shapes_global2relative.clear();
         // global 1 is always shape id 0.
         self.shapes_global2relative.insert(1, 0);
+
         self.scalar_f32.clear();
         self.scalar_f16.clear();
         self.scalar_bf16.clear();
@@ -1186,6 +1186,7 @@ impl RelativeOps for TensorDescription {
                 // We never saw this dim value before, therefore we create a new ID.
                 let dim_id = converter.shapes_global2relative.len();
                 relative_shape.push(dim_id);
+
                 converter.shapes_global2relative.insert(*dim, dim_id);
             }
         }

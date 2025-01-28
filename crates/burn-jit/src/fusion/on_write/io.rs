@@ -822,7 +822,6 @@ fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> Expand
     let elem = iter.into();
     let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
     let result = rank - elem - 1;
-    println!("Result rank {rank:?} elem {elem:?} {result:?}");
     let scalar: Variable = result.into();
     let expand: ExpandElement = ExpandElement::Plain(scalar);
 
@@ -838,7 +837,6 @@ fn convert_index_standard_to_original_index<N: CubePrimitive>(
     let mut remaining = index_standard;
     let mut index = 0;
 
-    // #[unroll]
     for i in 0..rank {
         let shape = original.shape(i);
         let stride = original.stride(i);

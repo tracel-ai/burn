@@ -63,8 +63,8 @@ impl TryFuseBuilder {
         true
     }
 
-    fn build(&self) -> FuseOnWriteTrace {
-        self.builder.build()
+    fn build(&self, shape: Vec<usize>) -> FuseOnWriteTrace {
+        self.builder.build(shape)
     }
 }
 
@@ -116,7 +116,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
-        self.builder.build()
+        self.builder.build(self.current_output_shape.clone())
     }
 
     fn len(&self) -> usize {
@@ -182,10 +182,6 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationDescription::Reshape(desc) => {
-                // if self.current_output_shape.is_empty() {
-                //     return false;
-                // }
-
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }

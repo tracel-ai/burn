@@ -19,7 +19,8 @@ pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes: Vec<TensorId>,
+    shapes_reshape: Vec<TensorId>,
+    shape_ref: Vec<usize>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
@@ -47,11 +48,11 @@ pub trait TraceRunner<R: JitRuntime> {
         handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorDescription>,
         outputs: impl Iterator<Item = &'a TensorDescription>,
+        reshaped: impl Iterator<Item = &'a TensorDescription>,
     ) -> u8 {
         // The default version uses the last dimension as vectorization axis and assumes a
         // perpendicular contiguous line.
         let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
-            println!("Desc Input {desc:?}");
             let rank = handle.strides.len();
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -70,7 +71,6 @@ pub trait TraceRunner<R: JitRuntime> {
         };
 
         let vectorization_output = |desc: &TensorDescription| {
-            println!("Desc Output {desc:?}");
             let rank = desc.shape.len();
 
             for s in R::line_size_elem(&desc.dtype.into()) {
@@ -90,6 +90,10 @@ pub trait TraceRunner<R: JitRuntime> {
         }
 
         for tensor in outputs {
+            output = Ord::min(vectorization_output(tensor), output);
+        }
+
+        for tensor in reshaped {
             output = Ord::min(vectorization_output(tensor), output);
         }
 
@@ -240,10 +244,16 @@ impl FuseOnWriteTrace {
         self.analyse_inputs(context, &mut analysis);
         self.analyse_outputs::<_, BT>(client, device, context, &mut analysis);
 
+        let tensors_reshaped = self
+            .shapes_reshape
+            .iter()
+            .map(|id| context.tensors.get(id).unwrap());
+
         analysis.vectorization = Runner::vectorization(
             analysis.handle_inputs.iter().map(|item| &item.handle),
             analysis.global_inputs.iter(),
             analysis.global_outputs.iter(),
+            tensors_reshaped,
         );
 
         analysis
@@ -265,7 +275,8 @@ impl FuseOnWriteTrace {
             if status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
-                && !self.shapes.contains(&tensor_relative.id)
+                && !self.shapes_reshape.contains(&tensor_relative.id)
+                && self.shape_ref == tensor_relative.shape
             {
                 analysis.potential_inplaces.push(PotentialInplace {
                     input_pos: i,
@@ -507,11 +518,10 @@ impl FuseOnWriteTrace {
             }
         }
 
-        for relative in self.shapes.iter().rev() {
+        for relative in self.shapes_reshape.iter().rev() {
             let global = context.tensors.get(relative).unwrap();
 
             for shape in global.shape.iter().rev() {
-                println!("{shape}");
                 inputs.s_u32.push(ScalarArg::new(*shape as u32))
             }
         }

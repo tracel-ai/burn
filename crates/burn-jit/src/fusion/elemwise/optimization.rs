@@ -28,7 +28,6 @@ pub struct ElemwiseOptimizationState {
 impl<R: JitRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
-        println!("{:?}", self.trace);
         self.trace
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
@@ -115,7 +114,6 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
         let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
-        println!("{shape:?} - {total_elem:?} - {cube_count:?} - {vectorization}");
 
         unsafe {
             elemwise_fuse::launch_unchecked(

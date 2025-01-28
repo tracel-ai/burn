@@ -77,11 +77,10 @@ mod tests {
     #[test]
     fn should_support_reshape_maybe_fused() {
         let tensor = TestTensorInt::arange(0..32, &Default::default());
-        let tensor0 = TestTensorInt::zeros([8, 4, 8], &Default::default());
         let tensor1 = tensor.clone().reshape([1, 4, 8]);
         let tensor2 = tensor.reshape([8, 4, 1]);
 
-        let output = tensor0 + tensor1 + tensor2;
+        let output = tensor1 + tensor2;
         let expected = TensorData::from([
             [
                 [0, 1, 2, 3, 4, 5, 6, 7],

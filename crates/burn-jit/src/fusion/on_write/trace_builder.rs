@@ -15,7 +15,7 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes: Vec<TensorId>,
+    shapes_reshape: Vec<TensorId>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub bool_precision: ElemwisePrecision,
@@ -30,7 +30,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
-            shapes: Vec::default(),
+            shapes_reshape: Vec::new(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
@@ -173,8 +173,8 @@ impl FuseOnWriteTraceBuilder {
 
         let mut shape = Sequence::new();
 
-        let index = self.shapes.len();
-        self.shapes.push(output.id.clone());
+        let index = self.shapes_reshape.len();
+        self.shapes_reshape.push(output.id.clone());
         let rank = output.shape.len();
 
         for i in 0..output.shape.len() {
@@ -218,7 +218,7 @@ impl FuseOnWriteTraceBuilder {
         Arg::Scalar(new_index, precision)
     }
 
-    pub fn build(&self) -> FuseOnWriteTrace {
+    pub fn build(&self, shape: Vec<usize>) -> FuseOnWriteTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();
@@ -240,14 +240,15 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
-        let shapes = self.shapes.clone();
+        let shapes_reshape = self.shapes_reshape.clone();
 
         // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace::new(
             outputs,
             inputs,
             scalars,
-            shapes,
+            shapes_reshape,
+            shape,
             ops,
             reads,
             writes,
