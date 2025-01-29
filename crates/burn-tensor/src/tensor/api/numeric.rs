@@ -1449,8 +1449,8 @@ where
 
         // last two dimensions
         let shape = &self.shape().dims[D - 2..].to_owned();
-
         let mask = Tensor::<B, 2, Bool>::tril_mask(shape, diagonal, &self.device()).unsqueeze();
+
         self.mask_fill(mask, 0)
     }
 

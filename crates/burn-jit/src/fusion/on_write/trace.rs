@@ -304,7 +304,15 @@ impl FuseOnWriteTrace {
         context: &mut Context<'_, JitFusionHandle<R>>,
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
-        for (precision, tensor_relative) in self.outputs.iter() {
+        let mut output_sorted: Vec<_> = self.outputs.iter().collect();
+        output_sorted.sort_by(|(_, a), (_, b)| {
+            let a_val: usize = a.shape.iter().sum();
+            let b_val: usize = b.shape.iter().sum();
+
+            b_val.cmp(&a_val)
+        });
+
+        for (precision, tensor_relative) in output_sorted {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
 

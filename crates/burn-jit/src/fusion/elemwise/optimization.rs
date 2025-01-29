@@ -111,6 +111,7 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
             None => panic!("Invalid argument"),
         };
 
+        println!("Shape {shape:?} - {vectorization}");
         let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);

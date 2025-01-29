@@ -122,9 +122,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
-        let trace = self.builder.build(self.current_output_shape.clone());
-        println!("Trace {trace:?}");
-        trace
+        self.builder.build(self.current_output_shape.clone())
     }
 
     fn len(&self) -> usize {
@@ -499,7 +497,6 @@ impl FuseOnWriteBuilder {
 
         // Rank should be equal.
         if rank != out.shape.len() {
-            println!("Not same rank");
             return false;
         }
 
@@ -513,11 +510,10 @@ impl FuseOnWriteBuilder {
             //
             // 0 is the shape id for a global shape of 1.
             if curr != new && new != 0 && curr != 0 {
-                println!("Not compatible");
                 return false;
             }
 
-            updated[0] = usize::max(curr, new);
+            updated[i] = usize::max(curr, new);
         }
         core::mem::swap(&mut updated, &mut self.current_output_shape);
 

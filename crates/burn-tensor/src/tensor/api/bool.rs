@@ -122,7 +122,9 @@ where
         };
 
         // Generate and return the mask by applying the comparison to the matrix.
-        compare(matrix, 0).unsqueeze()
+        // println!("Matrix {matrix}");
+        let out = compare(matrix, 0);
+        out.unsqueeze()
     }
 
     /// Creates a mask for the upper triangle of a matrix, which can be used to fill the specified
