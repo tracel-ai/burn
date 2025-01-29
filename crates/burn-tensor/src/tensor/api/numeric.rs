@@ -2208,6 +2208,7 @@ where
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
+
         Self::new(K::scatter(0, zeros, indices.primitive, ones))
     }
 }

@@ -304,15 +304,22 @@ impl FuseOnWriteTrace {
         context: &mut Context<'_, JitFusionHandle<R>>,
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
-        let mut output_sorted: Vec<_> = self.outputs.iter().collect();
-        output_sorted.sort_by(|(_, a), (_, b)| {
+        let mut output_sorted: Vec<_> = self.outputs.iter().enumerate().collect();
+        output_sorted.sort_by(|(_, (_, a)), (_, (_, b))| {
             let a_val: usize = a.shape.iter().sum();
             let b_val: usize = b.shape.iter().sum();
 
             b_val.cmp(&a_val)
         });
+        let mut handles = Vec::with_capacity(self.outputs.len());
+        let mut globals = Vec::with_capacity(self.outputs.len());
 
-        for (precision, tensor_relative) in output_sorted {
+        for _ in 0..self.outputs.len() {
+            handles.push(None);
+            globals.push(None);
+        }
+
+        for (position_original, (precision, tensor_relative)) in output_sorted.into_iter() {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
 
@@ -363,11 +370,12 @@ impl FuseOnWriteTrace {
                 context
                     .handles
                     .register_handle(tensor_global.id, handle_input.handle.clone());
-                analysis.handle_outputs.push(HandleOutput::Alias {
+
+                handles[position_original] = Some(HandleOutput::Alias {
                     input_pos: potential_inplace.input_pos,
                     precision,
                 });
-                analysis.global_outputs.push(tensor_global);
+                globals[position_original] = Some(tensor_global);
             } else {
                 if analysis.reference.is_none() {
                     analysis.reference = Some(Reference {
@@ -411,14 +419,19 @@ impl FuseOnWriteTrace {
                     .handles
                     .register_handle(tensor_global.id, handle.clone());
 
-                analysis.handle_outputs.push(HandleOutput::Owned {
+                handles[position_original] = Some(HandleOutput::Owned {
                     precision,
                     handle,
                     global_shape: tensor_global.shape.clone(),
                     global_id: tensor_global.id,
                 });
-                analysis.global_outputs.push(tensor_global);
+                globals[position_original] = Some(tensor_global);
             }
+        }
+
+        for (handle, global) in handles.into_iter().zip(globals.into_iter()) {
+            analysis.handle_outputs.push(handle.unwrap());
+            analysis.global_outputs.push(global.unwrap());
         }
 
         Self::add_layout_info_inputs(analysis);
