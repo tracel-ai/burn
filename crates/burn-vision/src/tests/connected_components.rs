@@ -3,11 +3,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use burn_tensor::{Tensor, TensorData};
-    use burn_vision::{
-        as_type, ConnectedComponents, ConnectedStats, ConnectedStatsOptions, Connectivity,
-        VisionOps,
-    };
+    use burn_tensor::TensorData;
+    use burn_vision::{as_type, ConnectedComponents, ConnectedStatsOptions, Connectivity};
 
     fn space_invader() -> [[IntType; 14]; 9] {
         as_type!(IntType: [

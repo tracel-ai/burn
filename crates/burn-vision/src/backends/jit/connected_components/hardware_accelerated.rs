@@ -4,11 +4,14 @@
 //! DASIP, 2018
 
 use crate::{
-    kernel::vision::connected_components::stats_from_opts, ops::numeric::zeros_device,
-    tensor::JitTensor, BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
+    backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
+    ConnectedStatsPrimitive, Connectivity,
+};
+use burn_jit::{
+    ops::numeric::zeros_device, tensor::JitTensor, BoolElement, FloatElement, IntElement,
+    JitBackend, JitRuntime,
 };
 use burn_tensor::Shape;
-use burn_vision::{ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity};
 use cubecl::{prelude::*, Feature};
 
 const BLOCK_H: u32 = 4;
@@ -50,16 +53,19 @@ fn end_distance(pixels: u32, tx: u32) -> u32 {
     u32::find_first_set(u32::bitwise_not(pixels >> (tx + 1)))
 }
 
+#[cube]
+#[expect(unconditional_panic, reason = "clippy thinks PLANE_DIM is always 2")]
+fn ballot_dyn(y: u32, pred: bool) -> u32 {
+    let index = y % (PLANE_DIM / 32);
+    plane_ballot(pred)[index]
+}
+
 #[cube(launch)]
 fn strip_labeling<BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<u32>>,
     #[comptime] connectivity: Connectivity,
 ) {
-    if UNIT_POS_PLANE >= 32 {
-        terminate!();
-    }
-
     let mut shared_pixels = SharedMemory::<u32>::new(BLOCK_H);
 
     let batch = ABSOLUTE_POS_Z;
@@ -95,7 +101,7 @@ fn strip_labeling<BT: CubePrimitive>(
 
             let p_y = bool::cast_from(img[img_index]);
 
-            let pixels_y = plane_ballot(p_y)[0] & mask;
+            let pixels_y = ballot_dyn(UNIT_POS_Y, p_y) & mask;
             let mut s_dist_y = start_distance(pixels_y, UNIT_POS_X);
 
             if p_y && s_dist_y == 0 {
@@ -213,8 +219,8 @@ fn strip_merge<BT: CubePrimitive>(
         let p = bool::cast_from(img[img_index]);
         let p_up = bool::cast_from(img[img_index_up]);
 
-        let pixels = plane_ballot(p)[0] & mask;
-        let pixels_up = plane_ballot(p_up)[0] & mask;
+        let pixels = ballot_dyn(UNIT_POS_Z, p) & mask;
+        let pixels_up = ballot_dyn(UNIT_POS_Z, p_up) & mask;
 
         match connectivity {
             Connectivity::Four => {
@@ -309,7 +315,7 @@ fn relabeling<BT: CubePrimitive>(img: &Tensor<BT>, labels: &mut Tensor<u32>) {
         let labels_index = batch * labels.stride(0) + y * labels_step + x;
 
         let p = bool::cast_from(img[img_index]);
-        let pixels = plane_ballot(p)[0] & mask;
+        let pixels = ballot_dyn(UNIT_POS_Y, p) & mask;
         let s_dist = start_distance(pixels, UNIT_POS_X);
         let mut label = 0u32;
 
@@ -358,7 +364,7 @@ fn analysis<BT: CubePrimitive>(
         let labels_index = batch * labels.stride(0) + y * labels_step + x;
 
         let p = bool::cast_from(img[img_index]);
-        let pixels = plane_ballot(p)[0] & mask;
+        let pixels = ballot_dyn(UNIT_POS_Y, p) & mask;
         let s_dist = start_distance(pixels, UNIT_POS_X);
         let count = end_distance(pixels, UNIT_POS_X);
         let max_x = x + count - 1;
@@ -429,7 +435,8 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
-    // size at compile time.
+    // size at compile time. `REQUIRE_FULL_SUBGROUPS` or subgroup size controls are not supported
+    // in wgpu.
     let warp_size = 32;
     let cube_dim = CubeDim::new_2d(warp_size, BLOCK_H);
     let cube_count = CubeCount::Static(1, (rows as u32).div_ceil(cube_dim.y), batches as u32);

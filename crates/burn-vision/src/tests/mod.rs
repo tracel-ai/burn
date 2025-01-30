@@ -5,14 +5,15 @@ macro_rules! testgen_all {
     () => {
         use burn_tensor::{Bool, Float, Int};
 
+        pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int>;
+        pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
+
         pub mod vision {
             pub use super::*;
 
-            pub type FloatType = <TestBackend as burn_tensor::backend::Backend>::FloatElem;
             pub type IntType = <TestBackend as burn_tensor::backend::Backend>::IntElem;
-            pub type BoolType = <TestBackend as burn_tensor::backend::Backend>::BoolElem;
 
-            $crate::testgen_connected_components!();
+            burn_vision::testgen_connected_components!();
         }
     };
 }
@@ -28,7 +29,7 @@ macro_rules! as_type {
     };
     ($ty:ident: $elem:expr) => {
         {
-            use cubecl::prelude::{Float, Int};
+            use cubecl::prelude::*;
 
             $ty::new($elem)
         }

@@ -822,7 +822,6 @@ dependencies = [
  "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
- "burn-vision",
  "bytemuck",
  "cubecl",
  "derive-new 0.7.0",
@@ -969,9 +968,14 @@ dependencies = [
 name = "burn-vision"
 version = "0.17.0"
 dependencies = [
+ "burn-cuda",
+ "burn-jit",
+ "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
+ "burn-wgpu",
  "cubecl",
+ "derive-new 0.7.0",
  "serde",
 ]
 
@@ -1698,10 +1702,11 @@ dependencies = [
  "cubecl-macros-internal",
  "derive_more 1.0.0",
  "float-ord",
+ "fnv",
  "half",
  "num-traits",
  "serde",
- "type_hash",
+ "variadics_please",
 ]
 
 [[package]]
@@ -7627,37 +7632,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "deb68604048ff8fa93347f02441e4487594adc20bb8a084f9e564d2b827a0a9f"
 dependencies = [
  "rustc-hash 1.1.0",
-]
-
-[[package]]
-name = "type_hash"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03c86f48f11992d3e379358c63cb25736c0b23944ff000d1583bbccad2b0b7c6"
-dependencies = [
- "type_hash_core",
- "type_hash_macros",
-]
-
-[[package]]
-name = "type_hash_core"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87b1e93e2cd97790892dbe2d2813fbaa6eebaeb960265f59e363e79e51e4997a"
-dependencies = [
- "fnv",
-]
-
-[[package]]
-name = "type_hash_macros"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "746fc164e076483ef087b3989f7aa80ffd9320fa558f3cb72cecfb9bb1dbc41e"
-dependencies = [
- "either",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

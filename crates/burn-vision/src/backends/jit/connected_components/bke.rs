@@ -3,13 +3,13 @@
 //! "Optimized Block-Based Algorithms to Label Connected Components on GPUs,"
 //! in IEEE Transactions on Parallel and Distributed Systems, 2019.
 
-use crate::{
+use burn_jit::{
     kernel,
     ops::numeric::{empty_device, zeros_device},
     tensor::JitTensor,
-    tests::burn_tensor::{DType, Shape},
     JitElement, JitRuntime,
 };
+use burn_tensor::{DType, Shape};
 use cubecl::cube;
 use cubecl::prelude::*;
 

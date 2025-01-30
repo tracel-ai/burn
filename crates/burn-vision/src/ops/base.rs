@@ -1,10 +1,9 @@
+use crate::backends::cpu;
 use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, IntTensor},
     Int, Tensor,
 };
-
-use crate::cpu_impl;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Connectivity {
@@ -80,7 +79,7 @@ impl ConnectedStatsOptions {
 
 pub trait VisionOps<B: Backend> {
     fn connected_components(img: BoolTensor<B>, connectivity: Connectivity) -> IntTensor<B> {
-        cpu_impl::connected_components::<B>(img, connectivity)
+        cpu::connected_components::<B>(img, connectivity)
     }
 
     fn connected_components_with_stats(
@@ -88,6 +87,6 @@ pub trait VisionOps<B: Backend> {
         connectivity: Connectivity,
         opts: ConnectedStatsOptions,
     ) -> (IntTensor<B>, ConnectedStatsPrimitive<B>) {
-        cpu_impl::connected_components_with_stats(img, connectivity, opts)
+        cpu::connected_components_with_stats(img, connectivity, opts)
     }
 }

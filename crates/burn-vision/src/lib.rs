@@ -1,8 +1,8 @@
-pub mod cpu_impl;
+pub mod backends;
 mod ops;
 mod tensor;
 
-#[cfg(feature = "export_tests")]
+#[cfg(feature = "export-tests")]
 mod tests;
 
 pub use ops::*;

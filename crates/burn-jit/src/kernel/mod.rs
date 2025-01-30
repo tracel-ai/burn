@@ -37,10 +37,6 @@ pub mod quantization;
 /// Reduction algorithms
 pub mod reduce;
 
-/// Vision algorithms
-#[cfg(feature = "vision")]
-pub mod vision;
-
 pub(crate) use clamp::*;
 pub(crate) use comparison::*;
 pub(crate) use index::*;

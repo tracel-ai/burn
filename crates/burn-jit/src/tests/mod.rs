@@ -33,7 +33,6 @@ pub use burn_autodiff;
 pub use burn_fusion;
 pub use burn_ndarray;
 pub use burn_tensor;
-pub use burn_vision;
 pub use serial_test;
 
 #[macro_export]
@@ -44,10 +43,7 @@ macro_rules! testgen_all {
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         mod jit {
-            pub use $crate::tests::burn_vision;
-
             burn_jit::testgen_jit!([$($float),*], [$($int),*], [$($bool),*]);
-            burn_vision::testgen_all!();
 
             mod kernel {
                 use super::*;

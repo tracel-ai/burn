@@ -1,8 +1,8 @@
-use crate::{BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_tensor::ops::{BoolTensor, IntTensor};
-use burn_vision::{
-    cpu_impl, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, VisionOps,
+use crate::{
+    backends::cpu, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, VisionOps,
 };
+use burn_jit::{BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
+use burn_tensor::ops::{BoolTensor, IntTensor};
 
 use super::connected_components::hardware_accelerated;
 
@@ -20,7 +20,7 @@ where
             connectivity,
         )
         .map(|it| it.0)
-        .unwrap_or_else(|_| cpu_impl::connected_components::<Self>(img, connectivity))
+        .unwrap_or_else(|_| cpu::connected_components::<Self>(img, connectivity))
     }
 
     fn connected_components_with_stats(
@@ -29,7 +29,7 @@ where
         opts: ConnectedStatsOptions,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         hardware_accelerated::<R, F, I, BT>(img.clone(), opts, connectivity).unwrap_or_else(|_| {
-            cpu_impl::connected_components_with_stats::<Self>(img, connectivity, opts)
+            cpu::connected_components_with_stats::<Self>(img, connectivity, opts)
         })
     }
 }

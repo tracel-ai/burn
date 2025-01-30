@@ -13,23 +13,20 @@ version.workspace = true
 
 [features]
 autotune = []
-default = ["autotune", "std", "fusion", "vision", "cubecl/default"]
+default = ["autotune", "std", "fusion", "cubecl/default"]
 doc = ["default"]
 export_tests = [
     "burn-tensor-testgen",
     "serial_test",
     "burn-autodiff/export_tests",
     "burn-tensor/export_tests",
-    "burn-vision/export_tests",
     "burn-ndarray",
     "fusion",
-    "vision",
     "paste",
 ]
 fusion = ["burn-fusion"]
 fusion-experimental = ["fusion"]
 std = ["cubecl/std", "burn-tensor/std"]
-vision = ["burn-vision"]
 
 template = []
 
@@ -40,7 +37,6 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = 
     "cubecl",
     "repr",
 ] }
-burn-vision = { path = "../burn-vision", version = "0.17.0", optional = true }
 cubecl = { workspace = true, features = ["linalg", "reduce"] }
 
 bytemuck = { workspace = true }

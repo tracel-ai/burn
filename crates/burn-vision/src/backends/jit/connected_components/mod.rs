@@ -1,15 +1,15 @@
-use crate::{
+mod bke;
+mod hardware_accelerated;
+
+use burn_jit::{
     ops::numeric::{full_device, zeros_device},
     tensor::JitTensor,
     BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
 };
-
-mod bke;
-mod hardware_accelerated;
-
 use burn_tensor::Shape;
-use burn_vision::{ConnectedStatsOptions, ConnectedStatsPrimitive};
 pub use hardware_accelerated::*;
+
+use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};
 
 pub(crate) fn stats_from_opts<R, F, I, BT>(
     l: JitTensor<R>,
