@@ -1,13 +1,10 @@
-use crate::{
-    element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
-    tensor::NdArrayTensor,
-};
+use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor};
 use burn_tensor::TensorMetadata;
 use ndarray::{Array4, Array5};
 
 use super::NdArrayOps;
 
-pub(crate) fn apply_padding_4d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
+pub(crate) fn apply_padding_4d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     padding: [usize; 2],
     elem: E,
@@ -37,7 +34,7 @@ pub(crate) fn apply_padding_4d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: 
     x_new
 }
 
-pub(crate) fn apply_padding_5d<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>(
+pub(crate) fn apply_padding_5d<E: FloatNdArrayElement>(
     x: NdArrayTensor<E>,
     padding: [usize; 3],
     elem: E,

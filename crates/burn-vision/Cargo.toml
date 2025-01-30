@@ -25,10 +25,12 @@ wgpu = ["jit-backend", "export-tests"]
 
 [dependencies]
 burn-jit = { path = "../burn-jit", version = "0.17.0", optional = true }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.17.0", optional = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
+ndarray = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]

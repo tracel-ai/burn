@@ -1,0 +1,81 @@
+//! Spaghetti algorithm for connected component labeling, modified for 4-connectivity using the
+//! 4-connected Rosenfeld mask.
+//! F. Bolelli, S. Allegretti, L. Baraldi, and C. Grana,
+//! "Spaghetti Labeling: Directed Acyclic Graphs for Block-Based Bonnected Components Labeling,"
+//! IEEE Transactions on Image Processing, vol. 29, no. 1, pp. 1999-2012, 2019.
+//!
+//! Decision forests are generated using a modified [GRAPHGEN](https://github.com/wingertge/GRAPHGEN)
+//! as described in
+//!
+//! F. Bolelli, S. Allegretti, C. Grana.
+//! "One DAG to Rule Them All."
+//! IEEE Transactions on Pattern Analisys and Machine Intelligence, 2021
+
+#![allow(unreachable_code)]
+
+use ndarray::{s, Array2, ArrayView2, Axis};
+
+use super::Solver;
+
+#[allow(non_snake_case)]
+mod Spaghetti4C_forest_labels;
+pub(crate) use Spaghetti4C_forest_labels::*;
+
+pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
+    let (h, w) = img.dim();
+
+    let mut img_labels = Array2::default(img.raw_dim());
+
+    // A quick and dirty upper bound for the maximum number of labels.
+    // Following formula comes from the fact that a 2x2 block in 4-connectivity case
+    // can never have more than 2 new labels and 1 label for background.
+    // Worst case image example pattern:
+    // 1 0 1 0 1...
+    // 0 1 0 1 0...
+    // 1 0 1 0 1...
+    // ............
+    let max_labels = ((h * w + 1) / 2) + 1;
+
+    let mut solver = LabelsSolver::init(max_labels);
+    let solver = &mut solver;
+
+    let w = w as i32;
+
+    // First row
+    {
+        let r = 0;
+        //Pointers:
+        // Row pointers for the input image
+        let img_row00 = img.index_axis(Axis(0), r);
+
+        // Row pointers for the output image
+        let mut img_labels_row00 = img_labels.slice_mut(s![r, ..]);
+        let mut c = -1i32;
+
+        let entry = firstLabels::fl_tree_0;
+
+        include!("Spaghetti4C_first_line_forest_code.rs");
+    }
+
+    for r in 1..h {
+        //Pointers:
+        // Row pointers for the input image
+        let img_row00 = img.index_axis(Axis(0), r);
+        let img_row11 = img.index_axis(Axis(0), r - 1);
+
+        // Row pointers for the output image
+        let (mut img_labels_row00, img_labels_row11) =
+            img_labels.multi_slice_mut((s![r, ..], s![r - 1, ..]));
+        let mut c = -1i32;
+
+        let entry = centerLabels::cl_tree_0;
+
+        include!("Spaghetti4C_center_line_forest_code.rs");
+    }
+
+    solver.flatten();
+
+    img_labels.map_inplace(|label| *label = solver.get_label(*label));
+
+    img_labels
+}

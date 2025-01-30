@@ -976,6 +976,7 @@ dependencies = [
  "burn-wgpu",
  "cubecl",
  "derive-new 0.7.0",
+ "ndarray 0.16.1",
  "serde",
 ]
 

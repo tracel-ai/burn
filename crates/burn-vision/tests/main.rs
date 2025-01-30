@@ -1,6 +1,6 @@
 #[cfg(all(test, feature = "cpu"))]
 mod tests_cpu {
-    pub type TestBackend = burn_ndarray::NdArray;
+    pub type TestBackend = burn_ndarray::NdArray<f32, i32>;
 
     burn_vision::testgen_all!();
 }

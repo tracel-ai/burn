@@ -1,3 +1,5 @@
+extern crate alloc;
+
 pub mod backends;
 mod ops;
 mod tensor;

@@ -11,7 +11,7 @@ use ndarray::{
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-use crate::{element::QuantElement, FloatNdArrayElement, NdArrayTensor};
+use crate::{FloatNdArrayElement, NdArrayTensor};
 
 use super::matmul::matmul;
 
@@ -255,7 +255,6 @@ pub mod backward {
     #[cfg(target_has_atomic = "32")]
     use core::sync::atomic::Ordering;
 
-    use crate::element::IntNdArrayElement;
     use atomic_float::AtomicF32;
     use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
 
@@ -270,11 +269,7 @@ pub mod backward {
     );
 
     /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-    pub(crate) fn deform_conv2d_backward<
-        F: FloatNdArrayElement,
-        I: IntNdArrayElement,
-        Q: QuantElement,
-    >(
+    pub(crate) fn deform_conv2d_backward<F: FloatNdArrayElement>(
         input: NdArrayTensor<F>,
         offset: NdArrayTensor<F>,
         weight: NdArrayTensor<F>,

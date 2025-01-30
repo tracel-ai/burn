@@ -21,7 +21,7 @@ mod sharing;
 mod tensor;
 
 pub use backend::*;
-pub use element::FloatNdArrayElement;
+pub use element::*;
 pub(crate) use sharing::*;
 pub use tensor::*;
 
