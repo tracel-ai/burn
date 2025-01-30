@@ -13,17 +13,17 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = { version="0.16.0", features=["train"] }
+burn = { path = "../../crates/burn", features=["train"] }
 
 # Random number generator
-rand = { version="0.8.5" }
-rand_distr = { version="0.4.3" }
+rand = { workspace = true }
+rand_distr = { workspace = true }
 
 # Serialization
-serde = { version="1.0.210", features=["std", "derive"] }
+serde = {workspace = true, features = ["std", "derive"]}
 
 # Organise the results in dataframe
-polars = { version="0.44.1" }
+polars = { workspace = true }
 
 # Command line parser
-clap = { version="4.5.21", features=["derive"] }
+clap = { workspace = true }
