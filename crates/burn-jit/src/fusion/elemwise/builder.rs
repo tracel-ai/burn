@@ -36,6 +36,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
     }
 
     fn build(&self) -> JitOptimization<R> {
+        println!("Build");
         let client = R::client(&self.device);
         let trace = self.builder.build();
         let elementwise =

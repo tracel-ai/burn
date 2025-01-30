@@ -183,6 +183,7 @@ impl FuseOnWriteTrace {
             ops.push(op);
         }
 
+        println!("Chosen refernec {:?}", analysis.reference);
         let config = ElemwiseConfig {
             rank: analysis.rank as u32,
             ref_layout: analysis
@@ -322,6 +323,7 @@ impl FuseOnWriteTrace {
         for (position_original, (precision, tensor_relative)) in output_sorted.into_iter() {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
+            println!("shape {:?} strides {strides:?}", tensor_global.shape);
 
             if let Some(index) = analysis
                 .potential_inplaces
@@ -379,7 +381,7 @@ impl FuseOnWriteTrace {
             } else {
                 if analysis.reference.is_none() {
                     analysis.reference = Some(Reference {
-                        layout: Arg::Output(0, precision, LayoutInfo::IsRef),
+                        layout: Arg::Output(position_original as u32, precision, LayoutInfo::IsRef),
                         shape: tensor_global.shape.clone(),
                         strides: strides.clone(),
                     });
@@ -485,7 +487,9 @@ impl FuseOnWriteTrace {
         );
 
         for hi in handle_inputs.iter() {
+            println!("Input shape {:?}", hi.global_shape);
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
+            println!("Done");
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),

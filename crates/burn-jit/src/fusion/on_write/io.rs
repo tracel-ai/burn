@@ -829,8 +829,8 @@ fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> Expand
 }
 
 #[cube]
-fn convert_index_standard_to_original_index<N: CubePrimitive>(
-    original: &Tensor<Line<N>>,
+fn convert_index_standard_to_original_index<C: CubePrimitive>(
+    original: &Tensor<Line<C>>,
     rank: u32,
     index_standard: u32,
 ) -> u32 {
@@ -839,12 +839,29 @@ fn convert_index_standard_to_original_index<N: CubePrimitive>(
 
     for i in 0..rank {
         let shape = original.shape(i);
-        let stride = original.stride(i);
         let coordinate = remaining % shape;
 
         remaining /= shape;
-        index += coordinate * stride;
+        index += coordinate * original.stride(i);
     }
 
     index / original.line_size()
+}
+
+#[cube]
+fn convert_index_standard_to_original_index_2<C: CubePrimitive, N: CubePrimitive>(
+    original: &Tensor<Line<C>>,
+    layout: &Tensor<Line<N>>,
+    rank: u32,
+    index_standard: u32,
+) -> u32 {
+    let offset_ref = index_standard;
+    let mut offset = 0u32;
+
+    for i in 0u32..rank {
+        let ogwl = offset_ref / original.stride(i);
+        offset += ogwl % original.shape(i) * original.stride(i);
+    }
+
+    offset / original.line_size()
 }

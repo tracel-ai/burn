@@ -105,12 +105,14 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
                     return;
                 }
             }
-            OperationDescription::BaseBool(ops) => {
-                if !self.register_base(ops) {
-                    self.status = OptimizationStatus::Closed;
-                    return;
-                }
-            }
+            // TODO
+            //
+            // OperationDescription::BaseBool(ops) => {
+            //     if !self.register_base(ops) {
+            //         self.status = OptimizationStatus::Closed;
+            //         return;
+            //     }
+            // }
             _ => {
                 self.status = OptimizationStatus::Closed;
                 return;
