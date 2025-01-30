@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn should_build_indices_2d_complexe() {
+    fn should_build_indices_2d_complex() {
         let shape = Shape::new([2, 3]);
 
         let indices = build_indices(&shape, Order::Left);
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn should_build_indices_3d_complexe() {
+    fn should_build_indices_3d_complex() {
         let shape = Shape::new([2, 5, 3]);
 
         let indices = build_indices(&shape, Order::Left);
