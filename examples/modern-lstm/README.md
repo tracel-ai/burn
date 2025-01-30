@@ -9,14 +9,34 @@ A sophisticated implementation of Long Short-Term Memory (LSTM) networks in Burn
 
 This implementation is complementary to Burn's official LSTM, users can choose either one depends on the project's specific needs.
 
-## Example Usage
+## Usage
 
-### Training
+
+## Training
+
 ```sh
-cargo run --release --features ndarray -- train --artifact-dir /home/wangjw/data/work/projects/lstm/output --num-epochs 30 --batch-size 32 --num-workers 2 --lr 0.001
+# Cuda backend
+cargo run --example train --release --features cuda-jit
+
+# Wgpu backend
+cargo run --example train --release --features wgpu
+
+# Tch GPU backend
+export TORCH_CUDA_VERSION=cu121 # Set the cuda version
+cargo run --example train --release --features tch-gpu
+
+# Tch CPU backend
+cargo run --example train --release --features tch-cpu
+
+# NdArray backend (CPU)
+cargo run --example train --release --features ndarray                # f32 - single thread
+cargo run --example train --release --features ndarray-blas-openblas  # f32 - blas with openblas
+cargo run --example train --release --features ndarray-blas-netlib    # f32 - blas with netlib
 ```
 
+
 ### Inference
+
 ```sh
-cargo run --release --features ndarray -- infer --artifact-dir /home/wangjw/data/work/projects/lstm/output
+cargo run --example infer --release --features cuda-jit
 ```

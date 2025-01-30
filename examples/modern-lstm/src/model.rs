@@ -6,21 +6,21 @@ use burn::{
     prelude::*,
 };
 
-// LSTM Cell implementation with layer normalization.
-//
-// Mathematical formulation of LSTM:
-// f_t = σ(W_f · [h_{t-1}, x_t] + b_f)      # Forget gate
-// i_t = σ(W_i · [h_{t-1}, x_t] + b_i]      # Input gate
-// g_t = tanh(W_g · [h_{t-1}, x_t] + b_g]   # Candidate cell state
-// o_t = σ(W_o · [h_{t-1}, x_t] + b_o)      # Output gate
-//
-// c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t            # New cell state
-// h_t = o_t ⊙ tanh(c_t)                       # New hidden state
-//
-// where:
-// - σ is the sigmoid function
-// - ⊙ is the element-wise multiplication
-// - [h_{t-1}, x_t] represents concatenation
+/// LSTM Cell implementation with layer normalization.
+///
+/// Mathematical formulation of LSTM:
+/// f_t = σ(W_f · [h_{t-1}, x_t] + b_f)      # Forget gate
+/// i_t = σ(W_i · [h_{t-1}, x_t] + b_i]      # Input gate
+/// g_t = tanh(W_g · [h_{t-1}, x_t] + b_g]   # Candidate cell state
+/// o_t = σ(W_o · [h_{t-1}, x_t] + b_o)      # Output gate
+///
+/// c_t = f_t ⊙ c_{t-1} + i_t ⊙ g_t            # New cell state
+/// h_t = o_t ⊙ tanh(c_t)                       # New hidden state
+///
+/// where:
+/// - σ is the sigmoid function
+/// - ⊙ is the element-wise multiplication
+/// - [h_{t-1}, x_t] represents concatenation
 
 #[derive(Module, Debug)]
 pub struct LstmCell<B: Backend> {
@@ -37,7 +37,7 @@ pub struct LstmCell<B: Backend> {
     pub dropout: Dropout,
 }
 
-// Configuration to create a Lstm module using the init function.
+/// Configuration to create a Lstm module using the init function.
 #[derive(Config, Debug)]
 pub struct LstmCellConfig {
     // The size of the input features
@@ -92,12 +92,12 @@ impl LstmCellConfig {
 }
 
 impl<B: Backend> LstmCell<B> {
-    // Forward pass of LSTM cell.
-    // Args:
-    //     x: Input tensor of shape (batch_size, input_size)
-    //     state: Tuple of (h_{t-1}, c_{t-1}) each of shape (batch_size, hidden_size)
-    // Returns:
-    //  Tuple of (h_t, c_t) representing new hidden and cell states
+    /// Forward pass of LSTM cell.
+    /// Args:
+    ///     x: Input tensor of shape (batch_size, input_size)
+    ///     state: Tuple of (h_{t-1}, c_{t-1}) each of shape (batch_size, hidden_size)
+    /// Returns:
+    ///  Tuple of (h_t, c_t) representing new hidden and cell states
     pub fn forward(&self, x: Tensor<B, 2>, state: LstmState<B, 2>) -> LstmState<B, 2> {
         let (h_prev, c_prev) = (state.hidden, state.cell);
 
@@ -147,8 +147,8 @@ impl<B: Backend> LstmCell<B> {
     }
 }
 
-// Stacked LSTM implementation supporting multiple layers
-// Each layer processes the output of the previous layer
+/// Stacked LSTM implementation supporting multiple layers
+/// Each layer processes the output of the previous layer
 #[derive(Module, Debug)]
 pub struct StackedLstm<B: Backend> {
     pub layers: Vec<LstmCell<B>>,
@@ -196,15 +196,15 @@ impl StackedLstmConfig {
 }
 
 impl<B: Backend> StackedLstm<B> {
-    // Process input sequence through stacked LSTM layers.
-    //
-    // Args:
-    //     x: Input tensor of shape (batch_size, seq_length, input_size)
-    //     states: Optional initial states for each layer
-    //
-    // Returns:
-    //     Tuple of (output, states) where output has shape (batch_size, seq_length, hidden_size)
-    //     and states is a vector of length num_layers, both cell and hidden state in each element have shape (batch_size, hidden_size)
+    /// Process input sequence through stacked LSTM layers.
+    ///
+    /// Args:
+    ///     x: Input tensor of shape (batch_size, seq_length, input_size)
+    ///     states: Optional initial states for each layer
+    ///
+    /// Returns:
+    ///     Tuple of (output, states) where output has shape (batch_size, seq_length, hidden_size)
+    ///     and states is a vector of length num_layers, both cell and hidden state in each element have shape (batch_size, hidden_size)
     pub fn forward(
         &self,
         x: Tensor<B, 3>,
@@ -247,12 +247,12 @@ impl<B: Backend> StackedLstm<B> {
     }
 }
 
-// Complete LSTM network with bidirectional support.
-//
-// In bidirectional mode:
-// - Forward LSTM processes sequence from left to right
-// - Backward LSTM processes sequence from right to left
-// - Outputs are concatenated for final prediction
+/// Complete LSTM network with bidirectional support.
+///
+/// In bidirectional mode:
+/// - Forward LSTM processes sequence from left to right
+/// - Backward LSTM processes sequence from right to left
+/// - Outputs are concatenated for final prediction
 #[derive(Module, Debug)]
 pub struct LstmNetwork<B: Backend> {
     // Forward direction LSTM
@@ -317,20 +317,20 @@ impl LstmNetworkConfig {
 }
 
 impl<B: Backend> LstmNetwork<B> {
-    // Forward pass of the network.
-    //
-    // For bidirectional processing:
-    // 1. Process sequence normally with forward LSTM
-    // 2. Process reversed sequence with backward LSTM
-    // 3. Concatenate both outputs
-    // 4. Apply final linear transformation
-    //
-    // Args:
-    //     x: Input tensor of shape (batch_size, seq_length, input_size)
-    //     states: Optional initial states
-    //
-    // Returns:
-    //     Output tensor of shape (batch_size, output_size)
+    /// Forward pass of the network.
+    ///
+    /// For bidirectional processing:
+    /// 1. Process sequence normally with forward LSTM
+    /// 2. Process reversed sequence with backward LSTM
+    /// 3. Concatenate both outputs
+    /// 4. Apply final linear transformation
+    ///
+    /// Args:
+    ///     x: Input tensor of shape (batch_size, seq_length, input_size)
+    ///     states: Optional initial states
+    ///
+    /// Returns:
+    ///     Output tensor of shape (batch_size, output_size)
     pub fn forward(&self, x: Tensor<B, 3>, states: Option<Vec<LstmState<B, 2>>>) -> Tensor<B, 2> {
         let seq_length = x.dims()[1] as i64;
         // Forward direction

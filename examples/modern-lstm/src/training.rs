@@ -16,9 +16,14 @@ use burn::{
 pub struct TrainingConfig {
     pub model: LstmNetworkConfig,
     pub optimizer: AdamConfig,
+
+    #[config(default = 30)]
     pub num_epochs: usize,
+    #[config(default = 32)]
     pub batch_size: usize,
+    #[config(default = 2)]
     pub num_workers: usize,
+    #[config(default = 1e-3)]
     pub lr: f64,
 }
 

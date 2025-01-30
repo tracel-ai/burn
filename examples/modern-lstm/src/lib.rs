@@ -1,4 +1,3 @@
-pub mod cli;
 pub mod dataset;
 pub mod inference;
 pub mod model;

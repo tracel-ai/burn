@@ -1,5 +1,5 @@
 [package]
-name = "lstm"
+name = "modern-lstm"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
+cuda-jit = ["burn/cuda-jit"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features=["train"] }
@@ -24,6 +25,3 @@ serde = {workspace = true, features = ["std", "derive"]}
 
 # Organise the results in dataframe
 polars = { workspace = true }
-
-# Command line parser
-clap = { workspace = true }
