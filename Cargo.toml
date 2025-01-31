@@ -54,7 +54,7 @@ log = { default-features = false, version = "0.4.25" }
 md5 = "0.7.0"
 paste = "1"
 percent-encoding = "2.3.1"
-polars = { version = "0.44.2", features = ["lazy"] }
+polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.93"
 protobuf = "3.7.1"
