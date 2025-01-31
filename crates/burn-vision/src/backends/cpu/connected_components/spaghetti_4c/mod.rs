@@ -15,13 +15,13 @@
 
 use ndarray::{s, Array2, ArrayView2, Axis};
 
-use super::Solver;
+use super::{Solver, StatsOp};
 
 #[allow(non_snake_case)]
 mod Spaghetti4C_forest_labels;
 pub(crate) use Spaghetti4C_forest_labels::*;
 
-pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
+pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl StatsOp) -> Array2<u32> {
     let (h, w) = img.dim();
 
     let mut img_labels = Array2::default(img.raw_dim());
@@ -73,9 +73,14 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
         include!("Spaghetti4C_center_line_forest_code.rs");
     }
 
-    solver.flatten();
+    let n_labels = solver.flatten();
+    stats.init(n_labels);
 
-    img_labels.map_inplace(|label| *label = solver.get_label(*label));
+    img_labels.indexed_iter_mut().for_each(|((r, c), label)| {
+        *label = solver.get_label(*label);
+        stats.update(r, c, *label);
+    });
 
+    stats.finish();
     img_labels
 }

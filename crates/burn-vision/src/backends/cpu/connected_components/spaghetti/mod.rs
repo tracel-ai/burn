@@ -22,9 +22,9 @@ use ndarray::{s, Array2, ArrayView2, Axis};
 mod Spaghetti_forest_labels;
 pub(crate) use Spaghetti_forest_labels::*;
 
-use super::Solver;
+use super::{Solver, StatsOp};
 
-pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
+pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl StatsOp) -> Array2<u32> {
     let (h, w) = img.dim();
 
     let e_rows = h as u32 & 0xfffffffe;
@@ -101,7 +101,8 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
         }
     }
 
-    solver.flatten();
+    let n_labels = solver.flatten();
+    stats.init(n_labels);
 
     for r in (0..e_rows as usize).step_by(2) {
         //Pointers:
@@ -119,29 +120,41 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
                 i_label = solver.get_label(i_label);
                 if img_row00[c] > 0 {
                     img_labels_row00[c] = i_label;
+                    stats.update(r, c, i_label);
                 } else {
                     img_labels_row00[c] = 0;
+                    stats.update(r, c, 0);
                 }
                 if img_row00[c + 1] > 0 {
                     img_labels_row00[c + 1] = i_label;
+                    stats.update(r, c + 1, i_label);
                 } else {
                     img_labels_row00[c + 1] = 0;
+                    stats.update(r, c + 1, 0);
                 }
                 if img_row01[c] > 0 {
                     img_labels_row01[c] = i_label;
+                    stats.update(r + 1, c, i_label);
                 } else {
                     img_labels_row01[c] = 0;
+                    stats.update(r + 1, c, 0);
                 }
                 if img_row01[c + 1] > 0 {
                     img_labels_row01[c + 1] = i_label;
+                    stats.update(r + 1, c + 1, i_label);
                 } else {
                     img_labels_row01[c + 1] = 0;
+                    stats.update(r + 1, c + 1, 0);
                 }
             } else {
                 img_labels_row00[c] = 0;
+                stats.update(r, c, 0);
                 img_labels_row00[c + 1] = 0;
+                stats.update(r, c + 1, 0);
                 img_labels_row01[c] = 0;
+                stats.update(r + 1, c, 0);
                 img_labels_row01[c + 1] = 0;
+                stats.update(r + 1, c + 1, 0);
             }
         }
         if o_cols {
@@ -151,17 +164,23 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
                 i_label = solver.get_label(i_label);
                 if img_row00[c] > 0 {
                     img_labels_row00[c] = i_label;
+                    stats.update(r, c, i_label);
                 } else {
                     img_labels_row00[c] = 0;
+                    stats.update(r, c, 0);
                 }
                 if img_row01[c] > 0 {
                     img_labels_row01[c] = i_label;
+                    stats.update(r + 1, c, i_label);
                 } else {
                     img_labels_row01[c] = 0;
+                    stats.update(r + 1, c, 0);
                 }
             } else {
                 img_labels_row00[c] = 0;
+                stats.update(r, c, 0);
                 img_labels_row01[c] = 0;
+                stats.update(r + 1, c, 0);
             }
         }
     }
@@ -181,17 +200,23 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
                 i_label = solver.get_label(i_label);
                 if img_row00[c] > 0 {
                     img_labels_row00[c] = i_label;
+                    stats.update(r, c, i_label);
                 } else {
                     img_labels_row00[c] = 0;
+                    stats.update(r, c, 0);
                 }
                 if img_row00[c + 1] > 0 {
                     img_labels_row00[c + 1] = i_label;
+                    stats.update(r, c + 1, i_label);
                 } else {
                     img_labels_row00[c + 1] = 0;
+                    stats.update(r, c + 1, 0);
                 }
             } else {
                 img_labels_row00[c] = 0;
+                stats.update(r, c, 0);
                 img_labels_row00[c + 1] = 0;
+                stats.update(r, c + 1, 0);
             }
         }
         if o_cols {
@@ -201,14 +226,18 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>) -> Array2<u32> {
                 i_label = solver.get_label(i_label);
                 if img_row00[c] > 0 {
                     img_labels_row00[c] = i_label;
+                    stats.update(r, c, i_label);
                 } else {
                     img_labels_row00[c] = 0;
+                    stats.update(r, c, 0);
                 }
             } else {
                 img_labels_row00[c] = 0;
+                stats.update(r, c, i_label);
             }
         }
     }
 
+    stats.finish();
     img_labels
 }
