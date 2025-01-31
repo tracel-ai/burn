@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn should_support_8_connectivity() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<4>();
+        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
 
         let output = tensor.connected_components(Connectivity::Eight);
         let expected = space_invader(); // All pixels are in the same group for 8-connected
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn should_support_8_connectivity_with_stats() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<4>();
+        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
 
         let (output, stats) = tensor
             .connected_components_with_stats(Connectivity::Eight, ConnectedStatsOptions::all());
@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn should_support_4_connectivity() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<4>();
+        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
 
         let output = tensor.connected_components(Connectivity::Four);
         let expected = as_type!(IntType: [
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn should_support_4_connectivity_with_stats() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<4>();
+        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
 
         let (output, stats) = tensor
             .connected_components_with_stats(Connectivity::Four, ConnectedStatsOptions::all());

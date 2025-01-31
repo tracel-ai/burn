@@ -1709,7 +1709,9 @@ dependencies = [
  "float-ord",
  "fnv",
  "half",
+ "hashbrown 0.14.5",
  "num-traits",
+ "portable-atomic",
  "serde",
  "variadics_please",
 ]
@@ -5429,6 +5431,9 @@ name = "portable-atomic"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "280dc24453071f1b63954171985a0b0d30058d287960968b9b2aca264c8d4ee6"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "portable-atomic-util"

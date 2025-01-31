@@ -36,8 +36,8 @@ fn run<B: Backend, Stats: StatsOp>(
     stats: impl Fn() -> Stats,
 ) -> (IntTensor<B>, Vec<Stats>) {
     let device = B::bool_device(&img);
-    let img = Tensor::<B, 4, Bool>::from_primitive(img);
-    let [batches, _, height, width] = img.shape().dims();
+    let img = Tensor::<B, 3, Bool>::from_primitive(img);
+    let [batches, height, width] = img.shape().dims();
     let img = img.into_data().convert::<u8>().to_vec::<u8>().unwrap();
     let img = Array3::from_shape_vec((batches, height, width), img).unwrap();
     let mut stats_res = Vec::with_capacity(batches);

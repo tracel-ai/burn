@@ -15,7 +15,7 @@ version.workspace = true
 [features]
 autodiff = ["burn-autodiff"]
 candle = ["burn-candle"]
-default = ["ndarray", "autodiff"]
+default = ["ndarray", "autodiff", "jit-backend"]
 export-tests = ["burn-tensor-testgen"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 jit-backend = ["cubecl", "burn-jit"]
