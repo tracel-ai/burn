@@ -12,22 +12,20 @@ pub fn launch<B: Backend>(device: B::Device) {
 ))]
 mod ndarray {
     use burn::backend::{
-        ndarray::{NdArray, NdArrayDevice},
-        Autodiff,
+        ndarray::{NdArray, NdArrayDevice}
     };
 
     use crate::launch;
 
     pub fn run() {
-        launch::<Autodiff<NdArray>>(NdArrayDevice::Cpu);
+        launch::<NdArray>(NdArrayDevice::Cpu);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
-        Autodiff,
+        libtorch::{LibTorch, LibTorchDevice}
     };
 
     use crate::launch;
@@ -38,41 +36,40 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<Autodiff<LibTorch>>(device);
+        launch::<LibTorch>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
     use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
-        Autodiff,
+        libtorch::{LibTorch, LibTorchDevice}
     };
 
     use crate::launch;
 
     pub fn run() {
-        launch::<Autodiff<LibTorch>>(LibTorchDevice::Cpu);
+        launch::<LibTorch>(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::launch;
-    use burn::backend::{wgpu::Wgpu, Autodiff};
+    use burn::backend::wgpu::Wgpu;
 
     pub fn run() {
-        launch::<Autodiff<Wgpu>>(Default::default());
+        launch::<Wgpu>(Default::default());
     }
 }
 
 #[cfg(feature = "cuda-jit")]
 mod cuda_jit {
     use crate::launch;
-    use burn::backend::{Autodiff, CudaJit};
+    use burn::backend::CudaJit;
 
     pub fn run() {
-        launch::<Autodiff<CudaJit>>(Default::default());
+        launch::<CudaJit>(Default::default());
     }
 }
 

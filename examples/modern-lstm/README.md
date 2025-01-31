@@ -29,9 +29,9 @@ cargo run --example train --release --features tch-gpu
 cargo run --example train --release --features tch-cpu
 
 # NdArray backend (CPU)
-cargo run --example train --release --features ndarray                # f32 - single thread
-cargo run --example train --release --features ndarray-blas-openblas  # f32 - blas with openblas
-cargo run --example train --release --features ndarray-blas-netlib    # f32 - blas with netlib
+cargo run --example train --release --features ndarray
+cargo run --example train --release --features ndarray-blas-openblas
+cargo run --example train --release --features ndarray-blas-netlib
 ```
 
 
