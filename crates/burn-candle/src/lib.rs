@@ -13,6 +13,7 @@ mod ops;
 mod tensor;
 
 pub use backend::*;
+pub use element::*;
 pub use tensor::*;
 
 #[cfg(test)]

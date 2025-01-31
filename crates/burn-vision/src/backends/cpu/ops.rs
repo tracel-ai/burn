@@ -1,24 +1,23 @@
-use crate::{
-    backends::cpu, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, VisionOps,
-};
+use crate::VisionOps;
+
+#[cfg(feature = "autodiff")]
+use burn_autodiff::{checkpoint::strategy::CheckpointStrategy, Autodiff};
+#[cfg(feature = "candle")]
+use burn_candle::{Candle, FloatCandleElement, IntCandleElement};
+#[cfg(feature = "ndarray")]
 use burn_ndarray::{FloatNdArrayElement, IntNdArrayElement, NdArray, QuantElement};
-use burn_tensor::ops::{BoolTensor, IntTensor};
+#[cfg(feature = "tch")]
+use burn_tch::{LibTorch, TchElement};
 
-impl<E, I, Q> VisionOps<Self> for NdArray<E, I, Q>
-where
-    E: FloatNdArrayElement,
-    I: IntNdArrayElement,
-    Q: QuantElement,
+#[cfg(feature = "ndarray")]
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> VisionOps<Self>
+    for NdArray<E, I, Q>
 {
-    fn connected_components(img: BoolTensor<Self>, connectivity: Connectivity) -> IntTensor<Self> {
-        cpu::connected_components::<Self>(img, connectivity)
-    }
-
-    fn connected_components_with_stats(
-        img: BoolTensor<Self>,
-        connectivity: Connectivity,
-        opts: ConnectedStatsOptions,
-    ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-        cpu::connected_components_with_stats::<Self>(img, connectivity, opts)
-    }
 }
+
+#[cfg(feature = "candle")]
+impl<F: FloatCandleElement, I: IntCandleElement> VisionOps<Self> for Candle<F, I> {}
+#[cfg(feature = "tch")]
+impl<E: TchElement, Q: burn_tch::QuantElement> VisionOps<Self> for LibTorch<E, Q> {}
+#[cfg(feature = "autodiff")]
+impl<B: burn_tensor::backend::Backend, C: CheckpointStrategy> VisionOps<Self> for Autodiff<B, C> {}

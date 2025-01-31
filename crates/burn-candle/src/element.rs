@@ -4,8 +4,11 @@ use burn_tensor::Element;
 use candle_core::{FloatDType, Tensor, WithDType};
 use half::{bf16, f16};
 
+/// Candle element
 pub trait CandleElement: Element + WithDType {}
+/// Candle float element
 pub trait FloatCandleElement: CandleElement + FloatDType {}
+/// Candle int element
 pub trait IntCandleElement: CandleElement {}
 
 impl CandleElement for f64 {}

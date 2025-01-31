@@ -13,9 +13,13 @@ version.workspace = true
 
 
 [features]
-default = ["jit-backend"]
+autodiff = ["burn-autodiff"]
+candle = ["burn-candle"]
+default = ["ndarray"]
 export-tests = ["burn-tensor-testgen"]
 jit-backend = ["cubecl", "burn-jit"]
+ndarray = ["burn-ndarray"]
+tch = ["burn-tch"]
 
 # Test features
 cpu = ["export-tests"]
@@ -24,8 +28,11 @@ vulkan = ["burn-wgpu/vulkan", "wgpu"]
 wgpu = ["jit-backend", "export-tests"]
 
 [dependencies]
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.17.0", optional = true }
 burn-jit = { path = "../burn-jit", version = "0.17.0", optional = true }
-burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true }
+burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.17.0", optional = true }
 cubecl = { workspace = true, optional = true }
