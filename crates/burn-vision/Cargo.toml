@@ -15,7 +15,7 @@ version.workspace = true
 [features]
 autodiff = ["burn-autodiff"]
 candle = ["burn-candle"]
-default = ["ndarray"]
+default = ["ndarray", "autodiff"]
 export-tests = ["burn-tensor-testgen"]
 jit-backend = ["cubecl", "burn-jit"]
 ndarray = ["burn-ndarray"]
@@ -44,3 +44,4 @@ serde = { workspace = true }
 burn-cuda = { path = "../burn-cuda", version = "0.17.0", default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
 burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", default-features = false }
+cubecl = { workspace = true }
