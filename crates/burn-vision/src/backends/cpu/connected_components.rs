@@ -217,3 +217,10 @@ fn finalize_stats<B: Backend>(
         bottom: into_prim(bottom),
     }
 }
+
+pub fn max_labels(h: usize, w: usize, conn: Connectivity) -> usize {
+    match conn {
+        Connectivity::Four => ((h * w + 1) / 2) + 1,
+        Connectivity::Eight => ((h + 1) / 2) * ((w + 1) / 2) + 1,
+    }
+}

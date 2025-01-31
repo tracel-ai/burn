@@ -15,7 +15,9 @@
 
 use ndarray::{s, Array2, ArrayView2, Axis};
 
-use super::{Solver, StatsOp};
+use crate::Connectivity;
+
+use super::{max_labels, Solver, StatsOp};
 
 #[allow(non_snake_case)]
 mod Spaghetti4C_forest_labels;
@@ -34,7 +36,7 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl Stats
     // 0 1 0 1 0...
     // 1 0 1 0 1...
     // ............
-    let max_labels = ((h * w + 1) / 2) + 1;
+    let max_labels = max_labels(h, w, Connectivity::Four);
 
     let mut solver = LabelsSolver::init(max_labels);
     let solver = &mut solver;

@@ -22,7 +22,9 @@ use ndarray::{s, Array2, ArrayView2, Axis};
 mod Spaghetti_forest_labels;
 pub(crate) use Spaghetti_forest_labels::*;
 
-use super::{Solver, StatsOp};
+use crate::Connectivity;
+
+use super::{max_labels, Solver, StatsOp};
 
 pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl StatsOp) -> Array2<u32> {
     let (h, w) = img.dim();
@@ -34,7 +36,7 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl Stats
 
     let mut img_labels = Array2::default(img.raw_dim());
 
-    let mut solver = LabelsSolver::init(((h + 1) / 2) * ((w + 1) / 2) + 1);
+    let mut solver = LabelsSolver::init(max_labels(h, w, Connectivity::Eight));
 
     let solver = &mut solver;
 
