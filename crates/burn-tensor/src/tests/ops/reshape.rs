@@ -97,6 +97,20 @@ mod tests {
     }
 
     #[test]
+    fn should_support_reshape_maybe_fused_4() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let tensor2 = tensor2.swap_dims(0, 1);
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let output = tensor2 + tensor1;
+        println!("{output}");
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
         let tensor = TestTensorInt::<1>::from_data(data, &Default::default());

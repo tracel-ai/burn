@@ -130,10 +130,10 @@ impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
             )),
-            Box::new(MatmulBuilder::<R>::new(
-                device.clone(),
-                BT::as_elem_native_unchecked().into(),
-            )),
+            // Box::new(MatmulBuilder::<R>::new(
+            //     device.clone(),
+            //     BT::as_elem_native_unchecked().into(),
+            // )),
         ]
     }
 }

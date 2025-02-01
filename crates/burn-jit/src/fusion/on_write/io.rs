@@ -777,7 +777,7 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
             reshaped_index_to_original_index(tensor, index_reshaped, rank)
         }
         None => {
-            let offset_ref = index * tensor.line_size();
+            let offset_ref = index * layout.line_size();
             let mut offset = 0u32;
 
             for i in 0u32..rank {

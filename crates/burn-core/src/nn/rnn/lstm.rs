@@ -721,21 +721,26 @@ mod tests {
         output_with_init_state
             .to_data()
             .assert_approx_eq(&expected_output_with_init_state, 3);
+        println!("1");
         output_without_init_state
             .to_data()
             .assert_approx_eq(&expected_output_without_init_state, 3);
+        println!("2");
         state_with_init_state
             .hidden
             .to_data()
             .assert_approx_eq(&expected_hn_with_init_state, 3);
+        println!("3");
         state_with_init_state
             .cell
             .to_data()
             .assert_approx_eq(&expected_cn_with_init_state, 3);
+        println!("4");
         state_without_init_state
             .hidden
             .to_data()
             .assert_approx_eq(&expected_hn_without_init_state, 3);
+        println!("5");
         state_without_init_state
             .cell
             .to_data()

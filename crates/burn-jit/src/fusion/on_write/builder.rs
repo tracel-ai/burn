@@ -196,12 +196,19 @@ impl FuseOnWriteBuilder {
                     });
                 }
 
+                println!(
+                    "Input rank {} : {}",
+                    desc.input.shape.len(),
+                    desc.out.shape.len()
+                );
                 if desc.input.shape.len() > desc.out.shape.len() {
+                    println!("Not supported - invalid rank");
                     // Not yet supported.
                     return false;
                 }
 
                 if !self.output_is_compatible(&desc.out) {
+                    println!("Not supported - invalid output");
                     return false;
                 }
 
@@ -216,10 +223,11 @@ impl FuseOnWriteBuilder {
 
                     true
                 }) {
-                    println!("Reshape");
+                    println!("Fusing Reshape");
                     self.num_reshapes += 1;
                     true
                 } else {
+                    println!("Can't reshape already fused tensor.");
                     false
                 }
             }
