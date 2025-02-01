@@ -163,7 +163,6 @@ impl FuseOnWriteTrace {
         runner: &Runner,
     ) -> Result<(), Runner::Error> {
         let analysis = self.analyse::<R, BT, Runner>(client, device, context);
-
         let inputs = self.register_inputs(context, &analysis.handle_inputs, analysis.vectorization);
         let outputs =
             self.register_outputs::<_, BT>(&analysis.handle_outputs, analysis.vectorization);
@@ -184,7 +183,6 @@ impl FuseOnWriteTrace {
             ops.push(op);
         }
 
-        println!("Chosen reference {:?}", analysis.reference);
         let config = ElemwiseConfig {
             rank: analysis.rank as u32,
             ref_layout: analysis
@@ -330,8 +328,6 @@ impl FuseOnWriteTrace {
 
             b_val.cmp(&a_val)
         });
-        println!("Mapper {position_mapper:?}");
-        println!("Sorted {output_sorted:?}");
         let mut handles = Vec::with_capacity(self.outputs.len());
         let mut globals = Vec::with_capacity(self.outputs.len());
 
@@ -343,7 +339,6 @@ impl FuseOnWriteTrace {
         for (position_original, (precision, tensor_relative)) in output_sorted.into_iter() {
             let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             let strides = strides_dyn_rank(&tensor_global.shape);
-            println!("shape {:?} strides {strides:?}", tensor_global.shape);
 
             if let Some(index) = analysis
                 .potential_inplaces

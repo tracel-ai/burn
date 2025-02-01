@@ -154,7 +154,6 @@ impl FuseOnWriteTraceBuilder {
             Some(_) => {
                 // Can't fused an already fused input.
                 if self.outputs.get(precision_input, tensor.id).is_some() {
-                    println!("Can't fused an already fused input.");
                     return None;
                 }
 
@@ -164,7 +163,6 @@ impl FuseOnWriteTraceBuilder {
                         index as u32
                     }
                     None => {
-                        println!("HM");
                         return None;
                     }
                 }

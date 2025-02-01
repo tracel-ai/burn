@@ -776,7 +776,6 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
         Some(shape) => {
             let index_reshaped = reshaped_index(inputs, layout, index, rank, shape);
             reshaped_index_to_original_index(tensor, index_reshaped, rank)
-            // index_reshaped
         }
         None => {
             let offset_ref = index * tensor.line_size();

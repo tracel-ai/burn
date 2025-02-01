@@ -196,6 +196,11 @@ impl FuseOnWriteBuilder {
                     });
                 }
 
+                if desc.input.shape.len() > desc.out.shape.len() {
+                    // Not yet supported.
+                    return false;
+                }
+
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }

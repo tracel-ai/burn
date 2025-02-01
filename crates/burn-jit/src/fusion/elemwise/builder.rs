@@ -31,12 +31,10 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
 
 impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_tensor::repr::OperationDescription) {
-        println!("op {operation:?}");
         self.builder.register(operation)
     }
 
     fn build(&self) -> JitOptimization<R> {
-        println!("Build");
         let client = R::client(&self.device);
         let trace = self.builder.build();
         let elementwise =
@@ -50,9 +48,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuild
     }
 
     fn status(&self) -> burn_fusion::OptimizationStatus {
-        let state = self.builder.status();
-        println!("{state:?}");
-        state
+        self.builder.status()
     }
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {
