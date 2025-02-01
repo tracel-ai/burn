@@ -4,6 +4,7 @@ use crate::{
 };
 
 use super::ir::{Arg, ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch};
+use super::position::PositionMapper;
 use burn_fusion::stream::Context;
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -183,7 +184,7 @@ impl FuseOnWriteTrace {
             ops.push(op);
         }
 
-        println!("Chosen refernec {:?}", analysis.reference);
+        println!("Chosen reference {:?}", analysis.reference);
         let config = ElemwiseConfig {
             rank: analysis.rank as u32,
             ref_layout: analysis
@@ -238,7 +239,7 @@ impl FuseOnWriteTrace {
             reference: None,
             reads: self.reads.clone(),
             writes: self.writes.clone(),
-            rank: 1,
+            rank: self.shape_ref.len(),
             vectorization: 1,
         };
 
@@ -266,12 +267,12 @@ impl FuseOnWriteTrace {
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
         for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
-            let tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
+            let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
             // the global graph, since the status of the global graph
             // might be of a later operation on the same tensor id.
             let status = &tensor_relative.status;
-            let handle = context.handles.get_handle(&tensor_global.id, status);
+            let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
             if status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
@@ -286,7 +287,14 @@ impl FuseOnWriteTrace {
                 });
             }
 
-            analysis.rank = usize::max(tensor_global.shape.len(), analysis.rank);
+            if tensor_global.shape.len() < analysis.rank {
+                let num_elem: usize = tensor_global.shape.iter().product();
+                for _ in 0..(analysis.rank - tensor_global.shape.len()) {
+                    tensor_global.shape.insert(0, 1);
+                    handle.strides.insert(0, num_elem);
+                }
+            }
+
             analysis.handle_inputs.push(HandleInput {
                 precision,
                 handle,
@@ -305,13 +313,25 @@ impl FuseOnWriteTrace {
         context: &mut Context<'_, JitFusionHandle<R>>,
         analysis: &mut LaunchAnalysis<'a, R>,
     ) {
-        let mut output_sorted: Vec<_> = self.outputs.iter().enumerate().collect();
+        let mut position_mapper = PositionMapper::default();
+        let mut output_sorted: Vec<_> = self
+            .outputs
+            .iter()
+            .enumerate()
+            .map(|(pos, (precision, tensor))| {
+                position_mapper.register(precision, pos);
+                (pos, (precision, tensor))
+            })
+            .collect();
+
         output_sorted.sort_by(|(_, (_, a)), (_, (_, b))| {
             let a_val: usize = a.shape.iter().sum();
             let b_val: usize = b.shape.iter().sum();
 
             b_val.cmp(&a_val)
         });
+        println!("Mapper {position_mapper:?}");
+        println!("Sorted {output_sorted:?}");
         let mut handles = Vec::with_capacity(self.outputs.len());
         let mut globals = Vec::with_capacity(self.outputs.len());
 
@@ -380,8 +400,9 @@ impl FuseOnWriteTrace {
                 globals[position_original] = Some(tensor_global);
             } else {
                 if analysis.reference.is_none() {
+                    let position = position_mapper.resolve_index(&precision, position_original);
                     analysis.reference = Some(Reference {
-                        layout: Arg::Output(position_original as u32, precision, LayoutInfo::IsRef),
+                        layout: Arg::Output(position, precision, LayoutInfo::IsRef),
                         shape: tensor_global.shape.clone(),
                         strides: strides.clone(),
                     });
@@ -487,9 +508,7 @@ impl FuseOnWriteTrace {
         );
 
         for hi in handle_inputs.iter() {
-            println!("Input shape {:?}", hi.global_shape);
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
-            println!("Done");
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),

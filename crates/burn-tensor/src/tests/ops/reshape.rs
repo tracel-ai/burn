@@ -17,10 +17,13 @@ mod tests {
     #[test]
     fn should_support_reshape_maybe_fused_1() {
         let tensor = TestTensorInt::arange(0..32, &Default::default());
+        // let tensor = tensor.reshape([1, 1, 32]);
+        // println!("{tensor}");
         let tensor0 = TestTensorInt::zeros([8, 4, 8], &Default::default());
         let tensor1 = tensor.clone().reshape([1, 4, 8]);
-
         let output = tensor0 + tensor1;
+
+        println!("{output}");
         let expected = TensorData::from([
             [
                 [0, 1, 2, 3, 4, 5, 6, 7],

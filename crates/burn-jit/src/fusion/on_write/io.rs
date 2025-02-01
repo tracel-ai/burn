@@ -774,8 +774,9 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     // Need to unroll when fusing a reshape.
     match comptime![shape.clone()] {
         Some(shape) => {
-            let index_standard = reshaped_index_standard(inputs, layout, index, rank, shape);
-            convert_index_standard_to_original_index(tensor, rank, index_standard)
+            let index_reshaped = reshaped_index(inputs, layout, index, rank, shape);
+            reshaped_index_to_original_index(tensor, index_reshaped, rank)
+            // index_reshaped
         }
         None => {
             let offset_ref = index * tensor.line_size();
@@ -792,7 +793,7 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
 }
 
 #[cube]
-fn reshaped_index_standard<N: CubePrimitive>(
+fn reshaped_index<N: CubePrimitive>(
     inputs: &GlobalArgs,
     layout: &Tensor<Line<N>>,
     index: u32,
@@ -800,6 +801,7 @@ fn reshaped_index_standard<N: CubePrimitive>(
     #[comptime] shape: Sequence<Arg>,
 ) -> u32 {
     let index = index * layout.line_size();
+
     let mut offset = 0u32;
     let mut stride_curr = 1u32;
 
@@ -818,6 +820,30 @@ fn reshaped_index_standard<N: CubePrimitive>(
     offset
 }
 
+#[cube]
+fn reshaped_index_to_original_index<C: CubePrimitive>(
+    original: &Tensor<Line<C>>,
+    index_reshaped: u32,
+    #[comptime] rank: u32,
+) -> u32 {
+    let mut remaining = index_reshaped;
+    let mut offset = 0;
+
+    #[unroll]
+    for r in 0..rank {
+        let i = comptime![index_i(rank, r)];
+        let shape = original.shape(comptime![i.clone()]);
+        let stride = original.stride(i);
+
+        let coordinate = remaining % shape;
+
+        remaining /= shape;
+        offset += coordinate * stride;
+    }
+
+    offset / original.line_size()
+}
+
 fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> ExpandElementTyped<u32> {
     let elem = iter.into();
     let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
@@ -826,42 +852,4 @@ fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> Expand
     let expand: ExpandElement = ExpandElement::Plain(scalar);
 
     expand.into()
-}
-
-#[cube]
-fn convert_index_standard_to_original_index<C: CubePrimitive>(
-    original: &Tensor<Line<C>>,
-    rank: u32,
-    index_standard: u32,
-) -> u32 {
-    let mut remaining = index_standard;
-    let mut index = 0;
-
-    for i in 0..rank {
-        let shape = original.shape(i);
-        let coordinate = remaining % shape;
-
-        remaining /= shape;
-        index += coordinate * original.stride(i);
-    }
-
-    index / original.line_size()
-}
-
-#[cube]
-fn convert_index_standard_to_original_index_2<C: CubePrimitive, N: CubePrimitive>(
-    original: &Tensor<Line<C>>,
-    layout: &Tensor<Line<N>>,
-    rank: u32,
-    index_standard: u32,
-) -> u32 {
-    let offset_ref = index_standard;
-    let mut offset = 0u32;
-
-    for i in 0u32..rank {
-        let ogwl = offset_ref / original.stride(i);
-        offset += ogwl % original.shape(i) * original.stride(i);
-    }
-
-    offset / original.line_size()
 }
