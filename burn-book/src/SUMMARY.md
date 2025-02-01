@@ -33,3 +33,4 @@
   - [Custom Optimizer]()
   - [WebAssembly]()
   - [No-Std](./advanced/no-std.md)
+  - [Nightly](./advanced/nightly.md)
