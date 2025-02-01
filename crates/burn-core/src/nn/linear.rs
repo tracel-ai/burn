@@ -62,10 +62,6 @@ impl LinearConfig {
     }
 }
 
-// into_contuiguous
-// strides contibous
-// shape
-
 impl<B: Backend> Linear<B> {
     /// Applies the forward pass on the input tensor.
     ///

@@ -10,7 +10,7 @@ use super::{QParams, QTensor};
 
 #[cube]
 pub(crate) fn dequantize_affine_int8<F: Float>(
-    value: Line<i32>, // 4 i32
+    value: Line<i32>,
     scale: f32,
     offset: i32,
 ) -> Line<F> {

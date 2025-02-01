@@ -9,8 +9,6 @@ mod tests {
         let device = Default::default();
         let tensor = TestTensor::<2>::from([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
         let rhs = TestTensor::<2>::eye(3, &device);
-        println!("Tensor {tensor}");
-        println!("Rhs {rhs}");
         assert_eq!(tensor.to_data(), rhs.to_data());
     }
 

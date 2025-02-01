@@ -24,8 +24,6 @@ pub(crate) fn quantize_affine_int8<F: Float>(
     )
 }
 
-/// 32 bits encoder en f32 => int8
-/// u32 => 4 valeurs quantizer
 #[cube(launch_unchecked)]
 pub(crate) fn quantize_per_tensor_affine_int8_kernel(
     input: &Tensor<Line<f32>>,

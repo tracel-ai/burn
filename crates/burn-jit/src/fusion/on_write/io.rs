@@ -771,7 +771,6 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     #[comptime] rank: u32,
     #[comptime] shape: Option<Sequence<Arg>>,
 ) -> u32 {
-    // Need to unroll when fusing a reshape.
     match comptime![shape.clone()] {
         Some(shape) => {
             let index_reshaped = reshaped_index(inputs, layout, index, rank, shape);
@@ -806,7 +805,7 @@ fn reshaped_index<N: CubePrimitive>(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![index_i(rank, r)];
+        let i = comptime![reverse_index(rank, r)];
         let arg = comptime![shape.index(i.clone())];
         let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
 
@@ -830,7 +829,7 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
 
     #[unroll]
     for r in 0..rank {
-        let i = comptime![index_i(rank, r)];
+        let i = comptime![reverse_index(rank, r)];
         let shape = original.shape(comptime![i.clone()]);
         let stride = original.stride(i);
 
@@ -843,7 +842,10 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
     offset / original.line_size()
 }
 
-fn index_i<Elem: Into<ExpandElementTyped<u32>>>(rank: u32, iter: Elem) -> ExpandElementTyped<u32> {
+fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
+    rank: u32,
+    iter: Elem,
+) -> ExpandElementTyped<u32> {
     let elem = iter.into();
     let elem = elem.constant().map(|cons| cons.as_u32()).unwrap();
     let result = rank - elem - 1;

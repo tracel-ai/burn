@@ -495,11 +495,6 @@ impl FuseOnWriteBuilder {
             return true;
         }
 
-        // Last axis should be equal.
-        // if self.current_output_shape.last() != out.shape.last() {
-        //     return false;
-        // }
-
         let rank = self.current_output_shape.len();
 
         // Rank should be equal.

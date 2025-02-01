@@ -39,7 +39,6 @@ where
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
-        println!("Strides reshape {:?}", tensor.strides);
         super::reshape(tensor, shape)
     }
 
