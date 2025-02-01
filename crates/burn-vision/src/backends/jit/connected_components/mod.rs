@@ -35,10 +35,13 @@ where
         )
     };
     ConnectedStatsPrimitive {
-        area: opts.area_enabled.then(zeros).unwrap_or_else(dummy),
-        left: opts.left_enabled.then(max).unwrap_or_else(dummy),
-        top: opts.top_enabled.then(max).unwrap_or_else(dummy),
-        right: opts.right_enabled.then(zeros).unwrap_or_else(dummy),
-        bottom: opts.bottom_enabled.then(zeros).unwrap_or_else(dummy),
+        area: (opts != ConnectedStatsOptions::none())
+            .then(zeros)
+            .unwrap_or_else(dummy),
+        left: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
+        right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
+        max_label: zeros_device::<R, u32>(l.client.clone(), l.device.clone(), Shape::new([1])),
     }
 }

@@ -45,6 +45,7 @@ impl<B: burn_tensor::backend::Backend + VisionOps<B>, C: CheckpointStrategy> Vis
             top: stats.top,
             right: stats.right,
             bottom: stats.bottom,
+            max_label: stats.max_label,
         };
         (labels, stats)
     }

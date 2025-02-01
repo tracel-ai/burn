@@ -109,7 +109,8 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
                 self: Box<Self>,
                 handles: &mut HandleContainer<<B1::FusionRuntime as FusionRuntime>::FusionHandle>,
             ) {
-                let ([img], [labels, area, left, top, right, bottom]) = self.desc.consume();
+                let ([img], [labels, area, left, top, right, bottom, max_label]) =
+                    self.desc.consume();
                 let input = handles.get_bool_tensor::<B1>(&img);
                 let (output, stats) =
                     B1::connected_components_with_stats(input, self.conn, self.opts);
@@ -120,6 +121,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
                 handles.register_int_tensor::<B1>(&top.id, stats.top);
                 handles.register_int_tensor::<B1>(&right.id, stats.right);
                 handles.register_int_tensor::<B1>(&bottom.id, stats.bottom);
+                handles.register_int_tensor::<B1>(&max_label.id, stats.max_label);
             }
         }
 
@@ -131,6 +133,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         let right = client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
         let bottom =
             client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
+        let max_label = client.tensor_uninitialized(vec![batches], B::IntElem::dtype());
 
         let desc = CustomOpDescription::new(
             "connected_components",
@@ -142,6 +145,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
                 top.to_description_out(),
                 right.to_description_out(),
                 bottom.to_description_out(),
+                max_label.to_description_out(),
             ],
         );
         client.register(
@@ -156,6 +160,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
             top,
             right,
             bottom,
+            max_label,
         };
         (out, stats)
     }

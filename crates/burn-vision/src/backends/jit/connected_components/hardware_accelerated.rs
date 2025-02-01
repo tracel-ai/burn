@@ -8,10 +8,13 @@ use crate::{
     ConnectedStatsPrimitive, Connectivity,
 };
 use burn_jit::{
-    ops::numeric::zeros_device, tensor::JitTensor, BoolElement, FloatElement, IntElement,
-    JitBackend, JitRuntime,
+    kernel,
+    ops::{into_data_sync, numeric::zeros_device},
+    tensor::JitTensor,
+    BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
 };
-use cubecl::{prelude::*, Feature};
+use burn_tensor::ops::IntTensorOps;
+use cubecl::{calculate_cube_count_elemwise, prelude::*, Feature};
 
 const BLOCK_H: u32 = 4;
 
@@ -342,6 +345,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
     left: &mut Tensor<Atomic<I>>,
     right: &mut Tensor<Atomic<I>>,
     bottom: &mut Tensor<Atomic<I>>,
+    max_label: &mut Tensor<Atomic<I>>,
     #[comptime] opts: ConnectedStatsOptions,
 ) {
     let batch = ABSOLUTE_POS_Z;
@@ -352,6 +356,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
     let rows = labels.shape(1);
     let img_step = img.stride(1);
     let labels_step = labels.stride(1);
+    let b_offs = batch * labels.stride(0);
 
     if x < cols && y < rows {
         let mut mask = 0xffffffffu32;
@@ -359,8 +364,8 @@ fn analysis<I: Int, BT: CubePrimitive>(
             mask >>= 32 - (cols - CUBE_POS_X * CUBE_DIM_X);
         }
 
-        let img_index = batch * img.stride(0) + y * img_step + x;
-        let labels_index = batch * labels.stride(0) + y * labels_step + x;
+        let img_index = b_offs + y * img_step + x;
+        let labels_index = b_offs + y * labels_step + x;
 
         let p = bool::cast_from(img[img_index]);
         let pixels = ballot_dyn(UNIT_POS_Y, p) & mask;
@@ -372,24 +377,20 @@ fn analysis<I: Int, BT: CubePrimitive>(
 
         if p && s_dist == 0 {
             label = u32::cast_from(labels[labels_index]) - 1;
-            while label != u32::cast_from(labels[label]) - 1 {
-                label = u32::cast_from(labels[label]) - 1;
+            while label != u32::cast_from(labels[b_offs + label]) - 1 {
+                label = u32::cast_from(labels[b_offs + label]) - 1;
             }
 
-            if opts.area_enabled {
-                Atomic::add(&area[label], I::cast_from(count));
+            Atomic::add(&area[b_offs + label], I::cast_from(count));
+
+            if opts.bounds_enabled {
+                Atomic::min(&left[b_offs + label], I::cast_from(x));
+                Atomic::min(&top[b_offs + label], I::cast_from(y));
+                Atomic::max(&right[b_offs + label], I::cast_from(max_x));
+                Atomic::max(&bottom[b_offs + label], I::cast_from(y));
             }
-            if opts.left_enabled {
-                Atomic::min(&left[label], I::cast_from(x));
-            }
-            if opts.top_enabled {
-                Atomic::min(&top[label], I::cast_from(y));
-            }
-            if opts.right_enabled {
-                Atomic::max(&right[label], I::cast_from(max_x));
-            }
-            if opts.bottom_enabled {
-                Atomic::max(&bottom[label], I::cast_from(y));
+            if comptime!(opts.max_label_enabled || opts.compact_labels) {
+                Atomic::max(&max_label[batch], I::cast_from(label));
             }
         }
 
@@ -398,6 +399,60 @@ fn analysis<I: Int, BT: CubePrimitive>(
         if p {
             labels[labels_index] = I::cast_from(label + 1);
         }
+    }
+}
+
+#[cube(launch)]
+fn compact_labels<I: Int>(labels: &mut Tensor<I>, remap: &Tensor<I>) {
+    let batch = ABSOLUTE_POS_Z;
+    let x = ABSOLUTE_POS_X;
+    let y = ABSOLUTE_POS_Y;
+
+    let labels_pos = batch * labels.stride(0) + y * labels.stride(1) + x * labels.stride(2);
+
+    if labels_pos >= labels.len() {
+        terminate!();
+    }
+
+    let label = u32::cast_from(labels[labels_pos]);
+    if label != 0 {
+        labels[labels_pos] = remap[label];
+    }
+}
+
+#[cube(launch)]
+fn compact_stats<I: Int>(
+    area: &Tensor<I>,
+    area_new: &mut Tensor<I>,
+    top: &Tensor<I>,
+    top_new: &mut Tensor<I>,
+    left: &Tensor<I>,
+    left_new: &mut Tensor<I>,
+    right: &Tensor<I>,
+    right_new: &mut Tensor<I>,
+    bottom: &Tensor<I>,
+    bottom_new: &mut Tensor<I>,
+    remap: &Tensor<I>,
+    max_label: u32,
+    #[comptime] opts: ConnectedStatsOptions,
+) {
+    let label = ABSOLUTE_POS_X;
+    if label > max_label {
+        terminate!();
+    }
+
+    let area = area[label];
+    if area == I::new(0) {
+        terminate!();
+    }
+    let new_label = u32::cast_from(remap[label]);
+
+    area_new[new_label] = area;
+    if opts.bounds_enabled {
+        top_new[new_label] = top[label];
+        left_new[new_label] = left[label];
+        right_new[new_label] = right[label];
+        bottom_new[new_label] = bottom[label];
     }
 }
 
@@ -442,8 +497,8 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         &client,
         cube_count,
         cube_dim,
-        img.as_tensor_arg::<u8>(1),
-        labels.as_tensor_arg::<u32>(1),
+        img.as_tensor_arg::<BT>(1),
+        labels.as_tensor_arg::<I>(1),
         connectivity,
     );
 
@@ -459,8 +514,8 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         &client,
         cube_count,
         cube_dim_merge,
-        img.as_tensor_arg::<u8>(1),
-        labels.as_tensor_arg::<u32>(1),
+        img.as_tensor_arg::<BT>(1),
+        labels.as_tensor_arg::<I>(1),
         connectivity,
     );
 
@@ -477,23 +532,67 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             &client,
             cube_count,
             cube_dim,
-            img.as_tensor_arg::<u8>(1),
-            labels.as_tensor_arg::<u32>(1),
+            img.as_tensor_arg::<BT>(1),
+            labels.as_tensor_arg::<I>(1),
         );
     } else {
         analysis::launch::<I, BT, R>(
             &client,
             cube_count,
             cube_dim,
-            img.as_tensor_arg::<u8>(1),
-            labels.as_tensor_arg::<u32>(1),
-            stats.area.as_tensor_arg::<u32>(1),
-            stats.top.as_tensor_arg::<u32>(1),
-            stats.left.as_tensor_arg::<u32>(1),
-            stats.right.as_tensor_arg::<u32>(1),
-            stats.bottom.as_tensor_arg::<u32>(1),
+            img.as_tensor_arg::<BT>(1),
+            labels.as_tensor_arg::<I>(1),
+            stats.area.as_tensor_arg::<I>(1),
+            stats.top.as_tensor_arg::<I>(1),
+            stats.left.as_tensor_arg::<I>(1),
+            stats.right.as_tensor_arg::<I>(1),
+            stats.bottom.as_tensor_arg::<I>(1),
+            stats.max_label.as_tensor_arg::<I>(1),
             stats_opt,
         );
+        if stats_opt.compact_labels {
+            let max_labels = into_data_sync::<R, I>(stats.max_label.clone()).convert::<u32>();
+            let max_label = *max_labels.as_slice::<u32>().unwrap().iter().max().unwrap() as usize;
+            let sliced = kernel::slice::<R, I>(stats.area.clone(), &[0..batches, 0..max_label + 1]);
+            let present = JitBackend::<R, F, I, BT>::int_not_equal_elem(sliced, I::new(0));
+            let relabel = JitBackend::<R, F, I, BT>::int_prefix_sum(present);
+
+            let cube_dim = CubeDim::default();
+            let cube_count = CubeCount::new_3d(
+                (cols as u32).div_ceil(cube_dim.x),
+                (rows as u32).div_ceil(cube_dim.y),
+                batches as u32,
+            );
+            compact_labels::launch(
+                &client,
+                cube_count,
+                cube_dim,
+                labels.as_tensor_arg::<I>(1),
+                relabel.as_tensor_arg::<I>(1),
+            );
+
+            let cube_dim = CubeDim::new_1d(256);
+            let cube_count =
+                CubeCount::new_3d((rows * cols).div_ceil(256) as u32, 1, batches as u32);
+            compact_stats::launch(
+                &client,
+                cube_count,
+                cube_dim,
+                stats.area.copy().as_tensor_arg::<I>(1),
+                stats.area.as_tensor_arg::<I>(1),
+                stats.top.copy().as_tensor_arg::<I>(1),
+                stats.top.as_tensor_arg::<I>(1),
+                stats.left.copy().as_tensor_arg::<I>(1),
+                stats.left.as_tensor_arg::<I>(1),
+                stats.right.copy().as_tensor_arg::<I>(1),
+                stats.right.as_tensor_arg::<I>(1),
+                stats.bottom.copy().as_tensor_arg::<I>(1),
+                stats.bottom.as_tensor_arg::<I>(1),
+                relabel.as_tensor_arg::<I>(1),
+                ScalarArg::new(max_label as u32),
+                stats_opt,
+            );
+        }
     }
 
     Ok((labels, stats))

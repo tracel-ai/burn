@@ -20,16 +20,12 @@ pub enum Connectivity {
 /// Disabled stats are aliased to the labels tensor
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ConnectedStatsOptions {
-    /// Whether to collect the area of each component
-    pub area_enabled: bool,
-    /// Whether to find the top (minimum y) of each component
-    pub top_enabled: bool,
-    /// Whether to find the left (minimum x) of each component
-    pub left_enabled: bool,
-    /// Whether to find the right (max x) of each component
-    pub right_enabled: bool,
-    /// Whether to find the bottom (max y) of each component
-    pub bottom_enabled: bool,
+    /// Whether to enable bounding boxes
+    pub bounds_enabled: bool,
+    /// Whether to enable the max label
+    pub max_label_enabled: bool,
+    /// Whether labels must be contiguous starting at 1
+    pub compact_labels: bool,
 }
 
 /// Stats collected by the connected components analysis
@@ -47,6 +43,8 @@ pub struct ConnectedStats<B: Backend> {
     pub right: Tensor<B, 3, Int>,
     /// Bottommost y coordinate in the component
     pub bottom: Tensor<B, 3, Int>,
+    /// Scalar tensor of the max label
+    pub max_label: Tensor<B, 2, Int>,
 }
 
 /// Primitive version of [`ConnectedStats`], to be returned by the backend
@@ -61,6 +59,8 @@ pub struct ConnectedStatsPrimitive<B: Backend> {
     pub right: IntTensor<B>,
     /// Bottommost y coordinate in the component
     pub bottom: IntTensor<B>,
+    /// Scalar tensor of the max label
+    pub max_label: IntTensor<B>,
 }
 
 impl<B: Backend> From<ConnectedStatsPrimitive<B>> for ConnectedStats<B> {
@@ -71,6 +71,7 @@ impl<B: Backend> From<ConnectedStatsPrimitive<B>> for ConnectedStats<B> {
             left: Tensor::from_primitive(value.left),
             right: Tensor::from_primitive(value.right),
             bottom: Tensor::from_primitive(value.bottom),
+            max_label: Tensor::from_primitive(value.max_label),
         }
     }
 }
@@ -86,10 +87,9 @@ impl ConnectedStatsOptions {
     pub fn none() -> Self {
         Self {
             area_enabled: false,
-            top_enabled: false,
-            left_enabled: false,
-            right_enabled: false,
-            bottom_enabled: false,
+            bounds_enabled: false,
+            max_label_enabled: false,
+            compact_labels: false,
         }
     }
 
@@ -97,10 +97,9 @@ impl ConnectedStatsOptions {
     pub fn all() -> Self {
         Self {
             area_enabled: true,
-            top_enabled: true,
-            left_enabled: true,
-            right_enabled: true,
-            bottom_enabled: true,
+            bounds_enabled: true,
+            max_label_enabled: true,
+            compact_labels: true,
         }
     }
 }

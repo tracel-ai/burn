@@ -189,8 +189,10 @@ fn finalize_stats<B: Backend>(
     let mut top = Vec::with_capacity(batches * max_len);
     let mut right = Vec::with_capacity(batches * max_len);
     let mut bottom = Vec::with_capacity(batches * max_len);
+    let mut max_label = Vec::with_capacity(batches);
 
     for mut stats in stats {
+        max_label.push(stats.area.len() as u32 - 1);
         stats.area.resize(max_len, 0);
         stats.left.resize(max_len, 0);
         stats.top.resize(max_len, 0);
@@ -215,6 +217,7 @@ fn finalize_stats<B: Backend>(
         top: into_prim(top),
         right: into_prim(right),
         bottom: into_prim(bottom),
+        max_label: into_prim(max_label),
     }
 }
 
