@@ -368,7 +368,7 @@ impl FuseOnWriteTrace {
                 && self
                     .reshapes
                     .iter()
-                    .find(|r| r.reshaped == tensor_relative.id)
+                    .find(|r| r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
                     .is_none()
                 && self.shape_ref == tensor_relative.shape
             {

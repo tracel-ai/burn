@@ -216,6 +216,7 @@ impl FuseOnWriteBuilder {
 
                     true
                 }) {
+                    println!("Reshape");
                     self.num_reshapes += 1;
                     true
                 } else {
