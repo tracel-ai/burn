@@ -244,7 +244,6 @@ impl<R: JitRuntime> JitFusionHandle<R> {
     /// Return the reference to a tensor argument.
     pub fn as_tensor_arg<'a>(&'a self, shape: &'a [usize], vectorisation: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
-        println!("Shape {:?} - Strides {:?}", handle.shape, handle.strides);
 
         unsafe {
             TensorArg::from_raw_parts_and_size(

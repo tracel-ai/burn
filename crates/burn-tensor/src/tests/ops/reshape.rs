@@ -17,13 +17,10 @@ mod tests {
     #[test]
     fn should_support_reshape_maybe_fused_1() {
         let tensor = TestTensorInt::arange(0..32, &Default::default());
-        // let tensor = tensor.reshape([1, 1, 32]);
-        // println!("{tensor}");
         let tensor0 = TestTensorInt::zeros([8, 4, 8], &Default::default());
         let tensor1 = tensor.clone().reshape([1, 4, 8]);
         let output = tensor0 + tensor1;
 
-        println!("{output}");
         let expected = TensorData::from([
             [
                 [0, 1, 2, 3, 4, 5, 6, 7],
@@ -75,6 +72,18 @@ mod tests {
             ],
         ]);
         output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_2() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let output = tensor2 + tensor1;
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
     }
 
     #[test]

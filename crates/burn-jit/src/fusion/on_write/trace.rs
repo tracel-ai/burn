@@ -20,12 +20,18 @@ pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes_reshape: Vec<TensorId>,
+    reshapes: Vec<Reshape>,
     shape_ref: Vec<usize>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
     inputs_unhandled: Vec<TensorId>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Reshape {
+    pub reshaped: TensorId,
+    pub original: TensorId,
 }
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
@@ -46,11 +52,17 @@ pub trait TraceRunner<R: JitRuntime> {
 
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
+        vectorizations: &mut BTreeMap<TensorId, u8>,
         handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorDescription>,
         outputs: impl Iterator<Item = &'a TensorDescription>,
-        reshaped: impl Iterator<Item = &'a TensorDescription>,
-    ) -> u8 {
+        reshaped: impl Iterator<Item = (&'a TensorDescription, &'a TensorDescription, bool)>,
+    ) {
+        enum Vect {
+            Broadcated,
+            Max(u8),
+        }
+
         // The default version uses the last dimension as vectorization axis and assumes a
         // perpendicular contiguous line.
         let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
@@ -58,17 +70,22 @@ pub trait TraceRunner<R: JitRuntime> {
 
             // Last dimension strides should be 1, otherwise vecX won't be contiguous.
             if handle.strides[rank - 1] != 1 {
-                return 1;
+                return Vect::Max(1);
+            }
+            let shape_axis = desc.shape[rank - 1];
+
+            if shape_axis == 1 {
+                return Vect::Broadcated;
             }
 
             for s in R::line_size_elem(&desc.dtype.into()) {
-                // The last dimension should be a multiple of the vector size.
-                if desc.shape[rank - 1] % s as usize == 0 {
-                    return s;
+                // The last dimension should be a multiple of the vector size or broadcated.
+                if shape_axis % s as usize == 0 {
+                    return Vect::Max(s);
                 }
             }
 
-            1
+            Vect::Max(1)
         };
 
         let vectorization_output = |desc: &TensorDescription| {
@@ -77,28 +94,82 @@ pub trait TraceRunner<R: JitRuntime> {
             for s in R::line_size_elem(&desc.dtype.into()) {
                 // The last dimension should be a multiple of the vector size.
                 if desc.shape[rank - 1] % s as usize == 0 {
-                    return s;
+                    return Vect::Max(s);
                 }
             }
 
-            1
+            Vect::Max(1)
         };
 
-        let mut output = u8::MAX;
+        let vectorization_reshape =
+            |reshaped: &TensorDescription, original: &TensorDescription, multi_reads: bool| {
+                let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
+                let shape_axis = original.shape[original.shape.len() - 1];
+
+                if !multi_reads && reshape_axis == 1 {
+                    return Vect::Broadcated;
+                }
+
+                for s in R::line_size_elem(&reshaped.dtype.into()) {
+                    if !multi_reads {
+                        // The last dimension should be a multiple of the vector size or broadcated.
+                        if reshape_axis % s as usize == 0 {
+                            return Vect::Max(s);
+                        }
+                    } else {
+                        // Since the original tensor must share the same vectorization factor as the
+                        // reshaped tensor, they must have compatible shapes when both are access
+                        // independently.
+                        if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 {
+                            return Vect::Max(s);
+                        }
+                    }
+                }
+
+                Vect::Max(1)
+            };
+
+        let mut max_current = u8::MAX;
 
         for (handle, tensor) in handles_inputs.zip(inputs) {
-            output = Ord::min(vectorization_input(handle, tensor), output);
+            match vectorization_input(&handle, tensor) {
+                Vect::Broadcated => vectorizations.insert(tensor.id, 1),
+                Vect::Max(val) => {
+                    max_current = Ord::min(val, max_current);
+                    vectorizations.insert(tensor.id, 0)
+                }
+            };
         }
 
         for tensor in outputs {
-            output = Ord::min(vectorization_output(tensor), output);
+            match vectorization_output(tensor) {
+                Vect::Broadcated => vectorizations.insert(tensor.id, 1),
+                Vect::Max(val) => {
+                    max_current = Ord::min(val, max_current);
+                    vectorizations.insert(tensor.id, 0)
+                }
+            };
         }
 
-        for tensor in reshaped {
-            output = Ord::min(vectorization_output(tensor), output);
+        for (reshaped, original, multi_reads) in reshaped {
+            match vectorization_reshape(reshaped, original, multi_reads) {
+                Vect::Broadcated => {
+                    vectorizations.insert(original.id, 1);
+                    vectorizations.insert(reshaped.id, 1);
+                }
+                Vect::Max(val) => {
+                    vectorizations.insert(original.id, 0);
+                    vectorizations.insert(reshaped.id, 0);
+                    max_current = Ord::min(val, max_current);
+                }
+            }
         }
 
-        output
+        for (_id, val) in vectorizations.iter_mut() {
+            if *val == 0 {
+                *val = max_current;
+            }
+        }
     }
 }
 
@@ -112,8 +183,8 @@ struct LaunchAnalysis<'a, R: JitRuntime> {
     reference: Option<Reference>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     writes: BTreeMap<TensorId, ElemwiseOp>,
+    vectorization: BTreeMap<TensorId, u8>,
     rank: usize,
-    vectorization: u8,
 }
 
 #[derive(Debug)]
@@ -127,6 +198,7 @@ enum HandleOutput<R: JitRuntime> {
         precision: ElemwisePrecision,
         handle: JitFusionHandle<R>,
         global_shape: Vec<usize>,
+        vectorization: u8,
     },
 }
 
@@ -137,6 +209,7 @@ struct HandleInput<R: JitRuntime> {
     precision: ElemwisePrecision,
     handle: JitFusionHandle<R>,
     global_shape: Vec<usize>,
+    vectorization: u8,
 }
 
 #[derive(Debug)]
@@ -163,9 +236,8 @@ impl FuseOnWriteTrace {
         runner: &Runner,
     ) -> Result<(), Runner::Error> {
         let analysis = self.analyse::<R, BT, Runner>(client, device, context);
-        let inputs = self.register_inputs(context, &analysis.handle_inputs, analysis.vectorization);
-        let outputs =
-            self.register_outputs::<_, BT>(&analysis.handle_outputs, analysis.vectorization);
+        let inputs = self.register_inputs(context, &analysis.handle_inputs);
+        let outputs = self.register_outputs::<_, BT>(&analysis.handle_outputs);
 
         let mut ops = Sequence::<ElemwiseOp>::new();
 
@@ -235,26 +307,44 @@ impl FuseOnWriteTrace {
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
             reference: None,
+            vectorization: BTreeMap::default(),
             reads: self.reads.clone(),
             writes: self.writes.clone(),
             rank: self.shape_ref.len(),
-            vectorization: 1,
         };
 
         self.analyse_inputs(context, &mut analysis);
         self.analyse_outputs::<_, BT>(client, device, context, &mut analysis);
 
-        let tensors_reshaped = self
-            .shapes_reshape
-            .iter()
-            .map(|id| context.tensors.get(id).unwrap());
+        let tensors_reshaped = self.reshapes.iter().map(|reshape| {
+            (
+                context.tensors.get(&reshape.reshaped).unwrap(),
+                context.tensors.get(&reshape.original).unwrap(),
+                self.reads.get(&reshape.original).unwrap().len() > 1,
+            )
+        });
 
-        analysis.vectorization = Runner::vectorization(
+        Runner::vectorization(
+            &mut analysis.vectorization,
             analysis.handle_inputs.iter().map(|item| &item.handle),
             analysis.global_inputs.iter(),
             analysis.global_outputs.iter(),
             tensors_reshaped,
         );
+
+        for handle in analysis.handle_inputs.iter_mut() {
+            handle.vectorization = *analysis.vectorization.get(&handle.global_id).unwrap();
+        }
+        for handle in analysis.handle_outputs.iter_mut() {
+            match handle {
+                HandleOutput::Owned {
+                    vectorization,
+                    global_id,
+                    ..
+                } => *vectorization = *analysis.vectorization.get(&global_id).unwrap(),
+                _ => {}
+            }
+        }
 
         analysis
     }
@@ -275,7 +365,11 @@ impl FuseOnWriteTrace {
             if status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
-                && !self.shapes_reshape.contains(&tensor_relative.id)
+                && self
+                    .reshapes
+                    .iter()
+                    .find(|r| r.reshaped == tensor_relative.id)
+                    .is_none()
                 && self.shape_ref == tensor_relative.shape
             {
                 analysis.potential_inplaces.push(PotentialInplace {
@@ -299,6 +393,7 @@ impl FuseOnWriteTrace {
                 relative_id: tensor_relative.id,
                 global_id: tensor_global.id,
                 global_shape: tensor_global.shape.clone(),
+                vectorization: 1,
             });
             analysis.global_inputs.push(tensor_global);
         }
@@ -442,6 +537,7 @@ impl FuseOnWriteTrace {
                     handle,
                     global_shape: tensor_global.shape.clone(),
                     global_id: tensor_global.id,
+                    vectorization: 1,
                 });
                 globals[position_original] = Some(tensor_global);
             }
@@ -475,7 +571,6 @@ impl FuseOnWriteTrace {
         &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
         handle_inputs: &'h [HandleInput<R>],
-        vectorization: u8,
     ) -> GlobalArgsLaunch<'h, R> {
         let mut inputs = GlobalArgsLaunch::new(
             SequenceArg::new(),
@@ -503,7 +598,7 @@ impl FuseOnWriteTrace {
         );
 
         for hi in handle_inputs.iter() {
-            let arg = hi.handle.as_tensor_arg(&hi.global_shape, vectorization);
+            let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
             match hi.precision {
                 ElemwisePrecision::F32 => inputs.t_f32.push(arg),
                 ElemwisePrecision::F16 => inputs.t_f16.push(arg),
@@ -557,8 +652,8 @@ impl FuseOnWriteTrace {
             }
         }
 
-        for relative in self.shapes_reshape.iter().rev() {
-            let global = context.tensors.get(relative).unwrap();
+        for relative in self.reshapes.iter().rev() {
+            let global = context.tensors.get(&relative.reshaped).unwrap();
 
             for shape in global.shape.iter().rev() {
                 inputs.s_u32.push(ScalarArg::new(*shape as u32))
@@ -571,7 +666,6 @@ impl FuseOnWriteTrace {
     fn register_outputs<'s, R: JitRuntime, BT: BoolElement>(
         &self,
         handle_outputs: &'s [HandleOutput<R>],
-        vectorization: u8,
     ) -> GlobalArgsLaunch<'s, R> {
         let mut outputs = GlobalArgsLaunch::new(
             SequenceArg::new(),
@@ -620,9 +714,10 @@ impl FuseOnWriteTrace {
                     precision,
                     handle,
                     global_shape,
+                    vectorization,
                     ..
                 } => {
-                    let arg = handle.as_tensor_arg(global_shape, vectorization);
+                    let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
                     match precision {
                         ElemwisePrecision::F32 => outputs.t_f32.push(arg),

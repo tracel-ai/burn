@@ -1,5 +1,6 @@
 use super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
+    trace::Reshape,
     trace::{FuseOnWriteTrace, RegisteredTensors},
 };
 use burn_tensor::{
@@ -15,7 +16,7 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    shapes_reshape: Vec<TensorId>,
+    reshapes: Vec<Reshape>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub bool_precision: ElemwisePrecision,
@@ -30,7 +31,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
-            shapes_reshape: Vec::new(),
+            reshapes: Vec::new(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
@@ -175,8 +176,11 @@ impl FuseOnWriteTraceBuilder {
 
         let mut shape = Sequence::new();
 
-        let index = self.shapes_reshape.len();
-        self.shapes_reshape.push(output.id.clone());
+        let index = self.reshapes.len();
+        self.reshapes.push(Reshape {
+            reshaped: output.id.clone(),
+            original: tensor.id.clone(),
+        });
         let rank = output.shape.len();
 
         for i in 0..output.shape.len() {
@@ -242,14 +246,14 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
-        let shapes_reshape = self.shapes_reshape.clone();
+        let reshapes = self.reshapes.clone();
 
         // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace::new(
             outputs,
             inputs,
             scalars,
-            shapes_reshape,
+            reshapes,
             shape,
             ops,
             reads,
