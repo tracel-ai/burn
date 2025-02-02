@@ -4,8 +4,8 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
-    ConnectedStatsPrimitive, Connectivity,
+    backends::jit::{connected_components::stats_from_opts, prefix_sum::prefix_sum},
+    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
 };
 use burn_jit::{
     kernel,
@@ -13,8 +13,8 @@ use burn_jit::{
     tensor::JitTensor,
     BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
 };
-use burn_tensor::ops::IntTensorOps;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, Feature};
+use burn_tensor::{ops::IntTensorOps, Shape};
+use cubecl::{prelude::*, Feature};
 
 const BLOCK_H: u32 = 4;
 
@@ -380,6 +380,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
             while label != u32::cast_from(labels[b_offs + label]) - 1 {
                 label = u32::cast_from(labels[b_offs + label]) - 1;
             }
+            label += 1;
 
             Atomic::add(&area[b_offs + label], I::cast_from(count));
 
@@ -397,13 +398,17 @@ fn analysis<I: Int, BT: CubePrimitive>(
         label = plane_broadcast(label, UNIT_POS_X - s_dist);
 
         if p {
-            labels[labels_index] = I::cast_from(label + 1);
+            labels[labels_index] = I::cast_from(label);
         }
     }
 }
 
 #[cube(launch)]
-fn compact_labels<I: Int>(labels: &mut Tensor<I>, remap: &Tensor<I>) {
+fn compact_labels<I: Int>(
+    labels: &mut Tensor<I>,
+    remap: &Tensor<I>,
+    max_label: &Tensor<Atomic<I>>,
+) {
     let batch = ABSOLUTE_POS_Z;
     let x = ABSOLUTE_POS_X;
     let y = ABSOLUTE_POS_Y;
@@ -416,7 +421,9 @@ fn compact_labels<I: Int>(labels: &mut Tensor<I>, remap: &Tensor<I>) {
 
     let label = u32::cast_from(labels[labels_pos]);
     if label != 0 {
-        labels[labels_pos] = remap[label];
+        let new_label = remap[label];
+        labels[labels_pos] = new_label;
+        Atomic::max(&max_label[batch], new_label);
     }
 }
 
@@ -433,11 +440,9 @@ fn compact_stats<I: Int>(
     bottom: &Tensor<I>,
     bottom_new: &mut Tensor<I>,
     remap: &Tensor<I>,
-    max_label: u32,
-    #[comptime] opts: ConnectedStatsOptions,
 ) {
     let label = ABSOLUTE_POS_X;
-    if label > max_label {
+    if label >= remap.len() {
         terminate!();
     }
 
@@ -448,12 +453,12 @@ fn compact_stats<I: Int>(
     let new_label = u32::cast_from(remap[label]);
 
     area_new[new_label] = area;
-    if opts.bounds_enabled {
-        top_new[new_label] = top[label];
-        left_new[new_label] = left[label];
-        right_new[new_label] = right[label];
-        bottom_new[new_label] = bottom[label];
-    }
+    // This should be gated but there's a problem with the Eq bound only being implemented for tuples
+    // up to 12 elems, so I can't pass the opts. It's not unsafe, but potentially unnecessary work.
+    top_new[new_label] = top[label];
+    left_new[new_label] = left[label];
+    right_new[new_label] = right[label];
+    bottom_new[new_label] = bottom[label];
 }
 
 #[allow(clippy::type_complexity)]
@@ -525,7 +530,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         batches as u32,
     );
 
-    let stats = stats_from_opts(labels.clone(), stats_opt);
+    let mut stats = stats_from_opts(labels.clone(), stats_opt);
 
     if stats_opt == ConnectedStatsOptions::none() {
         relabeling::launch::<I, BT, R>(
@@ -553,9 +558,13 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         if stats_opt.compact_labels {
             let max_labels = into_data_sync::<R, I>(stats.max_label.clone()).convert::<u32>();
             let max_label = *max_labels.as_slice::<u32>().unwrap().iter().max().unwrap() as usize;
-            let sliced = kernel::slice::<R, I>(stats.area.clone(), &[0..batches, 0..max_label + 1]);
+            let sliced = kernel::slice::<R, I>(
+                stats.area.clone(),
+                &[0..batches, 0..(max_label + 1).next_multiple_of(4)],
+            );
             let present = JitBackend::<R, F, I, BT>::int_not_equal_elem(sliced, I::new(0));
-            let relabel = JitBackend::<R, F, I, BT>::int_prefix_sum(present);
+            let present = kernel::cast::<R, BT, I>(present);
+            let relabel = prefix_sum::<R, I>(present);
 
             let cube_dim = CubeDim::default();
             let cube_count = CubeCount::new_3d(
@@ -563,18 +572,21 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
                 (rows as u32).div_ceil(cube_dim.y),
                 batches as u32,
             );
-            compact_labels::launch(
+            stats.max_label =
+                zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([batches]));
+            compact_labels::launch::<I, R>(
                 &client,
                 cube_count,
                 cube_dim,
                 labels.as_tensor_arg::<I>(1),
                 relabel.as_tensor_arg::<I>(1),
+                stats.max_label.as_tensor_arg::<I>(1),
             );
 
             let cube_dim = CubeDim::new_1d(256);
             let cube_count =
                 CubeCount::new_3d((rows * cols).div_ceil(256) as u32, 1, batches as u32);
-            compact_stats::launch(
+            compact_stats::launch::<I, R>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -589,8 +601,6 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
                 stats.bottom.copy().as_tensor_arg::<I>(1),
                 stats.bottom.as_tensor_arg::<I>(1),
                 relabel.as_tensor_arg::<I>(1),
-                ScalarArg::new(max_label as u32),
-                stats_opt,
             );
         }
     }

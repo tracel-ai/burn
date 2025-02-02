@@ -136,7 +136,8 @@ pub(crate) fn expand<R: JitRuntime>(tensor: JitTensor<R>, target_shape: Shape) -
     }
 }
 
-pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
+/// Reshape a jit tensor to a new shape
+pub fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 

@@ -40,21 +40,25 @@ mod tests {
         let expected = space_invader(); // All pixels are in the same group for 8-connected
         let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
 
-        let (area, left, top, right, bottom) = normalize_stats(
-            stats.area.into_data(),
-            stats.left.into_data(),
-            stats.top.into_data(),
-            stats.right.into_data(),
-            stats.bottom.into_data(),
+        let (area, left, top, right, bottom) = (
+            stats.area.slice([0..1, 1..2]).into_data(),
+            stats.left.slice([0..1, 1..2]).into_data(),
+            stats.top.slice([0..1, 1..2]).into_data(),
+            stats.right.slice([0..1, 1..2]).into_data(),
+            stats.bottom.slice([0..1, 1..2]).into_data(),
         );
 
-        normalize_labels(output.into_data()).assert_eq(&expected.into_data(), false);
+        output.into_data().assert_eq(&expected.into_data(), false);
 
         area.assert_eq(&TensorData::from([[58]]), false);
         left.assert_eq(&TensorData::from([[0]]), false);
         top.assert_eq(&TensorData::from([[0]]), false);
         right.assert_eq(&TensorData::from([[13]]), false);
         bottom.assert_eq(&TensorData::from([[8]]), false);
+        stats
+            .max_label
+            .into_data()
+            .assert_eq(&TensorData::from([1]), false);
     }
 
     #[test]
@@ -97,21 +101,26 @@ mod tests {
         ]);
         let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
 
-        let (area, left, top, right, bottom) = normalize_stats(
-            stats.area.into_data(),
-            stats.left.into_data(),
-            stats.top.into_data(),
-            stats.right.into_data(),
-            stats.bottom.into_data(),
+        // Slice off background and limit to compacted labels
+        let (area, left, top, right, bottom) = (
+            stats.area.slice([0..1, 1..6]).into_data(),
+            stats.left.slice([0..1, 1..6]).into_data(),
+            stats.top.slice([0..1, 1..6]).into_data(),
+            stats.right.slice([0..1, 1..6]).into_data(),
+            stats.bottom.slice([0..1, 1..6]).into_data(),
         );
 
-        normalize_labels(output.into_data()).assert_eq(&expected.into_data(), false);
+        output.into_data().assert_eq(&expected.into_data(), false);
 
         area.assert_eq(&TensorData::from([[1, 1, 46, 5, 5]]), false);
         left.assert_eq(&TensorData::from([[3, 10, 1, 0, 12]]), false);
         top.assert_eq(&TensorData::from([[0, 0, 1, 5, 5]]), false);
         right.assert_eq(&TensorData::from([[3, 10, 12, 1, 13]]), false);
         bottom.assert_eq(&TensorData::from([[0, 0, 8, 7, 7]]), false);
+        stats
+            .max_label
+            .into_data()
+            .assert_eq(&TensorData::from([5]), false);
     }
 
     /// Normalize labels to sequential since actual labels aren't required to be contiguous and

@@ -12,6 +12,13 @@ mod tests_wgpu {
     burn_vision::testgen_all!();
 }
 
+#[cfg(all(test, feature = "vulkan"))]
+mod tests_wgpu {
+    pub type TestBackend = burn_wgpu::Vulkan;
+
+    burn_vision::testgen_all!();
+}
+
 #[cfg(all(test, feature = "cuda"))]
 mod tests_cuda {
     pub type TestBackend = burn_cuda::Cuda;

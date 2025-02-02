@@ -86,7 +86,6 @@ impl ConnectedStatsOptions {
     /// Don't collect any stats
     pub fn none() -> Self {
         Self {
-            area_enabled: false,
             bounds_enabled: false,
             max_label_enabled: false,
             compact_labels: false,
@@ -96,7 +95,6 @@ impl ConnectedStatsOptions {
     /// Collect all stats
     pub fn all() -> Self {
         Self {
-            area_enabled: true,
             bounds_enabled: true,
             max_label_enabled: true,
             compact_labels: true,

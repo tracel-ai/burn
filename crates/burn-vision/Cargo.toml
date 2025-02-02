@@ -25,7 +25,7 @@ tch = ["burn-tch"]
 # Test features
 cpu = ["export-tests"]
 cuda = ["jit-backend", "export-tests"]
-vulkan = ["burn-wgpu/vulkan", "wgpu"]
+vulkan = ["burn-wgpu/vulkan", "jit-backend", "export-tests"]
 wgpu = ["jit-backend", "export-tests"]
 
 [dependencies]

@@ -45,8 +45,8 @@ where
 impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
     fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
         let batches = img.shape[0];
-        let height = img.shape[2];
-        let width = img.shape[3];
+        let height = img.shape[1];
+        let width = img.shape[2];
         let client = img.client.clone();
 
         #[derive(derive_new::new)]
@@ -92,8 +92,8 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         opts: ConnectedStatsOptions,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         let batches = img.shape[0];
-        let height = img.shape[2];
-        let width = img.shape[3];
+        let height = img.shape[1];
+        let width = img.shape[2];
         let client = img.client.clone();
 
         #[derive(derive_new::new)]
