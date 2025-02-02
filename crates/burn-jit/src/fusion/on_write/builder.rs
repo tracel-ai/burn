@@ -146,10 +146,6 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
-        if !self.properties().ready {
-            panic!("Building a not ready sss");
-        }
-
         self.builder.build(self.current_output_shape.clone())
     }
 
@@ -173,7 +169,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = self.num_ops > 0 && self.num_ops > self.num_reshapes;
+        let ready = self.num_ops > 0;
 
         OptimizationProperties {
             ready,
