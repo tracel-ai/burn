@@ -209,3 +209,181 @@ impl PoissonNLLLoss {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tensor::TensorData;
+    use crate::TestBackend;
+    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+
+    #[test]
+    fn test_poisson_nll_loss() {
+        let predictions = TensorData::from([0., 0., -40., 1., 2., 3.]);
+        let targets = TensorData::from([1., 4.5, 2.5, 0., 0., 2.]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().init();
+
+        let loss_sum = poisson.forward(predictions.clone(), targets.clone(), Reduction::Sum);
+        let loss = poisson.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_no_reduction = poisson.forward_no_reduction(predictions, targets);
+
+        let expected = TensorData::from([1.0000, 1.0000, 100.0000, 2.7183, 7.3891, 14.0855]);
+        loss_no_reduction.into_data().assert_approx_eq(&expected, 5);
+
+        let expected = TensorData::from([21.0321]);
+        loss.into_data().assert_approx_eq(&expected, 5);
+
+        let expected = TensorData::from([126.1929]);
+        loss_sum.into_data().assert_approx_eq(&expected, 5);
+    }
+
+    #[test]
+    fn test_poisson_nll_loss_no_log_input() {
+        let predictions = TensorData::from([0.0, 0.5, 1.0, 1.0, 2.71828, 7.38905, 20.0855]);
+        let targets = TensorData::from([2., 3., 1., 4.5, 0., 0., 2.]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().with_log_input(false).init();
+
+        let loss_no_reduction = poisson.forward_no_reduction(predictions.clone(), targets.clone());
+
+        let expected = TensorData::from([36.84136, 2.579441, 1.0, 1.0, 2.71828, 7.38905, 14.0855]);
+        loss_no_reduction.into_data().assert_approx_eq(&expected, 5);
+    }
+
+    #[test]
+    fn test_poisson_nll_loss_full() {
+        let predictions = TensorData::from([0., 0., -40., 1., 2., 3.]);
+        let targets = TensorData::from([1., 4.5, 2.5, 0., 0., 2.]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().with_full(true).init();
+
+        let loss_sum = poisson.forward(predictions.clone(), targets.clone(), Reduction::Sum);
+        let loss = poisson.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_no_reduction = poisson.forward_no_reduction(predictions, targets);
+
+        let expected = TensorData::from([1.0000, 4.9393, 101.1678, 2.7183, 7.3891, 14.7373]);
+        loss_no_reduction.into_data().assert_approx_eq(&expected, 5);
+
+        let expected = TensorData::from([21.9920]);
+        loss.into_data().assert_approx_eq(&expected, 5);
+
+        let expected = TensorData::from([131.9518]);
+        loss_sum.into_data().assert_approx_eq(&expected, 5);
+    }
+
+    #[test]
+    fn test_poisson_nll_loss_gradients() {
+        type TestAutodiffTensor = Tensor<crate::TestAutodiffBackend, 1>;
+
+        let predictions = TensorData::from([0., 0., -40., 1., 2., 3.]);
+        let targets = TensorData::from([1., 4.5, 2.5, 0., 0., 2.]);
+
+        let device = Default::default();
+
+        let predictions1 = TestAutodiffTensor::from_data(predictions, &device).require_grad();
+        let predictions2 = predictions1.clone();
+        let targets = TestAutodiffTensor::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().with_full(false).init();
+        let poisson_full = PoissonNLLLossConfig::new().with_full(true).init();
+
+        let loss_sum = poisson.forward(predictions1.clone(), targets.clone(), Reduction::Sum);
+        let loss_full_sum =
+            poisson_full.forward(predictions2.clone(), targets.clone(), Reduction::Sum);
+
+        let grads = loss_sum.backward();
+        let grads_full = loss_full_sum.backward();
+
+        let grads_predictions1 = predictions1.grad(&grads).unwrap();
+        let grads_predictions2 = predictions2.grad(&grads_full).unwrap();
+
+        let expected = TensorData::from([0.0000, -3.5000, -2.5000, 2.7183, 7.3891, 18.0855]);
+
+        grads_predictions1
+            .into_data()
+            .assert_approx_eq(&expected, 5);
+        grads_predictions2
+            .into_data()
+            .assert_approx_eq(&expected, 5);
+    }
+
+    #[test]
+    #[should_panic = "eps for PoissonNLLLoss must be a positive number."]
+    fn test_negative_eps() {
+        let _poisson = PoissonNLLLossConfig::new().with_eps(0.).init();
+    }
+
+    #[test]
+    #[should_panic = "All the values of `targets` must be non-negative."]
+    fn test_targets_with_negative_values() {
+        let predictions = TensorData::from([0., 0., -40., 1., 2., 3., 4.]);
+        let targets = TensorData::from([1., 4.5, 2.5, 0., 0., 2., -0.42]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().init();
+
+        let _loss = poisson.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+    }
+
+    #[test]
+    #[should_panic = "Shape of targets"]
+    fn test_shape_tensors() {
+        let predictions = TensorData::from([0., 1., 2.]);
+        let targets = TensorData::from([0., 1.]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().init();
+
+        let _loss = poisson.forward_no_reduction(predictions.clone(), targets.clone());
+    }
+
+    #[test]
+    #[should_panic = "When `log_input` is `false`, all the values of `predictions` must be non-negative."]
+    fn test_exp_predictions_non_negative() {
+        let predictions = TensorData::from([0.3, -0.1, 0.4]);
+        let targets = TensorData::from([0., 1., 0.]);
+
+        let device = Default::default();
+
+        let predictions = TestTensor::<1>::from_data(predictions, &device);
+        let targets = TestTensor::<1>::from_data(targets, &device);
+
+        let poisson = PoissonNLLLossConfig::new().with_log_input(false).init();
+
+        let _loss = poisson.forward_no_reduction(predictions.clone(), targets.clone());
+    }
+
+    #[test]
+    fn display() {
+        let config = PoissonNLLLossConfig::new();
+        let loss = config.init();
+
+        assert_eq!(
+            alloc::format!("{}", loss),
+            "PoissonNLLLoss {log_input: true, full: false, eps: 0.00000001}"
+        );
+    }
+}
