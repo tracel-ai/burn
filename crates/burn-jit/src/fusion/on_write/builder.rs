@@ -566,7 +566,12 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        core::mem::swap(&mut updated, &mut self.current_output_shape);
+        if updated != self.current_output_shape {
+            if updated != out.shape {
+                return false;
+            }
+            self.current_output_shape.clone_from_slice(&out.shape);
+        }
 
         true
     }
