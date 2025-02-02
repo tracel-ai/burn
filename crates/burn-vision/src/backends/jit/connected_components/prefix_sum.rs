@@ -61,7 +61,8 @@ fn prefix_sum_kernel<I: Int>(
 
         if part_id < cube_count_x - 1 {
             for k in 0..vec4_spt {
-                let mut scan = scan_in[i + scan_offs];
+                // Manually fuse not_equal and cast
+                let mut scan = Line::cast_from(scan_in[i + scan_offs].not_equal(Line::new(zero)));
                 let x = scan[0];
                 scan[1] += x;
                 let y = scan[1];
@@ -76,7 +77,9 @@ fn prefix_sum_kernel<I: Int>(
         if part_id == cube_count_x - 1 {
             for k in 0..vec4_spt {
                 if i < scan_in.shape(1) {
-                    let mut scan = scan_in[i + scan_offs];
+                    // Manually fuse not_equal and cast
+                    let mut scan =
+                        Line::cast_from(scan_in[i + scan_offs].not_equal(Line::new(zero)));
                     let x = scan[0];
                     scan[1] += x;
                     let y = scan[1];

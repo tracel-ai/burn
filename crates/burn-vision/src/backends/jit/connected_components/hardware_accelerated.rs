@@ -4,8 +4,8 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::jit::{connected_components::stats_from_opts, prefix_sum::prefix_sum},
-    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
+    backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
+    ConnectedStatsPrimitive, Connectivity,
 };
 use burn_jit::{
     kernel,
@@ -15,6 +15,8 @@ use burn_jit::{
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};
+
+use super::prefix_sum::prefix_sum;
 
 const BLOCK_H: u32 = 4;
 
@@ -563,9 +565,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
                 stats.area.clone(),
                 &[0..batches, 0..(max_label + 1).next_multiple_of(4)],
             );
-            let present = JitBackend::<R, F, I, BT>::int_not_equal_elem(sliced, I::new(0));
-            let present = kernel::cast::<R, BT, I>(present);
-            let relabel = prefix_sum::<R, I>(present);
+            let relabel = prefix_sum::<R, I>(sliced);
 
             let cube_dim = CubeDim::default();
             let cube_count = CubeCount::new_3d(
