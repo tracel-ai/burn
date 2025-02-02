@@ -83,7 +83,7 @@ impl<B: Backend> Discriminator<B> {
     }
 }
 
-// Use model config to construct a generative and adverserial model
+// Use model config to construct a generative and adversarial model
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     /// Dimensionality of the latent space

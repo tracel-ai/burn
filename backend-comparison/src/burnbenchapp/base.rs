@@ -62,6 +62,13 @@ enum BackendValues {
     CandleCuda,
     #[strum(to_string = "candle-metal")]
     CandleMetal,
+    #[strum(to_string = "cuda")]
+    Cuda,
+    #[strum(to_string = "cuda-fusion")]
+    CudaFusion,
+    #[cfg(target_os = "linux")]
+    #[strum(to_string = "hip")]
+    Hip,
     #[strum(to_string = "ndarray")]
     Ndarray,
     #[strum(to_string = "ndarray-blas-accelerate")]
@@ -82,13 +89,6 @@ enum BackendValues {
     WgpuSpirv,
     #[strum(to_string = "wgpu-spirv-fusion")]
     WgpuSpirvFusion,
-    #[strum(to_string = "cuda-jit")]
-    CudaJit,
-    #[strum(to_string = "cuda-jit-fusion")]
-    CudaJitFusion,
-    #[cfg(target_os = "linux")]
-    #[strum(to_string = "hip-jit")]
-    HipJit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
