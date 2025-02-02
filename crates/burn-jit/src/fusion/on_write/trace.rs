@@ -682,30 +682,8 @@ impl FuseOnWriteTrace {
         &self,
         handle_outputs: &'s [HandleOutput<R>],
     ) -> GlobalArgsLaunch<'s, R> {
-        let mut outputs = GlobalArgsLaunch::new(
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-            SequenceArg::new(),
-        );
+        let mut outputs = GlobalArgsLaunch::default();
+
         for item in handle_outputs.iter() {
             match item {
                 HandleOutput::Alias {

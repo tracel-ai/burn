@@ -26,8 +26,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn execute(&self, (lhs, rhs, bias): Self::Args) {
-        let bias = bias.unsqueeze();
-        gelu(relu(lhs.matmul(rhs)) + bias);
+        let _output = gelu(relu(lhs.matmul(rhs)) + bias.unsqueeze());
     }
 
     fn prepare(&self) -> Self::Args {

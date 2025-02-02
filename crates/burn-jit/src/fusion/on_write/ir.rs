@@ -100,7 +100,7 @@ pub struct ReshapedTensor {
     shape: Sequence<Arg>,
 }
 
-#[derive(CubeLaunch)]
+#[derive(CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
     pub t_f32: Sequence<Tensor<Line<f32>>>,
@@ -127,6 +127,34 @@ pub struct GlobalArgs {
     pub s_u8: Sequence<u8>,
 }
 
+impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
+    fn default() -> Self {
+        Self::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+    }
+}
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
     ///
