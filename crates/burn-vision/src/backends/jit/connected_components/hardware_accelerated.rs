@@ -556,8 +556,9 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             stats_opt,
         );
         if stats_opt.compact_labels {
-            let max_labels = into_data_sync::<R, I>(stats.max_label.clone()).convert::<u32>();
-            let max_label = *max_labels.as_slice::<u32>().unwrap().iter().max().unwrap() as usize;
+            let max_label = JitBackend::<R, F, I, BT>::int_max(stats.max_label);
+            let max_label = into_data_sync::<R, I>(max_label).convert::<u32>();
+            let max_label = max_label.as_slice::<u32>().unwrap()[0] as usize;
             let sliced = kernel::slice::<R, I>(
                 stats.area.clone(),
                 &[0..batches, 0..(max_label + 1).next_multiple_of(4)],
