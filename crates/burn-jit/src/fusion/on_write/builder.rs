@@ -13,15 +13,36 @@ use burn_tensor::{
     Element,
 };
 use cubecl::ir::Elem;
+use serde::{Deserialize, Serialize};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FuseOnWriteBuilder {
     builder: TryFuseBuilder,
+    settings: FuseSettings,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_reshapes: usize,
     max_bindings: u32,
+}
+
+/// Controls which operations can be fused.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct FuseSettings {
+    /// Enables broadcasting of shapes.
+    pub broadcast: bool,
+    /// Enables output shape updates.
+    ///
+    /// When broadcast is enabled, the output shape can become bigger after a fusion,
+    /// therefore an update is needed.
+    pub output_shape_updates: bool,
+    /// Enables mix vectorization factor.
+    ///
+    /// Useful when the last dimension is broadcasted for one of the tensors, which would limit the
+    /// vectorization factor to be 1 without this setting enabled.
+    pub mix_vectorization: bool,
+    /// Enables the reuse of input buffers.
+    pub inplace: bool,
 }
 
 struct TryFuseBuilder {
@@ -31,9 +52,9 @@ struct TryFuseBuilder {
 }
 
 impl TryFuseBuilder {
-    fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
+    fn new(max_bindings: u32, bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
-            builder: FuseOnWriteTraceBuilder::new(bool_precision),
+            builder: FuseOnWriteTraceBuilder::new(bool_precision, settings),
             max_bindings,
             added_ops: false,
         }
@@ -70,6 +91,7 @@ impl TryFuseBuilder {
 
 impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn register(&mut self, op: &OperationDescription) {
+        log::info!("Register {op:?}");
         if let OptimizationStatus::Closed = self.status {
             return;
         }
@@ -124,6 +146,10 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
+        if !self.properties().ready {
+            panic!("Building a not ready sss");
+        }
+
         self.builder.build(self.current_output_shape.clone())
     }
 
@@ -134,7 +160,11 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn reset(&mut self) {
         self.num_ops = 0;
         self.status = OptimizationStatus::Open;
-        self.builder = TryFuseBuilder::new(self.max_bindings, self.builder.builder.bool_precision);
+        self.builder = TryFuseBuilder::new(
+            self.max_bindings,
+            self.builder.builder.bool_precision,
+            self.settings,
+        );
         self.current_output_shape.clear();
     }
 
@@ -143,7 +173,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn properties(&self) -> OptimizationProperties {
-        let ready = self.num_ops > 0;
+        let ready = self.num_ops > 0 && self.num_ops > self.num_reshapes;
 
         OptimizationProperties {
             ready,
@@ -153,9 +183,14 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
 }
 
 impl FuseOnWriteBuilder {
-    pub fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(
+        max_bindings: u32,
+        bool_precision: ElemwisePrecision,
+        settings: FuseSettings,
+    ) -> Self {
         Self {
-            builder: TryFuseBuilder::new(max_bindings, bool_precision),
+            builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
+            settings,
             num_ops: 0,
             num_reshapes: 0,
             max_bindings,
@@ -196,19 +231,12 @@ impl FuseOnWriteBuilder {
                     });
                 }
 
-                println!(
-                    "Input rank {} : {}",
-                    desc.input.shape.len(),
-                    desc.out.shape.len()
-                );
                 if desc.input.shape.len() > desc.out.shape.len() {
-                    println!("Not supported - invalid rank");
                     // Not yet supported.
                     return false;
                 }
 
                 if !self.output_is_compatible(&desc.out) {
-                    println!("Not supported - invalid output");
                     return false;
                 }
 
@@ -223,11 +251,9 @@ impl FuseOnWriteBuilder {
 
                     true
                 }) {
-                    println!("Fusing Reshape");
                     self.num_reshapes += 1;
                     true
                 } else {
-                    println!("Can't reshape already fused tensor.");
                     false
                 }
             }
@@ -517,15 +543,29 @@ impl FuseOnWriteBuilder {
             let curr = self.current_output_shape[i];
             let new = out.shape[i];
 
-            // Broadcast is supported.
-            //
-            // 0 is the shape id for a global shape of 1.
-            if curr != new && new != 0 && curr != 0 {
+            if curr == new {
+                continue;
+            }
+
+            // Broadcast not enabled.
+            if !self.settings.broadcast {
                 return false;
             }
 
-            updated[i] = usize::max(curr, new);
+            // Broadcasted on new dim.
+            if new == 0 {
+                continue;
+            }
+
+            // Broadcasted on curr dim - update reference output shape.
+            if curr == 0 && self.settings.output_shape_updates {
+                updated[i] = new;
+                continue;
+            }
+
+            return false;
         }
+
         core::mem::swap(&mut updated, &mut self.current_output_shape);
 
         true

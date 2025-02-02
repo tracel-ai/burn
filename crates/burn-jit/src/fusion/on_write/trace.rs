@@ -3,6 +3,7 @@ use crate::{
     BoolElement, JitRuntime,
 };
 
+use super::builder::FuseSettings;
 use super::ir::{Arg, ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch};
 use super::position::PositionMapper;
 use burn_fusion::stream::Context;
@@ -19,6 +20,7 @@ use std::collections::BTreeMap;
 pub struct FuseOnWriteTrace {
     outputs: RegisteredTensors,
     inputs: RegisteredTensors,
+    settings: FuseSettings,
     scalars: BTreeMap<ElemwisePrecision, u32>,
     reshapes: Vec<Reshape>,
     shape_ref: Vec<usize>,
@@ -332,6 +334,18 @@ impl FuseOnWriteTrace {
             tensors_reshaped,
         );
 
+        // If mix vectorization is disable, we set the vectorization factor of each tensor to the
+        // minimum value found.
+        if !self.settings.mix_vectorization {
+            let factor = analysis.vectorization.values().min().cloned();
+            if let Some(factor) = factor {
+                analysis
+                    .vectorization
+                    .iter_mut()
+                    .for_each(|(_, vf)| *vf = factor);
+            }
+        }
+
         for handle in analysis.handle_inputs.iter_mut() {
             handle.vectorization = *analysis.vectorization.get(&handle.global_id).unwrap();
         }
@@ -362,7 +376,8 @@ impl FuseOnWriteTrace {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            if status == &TensorStatus::ReadWrite
+            if self.settings.inplace
+                && status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
                 && self

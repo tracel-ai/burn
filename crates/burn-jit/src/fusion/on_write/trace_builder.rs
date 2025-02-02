@@ -1,7 +1,7 @@
 use super::{
+    builder::FuseSettings,
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
-    trace::Reshape,
-    trace::{FuseOnWriteTrace, RegisteredTensors},
+    trace::{FuseOnWriteTrace, RegisteredTensors, Reshape},
 };
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 pub struct FuseOnWriteTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
+    settings: FuseSettings,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
     reshapes: Vec<Reshape>,
@@ -25,10 +26,11 @@ pub struct FuseOnWriteTraceBuilder {
 }
 
 impl FuseOnWriteTraceBuilder {
-    pub fn new(bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
             locals: Locals::default(),
             outputs: RegisteredTensors::default(),
+            settings,
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
             reshapes: Vec::new(),
@@ -247,11 +249,13 @@ impl FuseOnWriteTraceBuilder {
         }
 
         let reshapes = self.reshapes.clone();
+        let settings = self.settings;
 
         // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace::new(
             outputs,
             inputs,
+            settings,
             scalars,
             reshapes,
             shape,
