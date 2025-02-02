@@ -2,10 +2,7 @@ use burn_fusion::OptimizationBuilder;
 
 use crate::{
     fusion::{
-        on_write::{
-            builder::{FuseOnWriteBuilder, FuseSettings},
-            ir::ElemwisePrecision,
-        },
+        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
     JitRuntime,

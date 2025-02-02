@@ -3,10 +3,7 @@ use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
 
 use crate::{
     fusion::{
-        on_write::{
-            builder::{FuseOnWriteBuilder, FuseSettings},
-            ir::ElemwisePrecision,
-        },
+        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
     JitRuntime,

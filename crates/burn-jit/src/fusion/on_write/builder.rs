@@ -1,7 +1,7 @@
 use super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, UnaryElemwiseArgs},
-    trace::FuseOnWriteTrace,
-    trace_builder::FuseOnWriteTraceBuilder,
+    settings::FuseSettings,
+    trace::{FuseOnWriteTrace, FuseOnWriteTraceBuilder},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
@@ -13,7 +13,6 @@ use burn_tensor::{
     Element,
 };
 use cubecl::ir::Elem;
-use serde::{Deserialize, Serialize};
 
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FuseOnWriteBuilder {
@@ -24,25 +23,6 @@ pub(crate) struct FuseOnWriteBuilder {
     pub(crate) num_ops: usize,
     pub(crate) num_reshapes: usize,
     max_bindings: u32,
-}
-
-/// Controls which operations can be fused.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct FuseSettings {
-    /// Enables broadcasting of shapes.
-    pub broadcast: bool,
-    /// Enables output shape updates.
-    ///
-    /// When broadcast is enabled, the output shape can become bigger after a fusion,
-    /// therefore an update is needed.
-    pub output_shape_updates: bool,
-    /// Enables mix vectorization factor.
-    ///
-    /// Useful when the last dimension is broadcasted for one of the tensors, which would limit the
-    /// vectorization factor to be 1 without this setting enabled.
-    pub mix_vectorization: bool,
-    /// Enables the reuse of input buffers.
-    pub inplace: bool,
 }
 
 struct TryFuseBuilder {

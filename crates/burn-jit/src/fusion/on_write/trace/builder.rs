@@ -1,8 +1,8 @@
-use super::{
-    builder::FuseSettings,
+use super::super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
-    trace::{FuseOnWriteTrace, RegisteredTensors, Reshape},
+    settings::FuseSettings,
 };
+use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Element,
@@ -251,21 +251,6 @@ impl FuseOnWriteTraceBuilder {
         let reshapes = self.reshapes.clone();
         let settings = self.settings;
 
-        // println!("=== Fusing {} Operations ===", self.ops.len());
-        // for (i, r) in reads.iter() {
-        //     println!(" READ {i:?} => {r:?}");
-        // }
-
-        // for (i, op) in self.ops.iter().enumerate() {
-        //     println!(" EXECUTE {i} => {op:?}");
-        // }
-        // for (i, w) in writes.iter() {
-        //     println!(" WRITE {i:?} => {w:?}");
-        // }
-
-        // println!("==================");
-
-        // Current problem is that I need btreemap instead of sequences.
         FuseOnWriteTrace::new(
             outputs,
             inputs,
