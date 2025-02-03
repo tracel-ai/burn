@@ -116,10 +116,10 @@ mod cuda {
 #[cfg(feature = "hip")]
 mod hip {
     use crate::{launch, ElemType};
-    use burn::backend::{Autodiff, HipJit};
+    use burn::backend::{Autodiff, Hip};
 
     pub fn run() {
-        launch::<Autodiff<HipJit<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Hip<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
