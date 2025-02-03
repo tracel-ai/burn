@@ -11,9 +11,7 @@ pub fn launch<B: Backend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::backend::{
-        ndarray::{NdArray, NdArrayDevice}
-    };
+    use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
     use crate::launch;
 
@@ -24,9 +22,7 @@ mod ndarray {
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice}
-    };
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::launch;
 
@@ -42,9 +38,7 @@ mod tch_gpu {
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice}
-    };
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::launch;
 
@@ -63,13 +57,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::launch;
-    use burn::backend::CudaJit;
+    use burn::backend::Cuda;
 
     pub fn run() {
-        launch::<CudaJit>(Default::default());
+        launch::<Cuda>(Default::default());
     }
 }
 
@@ -87,6 +81,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

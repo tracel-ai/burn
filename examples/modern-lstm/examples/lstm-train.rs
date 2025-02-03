@@ -1,7 +1,5 @@
 use burn::{
-    grad_clipping::GradientClippingConfig,
-    optim::AdamConfig,
-    tensor::backend::AutodiffBackend
+    grad_clipping::GradientClippingConfig, optim::AdamConfig, tensor::backend::AutodiffBackend,
 };
 use modern_lstm::{model::LstmNetworkConfig, training::TrainingConfig};
 
@@ -9,7 +7,7 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
     let config = TrainingConfig::new(
         LstmNetworkConfig::new(),
         // Gradient clipping via optimizer config
-        AdamConfig::new().with_grad_clipping(Some(GradientClippingConfig::Norm(1.0)))
+        AdamConfig::new().with_grad_clipping(Some(GradientClippingConfig::Norm(1.0))),
     );
 
     modern_lstm::training::train::<B>("/tmp/modern-lstm", config, device);
@@ -77,13 +75,13 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::launch;
-    use burn::backend::{cuda_jit::CudaDevice, Autodiff, CudaJit};
+    use burn::backend::{cuda::CudaDevice, Autodiff, Cuda};
 
     pub fn run() {
-        launch::<Autodiff<CudaJit>>(CudaDevice::default());
+        launch::<Autodiff<Cuda>>(CudaDevice::default());
     }
 }
 
@@ -101,6 +99,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }
