@@ -58,7 +58,7 @@ impl FuseOnWriteTrace {
         )
         .run(context, &mut plan);
 
-        OutputsPlanner::<R>::new(&self.inputs, &self.outputs)
+        OutputsPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
             .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings)

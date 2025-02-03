@@ -44,6 +44,18 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), (Runner::Error, Vec<HandleInput<R>>, Vec<HandleOutput<R>>)> {
+        let reference = match plan.reference {
+            Some(reference) => reference,
+            None => {
+                if plan.writes.is_empty() {
+                    // Nothing to write, can skip execution.
+                    return Ok(());
+                } else {
+                    panic!("An output should exist for the fused kernel")
+                }
+            }
+        };
+
         let inputs = self.register_inputs(context, &plan.handle_inputs);
         let outputs = self.register_outputs::<BT>(&plan.handle_outputs);
 
@@ -65,10 +77,7 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
 
         let config = ElemwiseConfig {
             rank: plan.rank as u32,
-            ref_layout: plan
-                .reference
-                .expect("An output should exist for the fused kernel")
-                .layout,
+            ref_layout: reference.layout,
             ops,
         };
 
