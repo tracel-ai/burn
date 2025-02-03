@@ -247,7 +247,7 @@ impl CubeType for FusedMatmulState {
 }
 
 impl Init for FusedMatmulStateExpand {
-    fn init(self, _context: &mut CubeContext) -> Self {
+    fn init(self, _context: &mut Scope) -> Self {
         self
     }
 }

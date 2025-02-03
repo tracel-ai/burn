@@ -1,5 +1,8 @@
 use core::fmt::Debug;
-use cubecl::{linalg::matmul::kernels::MatmulLaunchError, tune::AutotuneError};
+use cubecl::{
+    linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
+    tune::AutotuneError,
+};
 
 pub enum ConvLaunchError {
     Matmul(MatmulLaunchError),
@@ -27,6 +30,12 @@ impl Debug for ConvLaunchError {
 impl From<MatmulLaunchError> for ConvLaunchError {
     fn from(value: MatmulLaunchError) -> Self {
         Self::Matmul(value)
+    }
+}
+
+impl From<MatmulAvailabilityError> for ConvLaunchError {
+    fn from(value: MatmulAvailabilityError) -> Self {
+        Self::Matmul(MatmulLaunchError::Unavailable(value))
     }
 }
 
