@@ -352,6 +352,73 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         NdArrayOps::expand(tensor, shape)
     }
 
+    fn bitwise_and(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() & (b.elem::<i64>())).elem()
+        })
+    }
+
+    fn bitwise_and_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() & rhs.elem::<i64>()).elem()
+        })
+    }
+
+    fn bitwise_or(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() | (b.elem::<i64>())).elem()
+        })
+    }
+
+    fn bitwise_or_scalar(
+        lhs: burn_tensor::ops::IntTensor<Self>,
+        rhs: burn_tensor::ops::IntElem<Self>,
+    ) -> burn_tensor::ops::IntTensor<Self> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() | rhs.elem::<i64>()).elem()
+        })
+    }
+
+    fn bitwise_xor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() ^ (b.elem::<i64>())).elem()
+        })
+    }
+
+    fn bitwise_xor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() ^ rhs.elem::<i64>()).elem()
+        })
+    }
+
+    fn bitwise_not(tensor: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op_scalar(tensor, |a: I| (!a.elem::<i64>()).elem())
+    }
+
+    fn bitwise_left_shift(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() << (b.elem::<u32>())).elem()
+        })
+    }
+
+    fn bitwise_left_shift_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() << rhs.elem::<u32>()).elem()
+        })
+    }
+
+    fn bitwise_right_shift(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() >> (b.elem::<u32>())).elem()
+        })
+    }
+
+    fn bitwise_right_shift_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() >> rhs.elem::<u32>()).elem()
+        })
+    }
+
     fn int_cumsum(tensor: NdArrayTensor<I>, dim: usize) -> NdArrayTensor<I> {
         NdArrayMathOps::cumsum(tensor, dim)
     }

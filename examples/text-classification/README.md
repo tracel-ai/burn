@@ -102,6 +102,6 @@ cd burn
 # Use the --release flag to really speed up training.
 
 # AG News
-cargo run --example ag-news-train --release --features cuda-jit   # Train on the ag news dataset
-cargo run --example ag-news-infer --release --features cuda-jit   # Run inference on the ag news dataset
+cargo run --example ag-news-train --release --features cuda   # Train on the ag news dataset
+cargo run --example ag-news-infer --release --features cuda   # Run inference on the ag news dataset
 ```

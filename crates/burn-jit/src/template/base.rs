@@ -1,5 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::{prelude::*, Compiler, ExecutionMode, KernelId};
+use burn_common::ExecutionMode;
+use cubecl::{prelude::*, Compiler, KernelId};
 
 use super::SourceTemplate;
 

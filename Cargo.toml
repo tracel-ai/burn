@@ -23,18 +23,18 @@ exclude = [
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.16.0"
+version = "0.17.0"
 
 [workspace.dependencies]
 atomic_float = "1"
 bytemuck = "1.21.0"
 candle-core = { version = "0.8" }
-clap = { version = "4.5.23", features = ["derive"] }
+clap = { version = "4.5.27", features = ["derive"] }
 colored = "2.1.0"
 console_error_panic_hook = "0.1.7"
 csv = "1.3.1"
 dashmap = "6.1.0"
-data-encoding = { version = "2.6.0", default-features = false, features = [
+data-encoding = { version = "2.7.0", default-features = false, features = [
     "alloc",
 ] }
 dirs = "5.0.1"
@@ -47,16 +47,16 @@ globwalk = "0.9.1"
 hashbrown = "0.15.2"
 hound = "3.5.1"
 image = "0.25.5"
-indicatif = "0.17.9"
+indicatif = "0.17.11"
 js-sys = "0.3.72"
 libm = "0.2.11"
-log = { default-features = false, version = "0.4.22" }
+log = { default-features = false, version = "0.4.25" }
 md5 = "0.7.0"
 paste = "1"
 percent-encoding = "2.3.1"
-polars = { version = "0.44.2", features = ["lazy"] }
+polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.92"
+proc-macro2 = "1.0.93"
 protobuf = "3.7.1"
 protobuf-codegen = "3.7.1"
 quote = "1.0.38"
@@ -84,7 +84,7 @@ strum = "0.26.3"
 strum_macros = "0.26.4"
 syn = { version = "2.0.95", features = ["full", "extra-traits"] }
 tempfile = "3.14.0"
-thiserror = "2.0.9"
+thiserror = "2.0.11"
 tokio = { version = "1.42.0", features = ["rt", "macros"] }
 tracing-appender = "0.2.3"
 tracing-core = "0.1.33"
@@ -101,11 +101,11 @@ ratatui = "0.29.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
-wgpu = "23.0.0"
+wgpu = "24.0.1"
 
 # Benchmarks and Burnbench
 arboard = "3.4.1"
-github-device-flow = "0.2.0"
+chrono = "0.4.39"
 os_info = "3.9.0"
 wsl = "0.1.0"
 
@@ -140,12 +140,12 @@ serde = { version = "1.0.217", default-features = false, features = [
     "derive",
     "alloc",
 ] } # alloc is for no_std, derive is needed
-serde_json = { version = "1.0.134", default-features = false }
-uuid = { version = "1.11.0", default-features = false }
+serde_json = { version = "1.0.137", default-features = false }
+uuid = { version = "1.12.1", default-features = false }
 
-libc = "0.2.168"
+libc = "0.2.169"
 nvml-wrapper = "0.10.0"
-sysinfo = "0.32.1"
+sysinfo = "0.33.1"
 systemstat = "0.2.3"
 tch = "0.15.0"
 
@@ -153,14 +153,14 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "34af9342a2b4f8dcf1b0047afbea0f26405b92cf" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "34af9342a2b4f8dcf1b0047afbea0f26405b92cf" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a172f6760052bef392e6f0e44e912460960f2c1b" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a172f6760052bef392e6f0e44e912460960f2c1b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
-# cubecl = { version = "0.3.0", default-features = false }
-# cubecl-common = { version = "0.3.0", default-features = false }
+# cubecl = { version = "0.4.0", default-features = false }
+# cubecl-common = { version = "0.4.0", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = { version = "=1.1.8" }

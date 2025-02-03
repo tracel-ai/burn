@@ -1,8 +1,13 @@
+use std::marker::PhantomData;
+
 use burn_tensor::{
     ops::{DeformConv2dBackward, DeformConvOptions, FloatTensorOps as _},
     Shape,
 };
-use cubecl::{calculate_cube_count_elemwise, cube, prelude::*, CubeDim, CubeLaunch};
+use cubecl::{
+    calculate_cube_count_elemwise, cube, ir::Elem, prelude::*, AtomicFeature, CubeDim, CubeLaunch,
+    Feature,
+};
 
 use crate::{
     element::BoolElement,
@@ -19,7 +24,7 @@ use crate::{
     FloatElement, IntElement, JitBackend, JitRuntime,
 };
 
-use super::{bilinear_interpolate, deform_im2col, index};
+use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
 
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]
@@ -36,7 +41,7 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<JitTensor<R>>,
     out_grad: JitTensor<R>,
     options: DeformConvOptions<2>,
-) -> DeformConv2dBackward<JitBackend<R, E, I, BT>> {
+) -> Result<DeformConv2dBackward<JitBackend<R, E, I, BT>>, ConvLaunchError> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
@@ -60,7 +65,7 @@ pub(crate) fn deform_conv2d_backward<
         out_grad.clone(),
         &options,
         (kernel_h, kernel_w),
-    );
+    )?;
 
     let weight_grad = compute_weight_grad::<R, E>(
         input,
@@ -70,15 +75,15 @@ pub(crate) fn deform_conv2d_backward<
         options,
         (kernel_h, kernel_w),
         (out_h, out_w),
-    );
+    )?;
 
-    DeformConv2dBackward::new(
+    Ok(DeformConv2dBackward::new(
         input_gradient,
         offset_gradient,
         weight_grad,
         mask_gradient,
         gradient_bias,
-    )
+    ))
 }
 
 fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
@@ -89,7 +94,7 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
     options: DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let [_, in_channels, _, _] = input.shape.dims();
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
@@ -108,12 +113,12 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
     let columns = reshape(columns, Shape::new([groups, col_size_0, col_size_1]));
     let columns = swap_dims(columns, 1, 2);
 
-    let grad_weight = matmul::<R, E>(out_grad, columns, None, MatmulStrategy::default());
+    let grad_weight = matmul::<R, E>(out_grad, columns, None, MatmulStrategy::default())?;
 
-    reshape(
+    Ok(reshape(
         grad_weight,
         Shape::new([out_channels, in_c_per_group, kernel_h, kernel_w]),
-    )
+    ))
 }
 
 type InputGradients<R> = (JitTensor<R>, JitTensor<R>, Option<JitTensor<R>>);
@@ -126,7 +131,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     out_grad: JitTensor<R>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> InputGradients<R> {
+) -> Result<InputGradients<R>, ConvLaunchError> {
     let client = out_grad.client.clone();
     let device = out_grad.device.clone();
 
@@ -150,7 +155,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     for group in 0..groups {
         let weight = swap_dims(index::<R, E>(weight.clone(), group), 0, 1);
         let out_grad = index::<R, E>(out_grad.clone(), group);
-        let values = matmul::<R, E>(weight, out_grad, None, MatmulStrategy::default());
+        let values = matmul::<R, E>(weight, out_grad, None, MatmulStrategy::default())?;
         let values = reshape(values, Shape::new([1, col_shape_0, col_shape_1]));
         columns = slice_assign::<R, E>(
             columns,
@@ -169,12 +174,12 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
         mask.clone(),
         options,
         kernel_dims,
-    );
+    )?;
 
     let input_gradient =
         compute_input_grad::<R, E>(columns, offset, mask, options, kernel_dims, input_shape);
 
-    (input_gradient, offset_gradient, mask_gradient)
+    Ok((input_gradient, offset_gradient, mask_gradient))
 }
 
 fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
@@ -184,7 +189,7 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
     mask: Option<JitTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> (JitTensor<R>, Option<JitTensor<R>>) {
+) -> Result<(JitTensor<R>, Option<JitTensor<R>>), ConvLaunchError> {
     let client = offset.client.clone();
     let device = offset.device.clone();
     let (kernel_height, kernel_width) = kernel_dims;
@@ -238,7 +243,7 @@ fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
     };
 
     let mask_gradient = if use_mask { Some(grad_mask) } else { None };
-    (grad_offset, mask_gradient)
+    Ok((grad_offset, mask_gradient))
 }
 
 #[derive(CubeLaunch)]
@@ -270,7 +275,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     // Alternatively : [batch, offset_channels, out_h, out_w]
 
     if ABSOLUTE_POS >= grad_offset.len() {
-        return;
+        terminate!();
     }
 
     let offset_channels = offset.shape(1);
@@ -439,15 +444,29 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let client = offset.client.clone();
     let device = offset.device.clone();
 
+    let kind = match E::as_elem_native_unchecked() {
+        Elem::Float(kind) => kind,
+        _ => unreachable!("Should be float"),
+    };
+    let props = client.properties();
+
+    let supports_fadd = props.feature_enabled(Feature::AtomicFloat(AtomicFeature::Add));
+    let supports_same_type = props.feature_enabled(Feature::Type(Elem::AtomicFloat(kind)));
+
     let [batch_size, in_channels, height, width] = input_shape.dims();
     let (kernel_height, kernel_width) = kernel_dims;
 
-    // Force `f32` to enable bitcasting as `u32`
-    let grad_in = zeros_device::<R, f32>(
-        client.clone(),
-        device.clone(),
-        Shape::new([batch_size, in_channels, height, width]),
-    );
+    let shape = Shape::new([batch_size, in_channels, height, width]);
+    let grad_in = match supports_fadd && supports_same_type {
+        // Use type as is to save a cast
+        true => zeros_device::<R, E>(client.clone(), device.clone(), shape),
+        // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
+        false => zeros_device::<R, f32>(client.clone(), device.clone(), shape),
+    };
+    let grad_arg = match supports_fadd && supports_same_type {
+        true => grad_in.as_tensor_arg::<E>(1),
+        false => grad_in.as_tensor_arg::<f32>(1),
+    };
 
     let use_mask = mask.is_some();
     let mask = mask.unwrap_or_else(|| {
@@ -458,43 +477,60 @@ fn compute_input_grad<R: JitRuntime, E: FloatElement>(
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(num_elements, cube_dim);
 
-    deform_col2img_kernel::launch::<E, R>(
-        &offset.client,
-        cube_count,
-        cube_dim,
-        offset.as_tensor_arg::<E>(1),
-        mask.as_tensor_arg::<E>(1),
-        columns.as_tensor_arg::<E>(1),
-        grad_in.as_tensor_arg::<E>(1),
-        DeformConv2dCol2ImgArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.padding[0] as f32),
-            ScalarArg::new(options.padding[1] as f32),
-            ScalarArg::new(options.offset_groups as u32),
-            ScalarArg::new(batch_size as u32),
-            ScalarArg::new(in_channels as u32),
-            ScalarArg::new(height as u32),
-            ScalarArg::new(width as u32),
-            ScalarArg::new(kernel_height as u32),
-            ScalarArg::new(kernel_width as u32),
-        ),
-        use_mask,
-    );
+    let launch = match (supports_fadd, supports_same_type) {
+        // use same type intrinsic if supported
+        (true, true) => deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<E>, R>,
+        // use f32 intrinsic if float add is supported at all
+        (true, false) => {
+            deform_col2img_kernel::launch_unchecked::<E, IntrinsicFloatAtomicAdd<f32>, R>
+        }
+        // fall back to compare and swap
+        _ => deform_col2img_kernel::launch_unchecked::<E, CASFloatAtomicAdd, R>,
+    };
 
-    cast::<R, f32, E>(grad_in)
+    unsafe {
+        launch(
+            &offset.client,
+            cube_count,
+            cube_dim,
+            offset.as_tensor_arg::<E>(1),
+            mask.as_tensor_arg::<E>(1),
+            columns.as_tensor_arg::<E>(1),
+            grad_arg,
+            DeformConv2dCol2ImgArgsLaunch::new(
+                ScalarArg::new(options.stride[0] as u32),
+                ScalarArg::new(options.stride[1] as u32),
+                ScalarArg::new(options.dilation[0] as u32),
+                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(E::new(options.padding[0] as f32)),
+                ScalarArg::new(E::new(options.padding[1] as f32)),
+                ScalarArg::new(options.offset_groups as u32),
+                ScalarArg::new(batch_size as u32),
+                ScalarArg::new(in_channels as u32),
+                ScalarArg::new(height as u32),
+                ScalarArg::new(width as u32),
+                ScalarArg::new(kernel_height as u32),
+                ScalarArg::new(kernel_width as u32),
+            ),
+            use_mask,
+        )
+    };
+
+    if !supports_same_type || !supports_fadd {
+        cast::<R, f32, E>(grad_in)
+    } else {
+        grad_in
+    }
 }
 
 #[derive(CubeLaunch)]
-struct DeformConv2dCol2ImgArgs {
+struct DeformConv2dCol2ImgArgs<F: Float> {
     stride_h: u32,
     stride_w: u32,
     dilation_h: u32,
     dilation_w: u32,
-    pad_h: f32,
-    pad_w: f32,
+    pad_h: F,
+    pad_w: F,
     offset_groups: u32,
     batch_size: u32,
     in_channels: u32,
@@ -504,17 +540,19 @@ struct DeformConv2dCol2ImgArgs {
     kernel_width: u32,
 }
 
-#[cube(launch)]
-fn deform_col2img_kernel<F: Float>(
+#[cube(launch_unchecked)]
+fn deform_col2img_kernel<F: Float, FAdd: FloatAtomicAdd>(
     offset: &Tensor<F>,
     mask: &Tensor<F>,
     columns: &Tensor<F>,
-    grad_input: &mut Tensor<AtomicU32>,
-    args: &DeformConv2dCol2ImgArgs,
+    grad_input: &mut Tensor<Atomic<FAdd::ProxyType>>,
+    args: &DeformConv2dCol2ImgArgs<F>,
     #[comptime] use_mask: bool,
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
-    let _ = mask[0]; // Keep mask in bind group
+    if ABSOLUTE_POS >= columns.len() {
+        terminate!();
+    }
 
     let n_in_channels = args.in_channels;
     let height = args.height;
@@ -545,8 +583,8 @@ fn deform_col2img_kernel<F: Float>(
     let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
     let offset_x_idx = ((offset_idx + 1) * out_h + out_y) * out_w + out_x;
 
-    let offset_y = f32::cast_from(offset[offset_base_idx + offset_y_idx]);
-    let offset_x = f32::cast_from(offset[offset_base_idx + offset_x_idx]);
+    let offset_y = offset[offset_base_idx + offset_y_idx];
+    let offset_x = offset[offset_base_idx + offset_x_idx];
 
     let mask_value = if use_mask {
         let mask_base_idx =
@@ -558,47 +596,78 @@ fn deform_col2img_kernel<F: Float>(
     };
 
     let y =
-        f32::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
+        F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h) - args.pad_h + offset_y;
     let x =
-        f32::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
+        F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w) - args.pad_w + offset_x;
 
     for dy in -1..=1 {
         #[unroll]
         for dx in -1..=1 {
-            let yp = f32::floor(y) + dy as f32;
-            let xp = f32::floor(x) + dx as f32;
+            let yp = F::floor(y) + F::cast_from(dy);
+            let xp = F::floor(x) + F::cast_from(dx);
 
-            if yp >= 0.0
-                && yp < height as f32
-                && xp >= 0.0
-                && xp < width as f32
-                && f32::abs(y - yp) < 1.0
-                && f32::abs(x - xp) < 1.0
+            if yp >= F::new(0.0)
+                && yp < F::cast_from(height)
+                && xp >= F::new(0.0)
+                && xp < F::cast_from(width)
+                && F::abs(y - yp) < F::new(1.0)
+                && F::abs(x - xp) < F::new(1.0)
             {
                 let gradient_pos =
-                    ((batch * n_in_channels + in_channel) * height + yp as u32) * width + xp as u32;
+                    ((batch * n_in_channels + in_channel) * height + u32::cast_from(yp)) * width
+                        + u32::cast_from(xp);
 
-                let weight = (1.0 - f32::abs(y - yp)) * (1.0 - f32::abs(x - xp));
+                let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 
                 let value = mask_value * F::cast_from(weight) * columns[ABSOLUTE_POS];
 
-                float_atomic_add(&mut grad_input[gradient_pos], f32::cast_from(value));
+                FAdd::float_atomic_add::<F>(&mut grad_input[gradient_pos], value);
             }
         }
     }
 }
 
 #[cube]
-fn float_atomic_add(ptr: &mut AtomicU32, value: f32) {
-    if value != 0.0 {
-        let mut v = AtomicU32::load(ptr);
-        loop {
-            let prev = v;
-            let v_float = f32::bitcast_from(v);
-            let new = u32::bitcast_from(v_float + value);
-            v = AtomicU32::compare_and_swap(ptr, v, new);
-            if prev == v {
-                break;
+trait FloatAtomicAdd: Send + Sync + 'static {
+    type ProxyType: Numeric;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F);
+}
+
+#[derive(CubeType)]
+struct IntrinsicFloatAtomicAdd<F: Float> {
+    _ty: PhantomData<F>,
+}
+
+#[derive(CubeType)]
+struct CASFloatAtomicAdd;
+
+#[cube]
+impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {
+    type ProxyType = FAdd;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<FAdd>, value: F) {
+        let value = FAdd::cast_from(value);
+        Atomic::add(ptr, value);
+    }
+}
+
+#[cube]
+impl FloatAtomicAdd for CASFloatAtomicAdd {
+    type ProxyType = u32;
+
+    fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F) {
+        let value = f32::cast_from(value);
+        if value != 0.0 {
+            let mut v = Atomic::load(ptr);
+            loop {
+                let prev = v;
+                let v_float = f32::bitcast_from(v);
+                let new = u32::bitcast_from(v_float + value);
+                v = Atomic::compare_and_swap(ptr, v, new);
+                if prev == v {
+                    break;
+                }
             }
         }
     }

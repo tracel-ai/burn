@@ -9,3 +9,14 @@ pub(crate) fn checks_channels_div_groups(channels_in: usize, channels_out: usize
         );
     }
 }
+
+// https://github.com/tracel-ai/burn/issues/2676
+/// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+/// size is not supported as it will not produce the same output size.
+pub(crate) fn check_same_padding_support(kernel_size: &[usize]) {
+    for k in kernel_size.iter() {
+        if k % 2 == 0 {
+            unimplemented!("Same padding with an even kernel size is not supported");
+        }
+    }
+}

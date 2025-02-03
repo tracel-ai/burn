@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::conv::checks::check_same_padding_support;
 
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
@@ -18,6 +19,10 @@ pub struct MaxPool2dConfig {
     #[config(default = "[1, 1]")]
     pub strides: [usize; 2],
     /// The padding configuration.
+    ///
+    /// ### Warning
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// The dilation.
@@ -61,6 +66,9 @@ impl ModuleDisplay for MaxPool2d {
 impl MaxPool2dConfig {
     /// Initialize a new [max pool 2d](MaxPool2d) module.
     pub fn init(&self) -> MaxPool2d {
+        if self.padding == PaddingConfig2d::Same {
+            check_same_padding_support(&self.kernel_size);
+        }
         MaxPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
@@ -92,6 +100,13 @@ impl MaxPool2d {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let config = MaxPool2dConfig::new([2, 2]).with_padding(PaddingConfig2d::Same);
+        let _ = config.init();
+    }
 
     #[test]
     fn display() {

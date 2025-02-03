@@ -45,13 +45,13 @@ impl CubeType for Arg {
 }
 
 impl Init for Arg {
-    fn init(self, _context: &mut CubeContext) -> Self {
+    fn init(self, _context: &mut Scope) -> Self {
         self
     }
 }
 
 impl IntoRuntime for Arg {
-    fn __expand_runtime_method(self, _context: &mut CubeContext) -> Self::ExpandType {
+    fn __expand_runtime_method(self, _context: &mut Scope) -> Self::ExpandType {
         self
     }
 }
@@ -154,7 +154,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
         }
     }
 
-    /// Resolve the [argument](Arg) to a [tensor arguemnt](TensorArg).
+    /// Resolve the [argument](Arg) to a [tensor argument](TensorArg).
     ///
     /// # Panics
     ///

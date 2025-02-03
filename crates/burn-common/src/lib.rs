@@ -11,6 +11,9 @@ pub mod id;
 
 pub use cubecl_common::*;
 
+#[cfg(feature = "rayon")]
+pub use rayon;
+
 extern crate alloc;
 
 /// Network utilities.

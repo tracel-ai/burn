@@ -48,7 +48,7 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
 ) {
     // Last two positions contain the qparams
     if ABSOLUTE_POS >= input.len() - 2 {
-        return;
+        terminate!();
     }
 
     let qparams = QParams::new(scheme);
@@ -85,7 +85,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 ) {
     // Last position contains the qparam
     if ABSOLUTE_POS >= input.len() - 1 {
-        return;
+        terminate!();
     }
 
     let qparams = QParams::new(scheme);

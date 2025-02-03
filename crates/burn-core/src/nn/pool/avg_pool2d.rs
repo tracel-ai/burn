@@ -1,4 +1,5 @@
 use crate as burn;
+use crate::nn::conv::checks::check_same_padding_support;
 
 use crate::config::Config;
 use crate::module::{Content, DisplaySettings, ModuleDisplay};
@@ -18,6 +19,10 @@ pub struct AvgPool2dConfig {
     #[config(default = "[1, 1]")]
     pub strides: [usize; 2],
     /// The padding configuration.
+    ///
+    /// ### Warning
+    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
+    /// size is not supported as it will not produce the same output size.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If the padding is counted in the denominator when computing the average.
@@ -36,9 +41,6 @@ pub struct AvgPool2dConfig {
 /// legitimate values, and they contribute to the denominator
 /// when calculating the average. This is equivalent to
 /// `torch.nn.AvgPool2d` with `count_include_pad=True`.
-///
-/// TODO: Add support for `count_include_pad=False`, see
-/// [Issue 636](https://github.com/tracel-ai/burn/issues/636)
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct AvgPool2d {
@@ -72,6 +74,9 @@ impl ModuleDisplay for AvgPool2d {
 impl AvgPool2dConfig {
     /// Initialize a new [avg pool 2d](AvgPool2d) module.
     pub fn init(&self) -> AvgPool2d {
+        if self.padding == PaddingConfig2d::Same {
+            check_same_padding_support(&self.kernel_size);
+        }
         AvgPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
@@ -109,6 +114,13 @@ impl AvgPool2d {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic = "Same padding with an even kernel size is not supported"]
+    fn same_with_even_kernel_is_invalid() {
+        let config = AvgPool2dConfig::new([2, 2]).with_padding(PaddingConfig2d::Same);
+        let _ = config.init();
+    }
 
     #[test]
     fn display() {

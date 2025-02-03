@@ -101,12 +101,12 @@ impl<B: ReprBackend> SessionManager<B> {
 
 impl<B: ReprBackend> Session<B> {
     fn new(runner: Runner<B>) -> Self {
-        let (sender, reveiver) = std::sync::mpsc::sync_channel(1);
+        let (sender, receiver) = std::sync::mpsc::sync_channel(1);
         Self {
             runner,
             streams: Default::default(),
             sender,
-            receiver: Some(reveiver),
+            receiver: Some(receiver),
         }
     }
 

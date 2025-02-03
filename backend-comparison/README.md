@@ -57,6 +57,7 @@ Available Benchmarks:
 - conv-transpose3d
 - conv2d
 - conv3d
+- reduce
 ```
 
 #### Run benchmarks

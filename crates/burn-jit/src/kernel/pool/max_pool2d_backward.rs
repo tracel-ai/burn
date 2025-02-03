@@ -16,7 +16,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
     #[comptime] kernel_size_1: i32,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);

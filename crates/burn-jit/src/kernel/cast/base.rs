@@ -12,7 +12,7 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
     let offset_output = ABSOLUTE_POS;
 
     if offset_output >= output.len() {
-        return;
+        terminate!();
     }
 
     let offset_input = index_offset_with_layout::<I, O>(

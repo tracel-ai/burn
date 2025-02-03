@@ -15,16 +15,32 @@ use std::marker::PhantomData;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::int_empty(shape.clone(), device);
-        let stream = StreamId::current();
+        #[derive(new)]
+        struct EmptyOps<B: FusionBackend> {
+            desc: TensorDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::int_tensor_handle(tensor),
-            shape.dims,
-            stream,
-            B::IntElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::int_empty(Shape::from(&self.desc.shape), &self.device);
+                handles.register_int_tensor::<B>(&self.desc.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(shape.dims.clone(), B::IntElem::dtype());
+
+        let desc = out.to_description_out();
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::Empty(desc.clone())),
+            EmptyOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     async fn int_into_data(tensor: IntTensor<Self>) -> TensorData {
@@ -32,17 +48,35 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        let client = get_client::<B>(&device.clone());
-        let tensor = B::int_from_data(data, device);
-        let shape = burn_tensor::TensorMetadata::shape(&tensor);
-        let stream = StreamId::current();
+        #[derive(new)]
+        struct FromDataOps<B: FusionBackend> {
+            desc: FromDataOperationDescription,
+            device: Device<B>,
+        }
 
-        client.register_tensor(
-            B::int_tensor_handle(tensor),
-            shape.dims,
-            stream,
-            B::IntElem::dtype(),
-        )
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::int_from_data(self.desc.data, &self.device);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let out = client.tensor_uninitialized(data.shape.clone(), B::IntElem::dtype());
+
+        let desc = FromDataOperationDescription {
+            out: out.to_description_out(),
+            data,
+        };
+
+        client.register(
+            vec![stream],
+            OperationDescription::BaseInt(BaseOperationDescription::FromData(desc.clone())),
+            FromDataOps::<B>::new(desc, device.clone()),
+        );
+
+        out
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {
@@ -1815,6 +1849,269 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             vec![stream],
             OperationDescription::BaseInt(BaseOperationDescription::RepeatDim(desc.clone())),
             RepeatDimOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseAndOps, B::bitwise_and);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseAnd(desc.clone())),
+            BitwiseAndOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseAndOps, B::bitwise_and_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseAndScalar(
+                desc.clone(),
+            )),
+            BitwiseAndOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseOrOps, B::bitwise_or);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseOr(desc.clone())),
+            BitwiseOrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseOrOps, B::bitwise_or_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseOrScalar(desc.clone())),
+            BitwiseOrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseXorOps, B::bitwise_xor);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseXor(desc.clone())),
+            BitwiseXorOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseXorOps, B::bitwise_xor_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseXorScalar(
+                desc.clone(),
+            )),
+            BitwiseXorOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_int_ops!(BitwiseNotOps, B::bitwise_not);
+
+        let stream = tensor.stream;
+        let out = tensor
+            .client
+            .tensor_uninitialized(tensor.shape.clone(), B::IntElem::dtype());
+
+        let desc = UnaryOperationDescription {
+            input: tensor.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseNot(desc.clone())),
+            BitwiseNotOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseLeftShiftOps, B::bitwise_left_shift);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseLeftShift(
+                desc.clone(),
+            )),
+            BitwiseLeftShiftOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseLeftShiftOps, B::bitwise_left_shift_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseLeftShiftScalar(
+                desc.clone(),
+            )),
+            BitwiseLeftShiftOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_int_ops!(BitwiseRightShiftOps, B::bitwise_right_shift);
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::IntElem::dtype(),
+        );
+
+        let desc = BinaryOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.into_description(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseRightShift(
+                desc.clone(),
+            )),
+            BitwiseRightShiftOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        scalar_int_ops!(BitwiseRightShiftOps, B::bitwise_right_shift_scalar);
+
+        let stream = lhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(lhs.shape.clone(), B::IntElem::dtype());
+
+        let desc = ScalarOperationDescription {
+            lhs: lhs.into_description(),
+            rhs: rhs.elem(),
+            out: out.to_description_out(),
+        };
+        out.client.register(
+            vec![stream],
+            repr::OperationDescription::Int(IntOperationDescription::BitwiseRightShiftScalar(
+                desc.clone(),
+            )),
+            BitwiseRightShiftOps::<B>::new(desc),
         );
 
         out

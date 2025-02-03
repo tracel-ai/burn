@@ -22,7 +22,7 @@ pub struct MatmulAutotuneKey {
 }
 
 impl MatmulAutotuneKey {
-    fn from_shape(lhs_shape: &Shape, rhs_shape: &Shape, dtype: DType) -> Self {
+    pub(crate) fn from_shape(lhs_shape: &Shape, rhs_shape: &Shape, dtype: DType) -> Self {
         let ndims = lhs_shape.num_dims();
         let m = lhs_shape.dims[ndims - 2];
         let k = lhs_shape.dims[ndims - 1];

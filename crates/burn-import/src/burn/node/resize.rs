@@ -228,7 +228,7 @@ mod tests {
             TensorType::new_float("tensor1", 3),
             TensorType::new_float("tensor2", 3),
             "cubic".to_string(),
-            vec![],
+            vec![2.0],
             vec![20],
         ));
 
@@ -253,7 +253,7 @@ mod tests {
                 pub fn new(device: &B::Device) -> Self {
                     let resize = Interpolate1dConfig::new()
                         .with_output_size(Some(20))
-                        .with_scale_factor(None)
+                        .with_scale_factor(Some(2.0))
                         .with_mode(InterpolateMode::Cubic)
                         .init();
                     Self {

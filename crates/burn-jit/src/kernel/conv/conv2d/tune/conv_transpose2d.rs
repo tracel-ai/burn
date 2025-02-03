@@ -1,12 +1,9 @@
 use burn_tensor::{ops::ConvTransposeOptions, ElementConversion, Shape};
-use cubecl::{
-    tune,
-    tune::{local_tuner, tune_with, LocalTuner},
-};
+use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
 
 use crate::{
     kernel::{
-        conv::{batches_per_run, conv_transpose2d_col2im, conv_transpose2d_direct},
+        conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
     tensor::JitTensor,
@@ -26,23 +23,30 @@ pub fn conv_transpose2d_autotune<R: JitRuntime, E: FloatElement>(
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
+    let tune_set = TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
+        .with_tunable(conv_transpose2d_direct::<R, E>)
+        .with_tunable(conv_transpose2d_col2im::<R, E>);
+
     TUNER.execute(
         &JitTuneId::new::<R>(&input.device),
         &client,
-        Box::new(ConvTranspose2dOperations::<R, E>::new(
-            input, weights, bias, options,
-        )),
+        &tune_set,
+        (input, weights, bias, options),
     )
 }
 
-#[tune(operations(conv_transpose2d_direct, conv_transpose2d_col2im), create_key = create_key::<R, E>, should_run = should_run)]
-pub fn conv_transpose2d_operations<R: JitRuntime, E: FloatElement>(
-    key: JitAutotuneKey,
-    input: JitTensor<R>,
-    weights: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
-    options: ConvTransposeOptions<2>,
-) -> JitTensor<R> {
+pub fn create_transpose2d_input<R: JitRuntime, E: FloatElement>(
+    key: &JitAutotuneKey,
+    input: &JitTensor<R>,
+    _weights: &JitTensor<R>,
+    _bias: &Option<JitTensor<R>>,
+    options: &ConvTransposeOptions<2>,
+) -> (
+    JitTensor<R>,
+    JitTensor<R>,
+    Option<JitTensor<R>>,
+    ConvTransposeOptions<2>,
+) {
     let key = match key {
         JitAutotuneKey::ConvTranspose2d(key) => key,
         _ => unreachable!(),
@@ -60,7 +64,7 @@ pub fn conv_transpose2d_operations<R: JitRuntime, E: FloatElement>(
     let bias = key
         .has_bias
         .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
-    tune_with!(input, weights, bias, options)
+    (input, weights, bias, options.clone())
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
@@ -93,21 +97,4 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         bias.is_some(),
         E::dtype(),
     ))
-}
-
-fn should_run<R: JitRuntime, F: FloatElement>(
-    _op: &ConvTranspose2dOperations<R, F>,
-    key: &JitAutotuneKey,
-    index: usize,
-) -> bool {
-    let key = match key {
-        JitAutotuneKey::ConvTranspose2d(key) => key,
-        _ => unreachable!(),
-    };
-
-    match index {
-        // im2col
-        1 => batches_per_run(key.batch_size, key.height, key.width).is_some(),
-        _ => true,
-    }
 }

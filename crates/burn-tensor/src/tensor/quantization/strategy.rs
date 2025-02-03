@@ -4,7 +4,7 @@ use core::{
 };
 
 use alloc::vec::Vec;
-use burn_common::{iter_par, run_par};
+use burn_common::{iter_slice_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +35,7 @@ impl QuantizationStrategy {
 
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
 /// data type `Q` and vice-versa.
-pub trait Quantization<E: Float, Q: PrimInt> {
+pub trait Quantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync> {
     /// Create a new quantization scheme for an input range `[alpha, beta]`.
     fn new(alpha: E, beta: E) -> Self;
     /// Convert the values to a lower precision data type.
@@ -48,7 +48,7 @@ pub trait Quantization<E: Float, Q: PrimInt> {
 ///
 /// Note that the accumulation type `A` should have a bigger range than quantized type `Q`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
+pub struct AffineQuantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> {
     /// The scaling factor.
     pub scale: E,
     /// The zero-point offset.
@@ -66,7 +66,7 @@ fn valid_scale<E: Float>(mut scale: E) -> E {
     scale
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> AffineQuantization<E, Q, A> {
     /// Initialize an affine quantization scheme with the given parameters.
     pub fn init(scale: E, offset: Q) -> Self {
         Self {
@@ -77,7 +77,9 @@ impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt + Send + Sync> Quantization<E, Q>
+    for AffineQuantization<E, Q, A>
+{
     fn new(alpha: E, beta: E) -> Self {
         // Q range `[a, b]`
         let a = E::from(Q::min_value()).unwrap();
@@ -107,7 +109,7 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
         // x_q = clamp(round(x / scale + offset), a, b)
         let z = E::from(self.offset).unwrap();
         run_par!(|| {
-            iter_par!(values.iter())
+            iter_slice_par!(values)
                 .map(|x| Q::from(x.div(self.scale).add(z).round().clamp(a, b)).unwrap())
                 .collect()
         })
@@ -116,7 +118,7 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
     fn dequantize(&self, values: &[Q]) -> Vec<E> {
         // x = scale * (x_q - offset)
         run_par!(|| {
-            iter_par!(values.iter())
+            iter_slice_par!(values)
                 .map(|x_q| {
                     self.scale
                         * (E::from(
@@ -133,14 +135,14 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
 
 /// Symmetric quantization scheme.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct SymmetricQuantization<E: Float, Q: PrimInt> {
+pub struct SymmetricQuantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync> {
     /// The scaling factor.
     pub scale: E,
     /// The quantized type.
     _q: PhantomData<Q>,
 }
 
-impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> SymmetricQuantization<E, Q> {
     /// Initialize a symmetric quantization scheme with the given parameters.
     pub fn init(scale: E) -> Self {
         Self {
@@ -150,7 +152,9 @@ impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
     }
 }
 
-impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Quantization<E, Q>
+    for SymmetricQuantization<E, Q>
+{
     fn new(alpha: E, beta: E) -> Self {
         assert!(
             !Q::min_value().is_zero(),
@@ -214,7 +218,9 @@ fn canonicalize_signed_zero<T: Float>(x: T) -> T {
     x + T::zero()
 }
 
-impl<E: Float, Q: PrimInt + Hash, A: PrimInt> Hash for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Hash + Send + Sync, A: PrimInt> Hash
+    for AffineQuantization<E, Q, A>
+{
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Hash raw bits.
         let bits = raw_double_bits(&canonicalize_signed_zero(self.scale));
@@ -223,15 +229,20 @@ impl<E: Float, Q: PrimInt + Hash, A: PrimInt> Hash for AffineQuantization<E, Q, 
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> PartialEq for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> PartialEq
+    for AffineQuantization<E, Q, A>
+{
     fn eq(&self, other: &Self) -> bool {
         self.scale == other.scale && self.offset == other.offset
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> Eq for AffineQuantization<E, Q, A> {}
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> Eq
+    for AffineQuantization<E, Q, A>
+{
+}
 
-impl<E: Float, Q: PrimInt> Hash for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Hash for SymmetricQuantization<E, Q> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Hash raw bits.
         let bits = raw_double_bits(&canonicalize_signed_zero(self.scale));
@@ -239,13 +250,13 @@ impl<E: Float, Q: PrimInt> Hash for SymmetricQuantization<E, Q> {
     }
 }
 
-impl<E: Float, Q: PrimInt> PartialEq for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> PartialEq for SymmetricQuantization<E, Q> {
     fn eq(&self, other: &Self) -> bool {
         self.scale == other.scale
     }
 }
 
-impl<E: Float, Q: PrimInt> Eq for SymmetricQuantization<E, Q> {}
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Eq for SymmetricQuantization<E, Q> {}
 
 #[cfg(test)]
 mod tests {
