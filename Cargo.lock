@@ -393,7 +393,7 @@ dependencies = [
  "serial_test",
  "strum",
  "strum_macros",
- "sysinfo 0.32.1",
+ "sysinfo",
  "tracing-subscriber",
  "wgpu",
  "wsl",
@@ -893,7 +893,7 @@ dependencies = [
  "ratatui",
  "rstest",
  "serde",
- "sysinfo 0.32.1",
+ "sysinfo",
  "systemstat",
  "tracing-appender",
  "tracing-core",
@@ -3544,7 +3544,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -5162,7 +5162,7 @@ dependencies = [
  "raw-cpuid 11.3.0",
  "rayon",
  "stacker",
- "sysinfo 0.33.1",
+ "sysinfo",
  "version_check",
 ]
 
@@ -6527,21 +6527,6 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.32.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c33cd241af0f2e9e3b5c32163b873b29956890b5342e6745b917ce9d490f4af"
-dependencies = [
- "core-foundation-sys",
- "libc",
- "memchr",
- "ntapi",
- "rayon",
- "serde",
- "windows 0.57.0",
-]
-
-[[package]]
-name = "sysinfo"
 version = "0.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fc858248ea01b66f19d8e8a6d55f41deaf91e9d495246fd01368d99935c6c01"
@@ -6550,6 +6535,8 @@ dependencies = [
  "libc",
  "memchr",
  "ntapi",
+ "rayon",
+ "serde",
  "windows 0.57.0",
 ]
 
