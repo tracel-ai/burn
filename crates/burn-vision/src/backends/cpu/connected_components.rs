@@ -25,7 +25,6 @@ pub fn connected_components_with_stats<B: Backend>(
 ) -> (IntTensor<B>, ConnectedStatsPrimitive<B>) {
     let device = B::bool_device(&img);
     let (labels, stats) = run::<B, ConnectedStatsOp>(img, connectivity, ConnectedStatsOp::default);
-    println!("{stats:?}");
     let stats = finalize_stats(&device, stats);
     (labels, stats)
 }
@@ -211,13 +210,18 @@ fn finalize_stats<B: Backend>(
         Tensor::<B, 2, Int>::from_data(data, device).into_primitive()
     };
 
+    let max_label = {
+        let data = TensorData::new(max_label, Shape::new([batches]));
+        Tensor::<B, 1, Int>::from_data(data, device).into_primitive()
+    };
+
     ConnectedStatsPrimitive {
         area: into_prim(area),
         left: into_prim(left),
         top: into_prim(top),
         right: into_prim(right),
         bottom: into_prim(bottom),
-        max_label: into_prim(max_label),
+        max_label,
     }
 }
 

@@ -1,5 +1,8 @@
 [package]
-authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+authors = [
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+    "wingertge <wingertge@gmail.com>",
+]
 categories = ["science"]
 description = "Vision processing operations for burn tensors"
 documentation = "https://docs.rs/burn-vision"
