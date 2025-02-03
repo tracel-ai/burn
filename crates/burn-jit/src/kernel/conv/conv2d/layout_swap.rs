@@ -107,7 +107,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
     let batch = CUBE_POS_Z;
 
     if batch >= input.shape(0) {
-        return;
+        terminate!();
     }
 
     let batch_offset = batch * input.stride(0);
@@ -163,7 +163,7 @@ fn nchw_to_nhwc_kernel<E: Numeric>(
     let hw = base_hw + mat_hw;
 
     if hw >= shape_hw {
-        return;
+        terminate!();
     }
 
     let mat_c_start = mat_hw_start;

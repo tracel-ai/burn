@@ -245,6 +245,10 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let output = B::float_empty(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
+                BaseOperationDescription::FromData(desc) => {
+                    let output = B::float_from_data(desc.data.clone(), &self.device);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationDescription::BaseInt(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -315,6 +319,10 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_empty(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
+                }
+                BaseOperationDescription::FromData(desc) => {
+                    let output = B::int_from_data(desc.data.clone(), &self.device);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationDescription::BaseBool(op) => match op {
@@ -390,6 +398,10 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
                     handles.register_bool_tensor::<B>(&desc.id, output);
+                }
+                BaseOperationDescription::FromData(desc) => {
+                    let output = B::bool_from_data(desc.data.clone(), &self.device);
+                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationDescription::NumericFloat(_dtype, op) => match op {
@@ -791,6 +803,39 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
 
                     let output = B::int_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                IntOperationDescription::BitwiseAnd(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_and)
+                }
+                IntOperationDescription::BitwiseAndScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_and_scalar)
+                }
+                IntOperationDescription::BitwiseOr(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_or)
+                }
+                IntOperationDescription::BitwiseOrScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_or_scalar)
+                }
+                IntOperationDescription::BitwiseXor(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_xor)
+                }
+                IntOperationDescription::BitwiseXorScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_xor_scalar)
+                }
+                IntOperationDescription::BitwiseNot(desc) => {
+                    unary_int_ops!(handles, desc, B::bitwise_not)
+                }
+                IntOperationDescription::BitwiseLeftShift(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_left_shift)
+                }
+                IntOperationDescription::BitwiseRightShift(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_right_shift)
+                }
+                IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar)
+                }
+                IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_right_shift_scalar)
                 }
             },
             OperationDescription::Float(_dtype, op) => match op {

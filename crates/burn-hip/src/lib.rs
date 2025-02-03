@@ -26,7 +26,8 @@ pub type Hip<F = f32, I = i32, B = u8> = burn_fusion::Fusion<JitBackend<HipRunti
 //     use burn_jit::JitBackend;
 //
 //     pub type TestRuntime = cubecl::hip::HipRuntime;
-//     pub use half::{bf16, f16};
+//     pub use half::f16;
 //
-//     burn_jit::testgen_all!();
+//     // TODO: Add tests for bf16
+//     burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
 // }

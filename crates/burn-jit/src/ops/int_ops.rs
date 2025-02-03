@@ -1,5 +1,10 @@
+use self::unary_basic_int::BasicIntUnaryKind;
+
 use super::{expand, numeric, permute};
-use crate::kernel::{launch_unary_numeric, reduce, NumericUnaryOp, NumericUnaryOpFamily};
+use crate::kernel::{
+    launch_binop_int, launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+    BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily,
+};
 use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
@@ -193,7 +198,7 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        reduce::reduce::<R, I, I, reduce::Sum>(tensor, Default::default()).unwrap()
+        reduce::sum::<R, I>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
@@ -292,5 +297,49 @@ where
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
         kernel::flip::<R, I, BT>(tensor, axes)
+    }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_and::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_and_scalar::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_or::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_or_scalar(lhs, rhs)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_xor::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_xor_scalar(lhs, rhs)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_basic_int::launch::<R, _, I>(tensor, |_| &BasicIntUnaryKind::BitwiseNot)
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        launch_binop_int::<R, I, kernel::BitwiseShlOp>(lhs, rhs)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        launch_scalar_binop_int::<R, I, BitwiseShlOp>(lhs, rhs)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        launch_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        launch_scalar_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
     }
 }

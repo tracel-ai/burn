@@ -4,8 +4,9 @@ use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     repr::{
-        DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
-        OperationDescription, QuantizationParametersDescription, QuantizeOperationDescription,
+        BaseOperationDescription, DequantizeOperationDescription, FloatOperationDescription,
+        FromDataOperationDescription, HandleContainer, OperationDescription,
+        QuantizationParametersDescription, QuantizeOperationDescription,
     },
     DType, Device, Element, Shape, TensorData,
 };
@@ -19,19 +20,41 @@ use crate::{
 
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
+        #[derive(new)]
+        struct FromDataOps<B: FusionBackend> {
+            desc: FromDataOperationDescription,
+            device: Device<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let output = B::q_from_data(self.desc.data, &self.device);
+                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
         match data.dtype {
             DType::QFloat(_scheme) => {
                 let dtype = data.dtype;
-                let client = get_client::<B>(device);
-                let tensor = B::q_from_data(data, device);
-                let shape = burn_tensor::TensorMetadata::shape(&tensor);
 
-                client.register_tensor(
-                    B::quantized_tensor_handle(tensor),
-                    shape.dims,
-                    StreamId::current(),
-                    dtype,
-                )
+                let stream = StreamId::current();
+                let client = get_client::<B>(&device.clone());
+                let out = client.tensor_uninitialized(data.shape.clone(), dtype);
+
+                let desc = FromDataOperationDescription {
+                    out: out.to_description_out(),
+                    data,
+                };
+
+                client.register(
+                    vec![stream],
+                    OperationDescription::BaseFloat(BaseOperationDescription::FromData(
+                        desc.clone(),
+                    )),
+                    FromDataOps::<B>::new(desc, device.clone()),
+                );
+
+                out
             }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",

@@ -11,24 +11,18 @@ pub fn launch<B: Backend>(device: B::Device) {
     feature = "ndarray-blas-accelerate",
 ))]
 mod ndarray {
-    use burn::backend::{
-        ndarray::{NdArray, NdArrayDevice},
-        Autodiff,
-    };
+    use burn::backend::ndarray::{NdArray, NdArrayDevice};
 
     use crate::launch;
 
     pub fn run() {
-        launch::<Autodiff<NdArray>>(NdArrayDevice::Cpu);
+        launch::<NdArray>(NdArrayDevice::Cpu);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
-        Autodiff,
-    };
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::launch;
 
@@ -38,41 +32,38 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<Autodiff<LibTorch>>(device);
+        launch::<LibTorch>(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::{
-        libtorch::{LibTorch, LibTorchDevice},
-        Autodiff,
-    };
+    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
 
     use crate::launch;
 
     pub fn run() {
-        launch::<Autodiff<LibTorch>>(LibTorchDevice::Cpu);
+        launch::<LibTorch>(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
     use crate::launch;
-    use burn::backend::{wgpu::Wgpu, Autodiff};
+    use burn::backend::wgpu::Wgpu;
 
     pub fn run() {
-        launch::<Autodiff<Wgpu>>(Default::default());
+        launch::<Wgpu>(Default::default());
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "cuda")]
+mod cuda {
     use crate::launch;
-    use burn::backend::{Autodiff, CudaJit};
+    use burn::backend::Cuda;
 
     pub fn run() {
-        launch::<Autodiff<CudaJit>>(Default::default());
+        launch::<Cuda>(Default::default());
     }
 }
 
@@ -90,6 +81,6 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
 }

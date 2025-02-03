@@ -721,6 +721,82 @@ impl RelativeOps for IntOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
+            IntOperationDescription::BitwiseAnd(desc) => {
+                IntOperationDescription::BitwiseAnd(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseAndScalar(desc) => {
+                IntOperationDescription::BitwiseAndScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseOr(desc) => {
+                IntOperationDescription::BitwiseOr(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseOrScalar(desc) => {
+                IntOperationDescription::BitwiseOrScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseXor(desc) => {
+                IntOperationDescription::BitwiseXor(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseXorScalar(desc) => {
+                IntOperationDescription::BitwiseXorScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseNot(desc) => {
+                IntOperationDescription::BitwiseNot(UnaryOperationDescription {
+                    input: desc.input.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseLeftShift(desc) => {
+                IntOperationDescription::BitwiseLeftShift(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                IntOperationDescription::BitwiseLeftShiftScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseRightShift(desc) => {
+                IntOperationDescription::BitwiseRightShift(BinaryOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                IntOperationDescription::BitwiseRightShiftScalar(ScalarOperationDescription {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
@@ -1160,6 +1236,12 @@ impl RelativeOps for BaseOperationDescription {
             }
             BaseOperationDescription::Empty(desc) => {
                 BaseOperationDescription::Empty(desc.to_relative(converter))
+            }
+            BaseOperationDescription::FromData(desc) => {
+                BaseOperationDescription::FromData(FromDataOperationDescription {
+                    data: desc.data.clone(),
+                    out: desc.out.to_relative(converter),
+                })
             }
         }
     }

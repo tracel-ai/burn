@@ -6,6 +6,7 @@ use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
+use crate::TensorData;
 use crate::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
@@ -199,6 +200,12 @@ pub enum ModuleOperationDescription {
 pub enum BaseOperationDescription {
     /// Operation corresponding to:
     ///
+    /// Float => [from_data](crate::ops::FloatTensorOps::float_from_data).
+    /// Int => [from_data](crate::ops::IntTensorOps::int_from_data).
+    /// Bool => [from_data](crate::ops::BoolTensorOps::bool_from_data).
+    FromData(FromDataOperationDescription),
+    /// Operation corresponding to:
+    ///
     /// Float => [to device](crate::ops::FloatTensorOps::float_to_device).
     /// Int => [to device](crate::ops::IntTensorOps::int_to_device).
     /// Bool => [to device](crate::ops::BoolTensorOps::bool_to_device).
@@ -272,9 +279,9 @@ pub enum BaseOperationDescription {
 
     /// Operation corresponding to:
     ///
-    /// Float => [equal](crate::ops::FloatTensorOps::float_empty).
-    /// Int => [equal](crate::ops::IntTensorOps::int_empty).
-    /// Bool => [equal](crate::ops::BoolTensorOps::bool_empty).
+    /// Float => [empty](crate::ops::FloatTensorOps::float_empty).
+    /// Int => [empty](crate::ops::IntTensorOps::int_empty).
+    /// Bool => [empty](crate::ops::BoolTensorOps::bool_empty).
     Empty(TensorDescription),
 }
 
@@ -520,6 +527,50 @@ pub enum NumericOperationDescription<E> {
 pub enum IntOperationDescription {
     /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
     IntoFloat(UnaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise and](crate::ops::IntTensorOps::bitwise_and).
+    BitwiseAnd(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise and scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
+    BitwiseAndScalar(ScalarOperationDescription<i32>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise or](crate::ops::IntTensorOps::bitwise_or).
+    BitwiseOr(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise or scalar](crate::ops::IntTensorOps::bitwise_or_scalar).
+    BitwiseOrScalar(ScalarOperationDescription<i32>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise xor](crate::ops::IntTensorOps::bitwise_xor).
+    BitwiseXor(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise xor scalar](crate::ops::IntTensorOps::bitwise_xor_scalar).
+    BitwiseXorScalar(ScalarOperationDescription<i32>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise not](crate::ops::IntTensorOps::bitwise_not).
+    BitwiseNot(UnaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise left shift](crate::ops::IntTensorOps::bitwise_left_shift).
+    BitwiseLeftShift(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise left shift scalar](crate::ops::IntTensorOps::bitwise_left_shift_scalar).
+    BitwiseLeftShiftScalar(ScalarOperationDescription<i32>),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise right shift](crate::ops::IntTensorOps::bitwise_right_shift).
+    BitwiseRightShift(BinaryOperationDescription),
+    /// Operation corresponding to:
+    ///
+    /// Int => [bitwise right shift scalar](crate::ops::IntTensorOps::bitwise_right_shift_scalar).
+    BitwiseRightShiftScalar(ScalarOperationDescription<i32>),
 }
 
 /// Operation description specific to a bool tensor.
@@ -584,6 +635,13 @@ pub struct FlipOperationDescription {
 pub struct RandomOperationDescription {
     pub out: TensorDescription,
     pub distribution: Distribution,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct FromDataOperationDescription {
+    pub out: TensorDescription,
+    pub data: TensorData,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1357,6 +1415,7 @@ impl BaseOperationDescription {
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
             BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
             BaseOperationDescription::Empty(desc) => vec![desc],
+            BaseOperationDescription::FromData(desc) => vec![&desc.out],
         }
     }
 }
@@ -1537,6 +1596,39 @@ impl IntOperationDescription {
     fn nodes(&self) -> Vec<&TensorDescription> {
         match self {
             IntOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            IntOperationDescription::BitwiseAnd(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseAndScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseOr(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseOrScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseXor(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseXorScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseNot(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+            IntOperationDescription::BitwiseLeftShift(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseRightShift(desc) => {
+                vec![&desc.lhs, &desc.rhs, &desc.out]
+            }
+            IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+                vec![&desc.lhs, &desc.out]
+            }
         }
     }
 }
@@ -1667,6 +1759,12 @@ impl ModuleOperationDescription {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
         }
+    }
+}
+
+impl core::hash::Hash for FromDataOperationDescription {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.out.hash(state);
     }
 }
 

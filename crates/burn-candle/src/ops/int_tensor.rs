@@ -372,4 +372,47 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
         sign(tensor)
     }
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_and is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_and_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_or is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_or_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_xor is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_xor_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_not is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_left_shift_scalar is not implemented for Candle IntTensor");
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
+    }
 }

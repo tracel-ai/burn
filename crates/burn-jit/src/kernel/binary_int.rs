@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{ops::numeric::empty_device, tensor::JitTensor, IntElement, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -9,104 +7,79 @@ use cubecl::{
 
 use super::into_contiguous;
 
-pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
-    type BinaryOp<C: Numeric>: BinaryOp<C>;
+pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
+    type BinaryOp<C: Int>: BinaryOpInt<C>;
 }
 
 #[cube]
-pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
+pub(crate) trait BinaryOpInt<C: Int>: 'static + Send + Sync {
     /// Execute a binary operation.
     fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
 }
 
-pub(crate) struct AddOp;
-pub(crate) struct SubOp;
-pub(crate) struct MulOp;
-pub(crate) struct DivOp;
-pub(crate) struct RemainderOp;
+pub(crate) struct BitwiseAndOp;
+pub(crate) struct BitwiseOrOp;
+pub(crate) struct BitwiseXorOp;
+pub(crate) struct BitwiseShrOp;
+pub(crate) struct BitwiseShlOp;
 
-/// Since Powf only works on float, but we still want to implement the numeric binary op family, we
-/// set another precision in the family type to cast, when necessary, the input value to a valid
-/// float.
-///
-/// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
-/// the family pattern for [PowOp], but at least we don't duplicate code.
-pub(crate) struct PowOp<F: Float> {
-    _f: PhantomData<F>,
+impl BinaryOpIntFamily for BitwiseAndOp {
+    type BinaryOp<C: Int> = Self;
 }
 
-impl BinaryOpFamily for AddOp {
-    type BinaryOp<C: Numeric> = Self;
+impl BinaryOpIntFamily for BitwiseOrOp {
+    type BinaryOp<C: Int> = Self;
 }
 
-impl BinaryOpFamily for SubOp {
-    type BinaryOp<C: Numeric> = Self;
+impl BinaryOpIntFamily for BitwiseXorOp {
+    type BinaryOp<C: Int> = Self;
 }
 
-impl BinaryOpFamily for MulOp {
-    type BinaryOp<C: Numeric> = Self;
+impl BinaryOpIntFamily for BitwiseShrOp {
+    type BinaryOp<C: Int> = Self;
 }
 
-impl BinaryOpFamily for DivOp {
-    type BinaryOp<C: Numeric> = Self;
-}
-
-impl BinaryOpFamily for RemainderOp {
-    type BinaryOp<C: Numeric> = Self;
-}
-
-impl<F: Float> BinaryOpFamily for PowOp<F> {
-    type BinaryOp<C: Numeric> = Self;
+impl BinaryOpIntFamily for BitwiseShlOp {
+    type BinaryOp<C: Int> = Self;
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for AddOp {
+impl<N: Int> BinaryOpInt<N> for BitwiseAndOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        lhs + rhs
+        lhs & rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for SubOp {
+impl<N: Int> BinaryOpInt<N> for BitwiseOrOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        lhs - rhs
+        lhs | rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for MulOp {
+impl<N: Int> BinaryOpInt<N> for BitwiseXorOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        lhs * rhs
+        lhs ^ rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for DivOp {
+impl<N: Int> BinaryOpInt<N> for BitwiseShrOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        lhs / rhs
+        lhs >> rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for RemainderOp {
+impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
     fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        Line::rem(lhs, rhs)
-    }
-}
-
-#[cube]
-impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        let lhs = Line::<F>::cast_from(lhs);
-        let rhs = Line::<F>::cast_from(rhs);
-        let out = Line::powf(lhs, rhs);
-
-        Line::cast_from(out)
+        lhs << rhs
     }
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
+pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
     input: &Tensor<Line<C>>,
     scalar: C,
     output: &mut Tensor<Line<C>>,
@@ -119,7 +92,7 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
+pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
     lhs: &Tensor<Line<C>>,
     rhs: &Tensor<Line<C>>,
     out: &mut Tensor<Line<C>>,
@@ -160,7 +133,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
+pub(crate) fn launch_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
     lhs: JitTensor<R>,
     rhs: JitTensor<R>,
 ) -> JitTensor<R> {
@@ -198,7 +171,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -212,7 +185,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -230,7 +203,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
             let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
             let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-            kernel_binop::launch_unchecked::<E, O, R>(
+            kernel_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -247,7 +220,7 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
+pub(crate) fn launch_scalar_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
     mut tensor: JitTensor<R>,
     scalar: E,
 ) -> JitTensor<R> {
@@ -271,7 +244,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamil
 
     unsafe {
         if tensor.can_mut() {
-            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 cube_dim,
@@ -288,7 +261,7 @@ pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamil
                 tensor.shape.clone(),
             );
 
-            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+            kernel_scalar_binop_int::launch_unchecked::<E, O, R>(
                 &client,
                 cube_count,
                 CubeDim::default(),

@@ -29,7 +29,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     }
 
     if ABSOLUTE_POS >= num_elems {
-        return;
+        terminate!();
     }
 
     let strides_tensor_dim = tensor.stride(dim);

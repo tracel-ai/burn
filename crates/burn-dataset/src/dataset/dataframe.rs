@@ -269,20 +269,20 @@ mod tests {
     }
 
     fn create_test_dataframe() -> DataFrame {
-        let s0 = Column::Series(Series::new("int32".into(), &[1i32, 2i32, 3i32]));
-        let s1 = Column::Series(Series::new("bool".into(), &[true, false, true]));
-        let s2 = Column::Series(Series::new("float64".into(), &[1.1f64, 2.2f64, 3.3f64]));
-        let s3 = Column::Series(Series::new("string".into(), &["Boo", "Boo2", "Boo3"]));
-        let s6 = Column::Series(Series::new("int16".into(), &[1i16, 2i16, 3i16]));
-        let s8 = Column::Series(Series::new("uint32".into(), &[1u32, 2u32, 3u32]));
-        let s9 = Column::Series(Series::new("uint64".into(), &[1u64, 2u64, 3u64]));
-        let s10 = Column::Series(Series::new("float32".into(), &[1.1f32, 2.2f32, 3.3f32]));
-        let s11 = Column::Series(Series::new("int64".into(), &[1i64, 2i64, 3i64]));
-        let s12 = Column::Series(Series::new("int8".into(), &[1i8, 2i8, 3i8]));
+        let s0 = Column::new("int32".into(), &[1i32, 2i32, 3i32]);
+        let s1 = Column::new("bool".into(), &[true, false, true]);
+        let s2 = Column::new("float64".into(), &[1.1f64, 2.2f64, 3.3f64]);
+        let s3 = Column::new("string".into(), &["Boo", "Boo2", "Boo3"]);
+        let s6 = Column::new("int16".into(), &[1i16, 2i16, 3i16]);
+        let s8 = Column::new("uint32".into(), &[1u32, 2u32, 3u32]);
+        let s9 = Column::new("uint64".into(), &[1u64, 2u64, 3u64]);
+        let s10 = Column::new("float32".into(), &[1.1f32, 2.2f32, 3.3f32]);
+        let s11 = Column::new("int64".into(), &[1i64, 2i64, 3i64]);
+        let s12 = Column::new("int8".into(), &[1i8, 2i8, 3i8]);
 
         let binary_data: Vec<&[u8]> = vec![&[1, 2, 3], &[4, 5, 6], &[7, 8, 9]];
 
-        let s13 = Column::Series(Series::new("binary".into(), binary_data));
+        let s13 = Column::new("binary".into(), binary_data);
         DataFrame::new(vec![s0, s1, s2, s3, s6, s8, s9, s10, s11, s12, s13]).unwrap()
     }
 

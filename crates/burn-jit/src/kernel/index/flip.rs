@@ -11,7 +11,7 @@ fn flip_kernel<E: CubePrimitive, Bool: Int>(
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let mut offset_input = 0;

@@ -50,13 +50,13 @@ impl CubeType for Arg {
 }
 
 impl Init for Arg {
-    fn init(self, _context: &mut CubeContext) -> Self {
+    fn init(self, _context: &mut Scope) -> Self {
         self
     }
 }
 
 impl IntoRuntime for Arg {
-    fn __expand_runtime_method(self, _context: &mut CubeContext) -> Self::ExpandType {
+    fn __expand_runtime_method(self, _context: &mut Scope) -> Self::ExpandType {
         self
     }
 }
