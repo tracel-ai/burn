@@ -13,6 +13,7 @@ use crate::{
 
 use super::{HandleOutput, LaunchPlan, Reshape, TraceRunner};
 
+/// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: JitRuntime> {
     settings: &'a FuseSettings,
     reshapes: &'a Vec<Reshape>,
