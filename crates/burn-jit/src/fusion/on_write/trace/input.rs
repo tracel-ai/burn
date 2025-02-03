@@ -11,7 +11,7 @@ use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};
 
 /// Fetch and register [input handles](HandleInput) and itendify potential inputs that
 /// can be used inplace.
-pub struct InputsPlanner<'a, R: JitRuntime> {
+pub struct InputPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
     inputs_unhandled: &'a Vec<TensorId>,
     reshapes: &'a Vec<Reshape>,
@@ -20,7 +20,7 @@ pub struct InputsPlanner<'a, R: JitRuntime> {
     _r: PhantomData<R>,
 }
 
-impl<'a, R: JitRuntime> InputsPlanner<'a, R> {
+impl<'a, R: JitRuntime> InputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         inputs_unhandled: &'a Vec<TensorId>,
@@ -51,11 +51,10 @@ impl<'a, R: JitRuntime> InputsPlanner<'a, R> {
                 && status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
-                && self
+                && !self
                     .reshapes
                     .iter()
-                    .find(|r| r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
-                    .is_none()
+                    .any(|r| r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {

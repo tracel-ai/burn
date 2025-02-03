@@ -113,7 +113,7 @@ fn vectorization_default<'a, R: JitRuntime>(
     let mut max_current = u8::MAX;
 
     for (handle, tensor) in handles_inputs.zip(inputs) {
-        match vectorization_input(&handle, tensor) {
+        match vectorization_input(handle, tensor) {
             Vect::Broadcated => vectorizations.insert(tensor.id, 1),
             Vect::Max(val) => {
                 max_current = Ord::min(val, max_current);

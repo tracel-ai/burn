@@ -24,6 +24,13 @@ pub struct LaunchPlanExecutor<'a, R: JitRuntime> {
     _r: PhantomData<R>,
 }
 
+#[derive(new)]
+pub struct ExecutionError<R: JitRuntime, Runner: TraceRunner<R>> {
+    pub runner_error: Runner::Error,
+    pub handles_input: Vec<HandleInput<R>>,
+    pub handles_output: Vec<HandleOutput<R>>,
+}
+
 impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a BTreeMap<ElemwisePrecision, u32>,
@@ -44,7 +51,7 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
         runner: &Runner,
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
-    ) -> Result<(), (Runner::Error, Vec<HandleInput<R>>, Vec<HandleOutput<R>>)> {
+    ) -> Result<(), ExecutionError<R, Runner>> {
         let reference = match plan.reference {
             Some(reference) => reference,
             None => {
@@ -83,7 +90,7 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
         };
 
         Runner::run(runner, client, inputs, outputs, &config)
-            .map_err(|err| (err, plan.handle_inputs, plan.handle_outputs))
+            .map_err(|err| ExecutionError::new(err, plan.handle_inputs, plan.handle_outputs))
     }
 
     fn register_inputs<'h>(

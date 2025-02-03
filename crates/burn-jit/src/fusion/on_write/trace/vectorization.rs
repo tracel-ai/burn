@@ -70,13 +70,13 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
             handle.vectorization = *plan.vectorization.get(&handle.global_id).unwrap();
         }
         for handle in plan.handle_outputs.iter_mut() {
-            match handle {
-                HandleOutput::Owned {
-                    vectorization,
-                    global_id,
-                    ..
-                } => *vectorization = *plan.vectorization.get(&global_id).unwrap(),
-                _ => {}
+            if let HandleOutput::Owned {
+                vectorization,
+                global_id,
+                ..
+            } = handle
+            {
+                *vectorization = *plan.vectorization.get(global_id).unwrap()
             }
         }
     }

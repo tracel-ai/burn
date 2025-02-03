@@ -25,7 +25,7 @@ pub(crate) struct LaunchPlan<'a, R: JitRuntime> {
     pub rank: usize,
 }
 
-impl<'a, R: JitRuntime> LaunchPlan<'a, R> {
+impl<R: JitRuntime> LaunchPlan<'_, R> {
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,

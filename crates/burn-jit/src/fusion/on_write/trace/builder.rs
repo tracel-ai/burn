@@ -102,8 +102,10 @@ impl FuseOnWriteTraceBuilder {
                 let out = self.locals.create(precision, tensor.id);
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
-                let reads = if !self.reads.contains_key(&tensor.id) {
-                    self.reads.insert(tensor.id, Vec::with_capacity(1));
+                let reads = if let std::collections::btree_map::Entry::Vacant(e) =
+                    self.reads.entry(tensor.id)
+                {
+                    e.insert(Vec::with_capacity(1));
                     self.reads.get_mut(&tensor.id).unwrap()
                 } else {
                     self.reads.get_mut(&tensor.id).unwrap()
@@ -180,8 +182,8 @@ impl FuseOnWriteTraceBuilder {
 
         let index = self.reshapes.len();
         self.reshapes.push(Reshape {
-            reshaped: output.id.clone(),
-            original: tensor.id.clone(),
+            reshaped: output.id,
+            original: tensor.id,
         });
         let rank = output.shape.len();
 
@@ -195,12 +197,13 @@ impl FuseOnWriteTraceBuilder {
             shape,
         };
 
-        let reads = if !self.reads.contains_key(&tensor.id) {
-            self.reads.insert(tensor.id, Vec::with_capacity(1));
-            self.reads.get_mut(&tensor.id).unwrap()
-        } else {
-            self.reads.get_mut(&tensor.id).unwrap()
-        };
+        let reads =
+            if let std::collections::btree_map::Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                e.insert(Vec::with_capacity(1));
+                self.reads.get_mut(&tensor.id).unwrap()
+            } else {
+                self.reads.get_mut(&tensor.id).unwrap()
+            };
 
         reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
             input,
@@ -226,7 +229,7 @@ impl FuseOnWriteTraceBuilder {
         Arg::Scalar(new_index, precision)
     }
 
-    pub fn build(&self, shape: Vec<usize>) -> FuseOnWriteTrace {
+    pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();
@@ -250,19 +253,20 @@ impl FuseOnWriteTraceBuilder {
 
         let reshapes = self.reshapes.clone();
         let settings = self.settings;
+        let inputs_unhandled = self.inputs_unhandled.clone();
 
-        FuseOnWriteTrace::new(
+        FuseOnWriteTrace {
             outputs,
             inputs,
             settings,
             scalars,
             reshapes,
-            shape,
+            shape_ref,
             ops,
             reads,
             writes,
-            self.inputs_unhandled.clone(),
-        )
+            inputs_unhandled,
+        }
     }
 
     fn output_tensors(&self) -> RegisteredTensors {

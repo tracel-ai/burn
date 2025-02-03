@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsable to select the reference tensor.
-pub struct OutputsPlanner<'a, R: JitRuntime> {
+pub struct OutputPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
     reshapes: &'a Vec<Reshape>,
     outputs_sorted: Vec<OutputSorted<'a>>,
@@ -40,7 +40,7 @@ enum OutputKind {
     Reshaped { reshape: Reshape },
 }
 
-impl<'a, R: JitRuntime> OutputsPlanner<'a, R> {
+impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         outputs: &'a RegisteredTensors,
@@ -235,6 +235,7 @@ impl<'a, R: JitRuntime> OutputsPlanner<'a, R> {
         self.globals[output.pos_original] = Some(tensor_global);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn normal_output<BT: BoolElement>(
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
@@ -299,6 +300,7 @@ impl<'a, R: JitRuntime> OutputsPlanner<'a, R> {
         self.globals[output.pos_original] = Some(tensor_global);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn reshaped_output<BT: BoolElement>(
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
@@ -377,7 +379,7 @@ impl OutputPositionMapper {
     /// Returns the right position from the precision and the global position in all outputs.
     pub fn resolve_index(&mut self, precision: &ElemwisePrecision, pos_handle: usize) -> u32 {
         self.map
-            .get(&precision)
+            .get(precision)
             .unwrap()
             .iter()
             .enumerate()

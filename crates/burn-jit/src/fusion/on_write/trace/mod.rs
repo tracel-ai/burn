@@ -1,6 +1,6 @@
 pub(crate) mod executor;
-pub(crate) mod inputs;
-pub(crate) mod outputs;
+pub(crate) mod input;
+pub(crate) mod output;
 pub(crate) mod vectorization;
 
 mod base;

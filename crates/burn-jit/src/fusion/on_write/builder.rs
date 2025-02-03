@@ -512,6 +512,7 @@ impl FuseOnWriteBuilder {
 
         let mut updated = self.current_output_shape.clone();
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..rank {
             let curr = self.current_output_shape[i];
             let new = out.shape[i];

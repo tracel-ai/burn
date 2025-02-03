@@ -6,8 +6,8 @@ use super::{
         settings::FuseSettings,
     },
     executor::LaunchPlanExecutor,
-    inputs::InputsPlanner,
-    outputs::OutputsPlanner,
+    input::InputPlanner,
+    output::OutputPlanner,
     vectorization::VectorizationPlanner,
     HandleInput, HandleOutput, LaunchPlan, TraceRunner,
 };
@@ -17,19 +17,19 @@ use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(new, Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
 pub struct FuseOnWriteTrace {
-    outputs: RegisteredTensors,
-    inputs: RegisteredTensors,
-    settings: FuseSettings,
-    scalars: BTreeMap<ElemwisePrecision, u32>,
-    reshapes: Vec<Reshape>,
-    shape_ref: Vec<usize>,
-    ops: Vec<ElemwiseOp>,
-    reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
-    writes: BTreeMap<TensorId, ElemwiseOp>,
-    inputs_unhandled: Vec<TensorId>,
+    pub outputs: RegisteredTensors,
+    pub inputs: RegisteredTensors,
+    pub settings: FuseSettings,
+    pub scalars: BTreeMap<ElemwisePrecision, u32>,
+    pub reshapes: Vec<Reshape>,
+    pub shape_ref: Vec<usize>,
+    pub ops: Vec<ElemwiseOp>,
+    pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
+    pub writes: BTreeMap<TensorId, ElemwiseOp>,
+    pub inputs_unhandled: Vec<TensorId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -49,7 +49,7 @@ impl FuseOnWriteTrace {
     ) -> Result<(), Runner::Error> {
         let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
 
-        InputsPlanner::<R>::new(
+        InputPlanner::<R>::new(
             &self.inputs,
             &self.inputs_unhandled,
             &self.reshapes,
@@ -58,7 +58,7 @@ impl FuseOnWriteTrace {
         )
         .run(context, &mut plan);
 
-        OutputsPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
+        OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
             .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings)
@@ -67,9 +67,9 @@ impl FuseOnWriteTrace {
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.reshapes, &self.ops)
             .execute::<_, BT>(client, runner, context, plan)
         {
-            Err((err, handle_inputs, handle_outputs)) => {
-                self.rollback(context, handle_inputs, handle_outputs);
-                Err(err)
+            Err(err) => {
+                self.rollback(context, err.handles_input, err.handles_output);
+                Err(err.runner_error)
             }
             Ok(val) => Ok(val),
         }
