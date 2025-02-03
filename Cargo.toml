@@ -47,14 +47,14 @@ globwalk = "0.9.1"
 hashbrown = "0.15.2"
 hound = "3.5.1"
 image = "0.25.5"
-indicatif = "0.17.9"
+indicatif = "0.17.11"
 js-sys = "0.3.72"
 libm = "0.2.11"
 log = { default-features = false, version = "0.4.25" }
 md5 = "0.7.0"
 paste = "1"
 percent-encoding = "2.3.1"
-polars = { version = "0.44.2", features = ["lazy"] }
+polars = { version = "0.46.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.93"
 protobuf = "3.7.1"
@@ -145,7 +145,7 @@ uuid = { version = "1.12.1", default-features = false }
 
 libc = "0.2.169"
 nvml-wrapper = "0.10.0"
-sysinfo = "0.32.1"
+sysinfo = "0.33.1"
 systemstat = "0.2.3"
 tch = "0.15.0"
 
@@ -153,8 +153,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ff34667accfe077d4a1cd48ae419868e142acfd6" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ff34667accfe077d4a1cd48ae419868e142acfd6" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a172f6760052bef392e6f0e44e912460960f2c1b" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a172f6760052bef392e6f0e44e912460960f2c1b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

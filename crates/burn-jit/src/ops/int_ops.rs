@@ -328,26 +328,18 @@ where
     }
 
     fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
-        let rhs_cast = kernel::cast::<R, I, u32>(rhs);
-        launch_binop_int::<R, u32, kernel::BitwiseShlOp>(lhs_cast, rhs_cast)
+        launch_binop_int::<R, I, kernel::BitwiseShlOp>(lhs, rhs)
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
-        let rhs_cast = rhs.elem::<u32>();
-        launch_scalar_binop_int::<R, u32, BitwiseShlOp>(lhs_cast, rhs_cast)
+        launch_scalar_binop_int::<R, I, BitwiseShlOp>(lhs, rhs)
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
-        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
-        let rhs_cast = kernel::cast::<R, I, u32>(rhs);
-        launch_binop_int::<R, u32, BitwiseShrOp>(lhs_cast, rhs_cast)
+        launch_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
-        let lhs_cast = kernel::cast::<R, I, u32>(lhs);
-        let rhs_cast = rhs.elem::<u32>();
-        launch_scalar_binop_int::<R, u32, BitwiseShrOp>(lhs_cast, rhs_cast)
+        launch_scalar_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
     }
 }

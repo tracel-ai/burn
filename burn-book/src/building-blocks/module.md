@@ -294,3 +294,4 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
 | `MseLoss`          | `nn.MSELoss`          |
 | `HuberLoss`        | `nn.HuberLoss`        |
+| `PoissonNllLoss`   | `nn.PoissonNLLLoss`   |

@@ -37,7 +37,7 @@ impl CubeType for QuantizationScheme {
 }
 #[cfg(feature = "cubecl")]
 impl cubecl::frontend::Init for QuantizationScheme {
-    fn init(self, _context: &mut CubeContext) -> Self {
+    fn init(self, _scope: &mut cubecl::ir::Scope) -> Self {
         self
     }
 }
