@@ -16,6 +16,9 @@ use super::{
 };
 use std::collections::BTreeMap;
 
+/// Create or reuse handles for the outputs.
+///
+/// It is also responsable to select the reference tensor.
 pub struct OutputsPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
     reshapes: &'a Vec<Reshape>,

@@ -9,6 +9,8 @@ use std::marker::PhantomData;
 
 use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};
 
+/// Fetch and register [input handles](HandleInput) and itendify potential inputs that
+/// can be used inplace.
 pub struct InputsPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
     inputs_unhandled: &'a Vec<TensorId>,

@@ -16,6 +16,7 @@ use crate::{
     BoolElement, JitRuntime,
 };
 
+/// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: JitRuntime> {
     scalars: &'a BTreeMap<ElemwisePrecision, u32>,
     reshapes: &'a Vec<Reshape>,
@@ -84,6 +85,7 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
         Runner::run(runner, client, inputs, outputs, &config)
             .map_err(|err| (err, plan.handle_inputs, plan.handle_outputs))
     }
+
     fn register_inputs<'h>(
         &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
@@ -146,6 +148,7 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
             }
         }
 
+        // Reshape values are pushed in reverse in the same scalar buffer for all `u32`
         for relative in self.reshapes.iter().rev() {
             let global = context.tensors.get(&relative.reshaped).unwrap();
 
