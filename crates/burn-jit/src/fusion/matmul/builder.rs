@@ -47,7 +47,6 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
         }
 
         if self.matmul.is_none() {
-            log::info!("New matmul fusion");
             if let OperationDescription::Float(_, FloatOperationDescription::Matmul(op)) = operation
             {
                 let lhs = self.builder.input_unhandled(&op.lhs);

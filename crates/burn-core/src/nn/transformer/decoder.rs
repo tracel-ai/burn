@@ -458,7 +458,6 @@ mod tests {
     use burn_tensor::Device;
 
     use super::*;
-    use crate::tensor::Distribution;
     use crate::{nn::attention::generate_autoregressive_mask, TestBackend};
 
     #[test]

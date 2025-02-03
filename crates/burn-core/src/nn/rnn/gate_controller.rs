@@ -57,14 +57,7 @@ impl<B: Backend> GateController<B> {
     ///     H = hidden state
     ///     b = bias terms
     pub fn gate_product(&self, input: Tensor<B, 2>, hidden: Tensor<B, 2>) -> Tensor<B, 2> {
-        println!("{input}");
-        let temp = self.input_transform.forward(input);
-        let temp2 = self.hidden_transform.forward(hidden);
-        println!("1: {temp}");
-        println!("2: {temp2}");
-        let temp = temp + temp2;
-        // panic!("3: {temp}");
-        temp
+        self.input_transform.forward(input) + self.hidden_transform.forward(hidden)
     }
 
     /// Used to initialize a gate controller with known weight layers,

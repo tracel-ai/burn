@@ -57,7 +57,7 @@ pub fn read<C: CubePrimitive>(
                 config,
                 comptime![Some(shape)],
             ),
-            _ => comptime![panic![]],
+            _ => comptime![panic!("Only input can be reshaped")],
         },
     }
 }
@@ -90,7 +90,7 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: Arg) -> u32 {
             let offset = comptime![inputs.s_u32.len() - pos - 1];
             *inputs.s_u32.index(offset)
         }
-        _ => comptime![panic!["Not a scalar shape"]],
+        _ => comptime![panic!("Not a scalar shape")],
     }
 }
 
@@ -773,8 +773,8 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
 ) -> u32 {
     match comptime![shape.clone()] {
         Some(shape) => {
-            let index_reshaped = reshaped_index(inputs, layout, index, rank, shape);
-            reshaped_index_to_original_index(tensor, index_reshaped, rank)
+            let index = reshaped_index(inputs, layout, index, rank, shape);
+            reshaped_index_to_original_index(tensor, index, rank)
         }
         None => {
             let offset_ref = index * layout.line_size();

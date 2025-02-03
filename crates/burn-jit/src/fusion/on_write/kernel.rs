@@ -404,7 +404,9 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ElemwisePrecision::U8 => {
                     equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
                 }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
+                ElemwisePrecision::Bool => {
+                    equal::<bool>(inputs, outputs, &mut locals, write_pos, op, config)
+                }
             },
             ElemwiseOp::Greater(op) => match op.lhs.precision() {
                 ElemwisePrecision::F32 => {

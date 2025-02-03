@@ -49,12 +49,6 @@ impl<R: FusionRuntime> OperationQueue<R> {
         let mut context = self.converter.context(handles);
         optimization.execute(&mut context);
 
-        log::info!("====== MATMUL ======");
-        for op in &self.global[0..num_drained] {
-            log::info!("{op:?}")
-        }
-        log::info!("====== END ======");
-
         self.drain_queue(num_drained, handles);
         self.operations.drain(0..num_drained);
     }

@@ -71,7 +71,6 @@ impl TryFuseBuilder {
 
 impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn register(&mut self, op: &OperationDescription) {
-        log::info!("Register {op:?}");
         if let OptimizationStatus::Closed = self.status {
             return;
         }
@@ -107,14 +106,12 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
                     return;
                 }
             }
-            // TODO
-            //
-            // OperationDescription::BaseBool(ops) => {
-            //     if !self.register_base(ops) {
-            //         self.status = OptimizationStatus::Closed;
-            //         return;
-            //     }
-            // }
+            OperationDescription::BaseBool(ops) => {
+                if !self.register_base(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             _ => {
                 self.status = OptimizationStatus::Closed;
                 return;
@@ -542,12 +539,10 @@ impl FuseOnWriteBuilder {
             return false;
         }
 
-        if updated != self.current_output_shape {
-            if updated != out.shape {
-                return false;
-            }
-            self.current_output_shape.clone_from_slice(&out.shape);
+        if updated != out.shape {
+            return false;
         }
+        self.current_output_shape.clone_from_slice(&out.shape);
 
         true
     }
