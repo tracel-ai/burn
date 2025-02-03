@@ -145,7 +145,7 @@ uuid = { version = "1.12.1", default-features = false }
 
 libc = "0.2.169"
 nvml-wrapper = "0.10.0"
-sysinfo = "0.32.1"
+sysinfo = "0.33.1"
 systemstat = "0.2.3"
 tch = "0.15.0"
 

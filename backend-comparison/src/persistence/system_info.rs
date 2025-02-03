@@ -38,7 +38,7 @@ impl BenchmarkSystemInfo {
 
     fn enumerate_cpus() -> Vec<String> {
         let system = sysinfo::System::new_with_specifics(
-            sysinfo::RefreshKind::new().with_cpu(sysinfo::CpuRefreshKind::everything()),
+            sysinfo::RefreshKind::nothing().with_cpu(sysinfo::CpuRefreshKind::everything()),
         );
         let cpu_names: HashSet<String> = system
             .cpus()

@@ -26,7 +26,9 @@ impl CpuUse {
     }
 
     fn refresh(sys: &mut System) -> f64 {
-        sys.refresh_specifics(RefreshKind::new().with_cpu(CpuRefreshKind::new().with_cpu_usage()));
+        sys.refresh_specifics(
+            RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
+        );
 
         let cpus = sys.cpus();
         let num_cpus = cpus.len();
