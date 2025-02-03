@@ -47,7 +47,7 @@ globwalk = "0.9.1"
 hashbrown = "0.15.2"
 hound = "3.5.1"
 image = "0.25.5"
-indicatif = "0.17.9"
+indicatif = "0.17.11"
 js-sys = "0.3.72"
 libm = "0.2.11"
 log = { default-features = false, version = "0.4.25" }
