@@ -52,6 +52,7 @@ impl LstmCellConfig {
     // Initialize parameters using best practices:
     // 1. Orthogonal initialization for better gradient flow (here we use Xavier because of the lack of Orthogonal in burn)
     // 2. Initialize forget gate bias to 1.0 to prevent forgetting at start of training
+    #[allow(clippy::single_range_in_vec_init)]
     pub fn init<B: Backend>(&self, device: &B::Device) -> LstmCell<B> {
         let initializer = Initializer::XavierNormal { gain: 1.0 };
         let init_bias = Tensor::<B, 1>::ones([self.hidden_size], device);
@@ -352,12 +353,10 @@ impl<B: Backend> LstmNetwork<B> {
         // Apply dropout before final layer
         output = self.dropout.forward(output);
         // Use final timestep output for prediction
-        let final_output = self.fc.forward(
+        self.fc.forward(
             output
                 .slice([None, Some((seq_length - 1, seq_length)), None])
                 .squeeze::<2>(1),
-        );
-
-        final_output
+        )
     }
 }

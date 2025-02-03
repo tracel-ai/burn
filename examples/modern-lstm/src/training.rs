@@ -82,7 +82,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         let mut valid_loss = 0.0;
 
         // Implement our training loop
-        for (_iteration, batch) in dataloader_train.iter().enumerate() {
+        for batch in dataloader_train.iter() {
             let output = model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
             train_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
@@ -103,7 +103,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         let valid_model = model.valid();
 
         // Implement our validation loop
-        for (_iteration, batch) in dataloader_valid.iter().enumerate() {
+        for batch in dataloader_valid.iter() {
             let output = valid_model.forward(batch.sequences, None);
             let loss = MseLoss::new().forward(output, batch.targets.clone(), Mean);
             valid_loss += loss.clone().into_scalar().elem::<f32>() * batch.targets.dims()[0] as f32;
