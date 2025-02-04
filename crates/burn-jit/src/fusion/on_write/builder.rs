@@ -183,6 +183,9 @@ impl FuseOnWriteBuilder {
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.clone();
+        } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
+            // The larguest shape win.
+            self.current_output_shape = tensor.shape.clone();
         }
 
         self.builder.builder.output_unhandled(tensor)

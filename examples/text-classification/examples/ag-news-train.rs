@@ -96,7 +96,7 @@ mod wgpu {
 #[cfg(feature = "vulkan")]
 mod vulkan {
     use crate::{launch, ElemType};
-    use burn::backend::{Vulkan, Autodiff};
+    use burn::backend::{Autodiff, Vulkan};
 
     pub fn run() {
         launch::<Autodiff<Vulkan<ElemType, i32>>>(vec![Default::default()]);

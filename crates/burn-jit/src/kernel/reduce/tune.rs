@@ -275,10 +275,20 @@ mod sum_ops {
     pub(crate) fn sum_one_shot<Run: JitRuntime, E: JitElement, const C: u32>(
         input: JitTensor<Run>,
     ) -> Result<JitTensor<Run>, String> {
+        let client = input.client.clone();
         let device = input.device.clone();
-        cubecl::reduce::shared_sum::<Run, E>(&input.client, input.as_handle_ref(), C)
-            .map(|output| from_data::<Run, E>(TensorData::new(vec![output], vec![1]), &device))
-            .map_err(|e| e.to_string())
+        let handle = client.empty(E::size().unwrap());
+        let output = JitTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
+
+        cubecl::reduce::shared_sum::<Run, E>(
+            &input.client,
+            input.as_handle_ref(),
+            output.as_handle_ref(),
+            C,
+        )
+        .map_err(|e| e.to_string())?;
+
+        Ok(output)
     }
 
     #[cfg(feature = "autotune")]

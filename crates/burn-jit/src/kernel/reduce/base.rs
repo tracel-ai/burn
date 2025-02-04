@@ -25,11 +25,18 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
 
     match cube_count {
         SumStrategy::OneShot(cube_count) => {
-            let output = shared_sum::<Run, E>(&client, tensor.as_handle_ref(), cube_count)?;
-            Ok(from_data::<Run, E>(
-                TensorData::new(vec![output], vec![1]),
-                &device,
-            ))
+            let handle = client.empty(E::size().unwrap());
+            let output =
+                JitTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
+
+            shared_sum::<Run, E>(
+                &client,
+                tensor.as_handle_ref(),
+                output.as_handle_ref(),
+                cube_count,
+            )?;
+
+            Ok(output)
         }
         SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),
         #[cfg(feature = "autotune")]
