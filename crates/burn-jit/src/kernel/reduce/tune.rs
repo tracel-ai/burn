@@ -257,10 +257,7 @@ impl SumAutotuneKey {
 mod sum_ops {
     #![allow(missing_docs)]
 
-    use burn_tensor::TensorData;
     use cubecl::reduce::instructions::Sum;
-
-    use crate::ops::from_data;
 
     use super::*;
 

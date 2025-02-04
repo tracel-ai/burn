@@ -1,12 +1,7 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{
-    element::JitElement,
-    ops::{from_data, numeric::empty_device},
-    tensor::JitTensor,
-    JitRuntime,
-};
-use burn_tensor::{Shape, TensorData};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
 
