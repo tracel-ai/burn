@@ -242,6 +242,7 @@ primitive!(u16);
 primitive!(u8);
 
 // Signed Integer Types
+primitive!(isize);
 primitive!(i64);
 primitive!(i32);
 primitive!(i16);
