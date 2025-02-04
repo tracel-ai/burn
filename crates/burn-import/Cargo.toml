@@ -16,14 +16,14 @@ default-run = "onnx2burn"
 
 [features]
 default = ["onnx", "pytorch"]
-onnx = []
-pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
+onnx = ["burn-ndarray"]
+pytorch = ["burn/record-item-custom-serde", "thiserror", "zip", "candle-core"]
 
 [dependencies]
 burn = { path = "../burn", version = "0.17.0", default-features = false, features = ["std"]}
-burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", default-features = false, optional = true }
 onnx-ir = { path = "../onnx-ir", version = "0.17.0" }
-candle-core = { workspace = true }
+candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
 log = { workspace = true }

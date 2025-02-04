@@ -1,5 +1,5 @@
 [package]
-authors = ["guillaumelagrange <lagrange.guillaume.1@gmail.com>"]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>"]
 edition.workspace = true
 license.workspace = true
 name = "custom-image-dataset"
