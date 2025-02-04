@@ -103,7 +103,6 @@ mod tests {
         let tensor2 = tensor2.swap_dims(0, 1);
         let tensor1 = tensor.reshape([2, 2, 1]);
         let output = tensor2 + tensor1;
-        println!("{output}");
 
         let expected_tensor1 =
             TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
