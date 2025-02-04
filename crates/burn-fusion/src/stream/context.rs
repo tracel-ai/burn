@@ -1323,7 +1323,7 @@ mod tests {
             tensor1_local,
             TensorDescription {
                 id: TensorId::new(0),
-                shape: vec![0, 1, 2],
+                shape: vec![1, 2, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }
@@ -1332,7 +1332,7 @@ mod tests {
             tensor2_local,
             TensorDescription {
                 id: TensorId::new(1),
-                shape: vec![0, 3, 2],
+                shape: vec![1, 4, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }
