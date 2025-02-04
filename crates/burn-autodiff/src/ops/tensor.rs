@@ -2505,7 +2505,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         impl<B: Backend> Backward<B, 1> for Repeat {
-            type State = usize;
+            type State = (usize, usize);
 
             fn backward(
                 self,
@@ -2513,10 +2513,21 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 grads: &mut Gradients,
                 _checkpointer: &mut Checkpointer,
             ) {
-                let dim = ops.state;
+                let (dim, times) = ops.state;
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
-                    B::float_sum_dim(grad, dim)
+                    let mut dims = grad.shape().dims;
+                    let orig_dim_size = dims[dim] / times;
+                    if orig_dim_size > 1 {
+                        dims[dim] = orig_dim_size;
+                        let orig_dims = dims.clone();
+                        dims.insert(dim + 1, times); // shape [..., orig_dim_size, times, ...]
+                        let grad = B::float_reshape(grad, Shape::from(dims));
+                        let grad = B::float_sum_dim(grad, dim + 1); // sum over repeat times
+                        B::float_reshape(grad, Shape::from(orig_dims))
+                    } else {
+                        B::float_sum_dim(grad, dim)
+                    }
                 });
             }
         }
@@ -2528,9 +2539,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             .parents([&tensor])
             .stateful()
         {
-            OpsKind::Tracked(prep) => {
-                prep.finish(dim, B::float_repeat_dim(tensor.primitive, dim, times))
-            }
+            OpsKind::Tracked(prep) => prep.finish(
+                (dim, times),
+                B::float_repeat_dim(tensor.primitive, dim, times),
+            ),
             OpsKind::UnTracked(prep) => {
                 prep.finish(B::float_repeat_dim(tensor.primitive, dim, times))
             }
