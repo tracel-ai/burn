@@ -123,6 +123,11 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         }
     }
 
+    /// Returns the number of output buffers added by fusion.
+    pub fn num_output_buffers(&self) -> usize {
+        self.trace_fallback.outputs.len()
+    }
+
     pub fn execute_standard_fused<BT: BoolElement>(
         &self,
         context: &mut Context<'_, JitFusionHandle<R>>,

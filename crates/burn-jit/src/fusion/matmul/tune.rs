@@ -19,7 +19,9 @@ use super::optimization::MatmulOptimization;
 pub struct FusedMatmulAutotuneKey {
     matmul_key: MatmulAutotuneKey,
     #[autotune(anchor)]
-    num_ops_fused: usize,
+    num_out_buffers: usize,
+    #[autotune(anchor)]
+    num_ops: usize,
 }
 
 /// Executes autotune on matmul operations
@@ -61,7 +63,7 @@ pub(crate) fn create_key<R: JitRuntime>(
         &rhs.shape.clone().into(),
         out.dtype,
     );
-    FusedMatmulAutotuneKey::new(key, opt.len)
+    FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
 }
 
 fn input_gen<R: JitRuntime>(
