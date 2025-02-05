@@ -24,7 +24,6 @@ mod tests {
 
         let device = Default::default();
         let tensor_1 = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
-        println!("TTTTTTTTTT");
         let tensor_2 = activation::sigmoid(tensor_1.clone());
         let grads = tensor_2.backward();
 
