@@ -1,12 +1,7 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{
-    element::JitElement,
-    ops::{from_data, numeric::empty_device},
-    tensor::JitTensor,
-    JitRuntime,
-};
-use burn_tensor::{Shape, TensorData};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
 
@@ -25,11 +20,16 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
 
     match cube_count {
         SumStrategy::OneShot(cube_count) => {
-            let output = shared_sum::<Run, E>(&client, tensor.as_handle_ref(), cube_count)?;
-            Ok(from_data::<Run, E>(
-                TensorData::new(vec![output], vec![1]),
-                &device,
-            ))
+            let handle = client.create(E::as_bytes(&[E::from_int(0)]));
+            let output =
+                JitTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
+            shared_sum::<Run, E>(
+                &client,
+                tensor.as_handle_ref(),
+                output.as_handle_ref(),
+                cube_count,
+            )?;
+            Ok(output)
         }
         SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),
         #[cfg(feature = "autotune")]
