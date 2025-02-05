@@ -245,11 +245,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let output = B::float_empty(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
-                BaseOperationDescription::FromData(desc) => {
-                    let out_id = desc.out.id;
-                    let output = B::float_from_data(desc.into_data(true), &self.device);
-                    handles.register_float_tensor::<B>(&out_id, output);
-                }
             },
             OperationDescription::BaseInt(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -320,11 +315,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_empty(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
-                }
-                BaseOperationDescription::FromData(desc) => {
-                    let out_id = desc.out.id;
-                    let output = B::int_from_data(desc.into_data(true), &self.device);
-                    handles.register_int_tensor::<B>(&out_id, output);
                 }
             },
             OperationDescription::BaseBool(op) => match op {
@@ -400,11 +390,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
                     handles.register_bool_tensor::<B>(&desc.id, output);
-                }
-                BaseOperationDescription::FromData(desc) => {
-                    let out_id = desc.out.id;
-                    let output = B::bool_from_data(desc.into_data(true), &self.device);
-                    handles.register_bool_tensor::<B>(&out_id, output);
                 }
             },
             OperationDescription::NumericFloat(_dtype, op) => match op {
@@ -1221,6 +1206,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
             },
             OperationDescription::Custom(_) => {
                 panic!("Can't execute custom operation here")
+            }
+            OperationDescription::Init(_) => {
+                // Nothing to do.
             }
         }
     }

@@ -1,14 +1,14 @@
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use std::{marker::PhantomData, ops::Range};
 
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
     repr::{
-        BaseOperationDescription, DequantizeOperationDescription, FloatOperationDescription,
-        FromDataOperationDescription, HandleContainer, OperationDescription,
-        QuantizationParametersDescription, QuantizeOperationDescription,
+        DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
+        InitOperationDescription, OperationDescription, QuantizationParametersDescription,
+        QuantizeOperationDescription,
     },
-    DType, Device, Element, Shape, TensorData,
+    DType, Device, Element, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{
@@ -18,50 +18,26 @@ use crate::{
     Fusion, FusionBackend,
 };
 
+use super::NoOp;
+
 impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
-        #[derive(new)]
-        struct FromDataOps<B: FusionBackend> {
-            desc: FromDataOperationDescription,
-            device: Device<B>,
-        }
+        let stream = StreamId::current();
+        let client = get_client::<B>(&device.clone());
+        let tensor = B::q_from_data(data, device);
+        let shape = tensor.shape();
 
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let out_id = self.desc.out.id;
-                let output = B::q_from_data(self.desc.into_data(true), &self.device);
-                handles.register_quantized_tensor::<B>(&out_id, output);
-            }
-        }
+        let handle = B::quantized_tensor_handle(tensor);
+        let out = client.register_tensor(handle, shape.dims, stream, DType::Bool);
+        let desc = out.to_description_out();
 
-        match data.dtype {
-            DType::QFloat(_scheme) => {
-                let dtype = data.dtype;
+        client.register(
+            vec![stream],
+            OperationDescription::Init(InitOperationDescription { out: desc }),
+            NoOp::<B>::new(),
+        );
 
-                let stream = StreamId::current();
-                let client = get_client::<B>(&device.clone());
-                let out = client.tensor_uninitialized(data.shape.clone(), dtype);
-
-                let desc = FromDataOperationDescription {
-                    out: out.to_description_out(),
-                    data: Arc::new(data),
-                };
-
-                client.register(
-                    vec![stream],
-                    OperationDescription::BaseFloat(BaseOperationDescription::FromData(
-                        desc.clone(),
-                    )),
-                    FromDataOps::<B>::new(desc, device.clone()),
-                );
-
-                out
-            }
-            _ => panic!(
-                "Invalid dtype (expected DType::QFloat, got {:?})",
-                data.dtype
-            ),
-        }
+        out
     }
 
     fn quantize(

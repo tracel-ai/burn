@@ -10,39 +10,27 @@ use crate::{
 use burn_tensor::{
     ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     repr::*,
-    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
+    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
-use std::{marker::PhantomData, ops::Range, sync::Arc};
+use std::{marker::PhantomData, ops::Range};
+
+use super::NoOp;
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        #[derive(new)]
-        struct FromDataOps<B: FusionBackend> {
-            desc: FromDataOperationDescription,
-            device: Device<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let out_id = self.desc.out.id;
-                let output = B::float_from_data(self.desc.into_data(true), &self.device);
-                handles.register_float_tensor::<B>(&out_id, output);
-            }
-        }
-
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(data.shape.clone(), B::FloatElem::dtype());
+        let tensor = B::float_from_data(data, device);
+        let shape = tensor.shape();
 
-        let desc = FromDataOperationDescription {
-            out: out.to_description_out(),
-            data: Arc::new(data),
-        };
+        let handle = B::float_tensor_handle(tensor);
+        let out = client.register_tensor(handle, shape.dims, stream, DType::Bool);
+        let desc = out.to_description_out();
 
         client.register(
             vec![stream],
-            OperationDescription::BaseFloat(BaseOperationDescription::FromData(desc.clone())),
-            FromDataOps::<B>::new(desc, device.clone()),
+            OperationDescription::Init(InitOperationDescription { out: desc }),
+            NoOp::<B>::new(),
         );
 
         out

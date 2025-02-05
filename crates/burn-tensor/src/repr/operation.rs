@@ -1,13 +1,11 @@
 use core::hash::Hash;
 use core::ops::Range;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
-use crate::TensorData;
 use crate::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
@@ -82,6 +80,8 @@ pub enum OperationDescription {
     Float(DType, FloatOperationDescription),
     /// Module operation.
     Module(ModuleOperationDescription),
+    /// Initialize operation.
+    Init(InitOperationDescription),
     /// A custom operation.
     Custom(CustomOpDescription),
 }
@@ -199,12 +199,6 @@ pub enum ModuleOperationDescription {
 /// Basic operations that can be done on any tensor type.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BaseOperationDescription {
-    /// Operation corresponding to:
-    ///
-    /// Float => [from_data](crate::ops::FloatTensorOps::float_from_data).
-    /// Int => [from_data](crate::ops::IntTensorOps::int_from_data).
-    /// Bool => [from_data](crate::ops::BoolTensorOps::bool_from_data).
-    FromData(FromDataOperationDescription),
     /// Operation corresponding to:
     ///
     /// Float => [to device](crate::ops::FloatTensorOps::float_to_device).
@@ -639,38 +633,12 @@ pub struct RandomOperationDescription {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct FromDataOperationDescription {
+/// Declares a tensor has been initialized.
+///
+/// It is necessary to register for proper orphan detection and avoid memory leak.
+pub struct InitOperationDescription {
+    /// The initialized tensor.
     pub out: TensorDescription,
-    #[serde(serialize_with = "serialize_arc", deserialize_with = "deserialize_arc")]
-    pub data: Arc<TensorData>,
-}
-
-impl FromDataOperationDescription {
-    /// Returns the data avoiding making a copy when possible.
-    pub fn into_data(self, force_no_copy: bool) -> TensorData {
-        if Arc::strong_count(&self.data) == 1 {
-            return Arc::into_inner(self.data).unwrap();
-        } else if force_no_copy {
-            panic!("Data has been cloned and multiple references are pointing to it.");
-        } else {
-            self.data.as_ref().clone()
-        }
-    }
-}
-
-fn serialize_arc<'de, S: Serializer, T: Serialize>(
-    value: &Arc<T>,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    T::serialize(value.as_ref(), serializer)
-}
-
-fn deserialize_arc<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
-    deserializer: D,
-) -> Result<Arc<T>, D::Error> {
-    let value = T::deserialize(deserializer)?;
-    Ok(Arc::new(value))
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1410,6 +1378,7 @@ impl OperationDescription {
             OperationDescription::Int(ops) => ops.nodes(),
             OperationDescription::Float(_dtype, ops) => ops.nodes(),
             OperationDescription::Module(ops) => ops.nodes(),
+            OperationDescription::Init(ops) => ops.nodes(),
             OperationDescription::Custom(ops) => ops.nodes(),
         }
     }
@@ -1451,7 +1420,6 @@ impl BaseOperationDescription {
             BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
             BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
             BaseOperationDescription::Empty(desc) => vec![desc],
-            BaseOperationDescription::FromData(desc) => vec![&desc.out],
         }
     }
 }
@@ -1798,9 +1766,15 @@ impl ModuleOperationDescription {
     }
 }
 
-impl core::hash::Hash for FromDataOperationDescription {
+impl core::hash::Hash for InitOperationDescription {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
+    }
+}
+
+impl InitOperationDescription {
+    fn nodes(&self) -> Vec<&TensorDescription> {
+        vec![&self.out]
     }
 }
 

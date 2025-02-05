@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
 use alloc::vec::Vec;
 
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    FromDataOperationDescription, OperationDescription, PermuteOperationDescription,
+    InitOperationDescription, OperationDescription, PermuteOperationDescription,
     RepeatDimOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
     SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
 };
@@ -33,15 +31,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(data.shape.clone(), DType::Bool);
-        let desc = FromDataOperationDescription {
-            data: Arc::new(data),
+        let out = client.register_tensor_data(data);
+        let desc = InitOperationDescription {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::BaseBool(
-            BaseOperationDescription::FromData(desc),
-        ));
+        client.register(OperationDescription::Init(desc));
 
         out
     }
