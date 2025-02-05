@@ -12,7 +12,7 @@ use burn_tensor::{
     repr::*,
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
 };
-use std::{marker::PhantomData, ops::Range};
+use std::{marker::PhantomData, ops::Range, sync::Arc};
 
 impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
@@ -24,8 +24,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::float_from_data(self.desc.data, &self.device);
-                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                let out_id = self.desc.out.id;
+                let output = B::float_from_data(self.desc.into_data(true), &self.device);
+                handles.register_float_tensor::<B>(&out_id, output);
             }
         }
 
@@ -35,7 +36,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let desc = FromDataOperationDescription {
             out: out.to_description_out(),
-            data,
+            data: Arc::new(data),
         };
 
         client.register(

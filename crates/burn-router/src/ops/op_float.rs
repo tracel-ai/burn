@@ -1,6 +1,7 @@
 use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 use core::ops::Range;
+use std::sync::Arc;
 
 use burn_tensor::ops::{
     binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor,
@@ -28,7 +29,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let out = client.register_empty_tensor(data.shape.clone(), FloatElem::<Self>::dtype());
 
         let desc = FromDataOperationDescription {
-            data,
+            data: Arc::new(data),
             out: out.to_description_out(),
         };
 

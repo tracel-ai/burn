@@ -1,4 +1,6 @@
-use burn_tensor::{repr::*, DType, Element, ElementConversion};
+use std::sync::Arc;
+
+use burn_tensor::{repr::*, DType, Element, ElementConversion, TensorData};
 use half::{bf16, f16};
 use hashbrown::HashMap;
 
@@ -1212,7 +1214,8 @@ impl RelativeOps for BaseOperationDescription {
             }
             BaseOperationDescription::FromData(desc) => {
                 BaseOperationDescription::FromData(FromDataOperationDescription {
-                    data: desc.data.clone(),
+                    // Fake data for relative from data operation.
+                    data: Arc::new(TensorData::zeros::<u32, _>([1])),
                     out: desc.out.to_relative(converter),
                 })
             }

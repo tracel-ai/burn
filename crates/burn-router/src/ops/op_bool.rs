@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use alloc::vec::Vec;
 
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
@@ -32,9 +34,8 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_empty_tensor(data.shape.clone(), DType::Bool);
-
         let desc = FromDataOperationDescription {
-            data,
+            data: Arc::new(data),
             out: out.to_description_out(),
         };
 

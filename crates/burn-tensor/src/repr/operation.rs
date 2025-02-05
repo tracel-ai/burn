@@ -1,6 +1,7 @@
 use core::hash::Hash;
 use core::ops::Range;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::Arc;
 
 use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
@@ -641,7 +642,35 @@ pub struct RandomOperationDescription {
 #[allow(missing_docs)]
 pub struct FromDataOperationDescription {
     pub out: TensorDescription,
-    pub data: TensorData,
+    #[serde(serialize_with = "serialize_arc", deserialize_with = "deserialize_arc")]
+    pub data: Arc<TensorData>,
+}
+
+impl FromDataOperationDescription {
+    /// Returns the data avoiding making a copy when possible.
+    pub fn into_data(self, force_no_copy: bool) -> TensorData {
+        if Arc::strong_count(&self.data) == 1 {
+            return Arc::into_inner(self.data).unwrap();
+        } else if force_no_copy {
+            panic!("Data has been cloned and multiple references are pointing to it.");
+        } else {
+            self.data.as_ref().clone()
+        }
+    }
+}
+
+fn serialize_arc<'de, S: Serializer, T: Serialize>(
+    value: &Arc<T>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    T::serialize(value.as_ref(), serializer)
+}
+
+fn deserialize_arc<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    deserializer: D,
+) -> Result<Arc<T>, D::Error> {
+    let value = T::deserialize(deserializer)?;
+    Ok(Arc::new(value))
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]

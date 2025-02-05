@@ -169,7 +169,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         ctx.free_orphans();
 
         let handles = &mut ctx.handles;
-        match &op {
+        match op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationDescription::BaseFloat(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -246,8 +246,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
                 BaseOperationDescription::FromData(desc) => {
-                    let output = B::float_from_data(desc.data.clone(), &self.device);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                    let out_id = desc.out.id;
+                    let output = B::float_from_data(desc.into_data(true), &self.device);
+                    handles.register_float_tensor::<B>(&out_id, output);
                 }
             },
             OperationDescription::BaseInt(op) => match op {
@@ -321,8 +322,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_int_tensor::<B>(&desc.id, output);
                 }
                 BaseOperationDescription::FromData(desc) => {
-                    let output = B::int_from_data(desc.data.clone(), &self.device);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                    let out_id = desc.out.id;
+                    let output = B::int_from_data(desc.into_data(true), &self.device);
+                    handles.register_int_tensor::<B>(&out_id, output);
                 }
             },
             OperationDescription::BaseBool(op) => match op {
@@ -400,8 +402,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     handles.register_bool_tensor::<B>(&desc.id, output);
                 }
                 BaseOperationDescription::FromData(desc) => {
-                    let output = B::bool_from_data(desc.data.clone(), &self.device);
-                    handles.register_bool_tensor::<B>(&desc.out.id, output);
+                    let out_id = desc.out.id;
+                    let output = B::bool_from_data(desc.into_data(true), &self.device);
+                    handles.register_bool_tensor::<B>(&out_id, output);
                 }
             },
             OperationDescription::NumericFloat(_dtype, op) => match op {

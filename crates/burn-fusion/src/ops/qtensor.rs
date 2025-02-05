@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Range};
+use std::{marker::PhantomData, ops::Range, sync::Arc};
 
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
@@ -28,8 +28,9 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::q_from_data(self.desc.data, &self.device);
-                handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
+                let out_id = self.desc.out.id;
+                let output = B::q_from_data(self.desc.into_data(true), &self.device);
+                handles.register_quantized_tensor::<B>(&out_id, output);
             }
         }
 
@@ -43,7 +44,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
                 let desc = FromDataOperationDescription {
                     out: out.to_description_out(),
-                    data,
+                    data: Arc::new(data),
                 };
 
                 client.register(

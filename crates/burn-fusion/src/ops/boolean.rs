@@ -3,7 +3,7 @@ use burn_tensor::{
     repr::{FromDataOperationDescription, TensorDescription},
     DType, Element, TensorData,
 };
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use crate::{
     client::FusionClient,
@@ -66,8 +66,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
             fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_from_data(self.desc.data, &self.device);
-                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+                let out_id = self.desc.out.id;
+                let output = B::bool_from_data(self.desc.into_data(true), &self.device);
+                handles.register_bool_tensor::<B>(&out_id, output);
             }
         }
 
@@ -77,7 +78,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let desc = FromDataOperationDescription {
             out: out.to_description_out(),
-            data,
+            data: Arc::new(data),
         };
 
         client.register(
