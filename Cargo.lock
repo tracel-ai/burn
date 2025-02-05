@@ -3856,6 +3856,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "modern-lstm"
+version = "0.1.0"
+dependencies = [
+ "burn",
+ "polars",
+ "rand",
+ "rand_distr",
+ "serde",
+]
+
+[[package]]
 name = "monostate"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"

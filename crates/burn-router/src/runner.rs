@@ -169,7 +169,7 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
         ctx.free_orphans();
 
         let handles = &mut ctx.handles;
-        match &op {
+        match op {
             // For every op: get the input(s), execute the operation and register the output(s)
             OperationDescription::BaseFloat(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -245,10 +245,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let output = B::float_empty(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
-                BaseOperationDescription::FromData(desc) => {
-                    let output = B::float_from_data(desc.data.clone(), &self.device);
-                    handles.register_float_tensor::<B>(&desc.out.id, output);
-                }
             },
             OperationDescription::BaseInt(op) => match op {
                 BaseOperationDescription::ToDevice(_) => unreachable!(),
@@ -319,10 +315,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_empty(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
-                }
-                BaseOperationDescription::FromData(desc) => {
-                    let output = B::int_from_data(desc.data.clone(), &self.device);
-                    handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationDescription::BaseBool(op) => match op {
@@ -398,10 +390,6 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
                     handles.register_bool_tensor::<B>(&desc.id, output);
-                }
-                BaseOperationDescription::FromData(desc) => {
-                    let output = B::bool_from_data(desc.data.clone(), &self.device);
-                    handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
             OperationDescription::NumericFloat(_dtype, op) => match op {
@@ -1218,6 +1206,9 @@ impl<B: ReprBackend> RunnerClient for Runner<B> {
             },
             OperationDescription::Custom(_) => {
                 panic!("Can't execute custom operation here")
+            }
+            OperationDescription::Init(_) => {
+                // Nothing to do.
             }
         }
     }

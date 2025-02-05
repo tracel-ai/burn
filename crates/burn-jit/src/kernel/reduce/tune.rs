@@ -274,7 +274,7 @@ mod sum_ops {
     ) -> Result<JitTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
-        let handle = client.empty(E::size().unwrap());
+        let handle = client.create(E::as_bytes(&[E::from_int(0)]));
         let output = JitTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
 
         cubecl::reduce::shared_sum::<Run, E>(
@@ -283,9 +283,8 @@ mod sum_ops {
             output.as_handle_ref(),
             C,
         )
-        .map_err(|e| e.to_string())?;
-
-        Ok(output)
+        .map_err(|e| e.to_string())
+        .map(|_| output)
     }
 
     #[cfg(feature = "autotune")]

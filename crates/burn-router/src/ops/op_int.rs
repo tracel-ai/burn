@@ -8,7 +8,7 @@ use burn_tensor::ops::{
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
     ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    FromDataOperationDescription, GatherOperationDescription, IntOperationDescription,
+    GatherOperationDescription, InitOperationDescription, IntOperationDescription,
     MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
     OperationDescription, PermuteOperationDescription, RandomOperationDescription,
     ReduceDimWithIndicesDescription, RepeatDimOperationDescription, ScalarOperationDescription,
@@ -45,16 +45,12 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(data.shape.clone(), IntElem::<Self>::dtype());
-
-        let desc = FromDataOperationDescription {
-            data,
+        let out = client.register_tensor_data(data);
+        let desc = InitOperationDescription {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::BaseInt(
-            BaseOperationDescription::FromData(desc),
-        ));
+        client.register(OperationDescription::Init(desc));
 
         out
     }
