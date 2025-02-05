@@ -199,7 +199,7 @@ impl OperationConverter {
             burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
             burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
             burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
-            _ => todo!("Unsupported"),
+            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
         }
 
         // We return 0 so that the id from a scalar operation is the same no matter its scalar
@@ -227,6 +227,7 @@ impl OperationConverter {
 
 impl RelativeOps for OperationDescription {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        println!("To relative {self:?}");
         match self {
             OperationDescription::BaseFloat(ops) => {
                 OperationDescription::BaseFloat(ops.to_relative(converter))

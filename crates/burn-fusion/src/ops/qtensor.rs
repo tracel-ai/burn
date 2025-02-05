@@ -24,11 +24,12 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
+        let dtype = data.dtype;
         let tensor = B::q_from_data(data, device);
         let shape = tensor.shape();
 
         let handle = B::quantized_tensor_handle(tensor);
-        let out = client.register_tensor(handle, shape.dims, stream, DType::Bool);
+        let out = client.register_tensor(handle, shape.dims, stream, dtype);
         let desc = out.to_description_out();
 
         client.register(
