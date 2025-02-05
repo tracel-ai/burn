@@ -2515,13 +2515,10 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        println!("ICNIT {:?}", FloatElem::<B>::dtype());
-        let output = match data.dtype {
+        match data.dtype {
             DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
             _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
-        };
-        println!("{:?}", output.clone().tensor());
-        output
+        }
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
