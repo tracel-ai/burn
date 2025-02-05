@@ -1,5 +1,5 @@
 [package]
-authors = ["guillaumelagrange <lagrange.guillaume.1@gmail.com>", "nathanielsimard <nathaniel.simard.42@gmail.com>"]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>", "nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Multi-backend router decorator for the Burn framework"
 edition.workspace = true

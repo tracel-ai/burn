@@ -132,6 +132,7 @@ constant!(u16);
 constant!(u8);
 
 // Signed Integer Types
+constant!(isize);
 constant!(i64);
 constant!(i32);
 constant!(i16);
