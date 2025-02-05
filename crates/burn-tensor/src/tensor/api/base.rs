@@ -16,7 +16,6 @@ use serde::{Deserialize, Deserializer};
 use serde::{Serialize, Serializer};
 
 use crate::check::TensorCheck;
-use crate::ops::FloatElem;
 use crate::tensor::api::narrow::narrow;
 use crate::{
     backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
