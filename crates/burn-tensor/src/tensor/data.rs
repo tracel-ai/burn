@@ -354,7 +354,8 @@ impl TensorData {
                 DType::U32 => TensorData::new(self.iter::<u32>().collect(), self.shape),
                 DType::U16 => TensorData::new(self.iter::<u16>().collect(), self.shape),
                 DType::U8 => TensorData::new(self.iter::<u8>().collect(), self.shape),
-                DType::Bool | DType::QFloat(_) => unreachable!(),
+                DType::Bool => TensorData::new(self.iter::<bool>().collect(), self.shape),
+                DType::QFloat(_) => unreachable!(),
             }
         }
     }
@@ -373,8 +374,7 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
-            DType::Bool => self.convert_inplace::<Current, bool>(),
-            DType::QFloat(_) => unreachable!(),
+            DType::Bool | DType::QFloat(_) => unreachable!(),
         }
     }
 
