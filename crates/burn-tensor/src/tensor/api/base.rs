@@ -957,7 +957,7 @@ where
             "From Data",
             data.shape.as_slice()
         ));
-        Self::new(K::from_data(data.convert::<K::Elem>(), device))
+        Self::new(K::from_data(data, device))
     }
 
     /// Create a tensor from the given data on the given device enforcing the the given data type.
@@ -970,7 +970,7 @@ where
             "From Data",
             data.shape.as_slice()
         ));
-        Self::new(K::from_data(data.convert_dtype(dtype), device))
+        Self::new(K::from_data_dtype(data, device, dtype))
     }
 
     /// Repeat the tensor along the given dimension.
