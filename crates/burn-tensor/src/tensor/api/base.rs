@@ -960,6 +960,19 @@ where
         Self::new(K::from_data(data, device))
     }
 
+    /// Create a tensor from the given data on the given device enforcing the given data type.
+    pub fn from_data_dtype<T>(data: T, device: &B::Device, dtype: DType) -> Self
+    where
+        T: Into<TensorData>,
+    {
+        let data = data.into();
+        check!(TensorCheck::creation_ops::<D>(
+            "From Data",
+            data.shape.as_slice()
+        ));
+        Self::new(K::from_data_dtype(data, device, dtype))
+    }
+
     /// Repeat the tensor along the given dimension.
     ///
     ///
@@ -2155,6 +2168,17 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive;
+    /// Creates a tensor from the given data enforcing the given data type.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor from data, users should prefer the [Tensor::from_data_dtype](Tensor::from_data_dtype)
+    /// function, which is more high-level and designed for public use.
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -2501,7 +2525,16 @@ impl<B: Backend> BasicOps<B> for Float {
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
             DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
-            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+            _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
+        }
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        match dtype {
+            DType::QFloat(_strategy) => {
+                TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
+            }
+            _ => TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device)),
         }
     }
 
@@ -2674,7 +2707,11 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::int_from_data(data, device)
+        B::int_from_data(data.convert::<B::IntElem>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -2786,7 +2823,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::bool_from_data(data, device)
+        B::bool_from_data(data.convert::<bool>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::bool_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
