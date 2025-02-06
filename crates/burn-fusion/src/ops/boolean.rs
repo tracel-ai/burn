@@ -17,8 +17,8 @@ use burn_tensor::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
         CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
         HandleContainer, OperationDescription, PermuteOperationDescription,
-        RepeatDimOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
-        SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
+        RepeatDimOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        SwapDimsDescription, UnaryOperationDescription,
     },
     Device, Shape,
 };
@@ -171,7 +171,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         #[derive(new)]
         struct ReshapeDimsOps<B: FusionBackend> {
-            desc: ReshapeDescription,
+            desc: UnaryOperationDescription,
             _b: PhantomData<B>,
         }
 
@@ -186,7 +186,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(shape.dims, DType::Bool);
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

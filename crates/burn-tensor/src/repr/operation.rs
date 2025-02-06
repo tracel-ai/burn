@@ -210,7 +210,7 @@ pub enum BaseOperationDescription {
     /// Float => [reshape](crate::ops::FloatTensorOps::float_reshape).
     /// Int => [reshape](crate::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](crate::ops::BoolTensorOps::bool_reshape).
-    Reshape(ReshapeDescription),
+    Reshape(UnaryOperationDescription),
 
     /// Operation corresponding to:
     ///
@@ -638,13 +638,6 @@ pub struct RandomOperationDescription {
 /// It is necessary to register for proper orphan detection and avoid memory leak.
 pub struct InitOperationDescription {
     /// The initialized tensor.
-    pub out: TensorDescription,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct ReshapeDescription {
-    pub input: TensorDescription,
     pub out: TensorDescription,
 }
 

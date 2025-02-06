@@ -59,12 +59,15 @@ extern crate alloc;
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
+/// Backend for test cases
 pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu"))]
+/// Backend for test cases
 pub type TestBackend = burn_wgpu::Wgpu;
 
 #[cfg(all(test, feature = "test-cuda"))]
+/// Backend for test cases
 pub type TestBackend = burn_cuda::Cuda;
 
 /// Backend for autodiff test cases

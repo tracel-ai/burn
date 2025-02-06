@@ -4,20 +4,23 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
 pub enum Arg {
     Input(u32, ElemwisePrecision, LayoutInfo),
     Local(u32, ElemwisePrecision),
     Output(u32, ElemwisePrecision, LayoutInfo),
     Scalar(u32, ElemwisePrecision),
+    ScalarShape(u32),
     /// Only constant that can be encoded into an u32 can be used as literal.
     Literal(u32, ElemwisePrecision),
+    InputReshaped {
+        original: Box<Arg>,
+        shape: Sequence<Arg>,
+    },
 }
 
-#[derive(
-    CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
-)]
+#[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Layout information.
 pub enum LayoutInfo {
     /// The layout if the same as the reference.
@@ -36,6 +39,8 @@ impl Arg {
             Arg::Output(_, p, _) => p,
             Arg::Scalar(_, p) => p,
             Arg::Literal(_, p) => p,
+            Arg::ScalarShape(_) => return ElemwisePrecision::U32,
+            Arg::InputReshaped { original, .. } => return original.precision(),
         }
     }
 }
@@ -88,6 +93,14 @@ pub enum ElemwiseOp {
 }
 
 #[derive(CubeLaunch)]
+pub struct ReshapedTensor {
+    #[cube(comptime)]
+    original: Arg,
+    #[cube(comptime)]
+    shape: Sequence<Arg>,
+}
+
+#[derive(CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
     pub t_f32: Sequence<Tensor<Line<f32>>>,
@@ -114,6 +127,34 @@ pub struct GlobalArgs {
     pub s_u8: Sequence<u8>,
 }
 
+impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
+    fn default() -> Self {
+        Self::new(
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+        )
+    }
+}
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
     ///

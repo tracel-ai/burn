@@ -1,7 +1,7 @@
 use super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, UnaryElemwiseArgs},
-    trace::FuseOnWriteTrace,
-    trace_builder::FuseOnWriteTraceBuilder,
+    settings::FuseSettings,
+    trace::{FuseOnWriteTrace, FuseOnWriteTraceBuilder},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_tensor::{
@@ -17,9 +17,11 @@ use cubecl::ir::Elem;
 /// Fused element wise operations that are normally memory bound.
 pub(crate) struct FuseOnWriteBuilder {
     builder: TryFuseBuilder,
+    settings: FuseSettings,
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
-    num_ops: usize,
+    pub(crate) num_ops: usize,
+    pub(crate) num_reshapes: usize,
     max_bindings: u32,
 }
 
@@ -30,33 +32,40 @@ struct TryFuseBuilder {
 }
 
 impl TryFuseBuilder {
-    fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
+    fn new(max_bindings: u32, bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
-            builder: FuseOnWriteTraceBuilder::new(bool_precision),
+            builder: FuseOnWriteTraceBuilder::new(bool_precision, settings),
             max_bindings,
             added_ops: false,
         }
     }
 
-    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder)) -> bool {
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder) -> bool) -> bool {
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
-            add_ops(&mut self.builder);
+
+            if !add_ops(&mut self.builder) {
+                return false;
+            }
             return true;
         }
 
         let mut cloned = self.builder.clone();
-        add_ops(&mut cloned);
+        if !add_ops(&mut cloned) {
+            return false;
+        }
+
         if cloned.estimate_bindings() > self.max_bindings {
             return false;
         }
+
         self.builder = cloned;
         true
     }
 
-    fn build(&self) -> FuseOnWriteTrace {
-        self.builder.build()
+    fn build(&self, shape: Vec<usize>) -> FuseOnWriteTrace {
+        self.builder.build(shape)
     }
 }
 
@@ -97,6 +106,12 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
                     return;
                 }
             }
+            OperationDescription::BaseBool(ops) => {
+                if !self.register_base(ops) {
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+            }
             _ => {
                 self.status = OptimizationStatus::Closed;
                 return;
@@ -108,7 +123,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     }
 
     fn build(&self) -> FuseOnWriteTrace {
-        self.builder.build()
+        self.builder.build(self.current_output_shape.clone())
     }
 
     fn len(&self) -> usize {
@@ -118,7 +133,11 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
     fn reset(&mut self) {
         self.num_ops = 0;
         self.status = OptimizationStatus::Open;
-        self.builder = TryFuseBuilder::new(self.max_bindings, self.builder.builder.bool_precision);
+        self.builder = TryFuseBuilder::new(
+            self.max_bindings,
+            self.builder.builder.bool_precision,
+            self.settings,
+        );
         self.current_output_shape.clear();
     }
 
@@ -137,10 +156,16 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
 }
 
 impl FuseOnWriteBuilder {
-    pub fn new(max_bindings: u32, bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(
+        max_bindings: u32,
+        bool_precision: ElemwisePrecision,
+        settings: FuseSettings,
+    ) -> Self {
         Self {
-            builder: TryFuseBuilder::new(max_bindings, bool_precision),
+            builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
+            settings,
             num_ops: 0,
+            num_reshapes: 0,
             max_bindings,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
@@ -158,6 +183,9 @@ impl FuseOnWriteBuilder {
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.clone();
+        } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
+            // The larguest shape win.
+            self.current_output_shape = tensor.shape.clone();
         }
 
         self.builder.builder.output_unhandled(tensor)
@@ -172,6 +200,39 @@ impl FuseOnWriteBuilder {
             BaseOperationDescription::Cast(desc) => self.register_unary_ops(desc, |input, out| {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
+            BaseOperationDescription::Reshape(desc) => {
+                if desc.input.shape == desc.out.shape {
+                    return self.register_unary_ops(desc, |input, out| {
+                        ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
+                    });
+                }
+
+                if desc.input.shape.len() > desc.out.shape.len() {
+                    // Not yet supported.
+                    return false;
+                }
+
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.builder.register(|build| {
+                    let input = match build.input_reshaped(&desc.input, &desc.out) {
+                        Some(val) => val,
+                        None => return false,
+                    };
+                    let out = build.output(&desc.out);
+
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
+                }) {
+                    self.num_reshapes += 1;
+                    true
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -302,7 +363,9 @@ impl FuseOnWriteBuilder {
                         lhs,
                         rhs,
                         out,
-                    })
+                    });
+
+                    true
                 })
             }
             NumericOperationDescription::MaskFill(desc) => {
@@ -321,7 +384,9 @@ impl FuseOnWriteBuilder {
                         lhs,
                         rhs,
                         out,
-                    })
+                    });
+
+                    true
                 })
             }
             NumericOperationDescription::Ones(desc) => {
@@ -336,7 +401,9 @@ impl FuseOnWriteBuilder {
                 self.builder.register(|build| {
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             NumericOperationDescription::Zeros(desc) => {
@@ -351,7 +418,9 @@ impl FuseOnWriteBuilder {
                 self.builder.register(|build| {
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             NumericOperationDescription::Full((desc, elem)) => {
@@ -363,7 +432,9 @@ impl FuseOnWriteBuilder {
                     let input = build.scalar(elem, desc.dtype);
                     let out = build.output(desc);
 
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }))
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    true
                 })
             }
             _ => false,
@@ -383,7 +454,9 @@ impl FuseOnWriteBuilder {
             let rhs = build.input(&desc.rhs);
             let out = build.output(&desc.out);
 
-            build.register_operation(func(lhs, rhs, out))
+            build.register_operation(func(lhs, rhs, out));
+
+            true
         })
     }
 
@@ -398,7 +471,8 @@ impl FuseOnWriteBuilder {
         self.builder.register(|build| {
             let input = build.input(&desc.input);
             let out = build.output(&desc.out);
-            build.register_operation(func(input, out))
+            build.register_operation(func(input, out));
+            true
         })
     }
 
@@ -420,16 +494,59 @@ impl FuseOnWriteBuilder {
             let rhs = build.scalar(&desc.rhs, elem);
             let out = build.output(&desc.out);
 
-            build.register_operation(func(lhs, rhs, out))
+            build.register_operation(func(lhs, rhs, out));
+
+            true
         })
     }
 
     fn output_is_compatible(&mut self, out: &TensorDescription) -> bool {
         if self.current_output_shape.is_empty() {
             self.current_output_shape.clone_from(&out.shape);
-        } else if self.current_output_shape != out.shape {
+            return true;
+        }
+
+        let rank = self.current_output_shape.len();
+
+        // Rank should be equal.
+        if rank != out.shape.len() {
             return false;
         }
+
+        let mut updated = self.current_output_shape.clone();
+
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..rank {
+            let curr = self.current_output_shape[i];
+            let new = out.shape[i];
+
+            if curr == new {
+                continue;
+            }
+
+            // Broadcast not enabled.
+            if !self.settings.broadcast {
+                return false;
+            }
+
+            // Broadcasted on new dim.
+            if new == 0 {
+                continue;
+            }
+
+            // Broadcasted on curr dim - update reference output shape.
+            if curr == 0 && self.settings.output_shape_updates {
+                updated[i] = new;
+                continue;
+            }
+
+            return false;
+        }
+
+        if updated != out.shape {
+            return false;
+        }
+        self.current_output_shape.clone_from_slice(&out.shape);
 
         true
     }
