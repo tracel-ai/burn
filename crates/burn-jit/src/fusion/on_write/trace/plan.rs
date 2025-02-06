@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_tensor::repr::{TensorDescription, TensorId};
 
-/// The plan is responsable to keep runtime information related to the launch of a fused kernel
+/// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: JitRuntime> {
