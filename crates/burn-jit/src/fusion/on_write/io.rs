@@ -698,7 +698,7 @@ fn from_const_int<C: CubePrimitive>(_value: u32) -> C {
     unexpanded!()
 }
 
-pub mod from_const_int {
+mod from_const_int {
     use cubecl::ir::{ExpandElement, Scope, Variable};
 
     use cubecl::prelude::ExpandElementTyped;
