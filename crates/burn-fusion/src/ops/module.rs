@@ -1,4 +1,5 @@
 use crate::{client::FusionClient, stream::execution::Operation, Fusion, FusionBackend};
+use burn_ir::*;
 use burn_tensor::{
     ops::{
         conv::{
@@ -9,7 +10,6 @@ use burn_tensor::{
         IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
-    repr::*,
     Element,
 };
 use std::marker::PhantomData;

@@ -9,7 +9,8 @@ use axum::{
 };
 use std::{net::SocketAddr, sync::Arc};
 
-use burn_tensor::{repr::ReprBackend, Device};
+use burn_ir::ReprBackend;
+use burn_tensor::Device;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};

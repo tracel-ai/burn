@@ -698,6 +698,7 @@ name = "burn-fusion"
 version = "0.17.0"
 dependencies = [
  "burn-common",
+ "burn-ir",
  "burn-tensor",
  "derive-new 0.7.0",
  "half",
@@ -749,12 +750,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-ir"
+version = "0.17.0"
+dependencies = [
+ "burn-tensor",
+ "hashbrown 0.15.2",
+ "portable-atomic-util",
+ "serde",
+]
+
+[[package]]
 name = "burn-jit"
 version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
  "burn-fusion",
+ "burn-ir",
  "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
@@ -782,6 +794,7 @@ dependencies = [
  "blas-src",
  "burn-autodiff",
  "burn-common",
+ "burn-ir",
  "burn-tensor",
  "derive-new 0.7.0",
  "libm",
@@ -810,6 +823,7 @@ dependencies = [
  "async-channel",
  "axum",
  "burn-common",
+ "burn-ir",
  "burn-router",
  "burn-tensor",
  "derive-new 0.7.0",
@@ -830,6 +844,7 @@ version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
+ "burn-ir",
  "burn-ndarray",
  "burn-tensor",
  "burn-wgpu",

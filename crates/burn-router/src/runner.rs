@@ -1,15 +1,11 @@
 use alloc::{sync::Arc, vec::Vec};
 use burn_common::stub::Mutex;
-use burn_tensor::{
-    backend::Backend,
-    repr::{
-        BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
-        HandleContainer, IntOperationDescription, ModuleOperationDescription,
-        NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
-        TensorId, TensorStatus,
-    },
-    DType, ElementConversion, FloatDType, Shape, TensorData,
+use burn_ir::{
+    BaseOperationDescription, BoolOperationDescription, FloatOperationDescription, HandleContainer,
+    IntOperationDescription, ModuleOperationDescription, NumericOperationDescription,
+    OperationDescription, ReprBackend, TensorDescription, TensorId, TensorStatus,
 };
+use burn_tensor::{backend::Backend, DType, ElementConversion, FloatDType, Shape, TensorData};
 use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};

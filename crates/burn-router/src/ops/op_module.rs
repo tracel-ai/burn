@@ -1,5 +1,16 @@
 use alloc::{boxed::Box, vec};
 
+use burn_ir::{
+    AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
+    AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
+    AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
+    AvgPool2dDescription, Conv1dDescription, Conv2dDescription, Conv3dDescription,
+    ConvTranspose1dDescription, ConvTranspose2dDescription, ConvTranspose3dDescription,
+    DeformConv2dBackwardDescription, DeformConv2dDescription, InterpolateBackwardDescription,
+    InterpolateDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
+    MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
+    MaxPool2dWithIndicesDescription, ModuleOperationDescription, OperationDescription,
+};
 use burn_tensor::ops::conv::{
     calculate_conv_output_size, calculate_conv_transpose_output_size, calculate_pool_output_size,
 };
@@ -10,17 +21,6 @@ use burn_tensor::ops::{
 use burn_tensor::ops::{
     IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices,
-};
-use burn_tensor::repr::{
-    AdaptiveAvgPool1dBackwardDescription, AdaptiveAvgPool1dDescription,
-    AdaptiveAvgPool2dBackwardDescription, AdaptiveAvgPool2dDescription,
-    AvgPool1dBackwardDescription, AvgPool1dDescription, AvgPool2dBackwardDescription,
-    AvgPool2dDescription, Conv1dDescription, Conv2dDescription, Conv3dDescription,
-    ConvTranspose1dDescription, ConvTranspose2dDescription, ConvTranspose3dDescription,
-    DeformConv2dBackwardDescription, DeformConv2dDescription, InterpolateBackwardDescription,
-    InterpolateDescription, MaxPool1dDescription, MaxPool1dWithIndicesBackwardDescription,
-    MaxPool1dWithIndicesDescription, MaxPool2dDescription, MaxPool2dWithIndicesBackwardDescription,
-    MaxPool2dWithIndicesDescription, ModuleOperationDescription, OperationDescription,
 };
 use burn_tensor::Element;
 

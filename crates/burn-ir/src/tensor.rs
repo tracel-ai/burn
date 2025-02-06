@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use alloc::vec::Vec;
 
-use crate::DType;
+use burn_tensor::DType;
 
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]

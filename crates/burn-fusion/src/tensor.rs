@@ -1,7 +1,7 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
+use burn_ir::{TensorDescription, TensorId, TensorStatus};
 use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme},
-    repr::{TensorDescription, TensorId, TensorStatus},
     DType, Shape, TensorData, TensorMetadata,
 };
 use std::{future::Future, sync::Arc};

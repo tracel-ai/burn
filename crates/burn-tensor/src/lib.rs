@@ -2,8 +2,9 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! This library provides multiple tensor implementations hidden behind an easy to use API
-//! that supports reverse mode automatic differentiation.
+//! This library provides the core abstractions required to run tensor operations with Burn.
+//! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.
+//! Burn's tensors also support support auto-differentiation thanks to the `AutodiffBackend` trait.
 
 #[macro_use]
 extern crate derive_new;
@@ -11,10 +12,6 @@ extern crate derive_new;
 extern crate alloc;
 
 mod tensor;
-
-/// Burn Tensor representaton
-#[cfg(feature = "repr")]
-pub mod repr;
 
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]

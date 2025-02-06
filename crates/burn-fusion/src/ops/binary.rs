@@ -1,4 +1,4 @@
-use burn_tensor::repr::{BinaryOperationDescription, TensorDescription};
+use burn_ir::{BinaryOperationDescription, TensorDescription};
 
 #[derive(Debug)]
 pub enum BinaryOpError {

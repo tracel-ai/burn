@@ -5,9 +5,9 @@ use crate::{
     stream::{execution::Operation, StreamId},
     unary_int_ops, Fusion, FusionBackend,
 };
+use burn_ir::*;
 use burn_tensor::{
     ops::{binary_ops_shape, BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    repr::{self, *},
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 use core::ops::Range;
@@ -814,7 +814,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::Add(desc.clone()),
             ),
@@ -839,7 +839,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::AddScalar(desc.clone()),
             ),
@@ -866,7 +866,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::Sub(desc.clone()),
             ),
@@ -891,7 +891,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::SubScalar(desc.clone()),
             ),
@@ -918,7 +918,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::Mul(desc.clone()),
             ),
@@ -943,7 +943,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::MulScalar(desc.clone()),
             ),
@@ -970,7 +970,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::Div(desc.clone()),
             ),
@@ -995,7 +995,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::DivScalar(desc.clone()),
             ),
@@ -1022,7 +1022,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::Rem(desc.clone()),
             ),
@@ -1047,7 +1047,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::NumericInt(
+            OperationDescription::NumericInt(
                 IntElem::<Self>::dtype(),
                 NumericOperationDescription::RemScalar(desc.clone()),
             ),
@@ -1418,7 +1418,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            OperationDescription::Int(repr::IntOperationDescription::IntoFloat(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::IntoFloat(desc.clone())),
             IntoFloatOps::<B>::new(desc),
         );
 
@@ -1861,7 +1861,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseAnd(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::BitwiseAnd(desc.clone())),
             BitwiseAndOps::<B>::new(desc),
         );
 
@@ -1883,9 +1883,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseAndScalar(
-                desc.clone(),
-            )),
+            OperationDescription::Int(IntOperationDescription::BitwiseAndScalar(desc.clone())),
             BitwiseAndOps::<B>::new(desc),
         );
 
@@ -1909,7 +1907,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseOr(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::BitwiseOr(desc.clone())),
             BitwiseOrOps::<B>::new(desc),
         );
 
@@ -1931,7 +1929,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseOrScalar(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::BitwiseOrScalar(desc.clone())),
             BitwiseOrOps::<B>::new(desc),
         );
 
@@ -1955,7 +1953,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseXor(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::BitwiseXor(desc.clone())),
             BitwiseXorOps::<B>::new(desc),
         );
 
@@ -1977,9 +1975,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseXorScalar(
-                desc.clone(),
-            )),
+            OperationDescription::Int(IntOperationDescription::BitwiseXorScalar(desc.clone())),
             BitwiseXorOps::<B>::new(desc),
         );
 
@@ -2000,7 +1996,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseNot(desc.clone())),
+            OperationDescription::Int(IntOperationDescription::BitwiseNot(desc.clone())),
             BitwiseNotOps::<B>::new(desc),
         );
 
@@ -2024,9 +2020,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseLeftShift(
-                desc.clone(),
-            )),
+            OperationDescription::Int(IntOperationDescription::BitwiseLeftShift(desc.clone())),
             BitwiseLeftShiftOps::<B>::new(desc),
         );
 
@@ -2048,7 +2042,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseLeftShiftScalar(
+            OperationDescription::Int(IntOperationDescription::BitwiseLeftShiftScalar(
                 desc.clone(),
             )),
             BitwiseLeftShiftOps::<B>::new(desc),
@@ -2074,9 +2068,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream_1, stream_2],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseRightShift(
-                desc.clone(),
-            )),
+            OperationDescription::Int(IntOperationDescription::BitwiseRightShift(desc.clone())),
             BitwiseRightShiftOps::<B>::new(desc),
         );
 
@@ -2098,7 +2090,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         };
         out.client.register(
             vec![stream],
-            repr::OperationDescription::Int(IntOperationDescription::BitwiseRightShiftScalar(
+            OperationDescription::Int(IntOperationDescription::BitwiseRightShiftScalar(
                 desc.clone(),
             )),
             BitwiseRightShiftOps::<B>::new(desc),

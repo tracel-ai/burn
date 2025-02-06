@@ -1,10 +1,8 @@
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Shape, TensorData, TensorMetadata,
-};
+use burn_ir::{TensorDescription, TensorId, TensorStatus};
+use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {

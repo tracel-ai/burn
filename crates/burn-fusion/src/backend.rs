@@ -1,8 +1,8 @@
 use crate::{client::FusionClient, stream::Context, FusionClientLocator, FusionTensor};
+use burn_ir::{OperationDescription, ReprBackend, TensorHandle};
 use burn_tensor::{
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{OperationDescription, ReprBackend, TensorHandle},
     Device, Element,
 };
 use serde::{de::DeserializeOwned, Serialize};

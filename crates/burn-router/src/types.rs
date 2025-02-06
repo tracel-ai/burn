@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
+use burn_ir::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId};
 use burn_tensor::{
     backend::{Backend, DeviceId, DeviceOps},
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId},
     try_read_sync, DType, Shape, TensorData,
 };
 

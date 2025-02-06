@@ -2,7 +2,7 @@ use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
 };
-use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription, TensorId};
+use burn_ir::{HandleContainer, OperationDescription, TensorDescription, TensorId};
 use std::{future::Future, sync::Arc};
 
 pub struct FusionServer<R: FusionRuntime> {

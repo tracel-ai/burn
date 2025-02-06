@@ -7,7 +7,7 @@ use crate::{fusion::JitFusionHandle, JitRuntime};
 use crate::{BoolElement, FloatElement};
 
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{BinaryOperationDescription, TensorStatus};
+use burn_ir::{BinaryOperationDescription, TensorStatus};
 use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;

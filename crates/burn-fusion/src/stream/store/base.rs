@@ -1,5 +1,5 @@
 use super::{ExecutionPlanIndex, InsertQuery, SearchQuery};
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationDescription;
 use serde::{Deserialize, Serialize};
 
 /// The store that contains all explorations done on a device.

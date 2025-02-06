@@ -2,7 +2,7 @@ use super::worker::{ClientRequest, ClientWorker};
 use crate::shared::{ComputeTask, ConnectionId, Task, TaskResponseContent};
 use async_channel::Sender;
 use burn_common::id::StreamId;
-use burn_tensor::repr::TensorId;
+use burn_ir::TensorId;
 use std::{
     future::Future,
     sync::{atomic::AtomicU64, Arc},

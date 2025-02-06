@@ -1,5 +1,5 @@
+use burn_ir::TensorDescription;
 use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
-use burn_tensor::repr::TensorDescription;
 
 use super::{
     runner::{WsBridge, WsDevice},

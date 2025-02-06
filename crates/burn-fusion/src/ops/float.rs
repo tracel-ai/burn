@@ -7,9 +7,9 @@ use crate::{
     stream::{execution::Operation, StreamId},
     unary_float_ops, Fusion, FusionBackend,
 };
+use burn_ir::*;
 use burn_tensor::{
     ops::{binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
-    repr::*,
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 use std::{marker::PhantomData, ops::Range};

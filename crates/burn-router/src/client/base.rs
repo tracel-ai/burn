@@ -8,9 +8,9 @@ use hashbrown::HashMap;
 
 use spin::Mutex;
 
+use burn_ir::{OperationDescription, TensorDescription, TensorId};
 use burn_tensor::{
     backend::{DeviceId, DeviceOps},
-    repr::{OperationDescription, TensorDescription, TensorId},
     DType, FloatDType, TensorData,
 };
 

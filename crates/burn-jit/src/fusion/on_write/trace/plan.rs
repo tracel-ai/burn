@@ -7,7 +7,7 @@ use crate::{
     },
     JitRuntime,
 };
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorDescription, TensorId};
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.

@@ -1,5 +1,6 @@
 use burn_fusion::stream::Context;
-use burn_tensor::{repr::TensorDescription, DType};
+use burn_ir::TensorDescription;
+use burn_tensor::DType;
 use cubecl::{client::ComputeClient, ir::Elem};
 
 use crate::{

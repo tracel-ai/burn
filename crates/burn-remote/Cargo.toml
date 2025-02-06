@@ -19,12 +19,13 @@ server = ["axum", "tracing-core", "tracing-subscriber"]
 
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = true, features = ["repr"]}
-burn-common = { path = "../burn-common", version = "0.17.0", default-features = true}
-burn-router = { path = "../burn-router", version = "0.17.0", default-features = true}
+burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = true }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = true }
+burn-common = { path = "../burn-common", version = "0.17.0", default-features = true }
+burn-router = { path = "../burn-router", version = "0.17.0", default-features = true }
 
 # Basic dependencies
-derive-new = {workspace = true }
+derive-new = { workspace = true }
 log = { workspace = true }
 
 # Shared dependencies

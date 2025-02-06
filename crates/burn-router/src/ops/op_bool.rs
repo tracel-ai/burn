@@ -1,13 +1,13 @@
 use alloc::vec::Vec;
 
-use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::repr::{
+use burn_ir::{
     BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
     CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
     InitOperationDescription, OperationDescription, PermuteOperationDescription,
     RepeatDimOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
     SwapDimsDescription, UnaryOperationDescription,
 };
+use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};

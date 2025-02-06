@@ -5,10 +5,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
 #[cfg(not(feature = "fusion"))]
-use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{ReprBackend, TensorHandle},
-};
+use burn_ir::{ReprBackend, TensorHandle};
+#[cfg(not(feature = "fusion"))]
+use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 

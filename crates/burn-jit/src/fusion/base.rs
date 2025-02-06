@@ -6,9 +6,8 @@ use crate::BoolElement;
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_tensor::repr::TensorHandle;
-use burn_tensor::DType;
-use burn_tensor::{repr::ReprBackend, Shape};
+use burn_ir::{ReprBackend, TensorHandle};
+use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
 use cubecl::prelude::{TensorArg, TensorHandleRef};

@@ -1,7 +1,8 @@
 use burn_common::id::StreamId;
 use burn_common::stub::Mutex;
+use burn_ir::ReprBackend;
 use burn_router::Runner;
-use burn_tensor::{repr::ReprBackend, Device};
+use burn_tensor::Device;
 use std::{
     collections::HashMap,
     sync::mpsc::{Receiver, SyncSender},

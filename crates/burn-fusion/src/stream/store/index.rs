@@ -1,5 +1,5 @@
 use crate::stream::store::ExecutionPlanId;
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationDescription;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -122,13 +122,11 @@ impl ExecutionPlanIndex {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{
-        repr::{
-            BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-            TensorDescription, TensorId, TensorStatus,
-        },
-        DType,
+    use burn_ir::{
+        BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
+        TensorDescription, TensorId, TensorStatus,
     };
+    use burn_tensor::DType;
 
     use super::*;
 

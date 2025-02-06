@@ -1,4 +1,4 @@
-use crate::{
+use burn_tensor::{
     backend::Backend,
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
     Shape,

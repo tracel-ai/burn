@@ -1,11 +1,5 @@
-use crate::{
-    repr::{
-        backend::ReprBackend,
-        tensor::{TensorDescription, TensorId, TensorStatus},
-    },
-    Shape,
-};
 use alloc::vec::Vec;
+use burn_tensor::Shape;
 use hashbrown::HashMap;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -14,7 +8,7 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
 
-use super::TensorHandle;
+use crate::{ReprBackend, TensorDescription, TensorHandle, TensorId, TensorStatus};
 
 /// Keep all [tensor handles](ReprBackend::Handle) in one place and ensure that all resources
 /// are used optimally.

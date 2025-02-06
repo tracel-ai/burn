@@ -1,10 +1,8 @@
 use std::fmt::Display;
 
 use burn_common::id::{IdGenerator, StreamId};
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
-    TensorData,
-};
+use burn_ir::{OperationDescription, TensorDescription, TensorId};
+use burn_tensor::TensorData;
 use serde::{Deserialize, Serialize};
 
 #[allow(missing_docs)]

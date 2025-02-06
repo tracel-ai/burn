@@ -4,11 +4,9 @@ use std::sync::mpsc::{Receiver, SyncSender};
 use crate::shared::{ConnectionId, TaskResponse};
 
 use super::processor::{Processor, ProcessorTask};
+use burn_ir::{OperationDescription, ReprBackend, TensorDescription, TensorId};
 use burn_router::Runner;
-use burn_tensor::{
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
-    TensorData,
-};
+use burn_tensor::TensorData;
 
 /// A stream makes sure all operations registered are executed in the order they were sent to the
 /// server, protentially waiting to reconstruct consistency.

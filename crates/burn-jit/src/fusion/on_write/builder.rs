@@ -4,14 +4,12 @@ use super::{
     trace::{FuseOnWriteTrace, FuseOnWriteTraceBuilder},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
-use burn_tensor::{
-    repr::{
-        BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
-        NumericOperationDescription, OperationDescription, ScalarOperationDescription,
-        TensorDescription, UnaryOperationDescription,
-    },
-    Element,
+use burn_ir::{
+    BaseOperationDescription, BinaryOperationDescription, FloatOperationDescription,
+    NumericOperationDescription, OperationDescription, ScalarOperationDescription,
+    TensorDescription, UnaryOperationDescription,
 };
+use burn_tensor::Element;
 use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.

@@ -1,4 +1,4 @@
-use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription};
+use burn_ir::{HandleContainer, OperationDescription, TensorDescription};
 
 use super::{
     execution::{ExecutionMode, Operation, Processor, StreamSegment},

@@ -2,9 +2,9 @@ use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
+use burn_ir::{HandleKind, ReprBackend, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_tensor::repr::{HandleKind, ReprBackend, TensorHandle};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 

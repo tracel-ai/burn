@@ -6,14 +6,15 @@ use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::{string::String, vec, vec::Vec};
 
-use crate::{
+use burn_tensor::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantizationScheme,
-    repr::tensor::TensorDescription,
     DType, Distribution, Element,
 };
+
+use crate::TensorDescription;
 
 /// Custom operation in fusion stream, declaring it's inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]

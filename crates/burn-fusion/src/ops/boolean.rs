@@ -1,7 +1,13 @@
+use burn_ir::{
+    BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
+    CatOperationDescription, ExpandOperationDescription, FlipOperationDescription, HandleContainer,
+    InitOperationDescription, OperationDescription, PermuteOperationDescription,
+    RepeatDimOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+    SwapDimsDescription, TensorDescription, UnaryOperationDescription,
+};
 use burn_tensor::{
-    ops::{binary_ops_shape, FloatTensor, IntTensor},
-    repr::{InitOperationDescription, TensorDescription},
-    DType, Element, TensorData, TensorMetadata,
+    ops::{binary_ops_shape, BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
+    DType, Device, Element, Shape, TensorData, TensorMetadata,
 };
 use std::marker::PhantomData;
 
@@ -10,17 +16,6 @@ use crate::{
     get_client,
     stream::{execution::Operation, StreamId},
     Fusion, FusionBackend,
-};
-use burn_tensor::{
-    ops::{BoolTensor, BoolTensorOps},
-    repr::{
-        BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
-        CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-        HandleContainer, OperationDescription, PermuteOperationDescription,
-        RepeatDimOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
-        SwapDimsDescription, UnaryOperationDescription,
-    },
-    Device, Shape,
 };
 
 use super::NoOp;

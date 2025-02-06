@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationDescription;
 
 use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};

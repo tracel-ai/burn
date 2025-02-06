@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationDescription;
 
 use super::validator::{
     ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
@@ -274,13 +274,11 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use burn_tensor::{
-        repr::{
-            FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
-            UnaryOperationDescription,
-        },
-        DType,
+    use burn_ir::{
+        FloatOperationDescription, TensorDescription, TensorId, TensorStatus,
+        UnaryOperationDescription,
     };
+    use burn_tensor::DType;
 
     use super::*;
     use crate::stream::store::{ExecutionPlan, ExecutionStrategy, ExecutionTrigger};

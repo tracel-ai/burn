@@ -1,6 +1,6 @@
 use super::super::ir::{ElemwiseConfig, GlobalArgsLaunch};
 use crate::{fusion::JitFusionHandle, JitRuntime};
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorDescription, TensorId};
 use cubecl::prelude::*;
 use std::collections::BTreeMap;
 

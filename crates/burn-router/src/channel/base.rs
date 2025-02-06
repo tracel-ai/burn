@@ -1,5 +1,6 @@
 use alloc::{string::String, vec::Vec};
-use burn_tensor::{backend::DeviceOps, repr::TensorDescription, DType, Element};
+use burn_ir::TensorDescription;
+use burn_tensor::{backend::DeviceOps, DType, Element};
 
 use crate::{get_client, MultiBackendBridge, RouterTensor, RunnerClient};
 

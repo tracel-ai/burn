@@ -3,10 +3,8 @@ use crate::{
     stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
 };
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
-    DType,
-};
+use burn_ir::{OperationDescription, TensorDescription, TensorId};
+use burn_tensor::DType;
 use spin::Mutex;
 use std::{future::Future, sync::Arc};
 

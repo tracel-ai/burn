@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use super::{execution::Operation, OperationConverter, RelativeOps};
 use crate::FusionRuntime;
-use burn_tensor::repr::{OperationDescription, TensorId};
+use burn_ir::{OperationDescription, TensorId};
 
 pub use burn_common::id::StreamId;
 

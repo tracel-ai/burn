@@ -12,7 +12,7 @@ use super::{
     HandleInput, HandleOutput, LaunchPlan, TraceRunner,
 };
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorDescription, TensorId};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

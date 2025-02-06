@@ -1,5 +1,5 @@
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
+use burn_ir::{FloatOperationDescription, OperationDescription};
 
 use crate::{
     fusion::{

@@ -2,10 +2,7 @@ use alloc::{vec, vec::Vec};
 use burn_tensor::backend::Backend;
 use core::ops::Range;
 
-use burn_tensor::ops::{
-    binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor,
-};
-use burn_tensor::repr::{
+use burn_ir::{
     BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
     ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
     FloatOperationDescription, GatherOperationDescription, InitOperationDescription,
@@ -15,6 +12,9 @@ use burn_tensor::repr::{
     ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
     SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
     UnaryOperationDescription,
+};
+use burn_tensor::ops::{
+    binary_ops_shape, BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntElem, IntTensor,
 };
 use burn_tensor::{
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,

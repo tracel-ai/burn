@@ -1,4 +1,5 @@
-use burn_tensor::{repr::*, DType, Element, ElementConversion};
+use burn_ir::*;
+use burn_tensor::{DType, Element, ElementConversion};
 use half::{bf16, f16};
 use hashbrown::HashMap;
 
@@ -1301,10 +1302,8 @@ impl RelativeOps for TensorDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{
-        repr::{TensorDescription, TensorId, TensorStatus},
-        DType,
-    };
+    use burn_ir::{TensorDescription, TensorId, TensorStatus};
+    use burn_tensor::DType;
 
     #[test]
     fn tensor_description_to_relative() {

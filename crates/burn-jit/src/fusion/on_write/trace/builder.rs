@@ -3,10 +3,8 @@ use super::super::{
     settings::FuseSettings,
 };
 use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Element,
-};
+use burn_ir::{TensorDescription, TensorId, TensorStatus};
+use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 

@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationDescription;
 
 use super::ExecutionMode;
 use crate::{OptimizationBuilder, OptimizationStatus};

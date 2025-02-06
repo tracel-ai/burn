@@ -4,10 +4,8 @@ use crate::{
     stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
-use burn_tensor::{
-    repr::{OperationDescription, TensorDescription, TensorId},
-    DType, TensorData,
-};
+use burn_ir::{OperationDescription, TensorDescription, TensorId};
+use burn_tensor::{DType, TensorData};
 
 /// Define how to interact with the fusion server.
 pub trait FusionClient<R>: Send + Sync + Clone + Sized

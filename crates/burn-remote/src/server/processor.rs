@@ -1,8 +1,6 @@
+use burn_ir::{OperationDescription, ReprBackend, TensorDescription, TensorId};
 use burn_router::{Runner, RunnerClient};
-use burn_tensor::{
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
-    TensorData,
-};
+use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use std::sync::mpsc::{Sender, SyncSender};
 

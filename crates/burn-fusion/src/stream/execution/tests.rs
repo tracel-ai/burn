@@ -6,14 +6,12 @@
 //! To test these components effectively, we create mock types for the stream, optimization,
 //! optimization builder, and stream segment. These mock types aid in comprehensively
 //! understanding the process of optimizing streams.
-use burn_tensor::{
-    repr::{
-        BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
-        OperationDescription, ScalarOperationDescription, TensorDescription, TensorId,
-        TensorStatus, UnaryOperationDescription,
-    },
-    DType,
+use burn_ir::{
+    BinaryOperationDescription, FloatOperationDescription, NumericOperationDescription,
+    OperationDescription, ScalarOperationDescription, TensorDescription, TensorId, TensorStatus,
+    UnaryOperationDescription,
 };
+use burn_tensor::DType;
 
 use crate::{
     stream::store::{

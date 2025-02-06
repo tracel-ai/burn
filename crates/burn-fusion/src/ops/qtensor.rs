@@ -1,13 +1,13 @@
 use std::{marker::PhantomData, ops::Range};
 
+use burn_ir::{
+    DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
+    InitOperationDescription, OperationDescription, QuantizationParametersDescription,
+    QuantizeOperationDescription,
+};
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    repr::{
-        DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
-        InitOperationDescription, OperationDescription, QuantizationParametersDescription,
-        QuantizeOperationDescription,
-    },
     DType, Device, Element, Shape, TensorData, TensorMetadata,
 };
 
