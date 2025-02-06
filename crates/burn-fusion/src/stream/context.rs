@@ -227,7 +227,6 @@ impl OperationConverter {
 
 impl RelativeOps for OperationDescription {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        println!("To relative {self:?}");
         match self {
             OperationDescription::BaseFloat(ops) => {
                 OperationDescription::BaseFloat(ops.to_relative(converter))
