@@ -14,7 +14,10 @@ pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
 pub use cubecl::CubeDim;
 
-pub use cubecl::wgpu::*;
+pub use cubecl::wgpu::{
+    init_device, init_setup, init_setup_async, MemoryConfiguration, RuntimeOptions, WgpuCompiler,
+    WgpuDevice, WgpuResource, WgpuRuntime, WgpuSetup, WgpuStorage,
+};
 // Vulkan and WebGpu would have conflicting type names
 pub mod graphics {
     pub use cubecl::wgpu::{AutoGraphicsApi, Dx12, GraphicsApi, Metal, OpenGl, Vulkan, WebGpu};
