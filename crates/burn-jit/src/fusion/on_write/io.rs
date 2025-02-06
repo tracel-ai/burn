@@ -1,5 +1,5 @@
 use super::ir::*;
-use cubecl::{linalg::tensor::index_offset_with_layout, prelude::*};
+use cubecl::{linalg::tensor::index_offset_with_layout, prelude::*, unexpanded};
 
 #[cube]
 /// Read the value from the [arg](Arg) and cast it to the generic cube primitive.
@@ -46,7 +46,7 @@ pub fn read<C: CubePrimitive>(
             ElemwisePrecision::I8 => Line::cast_from(*inputs.s_i8.index(pos)),
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
-        Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
+        Arg::Literal(val, _precision) => Line::new(from_const_int::<C>(val)),
     }
 }
 
@@ -690,5 +690,24 @@ pub fn global_stride(
             tensor.stride(dim)
         }
         _ => comptime![panic!("Unsupported precision {precision:?}")],
+    }
+}
+
+/// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
+fn from_const_int<C: CubePrimitive>(_value: u32) -> C {
+    unexpanded!()
+}
+
+pub mod from_const_int {
+    use cubecl::ir::{ExpandElement, Scope, Variable};
+
+    use cubecl::prelude::ExpandElementTyped;
+
+    use super::CubePrimitive;
+
+    pub fn expand<C: CubePrimitive>(scope: &mut Scope, value: u32) -> ExpandElementTyped<C> {
+        let constant: ExpandElement = value.into();
+        let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
+        ExpandElement::Plain(Variable::constant(constant_c)).into()
     }
 }
