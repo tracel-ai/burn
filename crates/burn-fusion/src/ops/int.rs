@@ -8,10 +8,12 @@ use crate::{
 use burn_tensor::{
     ops::{binary_ops_shape, BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
     repr::{self, *},
-    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData,
+    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 use core::ops::Range;
 use std::marker::PhantomData;
+
+use super::NoOp;
 
 impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
@@ -48,32 +50,20 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        #[derive(new)]
-        struct FromDataOps<B: FusionBackend> {
-            desc: FromDataOperationDescription,
-            device: Device<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::int_from_data(self.desc.data, &self.device);
-                handles.register_int_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
-
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(data.shape.clone(), B::IntElem::dtype());
+        let dtype = data.dtype;
+        let tensor = B::int_from_data(data, device);
+        let shape = tensor.shape();
 
-        let desc = FromDataOperationDescription {
-            out: out.to_description_out(),
-            data,
-        };
+        let handle = B::int_tensor_handle(tensor);
+        let out = client.register_tensor(handle, shape.dims, stream, dtype);
+        let desc = out.to_description_out();
 
         client.register(
             vec![stream],
-            OperationDescription::BaseInt(BaseOperationDescription::FromData(desc.clone())),
-            FromDataOps::<B>::new(desc, device.clone()),
+            OperationDescription::Init(InitOperationDescription { out: desc }),
+            NoOp::<B>::new(),
         );
 
         out
@@ -103,7 +93,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
         #[derive(new)]
         struct ReshapeDimsOps<B: FusionBackend> {
-            desc: ReshapeDescription,
+            desc: UnaryOperationDescription,
             _b: PhantomData<B>,
         }
 
@@ -120,7 +110,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape.dims, B::IntElem::dtype());
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

@@ -1,33 +1,39 @@
-use super::{
+use super::super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
-    trace::{FuseOnWriteTrace, RegisteredTensors},
+    settings::FuseSettings,
 };
+use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
 use burn_tensor::{
     repr::{TensorDescription, TensorId, TensorStatus},
     DType, Element,
 };
+use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
 
 #[derive(Clone)]
 pub struct FuseOnWriteTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
+    settings: FuseSettings,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
+    reshapes: Vec<Reshape>,
     ops: Vec<ElemwiseOp>,
-    reads: BTreeMap<TensorId, ElemwiseOp>,
+    reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub bool_precision: ElemwisePrecision,
     outputs_unhandled: Vec<Arg>,
     inputs_unhandled: Vec<TensorId>,
 }
 
 impl FuseOnWriteTraceBuilder {
-    pub fn new(bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
             locals: Locals::default(),
             outputs: RegisteredTensors::default(),
+            settings,
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
+            reshapes: Vec::new(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
@@ -54,7 +60,7 @@ impl FuseOnWriteTraceBuilder {
 
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         let arg = self.output(tensor);
-        self.outputs_unhandled.push(arg);
+        self.outputs_unhandled.push(arg.clone());
         arg
     }
 
@@ -96,10 +102,19 @@ impl FuseOnWriteTraceBuilder {
                 let out = self.locals.create(precision, tensor.id);
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
-                self.reads.insert(
-                    tensor.id,
-                    ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }),
-                );
+                let reads = if let std::collections::btree_map::Entry::Vacant(e) =
+                    self.reads.entry(tensor.id)
+                {
+                    e.insert(Vec::with_capacity(1));
+                    self.reads.get_mut(&tensor.id).unwrap()
+                } else {
+                    self.reads.get_mut(&tensor.id).unwrap()
+                };
+
+                reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
+                    input,
+                    out: out.clone(),
+                }));
 
                 out
             }
@@ -127,6 +142,77 @@ impl FuseOnWriteTraceBuilder {
         }
     }
 
+    pub fn input_reshaped(
+        &mut self,
+        tensor: &TensorDescription,
+        output: &TensorDescription,
+    ) -> Option<Arg> {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+
+        let input_index = match self.locals.get(precision, tensor.id) {
+            Some(_) => {
+                // Can't fused an already fused input.
+                if self.outputs.get(precision_input, tensor.id).is_some() {
+                    return None;
+                }
+
+                match self.inputs.get_index(precision_input, tensor.id) {
+                    Some(index) => {
+                        self.inputs.update(precision_input, tensor);
+                        index as u32
+                    }
+                    None => {
+                        return None;
+                    }
+                }
+            }
+            None => self.inputs.insert(precision_input, tensor.clone()),
+        };
+
+        let out = self.locals.create(precision, tensor.id);
+        let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
+
+        let mut shape = Sequence::new();
+
+        let index = self.reshapes.len();
+        self.reshapes.push(Reshape {
+            reshaped: output.id,
+            original: tensor.id,
+        });
+        let rank = output.shape.len();
+
+        for i in 0..output.shape.len() {
+            let id = index * rank + i;
+            shape.push(Arg::ScalarShape(id as u32));
+        }
+
+        let input = Arg::InputReshaped {
+            original: Box::new(original),
+            shape,
+        };
+
+        let reads =
+            if let std::collections::btree_map::Entry::Vacant(e) = self.reads.entry(tensor.id) {
+                e.insert(Vec::with_capacity(1));
+                self.reads.get_mut(&tensor.id).unwrap()
+            } else {
+                self.reads.get_mut(&tensor.id).unwrap()
+            };
+
+        reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
+            input,
+            out: out.clone(),
+        }));
+
+        Some(out)
+    }
+
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
 
@@ -143,7 +229,7 @@ impl FuseOnWriteTraceBuilder {
         Arg::Scalar(new_index, precision)
     }
 
-    pub fn build(&self) -> FuseOnWriteTrace {
+    pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();
@@ -165,16 +251,22 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
-        // Current problem is that I need btreemap instead of sequences.
-        FuseOnWriteTrace::new(
+        let reshapes = self.reshapes.clone();
+        let settings = self.settings;
+        let inputs_unhandled = self.inputs_unhandled.clone();
+
+        FuseOnWriteTrace {
             outputs,
             inputs,
+            settings,
             scalars,
+            reshapes,
+            shape_ref,
             ops,
             reads,
             writes,
-            self.inputs_unhandled.clone(),
-        )
+            inputs_unhandled,
+        }
     }
 
     fn output_tensors(&self) -> RegisteredTensors {
@@ -334,8 +426,10 @@ impl FuseOnWriteTraceBuilder {
         };
 
         // For all operators, mark their local tensor id in the proper set.
-        for (_, op) in self.reads.iter() {
-            mark_op(op);
+        for (_, ops) in self.reads.iter() {
+            for op in ops {
+                mark_op(op);
+            }
         }
 
         for op in self.ops.iter() {

@@ -77,7 +77,6 @@ impl<B: Backend> Linear<B> {
 
         let weight = self.weight.val().unsqueeze();
         let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
-
         let output = input.matmul(weight);
 
         match bias {

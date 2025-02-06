@@ -29,6 +29,7 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
                 output.as_handle_ref(),
                 cube_count,
             )?;
+
             Ok(output)
         }
         SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),

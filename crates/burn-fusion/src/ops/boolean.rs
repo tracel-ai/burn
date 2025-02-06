@@ -1,7 +1,7 @@
 use burn_tensor::{
     ops::{binary_ops_shape, FloatTensor, IntTensor},
-    repr::{FromDataOperationDescription, TensorDescription},
-    DType, Element, TensorData,
+    repr::{InitOperationDescription, TensorDescription},
+    DType, Element, TensorData, TensorMetadata,
 };
 use std::marker::PhantomData;
 
@@ -17,11 +17,13 @@ use burn_tensor::{
         BaseOperationDescription, BinaryOperationDescription, BoolOperationDescription,
         CatOperationDescription, ExpandOperationDescription, FlipOperationDescription,
         HandleContainer, OperationDescription, PermuteOperationDescription,
-        RepeatDimOperationDescription, ReshapeDescription, SliceAssignOperationDescription,
-        SliceOperationDescription, SwapDimsDescription, UnaryOperationDescription,
+        RepeatDimOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
+        SwapDimsDescription, UnaryOperationDescription,
     },
     Device, Shape,
 };
+
+use super::NoOp;
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
@@ -58,32 +60,19 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     }
 
     fn bool_from_data(data: burn_tensor::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        #[derive(new)]
-        struct FromDataOps<B: FusionBackend> {
-            desc: FromDataOperationDescription,
-            device: Device<B>,
-        }
-
-        impl<B: FusionBackend> Operation<B::FusionRuntime> for FromDataOps<B> {
-            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_from_data(self.desc.data, &self.device);
-                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
-            }
-        }
-
         let stream = StreamId::current();
         let client = get_client::<B>(&device.clone());
-        let out = client.tensor_uninitialized(data.shape.clone(), DType::Bool);
+        let tensor = B::bool_from_data(data, device);
+        let shape = tensor.shape();
 
-        let desc = FromDataOperationDescription {
-            out: out.to_description_out(),
-            data,
-        };
+        let handle = B::bool_tensor_handle(tensor);
+        let out = client.register_tensor(handle, shape.dims, stream, DType::Bool);
+        let desc = out.to_description_out();
 
         client.register(
             vec![stream],
-            OperationDescription::BaseBool(BaseOperationDescription::FromData(desc.clone())),
-            FromDataOps::<B>::new(desc, device.clone()),
+            OperationDescription::Init(InitOperationDescription { out: desc }),
+            NoOp::<B>::new(),
         );
 
         out
@@ -182,7 +171,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         #[derive(new)]
         struct ReshapeDimsOps<B: FusionBackend> {
-            desc: ReshapeDescription,
+            desc: UnaryOperationDescription,
             _b: PhantomData<B>,
         }
 
@@ -197,7 +186,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let stream = tensor.stream;
         let out = tensor.client.tensor_uninitialized(shape.dims, DType::Bool);
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

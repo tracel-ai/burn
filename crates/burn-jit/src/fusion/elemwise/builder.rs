@@ -2,7 +2,7 @@ use burn_fusion::OptimizationBuilder;
 
 use crate::{
     fusion::{
-        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision},
+        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
     JitRuntime,
@@ -23,7 +23,16 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
         let max_bindings = props.hardware_properties().max_bindings;
 
         Self {
-            builder: FuseOnWriteBuilder::new(max_bindings, bool_precision),
+            builder: FuseOnWriteBuilder::new(
+                max_bindings,
+                bool_precision,
+                FuseSettings {
+                    broadcast: true,
+                    output_shape_updates: true,
+                    mix_vectorization: true,
+                    inplace: true,
+                },
+            ),
             device,
         }
     }

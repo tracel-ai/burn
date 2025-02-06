@@ -3,7 +3,7 @@ use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
 
 use crate::{
     fusion::{
-        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision},
+        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
     JitRuntime,
@@ -24,10 +24,16 @@ impl<R: JitRuntime> MatmulBuilder<R> {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
+        let settings = FuseSettings {
+            broadcast: true,
+            output_shape_updates: false,
+            mix_vectorization: true,
+            inplace: true,
+        };
 
         Self {
-            builder: FuseOnWriteBuilder::new(max_bindings, bool_precision),
-            builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision),
+            builder: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
+            builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
         }
@@ -56,6 +62,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
                 ));
             } else {
                 self.builder.close();
+                self.builder_fallback.close();
             }
         } else {
             self.builder.register(operation);

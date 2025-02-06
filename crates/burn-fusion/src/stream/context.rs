@@ -39,12 +39,9 @@ pub struct Context<'a, H> {
     pub scalar_u8: &'a Vec<u8>,
 }
 
-#[derive(Default)]
 pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorDescription>,
     tensors_global2relative: HashMap<TensorId, TensorDescription>,
-    /// Only useful to create new shape ID.
-    /// You should use tensor descriptions to retrieve the proper shape.
     shapes_global2relative: HashMap<usize, usize>,
     scalar_f32: Vec<f32>,
     scalar_f16: Vec<f16>,
@@ -57,6 +54,32 @@ pub(crate) struct OperationConverter {
     scalar_u32: Vec<u32>,
     scalar_u16: Vec<u16>,
     scalar_u8: Vec<u8>,
+}
+
+impl Default for OperationConverter {
+    fn default() -> Self {
+        let mut val = Self {
+            tensors_relative2global: Default::default(),
+            tensors_global2relative: Default::default(),
+            shapes_global2relative: Default::default(),
+            scalar_f32: Default::default(),
+            scalar_f16: Default::default(),
+            scalar_bf16: Default::default(),
+            scalar_i64: Default::default(),
+            scalar_i32: Default::default(),
+            scalar_i16: Default::default(),
+            scalar_i8: Default::default(),
+            scalar_u64: Default::default(),
+            scalar_u32: Default::default(),
+            scalar_u16: Default::default(),
+            scalar_u8: Default::default(),
+        };
+
+        // global 1 is always shape id 0.
+        val.shapes_global2relative.insert(1, 0);
+
+        val
+    }
 }
 
 /// Fork of a [context](Context) which owns its data.
@@ -180,7 +203,11 @@ impl OperationConverter {
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
+
         self.shapes_global2relative.clear();
+        // global 1 is always shape id 0.
+        self.shapes_global2relative.insert(1, 0);
+
         self.scalar_f32.clear();
         self.scalar_f16.clear();
         self.scalar_bf16.clear();
@@ -199,7 +226,7 @@ impl OperationConverter {
             burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
             burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
             burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
-            _ => todo!("Unsupported"),
+            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
         }
 
         // We return 0 so that the id from a scalar operation is the same no matter its scalar
@@ -260,6 +287,9 @@ impl RelativeOps for OperationDescription {
             }
             OperationDescription::Custom(ops) => {
                 OperationDescription::Custom(ops.to_relative(converter))
+            }
+            OperationDescription::Init(ops) => {
+                OperationDescription::Init(ops.to_relative(converter))
             }
         }
     }
@@ -1126,7 +1156,7 @@ impl RelativeOps for BaseOperationDescription {
                 BaseOperationDescription::ToDevice(desc.to_relative(converter))
             }
             BaseOperationDescription::Reshape(desc) => {
-                BaseOperationDescription::Reshape(ReshapeDescription {
+                BaseOperationDescription::Reshape(UnaryOperationDescription {
                     input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
@@ -1210,12 +1240,14 @@ impl RelativeOps for BaseOperationDescription {
             BaseOperationDescription::Empty(desc) => {
                 BaseOperationDescription::Empty(desc.to_relative(converter))
             }
-            BaseOperationDescription::FromData(desc) => {
-                BaseOperationDescription::FromData(FromDataOperationDescription {
-                    data: desc.data.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
+        }
+    }
+}
+
+impl RelativeOps for InitOperationDescription {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        Self {
+            out: self.out.to_relative(converter),
         }
     }
 }
@@ -1241,6 +1273,7 @@ impl RelativeOps for TensorDescription {
                 // We never saw this dim value before, therefore we create a new ID.
                 let dim_id = converter.shapes_global2relative.len();
                 relative_shape.push(dim_id);
+
                 converter.shapes_global2relative.insert(*dim, dim_id);
             }
         }
@@ -1295,7 +1328,7 @@ mod tests {
             tensor1_local,
             TensorDescription {
                 id: TensorId::new(0),
-                shape: vec![0, 1, 2],
+                shape: vec![1, 2, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }
@@ -1304,7 +1337,7 @@ mod tests {
             tensor2_local,
             TensorDescription {
                 id: TensorId::new(1),
-                shape: vec![0, 3, 2],
+                shape: vec![1, 4, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }

@@ -8,13 +8,13 @@ use burn_tensor::ops::{
 use burn_tensor::repr::{
     BaseOperationDescription, BinaryOperationDescription, CatOperationDescription,
     ClampOperationDescription, ExpandOperationDescription, FlipOperationDescription,
-    FloatOperationDescription, FromDataOperationDescription, GatherOperationDescription,
+    FloatOperationDescription, GatherOperationDescription, InitOperationDescription,
     MaskFillOperationDescription, MaskWhereOperationDescription, NumericOperationDescription,
     OperationDescription, PermuteOperationDescription, RandomOperationDescription,
-    ReduceDimWithIndicesDescription, RepeatDimOperationDescription, ReshapeDescription,
-    ScalarOperationDescription, ScatterOperationDescription, SelectAssignOperationDescription,
-    SelectOperationDescription, SliceAssignOperationDescription, SliceOperationDescription,
-    SwapDimsDescription, UnaryOperationDescription,
+    ReduceDimWithIndicesDescription, RepeatDimOperationDescription, ScalarOperationDescription,
+    ScatterOperationDescription, SelectAssignOperationDescription, SelectOperationDescription,
+    SliceAssignOperationDescription, SliceOperationDescription, SwapDimsDescription,
+    UnaryOperationDescription,
 };
 use burn_tensor::{
     DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
@@ -25,16 +25,12 @@ use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(data.shape.clone(), FloatElem::<Self>::dtype());
-
-        let desc = FromDataOperationDescription {
-            data,
+        let out = client.register_tensor_data(data);
+        let desc = InitOperationDescription {
             out: out.to_description_out(),
         };
 
-        client.register(OperationDescription::BaseFloat(
-            BaseOperationDescription::FromData(desc),
-        ));
+        client.register(OperationDescription::Init(desc));
 
         out
     }
@@ -419,7 +415,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = ReshapeDescription {
+        let desc = UnaryOperationDescription {
             input: tensor.into_description(),
             out: out.to_description_out(),
         };

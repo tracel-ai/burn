@@ -1449,8 +1449,8 @@ where
 
         // last two dimensions
         let shape = &self.shape().dims[D - 2..].to_owned();
-
         let mask = Tensor::<B, 2, Bool>::tril_mask(shape, diagonal, &self.device()).unsqueeze();
+
         self.mask_fill(mask, 0)
     }
 
@@ -2208,6 +2208,7 @@ where
         let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
         let ones = K::ones([1, size].into(), device);
         let zeros = K::zeros([size, size].into(), device);
+
         Self::new(K::scatter(0, zeros, indices.primitive, ones))
     }
 }

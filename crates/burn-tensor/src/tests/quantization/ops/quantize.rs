@@ -97,7 +97,7 @@ mod tests {
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.to_data()
+        x.into_data()
             .assert_approx_eq(&TensorData::from([-1.8, -1.0, 0.0, 0.5]), 2);
     }
 
@@ -117,6 +117,6 @@ mod tests {
             QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.05882353, 42)),
         );
 
-        x_q.to_data().assert_eq(&expected, false);
+        x_q.into_data().assert_eq(&expected, false);
     }
 }

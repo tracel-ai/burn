@@ -315,28 +315,66 @@ impl TensorData {
 
     /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Self {
-        if E::dtype() == self.dtype {
+        self.convert_dtype(E::dtype())
+    }
+
+    /// Converts the data to a different element type.
+    pub fn convert_dtype(self, dtype: DType) -> Self {
+        if dtype == self.dtype {
             self
-        } else if core::mem::size_of::<E>() == self.dtype.size()
+        } else if dtype.size() == self.dtype.size()
             && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
         {
             match self.dtype {
-                DType::F64 => self.convert_inplace::<f64, E>(),
-                DType::F32 => self.convert_inplace::<f32, E>(),
-                DType::F16 => self.convert_inplace::<f16, E>(),
-                DType::BF16 => self.convert_inplace::<bf16, E>(),
-                DType::I64 => self.convert_inplace::<i64, E>(),
-                DType::I32 => self.convert_inplace::<i32, E>(),
-                DType::I16 => self.convert_inplace::<i16, E>(),
-                DType::I8 => self.convert_inplace::<i8, E>(),
-                DType::U64 => self.convert_inplace::<u64, E>(),
-                DType::U32 => self.convert_inplace::<u32, E>(),
-                DType::U16 => self.convert_inplace::<u16, E>(),
-                DType::U8 => self.convert_inplace::<u8, E>(),
+                DType::F64 => self.convert_inplace_dtype::<f64>(dtype),
+                DType::F32 => self.convert_inplace_dtype::<f32>(dtype),
+                DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
+                DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
+                DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
+                DType::I32 => self.convert_inplace_dtype::<i32>(dtype),
+                DType::I16 => self.convert_inplace_dtype::<i16>(dtype),
+                DType::I8 => self.convert_inplace_dtype::<i8>(dtype),
+                DType::U64 => self.convert_inplace_dtype::<u64>(dtype),
+                DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
+                DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
+                DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
         } else {
-            TensorData::new(self.iter::<E>().collect(), self.shape)
+            match dtype {
+                DType::F64 => TensorData::new(self.iter::<f64>().collect(), self.shape),
+                DType::F32 => TensorData::new(self.iter::<f32>().collect(), self.shape),
+                DType::F16 => TensorData::new(self.iter::<f16>().collect(), self.shape),
+                DType::BF16 => TensorData::new(self.iter::<bf16>().collect(), self.shape),
+                DType::I64 => TensorData::new(self.iter::<i64>().collect(), self.shape),
+                DType::I32 => TensorData::new(self.iter::<i32>().collect(), self.shape),
+                DType::I16 => TensorData::new(self.iter::<i16>().collect(), self.shape),
+                DType::I8 => TensorData::new(self.iter::<i8>().collect(), self.shape),
+                DType::U64 => TensorData::new(self.iter::<u64>().collect(), self.shape),
+                DType::U32 => TensorData::new(self.iter::<u32>().collect(), self.shape),
+                DType::U16 => TensorData::new(self.iter::<u16>().collect(), self.shape),
+                DType::U8 => TensorData::new(self.iter::<u8>().collect(), self.shape),
+                DType::Bool => TensorData::new(self.iter::<bool>().collect(), self.shape),
+                DType::QFloat(_) => unreachable!(),
+            }
+        }
+    }
+
+    fn convert_inplace_dtype<Current: Element + AnyBitPattern>(self, dtype: DType) -> Self {
+        match dtype {
+            DType::F64 => self.convert_inplace::<Current, f64>(),
+            DType::F32 => self.convert_inplace::<Current, f32>(),
+            DType::F16 => self.convert_inplace::<Current, f16>(),
+            DType::BF16 => self.convert_inplace::<Current, bf16>(),
+            DType::I64 => self.convert_inplace::<Current, i64>(),
+            DType::I32 => self.convert_inplace::<Current, i32>(),
+            DType::I16 => self.convert_inplace::<Current, i16>(),
+            DType::I8 => self.convert_inplace::<Current, i8>(),
+            DType::U64 => self.convert_inplace::<Current, u64>(),
+            DType::U32 => self.convert_inplace::<Current, u32>(),
+            DType::U16 => self.convert_inplace::<Current, u16>(),
+            DType::U8 => self.convert_inplace::<Current, u8>(),
+            DType::Bool | DType::QFloat(_) => unreachable!(),
         }
     }
 

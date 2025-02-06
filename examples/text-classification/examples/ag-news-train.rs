@@ -93,6 +93,16 @@ mod wgpu {
     }
 }
 
+#[cfg(feature = "vulkan")]
+mod vulkan {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, Vulkan};
+
+    pub fn run() {
+        launch::<Autodiff<Vulkan<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
 #[cfg(feature = "remote")]
 mod remote {
     use crate::{launch, ElemType};
@@ -143,4 +153,6 @@ fn main() {
     hip::run();
     #[cfg(feature = "remote")]
     remote::run();
+    #[cfg(feature = "vulkan")]
+    vulkan::run();
 }

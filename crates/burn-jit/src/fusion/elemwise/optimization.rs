@@ -110,7 +110,6 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
             },
             None => panic!("Invalid argument"),
         };
-
         let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
@@ -141,7 +140,7 @@ fn elemwise_fuse(
     let args = comptime![Sequence::<Arg>::new()];
     let pos = ABSOLUTE_POS;
 
-    let length = match comptime![config.ref_layout] {
+    let length = match comptime![config.ref_layout.clone()] {
         Arg::Input(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
             ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),

@@ -15,6 +15,101 @@ mod tests {
     }
 
     #[test]
+    fn should_support_reshape_maybe_fused_1() {
+        let tensor = TestTensorInt::arange(0..32, &Default::default());
+        let tensor0 = TestTensorInt::zeros([8, 4, 8], &Default::default());
+        let tensor1 = tensor.clone().reshape([1, 4, 8]);
+        let output = tensor0 + tensor1;
+
+        let expected = TensorData::from([
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+        ]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_2() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let output = tensor2 + tensor1;
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_3() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 3], 5, &Default::default());
+
+        let expected_tensor1 = TensorData::from([[[0], [2]], [[1], [2]]]);
+        tensor1.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_4() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let tensor2 = tensor2.swap_dims(0, 1);
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let output = tensor2 + tensor1;
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
         let tensor = TestTensorInt::<1>::from_data(data, &Default::default());
