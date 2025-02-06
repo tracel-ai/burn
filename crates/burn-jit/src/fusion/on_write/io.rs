@@ -2,6 +2,7 @@ use super::ir::*;
 use cubecl::{
     ir::{ExpandElement, Variable},
     prelude::*,
+    unexpanded,
 };
 
 #[cube]
@@ -43,7 +44,7 @@ pub fn read<C: CubePrimitive>(
             let scalar = read_scalar_shape(inputs, arg);
             Line::cast_from(scalar)
         }
-        Arg::Literal(val, _precision) => Line::cast_from(val.runtime()),
+        Arg::Literal(val, _precision) => Line::new(from_const_int::<C>(val)),
         Arg::InputReshaped {
             original, shape, ..
         } => match comptime![original.as_ref().clone()] {
@@ -853,4 +854,22 @@ fn reverse_index<Elem: Into<ExpandElementTyped<u32>>>(
     let expand: ExpandElement = ExpandElement::Plain(scalar);
 
     expand.into()
+}
+/// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
+fn from_const_int<C: CubePrimitive>(_value: u32) -> C {
+    unexpanded!()
+}
+
+mod from_const_int {
+    use cubecl::ir::{ExpandElement, Scope, Variable};
+
+    use cubecl::prelude::ExpandElementTyped;
+
+    use super::CubePrimitive;
+
+    pub fn expand<C: CubePrimitive>(scope: &mut Scope, value: u32) -> ExpandElementTyped<C> {
+        let constant: ExpandElement = value.into();
+        let constant_c = constant.as_const().unwrap().cast_to(C::as_elem(scope));
+        ExpandElement::Plain(Variable::constant(constant_c)).into()
+    }
 }
