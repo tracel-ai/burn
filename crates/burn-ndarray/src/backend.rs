@@ -2,7 +2,7 @@ use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
-use burn_ir::{HandleKind, ReprBackend, TensorHandle};
+use burn_ir::{BackendRepr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use core::marker::PhantomData;
@@ -72,7 +72,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendRepr
     for NdArray<E, I, Q>
 {
     type Handle = HandleKind<Self>;

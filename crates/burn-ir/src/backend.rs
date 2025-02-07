@@ -13,28 +13,28 @@ pub struct TensorHandle<H: Clone> {
     pub shape: Shape,
 }
 
-/// Backend extension trait that allows an existing [backend](Backend) to use the Burn tensor representation
-/// for compilation purpose or other...
-pub trait ReprBackend: Backend {
+/// Backend extension trait that allows an existing [backend](Backend) to use the Burn tensor
+/// intermediate representation for compilation purpose or other...
+pub trait BackendRepr: Backend {
     /// The type that can be used to point to a tensor of any kind.
     type Handle: Sync + Send + Clone;
 
-    /// Convert a [handle](ReprBackend::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
+    /// Convert a [handle](BackendRepr::Handle) to a [float tensor](Backend::FloatTensorPrimitive).
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self>;
-    /// Convert a [handle](ReprBackend::Handle) to an [int tensor](Backend::IntTensorPrimitive).
+    /// Convert a [handle](BackendRepr::Handle) to an [int tensor](Backend::IntTensorPrimitive).
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self>;
-    /// Convert a [handle](ReprBackend::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
+    /// Convert a [handle](BackendRepr::Handle) to a [bool tensor](Backend::BoolTensorPrimitive).
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self>;
-    /// Convert a [handle](ReprBackend::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
+    /// Convert a [handle](BackendRepr::Handle) to a [quantized tensor](Backend::QuantizedTensorPrimitive).
     fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self>;
 
-    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](ReprBackend::Handle).
+    /// Convert a [float tensor](Backend::FloatTensorPrimitive) to a [handle](BackendRepr::Handle).
     fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle;
-    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](ReprBackend::Handle).
+    /// Convert an [int tensor](Backend::IntTensorPrimitive) to a [handle](BackendRepr::Handle).
     fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle;
-    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](ReprBackend::Handle).
+    /// Convert a [bool tensor](Backend::BoolTensorPrimitive) to a [handle](BackendRepr::Handle).
     fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle;
-    /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](ReprBackend::Handle).
+    /// Convert a [quantized tensor](Backend::QuantizedTensorPrimitive) to a [handle](BackendRepr::Handle).
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle;
 }
 

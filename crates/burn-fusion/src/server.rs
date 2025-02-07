@@ -2,7 +2,7 @@ use crate::{
     stream::{execution::Operation, MultiStream, StreamId},
     FusionBackend, FusionRuntime,
 };
-use burn_ir::{HandleContainer, OperationDescription, TensorDescription, TensorId};
+use burn_ir::{HandleContainer, OperationRepr, TensorId, TensorRepr};
 use std::{future::Future, sync::Arc};
 
 pub struct FusionServer<R: FusionRuntime> {
@@ -24,7 +24,7 @@ where
     pub fn register(
         &mut self,
         streams: Vec<StreamId>,
-        desc: OperationDescription,
+        desc: OperationRepr,
         operation: Box<dyn Operation<R>>,
     ) {
         self.streams
@@ -41,7 +41,7 @@ where
 
     pub fn read_float<B>(
         &mut self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -57,7 +57,7 @@ where
 
     pub fn read_int<B>(
         &mut self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -73,7 +73,7 @@ where
 
     pub fn read_bool<B>(
         &mut self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -89,7 +89,7 @@ where
 
     pub fn read_quantized<B>(
         &mut self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -105,7 +105,7 @@ where
 
     pub fn change_server_float<B>(
         &mut self,
-        tensor: &TensorDescription,
+        tensor: &TensorRepr,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> Arc<TensorId>
@@ -123,21 +123,21 @@ where
         id
     }
 
-    pub fn resolve_server_float<B>(&mut self, tensor: &TensorDescription) -> B::FloatTensorPrimitive
+    pub fn resolve_server_float<B>(&mut self, tensor: &TensorRepr) -> B::FloatTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.handles.get_float_tensor::<B>(tensor)
     }
 
-    pub fn resolve_server_int<B>(&mut self, tensor: &TensorDescription) -> B::IntTensorPrimitive
+    pub fn resolve_server_int<B>(&mut self, tensor: &TensorRepr) -> B::IntTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.handles.get_int_tensor::<B>(tensor)
     }
 
-    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorDescription) -> B::BoolTensorPrimitive
+    pub fn resolve_server_bool<B>(&mut self, tensor: &TensorRepr) -> B::BoolTensorPrimitive
     where
         B: FusionBackend<FusionRuntime = R>,
     {
@@ -146,7 +146,7 @@ where
 
     pub fn change_server_int<B>(
         &mut self,
-        tensor: &TensorDescription,
+        tensor: &TensorRepr,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> Arc<TensorId>
@@ -166,7 +166,7 @@ where
 
     pub fn change_server_bool<B>(
         &mut self,
-        tensor: &TensorDescription,
+        tensor: &TensorRepr,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> Arc<TensorId>
@@ -186,7 +186,7 @@ where
 
     pub fn change_server_quantized<B>(
         &mut self,
-        desc: &TensorDescription,
+        desc: &TensorRepr,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> Arc<TensorId>

@@ -3,7 +3,7 @@ use crate::{
     stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
 };
-use burn_ir::{OperationDescription, TensorDescription, TensorId};
+use burn_ir::{OperationRepr, TensorId, TensorRepr};
 use burn_tensor::DType;
 use spin::Mutex;
 use std::{future::Future, sync::Arc};
@@ -37,7 +37,7 @@ where
         }
     }
 
-    fn register<O>(&self, streams: Vec<StreamId>, description: OperationDescription, operation: O)
+    fn register<O>(&self, streams: Vec<StreamId>, description: OperationRepr, operation: O)
     where
         O: Operation<R> + 'static,
     {
@@ -78,7 +78,7 @@ where
 
     fn read_tensor_float<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -90,7 +90,7 @@ where
 
     fn read_tensor_int<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         id: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -101,7 +101,7 @@ where
 
     fn read_tensor_bool<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -112,7 +112,7 @@ where
 
     fn read_tensor_quantized<B>(
         self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         stream: StreamId,
     ) -> impl Future<Output = burn_tensor::TensorData> + 'static
     where
@@ -123,7 +123,7 @@ where
 
     fn change_client_float<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -145,7 +145,7 @@ where
 
     fn change_client_int<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -166,7 +166,7 @@ where
 
     fn change_client_bool<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -187,7 +187,7 @@ where
 
     fn change_client_quantized<B>(
         &self,
-        tensor: TensorDescription,
+        tensor: TensorRepr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -217,7 +217,7 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_float::<B>(&tensor.into_description())
+        server.resolve_server_float::<B>(&tensor.into_tensor_ir())
     }
 
     fn resolve_tensor_int<B>(&self, tensor: FusionTensor<R>) -> B::IntTensorPrimitive
@@ -226,7 +226,7 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_int::<B>(&tensor.into_description())
+        server.resolve_server_int::<B>(&tensor.into_tensor_ir())
     }
 
     fn resolve_tensor_bool<B>(&self, tensor: FusionTensor<R>) -> B::BoolTensorPrimitive
@@ -235,6 +235,6 @@ where
     {
         let mut server = self.server.lock();
         server.drain_stream(tensor.stream);
-        server.resolve_server_bool::<B>(&tensor.into_description())
+        server.resolve_server_bool::<B>(&tensor.into_tensor_ir())
     }
 }

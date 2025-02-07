@@ -183,9 +183,9 @@ Here's how powf was added to `burn-fusion`:
 
 1. Added powf to the float ops under
    [`crates/burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/ops/float.rs#L1838)
-2. Added powf to the `NumericOperationDescription` enum under
+2. Added powf to the `NumericOperationRepr` enum under
    [crates/burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/operation.rs#L433)
-3. Added powf to the implementations of `NumericOperationDescription` enum under
+3. Added powf to the implementations of `NumericOperationRepr` enum under
    [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/context.rs#L771)
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of

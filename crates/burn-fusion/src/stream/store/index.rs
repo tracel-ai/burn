@@ -1,5 +1,5 @@
 use crate::stream::store::ExecutionPlanId;
-use burn_ir::OperationDescription;
+use burn_ir::OperationRepr;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
@@ -9,29 +9,29 @@ use std::{
 /// Index used to search optimizations.
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct ExecutionPlanIndex {
-    /// We can't use `HashMap<OperationDescription, Vec<ExecutionPlanId>>` since `OperationDescription`
+    /// We can't use `HashMap<OperationRepr, Vec<ExecutionPlanId>>` since `OperationRepr`
     /// doesn't implement [`Eq`](core::cmp::Eq).
     ///
-    /// `OperationDescription` can't implement `Eq` since float types don't implement it.
+    /// `OperationRepr` can't implement `Eq` since float types don't implement it.
     ///
     /// We rely instead on [`PartialEq`](core::cmp::PartialEq) to manually handle hash collisions.
     /// This is OK because we use `relative` operations where any scalar values are set to zeros,
     /// see [`RelativeStreamConverter`](crate::stream::RelativeStreamConverter).
     ///
-    /// Map from the hash of the `OperationDescription` to a list of `(OperationDescription, index)` pairs,
-    /// where `index` is the index of all the execution plans that start with the `OperationDescription`
+    /// Map from the hash of the `OperationRepr` to a list of `(OperationRepr, index)` pairs,
+    /// where `index` is the index of all the execution plans that start with the `OperationRepr`
     /// in the `starters` list.
-    mapping: HashMap<u64, Vec<(OperationDescription, usize)>>,
+    mapping: HashMap<u64, Vec<(OperationRepr, usize)>>,
     starters: Vec<Vec<ExecutionPlanId>>,
 }
 
 pub enum SearchQuery<'a> {
-    PlansStartingWith(&'a OperationDescription),
+    PlansStartingWith(&'a OperationRepr),
 }
 
 pub enum InsertQuery<'a> {
     NewPlan {
-        operations: &'a [OperationDescription],
+        operations: &'a [OperationRepr],
         id: ExecutionPlanId,
     },
 }
@@ -55,8 +55,8 @@ impl ExecutionPlanIndex {
         }
     }
 
-    /// Find execution plans starting with the `OperationDescription`
-    fn find_starting_with(&self, operation: &OperationDescription) -> Vec<ExecutionPlanId> {
+    /// Find execution plans starting with the `OperationRepr`
+    fn find_starting_with(&self, operation: &OperationRepr) -> Vec<ExecutionPlanId> {
         let key = self.operation_key(operation);
         let values = match self.mapping.get(&key) {
             Some(val) => val,
@@ -81,7 +81,7 @@ impl ExecutionPlanIndex {
     }
 
     /// Update the index for an execution plan starting with operation `ops`
-    fn insert_new_operation(&mut self, ops: &OperationDescription, new_id: ExecutionPlanId) {
+    fn insert_new_operation(&mut self, ops: &OperationRepr, new_id: ExecutionPlanId) {
         let key = self.operation_key(ops);
         let values = match self.mapping.get_mut(&key) {
             Some(val) => val,
@@ -113,7 +113,7 @@ impl ExecutionPlanIndex {
     }
 
     // Hash the value of the first operation in a list.
-    fn operation_key(&self, ops: &OperationDescription) -> u64 {
+    fn operation_key(&self, ops: &OperationRepr) -> u64 {
         let mut hasher = DefaultHasher::new();
         ops.hash(&mut hasher);
         hasher.finish()
@@ -123,8 +123,7 @@ impl ExecutionPlanIndex {
 #[cfg(test)]
 mod tests {
     use burn_ir::{
-        BinaryOperationDescription, NumericOperationDescription, ScalarOperationDescription,
-        TensorDescription, TensorId, TensorStatus,
+        BinaryOpRepr, NumericOperationRepr, ScalarOpRepr, TensorId, TensorRepr, TensorStatus,
     };
     use burn_tensor::DType;
 
@@ -221,23 +220,23 @@ mod tests {
         assert_eq!(found, vec![optimization_id_1]);
     }
 
-    fn ops_1() -> OperationDescription {
-        OperationDescription::NumericFloat(
+    fn ops_1() -> OperationRepr {
+        OperationRepr::NumericFloat(
             DType::F32,
-            NumericOperationDescription::Add(BinaryOperationDescription {
-                lhs: TensorDescription {
+            NumericOperationRepr::Add(BinaryOpRepr {
+                lhs: TensorRepr {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                rhs: TensorDescription {
+                rhs: TensorRepr {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                out: TensorDescription {
+                out: TensorRepr {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
@@ -247,18 +246,18 @@ mod tests {
         )
     }
 
-    fn ops_2() -> OperationDescription {
-        OperationDescription::NumericFloat(
+    fn ops_2() -> OperationRepr {
+        OperationRepr::NumericFloat(
             DType::F32,
-            NumericOperationDescription::AddScalar(ScalarOperationDescription {
-                lhs: TensorDescription {
+            NumericOperationRepr::AddScalar(ScalarOpRepr {
+                lhs: TensorRepr {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
                 rhs: 5.0,
-                out: TensorDescription {
+                out: TensorRepr {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,
@@ -268,23 +267,23 @@ mod tests {
         )
     }
 
-    fn ops_3() -> OperationDescription {
-        OperationDescription::NumericFloat(
+    fn ops_3() -> OperationRepr {
+        OperationRepr::NumericFloat(
             DType::F32,
-            NumericOperationDescription::Sub(BinaryOperationDescription {
-                lhs: TensorDescription {
+            NumericOperationRepr::Sub(BinaryOpRepr {
+                lhs: TensorRepr {
                     id: TensorId::new(0),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                rhs: TensorDescription {
+                rhs: TensorRepr {
                     id: TensorId::new(1),
                     shape: vec![32, 32],
                     status: TensorStatus::ReadOnly,
                     dtype: DType::F32,
                 },
-                out: TensorDescription {
+                out: TensorRepr {
                     id: TensorId::new(2),
                     shape: vec![32, 32],
                     status: TensorStatus::NotInit,

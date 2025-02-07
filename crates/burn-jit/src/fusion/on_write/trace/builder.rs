@@ -3,7 +3,7 @@ use super::super::{
     settings::FuseSettings,
 };
 use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
-use burn_ir::{TensorDescription, TensorId, TensorStatus};
+use burn_ir::{TensorId, TensorRepr, TensorStatus};
 use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::BTreeMap;
@@ -56,13 +56,13 @@ impl FuseOnWriteTraceBuilder {
         meta + inputs + outputs + scalar
     }
 
-    pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn output_unhandled(&mut self, tensor: &TensorRepr) -> Arg {
         let arg = self.output(tensor);
         self.outputs_unhandled.push(arg.clone());
         arg
     }
 
-    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn input_unhandled(&mut self, tensor: &TensorRepr) -> Arg {
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -77,7 +77,7 @@ impl FuseOnWriteTraceBuilder {
         arg
     }
 
-    pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn input(&mut self, tensor: &TensorRepr) -> Arg {
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -119,7 +119,7 @@ impl FuseOnWriteTraceBuilder {
         }
     }
 
-    pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn output(&mut self, tensor: &TensorRepr) -> Arg {
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -140,11 +140,7 @@ impl FuseOnWriteTraceBuilder {
         }
     }
 
-    pub fn input_reshaped(
-        &mut self,
-        tensor: &TensorDescription,
-        output: &TensorDescription,
-    ) -> Option<Arg> {
+    pub fn input_reshaped(&mut self, tensor: &TensorRepr, output: &TensorRepr) -> Option<Arg> {
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.

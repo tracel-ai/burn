@@ -1,7 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
-use burn_ir::{TensorDescription, TensorId, TensorStatus};
+use burn_ir::{TensorId, TensorRepr, TensorStatus};
 use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
@@ -41,13 +41,10 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 
     pub(crate) async fn into_data(self) -> TensorData {
-        self.client
-            .clone()
-            .read_tensor(self.into_description())
-            .await
+        self.client.clone().read_tensor(self.into_tensor_ir()).await
     }
 
-    pub(crate) fn into_description(mut self) -> TensorDescription {
+    pub(crate) fn into_tensor_ir(mut self) -> TensorRepr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -56,7 +53,7 @@ impl<C: RunnerClient> RouterTensor<C> {
             self.is_orphan = false;
         }
 
-        TensorDescription {
+        TensorRepr {
             status,
             shape: shape_out,
             id: *self.id.as_ref(),
@@ -64,8 +61,8 @@ impl<C: RunnerClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) fn to_description_out(&self) -> TensorDescription {
-        TensorDescription {
+    pub(crate) fn to_tensor_ir_out(&self) -> TensorRepr {
+        TensorRepr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
             id: *self.id.as_ref(),

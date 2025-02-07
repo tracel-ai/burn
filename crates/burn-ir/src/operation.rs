@@ -14,26 +14,22 @@ use burn_tensor::{
     DType, Distribution, Element,
 };
 
-use crate::TensorDescription;
+use crate::TensorRepr;
 
 /// Custom operation in fusion stream, declaring it's inputs and outputs.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct CustomOpDescription {
+pub struct CustomOpRepr {
     /// Unique identifier of the operation.
     pub id: String,
     /// Input tensors used in this the custom operation.
-    pub inputs: Vec<TensorDescription>,
+    pub inputs: Vec<TensorRepr>,
     /// Output tensors used in this the custom operation.
-    pub outputs: Vec<TensorDescription>,
+    pub outputs: Vec<TensorRepr>,
 }
 
-impl CustomOpDescription {
+impl CustomOpRepr {
     /// Create a new custom operation description.
-    pub fn new(
-        id: &'static str,
-        inputs: &[TensorDescription],
-        outputs: &[TensorDescription],
-    ) -> Self {
+    pub fn new(id: &'static str, inputs: &[TensorRepr], outputs: &[TensorRepr]) -> Self {
         Self {
             id: id.to_owned(),
             inputs: inputs.to_vec(),
@@ -44,7 +40,7 @@ impl CustomOpDescription {
     /// Consume the description, and get the in and output tensors.
     pub fn consume<const N_IN: usize, const N_OUT: usize>(
         self,
-    ) -> ([TensorDescription; N_IN], [TensorDescription; N_OUT]) {
+    ) -> ([TensorRepr; N_IN], [TensorRepr; N_OUT]) {
         (
             self.inputs.try_into().expect(
                 "Wrong number of inputs expected (expected {D}, is {}), check your implementation",
@@ -55,538 +51,540 @@ impl CustomOpDescription {
         )
     }
 
-    fn nodes(&self) -> Vec<&TensorDescription> {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         self.inputs.iter().chain(self.outputs.iter()).collect()
     }
 }
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum OperationDescription {
+pub enum OperationRepr {
     /// Basic operation on a float tensor.
-    BaseFloat(BaseOperationDescription),
+    BaseFloat(BaseOperationRepr),
     /// Basic operation on an int tensor.
-    BaseInt(BaseOperationDescription),
+    BaseInt(BaseOperationRepr),
     /// Basic operation on a bool tensor.
-    BaseBool(BaseOperationDescription),
+    BaseBool(BaseOperationRepr),
     /// Numeric operation on a float tensor.
-    NumericFloat(DType, NumericOperationDescription<f32>),
+    NumericFloat(DType, NumericOperationRepr<f32>),
     /// Numeric operation on an int tensor.
-    NumericInt(DType, NumericOperationDescription<i32>),
+    NumericInt(DType, NumericOperationRepr<i32>),
     /// Operation specific to a bool tensor.
-    Bool(BoolOperationDescription),
+    Bool(BoolOperationRepr),
     /// Operation specific to an int tensor.
-    Int(IntOperationDescription),
+    Int(IntOperationRepr),
     /// Operation specific to a float tensor.
-    Float(DType, FloatOperationDescription),
+    Float(DType, FloatOperationRepr),
     /// Module operation.
-    Module(ModuleOperationDescription),
+    Module(ModuleOperationRepr),
     /// Initialize operation.
-    Init(InitOperationDescription),
+    Init(InitOperationRepr),
     /// A custom operation.
-    Custom(CustomOpDescription),
+    Custom(CustomOpRepr),
 }
+
+// TODO: ops should all have OpRepr suffix (not OperationRepr, and not Repr only)
 
 /// Operation description specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum FloatOperationDescription {
+pub enum FloatOperationRepr {
     /// Operation corresponding to [exp](crate::ops::FloatTensorOps::float_exp).
-    Exp(UnaryOperationDescription),
+    Exp(UnaryOpRepr),
     /// Operation corresponding to [log](crate::ops::FloatTensorOps::float_log).
-    Log(UnaryOperationDescription),
+    Log(UnaryOpRepr),
     /// Operation corresponding to [log1p](crate::ops::FloatTensorOps::float_log1p).
-    Log1p(UnaryOperationDescription),
+    Log1p(UnaryOpRepr),
     /// Operation corresponding to [erf](crate::ops::FloatTensorOps::float_erf).
-    Erf(UnaryOperationDescription),
+    Erf(UnaryOpRepr),
     /// Operation corresponding to [powf_scalar](crate::ops::FloatTensorOps::float_powf_scalar).
-    PowfScalar(ScalarOperationDescription<f32>),
+    PowfScalar(ScalarOpRepr<f32>),
     /// Operation corresponding to [sqrt](crate::ops::FloatTensorOps::float_sqrt).
-    Sqrt(UnaryOperationDescription),
+    Sqrt(UnaryOpRepr),
     /// Operation corresponding to [cos](crate::ops::FloatTensorOps::float_cos).
-    Cos(UnaryOperationDescription),
+    Cos(UnaryOpRepr),
     /// Operation corresponding to [sin](crate::ops::FloatTensorOps::float_sin).
-    Sin(UnaryOperationDescription),
+    Sin(UnaryOpRepr),
     /// Operation corresponding to [tanh](crate::ops::FloatTensorOps::float_tanh).
-    Tanh(UnaryOperationDescription),
+    Tanh(UnaryOpRepr),
     /// Operation corresponding to [round](crate::ops::FloatTensorOps::float_round).
-    Round(UnaryOperationDescription),
+    Round(UnaryOpRepr),
     /// Operation corresponding to [floor](crate::ops::FloatTensorOps::float_floor).
-    Floor(UnaryOperationDescription),
+    Floor(UnaryOpRepr),
     /// Operation corresponding to [ceil](crate::ops::FloatTensorOps::float_ceil).
-    Ceil(UnaryOperationDescription),
+    Ceil(UnaryOpRepr),
     /// Operation corresponding to [into_int](crate::ops::FloatTensorOps::float_into_int).
-    IntoInt(UnaryOperationDescription),
+    IntoInt(UnaryOpRepr),
     /// Operation corresponding to [matmul](crate::ops::FloatTensorOps::float_matmul).
-    Matmul(BinaryOperationDescription),
+    Matmul(BinaryOpRepr),
     /// Operation corresponding to [random](crate::ops::FloatTensorOps::float_random).
-    Random(RandomOperationDescription),
+    Random(RandomOpRepr),
     /// Operation corresponding to [recip](crate::ops::FloatTensorOps::float_recip).
-    Recip(UnaryOperationDescription),
+    Recip(UnaryOpRepr),
     /// Operation corresponding to [quantize](crate::ops::QTensorOps::quantize).
-    Quantize(QuantizeOperationDescription),
+    Quantize(QuantizeOpRepr),
     /// Operation corresponding to [dequantize](crate::ops::QTensorOps::dequantize).
-    Dequantize(DequantizeOperationDescription),
+    Dequantize(DequantizeOpRepr),
 }
 
 /// Operation description specific to module.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum ModuleOperationDescription {
+pub enum ModuleOperationRepr {
     /// Operation corresponding to [embedding](crate::ops::ModuleOps::embedding).
-    Embedding(EmbeddingDescription),
+    Embedding(EmbeddingOpRepr),
     /// Operation corresponding to [embedding_backward](crate::ops::ModuleOps::embedding_backward).
-    EmbeddingBackward(EmbeddingBackwardDescription),
+    EmbeddingBackward(EmbeddingBackwardOpRepr),
     /// Operation corresponding to [conv1d](crate::ops::ModuleOps::conv1d).
-    Conv1d(Conv1dDescription),
+    Conv1d(Conv1dOpRepr),
     /// Operation corresponding to [conv2d](crate::ops::ModuleOps::conv2d).
-    Conv2d(Conv2dDescription),
+    Conv2d(Conv2dOpRepr),
     /// Operation corresponding to [conv3d](crate::ops::ModuleOps::conv3d).
-    Conv3d(Conv3dDescription),
+    Conv3d(Conv3dOpRepr),
     /// Operation corresponding to [deform_conv2d](crate::ops::ModuleOps::deform_conv2d)
-    DeformableConv2d(Box<DeformConv2dDescription>),
+    DeformableConv2d(Box<DeformConv2dOpRepr>),
     /// Operation corresponding to [deform_conv2d_backward](crate::ops::ModuleOps::deform_conv2d_backward)
-    DeformableConv2dBackward(Box<DeformConv2dBackwardDescription>),
+    DeformableConv2dBackward(Box<DeformConv2dBackwardOpRepr>),
     /// Operation corresponding to [conv transpose 1d](crate::ops::ModuleOps::conv_transpose1d).
-    ConvTranspose1d(ConvTranspose1dDescription),
+    ConvTranspose1d(ConvTranspose1dOpRepr),
     /// Operation corresponding to [conv transpose 2d](crate::ops::ModuleOps::conv_transpose2d).
-    ConvTranspose2d(ConvTranspose2dDescription),
+    ConvTranspose2d(ConvTranspose2dOpRepr),
     /// Operation corresponding to [conv transpose 3d](crate::ops::ModuleOps::conv_transpose3d).
-    ConvTranspose3d(ConvTranspose3dDescription),
+    ConvTranspose3d(ConvTranspose3dOpRepr),
     /// Operation corresponding to [avg pool 1d](crate::ops::ModuleOps::avg_pool1d).
-    AvgPool1d(AvgPool1dDescription),
+    AvgPool1d(AvgPool1dOpRepr),
     /// Operation corresponding to [avg pool 2d](crate::ops::ModuleOps::avg_pool2d).
-    AvgPool2d(AvgPool2dDescription),
+    AvgPool2d(AvgPool2dOpRepr),
     /// Operation corresponding to
     /// [avg pool 1d backward](crate::ops::ModuleOps::avg_pool1d_backward).
-    AvgPool1dBackward(AvgPool1dBackwardDescription),
+    AvgPool1dBackward(AvgPool1dBackwardOpRepr),
     /// Operation corresponding to
     /// [avg pool 2d backward](crate::ops::ModuleOps::avg_pool2d_backward).
-    AvgPool2dBackward(AvgPool2dBackwardDescription),
+    AvgPool2dBackward(AvgPool2dBackwardOpRepr),
     /// Operation corresponding to
     /// [adaptive avg pool 1d](crate::ops::ModuleOps::adaptive_avg_pool1d).
-    AdaptiveAvgPool1d(AdaptiveAvgPool1dDescription),
+    AdaptiveAvgPool1d(AdaptiveAvgPool1dOpRepr),
     /// Operation corresponding to
     /// [adaptive avg pool 2d](crate::ops::ModuleOps::adaptive_avg_pool2d).
-    AdaptiveAvgPool2d(AdaptiveAvgPool2dDescription),
+    AdaptiveAvgPool2d(AdaptiveAvgPool2dOpRepr),
     /// Operation corresponding to
     /// [adaptive avg pool 1d backward](crate::ops::ModuleOps::adaptive_avg_pool1d_backward).
-    AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardDescription),
+    AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardOpRepr),
     /// Operation corresponding to
     /// [adaptive avg pool 2d backward](crate::ops::ModuleOps::adaptive_avg_pool2d_backward).
-    AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardDescription),
+    AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpRepr),
     /// Operation corresponding to
     /// [max pool 1d](crate::ops::ModuleOps::max_pool1d).
-    MaxPool1d(MaxPool1dDescription),
+    MaxPool1d(MaxPool1dOpRepr),
     /// Operation corresponding to
     /// [max pool 1d with indices](crate::ops::ModuleOps::max_pool1d_with_indices).
-    MaxPool1dWithIndices(MaxPool1dWithIndicesDescription),
+    MaxPool1dWithIndices(MaxPool1dWithIndicesOpRepr),
     /// Operation corresponding to
     /// [max pool 1d with indices backward](crate::ops::ModuleOps::max_pool1d_with_indices_backward).
-    MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardDescription),
+    MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardOpRepr),
     /// Operation corresponding to
     /// [max pool 2d](crate::ops::ModuleOps::max_pool1d).
-    MaxPool2d(MaxPool2dDescription),
+    MaxPool2d(MaxPool2dOpRepr),
     /// Operation corresponding to
     /// [max pool 2d with indices](crate::ops::ModuleOps::max_pool2d_with_indices).
-    MaxPool2dWithIndices(MaxPool2dWithIndicesDescription),
+    MaxPool2dWithIndices(MaxPool2dWithIndicesOpRepr),
     /// Operation corresponding to
     /// [max pool 2d with indices backward](crate::ops::ModuleOps::max_pool2d_with_indices_backward).
-    MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardDescription),
+    MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardOpRepr),
     /// Operation corresponding to [interpolate](crate::ops::ModuleOps::interpolate).
-    Interpolate(InterpolateDescription),
+    Interpolate(InterpolateOpRepr),
     /// Operation corresponding to [interpolate backward](crate::ops::ModuleOps::interpolate_backward).
-    InterpolateBackward(InterpolateBackwardDescription),
+    InterpolateBackward(InterpolateBackwardRepr),
 }
 
 /// Basic operations that can be done on any tensor type.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum BaseOperationDescription {
+pub enum BaseOperationRepr {
     /// Operation corresponding to:
     ///
     /// Float => [to device](crate::ops::FloatTensorOps::float_to_device).
     /// Int => [to device](crate::ops::IntTensorOps::int_to_device).
     /// Bool => [to device](crate::ops::BoolTensorOps::bool_to_device).
-    ToDevice(TensorDescription),
+    ToDevice(TensorRepr),
     /// Operation corresponding to:
     ///
     /// Float => [reshape](crate::ops::FloatTensorOps::float_reshape).
     /// Int => [reshape](crate::ops::IntTensorOps::int_reshape).
     /// Bool => [reshape](crate::ops::BoolTensorOps::bool_reshape).
-    Reshape(UnaryOperationDescription),
+    Reshape(UnaryOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [swap_dims](crate::ops::FloatTensorOps::float_swap_dims).
     /// Int => [swap_dims](crate::ops::IntTensorOps::int_swap_dims).
     /// Bool => [swap_dims](crate::ops::BoolTensorOps::bool_swap_dims).
-    SwapDims(SwapDimsDescription),
+    SwapDims(SwapDimsOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [permute](crate::ops::FloatTensorOps::float_permute).
     /// Int => [permute](crate::ops::IntTensorOps::int_permute).
     /// Bool => [permute](crate::ops::BoolTensorOps::bool_permute).
-    Permute(PermuteOperationDescription),
+    Permute(PermuteOpRepr),
 
     /// Operation corresponding to:
     /// Float => [flip](crate::ops::FloatTensorOps::float_flip).
     /// Int => [flip](crate::ops::IntTensorOps::int_flip).
     /// Bool => [flip](crate::ops::BoolTensorOps::bool_flip).
-    Flip(FlipOperationDescription),
+    Flip(FlipOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [expand](crate::ops::FloatTensorOps::float_expand).
     /// Int => [expand](crate::ops::IntTensorOps::int_expand).
     /// Bool => [expand](crate::ops::BoolTensorOps::bool_expand).
-    Expand(ExpandOperationDescription),
+    Expand(ExpandOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [slice](crate::ops::FloatTensorOps::float_slice).
     /// Int => [slice](crate::ops::IntTensorOps::int_slice).
     /// Bool => [slice](crate::ops::BoolTensorOps::bool_slice).
-    Slice(SliceOperationDescription),
+    Slice(SliceOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [slice assign](crate::ops::FloatTensorOps::float_slice_assign).
     /// Int => [slice assign](crate::ops::IntTensorOps::int_slice_assign).
     /// Bool => [slice assign](crate::ops::BoolTensorOps::bool_slice_assign).
-    SliceAssign(SliceAssignOperationDescription),
+    SliceAssign(SliceAssignOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [equal](crate::ops::FloatTensorOps::float_equal).
     /// Int => [equal](crate::ops::IntTensorOps::int_equal).
     /// Bool => [equal](crate::ops::BoolTensorOps::bool_equal).
-    Equal(BinaryOperationDescription),
+    Equal(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [repeat dim](crate::ops::FloatTensorOps::float_repeat_dim).
     /// Int => [repeat dim](crate::ops::IntTensorOps::int_repeat_dim).
     /// Bool => [repeat dim](crate::ops::BoolTensorOps::bool_repeat_dim).
-    RepeatDim(RepeatDimOperationDescription),
+    RepeatDim(RepeatDimOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [cat](crate::ops::FloatTensorOps::float_cat).
     /// Int => [cat](crate::ops::IntTensorOps::int_cat).
     /// Bool => [cat](crate::ops::BoolTensorOps::bool_cat).
-    Cat(CatOperationDescription),
+    Cat(CatOpRepr),
     /// Cast operation, no direct operation and should be supported by fusion backend.
-    Cast(UnaryOperationDescription),
+    Cast(UnaryOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [empty](crate::ops::FloatTensorOps::float_empty).
     /// Int => [empty](crate::ops::IntTensorOps::int_empty).
     /// Bool => [empty](crate::ops::BoolTensorOps::bool_empty).
-    Empty(TensorDescription),
+    Empty(TensorRepr),
 }
 
 /// Numeric operations on int and float tensors.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum NumericOperationDescription<E> {
+pub enum NumericOperationRepr<E> {
     /// Operation corresponding to:
     ///
     /// Float => [add](crate::ops::FloatTensorOps::float_add).
     /// Int => [add](crate::ops::IntTensorOps::int_add).
-    Add(BinaryOperationDescription),
+    Add(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [add scalar](crate::ops::FloatTensorOps::float_add_scalar).
     /// Int => [add scalar](crate::ops::IntTensorOps::int_add_scalar).
-    AddScalar(ScalarOperationDescription<E>),
+    AddScalar(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [sub](crate::ops::FloatTensorOps::float_sub).
     /// Int => [sub](crate::ops::IntTensorOps::int_sub).
-    Sub(BinaryOperationDescription),
+    Sub(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [sub scalar](crate::ops::FloatTensorOps::float_sub_scalar).
     /// Int => [sub scalar](crate::ops::IntTensorOps::int_sub_scalar).
-    SubScalar(ScalarOperationDescription<E>),
+    SubScalar(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [div](crate::ops::FloatTensorOps::float_div).
     /// Int => [div](crate::ops::IntTensorOps::int_div).
-    Div(BinaryOperationDescription),
+    Div(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [div scalar](crate::ops::FloatTensorOps::float_div_scalar).
     /// Int => [div scalar](crate::ops::IntTensorOps::int_div_scalar).
-    DivScalar(ScalarOperationDescription<E>),
+    DivScalar(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [rem](crate::ops::FloatTensorOps::float_remainder).
     /// Int => [rem](crate::ops::IntTensorOps::int_remainder).
-    Rem(BinaryOperationDescription),
+    Rem(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [rem scalar](crate::ops::FloatTensorOps::float_remainder_scalar).
     /// Int => [rem scalar](crate::ops::IntTensorOps::int_remainder_scalar).
-    RemScalar(ScalarOperationDescription<E>),
+    RemScalar(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [mul](crate::ops::FloatTensorOps::float_mul).
     /// Int => [mul](crate::ops::IntTensorOps::int_mul).
-    Mul(BinaryOperationDescription),
+    Mul(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [mul scalar](crate::ops::FloatTensorOps::float_mul_scalar).
     /// Int => [mul scalar](crate::ops::IntTensorOps::int_mul_scalar).
-    MulScalar(ScalarOperationDescription<E>),
+    MulScalar(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [abs](crate::ops::FloatTensorOps::float_abs).
     /// Int => [abs](crate::ops::IntTensorOps::int_abs).
-    Abs(UnaryOperationDescription),
+    Abs(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [ones](crate::ops::FloatTensorOps::float_ones).
     /// Int => [ones](crate::ops::IntTensorOps::int_ones).
-    Ones(TensorDescription),
+    Ones(TensorRepr),
     /// Operation corresponding to:
     ///
     /// Float => [zeros](crate::ops::FloatTensorOps::float_zeros).
     /// Int => [zeros](crate::ops::IntTensorOps::int_zeros).
-    Zeros(TensorDescription),
+    Zeros(TensorRepr),
     /// Operation corresponding to:
     ///
     /// Float => [full](crate::ops::FloatTensorOps::float_full).
     /// Int => [full](crate::ops::IntTensorOps::int_full).
-    Full((TensorDescription, E)),
+    Full((TensorRepr, E)),
     /// Operation corresponding to:
     ///
     /// Float => [gather](crate::ops::FloatTensorOps::float_gather).
     /// Int => [gather](crate::ops::IntTensorOps::int_gather).
-    Gather(GatherOperationDescription),
+    Gather(GatherOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [scatter](crate::ops::FloatTensorOps::float_scatter).
     /// Int => [scatter](crate::ops::IntTensorOps::int_scatter).
-    Scatter(ScatterOperationDescription),
+    Scatter(ScatterOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [select](crate::ops::FloatTensorOps::float_select).
     /// Int => [select](crate::ops::IntTensorOps::int_select).
-    Select(SelectOperationDescription),
+    Select(SelectOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [select assign](crate::ops::FloatTensorOps::float_select_assign).
     /// Int => [select assign](crate::ops::IntTensorOps::int_select_assign).
-    SelectAssign(SelectAssignOperationDescription),
+    SelectAssign(SelectAssignOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [mask where](crate::ops::FloatTensorOps::float_mask_where).
     /// Int => [mask where](crate::ops::IntTensorOps::int_mask_where).
-    MaskWhere(MaskWhereOperationDescription),
+    MaskWhere(MaskWhereOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [mask fill](crate::ops::FloatTensorOps::float_mask_fill).
     /// Int => [mask fill](crate::ops::IntTensorOps::int_mask_fill).
-    MaskFill(MaskFillOperationDescription<E>),
+    MaskFill(MaskFillOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [mean dim](crate::ops::FloatTensorOps::float_mean_dim).
     /// Int => [mean dim](crate::ops::IntTensorOps::int_mean_dim).
-    MeanDim(ScalarOperationDescription<usize>),
+    MeanDim(ScalarOpRepr<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [mean](crate::ops::FloatTensorOps::float_mean).
     /// Int => [mean](crate::ops::IntTensorOps::int_mean).
-    Mean(UnaryOperationDescription),
+    Mean(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [sum](crate::ops::FloatTensorOps::float_sum).
     /// Int => [sum](crate::ops::IntTensorOps::int_sum).
-    Sum(UnaryOperationDescription),
+    Sum(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [sum dim](crate::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](crate::ops::IntTensorOps::int_sum_dim).
-    SumDim(ScalarOperationDescription<usize>),
+    SumDim(ScalarOpRepr<usize>),
 
     /// Operation corresponding to:
     ///
     /// Float => [prod](crate::ops::FloatTensorOps::float_prod).
     /// Int => [prod](crate::ops::IntTensorOps::int_prod).
-    Prod(UnaryOperationDescription),
+    Prod(UnaryOpRepr),
 
     /// Operation corresponding to:
     ///
     /// Float => [prod dim](crate::ops::FloatTensorOps::float_prod_dim).
     /// Int => [prod dim](crate::ops::IntTensorOps::int_prod_dim).
-    ProdDim(ScalarOperationDescription<usize>),
+    ProdDim(ScalarOpRepr<usize>),
 
     /// Operation corresponding to:
     ///
     /// Float => [equal elem](crate::ops::FloatTensorOps::float_equal_elem).
     /// Int => [equal elem](crate::ops::IntTensorOps::int_equal_elem).
-    EqualElem(ScalarOperationDescription<E>),
+    EqualElem(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [greater](crate::ops::FloatTensorOps::float_greater).
     /// Int => [greater](crate::ops::IntTensorOps::int_greater).
-    Greater(BinaryOperationDescription),
+    Greater(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [greater elem](crate::ops::FloatTensorOps::float_greater_elem).
     /// Int => [greater elem](crate::ops::IntTensorOps::int_greater_elem).
-    GreaterElem(ScalarOperationDescription<E>),
+    GreaterElem(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [greater equal](crate::ops::FloatTensorOps::float_greater_elem).
     /// Int => [greater elem](crate::ops::IntTensorOps::int_greater_elem).
-    GreaterEqual(BinaryOperationDescription),
+    GreaterEqual(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [greater equal elem](crate::ops::FloatTensorOps::float_greater_equal_elem).
     /// Int => [greater equal elem](crate::ops::IntTensorOps::int_greater_equal_elem).
-    GreaterEqualElem(ScalarOperationDescription<E>),
+    GreaterEqualElem(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [lower](crate::ops::FloatTensorOps::float_lower).
     /// Int => [lower](crate::ops::IntTensorOps::int_lower).
-    Lower(BinaryOperationDescription),
+    Lower(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [lower elem](crate::ops::FloatTensorOps::float_lower_elem).
     /// Int => [lower elem](crate::ops::IntTensorOps::int_lower_elem).
-    LowerElem(ScalarOperationDescription<E>),
+    LowerElem(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [lower equal](crate::ops::FloatTensorOps::float_lower_equal).
     /// Int => [lower equal](crate::ops::IntTensorOps::int_lower_equal).
-    LowerEqual(BinaryOperationDescription),
+    LowerEqual(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [lower equal elem](crate::ops::FloatTensorOps::float_lower_equal_elem).
     /// Int => [lower equal elem](crate::ops::IntTensorOps::int_lower_equal_elem).
-    LowerEqualElem(ScalarOperationDescription<E>),
+    LowerEqualElem(ScalarOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Float => [argmax](crate::ops::FloatTensorOps::float_argmax).
     /// Int => [argmax](crate::ops::IntTensorOps::int_argmax).
-    ArgMax(ScalarOperationDescription<usize>),
+    ArgMax(ScalarOpRepr<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [argmin](crate::ops::FloatTensorOps::float_argmin).
     /// Int => [argmin](crate::ops::IntTensorOps::int_argmin).
-    ArgMin(ScalarOperationDescription<usize>),
+    ArgMin(ScalarOpRepr<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [max](crate::ops::FloatTensorOps::float_max).
     /// Int => [max](crate::ops::IntTensorOps::int_max).
-    Max(UnaryOperationDescription),
+    Max(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [max dim with indices](crate::ops::FloatTensorOps::float_max_dim_with_indices).
     /// Int => [max dim with indices](crate::ops::IntTensorOps::int_max_dim_with_indices).
-    MaxDimWithIndices(ReduceDimWithIndicesDescription),
+    MaxDimWithIndices(ReduceDimWithIndicesOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [min dim with indices](crate::ops::FloatTensorOps::float_min_dim_with_indices).
     /// Int => [min dim with indices](crate::ops::IntTensorOps::int_min_dim_with_indices).
-    MinDimWithIndices(ReduceDimWithIndicesDescription),
+    MinDimWithIndices(ReduceDimWithIndicesOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [min](crate::ops::FloatTensorOps::float_min).
     /// Int => [min](crate::ops::IntTensorOps::int_min).
-    Min(UnaryOperationDescription),
+    Min(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [max dim](crate::ops::FloatTensorOps::float_max_dim).
     /// Int => [max dim](crate::ops::IntTensorOps::int_max_dim).
-    MaxDim(ScalarOperationDescription<usize>),
+    MaxDim(ScalarOpRepr<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [min dim](crate::ops::FloatTensorOps::float_min_dim).
     /// Int => [min dim](crate::ops::IntTensorOps::int_min_dim).
-    MinDim(ScalarOperationDescription<usize>),
+    MinDim(ScalarOpRepr<usize>),
     /// Operation corresponding to:
     ///
     /// Float => [clamp](crate::ops::FloatTensorOps::float_clamp).
     /// Int => [clamp](crate::ops::IntTensorOps::int_clamp).
-    Clamp(ClampOperationDescription<E>),
+    Clamp(ClampOpRepr<E>),
     /// Operation corresponding to:
     ///
     /// Int => [random](crate::ops::IntTensorOps::int_random).
-    IntRandom(RandomOperationDescription),
+    IntRandom(RandomOpRepr),
     /// Operation corresponding to:
     ///
     /// Float => [powf](crate::ops::FloatTensorOps::float_powf).
     /// Int => [powf](crate::ops::IntTensorOps::int_powf).
-    Powf(BinaryOperationDescription),
+    Powf(BinaryOpRepr),
 }
 
 /// Operation description specific to an int tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum IntOperationDescription {
+pub enum IntOperationRepr {
     /// Operation corresponding to [into float](crate::ops::IntTensorOps::int_into_float).
-    IntoFloat(UnaryOperationDescription),
+    IntoFloat(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise and](crate::ops::IntTensorOps::bitwise_and).
-    BitwiseAnd(BinaryOperationDescription),
+    BitwiseAnd(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise and scalar](crate::ops::IntTensorOps::bitwise_and_scalar).
-    BitwiseAndScalar(ScalarOperationDescription<i32>),
+    BitwiseAndScalar(ScalarOpRepr<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or](crate::ops::IntTensorOps::bitwise_or).
-    BitwiseOr(BinaryOperationDescription),
+    BitwiseOr(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise or scalar](crate::ops::IntTensorOps::bitwise_or_scalar).
-    BitwiseOrScalar(ScalarOperationDescription<i32>),
+    BitwiseOrScalar(ScalarOpRepr<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor](crate::ops::IntTensorOps::bitwise_xor).
-    BitwiseXor(BinaryOperationDescription),
+    BitwiseXor(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise xor scalar](crate::ops::IntTensorOps::bitwise_xor_scalar).
-    BitwiseXorScalar(ScalarOperationDescription<i32>),
+    BitwiseXorScalar(ScalarOpRepr<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise not](crate::ops::IntTensorOps::bitwise_not).
-    BitwiseNot(UnaryOperationDescription),
+    BitwiseNot(UnaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise left shift](crate::ops::IntTensorOps::bitwise_left_shift).
-    BitwiseLeftShift(BinaryOperationDescription),
+    BitwiseLeftShift(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise left shift scalar](crate::ops::IntTensorOps::bitwise_left_shift_scalar).
-    BitwiseLeftShiftScalar(ScalarOperationDescription<i32>),
+    BitwiseLeftShiftScalar(ScalarOpRepr<i32>),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift](crate::ops::IntTensorOps::bitwise_right_shift).
-    BitwiseRightShift(BinaryOperationDescription),
+    BitwiseRightShift(BinaryOpRepr),
     /// Operation corresponding to:
     ///
     /// Int => [bitwise right shift scalar](crate::ops::IntTensorOps::bitwise_right_shift_scalar).
-    BitwiseRightShiftScalar(ScalarOperationDescription<i32>),
+    BitwiseRightShiftScalar(ScalarOpRepr<i32>),
 }
 
 /// Operation description specific to a bool tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub enum BoolOperationDescription {
+pub enum BoolOperationRepr {
     /// Operation corresponding to [into float](crate::ops::BoolTensorOps::bool_into_float).
-    IntoFloat(UnaryOperationDescription),
+    IntoFloat(UnaryOpRepr),
     /// Operation corresponding to [into int](crate::ops::BoolTensorOps::bool_into_int).
-    IntoInt(UnaryOperationDescription),
+    IntoInt(UnaryOpRepr),
     /// Operation corresponding to [not](crate::ops::BoolTensorOps::bool_not).
-    Not(UnaryOperationDescription),
+    Not(UnaryOpRepr),
 }
 
 /// Swap dim operation description.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct SwapDimsDescription {
+pub struct SwapDimsOpRepr {
     /// Input tensor description.
-    pub input: TensorDescription,
+    pub input: TensorRepr,
     /// Output tensor description.
-    pub out: TensorDescription,
+    pub out: TensorRepr,
     /// The first dim to swap.
     pub dim1: usize,
     /// The second dim to swap.
@@ -595,41 +593,41 @@ pub struct SwapDimsDescription {
 
 /// Permute operation description.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct PermuteOperationDescription {
+pub struct PermuteOpRepr {
     /// Input tensor description.
-    pub input: TensorDescription,
+    pub input: TensorRepr,
     /// Output tensor description.
-    pub out: TensorDescription,
+    pub out: TensorRepr,
     /// The new order of the dimensions.
     pub axes: Vec<usize>,
 }
 
 /// Expand operation description.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ExpandOperationDescription {
+pub struct ExpandOpRepr {
     /// Input tensor description.
-    pub input: TensorDescription,
+    pub input: TensorRepr,
     /// Output tensor description.
-    pub out: TensorDescription,
+    pub out: TensorRepr,
     /// The new shape.
     pub shape: Vec<usize>,
 }
 
 /// Flip operation description.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct FlipOperationDescription {
+pub struct FlipOpRepr {
     /// Input tensor description.
-    pub input: TensorDescription,
+    pub input: TensorRepr,
     /// Output tensor description.
-    pub out: TensorDescription,
+    pub out: TensorRepr,
     /// The dimensions to flip.
     pub axes: Vec<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct RandomOperationDescription {
-    pub out: TensorDescription,
+pub struct RandomOpRepr {
+    pub out: TensorRepr,
     pub distribution: Distribution,
 }
 
@@ -637,258 +635,251 @@ pub struct RandomOperationDescription {
 /// Declares a tensor has been initialized.
 ///
 /// It is necessary to register for proper orphan detection and avoid memory leak.
-pub struct InitOperationDescription {
+pub struct InitOperationRepr {
     /// The initialized tensor.
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ExpandDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
+pub struct BinaryOpRepr {
+    pub lhs: TensorRepr,
+    pub rhs: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct BinaryOperationDescription {
-    pub lhs: TensorDescription,
-    pub rhs: TensorDescription,
-    pub out: TensorDescription,
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub struct UnaryOperationDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
+pub struct UnaryOpRepr {
+    pub input: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ScalarOperationDescription<E> {
-    pub lhs: TensorDescription,
+pub struct ScalarOpRepr<E> {
+    pub lhs: TensorRepr,
     pub rhs: E,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct GatherOperationDescription {
-    pub tensor: TensorDescription,
+pub struct GatherOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
-    pub indices: TensorDescription,
-    pub out: TensorDescription,
+    pub indices: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ScatterOperationDescription {
-    pub tensor: TensorDescription,
+pub struct ScatterOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
-    pub indices: TensorDescription,
-    pub value: TensorDescription,
-    pub out: TensorDescription,
+    pub indices: TensorRepr,
+    pub value: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct SelectOperationDescription {
-    pub tensor: TensorDescription,
+pub struct SelectOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
-    pub indices: TensorDescription,
-    pub out: TensorDescription,
+    pub indices: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct SelectAssignOperationDescription {
-    pub tensor: TensorDescription,
+pub struct SelectAssignOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
-    pub indices: TensorDescription,
-    pub value: TensorDescription,
-    pub out: TensorDescription,
+    pub indices: TensorRepr,
+    pub value: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct SliceOperationDescription {
-    pub tensor: TensorDescription,
+pub struct SliceOpRepr {
+    pub tensor: TensorRepr,
     pub ranges: Vec<Range<usize>>,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct SliceAssignOperationDescription {
-    pub tensor: TensorDescription,
+pub struct SliceAssignOpRepr {
+    pub tensor: TensorRepr,
     pub ranges: Vec<Range<usize>>,
-    pub value: TensorDescription,
-    pub out: TensorDescription,
+    pub value: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaskWhereOperationDescription {
-    pub tensor: TensorDescription,
-    pub mask: TensorDescription,
-    pub value: TensorDescription,
-    pub out: TensorDescription,
+pub struct MaskWhereOpRepr {
+    pub tensor: TensorRepr,
+    pub mask: TensorRepr,
+    pub value: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaskFillOperationDescription<E> {
-    pub tensor: TensorDescription,
-    pub mask: TensorDescription,
+pub struct MaskFillOpRepr<E> {
+    pub tensor: TensorRepr,
+    pub mask: TensorRepr,
     pub value: E,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ClampOperationDescription<E> {
-    pub tensor: TensorDescription,
+pub struct ClampOpRepr<E> {
+    pub tensor: TensorRepr,
     pub min: E,
     pub max: E,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct RepeatDimOperationDescription {
-    pub tensor: TensorDescription,
+pub struct RepeatDimOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
     pub times: usize,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct CatOperationDescription {
-    pub tensors: Vec<TensorDescription>,
+pub struct CatOpRepr {
+    pub tensors: Vec<TensorRepr>,
     pub dim: usize,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ReduceDimWithIndicesDescription {
-    pub tensor: TensorDescription,
+pub struct ReduceDimWithIndicesOpRepr {
+    pub tensor: TensorRepr,
     pub dim: usize,
-    pub out: TensorDescription,
-    pub out_indices: TensorDescription,
+    pub out: TensorRepr,
+    pub out_indices: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct EmbeddingDescription {
-    pub weights: TensorDescription,
-    pub indices: TensorDescription,
-    pub out: TensorDescription,
+pub struct EmbeddingOpRepr {
+    pub weights: TensorRepr,
+    pub indices: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct EmbeddingBackwardDescription {
-    pub weights: TensorDescription,
-    pub out_grad: TensorDescription,
-    pub indices: TensorDescription,
-    pub out: TensorDescription,
+pub struct EmbeddingBackwardOpRepr {
+    pub weights: TensorRepr,
+    pub out_grad: TensorRepr,
+    pub indices: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv1dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: Conv1dOptionsDescription,
-    pub out: TensorDescription,
+pub struct Conv1dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: Conv1dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv2dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: Conv2dOptionsDescription,
-    pub out: TensorDescription,
+pub struct Conv2dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: Conv2dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct DeformConv2dDescription {
-    pub x: TensorDescription,
-    pub offset: TensorDescription,
-    pub weight: TensorDescription,
-    pub mask: Option<TensorDescription>,
-    pub bias: Option<TensorDescription>,
-    pub options: DeformableConv2dOptionsDescription,
-    pub out: TensorDescription,
+pub struct DeformConv2dOpRepr {
+    pub x: TensorRepr,
+    pub offset: TensorRepr,
+    pub weight: TensorRepr,
+    pub mask: Option<TensorRepr>,
+    pub bias: Option<TensorRepr>,
+    pub options: DeformableConv2dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct DeformConv2dBackwardDescription {
-    pub x: TensorDescription,
-    pub offset: TensorDescription,
-    pub weight: TensorDescription,
-    pub mask: Option<TensorDescription>,
-    pub bias: Option<TensorDescription>,
-    pub out_grad: TensorDescription,
-    pub options: DeformableConv2dOptionsDescription,
-    pub input_grad: TensorDescription,
-    pub offset_grad: TensorDescription,
-    pub weight_grad: TensorDescription,
-    pub mask_grad: Option<TensorDescription>,
-    pub bias_grad: Option<TensorDescription>,
+pub struct DeformConv2dBackwardOpRepr {
+    pub x: TensorRepr,
+    pub offset: TensorRepr,
+    pub weight: TensorRepr,
+    pub mask: Option<TensorRepr>,
+    pub bias: Option<TensorRepr>,
+    pub out_grad: TensorRepr,
+    pub options: DeformableConv2dOptionsRepr,
+    pub input_grad: TensorRepr,
+    pub offset_grad: TensorRepr,
+    pub weight_grad: TensorRepr,
+    pub mask_grad: Option<TensorRepr>,
+    pub bias_grad: Option<TensorRepr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv3dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: Conv3dOptionsDescription,
-    pub out: TensorDescription,
+pub struct Conv3dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: Conv3dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose1dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: ConvTranspose1dOptionsDescription,
-    pub out: TensorDescription,
+pub struct ConvTranspose1dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: ConvTranspose1dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose2dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: ConvTranspose2dOptionsDescription,
-    pub out: TensorDescription,
+pub struct ConvTranspose2dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: ConvTranspose2dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose3dDescription {
-    pub x: TensorDescription,
-    pub weight: TensorDescription,
-    pub bias: Option<TensorDescription>,
-    pub options: ConvTranspose3dOptionsDescription,
-    pub out: TensorDescription,
+pub struct ConvTranspose3dOpRepr {
+    pub x: TensorRepr,
+    pub weight: TensorRepr,
+    pub bias: Option<TensorRepr>,
+    pub options: ConvTranspose3dOptionsRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv1dOptionsDescription {
+pub struct Conv1dOptionsRepr {
     pub stride: [usize; 1],
     pub padding: [usize; 1],
     pub dilation: [usize; 1],
@@ -897,7 +888,7 @@ pub struct Conv1dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv2dOptionsDescription {
+pub struct Conv2dOptionsRepr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
@@ -906,7 +897,7 @@ pub struct Conv2dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct DeformableConv2dOptionsDescription {
+pub struct DeformableConv2dOptionsRepr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
@@ -916,7 +907,7 @@ pub struct DeformableConv2dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct Conv3dOptionsDescription {
+pub struct Conv3dOptionsRepr {
     pub stride: [usize; 3],
     pub padding: [usize; 3],
     pub dilation: [usize; 3],
@@ -925,7 +916,7 @@ pub struct Conv3dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose1dOptionsDescription {
+pub struct ConvTranspose1dOptionsRepr {
     pub stride: [usize; 1],
     pub padding: [usize; 1],
     pub padding_out: [usize; 1],
@@ -935,7 +926,7 @@ pub struct ConvTranspose1dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose2dOptionsDescription {
+pub struct ConvTranspose2dOptionsRepr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub padding_out: [usize; 2],
@@ -945,7 +936,7 @@ pub struct ConvTranspose2dOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct ConvTranspose3dOptionsDescription {
+pub struct ConvTranspose3dOptionsRepr {
     pub stride: [usize; 3],
     pub padding: [usize; 3],
     pub padding_out: [usize; 3],
@@ -955,30 +946,30 @@ pub struct ConvTranspose3dOptionsDescription {
 
 /// Quantization parameters description.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct QuantizationParametersDescription {
+pub struct QuantizationParametersRepr {
     /// The scaling factor.
-    pub scale: TensorDescription,
+    pub scale: TensorRepr,
     /// The zero-point offset.
-    pub offset: Option<TensorDescription>,
+    pub offset: Option<TensorRepr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct QuantizeOperationDescription {
-    pub tensor: TensorDescription,
-    pub qparams: QuantizationParametersDescription,
+pub struct QuantizeOpRepr {
+    pub tensor: TensorRepr,
+    pub qparams: QuantizationParametersRepr,
     pub scheme: QuantizationScheme,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct DequantizeOperationDescription {
-    pub input: TensorDescription,
-    pub out: TensorDescription,
+pub struct DequantizeOpRepr {
+    pub input: TensorRepr,
+    pub out: TensorRepr,
 }
 
-impl From<ConvOptions<1>> for Conv1dOptionsDescription {
+impl From<ConvOptions<1>> for Conv1dOptionsRepr {
     fn from(value: ConvOptions<1>) -> Self {
         Self {
             stride: value.stride,
@@ -989,7 +980,7 @@ impl From<ConvOptions<1>> for Conv1dOptionsDescription {
     }
 }
 
-impl From<ConvOptions<2>> for Conv2dOptionsDescription {
+impl From<ConvOptions<2>> for Conv2dOptionsRepr {
     fn from(value: ConvOptions<2>) -> Self {
         Self {
             stride: value.stride,
@@ -1000,7 +991,7 @@ impl From<ConvOptions<2>> for Conv2dOptionsDescription {
     }
 }
 
-impl From<ConvOptions<3>> for Conv3dOptionsDescription {
+impl From<ConvOptions<3>> for Conv3dOptionsRepr {
     fn from(value: ConvOptions<3>) -> Self {
         Self {
             stride: value.stride,
@@ -1011,7 +1002,7 @@ impl From<ConvOptions<3>> for Conv3dOptionsDescription {
     }
 }
 
-impl From<DeformConvOptions<2>> for DeformableConv2dOptionsDescription {
+impl From<DeformConvOptions<2>> for DeformableConv2dOptionsRepr {
     fn from(value: DeformConvOptions<2>) -> Self {
         Self {
             stride: value.stride,
@@ -1023,7 +1014,7 @@ impl From<DeformConvOptions<2>> for DeformableConv2dOptionsDescription {
     }
 }
 
-impl From<ConvTransposeOptions<1>> for ConvTranspose1dOptionsDescription {
+impl From<ConvTransposeOptions<1>> for ConvTranspose1dOptionsRepr {
     fn from(value: ConvTransposeOptions<1>) -> Self {
         Self {
             stride: value.stride,
@@ -1035,7 +1026,7 @@ impl From<ConvTransposeOptions<1>> for ConvTranspose1dOptionsDescription {
     }
 }
 
-impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
+impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsRepr {
     fn from(value: ConvTransposeOptions<2>) -> Self {
         Self {
             stride: value.stride,
@@ -1047,7 +1038,7 @@ impl From<ConvTransposeOptions<2>> for ConvTranspose2dOptionsDescription {
     }
 }
 
-impl From<ConvTransposeOptions<3>> for ConvTranspose3dOptionsDescription {
+impl From<ConvTransposeOptions<3>> for ConvTranspose3dOptionsRepr {
     fn from(value: ConvTransposeOptions<3>) -> Self {
         Self {
             stride: value.stride,
@@ -1059,8 +1050,8 @@ impl From<ConvTransposeOptions<3>> for ConvTranspose3dOptionsDescription {
     }
 }
 
-impl From<Conv1dOptionsDescription> for ConvOptions<1> {
-    fn from(val: Conv1dOptionsDescription) -> Self {
+impl From<Conv1dOptionsRepr> for ConvOptions<1> {
+    fn from(val: Conv1dOptionsRepr) -> Self {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1070,8 +1061,8 @@ impl From<Conv1dOptionsDescription> for ConvOptions<1> {
     }
 }
 
-impl From<Conv2dOptionsDescription> for ConvOptions<2> {
-    fn from(val: Conv2dOptionsDescription) -> Self {
+impl From<Conv2dOptionsRepr> for ConvOptions<2> {
+    fn from(val: Conv2dOptionsRepr) -> Self {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1081,8 +1072,8 @@ impl From<Conv2dOptionsDescription> for ConvOptions<2> {
     }
 }
 
-impl From<Conv3dOptionsDescription> for ConvOptions<3> {
-    fn from(val: Conv3dOptionsDescription) -> Self {
+impl From<Conv3dOptionsRepr> for ConvOptions<3> {
+    fn from(val: Conv3dOptionsRepr) -> Self {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1092,8 +1083,8 @@ impl From<Conv3dOptionsDescription> for ConvOptions<3> {
     }
 }
 
-impl From<DeformableConv2dOptionsDescription> for DeformConvOptions<2> {
-    fn from(value: DeformableConv2dOptionsDescription) -> Self {
+impl From<DeformableConv2dOptionsRepr> for DeformConvOptions<2> {
+    fn from(value: DeformableConv2dOptionsRepr) -> Self {
         DeformConvOptions {
             stride: value.stride,
             padding: value.padding,
@@ -1104,8 +1095,8 @@ impl From<DeformableConv2dOptionsDescription> for DeformConvOptions<2> {
     }
 }
 
-impl From<ConvTranspose1dOptionsDescription> for ConvTransposeOptions<1> {
-    fn from(val: ConvTranspose1dOptionsDescription) -> Self {
+impl From<ConvTranspose1dOptionsRepr> for ConvTransposeOptions<1> {
+    fn from(val: ConvTranspose1dOptionsRepr) -> Self {
         ConvTransposeOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1116,8 +1107,8 @@ impl From<ConvTranspose1dOptionsDescription> for ConvTransposeOptions<1> {
     }
 }
 
-impl From<ConvTranspose2dOptionsDescription> for ConvTransposeOptions<2> {
-    fn from(val: ConvTranspose2dOptionsDescription) -> Self {
+impl From<ConvTranspose2dOptionsRepr> for ConvTransposeOptions<2> {
+    fn from(val: ConvTranspose2dOptionsRepr) -> Self {
         ConvTransposeOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1128,8 +1119,8 @@ impl From<ConvTranspose2dOptionsDescription> for ConvTransposeOptions<2> {
     }
 }
 
-impl From<ConvTranspose3dOptionsDescription> for ConvTransposeOptions<3> {
-    fn from(val: ConvTranspose3dOptionsDescription) -> Self {
+impl From<ConvTranspose3dOptionsRepr> for ConvTransposeOptions<3> {
+    fn from(val: ConvTranspose3dOptionsRepr) -> Self {
         ConvTransposeOptions {
             stride: val.stride,
             padding: val.padding,
@@ -1142,157 +1133,157 @@ impl From<ConvTranspose3dOptionsDescription> for ConvTransposeOptions<3> {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AvgPool1dDescription {
-    pub x: TensorDescription,
+pub struct AvgPool1dOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
     pub count_include_pad: bool,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AvgPool2dDescription {
-    pub x: TensorDescription,
+pub struct AvgPool2dOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub count_include_pad: bool,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AvgPool1dBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
+pub struct AvgPool1dBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
     pub count_include_pad: bool,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AvgPool2dBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
+pub struct AvgPool2dBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub count_include_pad: bool,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AdaptiveAvgPool1dDescription {
-    pub x: TensorDescription,
+pub struct AdaptiveAvgPool1dOpRepr {
+    pub x: TensorRepr,
     pub output_size: usize,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AdaptiveAvgPool2dDescription {
-    pub x: TensorDescription,
+pub struct AdaptiveAvgPool2dOpRepr {
+    pub x: TensorRepr,
     pub output_size: [usize; 2],
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AdaptiveAvgPool1dBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
-    pub out: TensorDescription,
+pub struct AdaptiveAvgPool1dBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct AdaptiveAvgPool2dBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
-    pub out: TensorDescription,
+pub struct AdaptiveAvgPool2dBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaxPool1dDescription {
-    pub x: TensorDescription,
+pub struct MaxPool1dOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaxPool1dWithIndicesDescription {
-    pub x: TensorDescription,
+pub struct MaxPool1dWithIndicesOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
-    pub out: TensorDescription,
-    pub out_indices: TensorDescription,
+    pub out: TensorRepr,
+    pub out_indices: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaxPool1dWithIndicesBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
-    pub indices: TensorDescription,
+pub struct MaxPool1dWithIndicesBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
+    pub indices: TensorRepr,
     pub kernel_size: usize,
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaxPool2dDescription {
-    pub x: TensorDescription,
+pub struct MaxPool2dOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[allow(missing_docs)]
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-pub struct MaxPool2dWithIndicesDescription {
-    pub x: TensorDescription,
+pub struct MaxPool2dWithIndicesOpRepr {
+    pub x: TensorRepr,
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
-    pub out: TensorDescription,
-    pub out_indices: TensorDescription,
+    pub out: TensorRepr,
+    pub out_indices: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct MaxPool2dWithIndicesBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
-    pub indices: TensorDescription,
+pub struct MaxPool2dWithIndicesBackwardOpRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
+    pub indices: TensorRepr,
     pub kernel_size: [usize; 2],
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
-    pub out: TensorDescription,
+    pub out: TensorRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub enum InterpolateModeDescription {
+pub enum InterpolateModeRepr {
     Nearest,
     Bilinear,
     Bicubic,
@@ -1300,38 +1291,38 @@ pub enum InterpolateModeDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct InterpolateOptionsDescription {
-    pub mode: InterpolateModeDescription,
+pub struct InterpolateOptionsRepr {
+    pub mode: InterpolateModeRepr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct InterpolateDescription {
-    pub x: TensorDescription,
+pub struct InterpolateOpRepr {
+    pub x: TensorRepr,
     pub output_size: [usize; 2],
-    pub options: InterpolateOptionsDescription,
-    pub out: TensorDescription,
+    pub options: InterpolateOptionsRepr,
+    pub out: TensorRepr,
 }
 
-impl From<InterpolateModeDescription> for InterpolateMode {
-    fn from(val: InterpolateModeDescription) -> Self {
+impl From<InterpolateModeRepr> for InterpolateMode {
+    fn from(val: InterpolateModeRepr) -> Self {
         match val {
-            InterpolateModeDescription::Nearest => Self::Nearest,
-            InterpolateModeDescription::Bilinear => Self::Bilinear,
-            InterpolateModeDescription::Bicubic => Self::Bicubic,
+            InterpolateModeRepr::Nearest => Self::Nearest,
+            InterpolateModeRepr::Bilinear => Self::Bilinear,
+            InterpolateModeRepr::Bicubic => Self::Bicubic,
         }
     }
 }
 
-impl From<InterpolateOptionsDescription> for InterpolateOptions {
-    fn from(val: InterpolateOptionsDescription) -> Self {
+impl From<InterpolateOptionsRepr> for InterpolateOptions {
+    fn from(val: InterpolateOptionsRepr) -> Self {
         Self {
             mode: val.mode.into(),
         }
     }
 }
 
-impl From<InterpolateMode> for InterpolateModeDescription {
+impl From<InterpolateMode> for InterpolateModeRepr {
     fn from(val: InterpolateMode) -> Self {
         match val {
             InterpolateMode::Nearest => Self::Nearest,
@@ -1341,7 +1332,7 @@ impl From<InterpolateMode> for InterpolateModeDescription {
     }
 }
 
-impl From<InterpolateOptions> for InterpolateOptionsDescription {
+impl From<InterpolateOptions> for InterpolateOptionsRepr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
@@ -1351,428 +1342,426 @@ impl From<InterpolateOptions> for InterpolateOptionsDescription {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
-pub struct InterpolateBackwardDescription {
-    pub x: TensorDescription,
-    pub grad: TensorDescription,
+pub struct InterpolateBackwardRepr {
+    pub x: TensorRepr,
+    pub grad: TensorRepr,
     pub output_size: [usize; 2],
-    pub options: InterpolateOptionsDescription,
-    pub out: TensorDescription,
+    pub options: InterpolateOptionsRepr,
+    pub out: TensorRepr,
 }
 
-impl OperationDescription {
+impl OperationRepr {
     /// Cleanup the remaining tensor handles that have not been used.
-    pub fn nodes(&self) -> Vec<&TensorDescription> {
+    pub fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            OperationDescription::BaseFloat(ops) => ops.nodes(),
-            OperationDescription::BaseInt(ops) => ops.nodes(),
-            OperationDescription::BaseBool(ops) => ops.nodes(),
-            OperationDescription::NumericFloat(_dtype, ops) => ops.nodes(),
-            OperationDescription::NumericInt(_dtype, ops) => ops.nodes(),
-            OperationDescription::Bool(ops) => ops.nodes(),
-            OperationDescription::Int(ops) => ops.nodes(),
-            OperationDescription::Float(_dtype, ops) => ops.nodes(),
-            OperationDescription::Module(ops) => ops.nodes(),
-            OperationDescription::Init(ops) => ops.nodes(),
-            OperationDescription::Custom(ops) => ops.nodes(),
+            OperationRepr::BaseFloat(ops) => ops.nodes(),
+            OperationRepr::BaseInt(ops) => ops.nodes(),
+            OperationRepr::BaseBool(ops) => ops.nodes(),
+            OperationRepr::NumericFloat(_dtype, ops) => ops.nodes(),
+            OperationRepr::NumericInt(_dtype, ops) => ops.nodes(),
+            OperationRepr::Bool(ops) => ops.nodes(),
+            OperationRepr::Int(ops) => ops.nodes(),
+            OperationRepr::Float(_dtype, ops) => ops.nodes(),
+            OperationRepr::Module(ops) => ops.nodes(),
+            OperationRepr::Init(ops) => ops.nodes(),
+            OperationRepr::Custom(ops) => ops.nodes(),
         }
     }
 }
 
-impl BaseOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl BaseOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            BaseOperationDescription::ToDevice(desc) => vec![desc],
-            BaseOperationDescription::Reshape(desc) => {
+            BaseOperationRepr::ToDevice(desc) => vec![desc],
+            BaseOperationRepr::Reshape(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            BaseOperationDescription::SwapDims(desc) => {
+            BaseOperationRepr::SwapDims(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            BaseOperationDescription::Permute(desc) => {
-                vec![&desc.input, &desc.out]
-            }
-
-            BaseOperationDescription::Expand(desc) => {
+            BaseOperationRepr::Permute(desc) => {
                 vec![&desc.input, &desc.out]
             }
 
-            BaseOperationDescription::Flip(desc) => {
+            BaseOperationRepr::Expand(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            BaseOperationDescription::Slice(desc) => {
+
+            BaseOperationRepr::Flip(desc) => {
+                vec![&desc.input, &desc.out]
+            }
+            BaseOperationRepr::Slice(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
-            BaseOperationDescription::SliceAssign(desc) => {
+            BaseOperationRepr::SliceAssign(desc) => {
                 vec![&desc.tensor, &desc.value, &desc.out]
             }
-            BaseOperationDescription::Equal(desc) => {
+            BaseOperationRepr::Equal(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            BaseOperationDescription::RepeatDim(desc) => {
+            BaseOperationRepr::RepeatDim(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
-            BaseOperationDescription::Cat(desc) => desc.tensors.iter().collect(),
-            BaseOperationDescription::Cast(desc) => vec![&desc.input, &desc.out],
-            BaseOperationDescription::Empty(desc) => vec![desc],
+            BaseOperationRepr::Cat(desc) => desc.tensors.iter().collect(),
+            BaseOperationRepr::Cast(desc) => vec![&desc.input, &desc.out],
+            BaseOperationRepr::Empty(desc) => vec![desc],
         }
     }
 }
 
-impl<E: Element> NumericOperationDescription<E> {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl<E: Element> NumericOperationRepr<E> {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            NumericOperationDescription::Add(desc) => {
+            NumericOperationRepr::Add(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::AddScalar(desc) => {
+            NumericOperationRepr::AddScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Sub(desc) => {
+            NumericOperationRepr::Sub(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::SubScalar(desc) => {
+            NumericOperationRepr::SubScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Mul(desc) => {
+            NumericOperationRepr::Mul(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::MulScalar(desc) => {
+            NumericOperationRepr::MulScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Div(desc) => {
+            NumericOperationRepr::Div(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::DivScalar(desc) => {
+            NumericOperationRepr::DivScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Rem(desc) => {
+            NumericOperationRepr::Rem(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::RemScalar(desc) => {
+            NumericOperationRepr::RemScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Ones(desc) => vec![desc],
-            NumericOperationDescription::Gather(desc) => {
+            NumericOperationRepr::Ones(desc) => vec![desc],
+            NumericOperationRepr::Gather(desc) => {
                 vec![&desc.tensor, &desc.indices, &desc.out]
             }
-            NumericOperationDescription::Scatter(desc) => {
+            NumericOperationRepr::Scatter(desc) => {
                 vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
-            NumericOperationDescription::Select(desc) => {
+            NumericOperationRepr::Select(desc) => {
                 vec![&desc.tensor, &desc.indices, &desc.out]
             }
-            NumericOperationDescription::SelectAssign(desc) => {
+            NumericOperationRepr::SelectAssign(desc) => {
                 vec![&desc.tensor, &desc.indices, &desc.value, &desc.out]
             }
-            NumericOperationDescription::MaskWhere(desc) => {
+            NumericOperationRepr::MaskWhere(desc) => {
                 vec![&desc.tensor, &desc.mask, &desc.value, &desc.out]
             }
-            NumericOperationDescription::MaskFill(desc) => {
+            NumericOperationRepr::MaskFill(desc) => {
                 vec![&desc.tensor, &desc.mask, &desc.out]
             }
-            NumericOperationDescription::EqualElem(desc) => {
+            NumericOperationRepr::EqualElem(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::GreaterElem(desc) => {
+            NumericOperationRepr::GreaterElem(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::GreaterEqualElem(desc) => {
+            NumericOperationRepr::GreaterEqualElem(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::LowerElem(desc) => {
+            NumericOperationRepr::LowerElem(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::LowerEqualElem(desc) => {
+            NumericOperationRepr::LowerEqualElem(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Greater(desc) => {
+            NumericOperationRepr::Greater(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::GreaterEqual(desc) => {
+            NumericOperationRepr::GreaterEqual(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::Lower(desc) => {
+            NumericOperationRepr::Lower(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::LowerEqual(desc) => {
+            NumericOperationRepr::LowerEqual(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            NumericOperationDescription::ArgMax(desc) => {
+            NumericOperationRepr::ArgMax(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::ArgMin(desc) => {
+            NumericOperationRepr::ArgMin(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Clamp(desc) => {
+            NumericOperationRepr::Clamp(desc) => {
                 vec![&desc.tensor, &desc.out]
             }
-            NumericOperationDescription::Abs(desc) => {
+            NumericOperationRepr::Abs(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::Zeros(desc) => vec![desc],
-            NumericOperationDescription::Full(desc) => vec![&desc.0],
-            NumericOperationDescription::MeanDim(desc) => {
+            NumericOperationRepr::Zeros(desc) => vec![desc],
+            NumericOperationRepr::Full(desc) => vec![&desc.0],
+            NumericOperationRepr::MeanDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Mean(desc) => {
+            NumericOperationRepr::Mean(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::Sum(desc) => {
+            NumericOperationRepr::Sum(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::SumDim(desc) => {
+            NumericOperationRepr::SumDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Prod(desc) => {
+            NumericOperationRepr::Prod(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::ProdDim(desc) => {
+            NumericOperationRepr::ProdDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::Max(desc) => {
+            NumericOperationRepr::Max(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::MaxDimWithIndices(desc) => {
+            NumericOperationRepr::MaxDimWithIndices(desc) => {
                 vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
-            NumericOperationDescription::MinDimWithIndices(desc) => {
+            NumericOperationRepr::MinDimWithIndices(desc) => {
                 vec![&desc.tensor, &desc.out_indices, &desc.out]
             }
-            NumericOperationDescription::Min(desc) => {
+            NumericOperationRepr::Min(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            NumericOperationDescription::MaxDim(desc) => {
+            NumericOperationRepr::MaxDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::MinDim(desc) => {
+            NumericOperationRepr::MinDim(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            NumericOperationDescription::IntRandom(desc) => {
+            NumericOperationRepr::IntRandom(desc) => {
                 vec![&desc.out]
             }
-            NumericOperationDescription::Powf(desc) => {
+            NumericOperationRepr::Powf(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
         }
     }
 }
 
-impl FloatOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl FloatOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            FloatOperationDescription::Matmul(desc) => {
+            FloatOperationRepr::Matmul(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            FloatOperationDescription::Random(desc) => vec![&desc.out],
-            FloatOperationDescription::Exp(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Log(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Log1p(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Erf(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Recip(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::PowfScalar(desc) => vec![&desc.lhs, &desc.out],
-            FloatOperationDescription::Sqrt(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Cos(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Sin(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Tanh(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Round(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Floor(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Ceil(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
-            FloatOperationDescription::Quantize(desc) => {
+            FloatOperationRepr::Random(desc) => vec![&desc.out],
+            FloatOperationRepr::Exp(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Log(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Log1p(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Erf(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Recip(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::PowfScalar(desc) => vec![&desc.lhs, &desc.out],
+            FloatOperationRepr::Sqrt(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Cos(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Sin(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Tanh(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Round(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Floor(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Ceil(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::IntoInt(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Quantize(desc) => {
                 if let Some(offset) = &desc.qparams.offset {
                     vec![&desc.tensor, &desc.qparams.scale, &offset, &desc.out]
                 } else {
                     vec![&desc.tensor, &desc.qparams.scale, &desc.out]
                 }
             }
-            FloatOperationDescription::Dequantize(desc) => vec![&desc.input, &desc.out],
+            FloatOperationRepr::Dequantize(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
-impl IntOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl IntOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            IntOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
-            IntOperationDescription::BitwiseAnd(desc) => {
+            IntOperationRepr::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            IntOperationRepr::BitwiseAnd(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            IntOperationDescription::BitwiseAndScalar(desc) => {
+            IntOperationRepr::BitwiseAndScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            IntOperationDescription::BitwiseOr(desc) => {
+            IntOperationRepr::BitwiseOr(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            IntOperationDescription::BitwiseOrScalar(desc) => {
+            IntOperationRepr::BitwiseOrScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            IntOperationDescription::BitwiseXor(desc) => {
+            IntOperationRepr::BitwiseXor(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            IntOperationDescription::BitwiseXorScalar(desc) => {
+            IntOperationRepr::BitwiseXorScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            IntOperationDescription::BitwiseNot(desc) => {
+            IntOperationRepr::BitwiseNot(desc) => {
                 vec![&desc.input, &desc.out]
             }
-            IntOperationDescription::BitwiseLeftShift(desc) => {
+            IntOperationRepr::BitwiseLeftShift(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            IntOperationDescription::BitwiseLeftShiftScalar(desc) => {
+            IntOperationRepr::BitwiseLeftShiftScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
-            IntOperationDescription::BitwiseRightShift(desc) => {
+            IntOperationRepr::BitwiseRightShift(desc) => {
                 vec![&desc.lhs, &desc.rhs, &desc.out]
             }
-            IntOperationDescription::BitwiseRightShiftScalar(desc) => {
+            IntOperationRepr::BitwiseRightShiftScalar(desc) => {
                 vec![&desc.lhs, &desc.out]
             }
         }
     }
 }
 
-impl BoolOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl BoolOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            BoolOperationDescription::IntoFloat(desc) => vec![&desc.input, &desc.out],
-            BoolOperationDescription::IntoInt(desc) => vec![&desc.input, &desc.out],
-            BoolOperationDescription::Not(desc) => vec![&desc.input, &desc.out],
+            BoolOperationRepr::IntoFloat(desc) => vec![&desc.input, &desc.out],
+            BoolOperationRepr::IntoInt(desc) => vec![&desc.input, &desc.out],
+            BoolOperationRepr::Not(desc) => vec![&desc.input, &desc.out],
         }
     }
 }
 
-impl ModuleOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl ModuleOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         match self {
-            ModuleOperationDescription::Embedding(desc) => {
+            ModuleOperationRepr::Embedding(desc) => {
                 vec![&desc.weights, &desc.indices, &desc.out]
             }
-            ModuleOperationDescription::EmbeddingBackward(desc) => {
+            ModuleOperationRepr::EmbeddingBackward(desc) => {
                 vec![&desc.weights, &desc.out_grad, &desc.indices, &desc.out]
             }
-            ModuleOperationDescription::Conv1d(desc) => {
+            ModuleOperationRepr::Conv1d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::Conv2d(desc) => {
+            ModuleOperationRepr::Conv2d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::Conv3d(desc) => {
+            ModuleOperationRepr::Conv3d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::DeformableConv2d(desc) => match (&desc.mask, &desc.bias) {
+            ModuleOperationRepr::DeformableConv2d(desc) => match (&desc.mask, &desc.bias) {
                 (Some(mask), Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias],
                 (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
                 (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
                 (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
             },
-            ModuleOperationDescription::DeformableConv2dBackward(desc) => {
-                match (&desc.mask, &desc.bias) {
-                    (Some(mask), Some(bias)) => {
-                        vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias]
-                    }
-                    (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
-                    (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
-                    (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
+            ModuleOperationRepr::DeformableConv2dBackward(desc) => match (&desc.mask, &desc.bias) {
+                (Some(mask), Some(bias)) => {
+                    vec![&desc.x, &desc.offset, &desc.weight, &mask, &bias]
                 }
-            }
-            ModuleOperationDescription::ConvTranspose1d(desc) => {
+                (Some(mask), None) => vec![&desc.x, &desc.offset, &desc.weight, &mask],
+                (None, Some(bias)) => vec![&desc.x, &desc.offset, &desc.weight, &bias],
+                (None, None) => vec![&desc.x, &desc.offset, &desc.weight],
+            },
+            ModuleOperationRepr::ConvTranspose1d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::ConvTranspose2d(desc) => {
+            ModuleOperationRepr::ConvTranspose2d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::ConvTranspose3d(desc) => {
+            ModuleOperationRepr::ConvTranspose3d(desc) => {
                 if let Some(bias) = &desc.bias {
                     vec![&desc.x, &desc.weight, &bias, &desc.out]
                 } else {
                     vec![&desc.x, &desc.weight, &desc.out]
                 }
             }
-            ModuleOperationDescription::AvgPool1d(desc) => {
+            ModuleOperationRepr::AvgPool1d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::AvgPool2d(desc) => {
+            ModuleOperationRepr::AvgPool2d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::AvgPool1dBackward(desc) => {
+            ModuleOperationRepr::AvgPool1dBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
-            ModuleOperationDescription::AvgPool2dBackward(desc) => {
+            ModuleOperationRepr::AvgPool2dBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
-            ModuleOperationDescription::AdaptiveAvgPool1d(desc) => {
+            ModuleOperationRepr::AdaptiveAvgPool1d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::AdaptiveAvgPool2d(desc) => {
+            ModuleOperationRepr::AdaptiveAvgPool2d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::AdaptiveAvgPool1dBackward(desc) => {
+            ModuleOperationRepr::AdaptiveAvgPool1dBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
-            ModuleOperationDescription::AdaptiveAvgPool2dBackward(desc) => {
+            ModuleOperationRepr::AdaptiveAvgPool2dBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
-            ModuleOperationDescription::MaxPool1d(desc) => {
+            ModuleOperationRepr::MaxPool1d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::MaxPool1dWithIndices(desc) => {
+            ModuleOperationRepr::MaxPool1dWithIndices(desc) => {
                 vec![&desc.x, &desc.out, &desc.out_indices]
             }
-            ModuleOperationDescription::MaxPool1dWithIndicesBackward(desc) => {
+            ModuleOperationRepr::MaxPool1dWithIndicesBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
-            ModuleOperationDescription::MaxPool2d(desc) => {
+            ModuleOperationRepr::MaxPool2d(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::MaxPool2dWithIndices(desc) => {
+            ModuleOperationRepr::MaxPool2dWithIndices(desc) => {
                 vec![&desc.x, &desc.out, &desc.out_indices]
             }
-            ModuleOperationDescription::MaxPool2dWithIndicesBackward(desc) => {
+            ModuleOperationRepr::MaxPool2dWithIndicesBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.indices, &desc.grad]
             }
-            ModuleOperationDescription::Interpolate(desc) => {
+            ModuleOperationRepr::Interpolate(desc) => {
                 vec![&desc.x, &desc.out]
             }
-            ModuleOperationDescription::InterpolateBackward(desc) => {
+            ModuleOperationRepr::InterpolateBackward(desc) => {
                 vec![&desc.x, &desc.out, &desc.grad]
             }
         }
     }
 }
 
-impl core::hash::Hash for InitOperationDescription {
+impl core::hash::Hash for InitOperationRepr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
     }
 }
 
-impl InitOperationDescription {
-    fn nodes(&self) -> Vec<&TensorDescription> {
+impl InitOperationRepr {
+    fn nodes(&self) -> Vec<&TensorRepr> {
         vec![&self.out]
     }
 }
 
-impl core::hash::Hash for RandomOperationDescription {
+impl core::hash::Hash for RandomOpRepr {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.out.hash(state);
 
@@ -1785,14 +1774,14 @@ impl core::hash::Hash for RandomOperationDescription {
     }
 }
 
-impl<E> core::hash::Hash for ScalarOperationDescription<E> {
+impl<E> core::hash::Hash for ScalarOpRepr<E> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.lhs.hash(state);
         self.out.hash(state);
     }
 }
 
-impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
+impl<E> core::hash::Hash for MaskFillOpRepr<E> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.mask.hash(state);
@@ -1800,62 +1789,62 @@ impl<E> core::hash::Hash for MaskFillOperationDescription<E> {
     }
 }
 
-impl<E> core::hash::Hash for ClampOperationDescription<E> {
+impl<E> core::hash::Hash for ClampOpRepr<E> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.tensor.hash(state);
         self.out.hash(state);
     }
 }
 
-impl<E> core::hash::Hash for NumericOperationDescription<E> {
+impl<E> core::hash::Hash for NumericOperationRepr<E> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         match self {
-            NumericOperationDescription::Add(desc) => desc.hash(state),
-            NumericOperationDescription::AddScalar(desc) => desc.hash(state),
-            NumericOperationDescription::Sub(desc) => desc.hash(state),
-            NumericOperationDescription::SubScalar(desc) => desc.hash(state),
-            NumericOperationDescription::Div(desc) => desc.hash(state),
-            NumericOperationDescription::DivScalar(desc) => desc.hash(state),
-            NumericOperationDescription::Rem(desc) => desc.hash(state),
-            NumericOperationDescription::RemScalar(desc) => desc.hash(state),
-            NumericOperationDescription::Mul(desc) => desc.hash(state),
-            NumericOperationDescription::MulScalar(desc) => desc.hash(state),
-            NumericOperationDescription::Abs(desc) => desc.hash(state),
-            NumericOperationDescription::Ones(desc) => desc.hash(state),
-            NumericOperationDescription::Zeros(desc) => desc.hash(state),
-            NumericOperationDescription::Full(desc) => desc.0.hash(state),
-            NumericOperationDescription::Gather(desc) => desc.hash(state),
-            NumericOperationDescription::Scatter(desc) => desc.hash(state),
-            NumericOperationDescription::Select(desc) => desc.hash(state),
-            NumericOperationDescription::SelectAssign(desc) => desc.hash(state),
-            NumericOperationDescription::MaskWhere(desc) => desc.hash(state),
-            NumericOperationDescription::MaskFill(desc) => desc.hash(state),
-            NumericOperationDescription::MeanDim(desc) => desc.hash(state),
-            NumericOperationDescription::Mean(desc) => desc.hash(state),
-            NumericOperationDescription::Sum(desc) => desc.hash(state),
-            NumericOperationDescription::SumDim(desc) => desc.hash(state),
-            NumericOperationDescription::Prod(desc) => desc.hash(state),
-            NumericOperationDescription::ProdDim(desc) => desc.hash(state),
-            NumericOperationDescription::EqualElem(desc) => desc.hash(state),
-            NumericOperationDescription::Greater(desc) => desc.hash(state),
-            NumericOperationDescription::GreaterElem(desc) => desc.hash(state),
-            NumericOperationDescription::GreaterEqual(desc) => desc.hash(state),
-            NumericOperationDescription::GreaterEqualElem(desc) => desc.hash(state),
-            NumericOperationDescription::Lower(desc) => desc.hash(state),
-            NumericOperationDescription::LowerElem(desc) => desc.hash(state),
-            NumericOperationDescription::LowerEqual(desc) => desc.hash(state),
-            NumericOperationDescription::LowerEqualElem(desc) => desc.hash(state),
-            NumericOperationDescription::ArgMax(desc) => desc.hash(state),
-            NumericOperationDescription::ArgMin(desc) => desc.hash(state),
-            NumericOperationDescription::Max(desc) => desc.hash(state),
-            NumericOperationDescription::MaxDimWithIndices(desc) => desc.hash(state),
-            NumericOperationDescription::MinDimWithIndices(desc) => desc.hash(state),
-            NumericOperationDescription::Min(desc) => desc.hash(state),
-            NumericOperationDescription::MaxDim(desc) => desc.hash(state),
-            NumericOperationDescription::MinDim(desc) => desc.hash(state),
-            NumericOperationDescription::Clamp(desc) => desc.hash(state),
-            NumericOperationDescription::IntRandom(desc) => desc.hash(state),
-            NumericOperationDescription::Powf(desc) => desc.hash(state),
+            NumericOperationRepr::Add(desc) => desc.hash(state),
+            NumericOperationRepr::AddScalar(desc) => desc.hash(state),
+            NumericOperationRepr::Sub(desc) => desc.hash(state),
+            NumericOperationRepr::SubScalar(desc) => desc.hash(state),
+            NumericOperationRepr::Div(desc) => desc.hash(state),
+            NumericOperationRepr::DivScalar(desc) => desc.hash(state),
+            NumericOperationRepr::Rem(desc) => desc.hash(state),
+            NumericOperationRepr::RemScalar(desc) => desc.hash(state),
+            NumericOperationRepr::Mul(desc) => desc.hash(state),
+            NumericOperationRepr::MulScalar(desc) => desc.hash(state),
+            NumericOperationRepr::Abs(desc) => desc.hash(state),
+            NumericOperationRepr::Ones(desc) => desc.hash(state),
+            NumericOperationRepr::Zeros(desc) => desc.hash(state),
+            NumericOperationRepr::Full(desc) => desc.0.hash(state),
+            NumericOperationRepr::Gather(desc) => desc.hash(state),
+            NumericOperationRepr::Scatter(desc) => desc.hash(state),
+            NumericOperationRepr::Select(desc) => desc.hash(state),
+            NumericOperationRepr::SelectAssign(desc) => desc.hash(state),
+            NumericOperationRepr::MaskWhere(desc) => desc.hash(state),
+            NumericOperationRepr::MaskFill(desc) => desc.hash(state),
+            NumericOperationRepr::MeanDim(desc) => desc.hash(state),
+            NumericOperationRepr::Mean(desc) => desc.hash(state),
+            NumericOperationRepr::Sum(desc) => desc.hash(state),
+            NumericOperationRepr::SumDim(desc) => desc.hash(state),
+            NumericOperationRepr::Prod(desc) => desc.hash(state),
+            NumericOperationRepr::ProdDim(desc) => desc.hash(state),
+            NumericOperationRepr::EqualElem(desc) => desc.hash(state),
+            NumericOperationRepr::Greater(desc) => desc.hash(state),
+            NumericOperationRepr::GreaterElem(desc) => desc.hash(state),
+            NumericOperationRepr::GreaterEqual(desc) => desc.hash(state),
+            NumericOperationRepr::GreaterEqualElem(desc) => desc.hash(state),
+            NumericOperationRepr::Lower(desc) => desc.hash(state),
+            NumericOperationRepr::LowerElem(desc) => desc.hash(state),
+            NumericOperationRepr::LowerEqual(desc) => desc.hash(state),
+            NumericOperationRepr::LowerEqualElem(desc) => desc.hash(state),
+            NumericOperationRepr::ArgMax(desc) => desc.hash(state),
+            NumericOperationRepr::ArgMin(desc) => desc.hash(state),
+            NumericOperationRepr::Max(desc) => desc.hash(state),
+            NumericOperationRepr::MaxDimWithIndices(desc) => desc.hash(state),
+            NumericOperationRepr::MinDimWithIndices(desc) => desc.hash(state),
+            NumericOperationRepr::Min(desc) => desc.hash(state),
+            NumericOperationRepr::MaxDim(desc) => desc.hash(state),
+            NumericOperationRepr::MinDim(desc) => desc.hash(state),
+            NumericOperationRepr::Clamp(desc) => desc.hash(state),
+            NumericOperationRepr::IntRandom(desc) => desc.hash(state),
+            NumericOperationRepr::Powf(desc) => desc.hash(state),
         }
     }
 }
