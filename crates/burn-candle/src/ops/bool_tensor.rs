@@ -1,4 +1,5 @@
 use burn_tensor::{
+    backend::Backend,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Device, Shape, TensorData, TensorMetadata,
 };
@@ -22,8 +23,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<bool>().collect(), data.shape);
-        super::base::from_data::<u8>(data, device)
+        super::base::from_data::<<Self as Backend>::BoolElem>(data, device)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

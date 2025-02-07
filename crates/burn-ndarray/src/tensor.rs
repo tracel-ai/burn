@@ -319,16 +319,10 @@ where
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
     pub fn from_data(data: TensorData) -> NdArrayTensor<E> {
         let shape: Shape = data.shape.clone().into();
-        let into_array = |data: TensorData| match data.into_vec::<E>() {
+
+        let array = match data.into_vec::<E>() {
             Ok(vec) => Array::from_vec(vec).into_shared(),
             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
-        };
-        let to_array = |data: TensorData| Array::from_iter(data.iter::<E>()).into_shared();
-
-        let array = if data.dtype == E::dtype() {
-            into_array(data)
-        } else {
-            to_array(data)
         };
         let ndims = shape.num_dims();
 
@@ -458,20 +452,22 @@ mod tests {
     #[test]
     fn should_support_qtensor_strategy() {
         type B = NdArray<f32, i64, i8>;
+        let scale: f32 = 0.009_019_608;
+        let offset: i8 = 72;
         let device = Default::default();
 
-        let tensor = B::float_from_data(TensorData::from([-1.8, -1.0, 0.0, 0.5]), &device);
+        let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
         let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
-            scale: B::float_from_data(TensorData::from([0.009_019_608]), &device),
-            offset: Some(B::int_from_data(TensorData::from([72]), &device)),
+            scale: B::float_from_data(TensorData::from([scale]), &device),
+            offset: Some(B::int_from_data(TensorData::from([offset as i64]), &device)),
         };
         let qtensor: NdArrayQTensor<i8> = B::quantize(tensor, &scheme, qparams);
 
         assert_eq!(qtensor.scheme(), &scheme);
         assert_eq!(
             qtensor.strategy(),
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.009_019_608, 72))
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(scale, offset))
         );
     }
 }
