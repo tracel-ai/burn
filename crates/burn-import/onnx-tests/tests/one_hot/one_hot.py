@@ -11,7 +11,7 @@ class Model(nn.Module):
        super(Model, self).__init__()
 
    def forward(self, x):
-       x = F.one_hot(x)
+       x = F.one_hot(x, num_classes=3)
        return x
 
 def main():
@@ -28,7 +28,6 @@ def main():
     test_input = torch.tensor([1, 0, 2], device=device)
     torch.onnx.export(model, test_input, file_name,
                       verbose=False, opset_version=16)
-
     print("Finished exporting model to {}".format(file_name))
     print("Test input data of ones: {}".format(test_input))
     print("Test input data shape of ones: {}".format(test_input.shape))

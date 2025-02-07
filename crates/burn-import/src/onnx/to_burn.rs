@@ -41,6 +41,7 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
@@ -282,6 +283,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
                 NodeType::Less => graph.register(Self::less_conversion(node)),
@@ -1263,6 +1265,13 @@ impl ParsedOnnxGraph {
         let output = TensorType::from(node.outputs.first().unwrap());
         let config = trilu_config(&node);
         TriluNode::new(input, output, config)
+    }
+
+    fn one_hot_conversion(node: Node) -> OneHotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let num_classes = 3; // To change, can't figure this out
+        OneHotNode::new(input, output, num_classes)
     }
 }
 
