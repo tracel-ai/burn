@@ -21,7 +21,6 @@ where
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<BT>().collect(), data.shape);
         super::from_data::<R, BT>(data, device)
     }
 

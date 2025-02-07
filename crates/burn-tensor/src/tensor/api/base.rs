@@ -2823,7 +2823,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::bool_from_data(data.convert::<bool>(), device)
+        B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {

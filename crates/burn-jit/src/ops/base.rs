@@ -8,7 +8,7 @@ pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
 ) -> JitTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.convert::<E>().as_bytes());
+    let buffer = client.create(data.as_bytes());
 
     JitTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
 }
