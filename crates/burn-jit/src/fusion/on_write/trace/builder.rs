@@ -446,7 +446,7 @@ impl FuseOnWriteTraceBuilder {
             }
         }
 
-        // All tensors where their latest description is read only should be written to since they
+        // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for (precision, tensor) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {

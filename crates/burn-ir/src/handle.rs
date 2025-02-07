@@ -97,7 +97,7 @@ impl<H: Clone> HandleContainer<H> {
         }
     }
 
-    /// Get the tensor handle for the given [tensor description](TensorRepr).
+    /// Get the tensor handle for the given [tensor intermediate representation](TensorRepr).
     pub fn get_tensor_handle(&mut self, tensor: &TensorRepr) -> TensorHandle<H> {
         TensorHandle {
             handle: self.get_handle(&tensor.id, &tensor.status),
@@ -106,7 +106,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the [float tensor](crate::backend::Backend::FloatTensorPrimitive) corresponding to the
-    /// given [tensor description](TensorRepr).
+    /// given [tensor intermediate representation](TensorRepr).
     pub fn get_float_tensor<B>(&mut self, tensor: &TensorRepr) -> B::FloatTensorPrimitive
     where
         B: BackendRepr<Handle = H>,
@@ -115,7 +115,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the [int tensor](crate::backend::Backend::IntTensorPrimitive) corresponding to the
-    /// given [tensor description](TensorRepr).
+    /// given [tensor intermediate representation](TensorRepr).
     pub fn get_int_tensor<B>(&mut self, tensor: &TensorRepr) -> B::IntTensorPrimitive
     where
         B: BackendRepr<Handle = H>,
@@ -124,7 +124,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the [bool tensor](crate::backend::Backend::BoolTensorPrimitive) corresponding to the
-    /// given [tensor description](TensorRepr).
+    /// given [tensor intermediate representation](TensorRepr).
     pub fn get_bool_tensor<B>(&mut self, tensor: &TensorRepr) -> B::BoolTensorPrimitive
     where
         B: BackendRepr<Handle = H>,
@@ -133,7 +133,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the [quantized tensor](crate::backend::Backend::QuantizedTensorPrimitive) corresponding to the
-    /// given [tensor description](TensorRepr).
+    /// given [tensor intermediate representation](TensorRepr).
     pub fn get_quantized_tensor<B>(&mut self, tensor: &TensorRepr) -> B::QuantizedTensorPrimitive
     where
         B: BackendRepr<Handle = H>,

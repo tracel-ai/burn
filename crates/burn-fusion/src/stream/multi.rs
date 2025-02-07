@@ -28,11 +28,11 @@ impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn register(
         &mut self,
         streams: Vec<StreamId>,
-        desc: OperationRepr,
+        repr: OperationRepr,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.resolve_streams(streams, handles, &desc);
+        let id = self.resolve_streams(streams, handles, &repr);
 
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
@@ -45,7 +45,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         };
 
-        stream.queue.add(desc, operation);
+        stream.queue.add(repr, operation);
 
         let size_before = stream.queue.len();
         stream.processor.process(

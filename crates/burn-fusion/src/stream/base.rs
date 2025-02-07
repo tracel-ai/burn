@@ -42,7 +42,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
     /// Add a new tensor operation to the queue.
     ///
-    /// The new [operation description](OperationRepr) will be converted to a local
+    /// The new [operation intermediate representation](OperationRepr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
     pub fn add(&mut self, global: OperationRepr, operation: Box<dyn Operation<R>>) {

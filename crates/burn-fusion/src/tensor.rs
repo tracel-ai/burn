@@ -18,7 +18,7 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub dtype: DType,
     /// The current stream id this tensor is on.
     pub stream: StreamId,
-    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
     //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.

@@ -12,9 +12,9 @@ use hashbrown::HashMap;
 #[allow(clippy::too_many_arguments)]
 #[derive(new)]
 pub struct Context<'a, H> {
-    /// The tensor mapping where local tensor id points to the updated tensor description.
+    /// The tensor mapping where local tensor id points to the updated tensor representation.
     pub tensors: &'a mut HashMap<TensorId, TensorRepr>,
-    /// Handle container to retrieve tensors based on their description.
+    /// Handle container to retrieve tensors based on their representation.
     pub handles: &'a mut HandleContainer<H>,
     /// F32 scalars found in the graph in the order they appeared.
     pub scalar_f32: &'a Vec<f32>,

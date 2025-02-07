@@ -14,8 +14,8 @@ where
 {
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<R>) -> Self;
-    /// Register a new [tensor operation description](OperationRepr).
-    fn register<O>(&self, streams: Vec<StreamId>, description: OperationRepr, operation: O)
+    /// Register a new [tensor operation intermediate representation](OperationRepr).
+    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationRepr, operation: O)
     where
         O: Operation<R> + 'static;
     /// Register all lazy computation.

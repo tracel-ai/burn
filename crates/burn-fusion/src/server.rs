@@ -24,11 +24,11 @@ where
     pub fn register(
         &mut self,
         streams: Vec<StreamId>,
-        desc: OperationRepr,
+        repr: OperationRepr,
         operation: Box<dyn Operation<R>>,
     ) {
         self.streams
-            .register(streams, desc, operation, &mut self.handles)
+            .register(streams, repr, operation, &mut self.handles)
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {
@@ -186,14 +186,14 @@ where
 
     pub fn change_server_quantized<B>(
         &mut self,
-        desc: &TensorRepr,
+        tensor: &TensorRepr,
         device: &R::FusionDevice,
         server_device: &mut Self,
     ) -> Arc<TensorId>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let tensor = self.handles.get_quantized_tensor::<B>(desc);
+        let tensor = self.handles.get_quantized_tensor::<B>(tensor);
         let tensor = B::q_to_device(tensor, device);
         let id = server_device.create_empty_handle();
 

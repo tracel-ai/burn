@@ -18,7 +18,7 @@ use crate::{
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
 pub struct RunnerContext<B: BackendRepr> {
-    /// Handle container to retrieve tensors based on their description.
+    /// Handle container to retrieve tensors based on their intermediate representation.
     handles: HandleContainer<B::Handle>,
 }
 
@@ -58,7 +58,7 @@ impl<B: BackendRepr> Runner<B> {
         }
     }
 
-    /// Get the tensor handle for the given [tensor description](TensorRepr).
+    /// Get the tensor handle for the given [tensor representation](TensorRepr).
     pub(crate) fn get_tensor_handle(&self, tensor: &TensorRepr) -> B::Handle {
         let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
@@ -102,7 +102,7 @@ impl<B: BackendRepr> Runner<B> {
         core::mem::drop(ctx);
     }
 
-    /// Register a tensor and returns its description.
+    /// Register a tensor and returns its intermediate representation.
     pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorRepr {
         let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
@@ -132,7 +132,7 @@ impl<B: BackendRepr> Runner<B> {
         }
     }
 
-    /// Register an empty tensor and returns its description.
+    /// Register an empty tensor and returns its intermediate representation.
     pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorRepr {
         let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();

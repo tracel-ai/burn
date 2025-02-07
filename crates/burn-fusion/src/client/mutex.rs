@@ -37,13 +37,13 @@ where
         }
     }
 
-    fn register<O>(&self, streams: Vec<StreamId>, description: OperationRepr, operation: O)
+    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationRepr, operation: O)
     where
         O: Operation<R> + 'static,
     {
         self.server
             .lock()
-            .register(streams, description, Box::new(operation))
+            .register(streams, repr, Box::new(operation))
     }
 
     fn drain(&self) {

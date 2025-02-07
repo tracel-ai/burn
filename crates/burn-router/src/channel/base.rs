@@ -28,7 +28,7 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     /// Initialize a new client for the given device.
     fn init_client(device: &Self::Device) -> Self::Client;
 
-    /// Get the tensor handle corresponding to the [tensor description](TensorRepr).
+    /// Get the tensor handle corresponding to the [tensor representation](TensorRepr).
     fn get_tensor_handle(tensor: &TensorRepr, client: &Self::Client) -> TensorHandle<Self::Bridge>;
 
     /// Create a tensor with the given handle and shape.
