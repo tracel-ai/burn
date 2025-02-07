@@ -83,8 +83,6 @@ pub enum OperationRepr {
     Custom(CustomOpRepr),
 }
 
-// TODO: ops should all have OpRepr suffix (not OperationRepr, and not Repr only)
-
 /// Operation intermediate representation specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOperationRepr {
