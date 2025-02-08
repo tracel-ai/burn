@@ -59,8 +59,11 @@ mod tests {
 
         graph.register(OneHotNode::new(
             TensorType::new_float("tensor1", 1),
-            TensorType::new_float("tensor2", 3),
+            TensorType::new_float("tensor2", 2),
             3,
+            1.0,
+            0.0,
+            -1,
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -79,15 +82,15 @@ mod tests {
 
             impl<B: Backend> Model<B> {
                 #[allow(unused_variables)]
-                pub fn new(device: B::Device) -> Self {
+                pub fn new(device: &B::Device) -> Self {
                     Self {
                         phantom: core::marker::PhantomData,
                         device: burn::module::Ignored(device.clone()),
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 3> {
-                    let tensor2 = tensor1.one_hot(3);
+                pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
+                    let tensor2 = tensor1.one_hot_fill(3usize, 1f32, 0f32, -1i64);
                     tensor2
                 }
             }

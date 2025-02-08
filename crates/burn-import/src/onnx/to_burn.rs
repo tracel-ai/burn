@@ -283,7 +283,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
-                NodeType::OneHot => graph.register(Self::one_hot_conversion::<PS>(node)),
+                NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
                 NodeType::Less => graph.register(Self::less_conversion(node)),
@@ -1267,14 +1267,9 @@ impl ParsedOnnxGraph {
         TriluNode::new(input, output, config)
     }
 
-    fn one_hot_conversion<PS: PrecisionSettings>(node: Node) -> OneHotNode {
+    fn one_hot_conversion(node: Node) -> OneHotNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
-
-        //let num_classes = match &node.inputs[1].value {
-        //    Some(Data::Int64s(depth)) => depth.clone(),
-        //    _ => panic!("Depth must be Int64"),
-        //};
 
         let (_, on_value, off_value, axis) = one_hot_config(&node);
         OneHotNode::new(input, output, 3, on_value, off_value, axis)
