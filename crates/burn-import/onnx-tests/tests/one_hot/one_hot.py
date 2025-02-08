@@ -1,39 +1,43 @@
 #!/usr/bin/env python3
 
-# used to generate model: one_hot.onnx
-
+# used to generate model: onnx-tests/tests/one_hot/one_hot.onnx
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import onnx
 
-class Model(nn.Module):
-   def __init__(self):
-       super(Model, self).__init__()
+class OneHotModel(nn.Module):
+    def __init__(self, num_classes=3):
+        super().__init__()
+        self.num_classes = num_classes  # Number of categories for one-hot encoding
 
-   def forward(self, x):
-       x = F.one_hot(x, num_classes=3)
-       return x
+    def forward(self, x):
+        one_hot = F.one_hot(x, num_classes=self.num_classes)
+        return one_hot.to(torch.float32)  # Convert to float for compatibility
 
-def main():
-    torch.manual_seed(42)
+# Create model instance
+num_classes = 3
+model = OneHotModel(num_classes=num_classes)
+model.eval()
 
-    torch.set_printoptions(precision=8)
+# Example input: Tensor of class indices
+test_input = torch.tensor([0, 1, 2], dtype=torch.int64)
 
-    model = Model()
-    model.eval()
-    device = torch.device("cpu")
+# Export to ONNX
+onnx_file = "one_hot.onnx"
+torch.onnx.export(
+    model,
+    test_input,
+    onnx_file,
+    opset_version=16,
+    input_names=["input"],
+    output_names=["one_hot_output"],
+    dynamic_axes={"input": {0: "batch_size"}, "one_hot_output": {0: "batch_size"}}
+)
 
-
-    file_name = "one_hot.onnx"
-    test_input = torch.tensor([1, 0, 2], device=device)
-    torch.onnx.export(model, test_input, file_name,
-                      verbose=False, opset_version=16)
-    print("Finished exporting model to {}".format(file_name))
-    print("Test input data of ones: {}".format(test_input))
-    print("Test input data shape of ones: {}".format(test_input.shape))
-    output = model.forward(test_input)
-    print("Test output data shape: {}".format(output.shape))
-    print("Test output: {}".format(output))
-
-if __name__ == '__main__':
-    main()
+print(f"Finished exporting model to {onnx_file}")
+print(f"Test input data of ones: {test_input}")
+print(f"Test input data shape of ones: {test_input.shape}")
+output = model.forward(test_input)
+print(f"Test output data shape: {output.shape}")
+print(f"Test output: {output}")

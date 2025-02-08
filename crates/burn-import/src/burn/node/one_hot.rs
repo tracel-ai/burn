@@ -24,6 +24,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
     }
 
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
+        println!("Scope: {:?}", scope);
         let input = scope.tensor_use_owned(&self.input, node_position);
         let output = &self.output.name;
 

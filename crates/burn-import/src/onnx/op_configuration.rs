@@ -8,8 +8,9 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig,
+use crate::burn::{
+    node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig},
+    ScalarType,
 };
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
@@ -1816,4 +1817,8 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     };
 
     axes
+}
+
+pub fn one_hot_config(curr: &Node) -> (usize, f32, f32, i64) {
+    (3, 1.0, 0.0, -1)
 }
