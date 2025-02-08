@@ -70,7 +70,7 @@ pub(crate) fn handle_command(
             // burn-vision
             helpers::custom_crates_tests(
                 vec!["burn-vision"],
-                vec!["--features", "cpu"],
+                vec!["--features", "test-cpu"],
                 None,
                 None,
                 "std cpu",
@@ -86,7 +86,7 @@ pub(crate) fn handle_command(
                 )?;
                 helpers::custom_crates_tests(
                     vec!["burn-vision"],
-                    vec!["--features", "wgpu"],
+                    vec!["--features", "test-wgpu"],
                     None,
                     None,
                     "std wgpu",

@@ -64,7 +64,7 @@ fn ballot_dyn(y: u32, pred: bool) -> u32 {
     plane_ballot(pred)[index]
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn strip_labeling<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
@@ -193,7 +193,7 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn strip_merge<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &Tensor<Atomic<I>>,
@@ -297,7 +297,7 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn relabeling<I: Int, BT: CubePrimitive>(img: &Tensor<BT>, labels: &mut Tensor<I>) {
     let batch = ABSOLUTE_POS_Z;
     let plane_start_x = CUBE_POS_X * CUBE_DIM_X;
@@ -338,7 +338,7 @@ fn relabeling<I: Int, BT: CubePrimitive>(img: &Tensor<BT>, labels: &mut Tensor<I
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn analysis<I: Int, BT: CubePrimitive>(
     img: &Tensor<BT>,
     labels: &mut Tensor<I>,
@@ -405,7 +405,7 @@ fn analysis<I: Int, BT: CubePrimitive>(
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn compact_labels<I: Int>(
     labels: &mut Tensor<I>,
     remap: &Tensor<I>,
@@ -429,7 +429,7 @@ fn compact_labels<I: Int>(
     }
 }
 
-#[cube(launch)]
+#[cube(launch_unchecked)]
 fn compact_stats<I: Int>(
     area: &Tensor<I>,
     area_new: &mut Tensor<I>,
@@ -500,14 +500,16 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
     let cube_dim = CubeDim::new_2d(warp_size, BLOCK_H);
     let cube_count = CubeCount::Static(1, (rows as u32).div_ceil(cube_dim.y), batches as u32);
 
-    strip_labeling::launch::<I, BT, R>(
-        &client,
-        cube_count,
-        cube_dim,
-        img.as_tensor_arg::<BT>(1),
-        labels.as_tensor_arg::<I>(1),
-        connectivity,
-    );
+    unsafe {
+        strip_labeling::launch_unchecked::<I, BT, R>(
+            &client,
+            cube_count,
+            cube_dim,
+            img.as_tensor_arg::<BT>(1),
+            labels.as_tensor_arg::<I>(1),
+            connectivity,
+        )
+    };
 
     let horizontal_warps = Ord::min((cols as u32).div_ceil(warp_size), 32);
     let cube_dim_merge = CubeDim::new_3d(warp_size, 1, horizontal_warps);
@@ -517,14 +519,16 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         batches as u32,
     );
 
-    strip_merge::launch::<I, BT, R>(
-        &client,
-        cube_count,
-        cube_dim_merge,
-        img.as_tensor_arg::<BT>(1),
-        labels.as_tensor_arg::<I>(1),
-        connectivity,
-    );
+    unsafe {
+        strip_merge::launch_unchecked::<I, BT, R>(
+            &client,
+            cube_count,
+            cube_dim_merge,
+            img.as_tensor_arg::<BT>(1),
+            labels.as_tensor_arg::<I>(1),
+            connectivity,
+        )
+    };
 
     let cube_count = CubeCount::Static(
         (cols as u32).div_ceil(cube_dim.x),
@@ -535,28 +539,32 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
     let mut stats = stats_from_opts(labels.clone(), stats_opt);
 
     if stats_opt == ConnectedStatsOptions::none() {
-        relabeling::launch::<I, BT, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
-        );
+        unsafe {
+            relabeling::launch_unchecked::<I, BT, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                img.as_tensor_arg::<BT>(1),
+                labels.as_tensor_arg::<I>(1),
+            )
+        };
     } else {
-        analysis::launch::<I, BT, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            img.as_tensor_arg::<BT>(1),
-            labels.as_tensor_arg::<I>(1),
-            stats.area.as_tensor_arg::<I>(1),
-            stats.top.as_tensor_arg::<I>(1),
-            stats.left.as_tensor_arg::<I>(1),
-            stats.right.as_tensor_arg::<I>(1),
-            stats.bottom.as_tensor_arg::<I>(1),
-            stats.max_label.as_tensor_arg::<I>(1),
-            stats_opt,
-        );
+        unsafe {
+            analysis::launch_unchecked::<I, BT, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                img.as_tensor_arg::<BT>(1),
+                labels.as_tensor_arg::<I>(1),
+                stats.area.as_tensor_arg::<I>(1),
+                stats.top.as_tensor_arg::<I>(1),
+                stats.left.as_tensor_arg::<I>(1),
+                stats.right.as_tensor_arg::<I>(1),
+                stats.bottom.as_tensor_arg::<I>(1),
+                stats.max_label.as_tensor_arg::<I>(1),
+                stats_opt,
+            )
+        };
         if stats_opt.compact_labels {
             let max_label = JitBackend::<R, F, I, BT>::int_max(stats.max_label);
             let max_label = into_data_sync::<R, I>(max_label).convert::<u32>();
@@ -575,34 +583,38 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             );
             stats.max_label =
                 zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([batches]));
-            compact_labels::launch::<I, R>(
-                &client,
-                cube_count,
-                cube_dim,
-                labels.as_tensor_arg::<I>(1),
-                relabel.as_tensor_arg::<I>(1),
-                stats.max_label.as_tensor_arg::<I>(1),
-            );
+            unsafe {
+                compact_labels::launch_unchecked::<I, R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    labels.as_tensor_arg::<I>(1),
+                    relabel.as_tensor_arg::<I>(1),
+                    stats.max_label.as_tensor_arg::<I>(1),
+                )
+            };
 
             let cube_dim = CubeDim::new_1d(256);
             let cube_count =
                 CubeCount::new_3d((rows * cols).div_ceil(256) as u32, 1, batches as u32);
-            compact_stats::launch::<I, R>(
-                &client,
-                cube_count,
-                cube_dim,
-                stats.area.copy().as_tensor_arg::<I>(1),
-                stats.area.as_tensor_arg::<I>(1),
-                stats.top.copy().as_tensor_arg::<I>(1),
-                stats.top.as_tensor_arg::<I>(1),
-                stats.left.copy().as_tensor_arg::<I>(1),
-                stats.left.as_tensor_arg::<I>(1),
-                stats.right.copy().as_tensor_arg::<I>(1),
-                stats.right.as_tensor_arg::<I>(1),
-                stats.bottom.copy().as_tensor_arg::<I>(1),
-                stats.bottom.as_tensor_arg::<I>(1),
-                relabel.as_tensor_arg::<I>(1),
-            );
+            unsafe {
+                compact_stats::launch_unchecked::<I, R>(
+                    &client,
+                    cube_count,
+                    cube_dim,
+                    stats.area.copy().as_tensor_arg::<I>(1),
+                    stats.area.as_tensor_arg::<I>(1),
+                    stats.top.copy().as_tensor_arg::<I>(1),
+                    stats.top.as_tensor_arg::<I>(1),
+                    stats.left.copy().as_tensor_arg::<I>(1),
+                    stats.left.as_tensor_arg::<I>(1),
+                    stats.right.copy().as_tensor_arg::<I>(1),
+                    stats.right.as_tensor_arg::<I>(1),
+                    stats.bottom.copy().as_tensor_arg::<I>(1),
+                    stats.bottom.as_tensor_arg::<I>(1),
+                    relabel.as_tensor_arg::<I>(1),
+                )
+            };
         }
     }
 
