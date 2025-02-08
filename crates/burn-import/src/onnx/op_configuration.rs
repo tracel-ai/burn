@@ -8,10 +8,7 @@ use burn::nn::{
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::{
-    node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig},
-    ScalarType,
-};
+use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
