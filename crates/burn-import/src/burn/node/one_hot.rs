@@ -9,6 +9,9 @@ pub struct OneHotNode {
     pub input: TensorType,
     pub output: TensorType,
     pub num_classes: usize,
+    pub on_value: f32,
+    pub off_value: f32,
+    pub axis: i64,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
@@ -25,9 +28,12 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let output = &self.output.name;
 
         let num_classes = &self.num_classes;
+        let on_value = &self.on_value;
+        let off_value = &self.off_value;
+        let axis = &self.axis;
 
         quote! {
-            let #output = #input.one_hot(#num_classes);
+            let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis);
         }
     }
 
