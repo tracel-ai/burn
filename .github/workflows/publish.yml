@@ -6,6 +6,25 @@ on:
       - "v*"
 
 jobs:
+  publish-burn-vision:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    with:
+      crate: burn-vision
+    needs:
+      - publish-burn-autodiff
+      - publish-burn-candle
+      - publish-burn-fusion
+      - publish-burn-jit
+      - publish-burn-ndarray
+      - publish-burn-tch
+      - publish-burn-tensor
+      - publish-burn-tensor-testgen
+      # dev dependencies
+      - publish-burn-wgpu
+      - publish-burn-cuda
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-router:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     with:
