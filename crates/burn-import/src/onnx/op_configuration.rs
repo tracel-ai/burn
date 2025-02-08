@@ -1820,5 +1820,8 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 }
 
 pub fn one_hot_config(curr: &Node) -> (usize, f32, f32, i64) {
-    (3, 1.0, 0.0, -1)
+    let depth = curr.inputs[1].value.clone().unwrap().into_i64();
+    let values = curr.inputs[2].value.clone().unwrap().into_i64s();
+    let axis = curr.attrs.get("axis").unwrap().clone().into_i64();
+    (depth as usize, values[1] as f32, values[0] as f32, axis)
 }
