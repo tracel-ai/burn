@@ -106,7 +106,7 @@ wgpu = "24.0.1"
 # Benchmarks and Burnbench
 arboard = "3.4.1"
 chrono = "0.4.39"
-os_info = "3.9.0"
+os_info = "3.10.0"
 wsl = "0.1.0"
 
 bincode = { version = "2.0.0-rc.3", features = [
