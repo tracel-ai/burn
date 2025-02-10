@@ -2221,13 +2221,13 @@ mod tests {
         // Test for floor
 
         let device = Default::default();
-        let model = floor_test::Model::<Backend>::new(&device);
+        let model = floor::Model::<Backend>::new(&device);
 
         let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
-        let expected = Tensor::<Backend, 1>::from_floats([-2., 1., 2.], &device);
+        let expected = Tensor::<Backend, 1>::from_floats([-1., 1., 2.], &device);
 
         let output = model.forward(input);
 
-        output.to_data().assert_approx_eq(&expected, 3);
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
 }
