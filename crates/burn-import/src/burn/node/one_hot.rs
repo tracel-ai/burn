@@ -33,7 +33,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let axis = &self.axis;
 
         quote! {
-            let #output = #input.one_hot_fill(#num_classes, #on_value, #off_value, #axis);
+            let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).float();
         }
     }
 

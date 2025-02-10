@@ -2222,10 +2222,10 @@ mod tests {
 
         let device = Default::default();
         let model = one_hot::Model::<Backend>::new(&device);
-        let input = Tensor::from_ints([1, 0, 2], &device);
-        let expected =
+        let input: Tensor<Backend, 1, Int> = Tensor::from_ints([1, 0, 2], &device);
+        let expected: Tensor<Backend, 2, burn::prelude::Float> =
             Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
-        let output = model.forward(input);
+        let output: Tensor<Backend, 2> = model.forward(input);
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }

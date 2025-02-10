@@ -13,7 +13,7 @@ class OneHotModel(nn.Module):
 
     def forward(self, x):
         one_hot = F.one_hot(x, num_classes=self.num_classes)
-        return one_hot.to(torch.float32)  # Convert to float for compatibility
+        return one_hot  # Convert to float for compatibility
 
 # Create model instance
 num_classes = 3
