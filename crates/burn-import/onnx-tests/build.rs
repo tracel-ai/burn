@@ -70,6 +70,7 @@ fn main() {
         .input("tests/mul/mul.onnx")
         .input("tests/neg/neg.onnx")
         .input("tests/not/not.onnx")
+        .input("tests/one_hot/one_hot.onnx")
         .input("tests/pad/pad.onnx")
         .input("tests/pow/pow.onnx")
         .input("tests/pow/pow_int.onnx")
