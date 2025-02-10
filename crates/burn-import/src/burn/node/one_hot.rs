@@ -90,7 +90,9 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
-                    let tensor2 = tensor1.one_hot_fill(3usize, 1f32, 0f32, -1i64);
+                    let tensor2 = tensor1
+                        .one_hot_fill(3usize, 1f32.into(), 0f32.into(), -1i64)
+                        .float();
                     tensor2
                 }
             }
