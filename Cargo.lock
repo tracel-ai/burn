@@ -904,7 +904,6 @@ dependencies = [
 name = "burn-vision"
 version = "0.17.0"
 dependencies = [
- "burn-autodiff",
  "burn-candle",
  "burn-cuda",
  "burn-fusion",
