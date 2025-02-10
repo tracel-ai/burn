@@ -44,6 +44,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    floor,
     gather_1d_idx,
     gather_2d_idx,
     gather_scalar,
