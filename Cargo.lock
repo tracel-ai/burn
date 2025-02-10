@@ -881,7 +881,7 @@ dependencies = [
  "hashbrown 0.15.2",
  "num-traits",
  "rand 0.9.0",
- "rand_distr",
+ "rand_distr 0.5.0",
  "serde",
  "serde_bytes",
 ]
@@ -1033,7 +1033,7 @@ dependencies = [
  "num-traits",
  "num_cpus",
  "rand 0.8.5",
- "rand_distr",
+ "rand_distr 0.4.3",
  "rayon",
  "safetensors 0.4.5",
  "thiserror 1.0.69",
@@ -2900,7 +2900,7 @@ dependencies = [
  "crunchy",
  "num-traits",
  "rand 0.8.5",
- "rand_distr",
+ "rand_distr 0.4.3",
  "serde",
 ]
 
@@ -3897,7 +3897,7 @@ dependencies = [
  "burn",
  "polars",
  "rand 0.9.0",
- "rand_distr",
+ "rand_distr 0.5.0",
  "serde",
 ]
 
@@ -4835,7 +4835,7 @@ dependencies = [
  "polars-schema",
  "polars-utils",
  "rand 0.8.5",
- "rand_distr",
+ "rand_distr 0.4.3",
  "rayon",
  "regex",
  "strum_macros",
@@ -5517,6 +5517,16 @@ checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "rand_distr"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddc3b5afe4c995c44540865b8ca5c52e6a59fa362da96c5d30886930ddc8da1c"
+dependencies = [
+ "num-traits",
+ "rand 0.9.0",
 ]
 
 [[package]]

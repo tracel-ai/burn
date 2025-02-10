@@ -386,7 +386,7 @@ mod tests {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 
@@ -401,7 +401,7 @@ mod tests {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 

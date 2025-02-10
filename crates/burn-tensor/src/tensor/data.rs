@@ -850,7 +850,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
 
         let expected = data.iter::<f32>().collect::<Vec<f32>>();
@@ -866,7 +866,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
 
         data.into_vec::<i32>().unwrap();
@@ -879,7 +879,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
 
         assert_eq!(num_elements, data.bytes.len() / 4); // f32 stored as u8s

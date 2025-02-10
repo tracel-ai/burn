@@ -6,7 +6,7 @@ use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
     Dataset,
 };
-use rand::{distributions::Standard, prelude::Distribution, rngs::StdRng, Rng, SeedableRng};
+use rand::{distr::StandardUniform, prelude::Distribution, rngs::StdRng, Rng, SeedableRng};
 use std::sync::Arc;
 
 /// A data loader that can be used to iterate over a dataset in batches.
@@ -96,7 +96,7 @@ where
         // Create more rngs from the first one, one for each new dataloader.
         let rngs = (0..num_threads).map(|_| {
             rng.as_mut()
-                .map(|rng| StdRng::seed_from_u64(Distribution::sample(&Standard, rng)))
+                .map(|rng| StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng)))
         });
 
         for (dataset, rng) in datasets.into_iter().zip(rngs) {
@@ -125,7 +125,7 @@ where
 
                 Arc::new(ShuffledDataset::with_seed(
                     self.dataset.clone(),
-                    rng.sample(Standard),
+                    rng.sample(StandardUniform),
                 ))
             }
             None => self.dataset.clone(),
