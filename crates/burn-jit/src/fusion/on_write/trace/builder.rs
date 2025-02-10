@@ -8,7 +8,7 @@ use burn_tensor::{
     DType, Element,
 };
 use cubecl::prelude::Sequence;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone)]
 pub struct FuseOnWriteTraceBuilder {
@@ -18,6 +18,7 @@ pub struct FuseOnWriteTraceBuilder {
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
     reshapes: Vec<Reshape>,
+    indexed: BTreeMap<TensorId, Arg>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub bool_precision: ElemwisePrecision,
@@ -34,6 +35,7 @@ impl FuseOnWriteTraceBuilder {
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
             reshapes: Vec::new(),
+            indexed: BTreeMap::new(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
             bool_precision,
@@ -59,12 +61,18 @@ impl FuseOnWriteTraceBuilder {
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
-        let arg = self.output(tensor);
+        let arg = self
+            .output(tensor)
+            .expect("Can't add a new output that is already used in an index operation");
         self.outputs_unhandled.push(arg.clone());
         arg
     }
 
     pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+        if self.indexed.contains_key(&tensor.id) {
+            panic!("Can't add a new input that is already used in an index operation");
+        }
+
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -79,7 +87,11 @@ impl FuseOnWriteTraceBuilder {
         arg
     }
 
-    pub fn input(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn input(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+        if self.indexed.contains_key(&tensor.id) {
+            return None;
+        }
+
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -88,7 +100,7 @@ impl FuseOnWriteTraceBuilder {
             _ => precision,
         };
 
-        match self.locals.get(precision, tensor.id) {
+        let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
                 self.inputs.update(precision_input, tensor);
                 // An input can be an output of a previously fused operation.
@@ -118,10 +130,16 @@ impl FuseOnWriteTraceBuilder {
 
                 out
             }
-        }
+        };
+
+        Some(arg)
     }
 
-    pub fn output(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn output(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+        if self.indexed.contains_key(&tensor.id) {
+            return None;
+        }
+
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -130,7 +148,7 @@ impl FuseOnWriteTraceBuilder {
             _ => precision,
         };
 
-        match self.locals.get(precision, tensor.id) {
+        let out = match self.locals.get(precision, tensor.id) {
             Some(local) => local,
             None => {
                 let out = self.locals.create(precision, tensor.id);
@@ -139,7 +157,26 @@ impl FuseOnWriteTraceBuilder {
 
                 out
             }
+        };
+
+        Some(out)
+    }
+
+    pub fn input_indexed(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+        if let Some(val) = self.indexed.get(&tensor.id) {
+            return Some(val.clone());
+        };
+
+        let precision = tensor.dtype.into();
+
+        if self.inputs.get(precision, tensor.id).is_some() {
+            return None;
         }
+
+        let input = self.input_unhandled(tensor);
+        self.indexed.insert(tensor.id, input.clone());
+
+        Some(input)
     }
 
     pub fn input_reshaped(
@@ -254,6 +291,7 @@ impl FuseOnWriteTraceBuilder {
         let reshapes = self.reshapes.clone();
         let settings = self.settings;
         let inputs_unhandled = self.inputs_unhandled.clone();
+        let indexed = self.indexed.keys().cloned().collect::<BTreeSet<_>>();
 
         FuseOnWriteTrace {
             outputs,
@@ -261,6 +299,7 @@ impl FuseOnWriteTraceBuilder {
             settings,
             scalars,
             reshapes,
+            indexed,
             shape_ref,
             ops,
             reads,
@@ -397,6 +436,16 @@ impl FuseOnWriteTraceBuilder {
                 mark(lhs, &mut local_tensor_ids_input);
                 mark(rhs, &mut local_tensor_ids_input);
                 mark(out, &mut local_tensor_ids_output);
+            }
+            ElemwiseOp::Gather {
+                input,
+                indices,
+                output,
+                ..
+            } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(indices, &mut local_tensor_ids_input);
+                mark(output, &mut local_tensor_ids_output);
             }
             ElemwiseOp::Equal(op) => mark_binary(
                 op,

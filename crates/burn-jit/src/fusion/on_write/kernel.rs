@@ -681,6 +681,135 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ),
                 _ => comptime![panic!("Unsupported precision")],
             },
+            ElemwiseOp::Gather {
+                input,
+                indices,
+                output,
+                dim,
+            } => match output.precision() {
+                ElemwisePrecision::F32 => gather::<f32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::F16 => gather::<f16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::BF16 => gather::<bf16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I64 => gather::<i64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I32 => gather::<i32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I16 => gather::<i16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I8 => gather::<i8>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U64 => gather::<u64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U32 => gather::<u32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U16 => gather::<u16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U8 => gather::<u8>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                _ => comptime![panic!("Unsupported precision")],
+            },
         }
     }
 }
@@ -776,6 +905,78 @@ fn assign<C: CubePrimitive>(
     let input = read::<C>(inputs, outputs, locals, write_pos, op.input, config);
 
     write::<C>(inputs, outputs, locals, write_pos, input, op.out, config);
+}
+
+#[cube]
+fn gather<C: Numeric>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] dim: u32,
+    #[comptime] input: Arg,
+    #[comptime] indices: Arg,
+    #[comptime] output: Arg,
+    #[comptime] config: &ElemwiseConfig,
+) {
+    let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
+    let (pos, precision) = comptime! {
+        match input {
+            Arg::Input(pos, precision, _) => (pos, precision),
+            _ => panic!("Input isn't an input"),
+        }
+    };
+    let line_size = match config.ref_layout {
+        Arg::Input(pos, precision, _) => global_line_size(inputs, pos, precision),
+        Arg::Output(pos, precision, _) => global_line_size(outputs, pos, precision),
+        _ => unreachable!(),
+    };
+    let stride = global_stride(inputs, dim, pos, precision);
+
+    index *= Line::new(stride);
+
+    if dim > 0 {
+        let index_before = global_offset(
+            inputs,
+            outputs,
+            write_pos,
+            comment!(input.clone()),
+            comptime![Some((0u32, dim))],
+            config,
+        );
+        index += Line::new(index_before);
+    }
+
+    let index_after = global_offset(
+        inputs,
+        outputs,
+        write_pos,
+        input,
+        comptime![Some((dim + 1, config.rank))],
+        config,
+    );
+    index += Line::new(index_after);
+
+    let mut result = Line::empty(line_size);
+
+    #[unroll]
+    for i in 0..line_size {
+        let index = index[i];
+
+        let input = read_input::<C>(
+            inputs,
+            outputs,
+            pos,
+            index,
+            LayoutInfo::IsRef,
+            precision,
+            config,
+            None,
+        );
+        result[i] = input[0];
+    }
+
+    write::<C>(inputs, outputs, locals, write_pos, result, output, config);
 }
 
 #[cube]
