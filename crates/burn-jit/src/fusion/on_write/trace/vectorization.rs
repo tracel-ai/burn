@@ -98,7 +98,7 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
         for handle in plan.handle_inputs.iter_mut() {
             handle.vectorization = match plan.vectorization.get(&handle.global_id) {
                 Some(v) => *v,
-                None => panic!("Not vectorization factor found for {:?}", handle.global_id),
+                None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
         }
         for handle in plan.handle_outputs.iter_mut() {

@@ -44,6 +44,7 @@ impl FuseOnWriteTraceBuilder {
         }
     }
 
+    /// Register an operation.
     pub fn register_operation(&mut self, op: ElemwiseOp) {
         self.ops.push(op);
     }
@@ -60,6 +61,9 @@ impl FuseOnWriteTraceBuilder {
         meta + inputs + outputs + scalar
     }
 
+    /// Register an output tensor that won't be automatically synced into global memory.
+    ///
+    /// It is therefore the responsability of the operation to write the result to given tensor.
     pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         let arg = self
             .output(tensor)
@@ -68,6 +72,9 @@ impl FuseOnWriteTraceBuilder {
         arg
     }
 
+    /// Register an input tensor that won't be automatically read into a local variable.
+    ///
+    /// It is therefore the responsability of the operation to read the given tensor.
     pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
         if self.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
@@ -87,6 +94,7 @@ impl FuseOnWriteTraceBuilder {
         arg
     }
 
+    /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorDescription) -> Option<Arg> {
         if self.indexed.contains_key(&tensor.id) {
             return None;
@@ -135,6 +143,7 @@ impl FuseOnWriteTraceBuilder {
         Some(arg)
     }
 
+    /// Register an output tensor.
     pub fn output(&mut self, tensor: &TensorDescription) -> Option<Arg> {
         if self.indexed.contains_key(&tensor.id) {
             return None;
@@ -162,6 +171,7 @@ impl FuseOnWriteTraceBuilder {
         Some(out)
     }
 
+    /// Register an input that will be accessed using custom indexing with no vectorization.
     pub fn input_indexed(&mut self, tensor: &TensorDescription) -> Option<Arg> {
         if let Some(val) = self.indexed.get(&tensor.id) {
             return Some(val.clone());
@@ -179,6 +189,7 @@ impl FuseOnWriteTraceBuilder {
         Some(input)
     }
 
+    /// Register an input that is reshaped.
     pub fn input_reshaped(
         &mut self,
         tensor: &TensorDescription,
@@ -250,6 +261,7 @@ impl FuseOnWriteTraceBuilder {
         Some(out)
     }
 
+    /// Register a scalar value.
     pub fn scalar<E: Element>(&mut self, _: &E, dtype: DType) -> Arg {
         let precision = dtype.into();
 
@@ -266,6 +278,7 @@ impl FuseOnWriteTraceBuilder {
         Arg::Scalar(new_index, precision)
     }
 
+    /// Build into a trace.
     pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();

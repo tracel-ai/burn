@@ -935,7 +935,7 @@ fn gather<C: Numeric>(
 
     index *= Line::new(stride);
 
-    if dim > 0 {
+    if comptime![dim > 0] {
         let index_before = global_offset(
             inputs,
             outputs,
@@ -947,15 +947,17 @@ fn gather<C: Numeric>(
         index += Line::new(index_before);
     }
 
-    let index_after = global_offset(
-        inputs,
-        outputs,
-        write_pos,
-        input,
-        comptime![Some((dim + 1, config.rank))],
-        config,
-    );
-    index += Line::new(index_after);
+    if comptime![dim + 1 < config.rank] {
+        let index_after = global_offset(
+            inputs,
+            outputs,
+            write_pos,
+            input,
+            comptime![Some((dim + 1, config.rank))],
+            config,
+        );
+        index += Line::new(index_after);
+    }
 
     let mut result = Line::empty(line_size);
 
