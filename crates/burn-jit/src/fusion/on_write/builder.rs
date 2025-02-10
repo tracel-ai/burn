@@ -48,14 +48,14 @@ impl TryFuseBuilder {
         if !self.added_ops {
             self.added_ops = true;
 
-            if !add_ops(&mut self.builder).is_some() {
+            if add_ops(&mut self.builder).is_none() {
                 return false;
             }
             return true;
         }
 
         let mut cloned = self.builder.clone();
-        if !add_ops(&mut cloned).is_some() {
+        if add_ops(&mut cloned).is_none() {
             return false;
         }
 

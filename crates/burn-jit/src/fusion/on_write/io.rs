@@ -547,7 +547,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::F32 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_f32.index(pos),
+                inputs.t_f32.index(pos),
                 index,
                 range,
                 config,
@@ -556,7 +556,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::F16 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_f16.index(pos),
+                inputs.t_f16.index(pos),
                 index,
                 range,
                 config,
@@ -565,7 +565,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::BF16 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_bf16.index(pos),
+                inputs.t_bf16.index(pos),
                 index,
                 range,
                 config,
@@ -574,7 +574,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::I64 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_i64.index(pos),
+                inputs.t_i64.index(pos),
                 index,
                 range,
                 config,
@@ -583,7 +583,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::I32 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_i32.index(pos),
+                inputs.t_i32.index(pos),
                 index,
                 range,
                 config,
@@ -592,7 +592,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::I16 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_i16.index(pos),
+                inputs.t_i16.index(pos),
                 index,
                 range,
                 config,
@@ -601,7 +601,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::I8 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_i8.index(pos),
+                inputs.t_i8.index(pos),
                 index,
                 range,
                 config,
@@ -610,7 +610,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::U64 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_u64.index(pos),
+                inputs.t_u64.index(pos),
                 index,
                 range,
                 config,
@@ -619,7 +619,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::U32 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_u32.index(pos),
+                inputs.t_u32.index(pos),
                 index,
                 range,
                 config,
@@ -628,7 +628,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::U16 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_u16.index(pos),
+                inputs.t_u16.index(pos),
                 index,
                 range,
                 config,
@@ -637,7 +637,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::U8 => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_u8.index(pos),
+                inputs.t_u8.index(pos),
                 index,
                 range,
                 config,
@@ -646,7 +646,7 @@ pub(crate) fn global_offset(
             ElemwisePrecision::Bool => get_offset(
                 inputs,
                 outputs,
-                &inputs.t_u32.index(pos), // TODO
+                inputs.t_u32.index(pos), // TODO
                 index,
                 range,
                 config,
