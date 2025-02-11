@@ -460,6 +460,16 @@ impl FuseOnWriteTraceBuilder {
                 mark(indices, &mut local_tensor_ids_input);
                 mark(output, &mut local_tensor_ids_output);
             }
+            ElemwiseOp::Select {
+                input,
+                indices,
+                output,
+                ..
+            } => {
+                mark(input, &mut local_tensor_ids_input);
+                mark(indices, &mut local_tensor_ids_input);
+                mark(output, &mut local_tensor_ids_output);
+            }
             ElemwiseOp::Equal(op) => mark_binary(
                 op,
                 &mut local_tensor_ids_input,

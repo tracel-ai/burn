@@ -96,6 +96,12 @@ pub enum ElemwiseOp {
         output: Arg,
         dim: u32,
     },
+    Select {
+        input: Arg,
+        indices: Arg,
+        output: Arg,
+        dim: u32,
+    },
 }
 
 #[derive(CubeLaunch)]
