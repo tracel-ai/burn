@@ -7,6 +7,7 @@ mod qtensor;
 mod transaction;
 
 pub(crate) mod base;
-pub(crate) use base::*;
+pub use base::*;
 
-pub(crate) mod numeric;
+/// Numeric utility functions for jit backends
+pub mod numeric;

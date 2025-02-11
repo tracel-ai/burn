@@ -46,11 +46,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         bias: Option<NdArrayTensorFloat>,
         options: ConvOptions<2>,
     ) -> NdArrayTensorFloat {
-        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv2d::<
-            E,
-            I,
-            Q,
-        >(
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv2d::<E>(
             x, weight, bias, options
         )
         .into())
@@ -89,7 +85,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
             opt(mask, bias),
             E,
             |x, offset, weight, output_grad, mask, bias| {
-                let (x, offset, weight, mask, bias) = deform_conv2d_backward::<E, I, Q>(
+                let (x, offset, weight, mask, bias) = deform_conv2d_backward::<E>(
                     x,
                     offset,
                     weight,
@@ -163,7 +159,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> FloatTensor<Self> {
-        module_op!(inp(x), opt(), E, |x| max_pool2d::<E, I, Q>(
+        module_op!(inp(x), opt(), E, |x| max_pool2d::<E>(
             x,
             kernel_size,
             stride,
@@ -182,7 +178,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
     ) -> MaxPool2dWithIndices<NdArray<E, I, Q>> {
         module_op!(inp(x), opt(), E, |x| {
             let (output, indices) =
-                max_pool2d_with_indices::<E, I, Q>(x, kernel_size, stride, padding, dilation);
+                max_pool2d_with_indices::<E, I>(x, kernel_size, stride, padding, dilation);
             MaxPool2dWithIndices::new(output.into(), indices)
         })
     }
@@ -282,11 +278,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         bias: Option<FloatTensor<Self>>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv3d::<
-            E,
-            I,
-            Q,
-        >(
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv3d::<E>(
             x, weight, bias, options
         )
         .into())

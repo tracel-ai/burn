@@ -7,7 +7,8 @@
 extern crate derive_new;
 extern crate alloc;
 
-mod ops;
+/// Utilities for implementing JIT kernels
+pub mod ops;
 
 /// Kernel module
 pub mod kernel;

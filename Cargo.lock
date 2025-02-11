@@ -901,6 +901,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-vision"
+version = "0.17.0"
+dependencies = [
+ "burn-candle",
+ "burn-cuda",
+ "burn-fusion",
+ "burn-jit",
+ "burn-ndarray",
+ "burn-tch",
+ "burn-tensor",
+ "burn-tensor-testgen",
+ "burn-wgpu",
+ "cubecl",
+ "derive-new 0.7.0",
+ "ndarray 0.16.1",
+ "serde",
+]
+
+[[package]]
 name = "burn-wgpu"
 version = "0.17.0"
 dependencies = [

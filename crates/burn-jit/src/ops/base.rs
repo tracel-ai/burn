@@ -76,6 +76,7 @@ pub(crate) fn swap_dims<R: JitRuntime>(
     tensor
 }
 
+/// Permute a tensor's dimensions
 pub fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
@@ -135,7 +136,8 @@ pub(crate) fn expand<R: JitRuntime>(tensor: JitTensor<R>, target_shape: Shape) -
     }
 }
 
-pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
+/// Reshape a jit tensor to a new shape
+pub fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 

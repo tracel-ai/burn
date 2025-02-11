@@ -21,12 +21,12 @@ std = ["burn-jit/std", "cubecl/std"]
 template = ["burn-jit/template", "cubecl/template"]
 
 # Backends
-webgpu = ["cubecl-wgsl"]
 vulkan = ["cubecl-spirv"]
+webgpu = ["cubecl-wgsl"]
 
 # Compilers
-cubecl-wgsl = []
 cubecl-spirv = ["cubecl/wgpu-spirv"]
+cubecl-wgsl = []
 
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
