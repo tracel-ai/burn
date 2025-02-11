@@ -643,15 +643,9 @@ pub(crate) fn global_offset(
                 config,
                 None,
             ),
-            ElemwisePrecision::Bool => get_offset(
-                inputs,
-                outputs,
-                inputs.t_u32.index(pos), // TODO
-                index,
-                range,
-                config,
-                None,
-            ),
+            ElemwisePrecision::Bool => comptime!(panic!(
+                "Should be resolved to the correct bool type used by the backend"
+            )),
         },
         _ => todo!(),
     }
