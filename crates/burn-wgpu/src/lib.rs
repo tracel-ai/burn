@@ -14,10 +14,6 @@ pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
 pub use cubecl::CubeDim;
 
-// feature wgpu = auto, webgpu = wgsl, vulkan = spirv
-// if no generic:
-// NOTE: WgpuRuntime always uses the AutoGraphicsApi (so backend is entirely dynamic)
-
 pub use cubecl::wgpu::{
     init_device, init_setup, init_setup_async, AutoCompiler, MemoryConfiguration, RuntimeOptions,
     WgpuDevice, WgpuResource, WgpuRuntime, WgpuSetup, WgpuStorage,
