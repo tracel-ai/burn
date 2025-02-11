@@ -1819,7 +1819,17 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 }
 
 pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
-    let depth = curr.inputs[1].value.clone().unwrap().into_i64();
+    let depth = curr.inputs[1]
+        .value
+        .clone()
+        .expect("OneHot: Only constant depth is currently supported")
+        .into_i64();
+
+    let values = curr.inputs[2]
+        .value
+        .clone()
+        .expect("OneHot: Only constant on/off values is currently supported")
+        .into_f32s();
     let values = curr.inputs[2].value.clone().unwrap().into_f32s();
     let axis = curr.attrs.get("axis").unwrap().clone().into_i64();
     (depth as usize, values.try_into().unwrap(), axis)
