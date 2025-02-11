@@ -64,7 +64,7 @@ represent the corresponding Burn Op.
 | [Expand][54]                     | ✅             | ✅           |
 | [EyeLike][55]                    | ❌             | ❌           |
 | [Flatten][56]                    | ✅             | ✅           |
-| [Floor][57]                      | ❌             | ❌           |
+| [Floor][57]                      | ✅             | ✅           |
 | [Gather][58]                     | ✅             | ✅           |
 | [GatherElements][59]             | ✅             | ✅           |
 | [GatherND][60]                   | ❌             | ❌           |

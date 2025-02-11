@@ -44,6 +44,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    floor,
     gather_1d_idx,
     gather_2d_idx,
     gather_scalar,
@@ -2226,6 +2227,20 @@ mod tests {
         let expected: Tensor<Backend, 2, burn::prelude::Float> =
             Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
         let output: Tensor<Backend, 2, Int> = model.forward(input);
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+    }
+
+    #[test}
+    fn floor_test() {
+        // Test for floor
+
+        let device = Default::default();
+        let model = floor::Model::<Backend>::new(&device);
+
+        let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
+        let expected = Tensor::<Backend, 1>::from_floats([-1., 1., 2.], &device);
+
+        let output = model.forward(input);
 
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
