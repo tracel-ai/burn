@@ -1052,7 +1052,7 @@ fn gather<C: Numeric>(
     let (pos, precision) = comptime! {
         match input {
             Arg::Input(pos, precision, _) => (pos, precision),
-            _ => panic!("Input isn't an input"),
+            _ => panic!("Input tensor isn't an input"),
         }
     };
     let line_size = match config.ref_layout {
@@ -1141,12 +1141,12 @@ fn select_indices<C: Numeric>(
     let (pos_input, precision_input) = comptime! {
         match input {
             Arg::Input(pos, precision, _) => (pos, precision),
-            _ => panic!("Input isn't an input"),
+            _ => panic!("Input tensor isn't an input"),
         }
     };
     let (pos_indices, precision_indices) = match indices {
         Arg::Input(pos, precision, ..) => (pos, precision),
-        _ => panic!("Input isn't an input"),
+        _ => panic!("Indices tensor isn't an input"),
     };
 
     let mut index = read_input::<u32>(
