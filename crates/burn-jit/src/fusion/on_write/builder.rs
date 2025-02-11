@@ -18,7 +18,7 @@ pub(crate) struct FuseOnWriteBuilder {
     current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     pub(crate) num_ops: usize,
-    pub(crate) num_reshapes: usize,
+    pub(crate) num_views: usize,
     max_bindings: u32,
 }
 
@@ -165,7 +165,7 @@ impl FuseOnWriteBuilder {
             builder: TryFuseBuilder::new(max_bindings, bool_precision, settings),
             settings,
             num_ops: 0,
-            num_reshapes: 0,
+            num_views: 0,
             max_bindings,
             current_output_shape: Vec::new(),
             status: OptimizationStatus::Open,
@@ -199,6 +199,29 @@ impl FuseOnWriteBuilder {
             BaseOperationIr::Cast(desc) => self.register_unary_ops(desc, |input, out| {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
+            BaseOperationIr::SwapDims(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                if self.builder.register(|build| {
+                    let input = build.input_swap_dims(
+                        &desc.input,
+                        &desc.out,
+                        (desc.dim1 as u32, desc.dim2 as u32),
+                    )?;
+                    let out = build.output(&desc.out)?;
+
+                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
+
+                    Some(())
+                }) {
+                    self.num_views += 1;
+                    true
+                } else {
+                    false
+                }
+            }
             BaseOperationIr::Reshape(desc) => {
                 if desc.input.shape == desc.out.shape {
                     return self.register_unary_ops(desc, |input, out| {
@@ -223,7 +246,7 @@ impl FuseOnWriteBuilder {
 
                     Some(())
                 }) {
-                    self.num_reshapes += 1;
+                    self.num_views += 1;
                     true
                 } else {
                     false

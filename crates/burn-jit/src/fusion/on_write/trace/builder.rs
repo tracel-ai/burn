@@ -2,11 +2,11 @@ use super::super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
     settings::FuseSettings,
 };
-use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
+use super::{FuseOnWriteTrace, RegisteredTensors, TensorView};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 #[derive(Clone)]
 pub struct FuseOnWriteTraceBuilder {
@@ -15,7 +15,7 @@ pub struct FuseOnWriteTraceBuilder {
     settings: FuseSettings,
     inputs: RegisteredTensors,
     scalars: BTreeMap<ElemwisePrecision, u32>,
-    reshapes: Vec<Reshape>,
+    views: Vec<TensorView>,
     indexed: BTreeMap<TensorId, Arg>,
     ops: Vec<ElemwiseOp>,
     reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -32,7 +32,7 @@ impl FuseOnWriteTraceBuilder {
             settings,
             inputs: RegisteredTensors::default(),
             scalars: BTreeMap::default(),
-            reshapes: Vec::new(),
+            views: Vec::new(),
             indexed: BTreeMap::new(),
             ops: Vec::new(),
             reads: BTreeMap::new(),
@@ -120,9 +120,7 @@ impl FuseOnWriteTraceBuilder {
                 let out = self.locals.create(precision, tensor.id);
                 let input = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
-                let reads = if let std::collections::btree_map::Entry::Vacant(e) =
-                    self.reads.entry(tensor.id)
-                {
+                let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
                     e.insert(Vec::with_capacity(1));
                     self.reads.get_mut(&tensor.id).unwrap()
                 } else {
@@ -188,6 +186,70 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Register an input that is reshaped.
+    pub fn input_swap_dims(
+        &mut self,
+        tensor: &TensorIr,
+        output: &TensorIr,
+        dims: (u32, u32),
+    ) -> Option<Arg> {
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_input = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+
+        let input_index = match self.locals.get(precision, tensor.id) {
+            Some(_) => {
+                // Can't fused an already fused input.
+                if self.outputs.get(precision_input, tensor.id).is_some() {
+                    return None;
+                }
+
+                match self.inputs.get_index(precision_input, tensor.id) {
+                    Some(index) => {
+                        self.inputs.update(precision_input, tensor);
+                        index as u32
+                    }
+                    None => {
+                        return None;
+                    }
+                }
+            }
+            None => self.inputs.insert(precision_input, tensor.clone()),
+        };
+
+        let out = self.locals.create(precision, tensor.id);
+        let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
+
+        self.views.push(TensorView::SwapDims {
+            swapped: output.id,
+            original: tensor.id,
+            dims,
+        });
+
+        let input = Arg::InputSwapDim {
+            original: Box::new(original),
+            dims,
+        };
+
+        let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+            e.insert(Vec::with_capacity(1));
+            self.reads.get_mut(&tensor.id).unwrap()
+        } else {
+            self.reads.get_mut(&tensor.id).unwrap()
+        };
+
+        reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
+            input,
+            out: out.clone(),
+        }));
+
+        Some(out)
+    }
+
+    /// Register an input that is reshaped.
     pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
         let precision = tensor.dtype.into();
 
@@ -222,8 +284,8 @@ impl FuseOnWriteTraceBuilder {
 
         let mut shape = Sequence::new();
 
-        let index = self.reshapes.len();
-        self.reshapes.push(Reshape {
+        let index = self.views.len();
+        self.views.push(TensorView::Reshape {
             reshaped: output.id,
             original: tensor.id,
         });
@@ -239,13 +301,12 @@ impl FuseOnWriteTraceBuilder {
             shape,
         };
 
-        let reads =
-            if let std::collections::btree_map::Entry::Vacant(e) = self.reads.entry(tensor.id) {
-                e.insert(Vec::with_capacity(1));
-                self.reads.get_mut(&tensor.id).unwrap()
-            } else {
-                self.reads.get_mut(&tensor.id).unwrap()
-            };
+        let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
+            e.insert(Vec::with_capacity(1));
+            self.reads.get_mut(&tensor.id).unwrap()
+        } else {
+            self.reads.get_mut(&tensor.id).unwrap()
+        };
 
         reads.push(ElemwiseOp::Assign(UnaryElemwiseArgs {
             input,
@@ -295,7 +356,7 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
-        let reshapes = self.reshapes.clone();
+        let reshapes = self.views.clone();
         let settings = self.settings;
         let inputs_unhandled = self.inputs_unhandled.clone();
         let indexed = self.indexed.keys().cloned().collect::<BTreeSet<_>>();
@@ -305,7 +366,7 @@ impl FuseOnWriteTraceBuilder {
             inputs,
             settings,
             scalars,
-            reshapes,
+            views: reshapes,
             indexed,
             shape_ref,
             ops,

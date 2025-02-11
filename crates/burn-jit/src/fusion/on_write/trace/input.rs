@@ -1,4 +1,4 @@
-use super::Reshape;
+use super::TensorView;
 use crate::{
     fusion::{on_write::settings::FuseSettings, JitFusionHandle},
     JitRuntime,
@@ -14,7 +14,7 @@ use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};
 pub struct InputPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
     inputs_unhandled: &'a Vec<TensorId>,
-    reshapes: &'a Vec<Reshape>,
+    views: &'a Vec<TensorView>,
     shape_ref: &'a Vec<usize>,
     settings: &'a FuseSettings,
     _r: PhantomData<R>,
@@ -24,7 +24,7 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         inputs_unhandled: &'a Vec<TensorId>,
-        reshapes: &'a Vec<Reshape>,
+        reshapes: &'a Vec<TensorView>,
         shape_ref: &'a Vec<usize>,
         settings: &'a FuseSettings,
     ) -> Self {
@@ -32,7 +32,7 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
             inputs,
             settings,
             inputs_unhandled,
-            reshapes,
+            views: reshapes,
             shape_ref,
             _r: PhantomData,
         }
@@ -52,9 +52,18 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
                 && !self
-                    .reshapes
+                    .views
                     .iter()
-                    .any(|r| r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
+                    .any(|v| match v {
+                        TensorView::Reshape { reshaped, original } => {
+                            reshaped == &tensor_relative.id || original == &tensor_relative.id
+                        },
+                        TensorView::SwapDims { swapped, original, .. } => {
+                            swapped == &tensor_relative.id || original == &tensor_relative.id
+                        },
+                    }) 
+                        
+                    //}r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {

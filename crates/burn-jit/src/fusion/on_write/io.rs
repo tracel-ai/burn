@@ -4,6 +4,13 @@ use cubecl::{
     prelude::*,
     unexpanded,
 };
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub enum Transform {
+    Reshape(Sequence<Arg>),
+    SwapDim(u32, u32),
+}
 
 #[cube]
 /// Read the value from the [arg](Arg) and cast it to the generic cube primitive.
@@ -56,7 +63,20 @@ pub fn read<C: CubePrimitive>(
                 layout,
                 precision,
                 config,
-                comptime![Some(shape)],
+                comptime![Some(Transform::Reshape(shape))],
+            ),
+            _ => comptime![panic!("Only input can be reshaped")],
+        },
+        Arg::InputSwapDim { original, dims, .. } => match comptime![original.as_ref().clone()] {
+            Arg::Input(pos, precision, layout) => read_input(
+                inputs,
+                outputs,
+                pos,
+                ref_pos,
+                layout,
+                precision,
+                config,
+                comptime![Some(Transform::SwapDim(dims.0, dims.1))],
             ),
             _ => comptime![panic!("Only input can be reshaped")],
         },
@@ -104,7 +124,7 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] layout: LayoutInfo,
     #[comptime] precision: ElemwisePrecision,
     #[comptime] config: &ElemwiseConfig,
-    #[comptime] shape: Option<Sequence<Arg>>,
+    #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
     match comptime![precision] {
         ElemwisePrecision::F32 => {
@@ -113,7 +133,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -124,7 +144,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -135,7 +155,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -146,7 +166,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -157,7 +177,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -168,7 +188,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -179,7 +199,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -190,7 +210,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -201,7 +221,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -212,7 +232,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -223,7 +243,7 @@ pub fn read_input<C: CubePrimitive>(
                 LayoutInfo::SameAsRef => ref_pos,
                 LayoutInfo::IsRef => ref_pos,
                 LayoutInfo::Unknown => {
-                    get_offset(inputs, outputs, tensor, ref_pos, None, config, shape)
+                    get_offset(inputs, outputs, tensor, ref_pos, None, config, transform)
                 }
             };
             Line::cast_from(tensor[offset])
@@ -659,100 +679,100 @@ fn get_offset<C: CubePrimitive>(
     pos: u32,
     #[comptime] range: Option<(u32, u32)>,
     #[comptime] config: &ElemwiseConfig,
-    #[comptime] shape: Option<Sequence<Arg>>,
+    #[comptime] transform: Option<Transform>,
 ) -> u32 {
     match comptime![config.ref_layout.clone()] {
         Arg::Input(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => {
                 let layout = inputs.t_f32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::F16 => {
                 let layout = inputs.t_f16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::BF16 => {
                 let layout = inputs.t_bf16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U64 => {
                 let layout = inputs.t_u64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U32 => {
                 let layout = inputs.t_u32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U16 => {
                 let layout = inputs.t_u16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U8 => {
                 let layout = inputs.t_u8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I64 => {
                 let layout = inputs.t_i64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I32 => {
                 let layout = inputs.t_i32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I16 => {
                 let layout = inputs.t_i16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I8 => {
                 let layout = inputs.t_i8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
         Arg::Output(index, precision, _) => match comptime![precision] {
             ElemwisePrecision::F32 => {
                 let layout = outputs.t_f32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::F16 => {
                 let layout = outputs.t_f16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::BF16 => {
                 let layout = outputs.t_bf16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U64 => {
                 let layout = outputs.t_u64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U32 => {
                 let layout = outputs.t_u32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U16 => {
                 let layout = outputs.t_u16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::U8 => {
                 let layout = outputs.t_u8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I64 => {
                 let layout = outputs.t_i64.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I32 => {
                 let layout = outputs.t_i32.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I16 => {
                 let layout = outputs.t_i16.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             ElemwisePrecision::I8 => {
                 let layout = outputs.t_i8.index(index);
-                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, shape)
+                index_offset_with_layout(inputs, tensor, layout, pos, range, config.rank, transform)
             }
             _ => comptime![panic!("Unsupported precision {precision:?}")],
         },
@@ -990,16 +1010,40 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     index: u32,
     #[comptime] range: Option<(u32, u32)>,
     #[comptime] rank: u32,
-    #[comptime] shape: Option<Sequence<Arg>>,
+    #[comptime] transform: Option<Transform>,
 ) -> u32 {
-    match comptime![shape.clone()] {
-        Some(shape) => {
+    match comptime![transform.clone()] {
+        Some(Transform::Reshape(shape)) => {
             comptime![assert!(
                 range.is_none(),
                 "Can't get a range on a reshaped tensor."
             )];
             let index = reshaped_index(inputs, layout, index, rank, shape);
             reshaped_index_to_original_index(tensor, index, rank)
+        }
+        Some(Transform::SwapDim(dim1, dim2)) => {
+            let (start, end) = comptime! {match range {
+                Some(range) => range,
+                None => (0u32, rank),
+            }};
+
+            let offset_ref = index * layout.line_size();
+            let mut offset = 0u32;
+
+            #[unroll]
+            for i in start..end {
+                let index = if i == dim1 {
+                    dim2
+                } else if i == dim2 {
+                    dim1
+                } else {
+                    i
+                };
+                let ogwl = offset_ref / layout.stride(i);
+                offset += ogwl % tensor.shape(index) * tensor.stride(index);
+            }
+
+            offset / tensor.line_size()
         }
         None => {
             let (start, end) = comptime! {match range {

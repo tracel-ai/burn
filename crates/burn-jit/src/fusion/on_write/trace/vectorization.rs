@@ -14,12 +14,12 @@ use crate::{
     JitRuntime,
 };
 
-use super::{HandleOutput, LaunchPlan, Reshape, TraceRunner};
+use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: JitRuntime> {
     settings: &'a FuseSettings,
-    reshapes: &'a Vec<Reshape>,
+    views: &'a Vec<TensorView>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
     indexed: &'a BTreeSet<TensorId>,
     _r: PhantomData<R>,
@@ -27,14 +27,14 @@ pub struct VectorizationPlanner<'a, R: JitRuntime> {
 
 impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
     pub fn new(
-        reshapes: &'a Vec<Reshape>,
+        views: &'a Vec<TensorView>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
         settings: &'a FuseSettings,
         indexed: &'a BTreeSet<TensorId>,
     ) -> Self {
         Self {
             settings,
-            reshapes,
+            views,
             reads,
             indexed,
             _r: PhantomData,
@@ -45,12 +45,26 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
-        let tensors_reshaped = self.reshapes.iter().map(|reshape| {
-            (
-                context.tensors.get(&reshape.reshaped).unwrap(),
-                context.tensors.get(&reshape.original).unwrap(),
-                self.reads.get(&reshape.original).unwrap().len() > 1,
-            )
+        let tensors_reshaped = self.views.iter().filter_map(|view| match view {
+            TensorView::Reshape { reshaped, original } => Some((
+                context.tensors.get(reshaped).unwrap(),
+                context.tensors.get(original).unwrap(),
+                self.reads.get(original).unwrap().len() > 1,
+            )),
+            TensorView::SwapDims { .. } => None,
+        });
+        let tensors_swapped = self.views.iter().filter_map(|view| match view {
+            TensorView::SwapDims {
+                swapped,
+                original,
+                dims,
+            } => Some((
+                context.tensors.get(swapped).unwrap(),
+                context.tensors.get(original).unwrap(),
+                self.reads.get(original).unwrap().len() > 1,
+                dims,
+            )),
+            TensorView::Reshape { .. } => None,
         });
 
         let filtered = plan
@@ -77,6 +91,7 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
                 .filter_map(|(i, item)| if filtered[i] { Some(item) } else { None }),
             plan.global_outputs.iter(),
             tensors_reshaped,
+            tensors_swapped,
         );
 
         // If mix vectorization is disable, we set the vectorization factor of each tensor to the

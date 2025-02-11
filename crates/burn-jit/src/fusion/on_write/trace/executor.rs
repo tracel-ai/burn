@@ -7,7 +7,7 @@ use cubecl::{
     prelude::{ScalarArg, Sequence, TensorArg},
 };
 
-use super::{HandleInput, HandleOutput, LaunchPlan, Reshape, TraceRunner};
+use super::{HandleInput, HandleOutput, LaunchPlan, TensorView, TraceRunner};
 use crate::{
     fusion::{
         on_write::ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
@@ -19,7 +19,7 @@ use crate::{
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: JitRuntime> {
     scalars: &'a BTreeMap<ElemwisePrecision, u32>,
-    reshapes: &'a Vec<Reshape>,
+    views: &'a Vec<TensorView>,
     ops: &'a Vec<ElemwiseOp>,
     _r: PhantomData<R>,
 }
@@ -34,12 +34,12 @@ pub struct ExecutionError<R: JitRuntime, Runner: TraceRunner<R>> {
 impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a BTreeMap<ElemwisePrecision, u32>,
-        reshapes: &'a Vec<Reshape>,
+        reshapes: &'a Vec<TensorView>,
         ops: &'a Vec<ElemwiseOp>,
     ) -> Self {
         Self {
             scalars,
-            reshapes,
+            views: reshapes,
             ops,
             _r: PhantomData,
         }
@@ -156,11 +156,13 @@ impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
         }
 
         // Reshape values are pushed in reverse in the same scalar buffer for all `u32`
-        for relative in self.reshapes.iter().rev() {
-            let global = context.tensors.get(&relative.reshaped).unwrap();
+        for relative in self.views.iter().rev() {
+            if let TensorView::Reshape { reshaped, .. } = relative {
+                let global = context.tensors.get(reshaped).unwrap();
 
-            for shape in global.shape.iter().rev() {
-                inputs.s_u32.push(ScalarArg::new(*shape as u32))
+                for shape in global.shape.iter().rev() {
+                    inputs.s_u32.push(ScalarArg::new(*shape as u32))
+                }
             }
         }
 

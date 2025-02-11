@@ -13,7 +13,8 @@ use crate::{
 };
 
 use super::{
-    super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors, Reshape,
+    super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors,
+    TensorView,
 };
 use std::collections::BTreeMap;
 
@@ -22,7 +23,7 @@ use std::collections::BTreeMap;
 /// It is also responsible to select the reference tensor.
 pub struct OutputPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
-    reshapes: &'a Vec<Reshape>,
+    reshapes: &'a Vec<TensorView>,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
@@ -38,14 +39,14 @@ struct OutputSorted<'a> {
 enum OutputKind {
     Normal,
     Inplace { input_pos: usize },
-    Reshaped { reshape: Reshape },
+    Reshaped { reshape: TensorView },
 }
 
 impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         outputs: &'a RegisteredTensors,
-        reshapes: &'a Vec<Reshape>,
+        reshapes: &'a Vec<TensorView>,
     ) -> Self {
         let mut mapper = OutputPositionMapper::default();
         let mut outputs_sorted: Vec<_> = outputs
@@ -166,11 +167,10 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         output: &OutputSorted,
         strides: &[usize],
     ) -> OutputKind {
-        if let Some(reshape) = self
-            .reshapes
-            .iter()
-            .find(|r| r.reshaped == output.tensor_relative.id)
-        {
+        if let Some(reshape) = self.reshapes.iter().find(|v| match v {
+            TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
+            TensorView::SwapDims { .. } => false,
+        }) {
             return OutputKind::Reshaped {
                 reshape: reshape.clone(),
             };
@@ -311,12 +311,16 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Vec<usize>,
-        reshape: Reshape,
+        reshape: TensorView,
     ) {
+        let (_reshaped, original) = match reshape {
+            TensorView::Reshape { reshaped, original } => (reshaped, original),
+            _ => unreachable!(),
+        };
         let original_handle = plan
             .handle_inputs
             .iter()
-            .find(|handle| handle.relative_id == reshape.original)
+            .find(|handle| handle.relative_id == original)
             .unwrap();
 
         // We encode bool tensors as `B`.

@@ -24,7 +24,7 @@ pub struct FuseOnWriteTrace {
     pub inputs: RegisteredTensors,
     pub settings: FuseSettings,
     pub scalars: BTreeMap<ElemwisePrecision, u32>,
-    pub reshapes: Vec<Reshape>,
+    pub views: Vec<TensorView>,
     pub indexed: BTreeSet<TensorId>,
     pub shape_ref: Vec<usize>,
     pub ops: Vec<ElemwiseOp>,
@@ -34,9 +34,16 @@ pub struct FuseOnWriteTrace {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Reshape {
-    pub reshaped: TensorId,
-    pub original: TensorId,
+pub enum TensorView {
+    Reshape {
+        reshaped: TensorId,
+        original: TensorId,
+    },
+    SwapDims {
+        swapped: TensorId,
+        original: TensorId,
+        dims: (u32, u32),
+    },
 }
 
 impl FuseOnWriteTrace {
@@ -53,19 +60,19 @@ impl FuseOnWriteTrace {
         InputPlanner::<R>::new(
             &self.inputs,
             &self.inputs_unhandled,
-            &self.reshapes,
+            &self.views,
             &self.shape_ref,
             &self.settings,
         )
         .run(context, &mut plan);
 
-        OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
+        OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings, &self.indexed)
+        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.settings, &self.indexed)
             .run::<Runner>(context, &mut plan);
 
-        match LaunchPlanExecutor::<R>::new(&self.scalars, &self.reshapes, &self.ops)
+        match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
             .execute::<_, BT>(client, runner, context, plan)
         {
             Err(err) => {

@@ -18,6 +18,10 @@ pub enum Arg {
         original: Box<Arg>,
         shape: Sequence<Arg>,
     },
+    InputSwapDim {
+        original: Box<Arg>,
+        dims: (u32, u32),
+    },
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -41,6 +45,7 @@ impl Arg {
             Arg::Literal(_, p) => p,
             Arg::ScalarShape(_) => return ElemwisePrecision::U32,
             Arg::InputReshaped { original, .. } => return original.precision(),
+            Arg::InputSwapDim { original, .. } => return original.precision(),
         }
     }
 }
