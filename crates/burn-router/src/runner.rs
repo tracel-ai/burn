@@ -1,9 +1,8 @@
 use alloc::{sync::Arc, vec::Vec};
 use burn_common::stub::Mutex;
 use burn_ir::{
-    BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer,
-    IntOperationIr, ModuleOperationIr, NumericOperationIr, OperationIr, TensorId,
-    TensorIr, TensorStatus,
+    BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
+    ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
 use burn_tensor::{backend::Backend, DType, ElementConversion, FloatDType, Shape, TensorData};
 use core::future::Future;

@@ -82,33 +82,32 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
-    let vectorization_reshape =
-        |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
-            let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
-            let shape_axis = original.shape[original.shape.len() - 1];
+    let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
+        let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
+        let shape_axis = original.shape[original.shape.len() - 1];
 
-            if !multi_reads && reshape_axis == 1 {
-                return Vect::Broadcated;
-            }
+        if !multi_reads && reshape_axis == 1 {
+            return Vect::Broadcated;
+        }
 
-            for s in R::line_size_elem(&reshaped.dtype.into()) {
-                if !multi_reads {
-                    // The last dimension should be a multiple of the vector size or broadcated.
-                    if reshape_axis % s as usize == 0 {
-                        return Vect::Max(s);
-                    }
-                } else {
-                    // Since the original tensor must share the same vectorization factor as the
-                    // reshaped tensor, they must have compatible shapes when both are access
-                    // independently.
-                    if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 {
-                        return Vect::Max(s);
-                    }
+        for s in R::line_size_elem(&reshaped.dtype.into()) {
+            if !multi_reads {
+                // The last dimension should be a multiple of the vector size or broadcated.
+                if reshape_axis % s as usize == 0 {
+                    return Vect::Max(s);
+                }
+            } else {
+                // Since the original tensor must share the same vectorization factor as the
+                // reshaped tensor, they must have compatible shapes when both are access
+                // independently.
+                if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 {
+                    return Vect::Max(s);
                 }
             }
+        }
 
-            Vect::Max(1)
-        };
+        Vect::Max(1)
+    };
 
     let mut max_current = u8::MAX;
 

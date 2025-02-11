@@ -5,8 +5,8 @@ use super::{
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr,
-    ScalarOpIr, TensorIr, UnaryOpIr,
+    BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
+    TensorIr, UnaryOpIr,
 };
 use burn_tensor::Element;
 use cubecl::ir::Elem;
@@ -307,10 +307,9 @@ impl FuseOnWriteBuilder {
                 .register_scalar_ops(desc, |lhs, rhs, out| {
                     ElemwiseOp::Lower(BinaryElemwiseArgs { lhs, rhs, out })
                 }),
-            NumericOperationIr::Greater(desc) => self
-                .register_binary_ops(desc, |lhs, rhs, out| {
-                    ElemwiseOp::Greater(BinaryElemwiseArgs { lhs, rhs, out })
-                }),
+            NumericOperationIr::Greater(desc) => self.register_binary_ops(desc, |lhs, rhs, out| {
+                ElemwiseOp::Greater(BinaryElemwiseArgs { lhs, rhs, out })
+            }),
             NumericOperationIr::GreaterElem(desc) => self
                 .register_scalar_ops(desc, |lhs, rhs, out| {
                     ElemwiseOp::Greater(BinaryElemwiseArgs { lhs, rhs, out })

@@ -3,11 +3,10 @@ use burn_tensor::backend::Backend;
 use core::ops::Range;
 
 use burn_ir::{
-    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr,
-    GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr,
-    NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimWithIndicesOpIr,
-    RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
-    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr, GatherOpIr,
+    InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, NumericOperationIr, OperationIr,
+    PermuteOpIr, RandomOpIr, ReduceDimWithIndicesOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
+    SelectAssignOpIr, SelectOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{
     binary_ops_shape, BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps,
@@ -1293,9 +1292,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Int(
-            IntOperationIr::BitwiseLeftShiftScalar(desc),
-        ));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseLeftShiftScalar(
+            desc,
+        )));
 
         out
     }
@@ -1311,9 +1310,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShift(
-            desc,
-        )));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShift(desc)));
 
         out
     }
@@ -1329,9 +1326,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             out: out.to_ir_out(),
         };
 
-        client.register(OperationIr::Int(
-            IntOperationIr::BitwiseRightShiftScalar(desc),
-        ));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShiftScalar(
+            desc,
+        )));
 
         out
     }

@@ -29,10 +29,7 @@ impl RunnerChannel for WsChannel {
         WsClient::init(device.clone())
     }
 
-    fn get_tensor_handle(
-        _tensor: &TensorIr,
-        _client: &Self::Client,
-    ) -> TensorHandle<Self::Bridge> {
+    fn get_tensor_handle(_tensor: &TensorIr, _client: &Self::Client) -> TensorHandle<Self::Bridge> {
         panic!("Unsupported")
     }
 
