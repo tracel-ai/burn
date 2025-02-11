@@ -2230,7 +2230,7 @@ mod tests {
         output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
 
-    #[test}
+    #[test]
     fn floor_test() {
         // Test for floor
 
