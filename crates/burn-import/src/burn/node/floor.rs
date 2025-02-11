@@ -50,7 +50,7 @@ mod tests {
 
         graph.register(FloorNode::new(
             TensorType::new_float("tensor1", 1),
-            TensorType::new_float("tensor2", 2),
+            TensorType::new_float("tensor2", 1),
         ));
 
         graph.register_input_output(vec!["tensor1".to_string()], vec!["tensor2".to_string()]);
@@ -76,7 +76,7 @@ mod tests {
                     }
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
-                pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
+                pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 1> {
                     let tensor2 = tensor1.floor();
                     tensor2
                 }
