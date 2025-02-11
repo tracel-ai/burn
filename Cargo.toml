@@ -41,7 +41,7 @@ dirs = "5.0.1"
 fake = "3.0.1"
 flate2 = "1.0.35"
 float-cmp = "0.10.0"
-getrandom = { version = "0.2.15", default-features = false }
+getrandom = { version = "0.3.1", default-features = false }
 gix-tempfile = { version = "15.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.2"

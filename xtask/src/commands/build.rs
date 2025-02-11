@@ -37,6 +37,11 @@ pub(crate) fn handle_command(
                         "--cfg portable_atomic_unsafe_assume_single_core",
                     );
                 }
+                // RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+                // https://docs.rs/getrandom/latest/getrandom/#webassembly-support
+                if *build_target == WASM32_TARGET {
+                    env_vars.insert("RUSTFLAGS", "--cfg getrandom_backend=\"wasm_js\"");
+                }
                 helpers::custom_crates_build(
                     NO_STD_CRATES.to_vec(),
                     build_args,
