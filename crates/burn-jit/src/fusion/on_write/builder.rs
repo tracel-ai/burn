@@ -424,7 +424,7 @@ impl FuseOnWriteBuilder {
                     Some(())
                 })
             }
-            NumericOperationDescription::Gather(desc) => {
+            NumericOperationIr::Gather(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
