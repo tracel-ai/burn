@@ -58,6 +58,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
             }
             (TensorKind::Bool, _) => panic!("Input should be numeric"),
         }
+    }
 
     fn into_node(self) -> Node<PS> {
         Node::OneHot(self)
@@ -113,8 +114,7 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, tensor1: Tensor<B, 1>) -> Tensor<B, 2> {
                     let tensor2 = tensor1
-                        .one_hot_fill(3usize, 1f32.into(), 0f32.into(), -1i64)
-                        .float();
+                        .one_hot_fill(3usize, 1f32.into(), 0f32.into(), -1i64);
                     tensor2
                 }
             }
