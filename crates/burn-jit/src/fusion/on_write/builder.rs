@@ -444,7 +444,7 @@ impl FuseOnWriteBuilder {
                     Some(())
                 })
             }
-            NumericOperationDescription::Select(desc) => {
+            NumericOperationIr::Select(desc) => {
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
