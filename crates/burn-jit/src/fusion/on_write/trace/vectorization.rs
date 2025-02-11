@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    marker::PhantomData,
+};
 
 use burn_fusion::stream::Context;
 use burn_tensor::repr::TensorId;
@@ -18,6 +21,7 @@ pub struct VectorizationPlanner<'a, R: JitRuntime> {
     settings: &'a FuseSettings,
     reshapes: &'a Vec<Reshape>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
+    indexed: &'a BTreeSet<TensorId>,
     _r: PhantomData<R>,
 }
 
@@ -26,11 +30,13 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
         reshapes: &'a Vec<Reshape>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
         settings: &'a FuseSettings,
+        indexed: &'a BTreeSet<TensorId>,
     ) -> Self {
         Self {
             settings,
             reshapes,
             reads,
+            indexed,
             _r: PhantomData,
         }
     }
@@ -47,10 +53,28 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
             )
         });
 
+        let filtered = plan
+            .handle_inputs
+            .iter()
+            .map(|item| !self.indexed.contains(&item.relative_id))
+            .collect::<Vec<_>>();
+
         Runner::vectorization(
             &mut plan.vectorization,
-            plan.handle_inputs.iter().map(|item| &item.handle),
-            plan.global_inputs.iter(),
+            plan.handle_inputs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| {
+                    if filtered[i] {
+                        Some(&item.handle)
+                    } else {
+                        None
+                    }
+                }),
+            plan.global_inputs
+                .iter()
+                .enumerate()
+                .filter_map(|(i, item)| if filtered[i] { Some(item) } else { None }),
             plan.global_outputs.iter(),
             tensors_reshaped,
         );
@@ -66,8 +90,16 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
             }
         }
 
+        for tensor in self.indexed {
+            let global = context.tensors.get(tensor).unwrap();
+            plan.vectorization.insert(global.id, 1);
+        }
+
         for handle in plan.handle_inputs.iter_mut() {
-            handle.vectorization = *plan.vectorization.get(&handle.global_id).unwrap();
+            handle.vectorization = match plan.vectorization.get(&handle.global_id) {
+                Some(v) => *v,
+                None => panic!("No vectorization factor found for {:?}", handle.global_id),
+            };
         }
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {

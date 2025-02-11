@@ -14,7 +14,7 @@ use cubecl::{
                     multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
                     StageMatmulFamily, TilingOrderConfig,
                 },
-                Ident, InvalidConfigError, MatrixLayout, StageDim,
+                Ident, InvalidConfigError, MatrixLayout, StageTiling,
             },
             kernels::matmul::AdvancedConfig,
         },
@@ -208,7 +208,7 @@ where
             cube_count,
             advanced_config,
         );
-        let size = SMM::size(&smm_config);
+        let size = SMM::stage_shape(&smm_config);
 
         config::HomogeneousConfig::new(
             full_load::Config::new(
@@ -274,8 +274,8 @@ pub(crate) fn implicit_conv<
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
-    let x_offset = CUBE_POS_X * config.stage_dim(Ident::Lhs).num_elements_x_dim();
-    let y_offset = CUBE_POS_Y * config.stage_dim(Ident::Rhs).num_elements_y_dim();
+    let x_offset = CUBE_POS_X * config.stage_tiling(Ident::Lhs).total_row();
+    let y_offset = CUBE_POS_Y * config.stage_tiling(Ident::Rhs).total_col();
     let k_range = (0, rhs.shape(0));
 
     let lhs = VirtualTensor::<EG>::new::<Tensor<Line<EG>>>(lhs);
@@ -305,7 +305,7 @@ pub mod config {
 
     use super::*;
 
-    #[derive(CubeType, Copy, Clone, Debug, Hash, PartialEq, Eq)]
+    #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
     pub struct HomogeneousConfig<M: GlobalConfig> {
         matmul: M,
         out_shape: (u32, u32),
@@ -339,8 +339,8 @@ pub mod config {
             self.matmul.stage_line_size(ident)
         }
 
-        fn stage_dim(&self, ident: Ident) -> Box<dyn StageDim> {
-            self.matmul.stage_dim(ident)
+        fn stage_tiling(&self, ident: Ident) -> StageTiling {
+            self.matmul.stage_tiling(ident)
         }
 
         fn layout(&self, ident: Ident) -> MatrixLayout {

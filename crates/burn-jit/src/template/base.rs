@@ -20,7 +20,12 @@ pub struct SourceKernel<K> {
 }
 
 impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
-    fn compile(&self, _options: &C::CompilationOptions, _mode: ExecutionMode) -> CompiledKernel<C> {
+    fn compile(
+        &self,
+        _compiler: &mut C,
+        _options: &C::CompilationOptions,
+        _mode: ExecutionMode,
+    ) -> CompiledKernel<C> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
@@ -29,7 +34,6 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
             debug_name: Some(core::any::type_name::<K>()),
             source,
             cube_dim: self.cube_dim,
-            shared_mem_bytes: 0,
             debug_info: None,
             repr: None,
         }

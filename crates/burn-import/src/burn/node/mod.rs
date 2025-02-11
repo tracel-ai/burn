@@ -17,6 +17,7 @@ pub(crate) mod conv_transpose_2d;
 pub(crate) mod conv_transpose_3d;
 pub(crate) mod dropout;
 pub(crate) mod expand;
+pub(crate) mod floor;
 pub(crate) mod gather;
 pub(crate) mod gather_elements;
 pub(crate) mod global_avg_pool;

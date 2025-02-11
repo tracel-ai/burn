@@ -59,16 +59,12 @@ impl Algorithm for ImplicitCmmaConv {
     type Input = <Self::GlobalConvolution as ConvolutionConfigFactory>::Input;
 
     fn cube_dim(selection: &ConvSelection) -> CubeDim {
-        CubeDim::new(
-            selection.matmul.plane_dim,
-            selection.matmul.num_stagess.m,
-            1,
-        )
+        CubeDim::new(selection.matmul.plane_dim, selection.matmul.tile_count.m, 1)
     }
 
     fn cube_count(selection: &ConvSelection, problem: &ConvolutionProblem) -> CubeCount {
-        let m_stage = selection.matmul.num_stagess.m * selection.matmul.tile.m;
-        let n_stage = selection.matmul.num_stagess.n * selection.matmul.tile.n;
+        let m_stage = selection.matmul.tile_count.m * selection.matmul.tile_shape.m;
+        let n_stage = selection.matmul.tile_count.n * selection.matmul.tile_shape.n;
         let cubes_needed_m = (problem.m as u32).div_ceil(m_stage);
         let cubes_needed_n = (problem.n as u32).div_ceil(n_stage);
 
