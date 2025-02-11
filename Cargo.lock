@@ -921,6 +921,7 @@ dependencies = [
  "burn-candle",
  "burn-cuda",
  "burn-fusion",
+ "burn-ir",
  "burn-jit",
  "burn-ndarray",
  "burn-tch",

@@ -18,6 +18,7 @@ jobs:
       - publish-burn-ndarray
       - publish-burn-tch
       - publish-burn-tensor
+      - publish-burn-ir
       - publish-burn-tensor-testgen
       # dev dependencies
       - publish-burn-wgpu
