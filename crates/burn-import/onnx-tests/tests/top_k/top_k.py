@@ -45,7 +45,7 @@ def create_model(op_set_version: int):
         name = 'TopKGraph',
         inputs = input_tensors,
         outputs = output_tensors,
-        # Unconmment when initializers are supported. Currently we can't test opset 10/11 since the code will require a k value to be initialized for testing.
+        # Uncomment when initializers are supported. Currently we can't test opset 10/11 since the code will require a k value to be initialized for testing.
         #initializer = [
         #    helper.make_tensor('X', TensorProto.FLOAT, X.shape, X),
         #    helper.make_tensor('K', TensorProto.INT64, [1], [k]),
@@ -66,8 +66,9 @@ def create_model(op_set_version: int):
     print(f"Model saved to top_k_opset_{op_set_version}.onnx")
     
 def main():
-    # Unconmment when initializers are supported.
-    for op_set_version in [1, 10, 11]:
+    # Uncomment when initializers are supported.
+    # for op_set_version in [1, 10, 11]:
+    for op_set_version in [1]:
         create_model(op_set_version)
 
 
