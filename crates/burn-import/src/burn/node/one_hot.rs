@@ -33,21 +33,31 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let on_value = &self.values[1];
         let off_value = &self.values[0];
         let axis = &self.axis;
-        let values_type = &self.values_type.kind;
-        match values_type {
-            TensorKind::Int => {
+        let input_type = &self.input.kind;
+        let output_type = &self.values_type.kind; // output is tied to values type
+        match (input_type, output_type) {
+            (TensorKind::Int, TensorKind::Int) | (TensorKind::Float, TensorKind::Float) => {
                 quote! {
                     let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis);
                 }
             }
-            TensorKind::Float => {
+            (TensorKind::Int, TensorKind::Float) => {
                 quote! {
                     let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).float();
                 }
             }
-            _ => panic!("Values should be numeric"),
+            (TensorKind::Float, TensorKind::Int) => {
+                quote! {
+                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).int();
+                }
+            }
+            (TensorKind::Int, TensorKind::Bool) | (TensorKind::Float, TensorKind::Bool) => {
+                quote! {
+                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).bool();
+                }
+            }
+            (TensorKind::Bool, _) => panic!("Input should be numeric"),
         }
-    }
 
     fn into_node(self) -> Node<PS> {
         Node::OneHot(self)
