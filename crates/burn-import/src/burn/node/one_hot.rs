@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{Scope, TensorType, Type};
+use crate::burn::{Scope, TensorKind, TensorType, Type};
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -9,14 +9,16 @@ pub struct OneHotNode {
     pub input: TensorType,
     pub output: TensorType,
     pub num_classes: usize,
-    pub on_value: f32,
-    pub off_value: f32,
+    pub values: [f32; 2],
+    pub values_type: TensorType,
     pub axis: i64,
 }
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
     fn output_types(&self) -> Vec<Type> {
-        vec![Type::Tensor(self.output.clone())]
+        let mut new_output = self.output.clone();
+        new_output.kind = self.values_type.kind;
+        vec![Type::Tensor(new_output)]
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -28,12 +30,22 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for OneHotNode {
         let output = &self.output.name;
 
         let num_classes = &self.num_classes;
-        let on_value = &self.on_value;
-        let off_value = &self.off_value;
+        let on_value = &self.values[1];
+        let off_value = &self.values[0];
         let axis = &self.axis;
-
-        quote! {
-            let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).float();
+        let values_type = &self.values_type.kind;
+        match values_type {
+            TensorKind::Int => {
+                quote! {
+                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis);
+                }
+            }
+            TensorKind::Float => {
+                quote! {
+                    let #output = #input.one_hot_fill(#num_classes, #on_value.into(), #off_value.into(), #axis).float();
+                }
+            }
+            _ => panic!("Values should be numeric"),
         }
     }
 
@@ -61,8 +73,8 @@ mod tests {
             TensorType::new_float("tensor1", 1),
             TensorType::new_float("tensor2", 2),
             3,
-            1.0,
-            0.0,
+            [0., 1.],
+            TensorType::new_float("tensor3", 1),
             -1,
         ));
 

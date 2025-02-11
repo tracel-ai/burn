@@ -1270,9 +1270,10 @@ impl ParsedOnnxGraph {
     fn one_hot_conversion(node: Node) -> OneHotNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
+        let values_type = TensorType::from(node.inputs.get(2).unwrap());
 
-        let (num_classes, on_value, off_value, axis) = one_hot_config(&node);
-        OneHotNode::new(input, output, num_classes, on_value, off_value, axis)
+        let (num_classes, values, axis) = one_hot_config(&node);
+        OneHotNode::new(input, output, num_classes, values, values_type, axis)
     }
 }
 
