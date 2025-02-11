@@ -3,14 +3,20 @@ use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShap
 use burn_tensor::{
     backend::Backend,
     ops::{FloatTensorOps, IntTensor},
-    Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
+    DType, Distribution, ElementConversion, FloatDType, Shape, TensorData, TensorMetadata,
 };
 use half::{bf16, f16};
 use std::ops::Range;
 
 impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        TchTensor::from_data::<E>(data, (*device).into())
+        match data.dtype {
+            DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
+            DType::F32 => TchTensor::from_data::<f32>(data, (*device).into()),
+            DType::F16 => TchTensor::from_data::<f16>(data, (*device).into()),
+            DType::BF16 => TchTensor::from_data::<bf16>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        }
     }
 
     fn float_random(

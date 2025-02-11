@@ -8,13 +8,13 @@ use ndarray::Zip;
 // Current crate
 use super::{matmul::matmul, NdArrayMathOps, NdArrayOps};
 use crate::element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::{execute_with_float_dtype, new_tensor_float, NdArrayDevice, NdArrayTensorFloat, SEED};
+use crate::{execute_with_float_dtype, NdArrayDevice, NdArrayTensorFloat, SEED};
 use crate::{tensor::NdArrayTensor, NdArray};
 
 // Workspace crates
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::{backend::Backend, ops::FloatTensorOps, ElementConversion, Shape, TensorData};
-use burn_tensor::{Distribution, FloatDType};
+use burn_tensor::{DType, Distribution, FloatDType};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -42,7 +42,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> FloatTensorO
     for NdArray<E, I, Q>
 {
     fn float_from_data(data: TensorData, _device: &NdArrayDevice) -> FloatTensor<Self> {
-        new_tensor_float!(NdArrayTensor::from_data(data))
+        match data.dtype {
+            DType::F64 => NdArrayTensorFloat::F64(NdArrayTensor::from_data(data)),
+            DType::F32 => NdArrayTensorFloat::F32(NdArrayTensor::from_data(data)),
+            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        }
     }
 
     fn float_random(

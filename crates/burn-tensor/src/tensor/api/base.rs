@@ -2534,7 +2534,10 @@ impl<B: Backend> BasicOps<B> for Float {
             DType::QFloat(_strategy) => {
                 TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
             }
-            _ => TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device)),
+            _ if dtype.is_float() => {
+                TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
+            }
+            _ => panic!("Expected float dtype, got {dtype:?}"),
         }
     }
 
@@ -2711,6 +2714,10 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        if !dtype.is_int() {
+            panic!("Expected int dtype, got {dtype:?}")
+        }
+
         B::int_from_data(data.convert_dtype(dtype), device)
     }
 
@@ -2827,6 +2834,10 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        // Backends only use one bool representation dtype
+        if dtype != B::BoolElem::dtype() {
+            panic!("Expected bool dtype, got {dtype:?}")
+        }
         B::bool_from_data(data.convert_dtype(dtype), device)
     }
 

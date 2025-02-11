@@ -20,7 +20,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::base::from_data::<I>(data, device)
+        match data.dtype {
+            burn_tensor::DType::I64 => super::base::from_data::<i64>(data, device),
+            burn_tensor::DType::U32 => super::base::from_data::<u32>(data, device),
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {

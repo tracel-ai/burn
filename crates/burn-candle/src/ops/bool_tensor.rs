@@ -1,5 +1,4 @@
 use burn_tensor::{
-    backend::Backend,
     ops::{BoolTensor, BoolTensorOps, FloatTensor, IntTensor},
     Device, Shape, TensorData, TensorMetadata,
 };
@@ -23,7 +22,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        super::base::from_data::<<Self as Backend>::BoolElem>(data, device)
+        match data.dtype {
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
+        }
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

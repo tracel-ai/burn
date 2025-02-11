@@ -20,7 +20,7 @@ use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{backend::Backend, DType, Shape, TensorData};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
@@ -28,7 +28,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     for NdArray<E, I, Q>
 {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<I> {
-        NdArrayTensor::from_data(data)
+        match data.dtype {
+            DType::I64 | DType::I32 => NdArrayTensor::from_data(data),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     async fn int_into_data(tensor: NdArrayTensor<I>) -> TensorData {
