@@ -3,11 +3,11 @@ use crate::{
 };
 #[cfg(feature = "fusion")]
 use burn_fusion::{client::FusionClient, stream::Operation, Fusion, FusionBackend, FusionRuntime};
-use burn_jit::{BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
-use burn_tensor::ops::{BoolTensor, IntTensor};
 #[cfg(feature = "fusion")]
+use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
+use burn_jit::{BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::{
-    repr::{CustomOpDescription, HandleContainer, OperationDescription},
+    ops::{BoolTensor, IntTensor},
     Element,
 };
 
@@ -51,7 +51,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
 
         #[derive(derive_new::new)]
         struct ConnComp<B> {
-            desc: CustomOpDescription,
+            desc: CustomOpIr,
             conn: Connectivity,
             _b: core::marker::PhantomData<B>,
         }
@@ -72,14 +72,10 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         let stream = img.stream;
         let out = client.tensor_uninitialized(vec![batches, height, width], B::IntElem::dtype());
 
-        let desc = CustomOpDescription::new(
-            "connected_components",
-            &[img.into_description()],
-            &[out.to_description_out()],
-        );
+        let desc = CustomOpIr::new("connected_components", &[img.into_ir()], &[out.to_ir_out()]);
         client.register(
             vec![stream],
-            OperationDescription::Custom(desc.clone()),
+            OperationIr::Custom(desc.clone()),
             ConnComp::<B>::new(desc, conn),
         );
 
@@ -98,7 +94,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
 
         #[derive(derive_new::new)]
         struct ConnCompStats<B> {
-            desc: CustomOpDescription,
+            desc: CustomOpIr,
             conn: Connectivity,
             opts: ConnectedStatsOptions,
             _b: core::marker::PhantomData<B>,
@@ -135,22 +131,22 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
             client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
         let max_label = client.tensor_uninitialized(vec![batches], B::IntElem::dtype());
 
-        let desc = CustomOpDescription::new(
+        let desc = CustomOpIr::new(
             "connected_components",
-            &[img.into_description()],
+            &[img.into_ir()],
             &[
-                out.to_description_out(),
-                area.to_description_out(),
-                left.to_description_out(),
-                top.to_description_out(),
-                right.to_description_out(),
-                bottom.to_description_out(),
-                max_label.to_description_out(),
+                out.to_ir_out(),
+                area.to_ir_out(),
+                left.to_ir_out(),
+                top.to_ir_out(),
+                right.to_ir_out(),
+                bottom.to_ir_out(),
+                max_label.to_ir_out(),
             ],
         );
         client.register(
             vec![stream],
-            OperationDescription::Custom(desc.clone()),
+            OperationIr::Custom(desc.clone()),
             ConnCompStats::<B>::new(desc, conn, opts),
         );
 
