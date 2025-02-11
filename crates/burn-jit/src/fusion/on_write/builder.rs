@@ -37,19 +37,22 @@ impl TryFuseBuilder {
         }
     }
 
-    fn register(&mut self, add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder) -> bool) -> bool {
+    fn register(
+        &mut self,
+        add_ops: impl FnOnce(&mut FuseOnWriteTraceBuilder) -> Option<()>,
+    ) -> bool {
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
 
-            if !add_ops(&mut self.builder) {
+            if add_ops(&mut self.builder).is_none() {
                 return false;
             }
             return true;
         }
 
         let mut cloned = self.builder.clone();
-        if !add_ops(&mut cloned) {
+        if add_ops(&mut cloned).is_none() {
             return false;
         }
 
@@ -213,15 +216,12 @@ impl FuseOnWriteBuilder {
                 }
 
                 if self.builder.register(|build| {
-                    let input = match build.input_reshaped(&desc.input, &desc.out) {
-                        Some(val) => val,
-                        None => return false,
-                    };
-                    let out = build.output(&desc.out);
+                    let input = build.input_reshaped(&desc.input, &desc.out)?;
+                    let out = build.output(&desc.out)?;
 
                     build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
-                    true
+                    Some(())
                 }) {
                     self.num_reshapes += 1;
                     true
@@ -341,10 +341,10 @@ impl FuseOnWriteBuilder {
                 }
 
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask);
-                    let lhs = build.input(&desc.value);
-                    let rhs = build.input(&desc.tensor);
-                    let out = build.output(&desc.out);
+                    let cond = build.input(&desc.mask)?;
+                    let lhs = build.input(&desc.value)?;
+                    let rhs = build.input(&desc.tensor)?;
+                    let out = build.output(&desc.out)?;
 
                     build.register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
@@ -353,7 +353,7 @@ impl FuseOnWriteBuilder {
                         out,
                     });
 
-                    true
+                    Some(())
                 })
             }
             NumericOperationIr::MaskFill(desc) => {
@@ -362,10 +362,10 @@ impl FuseOnWriteBuilder {
                 }
 
                 self.builder.register(|build| {
-                    let cond = build.input(&desc.mask);
+                    let cond = build.input(&desc.mask)?;
                     let lhs = build.scalar(&desc.value, desc.out.dtype);
-                    let rhs = build.input(&desc.tensor);
-                    let out = build.output(&desc.out);
+                    let rhs = build.input(&desc.tensor)?;
+                    let out = build.output(&desc.out)?;
 
                     build.register_operation(ElemwiseOp::ConditionalAssign {
                         cond,
@@ -374,7 +374,7 @@ impl FuseOnWriteBuilder {
                         out,
                     });
 
-                    true
+                    Some(())
                 })
             }
             NumericOperationIr::Ones(desc) => {
@@ -387,11 +387,11 @@ impl FuseOnWriteBuilder {
                 let input = Arg::Literal(1, precision);
 
                 self.builder.register(|build| {
-                    let out = build.output(desc);
+                    let out = build.output(desc)?;
 
                     build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
-                    true
+                    Some(())
                 })
             }
             NumericOperationIr::Zeros(desc) => {
@@ -404,11 +404,11 @@ impl FuseOnWriteBuilder {
                 let input = Arg::Literal(0, precision);
 
                 self.builder.register(|build| {
-                    let out = build.output(desc);
+                    let out = build.output(desc)?;
 
                     build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
-                    true
+                    Some(())
                 })
             }
             NumericOperationIr::Full((desc, elem)) => {
@@ -418,11 +418,31 @@ impl FuseOnWriteBuilder {
 
                 self.builder.register(|build| {
                     let input = build.scalar(elem, desc.dtype);
-                    let out = build.output(desc);
+                    let out = build.output(desc)?;
 
                     build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
-                    true
+                    Some(())
+                })
+            }
+            NumericOperationDescription::Gather(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let input = build.input_indexed(&desc.tensor)?;
+                    let indices = build.input(&desc.indices)?;
+                    let output = build.output(&desc.out)?;
+
+                    build.register_operation(ElemwiseOp::Gather {
+                        input,
+                        indices,
+                        output,
+                        dim: desc.dim as u32,
+                    });
+
+                    Some(())
                 })
             }
             _ => false,
@@ -438,13 +458,13 @@ impl FuseOnWriteBuilder {
         }
 
         self.builder.register(|build| {
-            let lhs = build.input(&desc.lhs);
-            let rhs = build.input(&desc.rhs);
-            let out = build.output(&desc.out);
+            let lhs = build.input(&desc.lhs)?;
+            let rhs = build.input(&desc.rhs)?;
+            let out = build.output(&desc.out)?;
 
             build.register_operation(func(lhs, rhs, out));
 
-            true
+            Some(())
         })
     }
 
@@ -457,10 +477,10 @@ impl FuseOnWriteBuilder {
         }
 
         self.builder.register(|build| {
-            let input = build.input(&desc.input);
-            let out = build.output(&desc.out);
+            let input = build.input(&desc.input)?;
+            let out = build.output(&desc.out)?;
             build.register_operation(func(input, out));
-            true
+            Some(())
         })
     }
 
@@ -474,13 +494,13 @@ impl FuseOnWriteBuilder {
 
         self.builder.register(|build| {
             let elem = desc.lhs.dtype;
-            let lhs = build.input(&desc.lhs);
+            let lhs = build.input(&desc.lhs)?;
             let rhs = build.scalar(&desc.rhs, elem);
-            let out = build.output(&desc.out);
+            let out = build.output(&desc.out)?;
 
             build.register_operation(func(lhs, rhs, out));
 
-            true
+            Some(())
         })
     }
 

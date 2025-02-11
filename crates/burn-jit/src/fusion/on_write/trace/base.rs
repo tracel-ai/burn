@@ -15,7 +15,7 @@ use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
@@ -25,6 +25,7 @@ pub struct FuseOnWriteTrace {
     pub settings: FuseSettings,
     pub scalars: BTreeMap<ElemwisePrecision, u32>,
     pub reshapes: Vec<Reshape>,
+    pub indexed: BTreeSet<TensorId>,
     pub shape_ref: Vec<usize>,
     pub ops: Vec<ElemwiseOp>,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -61,7 +62,7 @@ impl FuseOnWriteTrace {
         OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings)
+        VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings, &self.indexed)
             .run::<Runner>(context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.reshapes, &self.ops)
