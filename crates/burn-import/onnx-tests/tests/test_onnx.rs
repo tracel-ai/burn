@@ -2131,7 +2131,7 @@ mod tests {
     fn top_k_opset_1() {
         // Initialize the model
         let device = Default::default();
-        let model = top_k_opset1::Model::<Backend>::new(&device);
+        let model = top_k_opset_1::Model::<Backend>::new(&device);
 
         // Run the model
         let input = Tensor::<Backend, 2>::from_floats(
@@ -2143,7 +2143,7 @@ mod tests {
         // expected results
         let expected_values_tensor =
             TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
-        let expected_indices_tensor = TensorData::from([[3, 2, 1], [3, 2, 1]]);
+        let expected_indices_tensor = TensorData::from([[3i64, 2, 1], [3, 2, 1]]);
 
         values_tensor
             .to_data()

@@ -9,7 +9,6 @@ use quote::{quote, ToTokens};
 pub struct TopKConfig {
     pub axis: usize,
     pub k: usize,
-    pub largest: usize,
 }
 
 #[derive(Debug, Clone, new)]
@@ -34,14 +33,13 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for TopKNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let axis = self.config.axis.to_token_stream();
         let k = self.config.k.to_token_stream();
-        let largest = self.config.largest.to_token_stream();
 
         let input = scope.tensor_use_owned(&self.input, node_position);
         let values_output = &self.outputs[0].name;
         let indices_output = &self.outputs[1].name;
 
         quote! {
-            let (#values_output, #indices_output) = #input.topk_with_indices(#k, #axis, #largest);
+            let (#values_output, #indices_output) = #input.topk_with_indices(#k, #axis);
         }
     }
 
@@ -64,7 +62,7 @@ mod tests {
     #[test]
     fn test_codegen_nodes() {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
-        let config = TopKConfig::new(1, 3, 1);
+        let config = TopKConfig::new(1, 3);
 
         graph.register(TopKNode::new(
             TensorType::new_float("input_tensor", 4),
@@ -103,7 +101,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input_tensor: Tensor<B, 4>) -> (Tensor<B, 4>, Tensor<B, 4, Int>) {
-                    let (values_tensor, indices_tensor) = input_tensor.topk_with_indices(3usize, 1usize, 1usize);
+                    let (values_tensor, indices_tensor) = input_tensor.topk_with_indices(3usize, 1usize);
                     (values_tensor, indices_tensor)
                 }
             }

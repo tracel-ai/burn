@@ -14,18 +14,8 @@ mod tests {
         );
         let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
-        // largest
-        let values = tensor.clone().topk(3, /*dim*/ 0, /*largest*/ Some(1));
+        let values = tensor.clone().topk(3, /*dim*/ 0);
         let expected = TensorData::from([5., 4., 3.]);
-
-        values
-            .dequantize()
-            .into_data()
-            .assert_approx_eq(&expected, 3);
-
-        // smallest
-        let values = tensor.clone().topk(3, /*dim*/ 0, /*largest*/ Some(0));
-        let expected = TensorData::from([1., 2., 3.]);
 
         values
             .dequantize()
@@ -43,19 +33,8 @@ mod tests {
         );
         let tensor = TestTensor::<3>::from_data(data, &Default::default());
 
-        // largest
-        let values = tensor.clone().topk(2, /*dim*/ 2, /*largest*/ Some(1));
+        let values = tensor.clone().topk(2, /*dim*/ 2);
         let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
-
-        // Precision 1 to approximate de/quantization errors
-        values
-            .dequantize()
-            .into_data()
-            .assert_approx_eq(&expected, 1);
-
-        // smallest
-        let values = tensor.clone().topk(2, /*dim*/ 2, /*largest*/ Some(0));
-        let expected = TensorData::from([[[1., 4.], [2., 5.]], [[0., 3.], [2., 7.]]]);
 
         // Precision 1 to approximate de/quantization errors
         values
@@ -74,11 +53,7 @@ mod tests {
         );
         let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
-        // largest
-        let (values, indices) =
-            tensor
-                .clone()
-                .topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(1));
+        let (values, indices) = tensor.clone().topk_with_indices(3, /*dim*/ 0);
 
         let values_expected = TensorData::from([5., 4., 3.]);
         values
@@ -87,21 +62,6 @@ mod tests {
             .assert_eq(&values_expected, false);
 
         let indices_expected = TensorData::from([4, 3, 2]);
-        indices.into_data().assert_eq(&indices_expected, false);
-
-        // smallest
-        let (values, indices) =
-            tensor
-                .clone()
-                .topk_with_indices(3, /*dim*/ 0, /*largest*/ Some(0));
-
-        let values_expected = TensorData::from([1., 2., 3.]);
-        values
-            .dequantize()
-            .into_data()
-            .assert_eq(&values_expected, false);
-
-        let indices_expected = TensorData::from([0, 1, 2]);
         indices.into_data().assert_eq(&indices_expected, false);
     }
 
@@ -115,11 +75,7 @@ mod tests {
         );
         let tensor = TestTensor::<3>::from_data(data, &Default::default());
 
-        // largest
-        let (values, indices) =
-            tensor
-                .clone()
-                .topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(1));
+        let (values, indices) = tensor.clone().topk_with_indices(2, /*dim*/ 2);
 
         let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
@@ -130,24 +86,6 @@ mod tests {
             .assert_approx_eq(&values_expected, 1);
 
         let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
-
-        indices.into_data().assert_eq(&indices_expected, false);
-
-        // smallest
-        let (values, indices) =
-            tensor
-                .clone()
-                .topk_with_indices(2, /*dim*/ 2, /*largest*/ Some(0));
-
-        let values_expected = TensorData::from([[[1., 4.], [2., 5.]], [[0., 3.], [2., 7.]]]);
-
-        // Precision 1 to approximate de/quantization errors
-        values
-            .dequantize()
-            .into_data()
-            .assert_approx_eq(&values_expected, 1);
-
-        let indices_expected = TensorData::from([[[0, 1], [0, 1]], [[1, 0], [1, 2]]]);
 
         indices.into_data().assert_eq(&indices_expected, false);
     }

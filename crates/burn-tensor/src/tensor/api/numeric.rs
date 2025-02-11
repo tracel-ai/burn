@@ -726,53 +726,20 @@ where
     }
 
     /// Returns the `k` largest elements of the given input tensor along a given dimension.
-    pub fn topk(self, k: usize, dim: usize, largest: Option<usize>) -> Tensor<B, D, K> {
+    pub fn topk(self, k: usize, dim: usize) -> Tensor<B, D, K> {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
-        match largest {
-            Some(largest) => {
-                if largest == 1 {
-                    self.sort_descending(dim).select(dim, k_indices)
-                } else {
-                    self.sort(dim).select(dim, k_indices)
-                }
-            }
-            _ => self.sort_descending(dim).select(dim, k_indices),
-        }
+        self.sort_descending(dim).select(dim, k_indices)
     }
 
     /// Returns the `k` largest elements of the given input tensor along a given dimension.
     /// Also returns the indices.
-    pub fn topk_with_indices(
-        self,
-        k: usize,
-        dim: usize,
-        largest: Option<usize>,
-    ) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
+    pub fn topk_with_indices(self, k: usize, dim: usize) -> (Tensor<B, D, K>, Tensor<B, D, Int>) {
         let k_indices = Tensor::arange(0..k as i64, &self.device());
-        match largest {
-            Some(largest) => {
-                if largest == 1 {
-                    let (values, indices) = self.sort_descending_with_indices(dim);
-                    (
-                        values.select(dim, k_indices.clone()),
-                        indices.select(dim, k_indices),
-                    )
-                } else {
-                    let (values, indices) = self.sort_with_indices(dim);
-                    (
-                        values.select(dim, k_indices.clone()),
-                        indices.select(dim, k_indices),
-                    )
-                }
-            }
-            _ => {
-                let (values, indices) = self.sort_descending_with_indices(dim);
-                (
-                    values.select(dim, k_indices.clone()),
-                    indices.select(dim, k_indices),
-                )
-            }
-        }
+        let (values, indices) = self.sort_descending_with_indices(dim);
+        (
+            values.select(dim, k_indices.clone()),
+            indices.select(dim, k_indices),
+        )
     }
 
     /// Pad the tensor of rank two or higher with the given value on the last two dimensions.
