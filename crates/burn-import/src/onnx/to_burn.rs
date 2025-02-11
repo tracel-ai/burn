@@ -1271,8 +1271,8 @@ impl ParsedOnnxGraph {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
 
-        let (_, on_value, off_value, axis) = one_hot_config(&node);
-        OneHotNode::new(input, output, 3, on_value, off_value, axis)
+        let (num_classes, on_value, off_value, axis) = one_hot_config(&node);
+        OneHotNode::new(input, output, num_classes, on_value, off_value, axis)
     }
 }
 
