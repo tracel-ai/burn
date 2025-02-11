@@ -1177,6 +1177,7 @@ fn select_indices<C: Numeric>(
 
     let mut result = Line::empty(line_size_ref);
 
+    #[unroll]
     for i in 0..line_size_ref {
         let index_indices = ((write_pos * line_size_ref) + i) / stride_dim_ref % shape_dim_ref;
 
