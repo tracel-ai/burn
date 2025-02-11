@@ -98,8 +98,8 @@ impl<E: Numeric> Im2colReader<E> {
         #[comptime] config: G,
     ) -> Line<E> {
         let line_size = config.global_line_size(ident);
-        let tile_size_x = config.stage_dim(ident).tile_size_x_dim();
-        let tile_size_y = config.stage_dim(ident).tile_size_y_dim();
+        let tile_size_x = config.stage_tiling(ident).total_row();
+        let tile_size_y = config.stage_tiling(ident).total_col();
 
         let view_tile_m = tile_x * tile_size_x + self.m_offset;
         let view_tile_k = tile_y * tile_size_y + self.k_offset;

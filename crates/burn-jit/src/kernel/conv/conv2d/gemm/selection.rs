@@ -3,11 +3,7 @@ use super::{
     precision::ConvPrecision,
 };
 use crate::JitRuntime;
-use cubecl::linalg::matmul::components::{
-    stage::CommonStageInput,
-    tile::{accelerated::Accelerated, TileMatmulFamily},
-    MatmulSelection, MatmulSize,
-};
+use cubecl::linalg::matmul::components::{CompleteStageTiling, MatmulSelection, MatmulSize};
 
 pub struct ConvSelection {
     pub matmul: MatmulSelection,
@@ -32,17 +28,17 @@ impl ConvSelector<ImplicitCmmaConv> for Large {
         <ImplicitCmmaConv as Algorithm>::Input,
     ) {
         let selection = MatmulSelection {
-            tile: MatmulSize {
+            tile_shape: MatmulSize {
                 m: 16,
                 n: 16,
                 k: 16,
             },
-            num_stagess: MatmulSize { m: 8, n: 4, k: 2 },
+            tile_count: MatmulSize { m: 8, n: 4, k: 2 },
             plane_dim,
         };
-        let config_input = CommonStageInput {
-            tile: Accelerated::input(selection.tile),
-            num_stages: selection.num_stagess,
+        let config_input = CompleteStageTiling {
+            tile_shape: selection.tile_shape,
+            tile_count: selection.tile_count,
         };
 
         let selection = ConvSelection { matmul: selection };
@@ -59,17 +55,17 @@ impl ConvSelector<ImplicitCmmaConv> for Balanced {
         <ImplicitCmmaConv as Algorithm>::Input,
     ) {
         let selection = MatmulSelection {
-            tile: MatmulSize {
+            tile_shape: MatmulSize {
                 m: 16,
                 n: 16,
                 k: 16,
             },
-            num_stagess: MatmulSize { m: 4, n: 2, k: 4 },
+            tile_count: MatmulSize { m: 4, n: 2, k: 4 },
             plane_dim,
         };
-        let config_input = CommonStageInput {
-            tile: Accelerated::input(selection.tile),
-            num_stages: selection.num_stagess,
+        let config_input = CompleteStageTiling {
+            tile_shape: selection.tile_shape,
+            tile_count: selection.tile_count,
         };
 
         let selection = ConvSelection { matmul: selection };

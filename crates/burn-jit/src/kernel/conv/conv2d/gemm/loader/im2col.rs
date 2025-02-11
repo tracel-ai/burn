@@ -97,10 +97,10 @@ impl SimpleIm2col {
         #[comptime] ident: Ident,
         #[comptime] config: G,
     ) {
-        let stage_dim = config.stage_dim(ident);
+        let stage_tiling = config.stage_tiling(ident);
         let line_size = config.global_line_size(ident);
 
-        let num_stage_elements = stage_dim.total_elements();
+        let num_stage_elements = stage_tiling.total_size();
         let total_units = comptime!(config.num_planes() * config.plane_dim());
         let jump_length = comptime!(total_units * line_size);
         let num_loads_per_unit = num_stage_elements / jump_length;
@@ -114,20 +114,20 @@ impl SimpleIm2col {
         for i in 0..num_loads_per_unit {
             let unit_position = unit_position_base + i * jump_length;
 
-            let tile_num_elements = stage_dim.tile_num_elements();
+            let tile_num_elements = stage_tiling.tile_size();
             let nth_tile = unit_position / tile_num_elements;
             let pos_within_tile = unit_position % tile_num_elements;
 
             let (tile_x, tile_y) = match config.tiling_order(ident) {
                 TilingOrderConfig::RowMajor => RowMajorTiling::to_x_y(
                     nth_tile,
-                    stage_dim.num_tiles_x_dim(),
-                    stage_dim.num_tiles_y_dim(),
+                    stage_tiling.total_row(),
+                    stage_tiling.total_col(),
                 ),
                 TilingOrderConfig::ColMajor => ColMajorTiling::to_x_y(
                     nth_tile,
-                    stage_dim.num_tiles_x_dim(),
-                    stage_dim.num_tiles_y_dim(),
+                    stage_tiling.total_row(),
+                    stage_tiling.total_col(),
                 ),
             };
 
