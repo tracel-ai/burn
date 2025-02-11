@@ -1,4 +1,4 @@
-use burn_ir::OperationRepr;
+use burn_ir::OperationIr;
 
 use super::validator::{
     ExecutionPlanOperationsStore, TriggerOperationsStore, TriggerProgress, TriggerValidator,
@@ -72,7 +72,7 @@ impl<O> Policy<O> {
     pub fn action(
         &self,
         store: &ExecutionPlanStore<O>,
-        operations: &[OperationRepr],
+        operations: &[OperationIr],
         mode: ExecutionMode,
     ) -> Action {
         if self.num_operations < operations.len() {
@@ -90,7 +90,7 @@ impl<O> Policy<O> {
     }
 
     /// Update the policy state.
-    pub fn update(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationRepr) {
+    pub fn update(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationIr) {
         // reset the candidates to contain all execution plans starting with the operation.
         if self.num_operations == 0 {
             self.candidates = store
@@ -187,7 +187,7 @@ impl<O> Policy<O> {
         }
     }
 
-    fn update_candidates(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationRepr) {
+    fn update_candidates(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationIr) {
         let main_store = ExecutionPlanOperationsStore::new(store);
 
         self.candidates
@@ -195,7 +195,7 @@ impl<O> Policy<O> {
             .for_each(|candidate| candidate.update(operation, self.num_operations, &main_store));
     }
 
-    fn update_availables(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationRepr) {
+    fn update_availables(&mut self, store: &ExecutionPlanStore<O>, operation: &OperationIr) {
         self.availables.iter_mut().for_each(|available| {
             let store_trigger = TriggerOperationsStore::new(available.id, store);
 
@@ -215,7 +215,7 @@ impl<O> Policy<O> {
         });
     }
 
-    fn action_lazy(&self, operations: &[OperationRepr]) -> Action {
+    fn action_lazy(&self, operations: &[OperationIr]) -> Action {
         if !self.candidates.is_empty() {
             return Action::Defer;
         }
@@ -241,7 +241,7 @@ impl<O> Policy<O> {
         Action::Explore
     }
 
-    fn action_sync(&self, operations: &[OperationRepr], store: &ExecutionPlanStore<O>) -> Action {
+    fn action_sync(&self, operations: &[OperationIr], store: &ExecutionPlanStore<O>) -> Action {
         for available in self.availables.iter() {
             if available.size == operations.len() {
                 return Action::Execute(available.id);
@@ -262,7 +262,7 @@ impl<O> Policy<O> {
 
 #[cfg(test)]
 mod tests {
-    use burn_ir::{FloatOperationRepr, TensorId, TensorRepr, TensorStatus, UnaryOpRepr};
+    use burn_ir::{FloatOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
     use burn_tensor::DType;
 
     use super::*;
@@ -489,8 +489,8 @@ mod tests {
 
     #[derive(Default, Debug)]
     struct TestStream {
-        tensors: Vec<TensorRepr>,
-        operations: Vec<OperationRepr>,
+        tensors: Vec<TensorIr>,
+        operations: Vec<OperationIr>,
     }
 
     #[derive(Debug)]
@@ -541,14 +541,14 @@ mod tests {
             // Out node.
             self.new_empty_node(out_id);
 
-            self.operations.push(OperationRepr::Float(
+            self.operations.push(OperationIr::Float(
                 DType::F32,
-                FloatOperationRepr::Log(self.unary_description()),
+                FloatOperationIr::Log(self.unary_description()),
             ));
         }
 
         fn new_empty_node(&mut self, id: u64) {
-            self.tensors.push(TensorRepr {
+            self.tensors.push(TensorIr {
                 id: TensorId::new(id),
                 shape: vec![32, 32, 1],
                 status: TensorStatus::NotInit,
@@ -556,10 +556,10 @@ mod tests {
             });
         }
 
-        fn unary_description(&self) -> UnaryOpRepr {
+        fn unary_description(&self) -> UnaryOpIr {
             let size = self.tensors.len();
 
-            UnaryOpRepr {
+            UnaryOpIr {
                 input: self.tensors[size - 2].clone(),
                 out: self.tensors[size - 1].clone(),
             }

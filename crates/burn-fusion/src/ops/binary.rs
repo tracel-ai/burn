@@ -1,4 +1,4 @@
-use burn_ir::{BinaryOpRepr, TensorRepr};
+use burn_ir::{BinaryOpIr, TensorIr};
 
 #[derive(Debug)]
 pub enum BinaryOpError {
@@ -11,15 +11,12 @@ pub enum BinaryOpError {
 }
 
 // Until we have floating point type promotion, check that lhs and rhs dtypes are the same.
-pub(crate) fn check_binary_op(desc: BinaryOpRepr) -> Result<BinaryOpRepr, BinaryOpError> {
+pub(crate) fn check_binary_op(desc: BinaryOpIr) -> Result<BinaryOpIr, BinaryOpError> {
     check_binary_op_types(&desc.lhs, &desc.rhs)?;
     Ok(desc)
 }
 
-pub(crate) fn check_binary_op_types(
-    lhs: &TensorRepr,
-    rhs: &TensorRepr,
-) -> Result<(), BinaryOpError> {
+pub(crate) fn check_binary_op_types(lhs: &TensorIr, rhs: &TensorIr) -> Result<(), BinaryOpError> {
     if lhs.dtype != rhs.dtype {
         Err(BinaryOpError::DTypeMismatch {
             lhs: lhs.dtype,
@@ -38,12 +35,12 @@ macro_rules! binary_float_ops {
         $ops:expr
     ) => {
         struct $name<B: FusionBackend> {
-            desc: BinaryOpRepr,
+            desc: BinaryOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> $name<B> {
-            fn new(desc: BinaryOpRepr) -> Self {
+            fn new(desc: BinaryOpIr) -> Self {
                 Self {
                     desc: $crate::ops::binary::check_binary_op(desc).unwrap(),
                     _b: PhantomData,
@@ -72,7 +69,7 @@ macro_rules! binary_float_cmp_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: BinaryOpRepr,
+            desc: BinaryOpIr,
             _b: PhantomData<B>,
         }
 
@@ -96,12 +93,12 @@ macro_rules! binary_int_cmp_ops {
         $ops:expr
     ) => {
         struct $name<B: FusionBackend> {
-            desc: BinaryOpRepr,
+            desc: BinaryOpIr,
             _b: PhantomData<B>,
         }
 
         impl<B: FusionBackend> $name<B> {
-            fn new(desc: BinaryOpRepr) -> Self {
+            fn new(desc: BinaryOpIr) -> Self {
                 Self {
                     desc: $crate::ops::binary::check_binary_op(desc).unwrap(),
                     _b: PhantomData,
@@ -130,7 +127,7 @@ macro_rules! binary_int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: BinaryOpRepr,
+            desc: BinaryOpIr,
             _b: PhantomData<B>,
         }
 

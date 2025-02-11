@@ -8,9 +8,9 @@ use alloc::sync::Arc;
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
 
-use crate::{BackendRepr, TensorHandle, TensorId, TensorRepr, TensorStatus};
+use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
-/// Keep all [tensor handles](BackendRepr::Handle) in one place and ensure that all resources
+/// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
 /// are used optimally.
 #[derive(Default)]
 pub struct HandleContainer<H> {
@@ -47,12 +47,12 @@ impl<H> core::fmt::Debug for HandleContainer<H> {
     }
 }
 
-/// Backend [tensor handle](BackendRepr::Handle) wrapper tracking their creation state
+/// Backend [tensor handle](BackendIr::Handle) wrapper tracking their creation state
 #[derive(Clone)]
 pub enum Handle<H> {
-    /// No [tensor handle](BackendRepr::Handle) has been created yet
+    /// No [tensor handle](BackendIr::Handle) has been created yet
     NotInit,
-    /// A [tensor handle](BackendRepr::Handle) has been created
+    /// A [tensor handle](BackendIr::Handle) has been created
     Existing(H),
 }
 
@@ -97,8 +97,8 @@ impl<H: Clone> HandleContainer<H> {
         }
     }
 
-    /// Get the tensor handle for the given [tensor intermediate representation](TensorRepr).
-    pub fn get_tensor_handle(&mut self, tensor: &TensorRepr) -> TensorHandle<H> {
+    /// Get the tensor handle for the given [tensor intermediate representation](TensorIr).
+    pub fn get_tensor_handle(&mut self, tensor: &TensorIr) -> TensorHandle<H> {
         TensorHandle {
             handle: self.get_handle(&tensor.id, &tensor.status),
             shape: Shape::from(&tensor.shape),
@@ -106,37 +106,37 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Get the [float tensor](crate::backend::Backend::FloatTensorPrimitive) corresponding to the
-    /// given [tensor intermediate representation](TensorRepr).
-    pub fn get_float_tensor<B>(&mut self, tensor: &TensorRepr) -> B::FloatTensorPrimitive
+    /// given [tensor intermediate representation](TensorIr).
+    pub fn get_float_tensor<B>(&mut self, tensor: &TensorIr) -> B::FloatTensorPrimitive
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         B::float_tensor(self.get_tensor_handle(tensor))
     }
 
     /// Get the [int tensor](crate::backend::Backend::IntTensorPrimitive) corresponding to the
-    /// given [tensor intermediate representation](TensorRepr).
-    pub fn get_int_tensor<B>(&mut self, tensor: &TensorRepr) -> B::IntTensorPrimitive
+    /// given [tensor intermediate representation](TensorIr).
+    pub fn get_int_tensor<B>(&mut self, tensor: &TensorIr) -> B::IntTensorPrimitive
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         B::int_tensor(self.get_tensor_handle(tensor))
     }
 
     /// Get the [bool tensor](crate::backend::Backend::BoolTensorPrimitive) corresponding to the
-    /// given [tensor intermediate representation](TensorRepr).
-    pub fn get_bool_tensor<B>(&mut self, tensor: &TensorRepr) -> B::BoolTensorPrimitive
+    /// given [tensor intermediate representation](TensorIr).
+    pub fn get_bool_tensor<B>(&mut self, tensor: &TensorIr) -> B::BoolTensorPrimitive
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         B::bool_tensor(self.get_tensor_handle(tensor))
     }
 
     /// Get the [quantized tensor](crate::backend::Backend::QuantizedTensorPrimitive) corresponding to the
-    /// given [tensor intermediate representation](TensorRepr).
-    pub fn get_quantized_tensor<B>(&mut self, tensor: &TensorRepr) -> B::QuantizedTensorPrimitive
+    /// given [tensor intermediate representation](TensorIr).
+    pub fn get_quantized_tensor<B>(&mut self, tensor: &TensorIr) -> B::QuantizedTensorPrimitive
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         B::quantized_tensor(self.get_tensor_handle(tensor))
     }
@@ -144,7 +144,7 @@ impl<H: Clone> HandleContainer<H> {
     /// Register a new [float tensor](crate::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_float_tensor<B>(&mut self, id: &TensorId, tensor: B::FloatTensorPrimitive)
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         let handle = B::float_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
@@ -156,7 +156,7 @@ impl<H: Clone> HandleContainer<H> {
         id: &TensorId,
         tensor: B::QuantizedTensorPrimitive,
     ) where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         let handle = B::quantized_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
@@ -165,7 +165,7 @@ impl<H: Clone> HandleContainer<H> {
     /// Register a new [int tensor](crate::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_int_tensor<B>(&mut self, id: &TensorId, tensor: B::IntTensorPrimitive)
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         let handle = B::int_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
@@ -174,7 +174,7 @@ impl<H: Clone> HandleContainer<H> {
     /// Register a new [bool tensor](crate::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_bool_tensor<B>(&mut self, id: &TensorId, tensor: B::BoolTensorPrimitive)
     where
-        B: BackendRepr<Handle = H>,
+        B: BackendIr<Handle = H>,
     {
         let handle = B::bool_tensor_handle(tensor);
         self.handles.insert(*id, Handle::Existing(handle));
@@ -190,7 +190,7 @@ impl<H: Clone> HandleContainer<H> {
     }
 
     /// Remove tensor handle from container if writable
-    pub fn free(&mut self, tensor: &TensorRepr) {
+    pub fn free(&mut self, tensor: &TensorIr) {
         match tensor.status {
             TensorStatus::ReadOnly => (),
             TensorStatus::NotInit => (),

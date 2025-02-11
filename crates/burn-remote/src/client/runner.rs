@@ -17,14 +17,14 @@ use super::WsClient;
 impl RunnerClient for WsClient {
     type Device = WsDevice;
 
-    fn register(&self, op: burn_ir::OperationRepr) {
+    fn register(&self, op: burn_ir::OperationIr) {
         self.sender
             .send(ComputeTask::RegisterOperation(Box::new(op)));
     }
 
     fn read_tensor(
         &self,
-        tensor: burn_ir::TensorRepr,
+        tensor: burn_ir::TensorIr,
     ) -> impl std::future::Future<Output = TensorData> + Send {
         // Important for ordering to call the creation of the future sync.
         let fut = self.sender.send_callback(ComputeTask::ReadTensor(tensor));

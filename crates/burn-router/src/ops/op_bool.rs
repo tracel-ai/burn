@@ -1,9 +1,8 @@
 use alloc::vec::Vec;
 
 use burn_ir::{
-    BaseOperationRepr, BinaryOpRepr, BoolOperationRepr, CatOpRepr, ExpandOpRepr, FlipOpRepr,
-    InitOperationRepr, OperationRepr, PermuteOpRepr, RepeatDimOpRepr, SliceAssignOpRepr,
-    SliceOpRepr, SwapDimsOpRepr, UnaryOpRepr,
+    BaseOperationIr, BinaryOpIr, BoolOperationIr, CatOpIr, ExpandOpIr, FlipOpIr, InitOperationIr,
+    OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
@@ -16,8 +15,8 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = get_client::<R>(device);
         let out = client.register_empty_tensor(shape.into(), DType::Bool);
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Empty(
-            out.to_tensor_ir_out(),
+        client.register(OperationIr::BaseBool(BaseOperationIr::Empty(
+            out.to_ir_out(),
         )));
 
         out
@@ -30,11 +29,11 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_tensor_data(data);
-        let desc = InitOperationRepr {
-            out: out.to_tensor_ir_out(),
+        let desc = InitOperationIr {
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Init(desc));
+        client.register(OperationIr::Init(desc));
 
         out
     }
@@ -43,12 +42,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), IntElem::<Self>::dtype());
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Bool(BoolOperationRepr::IntoInt(desc)));
+        client.register(OperationIr::Bool(BoolOperationIr::IntoInt(desc)));
 
         out
     }
@@ -57,12 +56,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Bool(BoolOperationRepr::IntoFloat(desc)));
+        client.register(OperationIr::Bool(BoolOperationIr::IntoFloat(desc)));
 
         out
     }
@@ -82,12 +81,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Reshape(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Reshape(desc)));
 
         out
     }
@@ -106,13 +105,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = SliceOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SliceOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Slice(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Slice(desc)));
 
         out
     }
@@ -125,16 +124,14 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = SliceAssignOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SliceAssignOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            value: value.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::SliceAssign(
-            desc,
-        )));
+        client.register(OperationIr::BaseBool(BaseOperationIr::SliceAssign(desc)));
 
         out
     }
@@ -143,13 +140,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = lhs.client.clone();
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Equal(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Equal(desc)));
 
         out
     }
@@ -158,12 +155,12 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Bool(BoolOperationRepr::Not(desc)));
+        client.register(OperationIr::Bool(BoolOperationIr::Not(desc)));
 
         out
     }
@@ -175,14 +172,14 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         shape[dim2] = tensor.shape[dim1];
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = SwapDimsOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = SwapDimsOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             dim1,
             dim2,
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::SwapDims(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::SwapDims(desc)));
 
         out
     }
@@ -193,13 +190,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = PermuteOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = PermuteOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Permute(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Permute(desc)));
 
         out
     }
@@ -208,13 +205,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = FlipOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = FlipOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Flip(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Flip(desc)));
 
         out
     }
@@ -224,13 +221,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         let shape: Vec<_> = shape.into();
         let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
 
-        let desc = ExpandOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = ExpandOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             shape,
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Expand(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Expand(desc)));
 
         out
     }
@@ -248,13 +245,13 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         }
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = CatOpRepr {
-            tensors: tensors.into_iter().map(|t| t.into_tensor_ir()).collect(),
+        let desc = CatOpIr {
+            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
             dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::Cat(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::Cat(desc)));
 
         out
     }
@@ -265,14 +262,14 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         shape[dim] *= times;
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = RepeatDimOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = RepeatDimOpIr {
+            tensor: tensor.into_ir(),
             dim,
             times,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseBool(BaseOperationRepr::RepeatDim(desc)));
+        client.register(OperationIr::BaseBool(BaseOperationIr::RepeatDim(desc)));
 
         out
     }

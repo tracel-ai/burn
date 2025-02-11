@@ -1,4 +1,4 @@
-use burn_ir::TensorRepr;
+use burn_ir::TensorIr;
 use burn_router::{RouterTensor, RunnerChannel, TensorHandle};
 
 use super::{
@@ -30,7 +30,7 @@ impl RunnerChannel for WsChannel {
     }
 
     fn get_tensor_handle(
-        _tensor: &TensorRepr,
+        _tensor: &TensorIr,
         _client: &Self::Client,
     ) -> TensorHandle<Self::Bridge> {
         panic!("Unsupported")

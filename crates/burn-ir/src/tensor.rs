@@ -32,7 +32,7 @@ pub enum TensorStatus {
 ///   3. Status::ReadOnly
 ///   4. Status::ReadWrite
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TensorRepr {
+pub struct TensorIr {
     /// The [tensor id](TensorId).
     pub id: TensorId,
     /// The shape of the tensor.

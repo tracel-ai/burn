@@ -1,5 +1,5 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
-use burn_ir::{TensorId, TensorRepr, TensorStatus};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme},
     DType, Shape, TensorData, TensorMetadata,
@@ -90,8 +90,8 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Intermediate representation to be used when using an uninitialized tensor as output.
-    pub fn to_tensor_ir_out(&self) -> TensorRepr {
-        TensorRepr {
+    pub fn to_ir_out(&self) -> TensorIr {
+        TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
             id: *self.id.as_ref(),
@@ -100,7 +100,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     }
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
-    pub fn into_tensor_ir(mut self) -> TensorRepr {
+    pub fn into_ir(mut self) -> TensorIr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -109,7 +109,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             self.is_orphan = false;
         }
 
-        TensorRepr {
+        TensorIr {
             status,
             shape: shape_out,
             id: *self.id.as_ref(),
@@ -123,7 +123,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_tensor_ir();
+        let desc = self.into_ir();
         client.read_tensor_float::<B>(desc, id)
     }
 
@@ -134,7 +134,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         if let DType::QFloat(_scheme) = self.dtype {
             let id = self.stream;
             let client = self.client.clone();
-            let desc = self.into_tensor_ir();
+            let desc = self.into_ir();
             client.read_tensor_quantized::<B>(desc, id)
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
@@ -147,7 +147,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_tensor_ir();
+        let desc = self.into_ir();
         client.read_tensor_int::<B>(desc, id)
     }
 
@@ -157,7 +157,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_tensor_ir();
+        let desc = self.into_ir();
         client.read_tensor_bool::<B>(desc, id)
     }
 }

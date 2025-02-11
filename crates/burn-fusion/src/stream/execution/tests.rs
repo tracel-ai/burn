@@ -7,8 +7,8 @@
 //! optimization builder, and stream segment. These mock types aid in comprehensively
 //! understanding the process of optimizing streams.
 use burn_ir::{
-    BinaryOpRepr, FloatOperationRepr, NumericOperationRepr, OperationRepr, ScalarOpRepr, TensorId,
-    TensorRepr, TensorStatus, UnaryOpRepr,
+    BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr, TensorId, TensorIr,
+    TensorStatus, UnaryOpIr,
 };
 use burn_tensor::DType;
 
@@ -26,7 +26,7 @@ struct TestStream {
     processor: Processor<TestOptimization>,
     store: ExecutionPlanStore<TestOptimization>,
     executed: Vec<ExecutionPlanId>,
-    operations: Vec<OperationRepr>,
+    operations: Vec<OperationIr>,
 }
 
 /// A fake [optimization builder](OptimizationBuilder) for testing purpose.
@@ -35,8 +35,8 @@ struct TestStream {
 /// in the operations queue
 struct TestOptimizationBuilder {
     builder_id: usize,
-    expected_operations: Vec<OperationRepr>,
-    actual: Vec<OperationRepr>,
+    expected_operations: Vec<OperationIr>,
+    actual: Vec<OperationIr>,
 }
 
 /// A fake optimization for testing purpose.
@@ -49,7 +49,7 @@ struct TestOptimization {
 /// A fake [stream segment](StreamSegment) for testing purpose.
 #[derive(new)]
 struct TestSegment<'i> {
-    operations: &'i mut Vec<OperationRepr>,
+    operations: &'i mut Vec<OperationIr>,
     executed: &'i mut Vec<ExecutionPlanId>,
 }
 
@@ -376,7 +376,7 @@ impl TestStream {
     }
 
     /// Add an operation to the stream.
-    fn add(&mut self, operation: OperationRepr) {
+    fn add(&mut self, operation: OperationIr) {
         self.operations.push(operation);
         self.processor.process(
             TestSegment::new(&mut self.operations, &mut self.executed),
@@ -422,7 +422,7 @@ impl TestStream {
 
 impl TestOptimizationBuilder {
     /// Create a new optimization builder that follows a pattern with a trigger.
-    fn new(builder_id: usize, operations: Vec<OperationRepr>) -> Self {
+    fn new(builder_id: usize, operations: Vec<OperationIr>) -> Self {
         Self {
             builder_id,
             expected_operations: operations,
@@ -433,7 +433,7 @@ impl TestOptimizationBuilder {
 
 impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
     /// Register a new operation.
-    fn register(&mut self, operation: &OperationRepr) {
+    fn register(&mut self, operation: &OperationIr) {
         self.actual.push(operation.clone());
     }
 
@@ -499,7 +499,7 @@ impl OptimizationBuilder<TestOptimization> for TestOptimizationBuilder {
 
 impl StreamSegment<TestOptimization> for TestSegment<'_> {
     // The operations in the process.
-    fn operations(&self) -> &[OperationRepr] {
+    fn operations(&self) -> &[OperationIr] {
         self.operations
     }
 
@@ -519,23 +519,23 @@ impl StreamSegment<TestOptimization> for TestSegment<'_> {
 }
 
 /// Just a simple operation.
-fn operation_1() -> OperationRepr {
-    OperationRepr::NumericFloat(
+fn operation_1() -> OperationIr {
+    OperationIr::NumericFloat(
         DType::F32,
-        NumericOperationRepr::Add(BinaryOpRepr {
-            lhs: TensorRepr {
+        NumericOperationIr::Add(BinaryOpIr {
+            lhs: TensorIr {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
-            rhs: TensorRepr {
+            rhs: TensorIr {
                 id: TensorId::new(1),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
-            out: TensorRepr {
+            out: TensorIr {
                 id: TensorId::new(2),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
@@ -546,18 +546,18 @@ fn operation_1() -> OperationRepr {
 }
 
 /// Just a simple operation.
-fn operation_2() -> OperationRepr {
-    OperationRepr::NumericFloat(
+fn operation_2() -> OperationIr {
+    OperationIr::NumericFloat(
         DType::F32,
-        NumericOperationRepr::AddScalar(ScalarOpRepr {
-            lhs: TensorRepr {
+        NumericOperationIr::AddScalar(ScalarOpIr {
+            lhs: TensorIr {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
             rhs: 5.0,
-            out: TensorRepr {
+            out: TensorIr {
                 id: TensorId::new(2),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,
@@ -568,17 +568,17 @@ fn operation_2() -> OperationRepr {
 }
 
 /// Just a simple operation.
-fn operation_3() -> OperationRepr {
-    OperationRepr::Float(
+fn operation_3() -> OperationIr {
+    OperationIr::Float(
         DType::F32,
-        FloatOperationRepr::Log(UnaryOpRepr {
-            input: TensorRepr {
+        FloatOperationIr::Log(UnaryOpIr {
+            input: TensorIr {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32,
             },
-            out: TensorRepr {
+            out: TensorIr {
                 id: TensorId::new(0),
                 shape: vec![32, 32],
                 status: TensorStatus::NotInit,

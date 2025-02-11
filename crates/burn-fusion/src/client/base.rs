@@ -4,7 +4,7 @@ use crate::{
     stream::{execution::Operation, StreamId},
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionTensor,
 };
-use burn_ir::{OperationRepr, TensorId, TensorRepr};
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{DType, TensorData};
 
 /// Define how to interact with the fusion server.
@@ -14,8 +14,8 @@ where
 {
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     fn new(device: FusionDevice<R>) -> Self;
-    /// Register a new [tensor operation intermediate representation](OperationRepr).
-    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationRepr, operation: O)
+    /// Register a new [tensor operation intermediate representation](OperationIr).
+    fn register<O>(&self, streams: Vec<StreamId>, repr: OperationIr, operation: O)
     where
         O: Operation<R> + 'static;
     /// Register all lazy computation.
@@ -35,7 +35,7 @@ where
     /// Read the values contained by a float tensor.
     fn read_tensor_float<B>(
         self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
@@ -43,7 +43,7 @@ where
     /// Read the values contained by an int tensor.
     fn read_tensor_int<B>(
         self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
@@ -51,7 +51,7 @@ where
     /// Read the values contained by a bool tensor.
     fn read_tensor_bool<B>(
         self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         stream: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
@@ -59,7 +59,7 @@ where
     /// Read the values contained by a quantized tensor.
     fn read_tensor_quantized<B>(
         self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         streams: StreamId,
     ) -> impl Future<Output = TensorData> + Send + 'static
     where
@@ -79,7 +79,7 @@ where
     /// Change the client of the given float tensor.
     fn change_client_float<B>(
         &self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -88,7 +88,7 @@ where
     /// Change the client of the given int tensor.
     fn change_client_int<B>(
         &self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -97,7 +97,7 @@ where
     /// Change the client of the given bool tensor.
     fn change_client_bool<B>(
         &self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
@@ -106,7 +106,7 @@ where
     /// Change the client of the given quantized tensor.
     fn change_client_quantized<B>(
         &self,
-        tensor: TensorRepr,
+        tensor: TensorIr,
         client: Self,
         stream: StreamId,
     ) -> FusionTensor<R>

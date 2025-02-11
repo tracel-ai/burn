@@ -1,6 +1,6 @@
 use super::super::ir::{ElemwiseConfig, GlobalArgsLaunch};
 use crate::{fusion::JitFusionHandle, JitRuntime};
-use burn_ir::{TensorId, TensorRepr};
+use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use std::collections::BTreeMap;
 
@@ -24,9 +24,9 @@ pub trait TraceRunner<R: JitRuntime> {
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, u8>,
         handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorRepr>,
-        outputs: impl Iterator<Item = &'a TensorRepr>,
-        reshaped: impl Iterator<Item = (&'a TensorRepr, &'a TensorRepr, bool)>,
+        inputs: impl Iterator<Item = &'a TensorIr>,
+        outputs: impl Iterator<Item = &'a TensorIr>,
+        reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     ) {
         vectorization_default(vectorizations, handles_inputs, inputs, outputs, reshaped)
     }
@@ -35,9 +35,9 @@ pub trait TraceRunner<R: JitRuntime> {
 fn vectorization_default<'a, R: JitRuntime>(
     vectorizations: &mut BTreeMap<TensorId, u8>,
     handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
-    inputs: impl Iterator<Item = &'a TensorRepr>,
-    outputs: impl Iterator<Item = &'a TensorRepr>,
-    reshaped: impl Iterator<Item = (&'a TensorRepr, &'a TensorRepr, bool)>,
+    inputs: impl Iterator<Item = &'a TensorIr>,
+    outputs: impl Iterator<Item = &'a TensorIr>,
+    reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
 ) {
     enum Vect {
         Broadcated,
@@ -46,7 +46,7 @@ fn vectorization_default<'a, R: JitRuntime>(
 
     // The default version uses the last dimension as vectorization axis and assumes a
     // perpendicular contiguous line.
-    let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorRepr| {
+    let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorIr| {
         let rank = handle.strides.len();
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -69,7 +69,7 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
-    let vectorization_output = |desc: &TensorRepr| {
+    let vectorization_output = |desc: &TensorIr| {
         let rank = desc.shape.len();
 
         for s in R::line_size_elem(&desc.dtype.into()) {
@@ -83,7 +83,7 @@ fn vectorization_default<'a, R: JitRuntime>(
     };
 
     let vectorization_reshape =
-        |reshaped: &TensorRepr, original: &TensorRepr, multi_reads: bool| {
+        |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
             let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
             let shape_axis = original.shape[original.shape.len() - 1];
 

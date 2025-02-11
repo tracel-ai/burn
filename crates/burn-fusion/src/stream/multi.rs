@@ -1,4 +1,4 @@
-use burn_ir::{HandleContainer, OperationRepr, TensorRepr};
+use burn_ir::{HandleContainer, OperationIr, TensorIr};
 
 use super::{
     execution::{ExecutionMode, Operation, Processor, StreamSegment},
@@ -28,7 +28,7 @@ impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn register(
         &mut self,
         streams: Vec<StreamId>,
-        repr: OperationRepr,
+        repr: OperationIr,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
@@ -83,7 +83,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: Vec<StreamId>,
         handles: &mut HandleContainer<R::FusionHandle>,
-        op: &OperationRepr,
+        op: &OperationIr,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
@@ -103,7 +103,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         handles: &mut HandleContainer<R::FusionHandle>,
         id: StreamId,
-        nodes: Vec<&TensorRepr>,
+        nodes: Vec<&TensorIr>,
     ) {
         if let Some(stream) = self.streams.get(&id) {
             for node in nodes {
@@ -154,7 +154,7 @@ struct Segment<'a, R: FusionRuntime> {
 }
 
 impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
-    fn operations(&self) -> &[OperationRepr] {
+    fn operations(&self) -> &[OperationIr] {
         &self.queue.relative
     }
 

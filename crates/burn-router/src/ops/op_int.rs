@@ -3,11 +3,11 @@ use burn_tensor::backend::Backend;
 use core::ops::Range;
 
 use burn_ir::{
-    BaseOperationRepr, BinaryOpRepr, CatOpRepr, ClampOpRepr, ExpandOpRepr, FlipOpRepr,
-    GatherOpRepr, InitOperationRepr, IntOperationRepr, MaskFillOpRepr, MaskWhereOpRepr,
-    NumericOperationRepr, OperationRepr, PermuteOpRepr, RandomOpRepr, ReduceDimWithIndicesOpRepr,
-    RepeatDimOpRepr, ScalarOpRepr, ScatterOpRepr, SelectAssignOpRepr, SelectOpRepr,
-    SliceAssignOpRepr, SliceOpRepr, SwapDimsOpRepr, UnaryOpRepr,
+    BaseOperationIr, BinaryOpIr, CatOpIr, ClampOpIr, ExpandOpIr, FlipOpIr,
+    GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr,
+    NumericOperationIr, OperationIr, PermuteOpIr, RandomOpIr, ReduceDimWithIndicesOpIr,
+    RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr,
+    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{
     binary_ops_shape, BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, IntTensorOps,
@@ -24,8 +24,8 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = get_client::<R>(device);
         let out = client.register_empty_tensor(shape.into(), IntElem::<Self>::dtype());
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Empty(
-            out.to_tensor_ir_out(),
+        client.register(OperationIr::BaseInt(BaseOperationIr::Empty(
+            out.to_ir_out(),
         )));
 
         out
@@ -42,11 +42,11 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         let client = get_client::<R>(device);
         let out = client.register_tensor_data(data);
-        let desc = InitOperationRepr {
-            out: out.to_tensor_ir_out(),
+        let desc = InitOperationIr {
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Init(desc));
+        client.register(OperationIr::Init(desc));
 
         out
     }
@@ -66,12 +66,12 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(shape.into(), tensor.dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Reshape(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Reshape(desc)));
 
         out
     }
@@ -89,13 +89,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = SliceOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SliceOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Slice(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Slice(desc)));
 
         out
     }
@@ -108,14 +108,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = SliceAssignOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SliceAssignOpIr {
+            tensor: tensor.into_ir(),
             ranges: ranges.to_vec(),
-            value: value.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::SliceAssign(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::SliceAssign(desc)));
 
         out
     }
@@ -130,16 +130,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let shape = binary_ops_shape(&tensor.shape, &mask.shape);
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = MaskWhereOpRepr {
-            tensor: tensor.into_tensor_ir(),
-            mask: mask.into_tensor_ir(),
-            value: value.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = MaskWhereOpIr {
+            tensor: tensor.into_ir(),
+            mask: mask.into_ir(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MaskWhere(desc),
+            NumericOperationIr::MaskWhere(desc),
         ));
 
         out
@@ -154,16 +154,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = MaskFillOpRepr {
-            tensor: tensor.into_tensor_ir(),
-            mask: mask.into_tensor_ir(),
+        let desc = MaskFillOpIr {
+            tensor: tensor.into_ir(),
+            mask: mask.into_ir(),
             value: value.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MaskFill(desc),
+            NumericOperationIr::MaskFill(desc),
         ));
 
         out
@@ -178,16 +178,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(indices.shape.clone(), dtype);
 
-        let desc = GatherOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = GatherOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            indices: indices.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            indices: indices.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Gather(desc),
+            NumericOperationIr::Gather(desc),
         ));
 
         out
@@ -203,17 +203,17 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = ScatterOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = ScatterOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            indices: indices.into_tensor_ir(),
-            value: value.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            indices: indices.into_ir(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Scatter(desc),
+            NumericOperationIr::Scatter(desc),
         ));
 
         out
@@ -230,16 +230,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = indices.shape[0];
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = SelectOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SelectOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            indices: indices.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            indices: indices.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Select(desc),
+            NumericOperationIr::Select(desc),
         ));
 
         out
@@ -255,17 +255,17 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = SelectAssignOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = SelectAssignOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            indices: indices.into_tensor_ir(),
-            value: value.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+            indices: indices.into_ir(),
+            value: value.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::SelectAssign(desc),
+            NumericOperationIr::SelectAssign(desc),
         ));
 
         out
@@ -284,13 +284,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         }
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = CatOpRepr {
-            tensors: tensors.into_iter().map(|t| t.into_tensor_ir()).collect(),
+        let desc = CatOpIr {
+            tensors: tensors.into_iter().map(|t| t.into_ir()).collect(),
             dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Cat(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Cat(desc)));
 
         out
     }
@@ -300,13 +300,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out =
             client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Equal(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Equal(desc)));
 
         out
     }
@@ -316,15 +316,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::EqualElem(desc),
+            NumericOperationIr::EqualElem(desc),
         ));
 
         out
@@ -336,15 +336,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out =
             client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Greater(desc),
+            NumericOperationIr::Greater(desc),
         ));
 
         out
@@ -355,15 +355,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::GreaterElem(desc),
+            NumericOperationIr::GreaterElem(desc),
         ));
 
         out
@@ -375,15 +375,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out =
             client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::GreaterEqual(desc),
+            NumericOperationIr::GreaterEqual(desc),
         ));
 
         out
@@ -394,15 +394,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::GreaterEqualElem(desc),
+            NumericOperationIr::GreaterEqualElem(desc),
         ));
 
         out
@@ -414,15 +414,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out =
             client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Lower(desc),
+            NumericOperationIr::Lower(desc),
         ));
 
         out
@@ -433,15 +433,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::LowerElem(desc),
+            NumericOperationIr::LowerElem(desc),
         ));
 
         out
@@ -453,15 +453,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out =
             client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::LowerEqual(desc),
+            NumericOperationIr::LowerEqual(desc),
         ));
 
         out
@@ -472,15 +472,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::LowerEqualElem(desc),
+            NumericOperationIr::LowerEqualElem(desc),
         ));
 
         out
@@ -491,15 +491,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Add(desc),
+            NumericOperationIr::Add(desc),
         ));
 
         out
@@ -510,15 +510,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::AddScalar(desc),
+            NumericOperationIr::AddScalar(desc),
         ));
 
         out
@@ -529,15 +529,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Sub(desc),
+            NumericOperationIr::Sub(desc),
         ));
 
         out
@@ -548,15 +548,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::SubScalar(desc),
+            NumericOperationIr::SubScalar(desc),
         ));
 
         out
@@ -567,15 +567,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Mul(desc),
+            NumericOperationIr::Mul(desc),
         ));
 
         out
@@ -586,15 +586,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MulScalar(desc),
+            NumericOperationIr::MulScalar(desc),
         ));
 
         out
@@ -605,15 +605,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Div(desc),
+            NumericOperationIr::Div(desc),
         ));
 
         out
@@ -624,15 +624,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::DivScalar(desc),
+            NumericOperationIr::DivScalar(desc),
         ));
 
         out
@@ -643,15 +643,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Rem(desc),
+            NumericOperationIr::Rem(desc),
         ));
 
         out
@@ -662,15 +662,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::RemScalar(desc),
+            NumericOperationIr::RemScalar(desc),
         ));
 
         out
@@ -682,9 +682,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = IntElem::<Self>::dtype();
         let out = client.register_empty_tensor(shape.dims.to_vec(), dtype);
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Zeros(out.to_tensor_ir_out()),
+            NumericOperationIr::Zeros(out.to_ir_out()),
         ));
 
         out
@@ -696,9 +696,9 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = IntElem::<Self>::dtype();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Ones(out.to_tensor_ir_out()),
+            NumericOperationIr::Ones(out.to_ir_out()),
         ));
 
         out
@@ -709,14 +709,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(vec![1], dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Sum(desc),
+            NumericOperationIr::Sum(desc),
         ));
 
         out
@@ -729,15 +729,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::SumDim(desc),
+            NumericOperationIr::SumDim(desc),
         ));
 
         out
@@ -748,14 +748,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(vec![1], dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Prod(desc),
+            NumericOperationIr::Prod(desc),
         ));
 
         out
@@ -768,15 +768,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::ProdDim(desc),
+            NumericOperationIr::ProdDim(desc),
         ));
 
         out
@@ -787,14 +787,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(vec![1], dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Mean(desc),
+            NumericOperationIr::Mean(desc),
         ));
 
         out
@@ -807,15 +807,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MeanDim(desc),
+            NumericOperationIr::MeanDim(desc),
         ));
 
         out
@@ -828,15 +828,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::ArgMax(desc),
+            NumericOperationIr::ArgMax(desc),
         ));
 
         out
@@ -849,15 +849,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::ArgMin(desc),
+            NumericOperationIr::ArgMin(desc),
         ));
 
         out
@@ -872,16 +872,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = ClampOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = ClampOpIr {
+            tensor: tensor.into_ir(),
             min: min.elem(),
             max: max.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Clamp(desc),
+            NumericOperationIr::Clamp(desc),
         ));
 
         out
@@ -892,14 +892,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Abs(desc),
+            NumericOperationIr::Abs(desc),
         ));
 
         out
@@ -909,12 +909,12 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), FloatElem::<Self>::dtype());
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::IntoFloat(desc)));
+        client.register(OperationIr::Int(IntOperationIr::IntoFloat(desc)));
 
         out
     }
@@ -926,14 +926,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim2] = tensor.shape[dim1];
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = SwapDimsOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = SwapDimsOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             dim1,
             dim2,
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::SwapDims(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::SwapDims(desc)));
 
         out
     }
@@ -943,14 +943,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(vec![1], dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Max(desc),
+            NumericOperationIr::Max(desc),
         ));
 
         out
@@ -963,15 +963,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MaxDim(desc),
+            NumericOperationIr::MaxDim(desc),
         ));
 
         out
@@ -988,16 +988,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out = client.register_empty_tensor(shape.clone(), dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ReduceDimWithIndicesOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = ReduceDimWithIndicesOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            out: out.to_tensor_ir_out(),
-            out_indices: out_indices.to_tensor_ir_out(),
+            out: out.to_ir_out(),
+            out_indices: out_indices.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MaxDimWithIndices(desc),
+            NumericOperationIr::MaxDimWithIndices(desc),
         ));
 
         (out, out_indices)
@@ -1008,14 +1008,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(vec![1], dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::Min(desc),
+            NumericOperationIr::Min(desc),
         ));
 
         out
@@ -1028,15 +1028,15 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] = 1;
         let out = client.register_empty_tensor(shape, dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: tensor.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: tensor.into_ir(),
             rhs: dim,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MinDim(desc),
+            NumericOperationIr::MinDim(desc),
         ));
 
         out
@@ -1053,16 +1053,16 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let out = client.register_empty_tensor(shape.clone(), dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = ReduceDimWithIndicesOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = ReduceDimWithIndicesOpIr {
+            tensor: tensor.into_ir(),
             dim,
-            out: out.to_tensor_ir_out(),
-            out_indices: out_indices.to_tensor_ir_out(),
+            out: out.to_ir_out(),
+            out_indices: out_indices.to_ir_out(),
         };
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::MinDimWithIndices(desc),
+            NumericOperationIr::MinDimWithIndices(desc),
         ));
 
         (out, out_indices)
@@ -1078,10 +1078,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = IntElem::<Self>::dtype();
         let out = client.register_empty_tensor(shape.into(), dtype);
 
-        client.register(OperationRepr::NumericInt(
+        client.register(OperationIr::NumericInt(
             dtype,
-            NumericOperationRepr::IntRandom(RandomOpRepr {
-                out: out.to_tensor_ir_out(),
+            NumericOperationIr::IntRandom(RandomOpIr {
+                out: out.to_ir_out(),
                 distribution,
             }),
         ));
@@ -1095,13 +1095,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let shape = axes.iter().map(|x| tensor.shape[*x]).collect();
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = PermuteOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = PermuteOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Permute(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Permute(desc)));
 
         out
     }
@@ -1111,13 +1111,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let shape: Vec<_> = shape.into();
         let out = client.register_empty_tensor(shape.clone(), tensor.dtype);
 
-        let desc = ExpandOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = ExpandOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             shape,
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Expand(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Expand(desc)));
 
         out
     }
@@ -1126,13 +1126,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let client = tensor.client.clone();
         let out = client.register_empty_tensor(tensor.shape.clone(), tensor.dtype);
 
-        let desc = FlipOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = FlipOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
             axes: axes.to_vec(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::Flip(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::Flip(desc)));
 
         out
     }
@@ -1143,14 +1143,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape[dim] *= times;
         let out = client.register_empty_tensor(shape, tensor.dtype);
 
-        let desc = RepeatDimOpRepr {
-            tensor: tensor.into_tensor_ir(),
+        let desc = RepeatDimOpIr {
+            tensor: tensor.into_ir(),
             dim,
             times,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::BaseInt(BaseOperationRepr::RepeatDim(desc)));
+        client.register(OperationIr::BaseInt(BaseOperationIr::RepeatDim(desc)));
 
         out
     }
@@ -1160,13 +1160,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseAnd(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseAnd(desc)));
 
         out
     }
@@ -1176,13 +1176,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseOr(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseOr(desc)));
 
         out
     }
@@ -1192,13 +1192,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseXor(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseXor(desc)));
 
         out
     }
@@ -1208,12 +1208,12 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = tensor.dtype;
         let out = client.register_empty_tensor(tensor.shape.clone(), dtype);
 
-        let desc = UnaryOpRepr {
-            input: tensor.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = UnaryOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseNot(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseNot(desc)));
 
         out
     }
@@ -1223,13 +1223,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseAndScalar(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseAndScalar(desc)));
 
         out
     }
@@ -1239,13 +1239,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseOrScalar(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseOrScalar(desc)));
 
         out
     }
@@ -1255,13 +1255,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseXorScalar(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseXorScalar(desc)));
 
         out
     }
@@ -1271,13 +1271,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseLeftShift(desc)));
+        client.register(OperationIr::Int(IntOperationIr::BitwiseLeftShift(desc)));
 
         out
     }
@@ -1287,14 +1287,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(
-            IntOperationRepr::BitwiseLeftShiftScalar(desc),
+        client.register(OperationIr::Int(
+            IntOperationIr::BitwiseLeftShiftScalar(desc),
         ));
 
         out
@@ -1305,13 +1305,13 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(binary_ops_shape(&lhs.shape, &rhs.shape), dtype);
 
-        let desc = BinaryOpRepr {
-            lhs: lhs.into_tensor_ir(),
-            rhs: rhs.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(IntOperationRepr::BitwiseRightShift(
+        client.register(OperationIr::Int(IntOperationIr::BitwiseRightShift(
             desc,
         )));
 
@@ -1323,14 +1323,14 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         let dtype = lhs.dtype;
         let out = client.register_empty_tensor(lhs.shape.clone(), dtype);
 
-        let desc = ScalarOpRepr {
-            lhs: lhs.into_tensor_ir(),
+        let desc = ScalarOpIr {
+            lhs: lhs.into_ir(),
             rhs: rhs.elem(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Int(
-            IntOperationRepr::BitwiseRightShiftScalar(desc),
+        client.register(OperationIr::Int(
+            IntOperationIr::BitwiseRightShiftScalar(desc),
         ));
 
         out

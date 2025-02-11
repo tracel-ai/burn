@@ -1,14 +1,13 @@
 use alloc::{boxed::Box, vec};
 
 use burn_ir::{
-    AdaptiveAvgPool1dBackwardOpRepr, AdaptiveAvgPool1dOpRepr, AdaptiveAvgPool2dBackwardOpRepr,
-    AdaptiveAvgPool2dOpRepr, AvgPool1dBackwardOpRepr, AvgPool1dOpRepr, AvgPool2dBackwardOpRepr,
-    AvgPool2dOpRepr, Conv1dOpRepr, Conv2dOpRepr, Conv3dOpRepr, ConvTranspose1dOpRepr,
-    ConvTranspose2dOpRepr, ConvTranspose3dOpRepr, DeformConv2dBackwardOpRepr, DeformConv2dOpRepr,
-    InterpolateBackwardRepr, InterpolateOpRepr, MaxPool1dOpRepr,
-    MaxPool1dWithIndicesBackwardOpRepr, MaxPool1dWithIndicesOpRepr, MaxPool2dOpRepr,
-    MaxPool2dWithIndicesBackwardOpRepr, MaxPool2dWithIndicesOpRepr, ModuleOperationRepr,
-    OperationRepr,
+    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
+    AdaptiveAvgPool2dOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
+    AvgPool2dOpIr, Conv1dOpIr, Conv2dOpIr, Conv3dOpIr, ConvTranspose1dOpIr, ConvTranspose2dOpIr,
+    ConvTranspose3dOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr, InterpolateBackwardOpIr,
+    InterpolateOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr,
+    MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
+    OperationIr,
 };
 use burn_tensor::ops::conv::{
     calculate_conv_output_size, calculate_conv_transpose_output_size, calculate_pool_output_size,
@@ -44,15 +43,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = Conv1dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = Conv1dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::Conv1d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::Conv1d(desc)));
 
         out
     }
@@ -82,15 +81,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = Conv2dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = Conv2dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::Conv2d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::Conv2d(desc)));
 
         out
     }
@@ -127,15 +126,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = Conv3dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = Conv3dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::Conv3d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::Conv3d(desc)));
 
         out
     }
@@ -159,15 +158,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = ConvTranspose1dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = ConvTranspose1dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::ConvTranspose1d(
+        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose1d(
             desc,
         )));
 
@@ -201,15 +200,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = ConvTranspose2dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = ConvTranspose2dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::ConvTranspose2d(
+        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose2d(
             desc,
         )));
 
@@ -257,15 +256,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = ConvTranspose3dOpRepr {
-            x: x.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = ConvTranspose3dOpIr {
+            x: x.into_ir(),
+            weight: weight.into_ir(),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::ConvTranspose3d(
+        client.register(OperationIr::Module(ModuleOperationIr::ConvTranspose3d(
             desc,
         )));
 
@@ -285,16 +284,16 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = AvgPool1dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = AvgPool1dOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             count_include_pad,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::AvgPool1d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::AvgPool1d(desc)));
 
         out
     }
@@ -315,16 +314,16 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = AvgPool2dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = AvgPool2dOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             count_include_pad,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::AvgPool2d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::AvgPool2d(desc)));
 
         out
     }
@@ -340,19 +339,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = AvgPool1dBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: grad.into_tensor_ir(),
+        let desc = AvgPool1dBackwardOpIr {
+            x: x.into_ir(),
+            grad: grad.into_ir(),
             kernel_size,
             stride,
             padding,
             count_include_pad,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AvgPool1dBackward(desc),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::AvgPool1dBackward(
+            desc,
+        )));
 
         out
     }
@@ -368,19 +367,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = AvgPool2dBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: grad.into_tensor_ir(),
+        let desc = AvgPool2dBackwardOpIr {
+            x: x.into_ir(),
+            grad: grad.into_ir(),
             kernel_size,
             stride,
             padding,
             count_include_pad,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AvgPool2dBackward(desc),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::AvgPool2dBackward(
+            desc,
+        )));
 
         out
     }
@@ -398,16 +397,16 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = MaxPool1dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = MaxPool1dOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::MaxPool1d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::MaxPool1d(desc)));
 
         out
     }
@@ -438,16 +437,16 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = MaxPool2dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = MaxPool2dOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::MaxPool2d(desc)));
+        client.register(OperationIr::Module(ModuleOperationIr::MaxPool2d(desc)));
 
         out
     }
@@ -466,18 +465,18 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let out = client.register_empty_tensor(shape.clone(), x.dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = MaxPool1dWithIndicesOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = MaxPool1dWithIndicesOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
-            out_indices: out_indices.to_tensor_ir_out(),
+            out: out.to_ir_out(),
+            out_indices: out_indices.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::MaxPool1dWithIndices(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::MaxPool1dWithIndices(desc),
         ));
 
         MaxPool1dWithIndices::new(out, out_indices)
@@ -510,18 +509,18 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let out = client.register_empty_tensor(shape.clone(), x.dtype);
         let out_indices = client.register_empty_tensor(shape, IntElem::<Self>::dtype());
 
-        let desc = MaxPool2dWithIndicesOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = MaxPool2dWithIndicesOpIr {
+            x: x.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
-            out_indices: out_indices.to_tensor_ir_out(),
+            out: out.to_ir_out(),
+            out_indices: out_indices.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::MaxPool2dWithIndices(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::MaxPool2dWithIndices(desc),
         ));
 
         MaxPool2dWithIndices::new(out, out_indices)
@@ -539,19 +538,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = MaxPool1dWithIndicesBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: output_grad.into_tensor_ir(),
-            indices: indices.into_tensor_ir(),
+        let desc = MaxPool1dWithIndicesBackwardOpIr {
+            x: x.into_ir(),
+            grad: output_grad.into_ir(),
+            indices: indices.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::MaxPool1dWithIndicesBackward(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::MaxPool1dWithIndicesBackward(desc),
         ));
 
         MaxPool1dBackward::new(out)
@@ -569,19 +568,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = MaxPool2dWithIndicesBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: output_grad.into_tensor_ir(),
-            indices: indices.into_tensor_ir(),
+        let desc = MaxPool2dWithIndicesBackwardOpIr {
+            x: x.into_ir(),
+            grad: output_grad.into_ir(),
+            indices: indices.into_ir(),
             kernel_size,
             stride,
             padding,
             dilation,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::MaxPool2dWithIndicesBackward(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::MaxPool2dWithIndicesBackward(desc),
         ));
 
         MaxPool2dBackward::new(out)
@@ -593,15 +592,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape.clone(), x.dtype);
 
-        let desc = AdaptiveAvgPool1dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = AdaptiveAvgPool1dOpIr {
+            x: x.into_ir(),
             output_size,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AdaptiveAvgPool1d(desc),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool1d(
+            desc,
+        )));
 
         out
     }
@@ -612,15 +611,15 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape.clone(), x.dtype);
 
-        let desc = AdaptiveAvgPool2dOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = AdaptiveAvgPool2dOpIr {
+            x: x.into_ir(),
             output_size,
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AdaptiveAvgPool2d(desc),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::AdaptiveAvgPool2d(
+            desc,
+        )));
 
         out
     }
@@ -632,14 +631,14 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = AdaptiveAvgPool1dBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: grad.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = AdaptiveAvgPool1dBackwardOpIr {
+            x: x.into_ir(),
+            grad: grad.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AdaptiveAvgPool1dBackward(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::AdaptiveAvgPool1dBackward(desc),
         ));
 
         out
@@ -652,14 +651,14 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = AdaptiveAvgPool2dBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            grad: grad.into_tensor_ir(),
-            out: out.to_tensor_ir_out(),
+        let desc = AdaptiveAvgPool2dBackwardOpIr {
+            x: x.into_ir(),
+            grad: grad.into_ir(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::AdaptiveAvgPool2dBackward(desc),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::AdaptiveAvgPool2dBackward(desc),
         ));
 
         out
@@ -675,16 +674,14 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape.clone(), x.dtype);
 
-        let desc = InterpolateOpRepr {
-            x: x.into_tensor_ir(),
+        let desc = InterpolateOpIr {
+            x: x.into_ir(),
             output_size,
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(ModuleOperationRepr::Interpolate(
-            desc,
-        )));
+        client.register(OperationIr::Module(ModuleOperationIr::Interpolate(desc)));
 
         out
     }
@@ -698,17 +695,17 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(x.shape.clone(), x.dtype);
 
-        let desc = InterpolateBackwardRepr {
-            x: x.into_tensor_ir(),
-            grad: grad.into_tensor_ir(),
+        let desc = InterpolateBackwardOpIr {
+            x: x.into_ir(),
+            grad: grad.into_ir(),
             output_size,
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::InterpolateBackward(desc),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::InterpolateBackward(
+            desc,
+        )));
 
         out
     }
@@ -740,19 +737,19 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let client = x.client.clone();
         let out = client.register_empty_tensor(shape, x.dtype);
 
-        let desc = DeformConv2dOpRepr {
-            x: x.into_tensor_ir(),
-            offset: offset.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            mask: mask.map(|mask| mask.into_tensor_ir()),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = DeformConv2dOpIr {
+            x: x.into_ir(),
+            offset: offset.into_ir(),
+            weight: weight.into_ir(),
+            mask: mask.map(|mask| mask.into_ir()),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out: out.to_tensor_ir_out(),
+            out: out.to_ir_out(),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::DeformableConv2d(Box::new(desc)),
-        ));
+        client.register(OperationIr::Module(ModuleOperationIr::DeformableConv2d(
+            Box::new(desc),
+        )));
 
         out
     }
@@ -778,27 +775,27 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .as_ref()
             .map(|bias| client.register_empty_tensor(bias.shape.clone(), bias.dtype));
 
-        let desc = DeformConv2dBackwardOpRepr {
-            x: x.into_tensor_ir(),
-            offset: offset.into_tensor_ir(),
-            weight: weight.into_tensor_ir(),
-            mask: mask.map(|mask| mask.into_tensor_ir()),
-            bias: bias.map(|bias| bias.into_tensor_ir()),
+        let desc = DeformConv2dBackwardOpIr {
+            x: x.into_ir(),
+            offset: offset.into_ir(),
+            weight: weight.into_ir(),
+            mask: mask.map(|mask| mask.into_ir()),
+            bias: bias.map(|bias| bias.into_ir()),
             options: options.into(),
-            out_grad: output_grad.into_tensor_ir(),
-            input_grad: input_grad.to_tensor_ir_out(),
-            offset_grad: offset_grad.to_tensor_ir_out(),
-            weight_grad: weight_grad.to_tensor_ir_out(),
+            out_grad: output_grad.into_ir(),
+            input_grad: input_grad.to_ir_out(),
+            offset_grad: offset_grad.to_ir_out(),
+            weight_grad: weight_grad.to_ir_out(),
             mask_grad: mask_grad
                 .as_ref()
-                .map(|mask_grad| mask_grad.to_tensor_ir_out()),
+                .map(|mask_grad| mask_grad.to_ir_out()),
             bias_grad: bias_grad
                 .as_ref()
-                .map(|bias_grad| bias_grad.to_tensor_ir_out()),
+                .map(|bias_grad| bias_grad.to_ir_out()),
         };
 
-        client.register(OperationRepr::Module(
-            ModuleOperationRepr::DeformableConv2dBackward(Box::new(desc)),
+        client.register(OperationIr::Module(
+            ModuleOperationIr::DeformableConv2dBackward(Box::new(desc)),
         ));
 
         DeformConv2dBackward::new(input_grad, offset_grad, weight_grad, mask_grad, bias_grad)

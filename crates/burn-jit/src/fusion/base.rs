@@ -6,7 +6,7 @@ use crate::BoolElement;
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_ir::{BackendRepr, TensorHandle};
+use burn_ir::{BackendIr, TensorHandle};
 use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
@@ -73,7 +73,7 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendRepr
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     for JitBackend<R, F, I, BT>
 {
     type Handle = JitFusionHandle<R>;
