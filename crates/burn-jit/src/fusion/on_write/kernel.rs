@@ -810,6 +810,135 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 ),
                 _ => comptime![panic!("Unsupported precision")],
             },
+            ElemwiseOp::Select {
+                input,
+                indices,
+                output,
+                dim,
+            } => match output.precision() {
+                ElemwisePrecision::F32 => select_indices::<f32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::F16 => select_indices::<f16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::BF16 => select_indices::<bf16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I64 => select_indices::<i64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I32 => select_indices::<i32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I16 => select_indices::<i16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::I8 => select_indices::<i8>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U64 => select_indices::<u64>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U32 => select_indices::<u32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U16 => select_indices::<u16>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                ElemwisePrecision::U8 => select_indices::<u8>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    write_pos,
+                    dim,
+                    input,
+                    indices,
+                    output,
+                    config,
+                ),
+                _ => comptime![panic!("Unsupported precision")],
+            },
         }
     }
 }
@@ -972,6 +1101,106 @@ fn gather<C: Numeric>(
             index,
             LayoutInfo::IsRef,
             precision,
+            config,
+            None,
+        );
+        result[i] = input[0];
+    }
+
+    write::<C>(inputs, outputs, locals, write_pos, result, output, config);
+}
+
+#[cube]
+fn select_indices<C: Numeric>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    write_pos: u32,
+    #[comptime] dim: u32,
+    #[comptime] input: Arg,
+    #[comptime] indices: Arg,
+    #[comptime] output: Arg,
+    #[comptime] config: &ElemwiseConfig,
+) {
+    let (line_size_ref, stride_dim_ref, shape_dim_ref) = match config.ref_layout {
+        Arg::Input(pos, precision, _) => (
+            global_line_size(inputs, pos, precision),
+            global_stride(inputs, dim, pos, precision),
+            global_shape(inputs, dim, pos, precision),
+        ),
+        Arg::Output(pos, precision, _) => (
+            global_line_size(outputs, pos, precision),
+            global_stride(outputs, dim, pos, precision),
+            global_shape(outputs, dim, pos, precision),
+        ),
+        _ => unreachable!(),
+    };
+
+    let index_indices = write_pos / stride_dim_ref % shape_dim_ref;
+
+    let (pos_input, precision_input) = comptime! {
+        match input {
+            Arg::Input(pos, precision, _) => (pos, precision),
+            _ => panic!("Input isn't an input"),
+        }
+    };
+    let (pos_indices, precision_indices) = match indices {
+        Arg::Input(pos, precision, ..) => (pos, precision),
+        _ => panic!("Input isn't an input"),
+    };
+
+    let mut index = read_input::<u32>(
+        inputs,
+        outputs,
+        pos_indices,
+        index_indices,
+        LayoutInfo::IsRef,
+        precision_indices,
+        config,
+        None,
+    );
+
+    let stride_input = global_stride(inputs, dim, pos_input, precision_input);
+
+    index *= Line::new(stride_input);
+
+    if comptime![dim > 0] {
+        let index_before = global_offset(
+            inputs,
+            outputs,
+            write_pos,
+            comment!(input.clone()),
+            comptime![Some((0u32, dim))],
+            config,
+        );
+        index += Line::new(index_before);
+    }
+
+    if comptime![dim + 1 < config.rank] {
+        let index_after = global_offset(
+            inputs,
+            outputs,
+            write_pos,
+            input,
+            comptime![Some((dim + 1, config.rank))],
+            config,
+        );
+        index += Line::new(index_after);
+    }
+
+    let mut result = Line::empty(line_size_ref);
+
+    #[unroll]
+    for i in 0..line_size_ref {
+        let index = index[i];
+
+        let input = read_input::<C>(
+            inputs,
+            outputs,
+            pos_input,
+            index,
+            LayoutInfo::IsRef,
+            precision_input,
             config,
             None,
         );

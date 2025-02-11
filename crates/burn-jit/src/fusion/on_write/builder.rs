@@ -457,6 +457,26 @@ impl FuseOnWriteBuilder {
                     Some(())
                 })
             }
+            NumericOperationDescription::Select(desc) => {
+                if !self.output_is_compatible(&desc.out) {
+                    return false;
+                }
+
+                self.builder.register(|build| {
+                    let input = build.input_indexed(&desc.tensor)?;
+                    let indices = build.input_indexed(&desc.indices)?;
+                    let output = build.output(&desc.out)?;
+
+                    build.register_operation(ElemwiseOp::Select {
+                        input,
+                        indices,
+                        output,
+                        dim: desc.dim as u32,
+                    });
+
+                    Some(())
+                })
+            }
             _ => false,
         }
     }
