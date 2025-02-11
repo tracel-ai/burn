@@ -1136,8 +1136,6 @@ fn select_indices<C: Numeric>(
         _ => unreachable!(),
     };
 
-    let index_indices = write_pos / stride_dim_ref % shape_dim_ref;
-
     let (pos_input, precision_input) = comptime! {
         match input {
             Arg::Input(pos, precision, _) => (pos, precision),
@@ -1149,20 +1147,9 @@ fn select_indices<C: Numeric>(
         _ => panic!("Indices tensor isn't an input"),
     };
 
-    let mut index = read_input::<u32>(
-        inputs,
-        outputs,
-        pos_indices,
-        index_indices,
-        LayoutInfo::IsRef,
-        precision_indices,
-        config,
-        None,
-    );
-
     let stride_input = global_stride(inputs, dim, pos_input, precision_input);
 
-    index *= Line::new(stride_input);
+    let mut index = Line::empty(line_size_ref).fill(0);
 
     if comptime![dim > 0] {
         let index_before = global_offset(
@@ -1190,9 +1177,20 @@ fn select_indices<C: Numeric>(
 
     let mut result = Line::empty(line_size_ref);
 
-    #[unroll]
     for i in 0..line_size_ref {
-        let index = index[i];
+        let index_indices = ((write_pos * line_size_ref) + i) / stride_dim_ref % shape_dim_ref;
+
+        let offset_dim = read_input::<u32>(
+            inputs,
+            outputs,
+            pos_indices,
+            index_indices,
+            LayoutInfo::IsRef,
+            precision_indices,
+            config,
+            None,
+        );
+        let index = index[i] + offset_dim[0] * stride_input;
 
         let input = read_input::<C>(
             inputs,
