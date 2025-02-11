@@ -385,7 +385,7 @@ dependencies = [
  "log",
  "os_info",
  "percent-encoding",
- "rand 0.8.5",
+ "rand 0.9.0",
  "reqwest",
  "rstest",
  "serde",
@@ -625,7 +625,7 @@ dependencies = [
  "log",
  "num-traits",
  "portable-atomic-util",
- "rand 0.8.5",
+ "rand 0.9.0",
  "regex",
  "rmp-serde",
  "serde",
@@ -668,7 +668,7 @@ dependencies = [
  "polars",
  "r2d2",
  "r2d2_sqlite",
- "rand 0.8.5",
+ "rand 0.9.0",
  "rayon",
  "rmp-serde",
  "rstest",
@@ -779,7 +779,7 @@ dependencies = [
  "log",
  "num-traits",
  "paste",
- "rand 0.8.5",
+ "rand 0.9.0",
  "serde",
  "serial_test",
  "spin",
@@ -803,7 +803,7 @@ dependencies = [
  "num-traits",
  "openblas-src",
  "portable-atomic-util",
- "rand 0.8.5",
+ "rand 0.9.0",
  "spin",
 ]
 
@@ -862,7 +862,7 @@ dependencies = [
  "half",
  "libc",
  "log",
- "rand 0.8.5",
+ "rand 0.9.0",
  "tch",
 ]
 
@@ -880,7 +880,7 @@ dependencies = [
  "half",
  "hashbrown 0.15.2",
  "num-traits",
- "rand 0.8.5",
+ "rand 0.9.0",
  "rand_distr",
  "serde",
  "serde_bytes",
@@ -3896,7 +3896,7 @@ version = "0.1.0"
 dependencies = [
  "burn",
  "polars",
- "rand 0.8.5",
+ "rand 0.9.0",
  "rand_distr",
  "serde",
 ]
