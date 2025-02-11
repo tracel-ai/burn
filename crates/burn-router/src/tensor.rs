@@ -1,10 +1,8 @@
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Shape, TensorData, TensorMetadata,
-};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_tensor::{DType, Shape, TensorData, TensorMetadata};
 
 /// Tensor primitive for the [router backend](crate::BackendRouter).
 pub struct RouterTensor<C: RunnerClient> {
@@ -13,7 +11,7 @@ pub struct RouterTensor<C: RunnerClient> {
     pub(crate) dtype: DType,
     pub(crate) client: C,
 
-    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
     //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak.
@@ -43,13 +41,10 @@ impl<C: RunnerClient> RouterTensor<C> {
     }
 
     pub(crate) async fn into_data(self) -> TensorData {
-        self.client
-            .clone()
-            .read_tensor(self.into_description())
-            .await
+        self.client.clone().read_tensor(self.into_ir()).await
     }
 
-    pub(crate) fn into_description(mut self) -> TensorDescription {
+    pub(crate) fn into_ir(mut self) -> TensorIr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -58,7 +53,7 @@ impl<C: RunnerClient> RouterTensor<C> {
             self.is_orphan = false;
         }
 
-        TensorDescription {
+        TensorIr {
             status,
             shape: shape_out,
             id: *self.id.as_ref(),
@@ -66,8 +61,8 @@ impl<C: RunnerClient> RouterTensor<C> {
         }
     }
 
-    pub(crate) fn to_description_out(&self) -> TensorDescription {
-        TensorDescription {
+    pub(crate) fn to_ir_out(&self) -> TensorIr {
+        TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
             id: *self.id.as_ref(),

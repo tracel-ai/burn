@@ -1,8 +1,8 @@
 use crate::{client::FusionClient, stream::Context, FusionClientLocator, FusionTensor};
+use burn_ir::{BackendIr, OperationIr, TensorHandle};
 use burn_tensor::{
     backend::{Backend, DeviceOps},
     ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{OperationDescription, ReprBackend, TensorHandle},
     Device, Element,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -77,7 +77,7 @@ pub struct OptimizationProperties {
 }
 
 /// The fusion operation abstraction allows implementations to fuse many
-/// [tensor operations](OperationDescription) into one, improving the performance of the backend.
+/// [tensor operations](OperationIr) into one, improving the performance of the backend.
 ///
 ///
 /// # Notes
@@ -89,8 +89,8 @@ pub struct OptimizationProperties {
 /// Also, it is important to return (OptimizationStatus::Closed) when no more registered operation can
 /// improve the performance.
 pub trait OptimizationBuilder<O>: Send {
-    /// Register a new [tensor operation](OperationDescription).
-    fn register(&mut self, operation: &OperationDescription);
+    /// Register a new [tensor operation](OperationIr).
+    fn register(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.
     fn build(&self) -> O;
     /// Reset the state.
@@ -154,7 +154,7 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug {
 /// Trait that allows an existing [backend](Backend) to specify graph optimizations using
 /// [operation builder](crate::OptimizationBuilder).
 pub trait FusionBackend:
-    ReprBackend<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
+    BackendIr<Handle = FusionHandle<Self::FusionRuntime>, Device = FusionDevice<Self::FusionRuntime>>
 {
     /// The runtime used for this backend.
     type FusionRuntime: FusionRuntime;
@@ -166,8 +166,8 @@ pub trait FusionBackend:
     type FullPrecisionBackend: FusionBackend<FusionRuntime = Self::FusionRuntime>;
 }
 
-// Fusion implements `ReprBackend` to enable router backend usage.
-impl<B: FusionBackend> ReprBackend for Fusion<B> {
+// Fusion implements `BackendIr` to enable router backend usage.
+impl<B: FusionBackend> BackendIr for Fusion<B> {
     type Handle = FusionTensor<B::FusionRuntime>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {

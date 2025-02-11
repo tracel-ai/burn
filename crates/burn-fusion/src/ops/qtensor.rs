@@ -1,13 +1,12 @@
 use std::{marker::PhantomData, ops::Range};
 
+use burn_ir::{
+    DequantizeOpIr, FloatOperationIr, HandleContainer, InitOperationIr, OperationIr,
+    QuantizationParametersIr, QuantizeOpIr,
+};
 use burn_tensor::{
     ops::{FloatElem, FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{QuantizationParametersPrimitive, QuantizationScheme},
-    repr::{
-        DequantizeOperationDescription, FloatOperationDescription, HandleContainer,
-        InitOperationDescription, OperationDescription, QuantizationParametersDescription,
-        QuantizeOperationDescription,
-    },
     DType, Device, Element, Shape, TensorData, TensorMetadata,
 };
 
@@ -30,11 +29,11 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
 
         let handle = B::quantized_tensor_handle(tensor);
         let out = client.register_tensor(handle, shape.dims, stream, dtype);
-        let desc = out.to_description_out();
+        let desc = out.to_ir_out();
 
         client.register(
             vec![stream],
-            OperationDescription::Init(InitOperationDescription { out: desc }),
+            OperationIr::Init(InitOperationIr { out: desc }),
             NoOp::<B>::new(),
         );
 
@@ -48,7 +47,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     ) -> QuantizedTensor<Self> {
         #[derive(new)]
         struct QuantizeOp<B: FusionBackend> {
-            desc: QuantizeOperationDescription,
+            desc: QuantizeOpIr,
             _b: PhantomData<B>,
         }
 
@@ -80,21 +79,21 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             vec![tensor.stream, qparams.scale.stream]
         };
 
-        let desc = QuantizeOperationDescription {
-            tensor: tensor.into_description(),
-            qparams: QuantizationParametersDescription {
-                scale: qparams.scale.clone().into_description(),
-                offset: qparams.offset.clone().map(|x| x.into_description()),
+        let desc = QuantizeOpIr {
+            tensor: tensor.into_ir(),
+            qparams: QuantizationParametersIr {
+                scale: qparams.scale.clone().into_ir(),
+                offset: qparams.offset.clone().map(|x| x.into_ir()),
             },
             scheme: *scheme,
-            out: out.to_description_out(),
+            out: out.to_ir_out(),
         };
 
         out.client.register(
             streams,
-            OperationDescription::Float(
+            OperationIr::Float(
                 FloatElem::<Self>::dtype(),
-                FloatOperationDescription::Quantize(desc.clone()),
+                FloatOperationIr::Quantize(desc.clone()),
             ),
             QuantizeOp::<B>::new(desc),
         );
@@ -105,7 +104,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         #[derive(new)]
         struct DequantizeOp<B: FusionBackend> {
-            desc: DequantizeOperationDescription,
+            desc: DequantizeOpIr,
             _b: PhantomData<B>,
         }
 
@@ -124,16 +123,16 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .client
             .tensor_uninitialized(shape, B::FloatElem::dtype());
 
-        let desc = DequantizeOperationDescription {
-            input: tensor.into_description(),
-            out: out.to_description_out(),
+        let desc = DequantizeOpIr {
+            input: tensor.into_ir(),
+            out: out.to_ir_out(),
         };
 
         out.client.register(
             vec![stream],
-            OperationDescription::Float(
+            OperationIr::Float(
                 FloatElem::<Self>::dtype(),
-                FloatOperationDescription::Dequantize(desc.clone()),
+                FloatOperationIr::Dequantize(desc.clone()),
             ),
             DequantizeOp::<B>::new(desc),
         );
@@ -157,7 +156,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let client_target = get_client::<B>(&device_target);
         let client_original = tensor.client.clone();
 
-        client_original.change_client_quantized::<B>(tensor.into_description(), client_target, id)
+        client_original.change_client_quantized::<B>(tensor.into_ir(), client_target, id)
     }
 
     fn q_reshape(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {

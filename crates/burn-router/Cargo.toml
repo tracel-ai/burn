@@ -13,12 +13,13 @@ version.workspace = true
 
 [features]
 default = ["std"]
-std = ["burn-tensor/std", "burn-common/std"]
+std = ["burn-tensor/std", "burn-common/std", "burn-ir/std"]
 doc = ["default"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = ["repr"]}
-burn-common = { path = "../burn-common", version = "0.17.0", default-features = false}
+burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
 hashbrown = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }

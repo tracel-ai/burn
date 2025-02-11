@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationIr;
 
 use super::{ExecutionMode, Exploration, Explorer};
 use crate::stream::execution::{Action, Policy};
@@ -16,7 +16,7 @@ pub(crate) struct Processor<O> {
 /// A part of a stream that can be executed partially using [execution plan](ExecutionPlan).
 pub(crate) trait StreamSegment<O> {
     /// The operations in the segment.
-    fn operations(&self) -> &[OperationDescription];
+    fn operations(&self) -> &[OperationIr];
     /// Execute part of the segment using the given plan id.
     fn execute(&mut self, id: ExecutionPlanId, store: &mut ExecutionPlanStore<O>);
 }
@@ -127,7 +127,7 @@ impl<O> Processor<O> {
         }
     }
 
-    fn reset(&mut self, store: &mut ExecutionPlanStore<O>, operations: &[OperationDescription]) {
+    fn reset(&mut self, store: &mut ExecutionPlanStore<O>, operations: &[OperationIr]) {
         self.explorer.reset(operations);
         self.policy.reset();
 
@@ -141,7 +141,7 @@ impl<O> Processor<O> {
     /// Cache it in the store.
     fn on_optimization_found(
         policy: &Policy<O>,
-        operations: &[OperationDescription],
+        operations: &[OperationIr],
         store: &mut ExecutionPlanStore<O>,
         builder: &dyn OptimizationBuilder<O>,
         mode: ExecutionMode,
@@ -189,7 +189,7 @@ impl<O> Processor<O> {
 
     fn on_optimization_not_found(
         policy: &Policy<O>,
-        operations: &[OperationDescription],
+        operations: &[OperationIr],
         store: &mut ExecutionPlanStore<O>,
         mode: ExecutionMode,
         num_explored: usize,

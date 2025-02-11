@@ -14,7 +14,7 @@ macro_rules! scalar_float_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<$elem>,
+            desc: ScalarOpIr<$elem>,
             _b: PhantomData<B>,
         }
 
@@ -35,7 +35,7 @@ macro_rules! scalar_float_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<$elem>,
+            desc: ScalarOpIr<$elem>,
             _b: PhantomData<B>,
         }
 
@@ -60,7 +60,7 @@ macro_rules! scalar_float2int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<$elem>,
+            desc: ScalarOpIr<$elem>,
             _b: PhantomData<B>,
         }
 
@@ -84,7 +84,7 @@ macro_rules! unary_float_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: UnaryOperationDescription,
+            desc: UnaryOpIr,
             _b: PhantomData<B>,
         }
 
@@ -104,7 +104,7 @@ macro_rules! unary_float_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: UnaryOperationDescription,
+            desc: UnaryOpIr,
             _b: PhantomData<B>,
         }
 
@@ -128,7 +128,7 @@ macro_rules! unary_int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: UnaryOperationDescription,
+            desc: UnaryOpIr,
             _b: PhantomData<B>,
         }
 
@@ -148,7 +148,7 @@ macro_rules! unary_int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: UnaryOperationDescription,
+            desc: UnaryOpIr,
             _b: PhantomData<B>,
         }
 
@@ -172,7 +172,7 @@ macro_rules! scalar_float_cmp_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<f32>,
+            desc: ScalarOpIr<f32>,
             _b: PhantomData<B>,
         }
 
@@ -196,7 +196,7 @@ macro_rules! scalar_int_cmp_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<i32>,
+            desc: ScalarOpIr<i32>,
             _b: PhantomData<B>,
         }
 
@@ -227,7 +227,7 @@ macro_rules! scalar_int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<$elem>,
+            desc: ScalarOpIr<$elem>,
             _b: PhantomData<B>,
         }
 
@@ -248,7 +248,7 @@ macro_rules! scalar_int_ops {
     ) => {
         #[derive(new)]
         struct $name<B: FusionBackend> {
-            desc: ScalarOperationDescription<$elem>,
+            desc: ScalarOpIr<$elem>,
             _b: PhantomData<B>,
         }
 

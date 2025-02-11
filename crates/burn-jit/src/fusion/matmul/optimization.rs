@@ -7,7 +7,7 @@ use crate::{fusion::JitFusionHandle, JitRuntime};
 use crate::{BoolElement, FloatElement};
 
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{BinaryOperationDescription, TensorStatus};
+use burn_ir::{BinaryOpIr, TensorStatus};
 use burn_tensor::Shape;
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
@@ -235,7 +235,7 @@ pub struct FusedMatmul {
     lhs: Arg,
     rhs: Arg,
     out: Arg,
-    pub(crate) op: BinaryOperationDescription,
+    pub(crate) op: BinaryOpIr,
     pub(crate) selector: FusedMatmulSelector,
 }
 

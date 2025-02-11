@@ -1,5 +1,5 @@
 use crate::{stream::Operation, FusionBackend};
-use burn_tensor::repr::HandleContainer;
+use burn_ir::HandleContainer;
 use std::marker::PhantomData;
 
 #[derive(new)]

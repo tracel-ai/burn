@@ -1,5 +1,5 @@
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_tensor::repr::{FloatOperationDescription, OperationDescription};
+use burn_ir::{FloatOperationIr, OperationIr};
 
 use crate::{
     fusion::{
@@ -41,14 +41,13 @@ impl<R: JitRuntime> MatmulBuilder<R> {
 }
 
 impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R> {
-    fn register(&mut self, operation: &OperationDescription) {
+    fn register(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
         }
 
         if self.matmul.is_none() {
-            if let OperationDescription::Float(_, FloatOperationDescription::Matmul(op)) = operation
-            {
+            if let OperationIr::Float(_, FloatOperationIr::Matmul(op)) = operation {
                 let lhs = self.builder.input_unhandled(&op.lhs);
                 let rhs = self.builder.input_unhandled(&op.rhs);
                 let out = self.builder.output_unhandled(&op.out);

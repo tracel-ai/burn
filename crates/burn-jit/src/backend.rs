@@ -5,10 +5,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use std::{marker::PhantomData, sync::Mutex};
 
 #[cfg(not(feature = "fusion"))]
-use burn_tensor::{
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
-    repr::{ReprBackend, TensorHandle},
-};
+use burn_ir::{BackendIr, TensorHandle};
+#[cfg(not(feature = "fusion"))]
+use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
@@ -95,7 +94,7 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> ReprBackend
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     for JitBackend<R, F, I, BT>
 {
     type Handle = JitTensor<R>;

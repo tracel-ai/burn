@@ -7,15 +7,15 @@ use crate::{
     },
     JitRuntime,
 };
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorId, TensorIr};
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: JitRuntime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
-    pub global_inputs: Vec<TensorDescription>,
-    pub global_outputs: Vec<TensorDescription>,
+    pub global_inputs: Vec<TensorIr>,
+    pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
     pub reference: Option<Reference>,
@@ -81,6 +81,6 @@ pub struct Reference {
 #[derive(Debug)]
 pub struct PotentialInplace<'a> {
     pub input_pos: usize,
-    pub tensor_relative: &'a TensorDescription,
+    pub tensor_relative: &'a TensorIr,
     pub strides: Vec<usize>,
 }

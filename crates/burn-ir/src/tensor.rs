@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use alloc::vec::Vec;
 
-use crate::DType;
+use burn_tensor::DType;
 
 /// The tensor unique identifier.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
@@ -32,7 +32,7 @@ pub enum TensorStatus {
 ///   3. Status::ReadOnly
 ///   4. Status::ReadWrite
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TensorDescription {
+pub struct TensorIr {
     /// The [tensor id](TensorId).
     pub id: TensorId,
     /// The shape of the tensor.

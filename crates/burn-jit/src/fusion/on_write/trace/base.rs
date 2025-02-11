@@ -12,7 +12,7 @@ use super::{
     HandleInput, HandleOutput, LaunchPlan, TraceRunner,
 };
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -100,11 +100,11 @@ impl FuseOnWriteTrace {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
-    tensors: BTreeMap<ElemwisePrecision, Vec<TensorDescription>>,
+    tensors: BTreeMap<ElemwisePrecision, Vec<TensorIr>>,
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &TensorDescription)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &TensorIr)> {
         self.tensors.iter().flat_map(|(precision, descriptions)| {
             descriptions.iter().map(|desc| (*precision, desc))
         })
@@ -124,24 +124,20 @@ impl RegisteredTensors {
         })
     }
 
-    pub fn get_all(&self, precision: ElemwisePrecision) -> &[TensorDescription] {
+    pub fn get_all(&self, precision: ElemwisePrecision) -> &[TensorIr] {
         self.tensors
             .get(&precision)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
 
-    pub fn get(
-        &self,
-        precision: ElemwisePrecision,
-        tensor_id: TensorId,
-    ) -> Option<&TensorDescription> {
+    pub fn get(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<&TensorIr> {
         self.get_all(precision)
             .iter()
             .find(|desc| desc.id == tensor_id)
     }
 
-    pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorDescription) -> u32 {
+    pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
             let position = tensors.len() as u32;
             tensors.push(tensor);
@@ -152,7 +148,7 @@ impl RegisteredTensors {
         }
     }
 
-    pub fn update(&mut self, precision: ElemwisePrecision, tensor: &TensorDescription) {
+    pub fn update(&mut self, precision: ElemwisePrecision, tensor: &TensorIr) {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
             if let Some(tensor_old) = tensors
                 .iter_mut()

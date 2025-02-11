@@ -16,18 +16,11 @@ cubecl = ["dep:cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
 cubecl-hip = ["cubecl", "cubecl/hip"]
 cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-default = ["std", "repr", "burn-common/rayon"]
+default = ["std", "burn-common/rayon"]
 doc = ["default"]
 experimental-named-tensor = []
 export_tests = ["burn-tensor-testgen", "cubecl"]
-repr = []
-std = [
-    "rand/std",
-    "half/std",
-    "num-traits/std",
-    "burn-common/std",
-    "colored",
-]
+std = ["rand/std", "half/std", "num-traits/std", "burn-common/std", "colored"]
 
 [dependencies]
 burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
@@ -40,7 +33,7 @@ derive-new = { workspace = true }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 rand = { workspace = true }
-rand_distr = { workspace = true }                    # use instead of statrs because it supports no_std
+rand_distr = { workspace = true }                                  # use instead of statrs because it supports no_std
 
 # The same implementation of HashMap in std but with no_std support (only needs alloc crate)
 hashbrown = { workspace = true } # no_std compatible
@@ -48,10 +41,6 @@ hashbrown = { workspace = true } # no_std compatible
 # Serialization
 serde = { workspace = true }
 serde_bytes = { workspace = true }
-
-
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std

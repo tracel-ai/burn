@@ -2,21 +2,21 @@ use std::collections::BTreeSet;
 
 use super::{execution::Operation, OperationConverter, RelativeOps};
 use crate::FusionRuntime;
-use burn_tensor::repr::{OperationDescription, TensorId};
+use burn_ir::{OperationIr, TensorId};
 
 pub use burn_common::id::StreamId;
 
-/// A growing list of [tensor operation descriptions](OperationDescription).
+/// A growing list of [tensor operation descriptions](OperationIr).
 pub struct OperationQueue<R: FusionRuntime> {
     /// List of operation descriptions. These contain the exact tensor IDs
     /// and shapes so that kernels can be run correctly.
     ///
     /// The length of this list is the same as the length of the `operations` list.
-    pub(crate) global: Vec<OperationDescription>,
+    pub(crate) global: Vec<OperationIr>,
     /// List of operation descriptions. The tensor IDs and shapes are relative
     /// because we don't need to know the exact values, but they are sufficient to
     /// determine which operations can be fused.
-    pub(crate) relative: Vec<OperationDescription>,
+    pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<Box<dyn Operation<R>>>,
     pub(crate) ids: BTreeSet<TensorId>,
@@ -42,10 +42,10 @@ impl<R: FusionRuntime> OperationQueue<R> {
 
     /// Add a new tensor operation to the queue.
     ///
-    /// The new [operation description](OperationDescription) will be converted to a local
+    /// The new [operation intermediate representation](OperationIr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<R>>) {
+    pub fn add(&mut self, global: OperationIr, operation: Box<dyn Operation<R>>) {
         for node in global.nodes() {
             self.ids.insert(node.id);
         }

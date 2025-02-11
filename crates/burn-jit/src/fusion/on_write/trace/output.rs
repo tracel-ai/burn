@@ -1,5 +1,6 @@
 use burn_fusion::stream::Context;
-use burn_tensor::{repr::TensorDescription, DType};
+use burn_ir::TensorIr;
+use burn_tensor::DType;
 use cubecl::{client::ComputeClient, ir::Elem};
 
 use crate::{
@@ -24,14 +25,14 @@ pub struct OutputPlanner<'a, R: JitRuntime> {
     reshapes: &'a Vec<Reshape>,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
-    globals: Vec<Option<TensorDescription>>,
+    globals: Vec<Option<TensorIr>>,
     mapper: OutputPositionMapper,
 }
 
 struct OutputSorted<'a> {
     pos_original: usize,
     precision: ElemwisePrecision,
-    tensor_relative: &'a TensorDescription,
+    tensor_relative: &'a TensorIr,
 }
 
 enum OutputKind {
@@ -161,7 +162,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
     fn output_kind(
         &self,
         plan: &mut LaunchPlan<'a, R>,
-        tensor_global: &TensorDescription,
+        tensor_global: &TensorIr,
         output: &OutputSorted,
         strides: &[usize],
     ) -> OutputKind {
@@ -193,7 +194,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
-        tensor_global: TensorDescription,
+        tensor_global: TensorIr,
         input_index: usize,
     ) {
         let potential_inplace = plan.potential_inplaces.remove(input_index);
@@ -243,7 +244,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
-        tensor_global: TensorDescription,
+        tensor_global: TensorIr,
         strides: Vec<usize>,
     ) {
         if plan.reference.is_none() {
@@ -308,7 +309,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         context: &mut Context<'_, JitFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
-        tensor_global: TensorDescription,
+        tensor_global: TensorIr,
         strides: Vec<usize>,
         reshape: Reshape,
     ) {

@@ -1,30 +1,28 @@
+use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
-use burn_tensor::{
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorId},
-    TensorData,
-};
+use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use std::sync::mpsc::{Sender, SyncSender};
 
 use crate::shared::{ConnectionId, TaskResponse, TaskResponseContent};
 
 /// The goal of the processor is to asynchronously process compute tasks on it own thread.
-pub struct Processor<B: ReprBackend> {
+pub struct Processor<B: BackendIr> {
     p: PhantomData<B>,
 }
 
 pub type Callback<M> = Sender<M>;
 
 pub enum ProcessorTask {
-    RegisterOperation(Box<OperationDescription>),
+    RegisterOperation(Box<OperationIr>),
     RegisterTensor(TensorId, TensorData),
-    ReadTensor(ConnectionId, TensorDescription, Callback<TaskResponse>),
+    ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     RegisterOrphan(TensorId),
     Close,
 }
 
-impl<B: ReprBackend> Processor<B> {
+impl<B: BackendIr> Processor<B> {
     pub fn start(runner: Runner<B>) -> SyncSender<ProcessorTask> {
         let (sender, rec) = std::sync::mpsc::sync_channel(1);
 

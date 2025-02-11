@@ -3,10 +3,8 @@ use super::super::{
     settings::FuseSettings,
 };
 use super::{FuseOnWriteTrace, RegisteredTensors, Reshape};
-use burn_tensor::{
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Element,
-};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
+use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -64,7 +62,7 @@ impl FuseOnWriteTraceBuilder {
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsability of the operation to write the result to given tensor.
-    pub fn output_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         let arg = self
             .output(tensor)
             .expect("Can't add a new output that is already used in an index operation");
@@ -75,7 +73,7 @@ impl FuseOnWriteTraceBuilder {
     /// Register an input tensor that won't be automatically read into a local variable.
     ///
     /// It is therefore the responsability of the operation to read the given tensor.
-    pub fn input_unhandled(&mut self, tensor: &TensorDescription) -> Arg {
+    pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
@@ -95,7 +93,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Register an input tensor.
-    pub fn input(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+    pub fn input(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if self.indexed.contains_key(&tensor.id) {
             return None;
         }
@@ -144,7 +142,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Register an output tensor.
-    pub fn output(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+    pub fn output(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if self.indexed.contains_key(&tensor.id) {
             return None;
         }
@@ -172,7 +170,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
-    pub fn input_indexed(&mut self, tensor: &TensorDescription) -> Option<Arg> {
+    pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if let Some(val) = self.indexed.get(&tensor.id) {
             return Some(val.clone());
         };
@@ -190,11 +188,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Register an input that is reshaped.
-    pub fn input_reshaped(
-        &mut self,
-        tensor: &TensorDescription,
-        output: &TensorDescription,
-    ) -> Option<Arg> {
+    pub fn input_reshaped(&mut self, tensor: &TensorIr, output: &TensorIr) -> Option<Arg> {
         let precision = tensor.dtype.into();
 
         // Bool tensors are encoded as bool_precision.
@@ -524,7 +518,7 @@ impl FuseOnWriteTraceBuilder {
             }
         }
 
-        // All tensors where their latest description is read only should be written to since they
+        // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
         for (precision, tensor) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {

@@ -4,7 +4,7 @@ use crate::{
     JitRuntime,
 };
 use burn_fusion::stream::Context;
-use burn_tensor::repr::{TensorId, TensorStatus};
+use burn_ir::{TensorId, TensorStatus};
 use std::marker::PhantomData;
 
 use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};

@@ -9,7 +9,8 @@ use axum::{
 };
 use std::{net::SocketAddr, sync::Arc};
 
-use burn_tensor::{repr::ReprBackend, Device};
+use burn_ir::BackendIr;
+use burn_tensor::Device;
 use tracing_core::{Level, LevelFilter};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{filter::filter_fn, registry};
@@ -19,11 +20,11 @@ use crate::shared::{ComputeTask, Task};
 use super::session::SessionManager;
 
 #[derive(Clone)]
-pub struct WsServer<B: ReprBackend> {
+pub struct WsServer<B: BackendIr> {
     state: Arc<SessionManager<B>>,
 }
 
-impl<B: ReprBackend> WsServer<B> {
+impl<B: BackendIr> WsServer<B> {
     /// Start the server on the given address.
     pub async fn start(device: Device<B>, port: u16) {
         let layer = tracing_subscriber::fmt::layer()
@@ -174,6 +175,6 @@ impl<B: ReprBackend> WsServer<B> {
 
 #[tokio::main]
 /// Start the server on the given port and [device](Device).
-pub async fn start<B: ReprBackend>(device: Device<B>, port: u16) {
+pub async fn start<B: BackendIr>(device: Device<B>, port: u16) {
     WsServer::<B>::start(device, port).await;
 }

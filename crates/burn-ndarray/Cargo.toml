@@ -19,6 +19,7 @@ std = [
     "burn-common/std",
     "burn-common/rayon",
     "burn-tensor/std",
+    "burn-ir/std",
     "matrixmultiply/std",
     "matrixmultiply/threading",
     "ndarray/rayon",
@@ -45,7 +46,8 @@ blas-openblas-system = [
 
 burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", default-features = false, optional = true }
 burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = ["repr"] }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
+burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = false }
 
 atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible

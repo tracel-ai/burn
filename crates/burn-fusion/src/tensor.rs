@@ -1,7 +1,7 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
     quantization::{QTensorPrimitive, QuantizationScheme},
-    repr::{TensorDescription, TensorId, TensorStatus},
     DType, Shape, TensorData, TensorMetadata,
 };
 use std::{future::Future, sync::Arc};
@@ -18,7 +18,7 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub dtype: DType,
     /// The current stream id this tensor is on.
     pub stream: StreamId,
-    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
     //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
@@ -89,9 +89,9 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    /// Description to be used when using an uninitialized tensor as output.
-    pub fn to_description_out(&self) -> TensorDescription {
-        TensorDescription {
+    /// Intermediate representation to be used when using an uninitialized tensor as output.
+    pub fn to_ir_out(&self) -> TensorIr {
+        TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
             id: *self.id.as_ref(),
@@ -99,8 +99,8 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    /// Description to be used when using an initialized tensor used as input.
-    pub fn into_description(mut self) -> TensorDescription {
+    /// Intermediate representation to be used when using an initialized tensor used as input.
+    pub fn into_ir(mut self) -> TensorIr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -109,7 +109,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             self.is_orphan = false;
         }
 
-        TensorDescription {
+        TensorIr {
             status,
             shape: shape_out,
             id: *self.id.as_ref(),
@@ -123,7 +123,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_description();
+        let desc = self.into_ir();
         client.read_tensor_float::<B>(desc, id)
     }
 
@@ -134,7 +134,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
         if let DType::QFloat(_scheme) = self.dtype {
             let id = self.stream;
             let client = self.client.clone();
-            let desc = self.into_description();
+            let desc = self.into_ir();
             client.read_tensor_quantized::<B>(desc, id)
         } else {
             panic!("Expected quantized float dtype, got {:?}", self.dtype)
@@ -147,7 +147,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_description();
+        let desc = self.into_ir();
         client.read_tensor_int::<B>(desc, id)
     }
 
@@ -157,7 +157,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
     {
         let id = self.stream;
         let client = self.client.clone();
-        let desc = self.into_description();
+        let desc = self.into_ir();
         client.read_tensor_bool::<B>(desc, id)
     }
 }

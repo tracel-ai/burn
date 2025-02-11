@@ -1,6 +1,6 @@
 use super::super::ir::{ElemwiseConfig, GlobalArgsLaunch};
 use crate::{fusion::JitFusionHandle, JitRuntime};
-use burn_tensor::repr::{TensorDescription, TensorId};
+use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use std::collections::BTreeMap;
 
@@ -24,9 +24,9 @@ pub trait TraceRunner<R: JitRuntime> {
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, u8>,
         handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
-        inputs: impl Iterator<Item = &'a TensorDescription>,
-        outputs: impl Iterator<Item = &'a TensorDescription>,
-        reshaped: impl Iterator<Item = (&'a TensorDescription, &'a TensorDescription, bool)>,
+        inputs: impl Iterator<Item = &'a TensorIr>,
+        outputs: impl Iterator<Item = &'a TensorIr>,
+        reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     ) {
         vectorization_default(vectorizations, handles_inputs, inputs, outputs, reshaped)
     }
@@ -35,9 +35,9 @@ pub trait TraceRunner<R: JitRuntime> {
 fn vectorization_default<'a, R: JitRuntime>(
     vectorizations: &mut BTreeMap<TensorId, u8>,
     handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
-    inputs: impl Iterator<Item = &'a TensorDescription>,
-    outputs: impl Iterator<Item = &'a TensorDescription>,
-    reshaped: impl Iterator<Item = (&'a TensorDescription, &'a TensorDescription, bool)>,
+    inputs: impl Iterator<Item = &'a TensorIr>,
+    outputs: impl Iterator<Item = &'a TensorIr>,
+    reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
 ) {
     enum Vect {
         Broadcated,
@@ -46,7 +46,7 @@ fn vectorization_default<'a, R: JitRuntime>(
 
     // The default version uses the last dimension as vectorization axis and assumes a
     // perpendicular contiguous line.
-    let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorDescription| {
+    let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorIr| {
         let rank = handle.strides.len();
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -69,7 +69,7 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
-    let vectorization_output = |desc: &TensorDescription| {
+    let vectorization_output = |desc: &TensorIr| {
         let rank = desc.shape.len();
 
         for s in R::line_size_elem(&desc.dtype.into()) {
@@ -82,33 +82,32 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
-    let vectorization_reshape =
-        |reshaped: &TensorDescription, original: &TensorDescription, multi_reads: bool| {
-            let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
-            let shape_axis = original.shape[original.shape.len() - 1];
+    let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
+        let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
+        let shape_axis = original.shape[original.shape.len() - 1];
 
-            if !multi_reads && reshape_axis == 1 {
-                return Vect::Broadcated;
-            }
+        if !multi_reads && reshape_axis == 1 {
+            return Vect::Broadcated;
+        }
 
-            for s in R::line_size_elem(&reshaped.dtype.into()) {
-                if !multi_reads {
-                    // The last dimension should be a multiple of the vector size or broadcated.
-                    if reshape_axis % s as usize == 0 {
-                        return Vect::Max(s);
-                    }
-                } else {
-                    // Since the original tensor must share the same vectorization factor as the
-                    // reshaped tensor, they must have compatible shapes when both are access
-                    // independently.
-                    if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 {
-                        return Vect::Max(s);
-                    }
+        for s in R::line_size_elem(&reshaped.dtype.into()) {
+            if !multi_reads {
+                // The last dimension should be a multiple of the vector size or broadcated.
+                if reshape_axis % s as usize == 0 {
+                    return Vect::Max(s);
+                }
+            } else {
+                // Since the original tensor must share the same vectorization factor as the
+                // reshaped tensor, they must have compatible shapes when both are access
+                // independently.
+                if reshape_axis % s as usize == 0 && shape_axis % s as usize == 0 {
+                    return Vect::Max(s);
                 }
             }
+        }
 
-            Vect::Max(1)
-        };
+        Vect::Max(1)
+    };
 
     let mut max_current = u8::MAX;
 

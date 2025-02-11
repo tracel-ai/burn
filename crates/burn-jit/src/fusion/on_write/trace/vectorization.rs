@@ -4,7 +4,7 @@ use std::{
 };
 
 use burn_fusion::stream::Context;
-use burn_tensor::repr::TensorId;
+use burn_ir::TensorId;
 
 use crate::{
     fusion::{

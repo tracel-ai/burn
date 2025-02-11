@@ -1,4 +1,4 @@
-use burn_tensor::repr::{HandleContainer, OperationDescription, TensorDescription};
+use burn_ir::{HandleContainer, OperationIr, TensorIr};
 
 use super::{
     execution::{ExecutionMode, Operation, Processor, StreamSegment},
@@ -28,11 +28,11 @@ impl<R: FusionRuntime> MultiStream<R> {
     pub(crate) fn register(
         &mut self,
         streams: Vec<StreamId>,
-        desc: OperationDescription,
+        repr: OperationIr,
         operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
-        let id = self.resolve_streams(streams, handles, &desc);
+        let id = self.resolve_streams(streams, handles, &repr);
 
         let stream = match self.streams.get_mut(&id) {
             Some(stream) => stream,
@@ -45,7 +45,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         };
 
-        stream.queue.add(desc, operation);
+        stream.queue.add(repr, operation);
 
         let size_before = stream.queue.len();
         stream.processor.process(
@@ -83,7 +83,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: Vec<StreamId>,
         handles: &mut HandleContainer<R::FusionHandle>,
-        op: &OperationDescription,
+        op: &OperationIr,
     ) -> StreamId {
         let streams = Self::remove_duplicate(streams);
         let current = StreamId::current();
@@ -103,7 +103,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         handles: &mut HandleContainer<R::FusionHandle>,
         id: StreamId,
-        nodes: Vec<&TensorDescription>,
+        nodes: Vec<&TensorIr>,
     ) {
         if let Some(stream) = self.streams.get(&id) {
             for node in nodes {
@@ -154,7 +154,7 @@ struct Segment<'a, R: FusionRuntime> {
 }
 
 impl<R: FusionRuntime> StreamSegment<R::Optimization> for Segment<'_, R> {
-    fn operations(&self) -> &[OperationDescription] {
+    fn operations(&self) -> &[OperationIr] {
         &self.queue.relative
     }
 
