@@ -28,10 +28,10 @@ pub struct BiasLoader<CS: ConvPrecision, G: StageConfig> {
 impl<CS: ConvPrecision, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for BiasLoader<CS, G> {
     fn fill_stage(this: &mut Self, #[comptime] config: G) {
         if this.has_bias {
-            let stage_dim = config.stage_dim(Ident::Rhs);
+            let stage_tiling = config.tiling(Ident::Rhs);
             let line_size = config.line_size(Ident::Out);
 
-            let num_stage_elements = stage_dim.num_elements_y_dim();
+            let num_stage_elements = stage_tiling.total_col();
 
             let unit_id = UNIT_POS_Y * config.plane_dim() + UNIT_POS_X;
             let unit_position_base = unit_id * line_size;
@@ -56,7 +56,7 @@ impl<CS: ConvPrecision, G: StageConfig> AccumulatorLoader<CS::EG, CS::EA, G> for
     ) {
         if this.has_bias {
             let line_size = config.line_size(Ident::Out);
-            let tile_elems = config.size().n / line_size;
+            let tile_elems = config.tile_shape().n / line_size;
             let start = tile_n * tile_elems;
             let slice = this.stage.as_slice_mut().slice(start, start + tile_elems);
             Tile::fill_accumulator(&slice, acc, 0, config);
@@ -103,7 +103,7 @@ fn init_stage<ES: Numeric, G: StageConfig>(#[comptime] config: G) -> Stage<ES> {
     let line_size = config.line_size(Ident::Out);
 
     let smem = SharedMemory::new_lined(
-        comptime!(config.stage_dim(Ident::Rhs).num_elements_y_dim() / line_size),
+        comptime!(config.tiling(Ident::Rhs).total_col() / line_size),
         line_size,
     );
 

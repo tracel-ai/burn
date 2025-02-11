@@ -8,7 +8,7 @@ use cubecl::{
     ir::{Elem, FloatKind},
     linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
     prelude::*,
-    Compiler, CubeCount, CubeDim, Feature,
+    CubeCount, CubeDim, Feature,
 };
 use half::f16;
 
@@ -683,13 +683,14 @@ pub(crate) fn check_availability<R: JitRuntime, E: FloatElement>(
     let warps_per_cube = 8;
 
     let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
-    if <R::Compiler as Compiler>::max_shared_memory_size() < smem_size {
+    let topology = client.properties().hardware_properties();
+
+    if topology.max_shared_memory_size < smem_size {
         return Err(ConvLaunchError::Matmul(MatmulLaunchError::InvalidConfig(
             Box::new("Not enough shared memory"),
         )));
     }
 
-    let topology = client.properties().hardware_properties();
     if topology.plane_size_min < 32 {
         return Err(ConvLaunchError::Matmul(MatmulLaunchError::Unavailable(
             MatmulAvailabilityError::PlaneDimUnsupported {
