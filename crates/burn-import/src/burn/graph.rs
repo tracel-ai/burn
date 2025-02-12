@@ -50,7 +50,7 @@ pub struct BurnGraph<PS: PrecisionSettings> {
 }
 
 // The backend used for recording.
-type Backend = burn::backend::ndarray::NdArray;
+type Backend = burn_ndarray::NdArray;
 
 impl<PS: PrecisionSettings> BurnGraph<PS> {
     /// Register a new operation node into the graph.
@@ -553,7 +553,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         input_names.iter().for_each(|input| {
             self.graph_input_types.push(
                 inputs
-                    .get(&TensorType::format_name(input))
+                    .get(&Type::format_name(input))
                     .unwrap_or_else(|| panic!("Input type not found for {input}"))
                     .clone(),
             );
@@ -562,7 +562,7 @@ impl<PS: PrecisionSettings> BurnGraph<PS> {
         output_names.iter().for_each(|output| {
             self.graph_output_types.push(
                 outputs
-                    .get(&TensorType::format_name(output))
+                    .get(&Type::format_name(output))
                     .unwrap_or_else(|| panic!("Output type not found for {output}"))
                     .clone(),
             );
@@ -589,7 +589,7 @@ struct BurnGraphState<'a, PS: PrecisionSettings> {
 /// Instead, they use the `StructTuple` serialization strategy (to avoid memory overhead presumably).
 struct StructMap<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
-impl<'a, PS: PrecisionSettings> Serialize for StructMap<'a, PS> {
+impl<PS: PrecisionSettings> Serialize for StructMap<'_, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -623,7 +623,7 @@ impl<'a, PS: PrecisionSettings> Serialize for StructMap<'a, PS> {
 /// serializing tuples. Instead, they use the `StructMap` serialization strategy.
 struct StructTuple<'a, PS: PrecisionSettings>(BurnGraphState<'a, PS>);
 
-impl<'a, PS: PrecisionSettings> Serialize for StructTuple<'a, PS> {
+impl<PS: PrecisionSettings> Serialize for StructTuple<'_, PS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

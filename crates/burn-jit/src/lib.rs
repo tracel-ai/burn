@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Burn JIT Backend
 
@@ -6,30 +7,24 @@
 extern crate derive_new;
 extern crate alloc;
 
-mod ops;
+/// Utilities for implementing JIT kernels
+pub mod ops;
 
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod tune;
-
 /// Elements for JIT backend
 pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
-use cubecl::{
-    compute::{CubeCount, CubeTask},
-    FeatureSet, Properties, Runtime,
-};
-pub use element::{FloatElement, IntElement, JitElement};
+use cubecl::{compute::CubeTask, Feature, Runtime};
+pub use element::{BoolElement, FloatElement, IntElement, JitElement};
 
 mod backend;
-mod bridge;
 
 pub use backend::*;
-pub use bridge::*;
 
 // Re-export cubecl.
 pub use cubecl;
@@ -38,7 +33,8 @@ mod tune_key;
 pub use tune_key::JitAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
-mod fusion;
+/// Module for interacting with fusion
+pub mod fusion;
 
 #[cfg(feature = "template")]
 /// Module for compiling custom non-jit kernels
@@ -53,10 +49,8 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
     type JitDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [JitAutotuneKey].
     type JitServer: cubecl::server::ComputeServer<
-        Kernel = Box<dyn CubeTask>,
-        DispatchOptions = CubeCount<Self::JitServer>,
-        Properties = Properties,
-        FeatureSet = FeatureSet,
+        Kernel = Box<dyn CubeTask<Self::Compiler>>,
+        Feature = Feature,
     >;
 }
 

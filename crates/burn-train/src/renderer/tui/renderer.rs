@@ -1,12 +1,15 @@
 use crate::renderer::{tui::NumericMetricsState, MetricsRenderer};
 use crate::renderer::{MetricState, TrainingProgress};
 use crate::TrainingInterrupter;
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+use ratatui::{
+    crossterm::{
+        event::{self, Event, KeyCode},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    },
+    prelude::*,
+    Terminal,
 };
-use ratatui::{prelude::*, Terminal};
 use std::panic::{set_hook, take_hook};
 use std::sync::Arc;
 use std::{
@@ -41,6 +44,7 @@ pub struct TuiMetricsRenderer {
     interuptor: TrainingInterrupter,
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
+    persistent: bool,
 }
 
 impl MetricsRenderer for TuiMetricsRenderer {
@@ -113,7 +117,14 @@ impl TuiMetricsRenderer {
             interuptor,
             popup: PopupState::Empty,
             previous_panic_hook: Some(previous_panic_hook),
+            persistent: false,
         }
+    }
+
+    /// Set the renderer to persistent mode.
+    pub fn persistent(mut self) -> Self {
+        self.persistent = true;
+        self
     }
 
     fn render(&mut self) -> Result<(), Box<dyn Error>> {
@@ -132,7 +143,7 @@ impl TuiMetricsRenderer {
 
     fn draw(&mut self) -> Result<(), Box<dyn Error>> {
         self.terminal.draw(|frame| {
-            let size = frame.size();
+            let size = frame.area();
 
             match self.popup.view() {
                 Some(view) => view.render(frame, size),
@@ -197,6 +208,49 @@ impl TuiMetricsRenderer {
 
         Ok(())
     }
+
+    fn handle_post_training(&mut self) -> Result<(), Box<dyn Error>> {
+        self.popup = PopupState::Full(
+            "Training is done".to_string(),
+            vec![Callback::new(
+                "Training Done",
+                "Press 'x' to close this popup.  Press 'q' to exit the application after the \
+                popup is closed.",
+                'x',
+                PopupCancel,
+            )],
+        );
+
+        self.draw().ok();
+
+        loop {
+            if let Ok(true) = event::poll(Duration::from_millis(MAX_REFRESH_RATE_MILLIS)) {
+                match event::read() {
+                    Ok(event @ Event::Key(key)) => {
+                        if self.popup.is_empty() {
+                            self.metrics_numeric.on_event(&event);
+                            if let KeyCode::Char('q') = key.code {
+                                break;
+                            }
+                        } else {
+                            self.popup.on_event(&event);
+                        }
+                        self.draw().ok();
+                    }
+
+                    Ok(Event::Resize(..)) => {
+                        self.draw().ok();
+                    }
+                    Err(err) => {
+                        eprintln!("Error reading event: {}", err);
+                        break;
+                    }
+                    _ => continue,
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 struct QuitPopupAccept(TrainingInterrupter);
@@ -227,6 +281,12 @@ impl Drop for TuiMetricsRenderer {
         // Reset the terminal back to raw mode. This can be skipped during
         // panicking because the panic hook has already reset the terminal
         if !std::thread::panicking() {
+            if self.persistent {
+                if let Err(err) = self.handle_post_training() {
+                    eprintln!("Error in post-training handling: {}", err);
+                }
+            }
+
             disable_raw_mode().ok();
             execute!(self.terminal.backend_mut(), LeaveAlternateScreen).unwrap();
             self.terminal.show_cursor().ok();

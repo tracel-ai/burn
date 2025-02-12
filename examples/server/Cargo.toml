@@ -1,0 +1,18 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+edition.workspace = true
+license.workspace = true
+name = "server"
+publish = false
+version.workspace = true
+
+[features]
+default = ["webgpu"]
+cuda = ["burn/cuda"]
+webgpu = ["burn/webgpu"]
+vulkan = ["burn/vulkan"]
+ndarray = ["burn/ndarray"]
+
+[dependencies]
+cfg-if = { workspace = true }
+burn = { path = "../../crates/burn", version = "0.17.0", features = ["server"] }

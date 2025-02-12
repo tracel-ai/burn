@@ -7,7 +7,7 @@ provide some detailed guidance on how to contribute to the project.
 
 We have crafted some sections for you:
 
-- [Getting Started](./getting-started): Much like the [Burn Book](https://burn.dev/book/) which
+- [Getting Started](./getting-started): Much like the [Burn Book](https://burn.dev/burn-book/) which
   targets users, we'll start with the fundamentals, guiding you through tasks like setting up the
   development environment, running tests, and what you should check prior to each commit.
 

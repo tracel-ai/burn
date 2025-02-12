@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![allow(unused)] // TODO remove when backend filled
 
 //! Burn Candle Backend
@@ -7,13 +8,12 @@
 extern crate derive_new;
 
 mod backend;
-mod bridge;
 mod element;
 mod ops;
 mod tensor;
 
 pub use backend::*;
-pub use bridge::*;
+pub use element::*;
 pub use tensor::*;
 
 #[cfg(test)]
@@ -32,6 +32,8 @@ mod tests {
 
     type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
     type TestAutodiffTensor<const D: usize> = burn_tensor::Tensor<TestAutodiffBackend, D>;
+
+    pub type FloatType = f32;
 
     // test activation
     burn_tensor::testgen_gelu!();
@@ -85,10 +87,15 @@ mod tests {
     burn_tensor::testgen_mul!();
     burn_tensor::testgen_neg!();
     burn_tensor::testgen_permute!();
+    // commented out due to macos CI failure, see #2427
+    // burn_tensor::testgen_remainder!();
     burn_tensor::testgen_flip!();
     burn_tensor::testgen_argwhere_nonzero!();
     burn_tensor::testgen_sign!();
     burn_tensor::testgen_nan!();
+    burn_tensor::testgen_round!();
+    burn_tensor::testgen_floor!();
+    burn_tensor::testgen_ceil!();
 
     // TODO: https://github.com/tracel-ai/burn/issues/1237
     //
@@ -155,6 +162,8 @@ mod tests {
     burn_autodiff::testgen_ad_mul!();
     burn_autodiff::testgen_ad_neg!();
     burn_autodiff::testgen_ad_recip!();
+    // commented out due to macos CI failure, see #2427
+    // burn_autodiff::testgen_ad_remainder!();
     burn_autodiff::testgen_ad_reshape!();
     burn_autodiff::testgen_ad_sin!();
     burn_autodiff::testgen_ad_softmax!();
@@ -164,4 +173,7 @@ mod tests {
     burn_autodiff::testgen_ad_tanh!();
     burn_autodiff::testgen_ad_transpose!();
     burn_autodiff::testgen_ad_expand!();
+    burn_autodiff::testgen_ad_round!();
+    burn_autodiff::testgen_ad_floor!();
+    burn_autodiff::testgen_ad_ceil!();
 }

@@ -243,10 +243,13 @@ is to use a PyTorch installation. This requires a Python installation.
 _Note: MPS acceleration is available on MacOS 12.3+._
 
 ```shell
-pip install torch==2.2.0
+pip install torch==2.2.0 numpy==1.26.4 setuptools
 export LIBTORCH_USE_PYTORCH=1
 export DYLD_LIBRARY_PATH=/path/to/pytorch/lib:$DYLD_LIBRARY_PATH
 ```
+
+**Note:** if `venv` is used, it should be activated during coding and building,
+or the compiler may not work properly.
 
 ## Example Usage
 
@@ -255,3 +258,27 @@ sets the device to use and performs a simple element-wise addition.
 
 For a more complete example using the `tch` backend, take a loot at the
 [Burn mnist example](https://github.com/tracel-ai/burn/tree/main/examples/mnist).
+
+## Too many environment variables?
+
+Try `.cargo/config.toml` ([cargo book](https://doc.rust-lang.org/cargo/reference/config.html#env)).
+
+Instead of setting the environments in your shell, you can manually add them to your `.cargo/config.toml`:
+
+```toml
+[env]
+LD_LIBRARY_PATH = "/absolute/path/to/libtorch/lib"
+LIBTORCH = "/absolute/path/to/libtorch/libtorch"
+```
+
+Or use bash commands below:
+
+```bash
+mkdir .cargo
+cat <<EOF > .cargo/config.toml
+[env]
+LD_LIBRARY_PATH = "/absolute/path/to/libtorch/lib:$LD_LIBRARY_PATH"
+LIBTORCH = "/absolute/path/to/libtorch/libtorch"
+EOF
+```
+This will automatically include the old `LD_LIBRARY_PATH` value in the new one.

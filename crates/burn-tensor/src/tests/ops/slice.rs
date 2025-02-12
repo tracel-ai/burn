@@ -1,12 +1,12 @@
 #[burn_tensor_testgen::testgen(slice)]
 mod tests {
     use super::*;
-    use burn_tensor::{Int, Tensor, TensorData};
+    use burn_tensor::{as_type, Int, Tensor, TensorData};
 
     #[test]
     fn should_support_full_sliceing_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..3]);
 
@@ -16,7 +16,7 @@ mod tests {
     #[test]
     fn should_support_partial_sliceing_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
         let output = tensor.slice([1..3]);
         let expected = TensorData::from([1.0, 2.0]);
@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn should_support_full_sliceing_2d() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         let output = tensor.clone().slice([0..2]);
         output.into_data().assert_eq(&data, false);
@@ -39,10 +39,21 @@ mod tests {
     #[test]
     fn should_support_partial_sliceing_2d() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.slice([0..2, 0..2]);
         let expected = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
+
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_slice_range_first_dim() {
+        let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
+
+        let output = tensor.slice(0..1);
+        let expected = TensorData::from([[0.0, 1.0, 2.0]]);
 
         output.into_data().assert_eq(&expected, false);
     }
@@ -85,8 +96,8 @@ mod tests {
         let data_assigned = TensorData::from([10.0, 5.0]);
 
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1>::from_data(data, &device);
-        let tensor_assigned = Tensor::<TestBackend, 1>::from_data(data_assigned, &device);
+        let tensor = TestTensor::<1>::from_data(data, &device);
+        let tensor_assigned = TestTensor::<1>::from_data(data_assigned, &device);
 
         let output = tensor.slice_assign([0..2], tensor_assigned);
         let expected = TensorData::from([10.0, 5.0, 2.0]);
@@ -100,8 +111,8 @@ mod tests {
         let data_assigned = TensorData::from([[10.0, 5.0]]);
 
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &device);
-        let tensor_assigned = Tensor::<TestBackend, 2>::from_data(data_assigned, &device);
+        let tensor = TestTensor::<2>::from_data(data, &device);
+        let tensor_assigned = TestTensor::<2>::from_data(data_assigned, &device);
 
         let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
         let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
@@ -111,7 +122,7 @@ mod tests {
 
     #[test]
     fn slice_should_not_corrupt_potentially_inplace_operations() {
-        let tensor = Tensor::<TestBackend, 1, Int>::from_data([1, 2, 3, 4, 5], &Default::default());
+        let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &Default::default());
         let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
 
         let expected = TensorData::from([4, 6, 8]);
@@ -122,8 +133,8 @@ mod tests {
     #[test]
     fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
         let device = Default::default();
-        let tensor = Tensor::<TestBackend, 1, Int>::from_data([1, 2, 3, 4, 5], &device);
-        let values = Tensor::<TestBackend, 1, Int>::from_data([10, 20, 30], &device);
+        let tensor = TestTensorInt::<1>::from_data([1, 2, 3, 4, 5], &device);
+        let values = TestTensorInt::<1>::from_data([10, 20, 30], &device);
         let tensor_1 = tensor.clone().slice_assign([0..3], values);
         let tensor_2 = tensor + 2;
 
@@ -138,8 +149,8 @@ mod tests {
 
     #[test]
     fn clamp_when_slice_exceeds_dimension() {
-        let data = TensorData::from([0.0f32, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let data = TensorData::from(as_type!(FloatType: [0.0f32, 1.0, 2.0]));
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..4]);
         output.into_data().assert_eq(&data, true);
@@ -147,8 +158,8 @@ mod tests {
 
     #[test]
     fn negative_dimensions() {
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
         let output = tensor.clone().slice([(0, 4), (0, 4)]);
@@ -156,7 +167,7 @@ mod tests {
 
         // Negative dimensions
         let output = tensor.clone().slice([(0, 1), (0, 1)]);
-        let data = TensorData::from([[0.0f32]]);
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.slice([(0, -1), (0, -2)]);
@@ -165,29 +176,29 @@ mod tests {
 
     #[test]
     fn missing_dimensions() {
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data.clone(), &Default::default());
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
+        let tensor = TestTensor::<2>::from_data(data.clone(), &Default::default());
 
         // Clamping to the tensor dimensions
         let output = tensor.clone().slice([Some((0, 4)), Some((0, 4))]);
         output.into_data().assert_eq(&data, true);
 
         // Negative dimensions
-        let data = TensorData::from([[0.0f32]]);
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32]]));
         let output = tensor.clone().slice([Some((0, -1)), Some((0, -2))]);
         output.into_data().assert_eq(&data, true);
 
         // Missing dimensions
         let output = tensor.clone().slice([Some((0, 1)), None]);
-        let data = TensorData::from([[0.0f32, 1.0, 2.0]]);
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, Some((0, 2))]);
-        let data = TensorData::from([[0.0f32, 1.0], [3.0, 4.0]]);
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0], [3.0, 4.0]]));
         output.into_data().assert_eq(&data, true);
 
         let output = tensor.clone().slice([None, None]);
-        let data = TensorData::from([[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+        let data = TensorData::from(as_type!(FloatType: [[0.0f32, 1.0, 2.0], [3.0, 4.0, 5.0]]));
         output.into_data().assert_eq(&data, true);
     }
 
@@ -204,7 +215,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_with_too_many_dimensions() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([0..1, 0..1]);
 
@@ -215,7 +226,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_is_desc() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         #[allow(clippy::reversed_empty_ranges)]
         let output = tensor.slice([2..1]);
@@ -227,7 +238,7 @@ mod tests {
     #[should_panic]
     fn should_panic_when_slice_is_equal() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data.clone(), &Default::default());
+        let tensor = TestTensor::<1>::from_data(data.clone(), &Default::default());
 
         let output = tensor.slice([1..1]);
 

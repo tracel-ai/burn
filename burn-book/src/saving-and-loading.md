@@ -4,7 +4,7 @@ Saving your trained machine learning model is quite easy, no matter the output f
 mentioned in the [Record](./building-blocks/record.md) section, different formats are supported to
 serialize/deserialize models. By default, we use the `NamedMpkFileRecorder` which uses the
 [MessagePack](https://msgpack.org/) binary serialization format with the help of
-[smp_serde](https://docs.rs/rmp-serde/).
+[rmp_serde](https://docs.rs/rmp-serde/).
 
 ```rust, ignore
 // Save model in MessagePack format with full precision
@@ -22,7 +22,7 @@ Now that you have a trained model saved to your disk, you can easily load it in 
 ```rust, ignore
 // Load model in full precision from MessagePack file
 let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-model
+model = model
     .load_file(model_path, &recorder, device)
     .expect("Should be able to load the model weights from the provided file");
 ```

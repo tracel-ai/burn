@@ -95,7 +95,7 @@ impl Serializable for CandleTensor {
     {
         let shape = self.shape().clone().into_dims();
         let flatten = CandleTensor(self.flatten_all().expect("Failed to flatten the tensor"));
-        let param_id = ParamId::new().into_string();
+        let param_id = ParamId::new();
 
         match self.dtype() {
             candle_core::DType::U8 => {
@@ -127,7 +127,7 @@ impl Serializable for CandleTensor {
 fn serialize_data<T, E>(
     tensor: CandleTensor,
     shape: Vec<usize>,
-    param_id: String,
+    param_id: ParamId,
     serializer: Serializer,
 ) -> Result<NestedValue, error::Error>
 where
@@ -141,23 +141,20 @@ where
         .map(ElementConversion::elem)
         .collect();
 
-    let TensorData {
-        bytes,
-        shape,
-        dtype,
-    } = TensorData::new(data, shape);
+    let data = TensorData::new(data, shape.clone());
+    let (dtype, bytes) = (data.dtype, data.into_bytes());
 
     // Manually serialize the tensor instead of using the `ParamSerde` struct, such as:
     // ParamSerde::new(param_id, TensorData::new(data, shape)).serialize(serializer)
     // Because serializer copies individual elements of TensorData `value` into a new Vec<u8>,
     // which is not necessary and inefficient.
     let mut tensor_data: HashMap<String, NestedValue> = HashMap::new();
-    tensor_data.insert("bytes".into(), NestedValue::U8s(bytes));
+    tensor_data.insert("bytes".into(), NestedValue::Bytes(bytes));
     tensor_data.insert("shape".into(), shape.serialize(serializer.clone())?);
     tensor_data.insert("dtype".into(), dtype.serialize(serializer)?);
 
     let mut param: HashMap<String, NestedValue> = HashMap::new();
-    param.insert("id".into(), NestedValue::String(param_id));
+    param.insert("id".into(), NestedValue::String(param_id.serialize()));
     param.insert("param".into(), NestedValue::Map(tensor_data));
 
     Ok(NestedValue::Map(param))

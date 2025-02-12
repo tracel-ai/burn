@@ -19,6 +19,7 @@ pub struct MetricMetadata {
 }
 
 impl MetricMetadata {
+    /// Fake metric metadata
     #[cfg(test)]
     pub fn fake() -> Self {
         Self {

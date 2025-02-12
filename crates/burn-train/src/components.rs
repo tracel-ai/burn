@@ -15,7 +15,7 @@ pub trait LearnerComponents {
     /// The backend in used for the training.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for the training.
-    type LrScheduler: LrScheduler<Self::Backend>;
+    type LrScheduler: LrScheduler;
     /// The model to train.
     type Model: AutodiffModule<Self::Backend> + core::fmt::Display + 'static;
     /// The optimizer used for the training.
@@ -32,7 +32,7 @@ pub trait LearnerComponents {
     >;
     /// The checkpointer used for the scheduler.
     type CheckpointerLrScheduler: Checkpointer<
-        <Self::LrScheduler as LrScheduler<Self::Backend>>::Record,
+        <Self::LrScheduler as LrScheduler>::Record<Self::Backend>,
         Self::Backend,
     >;
     type EventProcessor: EventProcessor + 'static;
@@ -57,12 +57,12 @@ impl<B, LR, M, O, CM, CO, CS, EP, S> LearnerComponents
     for LearnerComponentsMarker<B, LR, M, O, CM, CO, CS, EP, S>
 where
     B: AutodiffBackend,
-    LR: LrScheduler<B>,
+    LR: LrScheduler,
     M: AutodiffModule<B> + core::fmt::Display + 'static,
     O: Optimizer<M, B>,
     CM: Checkpointer<M::Record, B>,
     CO: Checkpointer<O::Record, B>,
-    CS: Checkpointer<LR::Record, B>,
+    CS: Checkpointer<LR::Record<B>, B>,
     EP: EventProcessor + 'static,
     S: CheckpointingStrategy,
 {

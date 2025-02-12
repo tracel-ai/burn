@@ -1,81 +1,78 @@
+use super::pool2d::{
+    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+};
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
-use cubecl::{
-    cpa,
-    ir::{Elem, Item, Scope, Variable},
-    CubeCountSettings, Execution,
-};
-use std::fmt::Debug;
+use cubecl::prelude::*;
+use cubecl::{calculate_cube_count_elemwise, prelude::ScalarArg, CubeDim};
 
-use super::{Pool2dEagerKernel, PoolStrategy};
+struct AvgPoolStrategy;
 
-#[derive(new, Debug, Clone, Hash, PartialEq, Eq)]
-struct AvgPool {
-    kernel_size: [usize; 2],
+impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
+    type Indices = ();
+    type Config = AvgPoolStrategyConfig;
+    type Pool2d<N: Numeric> = Self;
+}
+
+#[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct AvgPoolStrategyConfig {
+    kernel_size_h: u32,
+    kernel_size_w: u32,
     count_include_pad: bool,
 }
 
-impl PoolStrategy for AvgPool {
-    type Accumulator = (Variable, Variable);
+#[cube]
+impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
+    type Accumulator = (N, u32);
+    type Config = AvgPoolStrategyConfig;
+    type Indices = ();
 
-    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
-        let sum = scope.create_local(item);
-        let count = scope.create_local(Elem::UInt);
-        if self.count_include_pad {
-            let kernel_size: Variable = (self.kernel_size[0] * self.kernel_size[1]).into();
-            cpa!(scope, count = kernel_size);
+    fn initialize(#[comptime] config: &Self::Config) -> Self::Accumulator {
+        let sum = N::from_int(0);
+        let count = comptime! {if config.count_include_pad {
+            config.kernel_size_h * config.kernel_size_w
         } else {
-            let zero: Variable = 0u32.into();
-            cpa!(scope, count = zero);
-        }
+            0u32
+        }};
+
         (sum, count)
     }
 
-    fn process_result(
-        &self,
-        scope: &mut Scope,
-        accumulator: Self::Accumulator,
-        result: Variable,
-        _idx: Variable,
-    ) -> Self::Accumulator {
+    fn accumulate(
+        #[comptime] config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        _index: u32,
+        result: N,
+    ) {
         let (sum, count) = accumulator;
-        if !self.count_include_pad {
-            let one: Variable = 1u32.into();
-            cpa!(scope, count += one);
+
+        if comptime![!config.count_include_pad] {
+            *count += 1;
         }
-        cpa!(scope, sum += result);
-        (sum, count)
+
+        *sum += result;
     }
 
-    fn assign(
-        &self,
-        scope: &mut Scope,
-        id: Variable,
-        output: Variable,
-        _indices: Option<Variable>,
+    fn store(
+        #[comptime] _config: &Self::Config,
+        position: u32,
+        output: &mut Tensor<N>,
+        _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
         let (sum, count) = accumulator;
-        let avg = scope.create_local(output.item());
-        let count_float = scope.create_local(output.item());
-        cpa!(scope, count_float = cast(count));
-        cpa!(scope, avg = sum / count_float);
-        cpa!(scope, output[id] = avg);
-    }
-
-    fn with_indices() -> bool {
-        false
+        output[position] = sum / N::cast_from(count);
     }
 }
 
 pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> JitTensor<R> {
+    let [batch_size, channels, _, _] = x.shape.dims();
     let dilation = 1;
 
     let size_0 = calculate_pool_output_size(
@@ -94,23 +91,33 @@ pub(crate) fn avg_pool2d<R: JitRuntime, E: JitElement>(
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
-    let pool_strategy = AvgPool::new(kernel_size, count_include_pad);
-    let kernel = Pool2dEagerKernel::<AvgPool, R, E>::new(kernel_size, pool_strategy);
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    Execution::start(kernel, x.client.clone())
-        .inputs(&[x.as_handle_ref()])
-        .outputs(&[output.as_handle_ref()])
-        .with_scalars(&[
-            stride[0] as u32,
-            stride[1] as u32,
-            dilation as u32,
-            dilation as u32,
-            padding[0] as u32,
-            padding[1] as u32,
-        ])
-        .execute(CubeCountSettings::Output { pos: 0 });
+    pool2d_direct::launch::<E, AvgPoolStrategy, R>(
+        &x.client,
+        cube_count,
+        cube_dim,
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
+        (),
+        Pool2dDirectArgsLaunch::new(
+            ScalarArg::new(stride[0] as u32),
+            ScalarArg::new(stride[1] as u32),
+            ScalarArg::new(dilation as u32),
+            ScalarArg::new(dilation as u32),
+            ScalarArg::new(padding[0] as u32),
+            ScalarArg::new(padding[1] as u32),
+        ),
+        (kernel_size[0] as u32, kernel_size[1] as u32),
+        AvgPoolStrategyConfig {
+            kernel_size_h: kernel_size[0] as u32,
+            kernel_size_w: kernel_size[1] as u32,
+            count_include_pad,
+        },
+    );
 
     output
 }

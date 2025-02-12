@@ -95,7 +95,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
             let output = avg_pool2d(
@@ -106,7 +106,7 @@ mod tests {
                 self.count_include_pad,
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq(&output.into_data(), 2);
         }
     }
 }

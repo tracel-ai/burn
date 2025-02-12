@@ -32,7 +32,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
         let output = &self.output.name;
 
         let pads = self.config.pads.iter().map(|p| p.to_tokens());
-        let constant_value_string = format!("{}_f32.elem()", self.config.constant_value);
+        let constant_value_string = format!("{}_f32", self.config.constant_value);
         let constant_value = TokenStream::from_str(&constant_value_string).unwrap();
 
         quote! {
@@ -41,10 +41,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for PadNode {
     }
     fn into_node(self) -> Node<PS> {
         Node::Pad(self)
-    }
-
-    fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
-        imports.register("burn::tensor::ElementConversion");
     }
 }
 
@@ -71,7 +67,6 @@ mod tests {
         graph.register_input_output(vec!["input".to_string()], vec!["output".to_string()]);
 
         let expected = quote! {
-            use burn::tensor::ElementConversion;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -93,7 +88,7 @@ mod tests {
                 }
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-                    let output = input.pad((1, 2, 3, 4), -1_f32.elem());
+                    let output = input.pad((1, 2, 3, 4), -1_f32);
                     output
                 }
             }

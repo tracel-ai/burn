@@ -1,10 +1,10 @@
 use crate::{client::FusionClient, stream::StreamId, Client, FusionBackend, FusionRuntime};
+use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{
-    quantization::{QTensorPrimitive, QuantizationScheme, QuantizationStrategy},
-    repr::{TensorDescription, TensorId, TensorStatus},
-    DType, Shape, TensorData,
+    quantization::{QTensorPrimitive, QuantizationScheme},
+    DType, Shape, TensorData, TensorMetadata,
 };
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 /// Tensor primitive for the [fusion backend](crate::FusionBackend) for all kind.
 pub struct FusionTensor<R: FusionRuntime> {
@@ -16,12 +16,13 @@ pub struct FusionTensor<R: FusionRuntime> {
     pub client: Client<R>,
     /// The datatype of the tensor.
     pub dtype: DType,
-    // Orphan means that a tensor is never converted into a description when it becomes `ReadWrite`.
+    /// The current stream id this tensor is on.
+    pub stream: StreamId,
+    // Orphan means that a tensor is never converted into a representation when it becomes `ReadWrite`.
     //
     // When a tensor is dropped and is still an orphan, we need to register it as such to avoid
     // memory leak. Otherwise, the cleanup is going to happen during a graph execution.
     pub(crate) is_orphan: bool,
-    pub(crate) stream: StreamId,
 }
 
 impl<R: FusionRuntime> Clone for FusionTensor<R> {
@@ -52,6 +53,16 @@ impl<R: FusionRuntime> core::fmt::Debug for FusionTensor<R> {
     }
 }
 
+impl<R: FusionRuntime> TensorMetadata for FusionTensor<R> {
+    fn dtype(&self) -> DType {
+        self.dtype
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::from(self.shape.clone())
+    }
+}
+
 impl<R: FusionRuntime> FusionTensor<R> {
     pub(crate) fn new(
         id: Arc<TensorId>,
@@ -69,9 +80,6 @@ impl<R: FusionRuntime> FusionTensor<R> {
             stream,
         }
     }
-    pub(crate) fn shape<const D: usize>(&self) -> Shape<D> {
-        Shape::from(self.shape.clone())
-    }
 
     fn status(&self) -> TensorStatus {
         if Arc::strong_count(&self.id) <= 1 {
@@ -81,9 +89,9 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    /// Description to be used when using an uninitialized tensor as output.
-    pub(crate) fn to_description_out(&self) -> TensorDescription {
-        TensorDescription {
+    /// Intermediate representation to be used when using an uninitialized tensor as output.
+    pub fn to_ir_out(&self) -> TensorIr {
+        TensorIr {
             status: TensorStatus::NotInit,
             shape: self.shape.clone(),
             id: *self.id.as_ref(),
@@ -91,8 +99,8 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    /// Description to be used when using an initialized tensor used as input.
-    pub(crate) fn into_description(mut self) -> TensorDescription {
+    /// Intermediate representation to be used when using an initialized tensor used as input.
+    pub fn into_ir(mut self) -> TensorIr {
         let status = self.status();
         let mut shape_out = Vec::new();
         core::mem::swap(&mut self.shape, &mut shape_out);
@@ -101,7 +109,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             self.is_orphan = false;
         }
 
-        TensorDescription {
+        TensorIr {
             status,
             shape: shape_out,
             id: *self.id.as_ref(),
@@ -109,37 +117,48 @@ impl<R: FusionRuntime> FusionTensor<R> {
         }
     }
 
-    pub(crate) async fn into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) fn into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_float::<B, D>(self.into_description(), id)
-            .await
+        let client = self.client.clone();
+        let desc = self.into_ir();
+        client.read_tensor_float::<B>(desc, id)
     }
 
-    pub(crate) async fn int_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) fn q_into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_int::<B, D>(self.into_description(), id)
-            .await
+        if let DType::QFloat(_scheme) = self.dtype {
+            let id = self.stream;
+            let client = self.client.clone();
+            let desc = self.into_ir();
+            client.read_tensor_quantized::<B>(desc, id)
+        } else {
+            panic!("Expected quantized float dtype, got {:?}", self.dtype)
+        }
     }
 
-    pub(crate) async fn bool_into_data<B, const D: usize>(self) -> TensorData
+    pub(crate) fn int_into_data<B>(self) -> impl Future<Output = TensorData>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let id = self.stream;
-        self.client
-            .clone()
-            .read_tensor_bool::<B, D>(self.into_description(), id)
-            .await
+        let client = self.client.clone();
+        let desc = self.into_ir();
+        client.read_tensor_int::<B>(desc, id)
+    }
+
+    pub(crate) fn bool_into_data<B>(self) -> impl Future<Output = TensorData>
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        let id = self.stream;
+        let client = self.client.clone();
+        let desc = self.into_ir();
+        client.read_tensor_bool::<B>(desc, id)
     }
 }
 
@@ -159,30 +178,15 @@ impl<R: FusionRuntime> Drop for FusionTensor<R> {
     }
 }
 
-/// A quantized tensor primitive for fusion backends.
-#[derive(Debug)]
-pub struct QFusionTensor<R: FusionRuntime> {
-    /// The quantized tensor.
-    pub qtensor: FusionTensor<R>,
-    /// The quantization scheme.
-    pub scheme: QuantizationScheme,
-}
-
-impl<R: FusionRuntime> QTensorPrimitive for QFusionTensor<R> {
+impl<R: FusionRuntime> QTensorPrimitive for FusionTensor<R> {
     fn scheme(&self) -> &QuantizationScheme {
-        &self.scheme
-    }
-
-    fn strategy(&self) -> QuantizationStrategy {
-        todo!()
-    }
-}
-
-impl<R: FusionRuntime> Clone for QFusionTensor<R> {
-    fn clone(&self) -> Self {
-        Self {
-            qtensor: self.qtensor.clone(),
-            scheme: self.scheme.clone(),
+        if let DType::QFloat(scheme) = &self.dtype {
+            scheme
+        } else {
+            panic!(
+                "Quantization scheme is not valid for dtype {:?}",
+                self.dtype,
+            )
         }
     }
 }

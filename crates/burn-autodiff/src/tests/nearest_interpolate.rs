@@ -76,7 +76,7 @@ mod tests {
             let device = Default::default();
             let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &x_grad.device())
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
                 &device,
             )

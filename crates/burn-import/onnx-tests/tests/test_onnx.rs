@@ -30,6 +30,7 @@ include_models!(
     conv1d,
     conv2d,
     conv3d,
+    conv_transpose1d,
     conv_transpose2d,
     conv_transpose3d,
     cos,
@@ -43,6 +44,7 @@ include_models!(
     expand_tensor,
     expand_shape,
     flatten,
+    floor,
     gather_1d_idx,
     gather_2d_idx,
     gather_scalar,
@@ -78,12 +80,15 @@ include_models!(
     mul,
     neg,
     not,
+    one_hot,
     pad,
     pow,
     pow_int,
     prelu,
     random_normal,
+    random_normal_like,
     random_uniform,
+    random_uniform_like,
     range,
     recip,
     reduce_max,
@@ -117,6 +122,8 @@ include_models!(
     tanh,
     tile,
     top_k_opset_1,
+    trilu_upper,
+    trilu_lower,
     transpose,
     unsqueeze,
     unsqueeze_opset11,
@@ -353,7 +360,7 @@ mod tests {
         let output = model.forward(input);
 
         // test the output shape
-        let expected_shape: Shape<3> = Shape::from([6, 2, 7]);
+        let expected_shape: Shape = Shape::from([6, 2, 7]);
         assert_eq!(output.shape(), expected_shape);
 
         // We are using the sum of the output tensor to test the correctness of the conv1d node
@@ -1442,9 +1449,9 @@ mod tests {
         let (output1, output2, output3) = model.forward(input1, input2, input3);
 
         // test the output shape
-        let expected_shape1: Shape<2> = Shape::from([4, 4]);
-        let expected_shape2: Shape<2> = Shape::from([2, 6]);
-        let expected_shape3: Shape<3> = Shape::from([3, 2, 8]);
+        let expected_shape1: Shape = Shape::from([4, 4]);
+        let expected_shape2: Shape = Shape::from([2, 6]);
+        let expected_shape3: Shape = Shape::from([3, 2, 8]);
         assert_eq!(output1.shape(), expected_shape1);
         assert_eq!(output2.shape(), expected_shape2);
         assert_eq!(output3.shape(), expected_shape3);
@@ -1505,6 +1512,28 @@ mod tests {
         // data from pyTorch
         let expected = TensorData::from([[[[1.0000f32, 0.5000, 0.3333, 0.2500]]]]);
         output.to_data().assert_approx_eq(&expected, 4);
+    }
+
+    #[test]
+    fn conv_transpose1d() {
+        // Initialize the model with weights (loaded from the exported file)
+        let model: conv_transpose1d::Model<Backend> = conv_transpose1d::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<Backend, 3>::ones([2, 4, 10], &Default::default());
+
+        let output = model.forward(input);
+
+        let expected_shape = Shape::from([2, 6, 22]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness of the conv_transpose1d node
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = 33.810_33; // example result running the corresponding PyTorch model (conv_transpose1d.py)
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 
     #[test]
@@ -1873,6 +1902,44 @@ mod tests {
     }
 
     #[test]
+    fn trilu_upper() {
+        let device = Default::default();
+        let model: trilu_upper::Model<Backend> = trilu_upper::Model::new(&device);
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
+            &device,
+        );
+        let expected = TensorData::from([[
+            [1.0_f32, 2.0_f32, 3.0_f32],
+            [0.0_f32, 5.0_f32, 6.0_f32],
+            [0.0_f32, 0.0_f32, 9.0_f32],
+        ]]);
+
+        let output = model.forward(input).to_data();
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn trilu_lower() {
+        let device = Default::default();
+        let model: trilu_lower::Model<Backend> = trilu_lower::Model::new(&device);
+        let input = Tensor::<Backend, 3>::from_floats(
+            [[[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]]],
+            &device,
+        );
+        let expected = TensorData::from([[
+            [1.0_f32, 0.0_f32, 0.0_f32],
+            [4.0_f32, 5.0_f32, 0.0_f32],
+            [7.0_f32, 8.0_f32, 9.0_f32],
+        ]]);
+
+        let output = model.forward(input).to_data();
+
+        output.assert_eq(&expected, true);
+    }
+
+    #[test]
     fn unsqueeze() {
         let device = Default::default();
         let model: unsqueeze::Model<Backend> = unsqueeze::Model::new(&device);
@@ -2087,11 +2154,35 @@ mod tests {
     }
 
     #[test]
+    fn random_uniform_like() {
+        let device = Default::default();
+        let model = random_uniform_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
     fn random_normal() {
         let device = Default::default();
         let model = random_normal::Model::<Backend>::new(&device);
         let expected_shape = Shape::from([2, 3]);
         let output = model.forward();
+        assert_eq!(expected_shape, output.shape());
+    }
+
+    #[test]
+    fn random_normal_like() {
+        let device = Default::default();
+        let model = random_normal_like::Model::<Backend>::new(&device);
+        let input = TensorData::zeros::<f64, _>(Shape::from([2, 4, 4]));
+        let expected_shape = Shape::from([2, 4, 4]);
+
+        let output = model.forward(input.into());
+
         assert_eq!(expected_shape, output.shape());
     }
 
@@ -2151,5 +2242,32 @@ mod tests {
         indices_tensor
             .to_data()
             .assert_eq(&expected_indices_tensor, true);
+    }
+
+    fn one_hot() {
+        // Test for OneHot model
+
+        let device = Default::default();
+        let model = one_hot::Model::<Backend>::new(&device);
+        let input: Tensor<Backend, 1, Int> = Tensor::from_ints([1, 0, 2], &device);
+        let expected: Tensor<Backend, 2, burn::prelude::Float> =
+            Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
+        let output: Tensor<Backend, 2, Int> = model.forward(input);
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
+    }
+
+    #[test]
+    fn floor_test() {
+        // Test for floor
+
+        let device = Default::default();
+        let model = floor::Model::<Backend>::new(&device);
+
+        let input = Tensor::<Backend, 1>::from_floats([-0.5, 1.5, 2.1], &device);
+        let expected = Tensor::<Backend, 1>::from_floats([-1., 1., 2.], &device);
+
+        let output = model.forward(input);
+
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
 }

@@ -1,16 +1,16 @@
 use crate::{element::FloatNdArrayElement, sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 use burn_common::{iter_range_par, run_par};
-use burn_tensor::ElementConversion;
+use burn_tensor::{ElementConversion, TensorMetadata};
 use ndarray::Array4;
 
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
 pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
+    x: NdArrayTensor<E>,
     output_size: [usize; 2],
-) -> NdArrayTensor<E, 4> {
-    let [batch_size, channels, input_height, input_width] = x.shape().dims;
+) -> NdArrayTensor<E> {
+    let [batch_size, channels, input_height, input_width] = x.shape().dims();
 
     let x = x.array;
     let mut output = Array4::from_elem(
@@ -51,11 +51,11 @@ pub(crate) fn adaptive_avg_pool2d<E: FloatNdArrayElement>(
 }
 
 pub(crate) fn adaptive_avg_pool2d_backward<E: FloatNdArrayElement>(
-    x: NdArrayTensor<E, 4>,
-    grad: NdArrayTensor<E, 4>,
-) -> NdArrayTensor<E, 4> {
-    let [_, _, input_height, input_width] = x.shape().dims;
-    let [batch_size, channels, output_height, output_width] = grad.shape().dims;
+    x: NdArrayTensor<E>,
+    grad: NdArrayTensor<E>,
+) -> NdArrayTensor<E> {
+    let [_, _, input_height, input_width] = x.shape().dims();
+    let [batch_size, channels, output_height, output_width] = grad.shape().dims();
 
     let mut output_grad =
         Array4::from_elem((batch_size, channels, input_height, input_width), 0.elem());

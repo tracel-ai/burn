@@ -66,7 +66,7 @@ impl<B: Backend> ModuleDisplay for Lstm<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims;
+        let [d_input, _] = self.input_gate.input_transform.weight.shape().dims();
         let bias = self.input_gate.input_transform.bias.is_some();
 
         content
@@ -235,7 +235,13 @@ impl<B: Backend> ModuleDisplay for BiLstm<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self.forward.input_gate.input_transform.weight.shape().dims;
+        let [d_input, _] = self
+            .forward
+            .input_gate
+            .input_transform
+            .weight
+            .shape()
+            .dims();
         let bias = self.forward.input_gate.input_transform.bias.is_some();
 
         content
@@ -281,7 +287,7 @@ impl<B: Backend> BiLstm<B> {
         state: Option<LstmState<B, 3>>,
     ) -> (Tensor<B, 3>, LstmState<B, 3>) {
         let device = batched_input.clone().device();
-        let [batch_size, seq_length, _] = batched_input.shape().dims;
+        let [batch_size, seq_length, _] = batched_input.shape().dims();
 
         let [init_state_forward, init_state_reverse] = match state {
             Some(state) => {
@@ -378,7 +384,6 @@ mod tests {
     /// i_t = sigmoid(0.5*0.1 + 0.5*0) = sigmoid(0.05) = 0.5123725
     /// o_t = sigmoid(1.1*0.1 + 1.1*0) = sigmoid(0.11) = 0.5274723
     /// c_t = tanh(0.9*0.1 + 0.9*0) = tanh(0.09) = 0.0892937
-
     /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
     /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
     #[test]
@@ -504,7 +509,7 @@ mod tests {
         use crate::tensor::Shape;
         let device = Default::default();
         let lstm = LstmConfig::new(64, 32, true).init(&device);
-        let shape: Shape<3> = [8, 10, 64].into();
+        let shape: Shape = [8, 10, 64].into();
         let batched_input =
             Tensor::<TestAutodiffBackend, 3>::random(shape, Distribution::Default, &device);
 

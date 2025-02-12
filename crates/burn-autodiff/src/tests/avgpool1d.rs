@@ -80,7 +80,7 @@ mod tests {
             let device = Default::default();
             let x = TestAutodiffTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<3, _>(shape_x)
                     .into_data(),
                 &device,
             )
@@ -97,7 +97,7 @@ mod tests {
 
             x_grad
                 .to_data()
-                .assert_approx_eq(&x_grad_actual.into_data(), 3);
+                .assert_approx_eq(&x_grad_actual.into_data(), 4);
         }
     }
 }

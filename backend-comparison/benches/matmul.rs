@@ -1,15 +1,12 @@
 use backend_comparison::persistence::save;
 use burn::tensor::{backend::Backend, Distribution, Shape, Tensor};
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 use derive_new::new;
 
 #[derive(new)]
 struct MatmulBenchmark<B: Backend, const D: usize> {
-    shape_lhs: Shape<D>,
-    shape_rhs: Shape<D>,
+    shape_lhs: Shape,
+    shape_rhs: Shape,
     device: B::Device,
 }
 
@@ -21,15 +18,11 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn shapes(&self) -> Vec<Vec<usize>> {
-        vec![self.shape_lhs.dims.into(), self.shape_rhs.dims.into()]
-    }
-
-    fn num_samples(&self) -> usize {
-        10
+        vec![self.shape_lhs.dims.clone(), self.shape_rhs.dims.clone()]
     }
 
     fn execute(&self, (lhs, rhs): Self::Args) {
-        lhs.clone().matmul(rhs.clone());
+        lhs.matmul(rhs);
     }
 
     fn prepare(&self) -> Self::Args {
@@ -40,7 +33,7 @@ impl<B: Backend, const D: usize> Benchmark for MatmulBenchmark<B, D> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 
@@ -51,24 +44,24 @@ fn bench<B: Backend>(
     url: Option<&str>,
     token: Option<&str>,
 ) {
-    const D: usize = 3;
-    let batch_size = 8;
-    let m = 2048;
-    let k = 2048;
-    let n = 2048;
-    let shape_lhs = [batch_size, m, k].into();
-    let shape_rhs = [batch_size, k, n].into();
+    let benchmarks = [
+        (2, 4096, 4096, 4096),
+        (1, 6144, 6144, 6144),
+        (32, 2048, 2048, 2048),
+        (256, 1024, 1024, 1024),
+        (1024, 256, 256, 256),
+    ]
+    .into_iter()
+    .map(|(b, m, n, k)| {
+        let shape_lhs = [b, m, k].into();
+        let shape_rhs = [b, k, n].into();
 
-    let benchmark = MatmulBenchmark::<B, D>::new(shape_lhs, shape_rhs, device.clone());
+        MatmulBenchmark::<B, 3>::new(shape_lhs, shape_rhs, device.clone())
+    })
+    .map(run_benchmark)
+    .collect();
 
-    save::<B>(
-        vec![run_benchmark(benchmark)],
-        device,
-        feature_name,
-        url,
-        token,
-    )
-    .unwrap();
+    save::<B>(benchmarks, device, feature_name, url, token).unwrap();
 }
 
 fn main() {

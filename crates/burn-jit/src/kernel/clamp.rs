@@ -1,7 +1,11 @@
 use cubecl::prelude::*;
 
-use crate::kernel::{launch_unary, UnaryOp};
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{
+    element::JitElement,
+    kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily},
+    tensor::JitTensor,
+    JitRuntime,
+};
 
 #[derive(CubeLaunch)]
 struct Options<C: Numeric> {
@@ -9,31 +13,32 @@ struct Options<C: Numeric> {
     max_value: C,
 }
 
-pub(crate) fn clamp<R: JitRuntime, E: JitElement, const D: usize>(
-    input: JitTensor<R, E, D>,
+pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
+    input: JitTensor<R>,
     min_value: E,
     max_value: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R> {
     struct ClampOp;
 
-    impl<C: Numeric> UnaryOp<C> for ClampOp {
-        type Options = Options<C>;
+    #[cube]
+    impl<N: Numeric> NumericUnaryOp<N> for ClampOp {
+        type Options = Options<N>;
 
-        fn __expand_execute(
-            context: &mut CubeContext,
-            input: C::ExpandType,
-            options: OptionsExpand<C>,
-        ) -> C::ExpandType {
-            #[cube]
-            fn execute<C: Numeric>(input: C, options: &Options<C>) -> C {
-                C::clamp(input, options.min_value, options.max_value)
-            }
-
-            execute::expand(context, input, options)
+        fn execute(input: Line<N>, options: &Self::Options) -> Line<N> {
+            Line::clamp(
+                input,
+                Line::new(options.min_value),
+                Line::new(options.max_value),
+            )
         }
     }
 
-    launch_unary::<D, R, E, ClampOp, _>(input, |_| {
+    impl NumericUnaryOpFamily for ClampOp {
+        type Options<N: Numeric> = Options<N>;
+        type Unary<N: Numeric> = Self;
+    }
+
+    launch_unary_numeric::<R, E, ClampOp, _>(input, |_| {
         OptionsLaunch::new(ScalarArg::new(min_value), ScalarArg::new(max_value))
     })
 }

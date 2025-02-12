@@ -2,15 +2,15 @@ use crate::{
     element::JitElement,
     kernel::{self},
     tensor::JitTensor,
-    JitRuntime,
+    IntElement, JitRuntime,
 };
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
 #[cube(launch_unchecked)]
-fn scatter_kernel<T: Numeric>(
+fn scatter_kernel<T: Numeric, I: Int>(
     input: &mut Tensor<T>,
-    indices: &Tensor<i32>,
+    indices: &Tensor<I>,
     value: &Tensor<T>,
     dim: &u32,
 ) {
@@ -46,7 +46,7 @@ fn scatter_kernel<T: Numeric>(
 
     let should_stop = ABSOLUTE_POS >= num_elems;
     if should_stop {
-        return;
+        terminate!();
     }
 
     for i in 0..shape_value {
@@ -65,12 +65,13 @@ fn scatter_kernel<T: Numeric>(
     }
 }
 
-pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
     dim: usize,
-    tensor: JitTensor<R, E, D>,
-    indices: JitTensor<R, I, D>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+    tensor: JitTensor<R>,
+    indices: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
+    let ndims = tensor.shape.num_dims();
     let mut indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);
     let value = kernel::into_contiguous(value);
@@ -80,7 +81,7 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
         false => tensor.copy(),
     };
 
-    let mut strides = [0; D];
+    let mut strides = vec![0; ndims];
     let mut current = 1;
     let mut num_elems = 1;
 
@@ -104,13 +105,13 @@ pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: JitElement, const D: usiz
     let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
 
     unsafe {
-        scatter_kernel::launch_unchecked::<E, R>(
+        scatter_kernel::launch_unchecked::<E, I, R>(
             &indices.client.clone(),
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            value.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            indices.as_tensor_arg::<I>(1),
+            value.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     }

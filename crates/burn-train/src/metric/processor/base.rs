@@ -9,12 +9,23 @@ pub enum Event<T> {
     EndEpoch(usize),
 }
 
+/// Items that are lazy are not ready to be processed by metrics.
+///
+/// We want to sync them on a different thread to avoid blocking training.
+pub trait ItemLazy: Send {
+    /// Item that is properly synced and ready to be processed by metrics.
+    type ItemSync: Send;
+
+    /// Sync the item.
+    fn sync(self) -> Self::ItemSync;
+}
+
 /// Process events happening during training and validation.
-pub trait EventProcessor {
+pub trait EventProcessor: Send {
     /// The training item.
-    type ItemTrain;
+    type ItemTrain: ItemLazy;
     /// The validation item.
-    type ItemValid;
+    type ItemValid: ItemLazy;
 
     /// Collect a training event.
     fn process_train(&mut self, event: Event<Self::ItemTrain>);
@@ -42,4 +53,19 @@ pub struct LearnerItem<T> {
 
     /// The learning rate.
     pub lr: Option<LearningRate>,
+}
+
+impl<T: ItemLazy> ItemLazy for LearnerItem<T> {
+    type ItemSync = LearnerItem<T::ItemSync>;
+
+    fn sync(self) -> Self::ItemSync {
+        LearnerItem {
+            item: self.item.sync(),
+            progress: self.progress,
+            epoch: self.epoch,
+            epoch_total: self.epoch_total,
+            iteration: self.iteration,
+            lr: self.lr,
+        }
+    }
 }

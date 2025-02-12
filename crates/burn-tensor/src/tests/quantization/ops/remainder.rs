@@ -1,20 +1,27 @@
 #[burn_tensor_testgen::testgen(q_remainder)]
 mod tests {
     use super::*;
-    use burn_tensor::quantization::{
-        AffineQuantization, QuantizationStrategy, SymmetricQuantization,
-    };
-    use burn_tensor::{Tensor, TensorData};
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_support_remainder_basic() {
-        // Quantized [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]
-        let data = TensorData::quantized(
-            vec![-128i8, -85, -43, 43, 85, 127],
-            [6],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.023529412, 0)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 2.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([2.0, 3.0, 1.0, 2.0, 1.0, 2.0]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([1., 1., 0., 1., 0., 0.]);
+
+        // Precision 1 to approximate de/quantization errors
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_support_remainder_basic_scalar() {
+        // NOTE: we use affine quantization to reduce quantization errors for range of input values
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
         let output = tensor.remainder_scalar(2.0);
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);
@@ -28,13 +35,22 @@ mod tests {
 
     #[test]
     fn should_support_remainder_float() {
-        // Quantized [1.0, 2.0, 3.0, 4.0, 5.0]
-        let data = TensorData::quantized(
-            vec![-77i8, -26, 25, 76, 127],
-            [5],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([1.4233, 2.7313, 0.2641, 1.9651, 0.5897]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([1., 2., 0.0949, 0.0698, 0.2824]);
+
+        // Precision 1 to approximate de/quantization errors
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_support_remainder_float_scalar() {
+        let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
 
         let output = tensor.remainder_scalar(-1.5);
         let expected = TensorData::from([-0.5, -1.0, 0.0, -0.5, -1.0]);
@@ -48,13 +64,22 @@ mod tests {
 
     #[test]
     fn should_be_zero() {
-        // Quantized [0.0, 0.0, 0.0]
-        let data = TensorData::quantized(
-            vec![0i8, 0, 0],
-            [3],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.1)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([0.0, 0.0, 0.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([3.5, -2.1, 1.5]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([0.0, 0.0, 0.0]);
+
+        // Precision 1 to approximate de/quantization errors
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_be_zero_scalar() {
+        let tensor = QTensor::<TestBackend, 1>::int8([0.0, 0.0, 0.0]);
 
         let output = tensor.remainder_scalar(3.5);
         let expected = TensorData::from([0.0, 0.0, 0.0]);
@@ -62,21 +87,29 @@ mod tests {
         output
             .dequantize()
             .into_data()
-            .assert_approx_eq(&expected, 3);
+            .assert_approx_eq(&expected, 1);
     }
 
     #[test]
     fn should_have_no_remainder() {
-        // Quantized [-4.0, 4.0]
-        let data = TensorData::quantized(
-            vec![-127i8, 127],
-            [2],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.031496063)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([0.0, 0.0, 0.0, 0.0, 0.0]);
+
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_have_no_remainder_scalar() {
+        let tensor = QTensor::<TestBackend, 1>::int8([4.0, 4.0]);
 
         let output = tensor.remainder_scalar(4.0);
-        let expected = TensorData::from([-0.0, 0.0]);
+        let expected = TensorData::from([0.0, 0.0]);
 
         output
             .dequantize()
@@ -86,13 +119,21 @@ mod tests {
 
     #[test]
     fn should_be_negative() {
-        // Quantized [-7.0, -3.0, 2.0, 6.0]
-        let data = TensorData::quantized(
-            vec![-128i8, -50, 48, 127],
-            [4],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.050980393, 9)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([-7.0, -3.0, 2.0, 6.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([-2.5, -2.1, -1.5, -3.25]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([-2., -0.9, -1., -0.5]);
+
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_be_negative_scalar() {
+        let tensor = QTensor::<TestBackend, 1>::int8([-7.0, -3.0, 2.0, 6.0]);
 
         let output = tensor.remainder_scalar(-2.5);
         let expected = TensorData::from([-2.0, -0.50, -0.50, -1.5]);
@@ -105,13 +146,7 @@ mod tests {
 
     #[test]
     fn should_support_fp_dividends() {
-        // Quantized [-7.5, -2.5, 2.5, 7.5]
-        let data = TensorData::quantized(
-            vec![-127i8, -42, 42, 127],
-            [4],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05905512)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let tensor = QTensor::<TestBackend, 1>::int8([-7.5, -2.5, 2.5, 7.5]);
 
         let output = tensor.remainder_scalar(3.0);
         let expected = TensorData::from([1.5, 0.5, 2.5, 1.5]);
@@ -124,13 +159,22 @@ mod tests {
 
     #[test]
     fn should_support_large_divisor() {
-        // Quantized [-1.0, 1.0]
-        let data = TensorData::quantized(
-            vec![-127i8, 127],
-            [2],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.007874016)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([-1.0, 1.0, -1.5, 1.5, -1.0, 1.0, -1.5, 1.5]);
+        let rhs =
+            QTensor::<TestBackend, 1>::int8([10.0, 10.0, 10.0, 10.0, -10.0, -10.0, -10.0, -10.0]);
+
+        let output = lhs.remainder(rhs);
+        let expected = TensorData::from([9., 1., 8.5, 1.5, -1., -9., -1.5, -8.5]);
+
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_support_large_divisor_scalar() {
+        let tensor = QTensor::<TestBackend, 1>::int8([-1.0, 1.0]);
 
         let output = tensor.remainder_scalar(10.0);
         let expected = TensorData::from([9.0, 1.0]);
@@ -143,13 +187,22 @@ mod tests {
 
     #[test]
     fn should_support_remainder_op() {
-        // Quantized [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]
-        let data = TensorData::quantized(
-            vec![-128i8, -85, -43, 43, 85, 127],
-            [6],
-            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.023529412, 0)),
-        );
-        let tensor = TestTensor::<1>::from_data(data, &Default::default());
+        let lhs = QTensor::<TestBackend, 1>::int8([-3.0, -2.0, -1.0, 1.0, 2.0, 2.0]);
+        let rhs = QTensor::<TestBackend, 1>::int8([2.0, 3.0, 1.0, 2.0, 1.0, 2.0]);
+
+        let output = lhs % rhs;
+        let expected = TensorData::from([1., 1., 0., 1., 0., 0.]);
+
+        output
+            .dequantize()
+            .into_data()
+            .assert_approx_eq(&expected, 1);
+    }
+
+    #[test]
+    fn should_support_remainder_scalar_op() {
+        // NOTE: we use affine quantization to reduce quantization errors for range of input values
+        let tensor = QTensor::<TestBackend, 1>::int8_affine([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0]);
 
         let output = tensor % 2.0;
         let expected = TensorData::from([1.0, 0.0, 1.0, 1.0, 0.0, 1.0]);

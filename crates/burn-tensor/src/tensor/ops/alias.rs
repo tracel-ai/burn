@@ -1,4 +1,4 @@
-use crate::backend::{Backend, BackendBridge};
+use crate::backend::Backend;
 
 // We provide some type aliases to improve the readability of using associated types without
 // having to use the disambiguation syntax.
@@ -10,15 +10,12 @@ pub type Device<B> = <B as Backend>::Device;
 pub type FloatElem<B> = <B as Backend>::FloatElem;
 /// Integer element type used by backend.
 pub type IntElem<B> = <B as Backend>::IntElem;
-/// Full precision float element type used by the backend.
-pub type FullPrecisionBackend<B> =
-    <<B as Backend>::FullPrecisionBridge as BackendBridge<B>>::Target;
 
 /// Float tensor primitive type used by the backend.
-pub type FloatTensor<B, const D: usize> = <B as Backend>::FloatTensorPrimitive<D>;
+pub type FloatTensor<B> = <B as Backend>::FloatTensorPrimitive;
 /// Integer tensor primitive type used by the backend.
-pub type IntTensor<B, const D: usize> = <B as Backend>::IntTensorPrimitive<D>;
+pub type IntTensor<B> = <B as Backend>::IntTensorPrimitive;
 /// Boolean tensor primitive type used by the backend.
-pub type BoolTensor<B, const D: usize> = <B as Backend>::BoolTensorPrimitive<D>;
+pub type BoolTensor<B> = <B as Backend>::BoolTensorPrimitive;
 /// Quantized tensor primitive type used by the backend.
-pub type QuantizedTensor<B, const D: usize> = <B as Backend>::QuantizedTensorPrimitive<D>;
+pub type QuantizedTensor<B> = <B as Backend>::QuantizedTensorPrimitive;

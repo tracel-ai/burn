@@ -1,7 +1,8 @@
 use crate::element::JitElement;
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::JitRuntime;
-use burn_tensor::Shape;
+use burn_tensor::quantization::QTensorPrimitive;
+use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::linalg::tensor::TensorHandle;
@@ -11,34 +12,30 @@ use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 #[derive(new)]
-pub struct JitTensor<R, E, const D: usize>
-where
-    R: JitRuntime,
-    E: JitElement,
-{
+pub struct JitTensor<R: JitRuntime> {
     /// Compute client for the [runtime](JitRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
-    pub handle: Handle<R::Server>,
+    pub handle: Handle,
     /// The shape of the tensor.
-    pub shape: Shape<D>,
+    pub shape: Shape,
     /// The device of the tensor.
     pub device: R::Device,
     /// The strides of the tensor.
-    pub strides: [usize; D],
-    pub(crate) elem: PhantomData<E>,
+    pub strides: Vec<usize>,
+    /// The datatype of the tensor.
+    pub dtype: DType,
 }
 
-impl<R: JitRuntime, E: JitElement, const D: usize> From<JitTensor<R, E, D>> for TensorHandle<R, E> {
-    fn from(val: JitTensor<R, E, D>) -> Self {
+impl<R: JitRuntime, E: JitElement> From<JitTensor<R>> for TensorHandle<R, E> {
+    fn from(val: JitTensor<R>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
 }
 
-impl<R, E, const D: usize> core::fmt::Debug for JitTensor<R, E, D>
+impl<R> core::fmt::Debug for JitTensor<R>
 where
     R: JitRuntime,
-    E: JitElement,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
@@ -46,16 +43,15 @@ where
             self.shape,
             self.device,
             self.strides,
-            E::type_name(),
+            self.dtype.name(),
             R::name(),
         ))
     }
 }
 
-impl<R, E, const D: usize> Clone for JitTensor<R, E, D>
+impl<R> Clone for JitTensor<R>
 where
     R: JitRuntime,
-    E: JitElement,
 {
     fn clone(&self) -> Self {
         Self {
@@ -63,25 +59,152 @@ where
             handle: self.handle.clone(),
             shape: self.shape.clone(),
             device: self.device.clone(),
-            strides: self.strides,
-            elem: PhantomData,
+            strides: self.strides.clone(),
+            dtype: self.dtype,
         }
     }
 }
 
-impl<R, E, const D: usize> JitTensor<R, E, D>
+impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
+    fn dtype(&self) -> DType {
+        self.dtype
+    }
+
+    fn shape(&self) -> Shape {
+        self.shape.clone()
+    }
+}
+
+impl<R: JitRuntime> QTensorPrimitive for JitTensor<R> {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantizationScheme {
+        if let DType::QFloat(scheme) = &self.dtype {
+            scheme
+        } else {
+            panic!(
+                "Quantization scheme is not valid for dtype {:?}",
+                self.dtype,
+            )
+        }
+    }
+}
+
+/// Macro to execute a kernel/operation for a given element type.
+///
+/// # Panics
+/// Since there is no automatic type cast at this time, binary operations for different
+/// floating point precision data types will panic with a data type mismatch.
+#[macro_export]
+macro_rules! execute_with_dtype {
+    (float($dtype:expr), $element:ident, $op:expr) => {{
+        match $dtype {
+            burn_tensor::DType::F64 => {
+                type $element = f64;
+                $op
+            }
+            burn_tensor::DType::F32 => {
+                type $element = f32;
+                $op
+            }
+            burn_tensor::DType::F16 => {
+                type $element = half::f16;
+                $op
+            }
+            burn_tensor::DType::BF16 => {
+                type $element = half::bf16;
+                $op
+            }
+            _ => unimplemented!("Unsupported dtype"),
+        }
+    }};
+
+    (float($lhs_dtype:expr, $rhs_dtype:expr), $element:ident, $op:expr) => {{
+        // NOTE: might be better for floating point binary operations to return a Result instead?
+        if $lhs_dtype != $rhs_dtype {
+            panic!(
+                "Data type mismatch (lhs: {:?}, rhs: {:?})",
+                $lhs_dtype, $rhs_dtype
+            );
+        }
+        execute_with_dtype!(float($lhs_dtype), $element, $op)
+    }};
+    ($dtype:expr, $element:ident, $op:expr) => {{
+        match $dtype {
+            burn_tensor::DType::F64 => {
+                type $element = f64;
+                $op
+            }
+            burn_tensor::DType::F32 => {
+                type $element = f32;
+                $op
+            }
+            burn_tensor::DType::F16 => {
+                type $element = half::f16;
+                $op
+            }
+            burn_tensor::DType::BF16 => {
+                type $element = half::bf16;
+                $op
+            }
+            burn_tensor::DType::U64 => {
+                type $element = u64;
+                $op
+            }
+            burn_tensor::DType::U32 => {
+                type $element = u32;
+                $op
+            }
+            burn_tensor::DType::U16 => {
+                type $element = u16;
+                $op
+            }
+            burn_tensor::DType::U8 => {
+                type $element = u8;
+                $op
+            }
+            burn_tensor::DType::I64 => {
+                type $element = i64;
+                $op
+            }
+            burn_tensor::DType::I32 => {
+                type $element = i32;
+                $op
+            }
+            burn_tensor::DType::I16 => {
+                type $element = i16;
+                $op
+            }
+            burn_tensor::DType::I8 => {
+                type $element = i8;
+                $op
+            }
+            // NOTE: bool and qfloat dtypes are actually represented as u32/u8
+            // burn_tensor::DType::Bool => {
+            //     type $element = u32/u8;
+            //     $op
+            // }
+            // burn_tensor::DType::QFloat(_) => {
+            //     type $element = u32;
+            //     $op
+            // }
+            _ => unimplemented!("Unsupported dtype"),
+        }
+    }};
+}
+
+impl<R> JitTensor<R>
 where
     R: JitRuntime,
-    E: JitElement,
 {
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
-        shape: Shape<D>,
-        handle: Handle<R::Server>,
+        shape: Shape,
+        handle: Handle,
+        dtype: DType,
     ) -> Self {
-        let mut strides = [0; D];
+        let ndims = shape.num_dims();
+        let mut strides = vec![0; ndims];
 
         let mut current = 1;
         shape
@@ -100,7 +223,7 @@ where
             shape,
             strides,
             device,
-            elem: PhantomData,
+            dtype,
         }
     }
 
@@ -111,7 +234,7 @@ where
         device: R::Device,
     ) -> Self {
         let bytes = burn_common::reader::try_read_sync(
-            self.client.read_async(self.handle.clone().binding()),
+            self.client.read_one_async(self.handle.clone().binding()),
         )
         .expect("Can only change client synchronously");
         let handle = client.create(&bytes);
@@ -120,9 +243,9 @@ where
             client,
             handle,
             shape: self.shape.clone(),
-            strides: self.strides,
+            strides: self.strides.clone(),
             device,
-            elem: PhantomData,
+            dtype: self.dtype,
         }
     }
 
@@ -132,24 +255,52 @@ where
             handle: &self.handle,
             strides: &self.strides,
             shape: &self.shape.dims,
+            runtime: PhantomData,
+            elem_size: self.elem_size(),
+        }
+    }
+
+    fn elem_size(&self) -> usize {
+        if let DType::QFloat(_) = self.dtype {
+            // Encoded as u32
+            core::mem::size_of::<u32>()
+        } else {
+            self.dtype.size()
         }
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a, E: JitElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
-            TensorArg::from_raw_parts(handle.handle, handle.strides, handle.shape, vectorisation)
+            TensorArg::from_raw_parts::<E>(
+                handle.handle,
+                handle.strides,
+                handle.shape,
+                vectorisation,
+            )
+        }
+    }
+
+    /// Return the reference to an array argument.
+    pub fn as_array_arg<E: JitElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+        unsafe {
+            ArrayArg::from_raw_parts::<E>(
+                &self.handle,
+                self.handle.size() as usize / core::mem::size_of::<E>(),
+                vectorisation,
+            )
         }
     }
 
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
-        if !self.handle.can_mut() {
+        if !self.handle.can_mut() || !self.is_contiguous_buffer() {
             return false;
         }
+        let ndims = self.shape.num_dims();
 
-        for i in 0..D {
+        for i in 0..ndims {
             let shape_lhs = self.shape.dims[i];
             let shape_rhs = rhs.shape.dims[i];
 
@@ -164,13 +315,29 @@ where
 
     /// Copy the current tensor.
     pub fn copy(&self) -> Self {
-        unary_op!(numeric(self.clone()) => |context, tensor| {
-            #[cube]
-            fn execute<C: Numeric>(input: C) -> C {
+        struct Copy;
+
+        #[cube]
+        impl<N: Numeric> NumericUnaryOp<N> for Copy {
+            type Options = ();
+
+            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
                 input
             }
-            execute::expand::<C>(context, tensor)
-        })
+        }
+
+        impl NumericUnaryOpFamily for Copy {
+            type Options<N: Numeric> = ();
+            type Unary<N: Numeric> = Self;
+        }
+
+        let tensor = self.clone();
+
+        execute_with_dtype!(
+            tensor.dtype,
+            E,
+            launch_unary_numeric::<R, E, Copy, _>(tensor, |_| ())
+        )
     }
 
     /// Check if the tensor is safe to mutate.
@@ -191,6 +358,12 @@ where
     /// Check if the current tensor is contiguous.
     pub fn is_contiguous(&self) -> bool {
         is_contiguous(&self.shape.dims, &self.strides)
+    }
+
+    /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
+    /// regions within the shape).
+    pub fn is_contiguous_buffer(&self) -> bool {
+        self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
     }
 }
 

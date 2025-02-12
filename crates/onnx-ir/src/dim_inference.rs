@@ -32,6 +32,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Erf => same_as_input(node),
         NodeType::Exp => same_as_input(node),
         NodeType::Expand => expand_update_outputs(node),
+        NodeType::Floor => same_as_input(node),
         NodeType::Flatten => flatten_update_outputs(node),
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),
@@ -40,6 +41,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::GreaterOrEqual => elementwise_comparison_outputs(node),
         NodeType::HardSigmoid => same_as_input(node),
         NodeType::GlobalAveragePool => same_as_input(node),
+        NodeType::ConvTranspose1d => conv_transpose1d_update_outputs(node),
         NodeType::ConvTranspose2d => conv_transpose2d_update_outputs(node),
         NodeType::LayerNormalization => same_as_input(node),
         NodeType::LeakyRelu => same_as_input(node),
@@ -56,11 +58,14 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::OneHot => one_hot_output_shape(node),
         NodeType::Pad => same_as_input(node),
         NodeType::PRelu => same_as_input_broadcast(node),
         NodeType::Pow => same_as_input_broadcast(node),
         NodeType::RandomNormal => random_update_output(node),
+        NodeType::RandomNormalLike => random_like_update_output(node),
         NodeType::RandomUniform => random_update_output(node),
+        NodeType::RandomUniformLike => random_like_update_output(node),
         NodeType::Range => range_update_outputs(node),
         NodeType::Reciprocal => same_as_input(node),
         NodeType::ReduceMax => reduce_max_update_outputs(node),
@@ -84,6 +89,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Tanh => same_as_input(node),
         NodeType::TopK => top_k_update_output(node),
         NodeType::Transpose => same_as_input(node),
+        NodeType::Trilu => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
         NodeType::Where => where_update_outputs(node),
         // Intentionally letting outputs leave unchanged but issue a warning so IR file can be generated.
@@ -201,6 +207,35 @@ fn random_update_output(node: &mut Node) {
                 .unwrap(),
         ),
     })
+}
+
+/// Reads & interprets an optional `dtype` attribute
+/// This includes the `RandomUniformLike` and `RandomNormalLike` operators
+fn random_like_update_output(node: &mut Node) {
+    let dtype = node
+        .attrs
+        .get("dtype")
+        .map(|val| DataType::from_i32(val.clone().into_i32()).unwrap())
+        .unwrap_or(DataType::FLOAT);
+
+    let elem_type = match dtype {
+        DataType::FLOAT => ElementType::Float32,
+        DataType::FLOAT16 => ElementType::Float16,
+        DataType::DOUBLE => ElementType::Float64,
+        _ => panic!("Tensor with type {dtype:?} not supported for random output"),
+    };
+
+    if let ArgType::Tensor(tensor) = &node.inputs[0].clone().ty {
+        if let Some(shape) = tensor.shape.clone() {
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                elem_type,
+                dim: shape.len(),
+                shape: Some(shape),
+            })
+        }
+    } else {
+        panic!("Only tensor input is valid");
+    }
 }
 
 /// Infer the shape of the output tensor of a Conv2d node
@@ -629,6 +664,16 @@ fn conv2d_update_outputs(node: &mut Node) {
     }
 }
 
+/// Infers the shape of a ConvTranspose1d node and replaces the shape of the output tensor.
+fn conv_transpose1d_update_outputs(node: &mut Node) {
+    // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
+    if let ArgType::Tensor(tensor) = node.inputs[0].clone().ty {
+        node.outputs[0].ty = ArgType::Tensor(tensor);
+    } else {
+        panic!("Only tensor input is valid");
+    }
+}
+
 /// Infers the shape of a ConvTranspose2d node and replaces the shape of the output tensor.
 fn conv_transpose2d_update_outputs(node: &mut Node) {
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
@@ -924,4 +969,23 @@ fn set_broadcasting_output_shape(node: &mut Node) {
             *s = out_shape[0];
         }
     }
+}
+
+fn one_hot_output_shape(node: &mut Node) {
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("OneHot: invalid input type"),
+    };
+    let new_dim = input_dim + 1;
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("OneHot: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: new_dim,
+        shape: None,
+        elem_type: output_elem,
+    });
 }

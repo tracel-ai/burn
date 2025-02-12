@@ -10,7 +10,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     dim: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let mut offset_input = 0;
@@ -28,18 +28,19 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
+    tensor: JitTensor<R>,
     dim: usize,
-    indices: JitTensor<R, I, 1>,
-) -> JitTensor<R, E, D> {
+    indices: JitTensor<R>,
+) -> JitTensor<R> {
+    let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];
     let total_elem = shape_output.num_elements();
 
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
-    let dummy_array = [1; D];
+    let dummy_array = vec![1; ndims];
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 
@@ -48,10 +49,10 @@ pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
             // Ignore shape and stride
-            TensorArg::from_raw_parts(&indices.handle, &dummy_array, &dummy_array, 1),
-            output.as_tensor_arg(1),
+            TensorArg::from_raw_parts::<I>(&indices.handle, &dummy_array, &dummy_array, 1),
+            output.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     };

@@ -1,35 +1,39 @@
 use crate::kernel::{
-    launch_binop, launch_scalar_binop, AddOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
+    launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
+    BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
 };
 use crate::{element::JitElement, tensor::JitTensor};
-use crate::{FloatElement, JitRuntime};
+use crate::{FloatElement, IntElement, JitRuntime};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-pub fn full<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
+/// Create a tensor filled with `value`
+pub fn full<R: JitRuntime, E: JitElement>(
+    shape: Shape,
     device: &R::Device,
     value: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R> {
     let client = R::client(device);
 
-    full_device::<R, E, D>(client, shape, device.clone(), value)
+    full_device::<R, E>(client, shape, device.clone(), value)
 }
 
-pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
+/// Create a tensor filled with `value`
+pub fn full_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
-    shape: Shape<D>,
+    shape: Shape,
     device: R::Device,
     value: E,
-) -> JitTensor<R, E, D> {
-    let empty = empty_device(client, device, shape);
+) -> JitTensor<R> {
+    let ndims = shape.num_dims();
+    let empty = empty_device::<R, E>(client, device, shape);
 
     #[cube(launch)]
-    pub fn full_kernel<C: Numeric + Vectorized>(tensor: &mut Tensor<C>, value: C) {
+    pub fn full_kernel<C: Numeric>(tensor: &mut Tensor<C>, value: C) {
         if ABSOLUTE_POS >= tensor.len() {
-            return;
+            terminate!();
         }
 
         tensor[ABSOLUTE_POS] = value;
@@ -37,7 +41,7 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
 
     let num_elems = empty.shape.num_elements();
     let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, D - 1);
+        tensor_vectorization_factor(&[4, 2], &empty.shape.dims, &empty.strides, ndims - 1);
 
     let cube_dim = CubeDim::default();
     let cube_count =
@@ -47,123 +51,149 @@ pub fn full_device<R: JitRuntime, E: JitElement, const D: usize>(
         &empty.client,
         cube_count,
         cube_dim,
-        empty.as_tensor_arg(vectorization_factor),
+        empty.as_tensor_arg::<E>(vectorization_factor),
         ScalarArg::new(value),
     );
 
     empty
 }
 
-pub fn zeros<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
-    device: &R::Device,
-) -> JitTensor<R, E, D> {
+/// Create a tensor filled with zeros
+pub fn zeros<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
     let client = R::client(device);
 
-    zeros_device(client, device.clone(), shape)
+    zeros_device::<R, E>(client, device.clone(), shape)
 }
 
-pub fn zeros_device<R: JitRuntime, E: JitElement, const D: usize>(
+/// Create a tensor filled with zeros
+pub fn zeros_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
-    shape: Shape<D>,
-) -> JitTensor<R, E, D> {
-    full_device::<R, E, D>(client, shape, device, 0.elem())
+    shape: Shape,
+) -> JitTensor<R> {
+    full_device::<R, E>(client, shape, device, 0.elem())
 }
 
-pub fn ones<R: JitRuntime, E: JitElement, const D: usize>(
-    shape: Shape<D>,
-    device: &R::Device,
-) -> JitTensor<R, E, D> {
+/// Create a tensor filled with ones
+pub fn ones<R: JitRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> JitTensor<R> {
     let client = R::client(device);
 
-    ones_device::<R, E, D>(client, device.clone(), shape)
+    ones_device::<R, E>(client, device.clone(), shape)
 }
 
-pub fn ones_device<R: JitRuntime, E: JitElement, const D: usize>(
+/// Create a tensor filled with ones
+pub fn ones_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
-    shape: Shape<D>,
-) -> JitTensor<R, E, D> {
-    full_device::<R, E, D>(client, shape, device, 1.elem())
+    shape: Shape,
+) -> JitTensor<R> {
+    full_device::<R, E>(client, shape, device, 1.elem())
 }
 
-pub fn empty_device<R: JitRuntime, E: JitElement, const D: usize>(
+/// Create a tensor with uninitialized memory
+pub fn empty_device<R: JitRuntime, E: JitElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
-    shape: Shape<D>,
-) -> JitTensor<R, E, D> {
+    shape: Shape,
+) -> JitTensor<R> {
     let buffer = client.empty(shape.num_elements() * core::mem::size_of::<E>());
 
-    JitTensor::new_contiguous(client, device, shape, buffer)
+    JitTensor::new_contiguous(client, device, shape, buffer, E::dtype())
 }
 
-pub fn add<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    launch_binop::<D, R, E, AddOp>(lhs, rhs)
+/// Add two tensors
+pub fn add<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+    launch_binop::<R, E, AddOp>(lhs, rhs)
 }
 
-pub fn add_scalar<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, E, D> {
-    launch_scalar_binop::<D, R, E, AddOp>(lhs, rhs)
+/// Add a tensor and a scalar
+pub fn add_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, AddOp>(lhs, rhs)
 }
 
-pub fn sub<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    launch_binop::<D, R, E, SubOp>(lhs, rhs)
+/// Subtract two tensors
+pub fn sub<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+    launch_binop::<R, E, SubOp>(lhs, rhs)
 }
 
-pub fn sub_scalar<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, E, D> {
-    launch_scalar_binop::<D, R, E, SubOp>(lhs, rhs)
+/// Subtract a tensor and a scalar
+pub fn sub_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, SubOp>(lhs, rhs)
 }
 
-pub fn mul<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    launch_binop::<D, R, E, MulOp>(lhs, rhs)
+/// Multiply two tensors
+pub fn mul<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+    launch_binop::<R, E, MulOp>(lhs, rhs)
 }
 
-pub fn mul_scalar<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, E, D> {
-    launch_scalar_binop::<D, R, E, MulOp>(lhs, rhs)
+/// Multiply a tensor and a scalar
+pub fn mul_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, MulOp>(lhs, rhs)
 }
 
-pub fn div<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    launch_binop::<D, R, E, DivOp>(lhs, rhs)
+/// Divide two tensors
+pub fn div<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+    launch_binop::<R, E, DivOp>(lhs, rhs)
 }
 
-pub fn div_scalar<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, E, D> {
-    launch_scalar_binop::<D, R, E, DivOp>(lhs, rhs)
+/// Divide a tensor by a scalar
+pub fn div_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, DivOp>(lhs, rhs)
 }
 
-pub fn remainder_scalar<R: JitRuntime, E: JitElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: E,
-) -> JitTensor<R, E, D> {
-    launch_scalar_binop::<D, R, E, RemainderOp>(lhs, rhs)
+/// Calculate remainder of two tensors
+pub fn remainder<R: JitRuntime, E: JitElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop::<R, E, RemainderOp>(lhs, rhs)
 }
 
-pub fn pow<R: JitRuntime, E: FloatElement, const D: usize>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    launch_binop::<D, R, E, PowOp>(lhs, rhs)
+/// Calculate the remainder of a tensor with a scalar
+pub fn remainder_scalar<R: JitRuntime, E: JitElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop::<R, E, RemainderOp>(lhs, rhs)
+}
+
+/// Calculate the power of two tensors
+pub fn pow<R: JitRuntime, E: FloatElement>(lhs: JitTensor<R>, rhs: JitTensor<R>) -> JitTensor<R> {
+    launch_binop::<R, E, PowOp<E>>(lhs, rhs)
+}
+
+/// Bitwise and two tensors
+pub fn bitwise_and<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
+}
+
+/// Bitwise and with a scalar
+pub fn bitwise_and_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
+}
+
+/// Bitwise or two tensors
+pub fn bitwise_or<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
+}
+
+/// Bitwise or with a scalar
+pub fn bitwise_or_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
+}
+
+/// Bitwise xor two tensors
+pub fn bitwise_xor<R: JitRuntime, E: IntElement>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    launch_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
+}
+
+/// Bitwise xor with a scalar
+pub fn bitwise_xor_scalar<R: JitRuntime, E: IntElement>(lhs: JitTensor<R>, rhs: E) -> JitTensor<R> {
+    launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
 }

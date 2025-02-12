@@ -12,6 +12,7 @@ use crate::{
 use burn::record::PrecisionSettings;
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
+    ops::Device,
     BasicAutodiffOps, BasicOps, Tensor,
 };
 
@@ -131,6 +132,7 @@ constant!(u16);
 constant!(u8);
 
 // Signed Integer Types
+constant!(isize);
 constant!(i64);
 constant!(i32);
 constant!(i16);
@@ -217,11 +219,11 @@ impl<B: Backend> Module<B> for PhantomData<B> {
         ConstantRecord::new()
     }
 
-    fn to_device(self, _: &<B as Backend>::Device) -> Self {
+    fn to_device(self, _: &Device<B>) -> Self {
         self
     }
 
-    fn fork(self, _: &<B as Backend>::Device) -> Self {
+    fn fork(self, _: &Device<B>) -> Self {
         self
     }
 
@@ -273,11 +275,11 @@ where
         ConstantRecord::new()
     }
 
-    fn to_device(self, _: &<B as Backend>::Device) -> Self {
+    fn to_device(self, _: &Device<B>) -> Self {
         self
     }
 
-    fn fork(self, _: &<B as Backend>::Device) -> Self {
+    fn fork(self, _: &Device<B>) -> Self {
         self
     }
 

@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! # Burn Autodiff
 //!
@@ -26,12 +27,10 @@ pub(crate) mod tensor;
 pub(crate) mod utils;
 
 mod backend;
-mod bridge;
 
 pub(crate) mod runtime;
 
 pub use backend::*;
-pub use bridge::*;
 
 #[cfg(feature = "export_tests")]
 mod tests;

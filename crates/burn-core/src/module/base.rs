@@ -5,11 +5,11 @@ use crate::{
 };
 use alloc::vec::Vec;
 pub use burn_derive::Module;
-use burn_tensor::{quantization::Calibration, Bool, Int, Tensor};
+use burn_tensor::{ops::Device, quantization::Calibration, Bool, Int, Tensor};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
-pub type Devices<B> = Vec<<B as Backend>::Device>;
+pub type Devices<B> = Vec<Device<B>>;
 
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
@@ -19,7 +19,7 @@ macro_rules! module {
         impl<B: Backend> ModuleMapper<B> for Mapper {
             fn map_float<const D: usize>(
                 &mut self,
-                _id: &ParamId,
+                _id: ParamId,
                 tensor: Tensor<B, D>,
             ) -> Tensor<B, D> {
                 let func = $item;
@@ -35,7 +35,7 @@ macro_rules! module {
             backend: core::marker::PhantomData<B>,
         }
         impl<'a, B: Backend> ModuleVisitor<B> for Visitor<'a, B> {
-            fn visit_float<const D: usize>(&mut self, _id: &ParamId, tensor: &Tensor<B, D>) {
+            fn visit_float<const D: usize>(&mut self, _id: ParamId, tensor: &Tensor<B, D>) {
                 let func = $item;
                 func(tensor, &mut self.state)
             }
@@ -212,23 +212,23 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
 /// Module visitor trait.
 pub trait ModuleVisitor<B: Backend> {
     /// Visit a float tensor in the module.
-    fn visit_float<const D: usize>(&mut self, _id: &ParamId, _tensor: &Tensor<B, D>) {}
+    fn visit_float<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D>) {}
     /// Visit an int tensor in the module.
-    fn visit_int<const D: usize>(&mut self, _id: &ParamId, _tensor: &Tensor<B, D, Int>) {}
+    fn visit_int<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Int>) {}
     /// Visit a bool tensor in the module.
-    fn visit_bool<const D: usize>(&mut self, _id: &ParamId, _tensor: &Tensor<B, D, Bool>) {}
+    fn visit_bool<const D: usize>(&mut self, _id: ParamId, _tensor: &Tensor<B, D, Bool>) {}
 }
 
 /// Module mapper trait.
 pub trait ModuleMapper<B: Backend> {
     /// Map a float tensor in the module.
-    fn map_float<const D: usize>(&mut self, _id: &ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
+    fn map_float<const D: usize>(&mut self, _id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D> {
         tensor
     }
     /// Map an int tensor in the module.
     fn map_int<const D: usize>(
         &mut self,
-        _id: &ParamId,
+        _id: ParamId,
         tensor: Tensor<B, D, Int>,
     ) -> Tensor<B, D, Int> {
         tensor
@@ -236,7 +236,7 @@ pub trait ModuleMapper<B: Backend> {
     /// Map a bool tensor in the module.
     fn map_bool<const D: usize>(
         &mut self,
-        _id: &ParamId,
+        _id: ParamId,
         tensor: Tensor<B, D, Bool>,
     ) -> Tensor<B, D, Bool> {
         tensor

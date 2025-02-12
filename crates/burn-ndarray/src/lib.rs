@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Burn ndarray backend.
 
@@ -14,15 +15,13 @@ extern crate derive_new;
 extern crate blas_src;
 
 mod backend;
-mod bridge;
 mod element;
 mod ops;
 mod sharing;
 mod tensor;
 
 pub use backend::*;
-pub use bridge::*;
-pub use element::FloatNdArrayElement;
+pub use element::*;
 pub(crate) use sharing::*;
 pub use tensor::*;
 

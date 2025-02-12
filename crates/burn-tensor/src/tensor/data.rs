@@ -1,14 +1,17 @@
-use core::any::{Any, TypeId};
+use core::f32;
 
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use bytemuck::{checked::CheckedCastError, AnyBitPattern};
 use half::{bf16, f16};
 
 use crate::{
-    quantization::{Quantization, QuantizationStrategy},
-    tensor::Shape,
+    quantization::{
+        Quantization, QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
+    },
+    tensor::bytes::Bytes,
     DType, Distribution, Element, ElementConversion,
 };
 
@@ -24,7 +27,7 @@ use rand::RngCore;
 #[derive(Debug)]
 pub enum DataError {
     /// Failed to cast the values to a specified element type.
-    CastError(bytemuck::checked::CheckedCastError),
+    CastError(CheckedCastError),
     /// Invalid target element type.
     TypeMismatch(String),
 }
@@ -33,8 +36,7 @@ pub enum DataError {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TensorData {
     /// The values of the tensor (as bytes).
-    #[serde(with = "serde_bytes")]
-    pub bytes: Vec<u8>,
+    bytes: Bytes,
 
     /// The shape of the tensor.
     pub shape: Vec<usize>,
@@ -46,7 +48,15 @@ pub struct TensorData {
 impl TensorData {
     /// Creates a new tensor data structure.
     pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
-        Self::init(value, shape, E::dtype())
+        // Ensure shape is valid
+        let shape = shape.into();
+        Self::check_data_len(&value, &shape);
+
+        Self {
+            bytes: Bytes::from_elems(value),
+            shape,
+            dtype: E::dtype(),
+        }
     }
 
     /// Creates a new quantized tensor data structure.
@@ -55,39 +65,39 @@ impl TensorData {
         shape: S,
         strategy: QuantizationStrategy,
     ) -> Self {
-        Self::init(value, shape, DType::QFloat(strategy))
-    }
-
-    /// Initializes a new tensor data structure from the provided values.
-    fn init<E: Element, S: Into<Vec<usize>>>(mut value: Vec<E>, shape: S, dtype: DType) -> Self {
-        // Ensure `E` satisfies the `Pod` trait requirements
-        assert_eq!(core::mem::size_of::<E>() % core::mem::size_of::<u8>(), 0);
-
-        // Ensure shape is valid
         let shape = shape.into();
-        let shape_numel = Self::numel(&shape);
-        value.truncate(shape_numel);
-        let numel = value.len();
-        assert_eq!(
-            shape_numel, numel,
-            "Shape {:?} is invalid for input of size {:?}",
-            shape, numel,
-        );
+        Self::check_data_len(&value, &shape);
 
-        let factor = core::mem::size_of::<E>() / core::mem::size_of::<u8>();
-        let len = numel * factor;
-        let capacity = value.capacity() * factor;
-        let ptr = value.as_mut_ptr();
-
-        core::mem::forget(value);
-
-        let bytes = unsafe { Vec::from_raw_parts(ptr as *mut u8, len, capacity) };
+        let q_bytes = QuantizedBytes::new(value, strategy);
 
         Self {
-            bytes,
+            bytes: q_bytes.bytes,
             shape,
+            dtype: DType::QFloat(q_bytes.scheme),
+        }
+    }
+
+    /// Creates a new tensor data structure from raw bytes.
+    ///
+    /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
+    /// certain that the bytes representation is valid.
+    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+        Self {
+            bytes: Bytes::from_bytes_vec(bytes),
+            shape: shape.into(),
             dtype,
         }
+    }
+
+    // Check that the input vector contains a correct number of elements
+    fn check_data_len<E: Element>(data: &[E], shape: &Vec<usize>) {
+        let expected_data_len = Self::numel(shape);
+        let num_data = data.len();
+        assert_eq!(
+            expected_data_len, num_data,
+            "Shape {:?} is invalid for input of size {:?}",
+            shape, num_data,
+        );
     }
 
     fn try_as_slice<E: Element>(&self) -> Result<&[E], DataError> {
@@ -128,6 +138,29 @@ impl TensorData {
         Ok(self.as_slice()?.to_vec())
     }
 
+    /// Returns the tensor data as a vector of scalar values.
+    pub fn into_vec<E: Element>(self) -> Result<Vec<E>, DataError> {
+        // This means we cannot call `into_vec` for QFloat
+        if E::dtype() != self.dtype {
+            return Err(DataError::TypeMismatch(format!(
+                "Invalid target element type (expected {:?}, got {:?})",
+                self.dtype,
+                E::dtype()
+            )));
+        }
+
+        let mut me = self;
+        me.bytes = match me.bytes.try_into_vec::<E>() {
+            Ok(elems) => return Ok(elems),
+            Err(bytes) => bytes,
+        };
+        // The bytes might have been deserialized and allocated with a different align.
+        // In that case, we have to memcopy the data into a new vector, more suitably allocated
+        Ok(bytemuck::checked::try_cast_slice(me.as_bytes())
+            .map_err(DataError::CastError)?
+            .to_vec())
+    }
+
     /// Returns an iterator over the values of the tensor data.
     pub fn iter<E: Element>(&self) -> Box<dyn Iterator<Item = E> + '_> {
         if E::dtype() == self.dtype {
@@ -155,6 +188,11 @@ impl TensorData {
                         .map(|e: &i64| e.elem::<E>()),
                 ),
                 DType::U8 => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                DType::U16 => Box::new(
+                    bytemuck::checked::cast_slice(&self.bytes)
+                        .iter()
+                        .map(|e: &u16| e.elem::<E>()),
+                ),
                 DType::U32 => Box::new(
                     bytemuck::checked::cast_slice(&self.bytes)
                         .iter()
@@ -187,19 +225,25 @@ impl TensorData {
                 ),
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
-                DType::QFloat(q) => match q {
-                    // NOTE: we do not dequantize the values to iterate over
-                    QuantizationStrategy::PerTensorAffineInt8(_strategy) => Box::new(
-                        bytemuck::checked::cast_slice(&self.bytes)
-                            .iter()
-                            .map(|e: &i8| e.elem::<E>()),
-                    ),
+                DType::QFloat(scheme) => match scheme {
+                    QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+                    | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                        // Quantized int8 values
+                        let q_bytes = QuantizedBytes {
+                            bytes: self.bytes.clone(),
+                            scheme,
+                            num_elements: self.num_elements(),
+                        };
+                        let (values, _) = q_bytes.into_vec_i8();
 
-                    QuantizationStrategy::PerTensorSymmetricInt8(_strategy) => Box::new(
-                        bytemuck::checked::cast_slice(&self.bytes)
-                            .iter()
-                            .map(|e: &i8| e.elem::<E>()),
-                    ),
+                        Box::new(
+                            values
+                                .iter()
+                                .map(|e: &i8| e.elem::<E>())
+                                .collect::<Vec<_>>()
+                                .into_iter(),
+                        )
+                    }
                 },
             }
         }
@@ -271,16 +315,96 @@ impl TensorData {
 
     /// Converts the data to a different element type.
     pub fn convert<E: Element>(self) -> Self {
-        if E::dtype() == self.dtype {
+        self.convert_dtype(E::dtype())
+    }
+
+    /// Converts the data to a different element type.
+    pub fn convert_dtype(self, dtype: DType) -> Self {
+        if dtype == self.dtype {
             self
+        } else if dtype.size() == self.dtype.size()
+            && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
+        {
+            match self.dtype {
+                DType::F64 => self.convert_inplace_dtype::<f64>(dtype),
+                DType::F32 => self.convert_inplace_dtype::<f32>(dtype),
+                DType::F16 => self.convert_inplace_dtype::<f16>(dtype),
+                DType::BF16 => self.convert_inplace_dtype::<bf16>(dtype),
+                DType::I64 => self.convert_inplace_dtype::<i64>(dtype),
+                DType::I32 => self.convert_inplace_dtype::<i32>(dtype),
+                DType::I16 => self.convert_inplace_dtype::<i16>(dtype),
+                DType::I8 => self.convert_inplace_dtype::<i8>(dtype),
+                DType::U64 => self.convert_inplace_dtype::<u64>(dtype),
+                DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
+                DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
+                DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
+                DType::Bool | DType::QFloat(_) => unreachable!(),
+            }
         } else {
-            TensorData::new(self.iter::<E>().collect(), self.shape)
+            match dtype {
+                DType::F64 => TensorData::new(self.iter::<f64>().collect(), self.shape),
+                DType::F32 => TensorData::new(self.iter::<f32>().collect(), self.shape),
+                DType::F16 => TensorData::new(self.iter::<f16>().collect(), self.shape),
+                DType::BF16 => TensorData::new(self.iter::<bf16>().collect(), self.shape),
+                DType::I64 => TensorData::new(self.iter::<i64>().collect(), self.shape),
+                DType::I32 => TensorData::new(self.iter::<i32>().collect(), self.shape),
+                DType::I16 => TensorData::new(self.iter::<i16>().collect(), self.shape),
+                DType::I8 => TensorData::new(self.iter::<i8>().collect(), self.shape),
+                DType::U64 => TensorData::new(self.iter::<u64>().collect(), self.shape),
+                DType::U32 => TensorData::new(self.iter::<u32>().collect(), self.shape),
+                DType::U16 => TensorData::new(self.iter::<u16>().collect(), self.shape),
+                DType::U8 => TensorData::new(self.iter::<u8>().collect(), self.shape),
+                DType::Bool => TensorData::new(self.iter::<bool>().collect(), self.shape),
+                DType::QFloat(_) => unreachable!(),
+            }
         }
+    }
+
+    fn convert_inplace_dtype<Current: Element + AnyBitPattern>(self, dtype: DType) -> Self {
+        match dtype {
+            DType::F64 => self.convert_inplace::<Current, f64>(),
+            DType::F32 => self.convert_inplace::<Current, f32>(),
+            DType::F16 => self.convert_inplace::<Current, f16>(),
+            DType::BF16 => self.convert_inplace::<Current, bf16>(),
+            DType::I64 => self.convert_inplace::<Current, i64>(),
+            DType::I32 => self.convert_inplace::<Current, i32>(),
+            DType::I16 => self.convert_inplace::<Current, i16>(),
+            DType::I8 => self.convert_inplace::<Current, i8>(),
+            DType::U64 => self.convert_inplace::<Current, u64>(),
+            DType::U32 => self.convert_inplace::<Current, u32>(),
+            DType::U16 => self.convert_inplace::<Current, u16>(),
+            DType::U8 => self.convert_inplace::<Current, u8>(),
+            DType::Bool | DType::QFloat(_) => unreachable!(),
+        }
+    }
+
+    fn convert_inplace<Current: Element + AnyBitPattern, Target: Element>(mut self) -> Self {
+        let step = core::mem::size_of::<Current>();
+
+        for offset in 0..(self.bytes.len() / step) {
+            let start = offset * step;
+            let end = start + step;
+
+            let slice_old = &mut self.bytes[start..end];
+            let val: Current = *bytemuck::from_bytes(slice_old);
+            let val = &val.elem::<Target>();
+            let slice_new = bytemuck::bytes_of(val);
+
+            slice_old.clone_from_slice(slice_new);
+        }
+        self.dtype = Target::dtype();
+
+        self
     }
 
     /// Returns the data as a slice of bytes.
     pub fn as_bytes(&self) -> &[u8] {
-        self.bytes.as_slice()
+        &self.bytes
+    }
+
+    /// Returns the bytes representation of the data.
+    pub fn into_bytes(self) -> Bytes {
+        self.bytes
     }
 
     /// Applies the data quantization strategy.
@@ -305,6 +429,26 @@ impl TensorData {
                 self.shape,
                 quantization,
             ),
+        }
+    }
+
+    /// Dequantizes the data according to its quantization scheme.
+    pub fn dequantize(self) -> Result<Self, DataError> {
+        if let DType::QFloat(scheme) = self.dtype {
+            let num_elements = self.num_elements();
+            let q_bytes = QuantizedBytes {
+                bytes: self.bytes,
+                scheme,
+                num_elements,
+            };
+
+            let values = q_bytes.dequantize().0;
+            Ok(Self::new(values, self.shape))
+        } else {
+            Err(DataError::TypeMismatch(format!(
+                "Expected quantized data, got {:?}",
+                self.dtype
+            )))
         }
     }
 
@@ -357,6 +501,7 @@ impl TensorData {
             DType::I8 => self.assert_eq_elem::<i8>(other),
             DType::U64 => self.assert_eq_elem::<u64>(other),
             DType::U32 => self.assert_eq_elem::<u32>(other),
+            DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
             DType::Bool => self.assert_eq_elem::<bool>(other),
             DType::QFloat(q) => {
@@ -368,14 +513,14 @@ impl TensorData {
                 };
                 match (q, q_other) {
                     (
-                        QuantizationStrategy::PerTensorAffineInt8(_),
-                        QuantizationStrategy::PerTensorAffineInt8(_),
+                        QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                        QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                    )
+                    | (
+                        QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+                        QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
                     ) => self.assert_eq_elem::<i8>(other),
-                    (
-                        QuantizationStrategy::PerTensorSymmetricInt8(_),
-                        QuantizationStrategy::PerTensorSymmetricInt8(_),
-                    ) => self.assert_eq_elem::<i8>(other),
-                    _ => panic!("Quantization strategies differ ({:?} != {:?})", q, q_other),
+                    _ => panic!("Quantization schemes differ ({:?} != {:?})", q, q_other),
                 }
             }
         }
@@ -449,9 +594,21 @@ impl TensorData {
                 continue;
             }
 
-            let err = ((a - b).pow(2.0f64)).sqrt();
+            let err = (a - b).abs();
 
-            if err > tolerance || err.is_nan() {
+            if self.dtype.is_float() {
+                if let Some((err, tolerance)) = compare_floats(a, b, self.dtype, tolerance) {
+                    // Only print the first 5 different values.
+                    if num_diff < max_num_diff {
+                        message += format!(
+                            "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
+                         {tolerance}"
+                        )
+                        .as_str();
+                    }
+                    num_diff += 1;
+                }
+            } else if err > tolerance || err.is_nan() {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!(
@@ -489,6 +646,26 @@ impl TensorData {
 
         for elem in self.iter::<f32>() {
             if elem < start || elem >= end {
+                panic!("Element ({elem:?}) is not within range {range:?}");
+            }
+        }
+    }
+
+    /// Asserts each value is within a given inclusive range.
+    ///
+    /// # Arguments
+    ///
+    /// * `range` - The range.
+    ///
+    /// # Panics
+    ///
+    /// If any value is not within the half-open range bounded inclusively (`start..=end`).
+    pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
+        let start = range.start().elem::<f32>();
+        let end = range.end().elem::<f32>();
+
+        for elem in self.iter::<f32>() {
+            if elem < start || elem > end {
                 panic!("Element ({elem:?}) is not within range {range:?}");
             }
         }
@@ -621,14 +798,13 @@ impl core::fmt::Display for TensorData {
             DType::I8 => format!("{:?}", self.as_slice::<i8>().unwrap()),
             DType::U64 => format!("{:?}", self.as_slice::<u64>().unwrap()),
             DType::U32 => format!("{:?}", self.as_slice::<u32>().unwrap()),
+            DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
-            DType::QFloat(q) => match &q {
-                QuantizationStrategy::PerTensorAffineInt8(_) => {
-                    format!("{:?} {q:?}", self.try_as_slice::<i8>().unwrap())
-                }
-                QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                    format!("{:?} {q:?}", self.try_as_slice::<i8>().unwrap())
+            DType::QFloat(scheme) => match scheme {
+                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+                | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                    format!("{:?} {scheme:?}", self.try_as_slice::<i8>().unwrap())
                 }
             },
         };
@@ -636,390 +812,65 @@ impl core::fmt::Display for TensorData {
     }
 }
 
-/// Data structure for serializing and deserializing tensor data.
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, new)]
-#[deprecated(
-    since = "0.14.0",
-    note = "the internal data format has changed, please use `TensorData` instead"
-)]
-pub struct DataSerialize<E> {
-    /// The values of the tensor.
-    pub value: Vec<E>,
-    /// The shape of the tensor.
-    pub shape: Vec<usize>,
-}
+fn compare_floats(value: f64, other: f64, ty: DType, tolerance: f64) -> Option<(f64, f64)> {
+    let epsilon_deviations = tolerance / f32::EPSILON as f64;
+    let epsilon = match ty {
+        DType::F64 => f32::EPSILON as f64, // Don't increase precision beyond `f32`, see below
+        DType::F32 => f32::EPSILON as f64,
+        DType::F16 => half::f16::EPSILON.to_f64(),
+        DType::BF16 => half::bf16::EPSILON.to_f64(),
+        _ => unreachable!(),
+    };
+    let tolerance_norm = epsilon_deviations * epsilon;
+    // Clamp to 1.0 so we don't require more precision than `tolerance`. This is because literals
+    // have a fixed number of digits, so increasing precision breaks things
+    let value_abs = value.abs().max(1.0);
+    let tolerance_adjusted = tolerance_norm * value_abs;
 
-/// Data structure for tensors.
-#[derive(new, Debug, Clone, PartialEq, Eq)]
-#[deprecated(
-    since = "0.14.0",
-    note = "the internal data format has changed, please use `TensorData` instead"
-)]
-pub struct Data<E, const D: usize> {
-    /// The values of the tensor.
-    pub value: Vec<E>,
+    let err = (value - other).abs();
 
-    /// The shape of the tensor.
-    pub shape: Shape<D>,
-}
-
-#[allow(deprecated)]
-impl<const D: usize, E: Element> Data<E, D> {
-    /// Converts the data to a different element type.
-    pub fn convert<EOther: Element>(self) -> Data<EOther, D> {
-        let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
-
-        Data {
-            value,
-            shape: self.shape,
-        }
-    }
-
-    /// Asserts each value is within a given range.
-    ///
-    /// # Arguments
-    ///
-    /// * `range` - The range.
-    ///
-    /// # Panics
-    ///
-    /// If any value is not within the half-open range bounded inclusively below
-    /// and exclusively above (`start..end`).
-    pub fn assert_within_range<EOther: Element>(&self, range: core::ops::Range<EOther>) {
-        let start = range.start.elem::<f32>();
-        let end = range.end.elem::<f32>();
-
-        for elem in self.value.iter() {
-            let elem = elem.elem::<f32>();
-            if elem < start || elem >= end {
-                panic!("Element ({elem:?}) is not within range {range:?}");
-            }
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl<E: Element> DataSerialize<E> {
-    /// Converts the data to a different element type.
-    pub fn convert<EOther: Element>(self) -> DataSerialize<EOther> {
-        if TypeId::of::<E>() == TypeId::of::<EOther>() {
-            let cast: Box<dyn Any> = Box::new(self);
-            let cast: Box<DataSerialize<EOther>> = cast.downcast().unwrap();
-            return *cast;
-        }
-
-        let value: Vec<EOther> = self.value.into_iter().map(|a| a.elem()).collect();
-
-        DataSerialize {
-            value,
-            shape: self.shape,
-        }
-    }
-
-    /// Converts the data to the new [TensorData] format.
-    pub fn into_tensor_data(self) -> TensorData {
-        TensorData::new(self.value, self.shape)
-    }
-}
-
-#[allow(deprecated)]
-impl<E: Element, const D: usize> Data<E, D> {
-    /// Populates the data with random values.
-    pub fn random<R: RngCore>(shape: Shape<D>, distribution: Distribution, rng: &mut R) -> Self {
-        let num_elements = shape.num_elements();
-        let mut data = Vec::with_capacity(num_elements);
-
-        for _ in 0..num_elements {
-            data.push(E::random(distribution, rng));
-        }
-
-        Data::new(data, shape)
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-where
-    E: Element,
-{
-    /// Populates the data with zeros.
-    pub fn zeros<S: Into<Shape<D>>>(shape: S) -> Data<E, D> {
-        let shape = shape.into();
-        let num_elements = shape.num_elements();
-        let mut data = Vec::with_capacity(num_elements);
-
-        for _ in 0..num_elements {
-            data.push(0.elem());
-        }
-
-        Data::new(data, shape)
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-where
-    E: Element,
-{
-    /// Populates the data with ones.
-    pub fn ones(shape: Shape<D>) -> Data<E, D> {
-        let num_elements = shape.num_elements();
-        let mut data = Vec::with_capacity(num_elements);
-
-        for _ in 0..num_elements {
-            data.push(1.elem());
-        }
-
-        Data::new(data, shape)
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug, const D: usize> Data<E, D>
-where
-    E: Element,
-{
-    /// Populates the data with the given value
-    pub fn full(shape: Shape<D>, fill_value: E) -> Data<E, D> {
-        let num_elements = shape.num_elements();
-        let mut data = Vec::with_capacity(num_elements);
-        for _ in 0..num_elements {
-            data.push(fill_value)
-        }
-
-        Data::new(data, shape)
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug + Copy, const D: usize> Data<E, D> {
-    /// Serializes the data.
-    ///
-    /// # Returns
-    ///
-    /// The serialized data.
-    pub fn serialize(&self) -> DataSerialize<E> {
-        DataSerialize {
-            value: self.value.clone(),
-            shape: self.shape.dims.to_vec(),
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl<E: Into<f64> + Clone + core::fmt::Debug + PartialEq, const D: usize> Data<E, D> {
-    /// Asserts the data is approximately equal to another data.
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other data.
-    /// * `precision` - The precision of the comparison.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the data is not approximately equal.
-    #[track_caller]
-    pub fn assert_approx_eq(&self, other: &Self, precision: usize) {
-        let tolerance = 0.1.pow(precision as f64);
-
-        self.assert_approx_eq_diff(other, tolerance)
-    }
-
-    /// Asserts the data is approximately equal to another data.
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The other data.
-    /// * `tolerance` - The tolerance of the comparison.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the data is not approximately equal.
-    #[track_caller]
-    pub fn assert_approx_eq_diff(&self, other: &Self, tolerance: f64) {
-        let mut message = String::new();
-        if self.shape != other.shape {
-            message += format!(
-                "\n  => Shape is different: {:?} != {:?}",
-                self.shape.dims, other.shape.dims
-            )
-            .as_str();
-        }
-
-        let iter = self.value.clone().into_iter().zip(other.value.clone());
-
-        let mut num_diff = 0;
-        let max_num_diff = 5;
-
-        for (i, (a, b)) in iter.enumerate() {
-            let a: f64 = a.into();
-            let b: f64 = b.into();
-
-            //if they are both nan, then they are equally nan
-            let both_nan = a.is_nan() && b.is_nan();
-            //this works for both infinities
-            let both_inf = a.is_infinite() && b.is_infinite() && ((a > 0.) == (b > 0.));
-
-            if both_nan || both_inf {
-                continue;
-            }
-
-            let err = ((a - b).pow(2.0f64)).sqrt();
-
-            if err > tolerance || err.is_nan() {
-                // Only print the first 5 different values.
-                if num_diff < max_num_diff {
-                    message += format!(
-                        "\n  => Position {i}: {a} != {b} | difference {err} > tolerance \
-                         {tolerance}"
-                    )
-                    .as_str();
-                }
-                num_diff += 1;
-            }
-        }
-
-        if num_diff >= max_num_diff {
-            message += format!("\n{} more errors...", num_diff - 5).as_str();
-        }
-
-        if !message.is_empty() {
-            panic!("Tensors are not approx eq:{}", message);
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl<const D: usize> Data<usize, D> {
-    /// Converts the usize data to a different element type.
-    pub fn from_usize<O: num_traits::FromPrimitive>(self) -> Data<O, D> {
-        let value: Vec<O> = self
-            .value
-            .into_iter()
-            .map(|a| num_traits::FromPrimitive::from_usize(a).unwrap())
-            .collect();
-
-        Data {
-            value,
-            shape: self.shape,
-        }
-    }
-}
-
-#[allow(deprecated)]
-impl<E: Clone, const D: usize> From<&DataSerialize<E>> for Data<E, D> {
-    fn from(data: &DataSerialize<E>) -> Self {
-        let mut dims = [0; D];
-        dims[..D].copy_from_slice(&data.shape[..D]);
-        Data::new(data.value.clone(), Shape::new(dims))
-    }
-}
-
-#[allow(deprecated)]
-impl<E, const D: usize> From<DataSerialize<E>> for Data<E, D> {
-    fn from(data: DataSerialize<E>) -> Self {
-        let mut dims = [0; D];
-        dims[..D].copy_from_slice(&data.shape[..D]);
-        Data::new(data.value, Shape::new(dims))
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug + Copy, const A: usize> From<[E; A]> for Data<E, 1> {
-    fn from(elems: [E; A]) -> Self {
-        let mut data = Vec::with_capacity(2 * A);
-        for elem in elems.into_iter() {
-            data.push(elem);
-        }
-
-        Data::new(data, Shape::new([A]))
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug + Copy> From<&[E]> for Data<E, 1> {
-    fn from(elems: &[E]) -> Self {
-        let mut data = Vec::with_capacity(elems.len());
-        for elem in elems.iter() {
-            data.push(*elem);
-        }
-
-        Data::new(data, Shape::new([elems.len()]))
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize> From<[[E; B]; A]> for Data<E, 2> {
-    fn from(elems: [[E; B]; A]) -> Self {
-        let mut data = Vec::with_capacity(A * B);
-        for elem in elems.into_iter().take(A) {
-            for elem in elem.into_iter().take(B) {
-                data.push(elem);
-            }
-        }
-
-        Data::new(data, Shape::new([A, B]))
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug + Copy, const A: usize, const B: usize, const C: usize>
-    From<[[[E; C]; B]; A]> for Data<E, 3>
-{
-    fn from(elems: [[[E; C]; B]; A]) -> Self {
-        let mut data = Vec::with_capacity(A * B * C);
-
-        for elem in elems.into_iter().take(A) {
-            for elem in elem.into_iter().take(B) {
-                for elem in elem.into_iter().take(C) {
-                    data.push(elem);
-                }
-            }
-        }
-
-        Data::new(data, Shape::new([A, B, C]))
-    }
-}
-
-#[allow(deprecated)]
-impl<
-        E: core::fmt::Debug + Copy,
-        const A: usize,
-        const B: usize,
-        const C: usize,
-        const D: usize,
-    > From<[[[[E; D]; C]; B]; A]> for Data<E, 4>
-{
-    fn from(elems: [[[[E; D]; C]; B]; A]) -> Self {
-        let mut data = Vec::with_capacity(A * B * C * D);
-
-        for elem in elems.into_iter().take(A) {
-            for elem in elem.into_iter().take(B) {
-                for elem in elem.into_iter().take(C) {
-                    for elem in elem.into_iter().take(D) {
-                        data.push(elem);
-                    }
-                }
-            }
-        }
-
-        Data::new(data, Shape::new([A, B, C, D]))
-    }
-}
-
-#[allow(deprecated)]
-impl<E: core::fmt::Debug, const D: usize> core::fmt::Display for Data<E, D> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("{:?}", &self.value).as_str())
+    if err > tolerance_adjusted || err.is_nan() {
+        Some((err, tolerance_adjusted))
+    } else {
+        None
     }
 }
 
 #[cfg(test)]
-#[allow(deprecated)]
 mod tests {
+    use crate::{quantization::AffineQuantization, Shape};
+
     use super::*;
     use alloc::vec;
     use rand::{rngs::StdRng, SeedableRng};
+
+    #[test]
+    fn into_vec_should_yield_same_value_as_iter() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        let expected = data.iter::<f32>().collect::<Vec<f32>>();
+        let actual = data.into_vec::<f32>().unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    #[should_panic]
+    fn into_vec_should_assert_wrong_dtype() {
+        let shape = Shape::new([3, 5, 6]);
+        let data = TensorData::random::<f32, _, _>(
+            shape,
+            Distribution::Default,
+            &mut StdRng::from_os_rng(),
+        );
+
+        data.into_vec::<i32>().unwrap();
+    }
 
     #[test]
     fn should_have_right_num_elements() {
@@ -1028,7 +879,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
 
         assert_eq!(num_elements, data.bytes.len() / 4); // f32 stored as u8s
@@ -1050,16 +901,16 @@ mod tests {
     #[test]
     fn should_assert_appox_eq_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.01, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.03, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
 
     #[test]
     #[should_panic]
-    fn should_assert_appox_eq_above_limit() {
+    fn should_assert_approx_eq_above_limit() {
         let data1 = TensorData::from([[3.0, 5.0, 6.0]]);
-        let data2 = TensorData::from([[3.011, 5.0, 6.0]]);
+        let data2 = TensorData::from([[3.031, 5.0, 6.0]]);
 
         data1.assert_approx_eq(&data2, 2);
     }
@@ -1083,5 +934,47 @@ mod tests {
         let factor = core::mem::size_of::<f32>() / core::mem::size_of::<u8>();
         assert_eq!(data1.bytes.len(), 2 * factor);
         assert_eq!(data1.bytes.capacity(), 5 * factor);
+    }
+
+    #[test]
+    fn should_convert_bytes_correctly_inplace() {
+        fn test_precision<E: Element>() {
+            let data = TensorData::new((0..32).collect(), [32]);
+            for (i, val) in data
+                .clone()
+                .convert::<E>()
+                .into_vec::<E>()
+                .unwrap()
+                .into_iter()
+                .enumerate()
+            {
+                assert_eq!(i as u32, val.elem::<u32>())
+            }
+        }
+        test_precision::<f32>();
+        test_precision::<f16>();
+        test_precision::<i64>();
+        test_precision::<i32>();
+    }
+
+    #[test]
+    #[should_panic = "Expected quantized data"]
+    fn should_not_dequantize() {
+        let data = TensorData::from([[3.0, 5.0, 6.0, 7.0]]);
+        data.dequantize().unwrap();
+    }
+
+    #[test]
+    fn should_support_dequantize() {
+        // Quantized [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]
+        let data = TensorData::quantized(
+            vec![-128i8, -77, -26, 25, 76, 127],
+            [2, 3],
+            QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(0.019607844, -128)),
+        );
+
+        let output = data.dequantize().unwrap();
+
+        output.assert_approx_eq(&TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]), 4);
     }
 }

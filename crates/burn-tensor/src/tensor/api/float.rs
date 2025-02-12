@@ -1,14 +1,10 @@
-use alloc::vec::Vec;
-use core::convert::TryInto;
-
-use crate::check;
 use crate::check::TensorCheck;
-use crate::ops::FullPrecisionBackend;
 use crate::quantization::{QuantizationParameters, QuantizationScheme};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
-use crate::tensor::{Distribution, Shape, TensorData};
+use crate::tensor::{Distribution, TensorData};
 use crate::Tensor;
+use crate::{check, FloatDType};
 use crate::{Int, TensorPrimitive};
 
 impl<const D: usize, B> Tensor<B, D>
@@ -19,7 +15,7 @@ where
     ///
     /// # Notes
     ///
-    /// This won't necessary reuse the same tensor data/buffer, but it should if there is
+    /// This won't necessarily reuse the same tensor data/buffer, but it should if there is
     /// no other reference pointing to the same tensor.
     ///
     /// Wrapping operations with inplace is not an optimization, it's mainly there if you
@@ -104,6 +100,30 @@ where
         )))
     }
 
+    /// Applies element wise round operation.
+    ///
+    /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
+    /// strategy, with halfway cases rounded to the nearest even integer value.
+    pub fn round(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_round(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise floor operation.
+    pub fn floor(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_floor(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise ceil operation.
+    pub fn ceil(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_ceil(
+            self.primitive.tensor(),
+        )))
+    }
+
     /// Create a tensor from floats (f32) on a given device.
     ///
     /// # Example
@@ -123,7 +143,7 @@ where
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
-    /// casted to Integer.
+    /// cast to Integer.
     ///
     /// # Example
     ///
@@ -141,22 +161,6 @@ where
         Tensor::new(B::float_into_int(self.primitive.tensor()))
     }
 
-    /// Returns a new tensor with the same shape and device as the current tensor filled with zeros.
-    pub fn zeros_like(&self) -> Self {
-        Tensor::new(TensorPrimitive::Float(B::float_zeros(
-            self.shape(),
-            &self.device(),
-        )))
-    }
-
-    /// Returns a new tensor with the same shape and device as the current tensor filled with ones.
-    pub fn ones_like(&self) -> Self {
-        Tensor::new(TensorPrimitive::Float(B::float_ones(
-            self.shape(),
-            &self.device(),
-        )))
-    }
-
     /// Returns a new tensor with the same shape and device as the current tensor filled random
     /// values sampled from the given distribution.
     pub fn random_like(&self, distribution: Distribution) -> Self {
@@ -167,42 +171,13 @@ where
         )))
     }
 
-    /// Create a one hot tensor.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::Tensor;
-    ///
-    /// fn example<B: Backend>() {
-    ///     let device = Default::default();
-    ///     let one_hot = Tensor::<B, 1>::one_hot(2, 10, &device);
-    ///     println!("{}", one_hot.to_data());
-    ///     // [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    /// }
-    /// ```
-    pub fn one_hot(index: usize, num_classes: usize, device: &B::Device) -> Self {
-        check!(TensorCheck::one_hot(index, num_classes));
-
-        let mut dims = [1; D];
-        dims[D - 1] = num_classes;
-        let shape = Shape::new(dims);
-        let ranges: Vec<_> = shape.dims.iter().map(|dim| 0..*dim).collect();
-        let tensor = Tensor::zeros(shape, device);
-        let mut ranges: [core::ops::Range<usize>; D] = ranges.try_into().unwrap();
-        ranges[D - 1] = index..index + 1;
-
-        tensor.slice_assign(ranges, Tensor::ones(Shape::new([1; D]), device))
-    }
-
     /// Applies the matrix multiplication operation.
     ///
     /// `C = AB`
     ///
     /// # Panics
     ///
-    /// If the two tensors dont' have a compatible shape.
+    /// If the two tensors don't have a compatible shape.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
         Self::new(TensorPrimitive::Float(B::float_matmul(
@@ -235,17 +210,15 @@ where
         (var, mean)
     }
 
-    /// Returns a tensor with full precision based on the selected backend.
-    pub fn into_full_precision(self) -> Tensor<FullPrecisionBackend<B>, D> {
-        Tensor::new(TensorPrimitive::Float(B::float_into_full_precision(
+    /// Converts a tensor to the specified floating point data type.
+    ///
+    /// # Warning
+    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
+    /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
+    pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
+        Tensor::new(TensorPrimitive::Float(B::float_cast(
             self.primitive.tensor(),
-        )))
-    }
-
-    /// Returns a tensor on the selected backend from a full precision tensor.
-    pub fn from_full_precision(tensor: Tensor<FullPrecisionBackend<B>, D>) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_from_full_precision(
-            tensor.primitive.tensor(),
+            dtype.into(),
         )))
     }
 
@@ -275,7 +248,7 @@ where
         }
     }
 
-    /// Mark the tensor as tracked or untracked depending on the require grad argument.
+    /// Mark the tensor as tracked or untracked depending on the require_grad argument.
     /// When tracked, the gradients will be available after the backward pass.
     ///
     /// This function does nothing when autodiff is not enabled.

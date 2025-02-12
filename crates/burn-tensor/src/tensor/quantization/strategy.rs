@@ -4,13 +4,11 @@ use core::{
 };
 
 use alloc::vec::Vec;
-use burn_common::{iter_par, run_par};
+use burn_common::{iter_slice_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
 use super::{QuantizationScheme, QuantizationType};
-
-// NOTE: QuantizationStrategy is used for TensorData (sync).
 
 /// Quantization strategy.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,7 +35,7 @@ impl QuantizationStrategy {
 
 /// Quantization scheme to convert elements of a higher precision data type `E` to a lower precision
 /// data type `Q` and vice-versa.
-pub trait Quantization<E: Float, Q: PrimInt> {
+pub trait Quantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync> {
     /// Create a new quantization scheme for an input range `[alpha, beta]`.
     fn new(alpha: E, beta: E) -> Self;
     /// Convert the values to a lower precision data type.
@@ -50,7 +48,7 @@ pub trait Quantization<E: Float, Q: PrimInt> {
 ///
 /// Note that the accumulation type `A` should have a bigger range than quantized type `Q`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
+pub struct AffineQuantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> {
     /// The scaling factor.
     pub scale: E,
     /// The zero-point offset.
@@ -59,24 +57,29 @@ pub struct AffineQuantization<E: Float, Q: PrimInt, A: PrimInt> {
     _a: PhantomData<A>,
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> AffineQuantization<E, Q, A> {
+fn valid_scale<E: Float>(mut scale: E) -> E {
+    // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
+    // scale to 0.1 to avoid division by zero.
+    if scale.eq(&E::zero()) {
+        scale = E::from(0.1).unwrap();
+    }
+    scale
+}
+
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> AffineQuantization<E, Q, A> {
     /// Initialize an affine quantization scheme with the given parameters.
     pub fn init(scale: E, offset: Q) -> Self {
-        let mut scale = scale;
-        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
-        // scale to 0.1 to avoid division by zero.
-        if scale.eq(&E::zero()) {
-            scale = E::from(0.1).unwrap();
-        }
         Self {
-            scale,
+            scale: valid_scale(scale),
             offset,
             _a: PhantomData,
         }
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt + Send + Sync> Quantization<E, Q>
+    for AffineQuantization<E, Q, A>
+{
     fn new(alpha: E, beta: E) -> Self {
         // Q range `[a, b]`
         let a = E::from(Q::min_value()).unwrap();
@@ -89,9 +92,13 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
         let beta = E::max(beta, E::zero());
 
         // Compute scale and offset to convert a floating point value in range `[alpha, beta]` to the quantized range
-        let scale = (beta - alpha) / (b - a);
+        let scale = valid_scale((beta - alpha) / (b - a));
         let z = -(alpha / scale - a);
-        Self::init(scale, Q::from(z).unwrap())
+        Self {
+            scale,
+            offset: Q::from(z).unwrap(),
+            _a: PhantomData,
+        }
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {
@@ -102,7 +109,7 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
         // x_q = clamp(round(x / scale + offset), a, b)
         let z = E::from(self.offset).unwrap();
         run_par!(|| {
-            iter_par!(values.iter())
+            iter_slice_par!(values)
                 .map(|x| Q::from(x.div(self.scale).add(z).round().clamp(a, b)).unwrap())
                 .collect()
         })
@@ -111,7 +118,7 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
     fn dequantize(&self, values: &[Q]) -> Vec<E> {
         // x = scale * (x_q - offset)
         run_par!(|| {
-            iter_par!(values.iter())
+            iter_slice_par!(values)
                 .map(|x_q| {
                     self.scale
                         * (E::from(
@@ -128,30 +135,26 @@ impl<E: Float, Q: PrimInt, A: PrimInt> Quantization<E, Q> for AffineQuantization
 
 /// Symmetric quantization scheme.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct SymmetricQuantization<E: Float, Q: PrimInt> {
+pub struct SymmetricQuantization<E: Float + Send + Sync, Q: PrimInt + Send + Sync> {
     /// The scaling factor.
     pub scale: E,
     /// The quantized type.
     _q: PhantomData<Q>,
 }
 
-impl<E: Float, Q: PrimInt> SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> SymmetricQuantization<E, Q> {
     /// Initialize a symmetric quantization scheme with the given parameters.
     pub fn init(scale: E) -> Self {
-        let mut scale = scale;
-        // If scale is 0 (most likely due to a tensor full of zeros), we arbitrarily adjust the
-        // scale to 0.1 to avoid division by zero.
-        if scale.eq(&E::zero()) {
-            scale = E::from(0.1).unwrap();
-        }
         Self {
-            scale,
+            scale: valid_scale(scale),
             _q: PhantomData,
         }
     }
 }
 
-impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Quantization<E, Q>
+    for SymmetricQuantization<E, Q>
+{
     fn new(alpha: E, beta: E) -> Self {
         assert!(
             !Q::min_value().is_zero(),
@@ -164,7 +167,11 @@ impl<E: Float, Q: PrimInt> Quantization<E, Q> for SymmetricQuantization<E, Q> {
 
         // Compute scale to convert a floating point value in range `[-alpha, alpha]` to the quantized range
         let alpha = alpha.abs().max(beta.abs());
-        Self::init((alpha + alpha) / (b - a))
+        let scale = valid_scale((alpha + alpha) / (b - a));
+        Self {
+            scale,
+            _q: PhantomData,
+        }
     }
 
     fn quantize(&self, values: &[E]) -> Vec<Q> {
@@ -211,7 +218,9 @@ fn canonicalize_signed_zero<T: Float>(x: T) -> T {
     x + T::zero()
 }
 
-impl<E: Float, Q: PrimInt + Hash, A: PrimInt> Hash for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Hash + Send + Sync, A: PrimInt> Hash
+    for AffineQuantization<E, Q, A>
+{
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Hash raw bits.
         let bits = raw_double_bits(&canonicalize_signed_zero(self.scale));
@@ -220,15 +229,20 @@ impl<E: Float, Q: PrimInt + Hash, A: PrimInt> Hash for AffineQuantization<E, Q, 
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> PartialEq for AffineQuantization<E, Q, A> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> PartialEq
+    for AffineQuantization<E, Q, A>
+{
     fn eq(&self, other: &Self) -> bool {
         self.scale == other.scale && self.offset == other.offset
     }
 }
 
-impl<E: Float, Q: PrimInt, A: PrimInt> Eq for AffineQuantization<E, Q, A> {}
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync, A: PrimInt> Eq
+    for AffineQuantization<E, Q, A>
+{
+}
 
-impl<E: Float, Q: PrimInt> Hash for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Hash for SymmetricQuantization<E, Q> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Hash raw bits.
         let bits = raw_double_bits(&canonicalize_signed_zero(self.scale));
@@ -236,13 +250,13 @@ impl<E: Float, Q: PrimInt> Hash for SymmetricQuantization<E, Q> {
     }
 }
 
-impl<E: Float, Q: PrimInt> PartialEq for SymmetricQuantization<E, Q> {
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> PartialEq for SymmetricQuantization<E, Q> {
     fn eq(&self, other: &Self) -> bool {
         self.scale == other.scale
     }
 }
 
-impl<E: Float, Q: PrimInt> Eq for SymmetricQuantization<E, Q> {}
+impl<E: Float + Send + Sync, Q: PrimInt + Send + Sync> Eq for SymmetricQuantization<E, Q> {}
 
 #[cfg(test)]
 mod tests {

@@ -28,7 +28,17 @@ mod wgpu {
 
 ## Configuration
 
-You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many computing tasks are submitted in batches to the graphics API.
+You can set `BURN_WGPU_MAX_TASKS` to a positive integer that determines how many computing tasks are
+submitted in batches to the graphics API.
+
+## Alternative SPIR-V backend
+
+When targeting Vulkan, the `spirv` feature flag can be enabled to enable the SPIR-V compiler backend,
+which performs significantly better than WGSL. This is especially true for matrix multiplication,
+where SPIR-V can make use of TensorCores and run at `f16` precision. This isn't currently supported
+by WGSL.
+The compiler can also be selected at runtime by setting the corresponding generic parameter to
+either `SpirV` or `Wgsl`.
 
 ## Platform Support
 

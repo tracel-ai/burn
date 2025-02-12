@@ -1,3 +1,4 @@
+mod async_wrapper;
 mod base;
 mod full;
 mod metrics;
@@ -10,6 +11,8 @@ pub(crate) use metrics::*;
 #[cfg(test)]
 pub(crate) use minimal::*;
 
+pub use async_wrapper::AsyncProcessor;
+
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::metric::{
@@ -17,6 +20,16 @@ pub(crate) mod test_utils {
         Adaptor, LossInput,
     };
     use burn_core::tensor::{backend::Backend, ElementConversion, Tensor};
+
+    use super::ItemLazy;
+
+    impl ItemLazy for f64 {
+        type ItemSync = f64;
+
+        fn sync(self) -> Self::ItemSync {
+            self
+        }
+    }
 
     impl<B: Backend> Adaptor<LossInput<B>> for f64 {
         fn adapt(&self) -> LossInput<B> {

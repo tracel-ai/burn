@@ -1,22 +1,22 @@
 use std::marker::PhantomData;
 
 use burn_tensor::{
-    backend::{Backend, DeviceId, DeviceOps, SyncType},
+    backend::{Backend, DeviceId, DeviceOps},
     quantization::{QTensorPrimitive, QuantizationStrategy},
     Device,
 };
-use candle_core::DeviceLocation;
+use candle_core::{backend::BackendDevice, DeviceLocation};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
-    CandleQTensor, CandleTensor, PrecisionBridge,
+    CandleQTensor, CandleTensor,
 };
 
 /// Tensor backend that uses the [candle](candle_core) crate for executing tensor operations.
 ///
 /// It is compatible with a wide range of hardware configurations, including CPUs and GPUs
 /// that support CUDA or Metal. Additionally, the backend can be compiled to `wasm` when using the CPU.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Candle<F = f32, I = i64>
 where
     F: FloatCandleElement,
@@ -27,29 +27,89 @@ where
 }
 
 /// The device type for the candle backend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// The device struct when using the `candle` backend.
 ///
-/// Note that you need to provide the device index when using Cuda.
+/// To create a Cuda or Metal device from the index, use the associated methods to create the variant:
+/// ```no_run
+/// use burn_candle::CandleDevice;
+///
+/// // Create a Cuda device from its index
+/// let device = CandleDevice::cuda(0);
+/// // Create a Metal device from its index
+/// let device = CandleDevice::metal(0);
+/// ```
 pub enum CandleDevice {
     /// CPU device.
     Cpu,
 
     /// Cuda device with the given index. The index is the index of the Cuda device in the list of
     /// all Cuda devices found on the system.
-    Cuda(usize),
+    Cuda(CudaDevice),
 
     /// Metal device with the given index. The index is the index of the Metal device in the list of
     /// all Metal devices found on the system.
-    Metal(usize),
+    Metal(MetalDevice),
 }
+
+impl CandleDevice {
+    /// Create a Cuda device with the given index.
+    /// The index is the index of the Cuda device in the list of all Cuda devices found on the system.
+    pub fn cuda(index: usize) -> Self {
+        CandleDevice::Cuda(CudaDevice {
+            device: candle_core::CudaDevice::new(index).unwrap(),
+            index,
+        })
+    }
+
+    /// Create a Metal device with the given index.
+    /// The index is the index of the Metal device in the list of all Metal devices found on the system.
+    pub fn metal(index: usize) -> Self {
+        CandleDevice::Metal(MetalDevice {
+            device: candle_core::MetalDevice::new(index).unwrap(),
+            index,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+/// A Cuda device for the `candle` backend.
+pub struct CudaDevice {
+    pub(crate) device: candle_core::CudaDevice,
+    /// The index of the Cuda device in the list of all devices on the system.
+    pub index: usize,
+}
+
+impl PartialEq for CudaDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.device.same_device(&other.device) && self.index == other.index
+    }
+}
+
+impl Eq for CudaDevice {}
+
+#[derive(Clone, Debug)]
+/// A Metal device for the `candle` backend.
+pub struct MetalDevice {
+    pub(crate) device: candle_core::MetalDevice,
+    /// The index of the Metal device in the list of all devices on the system.
+    pub index: usize,
+}
+
+impl PartialEq for MetalDevice {
+    fn eq(&self, other: &Self) -> bool {
+        self.device.same_device(&other.device) && self.index == other.index
+    }
+}
+
+impl Eq for MetalDevice {}
 
 impl From<CandleDevice> for candle_core::Device {
     fn from(device: CandleDevice) -> Self {
         match device {
             CandleDevice::Cpu => candle_core::Device::Cpu,
-            CandleDevice::Cuda(ordinal) => candle_core::Device::new_cuda(ordinal).unwrap(),
-            CandleDevice::Metal(ordinal) => candle_core::Device::new_metal(ordinal).unwrap(),
+            CandleDevice::Cuda(device) => candle_core::Device::Cuda(device.device),
+            CandleDevice::Metal(device) => candle_core::Device::Metal(device.device),
         }
     }
 }
@@ -58,8 +118,26 @@ impl From<candle_core::Device> for CandleDevice {
     fn from(device: candle_core::Device) -> Self {
         match device.location() {
             DeviceLocation::Cpu => CandleDevice::Cpu,
-            DeviceLocation::Cuda { gpu_id } => CandleDevice::Cuda(gpu_id),
-            DeviceLocation::Metal { gpu_id } => CandleDevice::Metal(gpu_id),
+            DeviceLocation::Cuda { gpu_id } => {
+                if let candle_core::Device::Cuda(device) = device {
+                    CandleDevice::Cuda(CudaDevice {
+                        device,
+                        index: gpu_id,
+                    })
+                } else {
+                    panic!("Expected CUDA device.");
+                }
+            }
+            DeviceLocation::Metal { gpu_id } => {
+                if let candle_core::Device::Metal(device) = device {
+                    CandleDevice::Metal(MetalDevice {
+                        device,
+                        index: gpu_id,
+                    })
+                } else {
+                    panic!("Expected Metal device.");
+                }
+            }
         }
     }
 }
@@ -68,8 +146,8 @@ impl DeviceOps for CandleDevice {
     fn id(&self) -> burn_tensor::backend::DeviceId {
         match self {
             CandleDevice::Cpu => DeviceId::new(0, 0),
-            CandleDevice::Cuda(index) => DeviceId::new(1, *index as u32),
-            CandleDevice::Metal(index) => DeviceId::new(2, *index as u32),
+            CandleDevice::Cuda(device) => DeviceId::new(1, device.index as u32),
+            CandleDevice::Metal(device) => DeviceId::new(2, device.index as u32),
         }
     }
 }
@@ -83,17 +161,17 @@ impl Default for CandleDevice {
 impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type Device = CandleDevice;
 
-    type FullPrecisionBridge = PrecisionBridge<f32>;
-
-    type FloatTensorPrimitive<const D: usize> = CandleTensor<Self::FloatElem, D>;
+    type FloatTensorPrimitive = CandleTensor;
     type FloatElem = F;
 
-    type IntTensorPrimitive<const D: usize> = CandleTensor<Self::IntElem, D>;
+    type IntTensorPrimitive = CandleTensor;
     type IntElem = I;
 
-    type BoolTensorPrimitive<const D: usize> = CandleTensor<u8, D>;
+    type BoolTensorPrimitive = CandleTensor;
+    type BoolElem = u8;
 
-    type QuantizedTensorPrimitive<const D: usize> = CandleQTensor<D>;
+    type QuantizedTensorPrimitive = CandleQTensor;
+    type QuantizedEncoding = u8;
 
     fn ad_enabled() -> bool {
         false
@@ -108,25 +186,20 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         panic!("Manual seed not supported by Candle. ")
     }
 
-    fn sync(device: &Device<Self>, sync_type: SyncType) {
-        match sync_type {
-            SyncType::Wait => {
-                let device: candle_core::Device = (*device).into();
+    fn sync(device: &Device<Self>) {
+        let device: candle_core::Device = (device.clone()).into();
 
-                match device {
-                    candle_core::Device::Cpu => (),
-                    candle_core::Device::Cuda(device) => {
-                        #[cfg(feature = "cuda")]
-                        device.synchronize().unwrap();
-                    }
-                    candle_core::Device::Metal(device) => {
-                        // For some reason, device.wait_until_completed() does not seem to work,
-                        // and neither does writing and reading a value with into_data
-                        panic!("Device synchronization unavailable with Metal device on Candle backend")
-                    }
-                }
+        match device {
+            candle_core::Device::Cpu => (),
+            candle_core::Device::Cuda(device) => {
+                #[cfg(feature = "cuda")]
+                device.synchronize().unwrap();
             }
-            SyncType::Flush => (), // Nothhing to flush.
-        };
+            candle_core::Device::Metal(device) => {
+                // For some reason, device.wait_until_completed() does not seem to work,
+                // and neither does writing and reading a value with into_data
+                panic!("Device synchronization unavailable with Metal device on Candle backend")
+            }
+        }
     }
 }

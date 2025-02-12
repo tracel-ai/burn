@@ -37,7 +37,7 @@ distributions.
 | `PartialDataset`  | Returns a view of the input dataset with a specified range.                                                              |
 | `MapperDataset`   | Computes a transformation lazily on the input dataset.                                                                   |
 | `ComposedDataset` | Composes multiple datasets together to create a larger one without copying any data.                                     |
-| `WindowDataset`   | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
+| `WindowsDataset`  | Dataset designed to work with overlapping windows of data extracted from an input dataset.                               |
 
 Let us look at the basic usages of each dataset transform and how they can be composed together.
 These transforms are lazy by default except when specified, reducing the need for unnecessary
@@ -91,6 +91,9 @@ let data_split = match split {
   multiple sources (say different HuggingfaceDatasetLoader sources) into a single bigger dataset
   which can be sampled from one source.
 
+- **WindowsDataset**: This transform is useful to create overlapping windows of a dataset.
+  Particularly useful for sequential Time series Data, for example when working with an LSTM.
+
 ## Storage
 
 There are multiple dataset storage options available for you to choose from. The choice of the
@@ -134,7 +137,7 @@ those are the only requirements.
 ### Images
 
 `ImageFolderDataset` is a generic vision dataset used to load images from disk. It is currently
-available for multi-class and multi-label classification tasks.
+available for multi-class and multi-label classification tasks as well as semantic segmentation and object detection tasks.
 
 ```rust, ignore
 // Create an image classification dataset from the root folder,
@@ -165,6 +168,49 @@ let dataset = ImageFolderDataset::new_multilabel_classification_with_items(
 .unwrap();
 ```
 
+```rust, ignore
+// Create a segmentation mask dataset from a list of items, where each
+// item is a tuple `(image path, mask path)` and a list of classes
+// corresponding to the integer values in the mask.
+let items = vec![
+    (
+        "path/to/images/image0.png",
+        "path/to/annotations/mask0.png",
+    ),
+    (
+        "path/to/images/image1.png",
+        "path/to/annotations/mask1.png",
+    ),
+    (
+        "path/to/images/image2.png",
+        "path/to/annotations/mask2.png",
+    ),
+];
+let dataset = ImageFolderDataset::new_segmentation_with_items(
+    items,
+    &[
+        "cat", // 0
+        "dog", // 1
+        "background", // 2
+    ],
+)
+.unwrap();
+```
+
+```rust, ignore
+// Create an object detection dataset from a COCO dataset. Currently only
+// the import of object detection data (bounding boxes) is supported.
+//
+// COCO offers separate annotation and image archives for training and
+// validation, paths to the unpacked files need to be passed as parameters:
+
+let dataset = ImageFolderDataset::new_coco_detection(
+    "/path/to/coco/instances_train2017.json",
+    "/path/to/coco/images/train2017"
+)
+.unwrap();
+
+```
 ### Comma-Separated Values (CSV)
 
 Loading records from a simple CSV file in-memory is simple with the `InMemDataset`:

@@ -16,6 +16,9 @@ where
 {
 }
 
+/// An int element for ndarray backend.
+pub trait IntNdArrayElement: NdArrayElement + Signed {}
+
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
     Element
@@ -26,18 +29,27 @@ pub trait NdArrayElement:
     + core::ops::AddAssign
     + core::cmp::PartialEq
     + core::cmp::PartialOrd<Self>
+    + core::ops::Rem<Output = Self>
 {
 }
 
 /// A element for ndarray backend that supports exp ops.
 pub trait ExpElement {
+    /// Exponent
     fn exp_elem(self) -> Self;
+    /// Log
     fn log_elem(self) -> Self;
+    /// Log1p
     fn log1p_elem(self) -> Self;
+    /// Powf
     fn powf_elem(self, value: f32) -> Self;
+    /// Powi
     fn powi_elem(self, value: i32) -> Self;
+    /// Sqrt
     fn sqrt_elem(self) -> Self;
+    /// Abs
     fn abs_elem(self) -> Self;
+    /// Abs for int
     fn int_abs_elem(self) -> Self;
 }
 
@@ -48,6 +60,9 @@ impl QuantElement for i8 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
+
+impl IntNdArrayElement for i64 {}
+impl IntNdArrayElement for i32 {}
 
 macro_rules! make_elem {
     (

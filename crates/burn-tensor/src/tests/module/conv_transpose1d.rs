@@ -113,7 +113,7 @@ mod tests {
             let device = Default::default();
             let weights = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_weights.num_elements() as i64, &device)
-                    .reshape(shape_weights)
+                    .reshape::<3, _>(shape_weights)
                     .into_data(),
                 &device,
             );
@@ -123,7 +123,7 @@ mod tests {
             );
             let x = TestTensor::from_data(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
-                    .reshape(shape_x)
+                    .reshape::<3, _>(shape_x)
                     .into_data(),
                 &device,
             );

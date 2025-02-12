@@ -1,125 +1,92 @@
-use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{element::BoolElement, kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
 
 use super::{expand, permute};
 
-impl<R, F, I> BoolTensorOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, BT> BoolTensorOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    BT: BoolElement,
 {
-    fn bool_empty<const D: usize>(shape: Shape<D>, device: &Device<Self>) -> BoolTensor<Self, D> {
-        super::empty(shape, device)
+    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+        super::empty::<R, BT>(shape, device)
     }
 
-    fn bool_shape<const D: usize>(tensor: &BoolTensor<Self, D>) -> Shape<D> {
-        tensor.shape.clone()
+    async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
+        super::bool_into_data::<R, BT>(tensor).await
     }
 
-    async fn bool_into_data<const D: usize>(tensor: BoolTensor<Self, D>) -> TensorData {
-        super::bool_into_data(tensor).await
+    fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
+        if data.dtype != BT::dtype() {
+            unimplemented!("Unsupported dtype for `bool_from_data`")
+        }
+        super::from_data::<R>(data, device)
     }
 
-    fn bool_from_data<const D: usize>(
-        data: TensorData,
-        device: &Device<Self>,
-    ) -> BoolTensor<Self, D> {
-        let data: TensorData = TensorData::new(data.iter::<u32>().collect(), data.shape);
-        super::from_data(data, device)
+    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
+        kernel::bool_cast::<R, BT, I>(tensor)
     }
 
-    fn bool_into_int<const D: usize>(tensor: BoolTensor<Self, D>) -> IntTensor<Self, D> {
-        kernel::bool_cast(tensor)
-    }
-
-    fn bool_device<const D: usize>(tensor: &BoolTensor<Self, D>) -> Device<Self> {
+    fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
         tensor.device.clone()
     }
 
-    fn bool_to_device<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        device: &Device<Self>,
-    ) -> BoolTensor<Self, D> {
+    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
         super::to_device(tensor, device)
     }
 
-    fn bool_reshape<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> BoolTensor<Self, D2> {
+    fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         super::reshape(tensor, shape)
     }
 
-    fn bool_slice<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> BoolTensor<Self, D1> {
-        kernel::slice(tensor, ranges)
+    fn bool_slice(tensor: BoolTensor<Self>, ranges: &[Range<usize>]) -> BoolTensor<Self> {
+        kernel::slice::<R, BT>(tensor, ranges)
     }
 
-    fn bool_slice_assign<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-        value: BoolTensor<Self, D1>,
-    ) -> BoolTensor<Self, D1> {
-        kernel::slice_assign(tensor, ranges, value)
+    fn bool_slice_assign(
+        tensor: BoolTensor<Self>,
+        ranges: &[Range<usize>],
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        kernel::slice_assign::<R, BT>(tensor, ranges, value)
     }
 
-    fn bool_equal<const D: usize>(
-        lhs: BoolTensor<Self, D>,
-        rhs: BoolTensor<Self, D>,
-    ) -> BoolTensor<Self, D> {
-        kernel::equal(lhs, rhs)
+    fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        kernel::equal::<R, BT, BT>(lhs, rhs)
     }
 
-    fn bool_not<const D: usize>(tensor: BoolTensor<Self, D>) -> BoolTensor<Self, D> {
-        kernel::equal_elem(tensor, 0)
+    fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
+        kernel::equal_elem::<R, BT, BT>(tensor, BT::false_val())
     }
 
-    fn bool_into_float<const D: usize>(tensor: BoolTensor<Self, D>) -> FloatTensor<Self, D> {
-        kernel::bool_cast(tensor)
+    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
+        kernel::bool_cast::<R, BT, F>(tensor)
     }
 
-    fn bool_swap_dims<const D: usize>(
-        mut tensor: BoolTensor<Self, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> BoolTensor<Self, D> {
+    fn bool_swap_dims(mut tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         tensor.strides.swap(dim1, dim2);
         tensor.shape.dims.swap(dim1, dim2);
 
         tensor
     }
 
-    fn bool_repeat_dim<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        dim: usize,
-        times: usize,
-    ) -> BoolTensor<Self, D> {
-        kernel::repeat_dim(tensor, dim, times)
+    fn bool_repeat_dim(tensor: BoolTensor<Self>, dim: usize, times: usize) -> BoolTensor<Self> {
+        kernel::repeat_dim::<R, BT>(tensor, dim, times)
     }
 
-    fn bool_permute<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        axes: [usize; D],
-    ) -> BoolTensor<Self, D> {
+    fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
         permute(tensor, axes)
     }
 
-    fn bool_expand<const D1: usize, const D2: usize>(
-        tensor: BoolTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> BoolTensor<Self, D2> {
+    fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
         expand(tensor, shape)
     }
 
-    fn bool_flip<const D: usize>(
-        tensor: BoolTensor<Self, D>,
-        axes: &[usize],
-    ) -> BoolTensor<Self, D> {
-        kernel::flip(tensor, axes)
+    fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
+        kernel::flip::<R, BT, BT>(tensor, axes)
     }
 }

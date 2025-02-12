@@ -1,4 +1,6 @@
-use crate::{backend::Backend, Float, Int, Shape, Tensor, TensorData, TensorPrimitive};
+use crate::{
+    backend::Backend, cartesian_grid, Float, Int, Shape, Tensor, TensorData, TensorPrimitive,
+};
 
 use core::ops::Range;
 
@@ -50,7 +52,7 @@ where
     }
 
     /// Returns a new tensor with the same shape and device as the current tensor and the data
-    /// casted to Float.
+    /// cast to Float.
     ///
     /// # Example
     ///
@@ -91,10 +93,65 @@ where
     ///        println!("{}", result);
     ///    }
     /// ```
-    pub fn cartesian_grid<S: Into<Shape<D>>, const D2: usize>(
+    pub fn cartesian_grid<S: Into<Shape>, const D2: usize>(
         shape: S,
         device: &B::Device,
     ) -> Tensor<B, D2, Int> {
-        Tensor::new(B::int_cartesian_grid::<S, D, D2>(shape, device))
+        cartesian_grid::<B, S, D, D2>(shape, device)
+    }
+
+    /// Applies the bitwise logical and operation with each bit representing the integer.
+    pub fn bitwise_and(self, other: Self) -> Self {
+        Self::new(B::bitwise_and(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise logical or operation with another tensor.
+    pub fn bitwise_or(self, other: Self) -> Self {
+        Self::new(B::bitwise_or(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise logical xor operation with another tensor.
+    pub fn bitwise_xor(self, other: Self) -> Self {
+        Self::new(B::bitwise_xor(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise logical not operation.
+    pub fn bitwise_not(self) -> Self {
+        Self::new(B::bitwise_not(self.primitive))
+    }
+
+    /// Applies the bitwise logical and operation with each bit in the scalar and the integers in the tensor.
+    pub fn bitwise_and_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_and_scalar(self.primitive, other))
+    }
+
+    /// Applies the bitwise logical or operation with each bit in the scalar and the integers in the tensor.
+    pub fn bitwise_or_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_or_scalar(self.primitive, other))
+    }
+
+    /// Applies bitwise logical xor operation with each bit in the scalar and the integers in the tensor.
+    pub fn bitwise_xor_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_xor_scalar(self.primitive, other))
+    }
+
+    /// Applies the bitwise left shift operation with the integers in the tensor.
+    pub fn bitwise_left_shift(self, other: Self) -> Self {
+        Self::new(B::bitwise_left_shift(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise right shift operation with the integers in the tensor.
+    pub fn bitwise_right_shift(self, other: Self) -> Self {
+        Self::new(B::bitwise_right_shift(self.primitive, other.primitive))
+    }
+
+    /// Applies the bitwise left shift operation with the integers in the tensor.
+    pub fn bitwise_left_shift_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_left_shift_scalar(self.primitive, other))
+    }
+
+    /// Applies the bitwise right shift operation with the integers in the tensor.
+    pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
+        Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
     }
 }

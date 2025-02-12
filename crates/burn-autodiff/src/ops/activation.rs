@@ -16,13 +16,13 @@ use burn_tensor::{
 };
 
 impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodiff<B, C> {
-    fn gelu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn gelu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
-        struct Gelu<const D: usize>;
+        struct Gelu;
 
         retro_unary!(RetroGelu, B::gelu);
 
-        impl<const D: usize, B: Backend> Backward<B, D, 1> for Gelu<D> {
+        impl<B: Backend> Backward<B, 1> for Gelu {
             type State = NodeID;
 
             fn backward(
@@ -33,16 +33,16 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
 
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::gelu_backward(input, grad)
                 });
             }
         }
 
-        match Gelu::<D>
+        match Gelu
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroGelu::<B, D>::new(tensor.node.id))
+            .retro_forward(RetroGelu::<B>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -54,13 +54,13 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
     }
 
-    fn relu<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn relu(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Relu;
 
         retro_unary!(RetroRelu, B::relu);
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Relu {
+        impl<B: Backend> Backward<B, 1> for Relu {
             type State = NodeID;
 
             fn backward(
@@ -70,7 +70,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
                 checkpointer: &mut Checkpointer,
             ) {
                 let state = checkpointer.retrieve_node_output(ops.state);
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::relu_backward(state, grad)
                 });
             }
@@ -79,7 +79,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         match Relu
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroRelu::<B, D>::new(tensor.node.id))
+            .retro_forward(RetroRelu::<B>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -91,13 +91,13 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
     }
 
-    fn sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn sigmoid(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct Sigmoid;
 
         retro_unary!(RetroSigmoid, B::sigmoid);
 
-        impl<B: Backend, const D: usize> Backward<B, D, 1> for Sigmoid {
+        impl<B: Backend> Backward<B, 1> for Sigmoid {
             type State = NodeID;
 
             fn backward(
@@ -108,7 +108,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
                 let output = B::sigmoid(input);
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::sigmoid_backward(output, grad)
                 });
             }
@@ -117,7 +117,7 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         match Sigmoid
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroSigmoid::<B, D>::new(tensor.node.id))
+            .retro_forward(RetroSigmoid::<B>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {
@@ -129,13 +129,13 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
         }
     }
 
-    fn log_sigmoid<const D: usize>(tensor: FloatTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn log_sigmoid(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         #[derive(Debug)]
-        struct LogSigmoid<const D: usize>;
+        struct LogSigmoid;
 
         retro_unary!(RetroLogSigmoid, B::log_sigmoid);
 
-        impl<const D: usize, B: Backend> Backward<B, D, 1> for LogSigmoid<D> {
+        impl<B: Backend> Backward<B, 1> for LogSigmoid {
             type State = NodeID;
 
             fn backward(
@@ -146,16 +146,16 @@ impl<B: Backend, C: CheckpointStrategy> ActivationOps<Autodiff<B, C>> for Autodi
             ) {
                 let input = checkpointer.retrieve_node_output(ops.state);
 
-                unary::<B, D, D, _>(ops.parents, ops.node, grads, |grad| {
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::log_sigmoid_backward(input, grad)
                 });
             }
         }
 
-        match LogSigmoid::<D>
+        match LogSigmoid
             .prepare::<C>([tensor.node.clone()])
             .memory_bound()
-            .retro_forward(RetroLogSigmoid::<B, D>::new(tensor.node.id))
+            .retro_forward(RetroLogSigmoid::<B>::new(tensor.node.id))
             .parents([&tensor])
             .stateful()
         {

@@ -31,7 +31,7 @@ impl RotaryEncodingConfig {
     /// Panics if the size of input embedding dimension is not even.
     /// Panics if the theta parameter is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RotaryEncoding<B> {
-        self.initialize(None, device)
+        self.initialize(|x| x, device)
     }
 
     /// Initialize a new [RotaryEncoding](RotaryEncoding) module with a custom frequency scaling function.
@@ -43,10 +43,10 @@ impl RotaryEncodingConfig {
     /// Panics if the theta parameter is not positive.
     pub fn init_with_frequency_scaling<B: Backend>(
         &self,
-        scaling: fn(Tensor<B, 1>) -> Tensor<B, 1>,
+        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
         device: &B::Device,
     ) -> RotaryEncoding<B> {
-        self.initialize(Some(scaling), device)
+        self.initialize(scaling, device)
     }
 
     /// Initialize a new [RotaryEncoding](RotaryEncoding) module.
@@ -57,7 +57,7 @@ impl RotaryEncodingConfig {
     /// Panics if the theta parameter is not positive.
     fn initialize<B: Backend>(
         &self,
-        scaling: Option<fn(Tensor<B, 1>) -> Tensor<B, 1>>,
+        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
         device: &B::Device,
     ) -> RotaryEncoding<B> {
         assert_eq!(
@@ -79,11 +79,9 @@ impl RotaryEncodingConfig {
         // Calculate (10000 ^ (2i / d_model)) by using the log base property `exp(log(10000) * (2i / d_model))`
         // This is done since burn doesn't support exponentiation of scalar to tensor
         let theta_i = exponent.mul_scalar(self.theta.ln()).exp();
-        let mut theta_i = theta_i.powf_scalar(-1.0);
+        let theta_i = theta_i.powf_scalar(-1.0);
 
-        if let Some(scaling) = scaling {
-            theta_i = scaling(theta_i)
-        }
+        let theta_i = scaling(theta_i);
 
         // Generate frequency values for positional embeddings
         let frequencies: Tensor<B, 2> =
@@ -142,7 +140,7 @@ impl<B: Backend> ModuleDisplay for RotaryEncoding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [_, _, d_model] = self.freq_complex.shape().dims;
+        let [_, _, d_model] = self.freq_complex.shape().dims();
         content
             .add("d_model", &d_model)
             .add("max_sequence_length", &self.max_sequence_length)
@@ -263,7 +261,7 @@ mod tests {
         let rotary_encoding = RotaryEncodingConfig::new(10, 4).init::<TestBackend>(&device);
 
         // Use a tensor of exact zeros as input. The output rotary embedding should be zeros as well
-        let input = Tensor::zeros([1, 2, 2, 4], &device);
+        let input = Tensor::<TestBackend, 4>::zeros([1, 2, 2, 4], &device);
 
         let output = rotary_encoding.forward(input);
         let expected_output = Tensor::<TestBackend, 3>::from_floats(
@@ -294,7 +292,7 @@ mod tests {
         let d_model = 15;
         let device = Default::default();
         let pe = RotaryEncodingConfig::new(10, d_model).init::<TestBackend>(&device);
-        let input = Tensor::zeros([1, 5, d_model], &device);
+        let input = Tensor::<TestBackend, 3>::zeros([1, 5, d_model], &device);
         let _output = pe.forward(input);
     }
 

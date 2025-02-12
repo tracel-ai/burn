@@ -1,4 +1,4 @@
-use burn_tensor::repr::HandleContainer;
+use burn_ir::HandleContainer;
 
 use crate::{
     stream::{

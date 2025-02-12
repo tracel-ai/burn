@@ -111,7 +111,7 @@ mod tests {
             !output
                 .clone()
                 .to_data()
-                .as_slice::<f32>()
+                .as_slice::<FloatType>()
                 .unwrap()
                 .iter()
                 .any(|&x| x.is_nan()),
@@ -139,7 +139,7 @@ mod tests {
             let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
             let x = TestTensor::from(
                 TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
-                    .reshape(shape_x)
+                    .reshape::<4, _>(shape_x)
                     .into_data(),
             );
             let output = interpolate(
@@ -148,7 +148,7 @@ mod tests {
                 InterpolateOptions::new(InterpolateMode::Bicubic),
             );
 
-            y.to_data().assert_approx_eq(&output.into_data(), 3);
+            y.to_data().assert_approx_eq_diff(&output.into_data(), 0.3);
         }
     }
 }

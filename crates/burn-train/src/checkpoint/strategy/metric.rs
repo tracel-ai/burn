@@ -76,9 +76,9 @@ mod tests {
         },
         TestBackend,
     };
-    use std::rc::Rc;
 
     use super::*;
+    use std::sync::Arc;
 
     #[test]
     fn always_keep_the_best_epoch() {
@@ -93,7 +93,7 @@ mod tests {
         store.register_logger_train(InMemoryMetricLogger::default());
         // Register the loss metric.
         metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
-        let store = Rc::new(EventStoreClient::new(store));
+        let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());
 
         // Two points for the first epoch. Mean 0.75
@@ -114,7 +114,7 @@ mod tests {
         process_train(&mut processor, 0.3, epoch);
         end_epoch(&mut processor, epoch);
 
-        // Should save the current record and delete the pervious one.
+        // Should save the current record and delete the previous one.
         assert_eq!(
             vec![CheckpointingAction::Delete(1), CheckpointingAction::Save],
             strategy.checkpointing(epoch, &store)

@@ -1,63 +1,30 @@
+use std::collections::BTreeSet;
+
 use super::{execution::Operation, OperationConverter, RelativeOps};
 use crate::FusionRuntime;
-use burn_tensor::repr::OperationDescription;
+use burn_ir::{OperationIr, TensorId};
 
-/// A growing list of [tensor operation descriptions](OperationDescription).
+pub use burn_common::id::StreamId;
+
+/// A growing list of [tensor operation descriptions](OperationIr).
 pub struct OperationQueue<R: FusionRuntime> {
     /// List of operation descriptions. These contain the exact tensor IDs
     /// and shapes so that kernels can be run correctly.
     ///
     /// The length of this list is the same as the length of the `operations` list.
-    pub(crate) global: Vec<OperationDescription>,
+    pub(crate) global: Vec<OperationIr>,
     /// List of operation descriptions. The tensor IDs and shapes are relative
     /// because we don't need to know the exact values, but they are sufficient to
     /// determine which operations can be fused.
-    pub(crate) relative: Vec<OperationDescription>,
+    pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
     pub(crate) operations: Vec<Box<dyn Operation<R>>>,
+    pub(crate) ids: BTreeSet<TensorId>,
 }
 
 impl<R: FusionRuntime> Default for OperationQueue<R> {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// The stream id.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub struct StreamId {
-    #[cfg(feature = "std")]
-    value: std::thread::ThreadId,
-    #[cfg(not(feature = "std"))]
-    value: (),
-}
-
-impl StreamId {
-    /// Get the current stream id.
-    pub fn current() -> Self {
-        Self {
-            #[cfg(feature = "std")]
-            value: Self::id(),
-            #[cfg(not(feature = "std"))]
-            value: (),
-        }
-    }
-
-    #[cfg(feature = "std")]
-    fn id() -> std::thread::ThreadId {
-        std::thread_local! {
-            static ID: std::cell::OnceCell::<std::thread::ThreadId> = const { std::cell::OnceCell::new() };
-        };
-
-        // Getting the current thread is expensive, so we cache the value into a thread local
-        // variable, which is very fast.
-        ID.with(|cell| *cell.get_or_init(|| std::thread::current().id()))
-    }
-}
-
-impl core::fmt::Display for StreamId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("StreamID({:?})", self.value))
     }
 }
 
@@ -69,15 +36,19 @@ impl<R: FusionRuntime> OperationQueue<R> {
             relative: Vec::new(),
             converter: OperationConverter::default(),
             operations: Vec::new(),
+            ids: BTreeSet::new(),
         }
     }
 
     /// Add a new tensor operation to the queue.
     ///
-    /// The new [operation description](OperationDescription) will be converted to a local
+    /// The new [operation intermediate representation](OperationIr) will be converted to a local
     /// representation that can be reused when the same pattern emerge in different but similar
     /// scenario, so that the same optimization can be used.
-    pub fn add(&mut self, global: OperationDescription, operation: Box<dyn Operation<R>>) {
+    pub fn add(&mut self, global: OperationIr, operation: Box<dyn Operation<R>>) {
+        for node in global.nodes() {
+            self.ids.insert(node.id);
+        }
         let relative = global.to_relative(&mut self.converter);
         self.relative.push(relative);
         self.global.push(global);

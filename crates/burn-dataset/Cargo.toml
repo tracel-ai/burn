@@ -8,21 +8,17 @@ license.workspace = true
 name = "burn-dataset"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dataset"
+documentation = "https://docs.rs/burn-dataset"
 version.workspace = true
 
 [features]
 default = ["sqlite-bundled"]
 doc = ["default"]
-
 audio = ["hound"]
-
 fake = ["dep:fake"]
-
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
-
 vision = ["dep:flate2", "dep:globwalk", "dep:burn-common", "dep:image"]
-
 # internal
 __sqlite-shared = [
     "dep:r2d2",
@@ -31,11 +27,10 @@ __sqlite-shared = [
     "dep:image",
     "dep:gix-tempfile",
 ]
-
 dataframe = ["dep:polars"]
 
 [dependencies]
-burn-common = { path = "../burn-common", version = "0.15.0", optional = true, features = [
+burn-common = { path = "../burn-common", version = "0.17.0", optional = true, features = [
     "network",
 ] }
 csv = { workspace = true }
@@ -72,3 +67,4 @@ normal = ["strum", "strum_macros"]
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

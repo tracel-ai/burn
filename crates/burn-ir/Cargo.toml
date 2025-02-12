@@ -1,0 +1,30 @@
+[package]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>", "nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Intermediate representation for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor"]
+license.workspace = true
+name = "burn-ir"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-ir"
+documentation = "https://docs.rs/burn-ir"
+version.workspace = true
+
+[features]
+default = ["std"]
+std = ["burn-tensor/std"]
+doc = ["default"]
+
+[dependencies]
+serde = { workspace = true }
+hashbrown = { workspace = true } # no_std compatible
+
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

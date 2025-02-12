@@ -27,10 +27,12 @@ use crate::{
             conv1d::Conv1dNode,
             conv2d::Conv2dNode,
             conv3d::Conv3dNode,
+            conv_transpose_1d::ConvTranspose1dNode,
             conv_transpose_2d::ConvTranspose2dNode,
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
             expand::{ExpandNode, ExpandShape},
+            floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -40,10 +42,13 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
+            random_normal_like::RandomNormalLikeNode,
             random_uniform::RandomUniformNode,
+            random_uniform_like::RandomUniformLikeNode,
             range::RangeNode,
             reshape::ReshapeNode,
             resize::ResizeNode,
@@ -52,6 +57,7 @@ use crate::{
             sum::SumNode,
             tile::TileNode,
             top_k::TopKNode,
+            trilu::TriluNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
         },
@@ -63,13 +69,13 @@ use crate::{
 
 use super::op_configuration::{
     argmax_config, avg_pool1d_config, avg_pool2d_config, batch_norm_config, clip_config,
-    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose2d_config,
-    conv_transpose3d_config, dropout_config, expand_config, flatten_config, gather_config,
-    hard_sigmoid_config, layer_norm_config, leaky_relu_config, linear_config, log_softmax_config,
-    max_pool1d_config, max_pool2d_config, pad_config, reduce_max_config, reduce_mean_config,
-    reduce_min_config, reduce_prod_config, reduce_sum_config, reshape_config, resize_config,
-    shape_config, slice_config, softmax_config, squeeze_config, tile_config, top_k_config,
-    transpose_config, unsqueeze_config,
+    concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
+    conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
+    flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
+    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+    reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
+    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -264,6 +270,7 @@ impl ParsedOnnxGraph {
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
+                NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -279,6 +286,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
                 NodeType::Less => graph.register(Self::less_conversion(node)),
@@ -325,6 +333,9 @@ impl ParsedOnnxGraph {
                 NodeType::GlobalAveragePool => {
                     graph.register(Self::global_avg_pool_conversion(node))
                 }
+                NodeType::ConvTranspose1d => {
+                    graph.register(Self::conv_transpose1d_conversion::<PS>(node))
+                }
                 NodeType::ConvTranspose2d => {
                     graph.register(Self::conv_transpose2d_conversion::<PS>(node))
                 }
@@ -338,9 +349,16 @@ impl ParsedOnnxGraph {
                 NodeType::Sign => graph.register(Self::sign_conversion(node)),
                 NodeType::Squeeze => graph.register(Self::squeeze_conversion(node)),
                 NodeType::RandomUniform => graph.register(Self::random_uniform_conversion(node)),
+                NodeType::RandomUniformLike => {
+                    graph.register(Self::random_uniform_like_conversion(node))
+                }
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
                 NodeType::TopK => graph.register(Self::top_k_conversion(node)),
+                NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
+                NodeType::RandomNormalLike => {
+                    graph.register(Self::random_normal_like_conversion(node))
+                }
                 NodeType::ConstantOfShape => {
                     graph.register(Self::constant_of_shape_conversion(node))
                 }
@@ -447,6 +465,27 @@ impl ParsedOnnxGraph {
         RandomUniformNode::new(output_type, low, high)
     }
 
+    fn random_uniform_like_conversion(node: Node) -> RandomUniformLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let low = node
+            .attrs
+            .get("low")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64); // default is 0.0
+        let high = node
+            .attrs
+            .get("high")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64); // default is 1.0
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomUniformLikeNode::new(low, high, input, output)
+    }
+
     fn random_normal_conversion(node: Node) -> RandomNormalNode {
         let output = node.outputs.first().unwrap();
         let output_type = TensorType::from(output);
@@ -467,6 +506,27 @@ impl ParsedOnnxGraph {
         }
 
         RandomNormalNode::new(output_type, mean, scale)
+    }
+
+    fn random_normal_like_conversion(node: Node) -> RandomNormalLikeNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let mean = node
+            .attrs
+            .get("mean")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(0.0f64);
+        let scale = node
+            .attrs
+            .get("scale")
+            .map(|val| val.clone().into_f32() as f64)
+            .unwrap_or(1.0f64);
+
+        if node.attrs.contains_key("seed") {
+            warn!("seed attribute is not supported!");
+        }
+
+        RandomNormalLikeNode::new(mean, scale, input, output)
     }
 
     pub(crate) fn constant_of_shape_conversion(node: Node) -> ConstantOfShapeNode {
@@ -1005,6 +1065,23 @@ impl ParsedOnnxGraph {
 
         PReluNode::new(name, input, output, weight, config)
     }
+
+    fn conv_transpose1d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose1dNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = conv_transpose1d_config(&node);
+
+        let bias = node.inputs.len() == 3;
+        let weight = extract_data_serialize::<PS::FloatElem>(1, &node).unwrap();
+        let bias = match bias {
+            true => extract_data_serialize::<PS::FloatElem>(2, &node),
+            false => None,
+        };
+
+        let name = &node.name;
+        ConvTranspose1dNode::new(name, input, output, weight, bias, config)
+    }
+
     fn conv_transpose2d_conversion<PS: PrecisionSettings>(node: Node) -> ConvTranspose2dNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -1197,6 +1274,29 @@ impl ParsedOnnxGraph {
         let config = top_k_config(&node);
 
         TopKNode::new(input, outputs, config)
+    }
+
+    fn trilu_conversion(node: Node) -> TriluNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let config = trilu_config(&node);
+        TriluNode::new(input, output, config)
+    }
+
+    fn one_hot_conversion(node: Node) -> OneHotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let values_type = TensorType::from(node.inputs.get(2).unwrap());
+
+        let (num_classes, values, axis) = one_hot_config(&node);
+        OneHotNode::new(input, output, num_classes, values, values_type, axis)
+    }
+
+    fn floor_conversion(node: Node) -> FloorNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        FloorNode::new(input, output)
     }
 }
 

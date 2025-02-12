@@ -72,9 +72,9 @@ pub(crate) enum ActionType {
 }
 
 impl CheckpointerBuilder {
-    pub(crate) fn checkpoint<B: Backend, const D: usize>(
+    pub(crate) fn checkpoint<B: Backend>(
         &mut self,
-        tensor: &AutodiffTensor<B, D>,
+        tensor: &AutodiffTensor<B>,
         action_type: ActionType,
     ) {
         let action_list = match action_type {

@@ -8,11 +8,14 @@ use core::convert::Into;
 
 use crate::model::{label::LABELS, normalizer::Normalizer, squeezenet::Model as SqueezenetModel};
 
-use burn::{backend::NdArray, prelude::*, tensor::activation::softmax};
+use burn::{
+    backend::{wgpu::init_setup_async, NdArray},
+    prelude::*,
+    tensor::activation::softmax,
+};
 
+use burn::backend::wgpu::{graphics::AutoGraphicsApi, WebGpu, WgpuDevice};
 use burn_candle::Candle;
-use burn_wgpu::{Wgpu, WgpuDevice};
-use cubecl::wgpu::{init_async, AutoGraphicsApi};
 
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -34,8 +37,8 @@ pub enum ModelType {
     /// The model is loaded to the NdArray backend
     WithNdArrayBackend(Model<NdArray<f32>>),
 
-    /// The model is loaded to the Wgpu backend
-    WithWgpuBackend(Model<Wgpu<f32, i32>>),
+    /// The model is loaded to the WebGpu backend
+    WithWgpuBackend(Model<WebGpu<f32, i32>>),
 }
 
 /// The image is 224x224 pixels with 3 channels (RGB)
@@ -107,7 +110,7 @@ impl ImageClassifier {
         log::info!("Loading the model to the Wgpu backend");
         let start = Instant::now();
         let device = WgpuDevice::default();
-        init_async::<AutoGraphicsApi>(&device, Default::default()).await;
+        init_setup_async::<AutoGraphicsApi>(&device, Default::default()).await;
         self.model = ModelType::WithWgpuBackend(Model::new(&device));
         let duration = start.elapsed();
         log::debug!("Model is loaded to the Wgpu backend in {:?}", duration);

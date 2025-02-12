@@ -40,21 +40,21 @@ mod tests {
             .clone()
             .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_1_slice_1.to_data(), 3);
+            .assert_approx_eq(&grad_1_slice_1.to_data(), 5);
         grad_1
             .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_1_slice_2.to_data(), 3);
+            .assert_approx_eq(&grad_1_slice_2.to_data(), 5);
 
         grad_2
             .clone()
             .slice([0..1])
             .to_data()
-            .assert_approx_eq(&grad_2_slice_1.to_data(), 3);
+            .assert_approx_eq(&grad_2_slice_1.to_data(), 5);
         grad_2
             .slice([1..2])
             .to_data()
-            .assert_approx_eq(&grad_2_slice_2.to_data(), 3);
+            .assert_approx_eq(&grad_2_slice_2.to_data(), 5);
     }
 
     #[test]

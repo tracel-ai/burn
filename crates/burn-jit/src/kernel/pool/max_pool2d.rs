@@ -1,139 +1,99 @@
-use cubecl::{
-    cpa,
-    ir::{Elem, Item, Scope, Variable},
-    CubeCountSettings, Execution,
+use super::pool2d::{
+    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
 };
-use std::{fmt::Debug, marker::PhantomData};
-
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
-use burn_tensor::{cast::ToElement, ops::conv::calculate_pool_output_size, Shape};
+use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 
-use super::{Pool2dEagerKernel, PoolStrategy};
+struct MaxPoolStrategy;
+struct MaxPoolWithIndicesStrategy;
 
-#[derive(Default, Debug, Clone, PartialEq)]
-struct MaxPool<E: JitElement> {
-    _elem: PhantomData<E>,
+impl Pool2dDirectStrategyFamily for MaxPoolStrategy {
+    type Indices = ();
+    type Config = ();
+    type Pool2d<N: Numeric> = Self;
 }
 
-impl<E: JitElement> core::cmp::Eq for MaxPool<E> {}
-
-impl<E: JitElement> core::hash::Hash for MaxPool<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self._elem.hash(state);
-    }
+impl Pool2dDirectStrategyFamily for MaxPoolWithIndicesStrategy {
+    type Indices = Tensor<i32>;
+    type Config = ();
+    type Pool2d<N: Numeric> = Self;
 }
 
-impl<E: JitElement> PoolStrategy for MaxPool<E> {
-    type Accumulator = Variable;
+#[cube]
+impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
+    type Accumulator = N;
+    type Config = ();
+    type Indices = ();
 
-    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
-        let max_val = scope.create_local(item);
-        let max_initial = item
-            .elem()
-            .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
-        cpa!(scope, max_val = max_initial);
-        max_val
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        N::min_value()
     }
 
-    fn process_result(
-        &self,
-        scope: &mut Scope,
-        accumulator: Self::Accumulator,
-        result: Variable,
-        _idx: Variable,
-    ) -> Self::Accumulator {
-        let is_max = scope.create_local(Elem::Bool);
-        cpa!(scope, is_max = result > accumulator);
-        cpa!(scope, if(is_max).then(|scope|{
-            cpa!(scope, accumulator = result);
-        }));
-        accumulator
+    fn accumulate(
+        #[comptime] _config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        _index: u32,
+        result: N,
+    ) {
+        if result > *accumulator {
+            *accumulator = result;
+        }
     }
 
-    fn assign(
-        &self,
-        scope: &mut Scope,
-        id: Variable,
-        output: Variable,
-        _indices: Option<Variable>,
+    fn store(
+        #[comptime] _config: &Self::Config,
+        position: u32,
+        output: &mut Tensor<N>,
+        _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
-        cpa!(scope, output[id] = accumulator);
-    }
-
-    fn with_indices() -> bool {
-        false
+        output[position] = accumulator;
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
-struct MaxPoolWithIndices<E: JitElement> {
-    _elem: PhantomData<E>,
-}
+#[cube]
+impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
+    type Accumulator = (N, i32);
+    type Config = ();
+    type Indices = Tensor<i32>;
 
-impl<E: JitElement> core::cmp::Eq for MaxPoolWithIndices<E> {}
-
-impl<E: JitElement> core::hash::Hash for MaxPoolWithIndices<E> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self._elem.hash(state);
-    }
-}
-
-impl<E: JitElement> PoolStrategy for MaxPoolWithIndices<E> {
-    type Accumulator = (Variable, Variable);
-
-    fn initialize(&self, scope: &mut Scope, item: Item) -> Self::Accumulator {
-        let max_val = scope.create_local(item);
-        let max_initial = item
-            .elem()
-            .constant_from_f64(ToElement::to_f64(&E::minimum_value()));
-        cpa!(scope, max_val = max_initial);
-        let max_index = scope.create_local(Elem::UInt);
-        (max_val, max_index)
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        (N::min_value(), 0i32)
     }
 
-    fn process_result(
-        &self,
-        scope: &mut Scope,
-        (max_val, max_index): Self::Accumulator,
-        result: Variable,
-        idx: Variable,
-    ) -> Self::Accumulator {
-        let is_max = scope.create_local(Elem::Bool);
-        cpa!(scope, is_max = result > max_val);
-        cpa!(scope, if(is_max).then(|scope|{
-            cpa!(scope, max_val = result);
-            cpa!(scope, max_index = idx);
-        }));
-        (max_val, max_index)
-    }
-
-    fn assign(
-        &self,
-        scope: &mut Scope,
-        id: Variable,
-        output: Variable,
-        indices: Option<Variable>,
-        (max_val, max_index): Self::Accumulator,
+    fn accumulate(
+        #[comptime] _config: &Self::Config,
+        accumulator: &mut Self::Accumulator,
+        index: u32,
+        result: N,
     ) {
-        let indices = indices.unwrap();
-        cpa!(scope, output[id] = max_val);
-        cpa!(scope, indices[id] = max_index);
+        if result > accumulator.0 {
+            accumulator.0 = result;
+            accumulator.1 = i32::cast_from(index);
+        }
     }
 
-    fn with_indices() -> bool {
-        true
+    fn store(
+        #[comptime] _config: &Self::Config,
+        position: u32,
+        output: &mut Tensor<N>,
+        output_indices: &mut Tensor<i32>,
+        accumulator: Self::Accumulator,
+    ) {
+        output[position] = accumulator.0;
+        output_indices[position] = accumulator.1;
     }
 }
 
 pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R, E, 4> {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> JitTensor<R> {
+    let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
@@ -151,34 +111,41 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::<MaxPool<E>, R, E>::new(kernel_size, MaxPool::default());
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 
-    Execution::start(kernel, x.client.clone())
-        .inputs(&[x.as_handle_ref()])
-        .outputs(&[output.as_handle_ref()])
-        .with_scalars(&[
-            stride[0] as u32,
-            stride[1] as u32,
-            dilation[0] as u32,
-            dilation[1] as u32,
-            padding[0] as u32,
-            padding[1] as u32,
-        ])
-        .execute(CubeCountSettings::Output { pos: 0 });
+    pool2d_direct::launch::<E, MaxPoolStrategy, R>(
+        &x.client,
+        cube_count,
+        cube_dim,
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
+        (),
+        Pool2dDirectArgsLaunch::new(
+            ScalarArg::new(stride[0] as u32),
+            ScalarArg::new(stride[1] as u32),
+            ScalarArg::new(dilation[0] as u32),
+            ScalarArg::new(dilation[1] as u32),
+            ScalarArg::new(padding[0] as u32),
+            ScalarArg::new(padding[1] as u32),
+        ),
+        (kernel_size[0] as u32, kernel_size[1] as u32),
+        (),
+    );
 
     output
 }
 
 pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElement>(
-    x: JitTensor<R, E, 4>,
+    x: JitTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (JitTensor<R, E, 4>, JitTensor<R, I, 4>) {
-    let [batch_size, channels, _, _] = x.shape.dims;
+) -> (JitTensor<R>, JitTensor<R>) {
+    let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
@@ -196,26 +163,29 @@ pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElemen
     );
 
     let shape_out = Shape::new([batch_size, channels, size_0, size_1]);
-    let output = empty_device(x.client.clone(), x.device.clone(), shape_out.clone());
-    let indices = empty_device(x.client.clone(), x.device.clone(), shape_out);
+    let output = empty_device::<R, E>(x.client.clone(), x.device.clone(), shape_out.clone());
+    let indices = empty_device::<R, I>(x.client.clone(), x.device.clone(), shape_out);
 
-    let kernel = Pool2dEagerKernel::<MaxPoolWithIndices<E>, R, E>::new(
-        kernel_size,
-        MaxPoolWithIndices::default(),
+    let cube_dim = CubeDim::default();
+    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+
+    pool2d_direct::launch::<E, MaxPoolWithIndicesStrategy, R>(
+        &x.client,
+        cube_count,
+        cube_dim,
+        x.as_tensor_arg::<E>(1),
+        output.as_tensor_arg::<E>(1),
+        indices.as_tensor_arg::<I>(1),
+        Pool2dDirectArgsLaunch::new(
+            ScalarArg::new(stride[0] as u32),
+            ScalarArg::new(stride[1] as u32),
+            ScalarArg::new(dilation[0] as u32),
+            ScalarArg::new(dilation[1] as u32),
+            ScalarArg::new(padding[0] as u32),
+            ScalarArg::new(padding[1] as u32),
+        ),
+        (kernel_size[0] as u32, kernel_size[1] as u32),
+        (),
     );
-
-    Execution::start(kernel, x.client.clone())
-        .inputs(&[x.as_handle_ref()])
-        .outputs(&[output.as_handle_ref(), indices.as_handle_ref()])
-        .with_scalars(&[
-            stride[0] as i32,
-            stride[1] as i32,
-            dilation[0] as i32,
-            dilation[1] as i32,
-            padding[0] as i32,
-            padding[1] as i32,
-        ])
-        .execute(CubeCountSettings::Output { pos: 0 });
-
     (output, indices)
 }

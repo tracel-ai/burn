@@ -1,12 +1,13 @@
 use crate::shared::field::{parse_fields, FieldTypeAnalyzer};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_quote, Generics};
+use syn::{parse_quote, Generics, Visibility};
 
 use super::codegen::RecordItemCodegen;
 
 pub(crate) struct StructRecordItemCodegen {
     fields: Vec<FieldTypeAnalyzer>,
+    vis: Visibility,
 }
 
 impl RecordItemCodegen for StructRecordItemCodegen {
@@ -16,6 +17,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
                 .into_iter()
                 .map(FieldTypeAnalyzer::new)
                 .collect(),
+            vis: ast.vis.clone(),
         }
     }
 
@@ -27,6 +29,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
     ) -> TokenStream {
         let mut fields = quote! {};
         let mut bounds = quote! {};
+        let vis = &self.vis;
 
         for field in self.fields.iter() {
             let ty = &field.field.ty;
@@ -60,7 +63,7 @@ impl RecordItemCodegen for StructRecordItemCodegen {
             #[derive(burn::serde::Serialize, burn::serde::Deserialize)]
             #[serde(crate = "burn::serde")]
             #[serde(bound = #bound)]
-            pub struct #item_name #generics #generics_where {
+            #vis struct #item_name #generics #generics_where {
                 #fields
             }
         }

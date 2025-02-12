@@ -362,27 +362,27 @@ mod tests {
         // the order of the fields is not guaranteed for HashMaps.
         assert_eq!(serialized_str.len(), 135);
     }
+
     #[test]
     fn test_param_serde() {
         type Backend = burn_ndarray::NdArray<f32>;
 
         let device = Default::default();
-
         let tensor: Tensor<Backend, 2> = Tensor::ones([2, 2], &device);
-
         let param = Param::initialized(ParamId::new(), tensor);
-
         let param_item = param.into_item::<FullPrecisionSettings>();
 
         let serialized = param_item
             .serialize(Serializer::new())
             .expect("Should serialize item successfully");
 
-        let serialized_str = format!("{:?}", serialized);
-
-        // Compare the lengths of expected and actual serialized strings because
-        // the order of the fields is not guaranteed for HashMaps.
-        // 1.0f32 is represented with 4 bytes [0, 0, 128, 63]
-        assert_eq!(serialized_str.len(), 140);
+        let bytes = serialized.as_map().expect("is a map")["param"]
+            .clone()
+            .as_map()
+            .expect("param is a map")["bytes"]
+            .clone()
+            .as_bytes()
+            .expect("has bytes vec");
+        assert_eq!(&*bytes, [1.0f32; 4].map(|f| f.to_le_bytes()).as_flattened());
     }
 }

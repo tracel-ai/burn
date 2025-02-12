@@ -1,6 +1,7 @@
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use burn_tensor::ElementConversion;
 use burn_tensor::TensorData;
+use burn_tensor::TensorMetadata;
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -9,6 +10,10 @@ use ndarray::IntoDimension;
 use ndarray::SliceInfo;
 use ndarray::Zip;
 use num_traits::Signed;
+
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use burn_tensor::Shape;
 use ndarray::Axis;
@@ -30,24 +35,27 @@ pub(crate) struct NdArrayMathOps<E> {
 
 impl<E> NdArrayOps<E>
 where
-    E: Copy + Debug,
+    E: Copy + Debug + burn_tensor::Element,
 {
-    pub fn slice<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> NdArrayTensor<E, D1> {
-        let slices = Self::to_slice_args::<D1, D2>(ranges);
+    pub fn into_data(tensor: NdArrayTensor<E>) -> TensorData {
+        let shape = tensor.shape();
+        let values = tensor.array.into_iter().collect();
+        TensorData::new(values, shape)
+    }
+
+    pub fn slice(tensor: NdArrayTensor<E>, ranges: &[Range<usize>]) -> NdArrayTensor<E> {
+        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
         let array = tensor.array.slice_move(slices.as_slice()).into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn slice_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
-        ranges: [Range<usize>; D2],
-        value: NdArrayTensor<E, D1>,
-    ) -> NdArrayTensor<E, D1> {
-        let slices = Self::to_slice_args::<D1, D2>(ranges);
+    pub fn slice_assign(
+        tensor: NdArrayTensor<E>,
+        ranges: &[Range<usize>],
+        value: NdArrayTensor<E>,
+    ) -> NdArrayTensor<E> {
+        let slices = Self::to_slice_args(ranges, tensor.shape().num_dims());
         let mut array = tensor.array.into_owned();
         array.slice_mut(slices.as_slice()).assign(&value.array);
         let array = array.into_shared();
@@ -55,25 +63,20 @@ where
         NdArrayTensor { array }
     }
 
-    pub fn reshape<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
-        shape: Shape<D2>,
-    ) -> NdArrayTensor<E, D2> {
+    pub fn reshape(tensor: NdArrayTensor<E>, shape: Shape) -> NdArrayTensor<E> {
         reshape!(
             ty E,
             shape shape,
             array tensor.array,
-            d D2
+            d shape.num_dims()
         )
     }
 
-    pub fn cat<const D: usize>(
-        tensors: Vec<NdArrayTensor<E, D>>,
+    pub(crate) fn concatenate(
+        arrays: &[ndarray::ArrayView<E, IxDyn>],
         dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        let arrays: Vec<ndarray::ArrayView<E, IxDyn>> =
-            tensors.iter().map(|t| t.array.view()).collect();
-        let array = ndarray::concatenate(Axis(dim), &arrays)
+    ) -> NdArrayTensor<E> {
+        let array = ndarray::concatenate(Axis(dim), arrays)
             .unwrap()
             .into_shared();
 
@@ -82,12 +85,15 @@ where
         Self::reshape(array.clone(), array.shape())
     }
 
-    fn to_slice_args<const D1: usize, const D2: usize>(
-        ranges: [Range<usize>; D2],
-    ) -> [SliceInfoElem; D1] {
-        let mut slices = [SliceInfoElem::NewAxis; D1];
-        for i in 0..D1 {
-            if i >= D2 {
+    pub fn cat(tensors: Vec<NdArrayTensor<E>>, dim: usize) -> NdArrayTensor<E> {
+        let arrays: Vec<_> = tensors.iter().map(|t| t.array.view()).collect();
+        Self::concatenate(&arrays, dim)
+    }
+
+    fn to_slice_args(ranges: &[Range<usize>], ndims: usize) -> Vec<SliceInfoElem> {
+        let mut slices = vec![SliceInfoElem::NewAxis; ndims];
+        for i in 0..ndims {
+            if i >= ranges.len() {
                 slices[i] = SliceInfoElem::Slice {
                     start: 0,
                     end: None,
@@ -104,31 +110,21 @@ where
         slices
     }
 
-    pub fn swap_dims<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim1: usize,
-        dim2: usize,
-    ) -> NdArrayTensor<E, D> {
+    pub fn swap_dims(tensor: NdArrayTensor<E>, dim1: usize, dim2: usize) -> NdArrayTensor<E> {
         let mut array = tensor.array;
         array.swap_axes(dim1, dim2);
 
         NdArrayTensor::new(array)
     }
 
-    pub fn permute<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        axes: [usize; D],
-    ) -> NdArrayTensor<E, D> {
+    pub fn permute(tensor: NdArrayTensor<E>, axes: &[usize]) -> NdArrayTensor<E> {
         let array = tensor.array.permuted_axes(axes.into_dimension());
 
         NdArrayTensor::new(array)
     }
 
     /// Broadcasts the tensor to the given shape
-    pub(crate) fn expand<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
-        shape: Shape<D2>,
-    ) -> NdArrayTensor<E, D2> {
+    pub(crate) fn expand(tensor: NdArrayTensor<E>, shape: Shape) -> NdArrayTensor<E> {
         let array = tensor
             .array
             .broadcast(shape.dims.into_dimension())
@@ -140,11 +136,8 @@ where
         NdArrayTensor { array }
     }
 
-    pub fn flip<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        axes: &[usize],
-    ) -> NdArrayTensor<E, D> {
-        let slice_items: Vec<_> = (0..D)
+    pub fn flip(tensor: NdArrayTensor<E>, axes: &[usize]) -> NdArrayTensor<E> {
+        let slice_items: Vec<_> = (0..tensor.shape().num_dims())
             .map(|i| {
                 if axes.contains(&i) {
                     SliceInfoElem::Slice {
@@ -173,75 +166,71 @@ impl<E> NdArrayMathOps<E>
 where
     E: Copy + NdArrayElement,
 {
-    pub fn add<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
+    pub fn add(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = &lhs.array + &rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn add_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    pub fn add_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         let array = lhs.array + rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn sub<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
+    pub fn sub(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = lhs.array - rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn sub_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    pub fn sub_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         let array = lhs.array - rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn mul<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
+    pub fn mul(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = lhs.array * rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn mul_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    pub fn mul_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         let array = lhs.array * rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn div<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
+    pub fn div(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = lhs.array / rhs.array;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn div_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D> {
+    pub fn div_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
         let array = lhs.array / rhs;
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn remainder_scalar<const D: usize>(lhs: NdArrayTensor<E, D>, rhs: E) -> NdArrayTensor<E, D>
+    pub fn remainder(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let array = lhs.array.clone()
+            - (lhs.array / rhs.array.clone()).mapv_into(|a| (a.to_f64()).floor().elem())
+                * rhs.array;
+        let array = array.into_shared();
+        NdArrayTensor { array }
+    }
+
+    pub fn remainder_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E>
     where
         E: core::ops::Rem<Output = E>,
     {
@@ -251,81 +240,65 @@ where
         NdArrayTensor { array }
     }
 
-    pub fn recip<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D> {
+    pub fn recip(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let array = tensor.array.map(|x| 1.elem::<E>() / *x);
         let array = array.into_shared();
 
         NdArrayTensor { array }
     }
 
-    pub fn mean<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    pub fn mean(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let data = TensorData::from([tensor.array.mean().unwrap()]);
         NdArrayTensor::from_data(data)
     }
 
-    pub fn sum<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    pub fn sum(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let data = TensorData::from([tensor.array.sum()]);
         NdArrayTensor::from_data(data)
     }
 
-    pub fn prod<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, 1> {
+    pub fn prod(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
         let data = TensorData::from([tensor.array.product()]);
         NdArrayTensor::from_data(data)
     }
 
-    pub fn mean_dim<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        match D {
-            1 => keepdim!(0, dim, tensor, mean),
-            2 => keepdim!(1, dim, tensor, mean),
-            3 => keepdim!(2, dim, tensor, mean),
-            4 => keepdim!(3, dim, tensor, mean),
-            5 => keepdim!(4, dim, tensor, mean),
-            6 => keepdim!(5, dim, tensor, mean),
-            _ => panic!("Dim not supported {D}"),
+    pub fn mean_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        let ndims = tensor.shape().num_dims();
+        match ndims {
+            d if (1..=6).contains(&d) => keepdim!(dim, tensor, mean),
+            _ => panic!("Dim not supported {ndims}"),
         }
     }
 
-    pub fn sum_dim<const D: usize>(tensor: NdArrayTensor<E, D>, dim: usize) -> NdArrayTensor<E, D> {
-        match D {
-            1 => keepdim!(0, dim, tensor, sum),
-            2 => keepdim!(1, dim, tensor, sum),
-            3 => keepdim!(2, dim, tensor, sum),
-            4 => keepdim!(3, dim, tensor, sum),
-            5 => keepdim!(4, dim, tensor, sum),
-            6 => keepdim!(5, dim, tensor, sum),
-            _ => panic!("Dim not supported {D}"),
+    pub fn sum_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        let ndims = tensor.shape().num_dims();
+        match ndims {
+            d if (1..=6).contains(&d) => keepdim!(dim, tensor, sum),
+            _ => panic!("Dim not supported {ndims}"),
         }
     }
 
-    pub fn prod_dim<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<E, D> {
-        match D {
-            1 => keepdim!(0, dim, tensor, prod),
-            2 => keepdim!(1, dim, tensor, prod),
-            3 => keepdim!(2, dim, tensor, prod),
-            4 => keepdim!(3, dim, tensor, prod),
-            5 => keepdim!(4, dim, tensor, prod),
-            6 => keepdim!(5, dim, tensor, prod),
-            _ => panic!("Dim not supported {D}"),
+    pub fn prod_dim(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<E> {
+        let ndims = tensor.shape().num_dims();
+        match ndims {
+            d if (1..=6).contains(&d) => keepdim!(dim, tensor, prod),
+            _ => panic!("Dim not supported {ndims}"),
         }
     }
 
-    pub fn gather<const D: usize>(
+    pub fn gather<I: NdArrayElement>(
         dim: usize,
-        mut tensor: NdArrayTensor<E, D>,
-        mut indices: NdArrayTensor<i64, D>,
-    ) -> NdArrayTensor<E, D> {
-        if dim != D - 1 {
-            tensor.array.swap_axes(D - 1, dim);
-            indices.array.swap_axes(D - 1, dim);
+        mut tensor: NdArrayTensor<E>,
+        mut indices: NdArrayTensor<I>,
+    ) -> NdArrayTensor<E> {
+        let ndims = tensor.shape().num_dims();
+        if dim != ndims - 1 {
+            tensor.array.swap_axes(ndims - 1, dim);
+            indices.array.swap_axes(ndims - 1, dim);
         }
         let (shape_tensor, shape_indices) = (tensor.shape(), indices.shape());
-        let (size_tensor, size_index) = (shape_tensor.dims[D - 1], shape_indices.dims[D - 1]);
+        let (size_tensor, size_index) =
+            (shape_tensor.dims[ndims - 1], shape_indices.dims[ndims - 1]);
         let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
         let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index])).array;
@@ -336,40 +309,41 @@ where
             let indices = indices.slice(s!(b, ..));
 
             for (i, index) in indices.iter().enumerate() {
-                output[[b, i]] = tensor[[b, *index as usize]];
+                output[[b, i]] = tensor[[b, index.elem::<i64>() as usize]];
             }
         }
 
         let mut output = NdArrayOps::reshape(
-            NdArrayTensor::<E, 2>::new(output.into_shared().into_dyn()),
+            NdArrayTensor::<E>::new(output.into_shared().into_dyn()),
             shape_indices,
         );
 
-        if dim != D - 1 {
-            output.array.swap_axes(D - 1, dim);
+        if dim != ndims - 1 {
+            output.array.swap_axes(ndims - 1, dim);
         }
 
         output
     }
 
-    pub fn scatter<const D: usize>(
+    pub fn scatter<I: NdArrayElement>(
         dim: usize,
-        mut tensor: NdArrayTensor<E, D>,
-        mut indices: NdArrayTensor<i64, D>,
-        mut value: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
-        if dim != D - 1 {
-            tensor.array.swap_axes(D - 1, dim);
-            indices.array.swap_axes(D - 1, dim);
-            value.array.swap_axes(D - 1, dim);
+        mut tensor: NdArrayTensor<E>,
+        mut indices: NdArrayTensor<I>,
+        mut value: NdArrayTensor<E>,
+    ) -> NdArrayTensor<E> {
+        let ndims = tensor.shape().num_dims();
+        if dim != ndims - 1 {
+            tensor.array.swap_axes(ndims - 1, dim);
+            indices.array.swap_axes(ndims - 1, dim);
+            value.array.swap_axes(ndims - 1, dim);
         }
 
         let (shape_tensor, shape_indices, shape_value) =
             (tensor.shape(), indices.shape(), value.shape());
         let (size_tensor, size_index, size_value) = (
-            shape_tensor.dims[D - 1],
-            shape_indices.dims[D - 1],
-            shape_value.dims[D - 1],
+            shape_tensor.dims[ndims - 1],
+            shape_indices.dims[ndims - 1],
+            shape_value.dims[ndims - 1],
         );
         let batch_size = Self::gather_batch_size(&shape_tensor, &shape_indices);
 
@@ -389,26 +363,26 @@ where
             let indices = indices.slice(s!(b, ..));
 
             for (i, index) in indices.iter().enumerate() {
-                let index = *index as usize;
+                let index = index.elem::<i64>() as usize;
                 tensor[[b, index]] += value[[b, i]];
             }
         }
 
         let mut output = NdArrayOps::reshape(
-            NdArrayTensor::<E, 2>::new(tensor.into_shared().into_dyn()),
+            NdArrayTensor::<E>::new(tensor.into_shared().into_dyn()),
             shape_tensor,
         );
-        if dim != D - 1 {
-            output.array.swap_axes(D - 1, dim);
+        if dim != ndims - 1 {
+            output.array.swap_axes(ndims - 1, dim);
         }
         output
     }
 
-    pub fn mask_where<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        mask: NdArrayTensor<bool, D>,
-        source: NdArrayTensor<E, D>,
-    ) -> NdArrayTensor<E, D> {
+    pub fn mask_where(
+        tensor: NdArrayTensor<E>,
+        mask: NdArrayTensor<bool>,
+        source: NdArrayTensor<E>,
+    ) -> NdArrayTensor<E> {
         let tensor = tensor.array.broadcast(mask.array.dim()).unwrap();
         let source = source.array.broadcast(mask.array.dim()).unwrap();
         let output = Zip::from(&tensor)
@@ -419,11 +393,11 @@ where
         NdArrayTensor::new(output)
     }
 
-    pub fn mask_fill<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        mask: NdArrayTensor<bool, D>,
+    pub fn mask_fill(
+        tensor: NdArrayTensor<E>,
+        mask: NdArrayTensor<bool>,
         value: E,
-    ) -> NdArrayTensor<E, D> {
+    ) -> NdArrayTensor<E> {
         let mut output = tensor.array.clone();
         let broadcast_mask = mask.array.broadcast(output.dim()).unwrap();
         Zip::from(&mut output)
@@ -436,13 +410,11 @@ where
         NdArrayTensor::new(output.into_shared())
     }
 
-    fn gather_batch_size<const D: usize>(
-        shape_tensor: &Shape<D>,
-        shape_indices: &Shape<D>,
-    ) -> usize {
+    fn gather_batch_size(shape_tensor: &Shape, shape_indices: &Shape) -> usize {
+        let ndims = shape_tensor.num_dims();
         let mut batch_size = 1;
 
-        for i in 0..D - 1 {
+        for i in 0..ndims - 1 {
             if shape_tensor.dims[i] != shape_indices.dims[i] {
                 panic!(
                     "Unsupported dimension, only the last dimension can differ: Tensor {:?} Index \
@@ -456,33 +428,33 @@ where
         batch_size
     }
 
-    pub fn select<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
+    pub fn select<I: NdArrayElement>(
+        tensor: NdArrayTensor<E>,
         dim: usize,
-        indices: NdArrayTensor<i64, 1>,
-    ) -> NdArrayTensor<E, D> {
+        indices: NdArrayTensor<I>,
+    ) -> NdArrayTensor<E> {
         let array = tensor.array.select(
             Axis(dim),
             &indices
                 .array
                 .into_iter()
-                .map(|i| i as usize)
+                .map(|i| i.elem::<i64>() as usize)
                 .collect::<Vec<_>>(),
         );
 
         NdArrayTensor::new(array.into_shared())
     }
 
-    pub fn select_assign<const D1: usize, const D2: usize>(
-        tensor: NdArrayTensor<E, D1>,
+    pub fn select_assign<I: NdArrayElement>(
+        tensor: NdArrayTensor<E>,
         dim: usize,
-        indices: NdArrayTensor<i64, 1>,
-        value: NdArrayTensor<E, D2>,
-    ) -> NdArrayTensor<E, D1> {
+        indices: NdArrayTensor<I>,
+        value: NdArrayTensor<E>,
+    ) -> NdArrayTensor<E> {
         let mut output_array = tensor.array.into_owned();
 
         for (index_value, index) in indices.array.into_iter().enumerate() {
-            let mut view = output_array.index_axis_mut(Axis(dim), index as usize);
+            let mut view = output_array.index_axis_mut(Axis(dim), index.elem::<i64>() as usize);
             let value = value.array.index_axis(Axis(dim), index_value);
 
             view.zip_mut_with(&value, |a, b| *a += *b);
@@ -490,24 +462,15 @@ where
 
         NdArrayTensor::new(output_array.into_shared())
     }
-    pub fn argmax<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<i64, D> {
+    pub fn argmax<I: NdArrayElement>(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<I> {
         arg(tensor, dim, CmpType::Max)
     }
 
-    pub fn argmin<const D: usize>(
-        tensor: NdArrayTensor<E, D>,
-        dim: usize,
-    ) -> NdArrayTensor<i64, D> {
+    pub fn argmin<I: NdArrayElement>(tensor: NdArrayTensor<E>, dim: usize) -> NdArrayTensor<I> {
         arg(tensor, dim, CmpType::Min)
     }
 
-    pub fn clamp_min<const D: usize>(
-        mut tensor: NdArrayTensor<E, D>,
-        min: E,
-    ) -> NdArrayTensor<E, D> {
+    pub fn clamp_min(mut tensor: NdArrayTensor<E>, min: E) -> NdArrayTensor<E> {
         tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => x,
@@ -516,10 +479,7 @@ where
         tensor
     }
 
-    pub fn clamp_max<const D: usize>(
-        mut tensor: NdArrayTensor<E, D>,
-        max: E,
-    ) -> NdArrayTensor<E, D> {
+    pub fn clamp_max(mut tensor: NdArrayTensor<E>, max: E) -> NdArrayTensor<E> {
         tensor.array.mapv_inplace(|x| match x > max {
             true => max,
             false => x,
@@ -528,11 +488,7 @@ where
         tensor
     }
 
-    pub fn clamp<const D: usize>(
-        mut tensor: NdArrayTensor<E, D>,
-        min: E,
-        max: E,
-    ) -> NdArrayTensor<E, D> {
+    pub fn clamp(mut tensor: NdArrayTensor<E>, min: E, max: E) -> NdArrayTensor<E> {
         tensor.array.mapv_inplace(|x| match x < min {
             true => min,
             false => match x > max {
@@ -544,27 +500,28 @@ where
         tensor
     }
 
-    pub(crate) fn elementwise_op<const D: usize, OtherE>(
-        lhs: NdArrayTensor<E, D>,
-        rhs: NdArrayTensor<OtherE, D>,
+    pub(crate) fn elementwise_op<OtherE>(
+        lhs: NdArrayTensor<E>,
+        rhs: NdArrayTensor<OtherE>,
         var_name: impl FnMut(&E, &OtherE) -> E,
-    ) -> NdArrayTensor<E, D> {
-        NdArrayTensor::new(
-            Zip::from(lhs.array.view())
-                .and(rhs.array.view())
-                .map_collect(var_name)
-                .into_shared(),
-        )
+    ) -> NdArrayTensor<E> {
+        let lhs = lhs
+            .array
+            .broadcast(rhs.array.dim())
+            .unwrap_or(lhs.array.view());
+        let rhs = rhs.array.broadcast(lhs.dim()).unwrap_or(rhs.array.view());
+
+        NdArrayTensor::new(Zip::from(lhs).and(rhs).map_collect(var_name).into_shared())
     }
 
-    pub(crate) fn elementwise_op_scalar<const D: usize>(
-        lhs: NdArrayTensor<E, D>,
+    pub(crate) fn elementwise_op_scalar(
+        lhs: NdArrayTensor<E>,
         var_name: impl FnMut(E) -> E,
-    ) -> NdArrayTensor<E, D> {
+    ) -> NdArrayTensor<E> {
         NdArrayTensor::new(lhs.array.mapv(var_name).into_shared())
     }
 
-    pub(crate) fn sign_op<const D: usize>(tensor: NdArrayTensor<E, D>) -> NdArrayTensor<E, D>
+    pub(crate) fn sign_op(tensor: NdArrayTensor<E>) -> NdArrayTensor<E>
     where
         E: Signed,
     {
@@ -592,11 +549,11 @@ enum CmpType {
     Max,
 }
 
-fn arg<E: NdArrayElement, const D: usize>(
-    tensor: NdArrayTensor<E, D>,
+fn arg<E: NdArrayElement, I: NdArrayElement>(
+    tensor: NdArrayTensor<E>,
     dim: usize,
     cmp: CmpType,
-) -> NdArrayTensor<i64, D> {
+) -> NdArrayTensor<I> {
     let mut reshape = tensor.array.shape().to_vec();
     reshape[dim] = 1;
 
@@ -615,7 +572,7 @@ fn arg<E: NdArrayElement, const D: usize>(
             }
         });
 
-        idx as i64
+        (idx as i64).elem()
     });
 
     let output = output.to_shape(Dim(reshape.as_slice())).unwrap();
@@ -633,7 +590,7 @@ mod tests {
     fn should_generate_row_major_layout_for_cat() {
         let expected_shape: &[usize] = &[4, 6, 2];
         let expected_strides: &[isize] = &[12, 2, 1];
-        let expected_array: NdArrayTensor<i32, 3> = NdArrayTensor::from_data(TensorData::from([
+        let expected_array: NdArrayTensor<i32> = NdArrayTensor::from_data(TensorData::from([
             [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0]],
             [[7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0]],
             [[13, 0], [14, 0], [15, 0], [16, 0], [17, 0], [18, 0]],
@@ -642,7 +599,7 @@ mod tests {
 
         // unsqueeze dim on the outermost axis
         let array = NdArrayOps::reshape(
-            NdArrayTensor::<i32, 3>::from_data(TensorData::from([
+            NdArrayTensor::<i32>::from_data(TensorData::from([
                 [1, 2, 3, 4, 5, 6],
                 [7, 8, 9, 10, 11, 12],
                 [13, 14, 15, 16, 17, 18],
@@ -650,7 +607,7 @@ mod tests {
             ])),
             Shape::from([4, 6, 1]),
         );
-        let zeros = NdArrayTensor::<i32, 3>::from_data(TensorData::zeros::<i32, _>([4, 6, 1]));
+        let zeros = NdArrayTensor::<i32>::from_data(TensorData::zeros::<i32, _>([4, 6, 1]));
         // make `ndarray` concatenates array on the outermost axis
         let array = NdArrayOps::cat([array, zeros].to_vec(), 2);
 

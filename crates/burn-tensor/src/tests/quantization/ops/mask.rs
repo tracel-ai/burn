@@ -1,30 +1,16 @@
 #[burn_tensor_testgen::testgen(q_mask)]
 mod tests {
     use super::*;
-    use burn_tensor::quantization::{QuantizationStrategy, SymmetricQuantization};
-    use burn_tensor::{Bool, Int, Tensor, TensorData};
+    use burn_tensor::TensorData;
 
     #[test]
     fn should_support_mask_where_ops() {
-        let device = Default::default();
-        // Quantized [[1.0, 7.0], [2.0, 3.0]]
-        let data = TensorData::quantized(
-            vec![18i8, 127, 36, 54],
-            [2, 2],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05511811)),
-        );
-        let tensor = TestTensor::<2>::from_data(data, &device);
-        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+        let tensor = QTensor::<TestBackend, 2>::int8([[1.0, 7.0], [2.0, 3.0]]);
+        let mask = TestTensorBool::<2>::from_bool(
             TensorData::from([[true, false], [false, true]]),
-            &device,
+            &Default::default(),
         );
-        // Quantized [[1.0, 7.0], [2.0, 3.0]]
-        let data = TensorData::quantized(
-            vec![48i8, 74, 101, 127],
-            [2, 2],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.037795275)),
-        );
-        let value = TestTensor::<2>::from_data(data, &device);
+        let value = QTensor::<TestBackend, 2>::int8([[1.8, 2.8], [3.8, 4.8]]);
 
         let output = tensor.mask_where(mask, value);
         let expected = TensorData::from([[1.8, 7.0], [2.0, 4.8]]);
@@ -38,17 +24,10 @@ mod tests {
 
     #[test]
     fn should_support_mask_fill_ops() {
-        let device = Default::default();
-        // Quantized [[1.0, 7.0], [2.0, 3.0]]
-        let data = TensorData::quantized(
-            vec![18i8, 127, 36, 54],
-            [2, 2],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(0.05511811)),
-        );
-        let tensor = TestTensor::<2>::from_data(data, &device);
-        let mask = Tensor::<TestBackend, 2, Bool>::from_bool(
+        let tensor = QTensor::<TestBackend, 2>::int8([[1.0, 7.0], [2.0, 3.0]]);
+        let mask = TestTensorBool::<2>::from_bool(
             TensorData::from([[true, false], [false, true]]),
-            &device,
+            &Default::default(),
         );
 
         let output = tensor.mask_fill(mask, 2.0);

@@ -8,37 +8,44 @@ license.workspace = true
 name = "burn-train"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-train"
+documentation = "https://docs.rs/burn-train"
 version.workspace = true
 
 [features]
-default = ["metrics", "tui"]
+default = ["sys-metrics", "tui"]
 doc = ["default"]
-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
-tui = ["ratatui", "crossterm"]
+sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
+tui = ["ratatui"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "0.15.0", features = ["dataset", "std"], default-features = false }
+burn-core = { path = "../burn-core", version = "0.17.0", features = [
+    "dataset",
+    "std",
+], default-features = false }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-appender = { workspace = true }
 tracing-core = { workspace = true }
 
-# Metrics
+# System Metrics
 nvml-wrapper = { workspace = true, optional = true }
 sysinfo = { workspace = true, optional = true }
 systemstat = { workspace = true, optional = true }
 
 # Text UI
-ratatui = { workspace = true, optional = true, features = ["all-widgets"] }
-crossterm = { workspace = true, optional = true }
+ratatui = { workspace = true, optional = true, features = ["all-widgets", "crossterm"] }
 
 # Utilities
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
+async-channel = { workspace = true }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
+rstest.workspace = true
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "0.15.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

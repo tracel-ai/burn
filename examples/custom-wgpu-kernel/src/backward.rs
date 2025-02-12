@@ -9,12 +9,15 @@ use burn::{
             ops::{broadcast_shape, Backward, Ops, OpsKind},
             Autodiff, NodeID,
         },
-        wgpu::{FloatElement, IntElement, JitBackend, WgpuRuntime},
+        wgpu::{BoolElement, FloatElement, IntElement, JitBackend, WgpuRuntime},
     },
-    tensor::Shape,
+    tensor::{Shape, TensorMetadata},
 };
 
-impl<F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<JitBackend<WgpuRuntime, F, I>> {}
+impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
+    for Autodiff<JitBackend<WgpuRuntime, F, I, BT>>
+{
+}
 
 // Implement our custom backend trait for any backend that also implements our custom backend trait.
 //
@@ -22,24 +25,24 @@ impl<F: FloatElement, I: IntElement> AutodiffBackend for Autodiff<JitBackend<Wgp
 // also implements our own API. This would allow us to call any function only implemented for Wgpu
 // and potentially call a custom kernel crafted only for this task.
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
-    fn fused_matmul_add_relu<const D: usize>(
-        lhs: FloatTensor<Self, D>,
-        rhs: FloatTensor<Self, D>,
-        bias: FloatTensor<Self, D>,
-    ) -> FloatTensor<Self, D> {
+    fn fused_matmul_add_relu(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
         // Create our zero-sized type that will implement the Backward trait.
         #[derive(Debug)]
-        struct FusedMatmulAddReluBackward<const D: usize>;
+        struct FusedMatmulAddReluBackward;
 
-        // Implement the backward trait for the given backend B, the node gradient being of rank D
+        // Implement the backward trait for the given backend B, the node gradient
         // with three other gradients to calculate (lhs, rhs, and bias).
-        impl<B: Backend, const D: usize> Backward<B, D, 3> for FusedMatmulAddReluBackward<D> {
+        impl<B: Backend> Backward<B, 3> for FusedMatmulAddReluBackward {
             // Our state that we must build during the forward pass to compute the backward pass.
             //
             // Note that we could improve the performance further by only keeping the state of
             // tensors that are tracked, improving memory management, but for simplicity, we avoid
             // that part.
-            type State = (NodeID, NodeID, FloatTensor<B, D>, Shape<D>);
+            type State = (NodeID, NodeID, FloatTensor<B>, Shape);
 
             fn backward(
                 self,
@@ -50,16 +53,16 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // Get the nodes of each variable.
                 let [node_lhs, node_rhs, node_bias] = ops.parents;
                 // Fetch the gradient for the current node.
-                let grad = grads.consume::<B, D>(&ops.node);
+                let grad = grads.consume::<B>(&ops.node);
 
                 // Set our state.
                 let (lhs_state, rhs_state, output, shape_bias) = ops.state;
-                let lhs = checkpointer.retrieve_node_output(lhs_state);
-                let rhs = checkpointer.retrieve_node_output(rhs_state);
+                let lhs: FloatTensor<B> = checkpointer.retrieve_node_output(lhs_state);
+                let rhs: FloatTensor<B> = checkpointer.retrieve_node_output(rhs_state);
 
                 // Fetch shapes of our tensor to support broadcasting.
-                let shape_lhs = B::float_shape(&lhs);
-                let shape_rhs = B::float_shape(&rhs);
+                let shape_lhs = lhs.shape();
+                let shape_rhs = rhs.shape();
 
                 // Compute the gradient of the output using the already existing `relu_backward`
                 // function in the basic Burn backend trait.
@@ -67,30 +70,30 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
                 // Compute the lhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
-                let grad_lhs = broadcast_shape::<B, D>(
+                let grad_lhs = broadcast_shape::<B>(
                     B::float_matmul(grad_output.clone(), B::float_transpose(rhs)),
                     &shape_lhs,
                 );
                 // Compute the rhs gradient, which is the derivative of matmul with support for
                 // broadcasting.
-                let grad_rhs = broadcast_shape::<B, D>(
+                let grad_rhs = broadcast_shape::<B>(
                     B::float_matmul(B::float_transpose(lhs), grad_output.clone()),
                     &shape_rhs,
                 );
                 // The add derivative is only 1, so we just need to support broadcasting to
                 // compute the bias gradient.
-                let grad_bias = broadcast_shape::<B, D>(grad_output, &shape_bias);
+                let grad_bias = broadcast_shape::<B>(grad_output, &shape_bias);
 
                 // Register the gradient for each variable based on whether they are marked as
                 // `tracked`.
                 if let Some(node) = node_bias {
-                    grads.register::<B, D>(node.id, grad_bias);
+                    grads.register::<B>(node.id, grad_bias);
                 }
                 if let Some(node) = node_lhs {
-                    grads.register::<B, D>(node.id, grad_lhs);
+                    grads.register::<B>(node.id, grad_lhs);
                 }
                 if let Some(node) = node_rhs {
-                    grads.register::<B, D>(node.id, grad_rhs);
+                    grads.register::<B>(node.id, grad_rhs);
                 }
             }
         }
@@ -115,7 +118,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // during the backward pass. Here we choose to save it in the state because it's a compute bound operation.
                 let lhs_state = prep.checkpoint(&lhs);
                 let rhs_state = prep.checkpoint(&rhs);
-                let bias_shape = B::float_shape(&bias.primitive);
+                let bias_shape = bias.primitive.shape();
 
                 let output = B::fused_matmul_add_relu(
                     lhs.primitive.clone(),

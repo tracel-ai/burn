@@ -75,10 +75,12 @@ impl<B: Backend> Linear<B> {
             return Self::forward::<2>(self, input.unsqueeze()).flatten(0, 1);
         }
 
-        let output = input.matmul(self.weight.val().unsqueeze());
+        let weight = self.weight.val().unsqueeze();
+        let bias = self.bias.as_ref().map(|b| b.val().unsqueeze());
+        let output = input.matmul(weight);
 
-        match &self.bias {
-            Some(bias) => output + bias.val().unsqueeze(),
+        match bias {
+            Some(bias) => output + bias,
             None => output,
         }
     }
@@ -92,7 +94,7 @@ impl<B: Backend> ModuleDisplay for Linear<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, d_output] = self.weight.shape().dims;
+        let [d_input, d_output] = self.weight.shape().dims();
         content
             .add("d_input", &d_input)
             .add("d_output", &d_output)

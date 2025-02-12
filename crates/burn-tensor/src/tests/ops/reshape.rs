@@ -6,7 +6,7 @@ mod tests {
     #[test]
     fn should_support_reshape_1d() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
 
         let output = tensor.clone().reshape([1, 3]);
         let expected = TensorData::from([[0.0, 1.0, 2.0]]);
@@ -15,9 +15,104 @@ mod tests {
     }
 
     #[test]
+    fn should_support_reshape_maybe_fused_1() {
+        let tensor = TestTensorInt::arange(0..32, &Default::default());
+        let tensor0 = TestTensorInt::zeros([8, 4, 8], &Default::default());
+        let tensor1 = tensor.clone().reshape([1, 4, 8]);
+        let output = tensor0 + tensor1;
+
+        let expected = TensorData::from([
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+            [
+                [0, 1, 2, 3, 4, 5, 6, 7],
+                [8, 9, 10, 11, 12, 13, 14, 15],
+                [16, 17, 18, 19, 20, 21, 22, 23],
+                [24, 25, 26, 27, 28, 29, 30, 31],
+            ],
+        ]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_2() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let output = tensor2 + tensor1;
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_3() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 3], 5, &Default::default());
+
+        let expected_tensor1 = TensorData::from([[[0], [2]], [[1], [2]]]);
+        tensor1.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
+    fn should_support_reshape_maybe_fused_4() {
+        let tensor = TestTensorInt::<3>::from_data([[[0, 2], [1, 2]]], &Default::default());
+        let tensor2 = TestTensorInt::<3>::full([2, 2, 4], 4, &Default::default());
+        let tensor2 = tensor2.swap_dims(0, 1);
+        let tensor1 = tensor.reshape([2, 2, 1]);
+        let output = tensor2 + tensor1;
+
+        let expected_tensor1 =
+            TensorData::from([[[4, 4, 4, 4], [6, 6, 6, 6]], [[5, 5, 5, 5], [6, 6, 6, 6]]]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
-        let tensor = Tensor::<TestBackend, 1, Int>::from_data(data, &Default::default());
+        let tensor = TestTensorInt::<1>::from_data(data, &Default::default());
 
         let output = tensor.clone().reshape([1, 3]);
         let expected = TensorData::from([[0, 1, 2]]);
@@ -28,7 +123,7 @@ mod tests {
     #[test]
     fn should_support_reshape_bool() {
         let data = TensorData::from([false, true, false]);
-        let tensor = Tensor::<TestBackend, 1, Bool>::from_data(data, &Default::default());
+        let tensor = TestTensorBool::<1>::from_data(data, &Default::default());
 
         let output = tensor.clone().reshape([1, 3]);
         let expected = TensorData::from([[false, true, false]]);
@@ -39,7 +134,7 @@ mod tests {
     #[test]
     fn should_support_reshape_2d() {
         let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         let output = tensor.clone().reshape([6]);
         let expected = TensorData::from([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -55,7 +150,7 @@ mod tests {
             [6.0, 7.0, 8.0],
             [9.0, 10.0, 11.0],
         ]);
-        let tensor = Tensor::<TestBackend, 2>::from_data(data, &Default::default());
+        let tensor = TestTensor::<2>::from_data(data, &Default::default());
 
         // Infer the dimension via -1
         let reshaped = tensor.clone().reshape([2, -1]);
@@ -76,12 +171,12 @@ mod tests {
 
     #[test]
     fn should_not_corrupt_after_slice() {
-        let zeros = Tensor::<TestBackend, 1>::zeros([2], &Default::default());
+        let zeros = TestTensor::<1>::zeros([2], &Default::default());
         zeros.clone().slice([1..2]).reshape([1]).exp();
 
         // May lead to zeroes being equal to [0.0, 1.0]
         zeros.into_data().assert_eq(
-            &Tensor::<TestBackend, 1>::zeros([2], &Default::default()).to_data(),
+            &TestTensor::<1>::zeros([2], &Default::default()).to_data(),
             true,
         );
     }
@@ -90,7 +185,7 @@ mod tests {
     #[should_panic]
     fn multiple_neg_ones() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
         let data_actual = tensor.reshape([-1, -1]).into_data();
     }
 
@@ -98,7 +193,7 @@ mod tests {
     #[should_panic]
     fn neg_value() {
         let data = TensorData::from([0.0, 1.0, 2.0]);
-        let tensor = Tensor::<TestBackend, 1>::from_data(data, &Default::default());
+        let tensor = TestTensor::<1>::from_data(data, &Default::default());
         let data_actual = tensor.reshape([-2, -1]).into_data();
     }
 }

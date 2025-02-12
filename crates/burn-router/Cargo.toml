@@ -1,0 +1,41 @@
+[package]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>", "nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Multi-backend router decorator for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-router"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-router"
+documentation = "https://docs.rs/burn-router"
+version.workspace = true
+
+[features]
+default = ["std"]
+std = ["burn-tensor/std", "burn-common/std", "burn-ir/std"]
+doc = ["default"]
+
+[dependencies]
+burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
+burn-common = { path = "../burn-common", version = "0.17.0", default-features = false }
+hashbrown = { workspace = true }
+spin = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", default-features = false, features = [
+  "export_tests",
+] }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
+  "export_tests",
+] }
+
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
+burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", default-features = false }
+
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

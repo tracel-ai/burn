@@ -71,13 +71,12 @@ use colored::*;
 ///
 /// Closeness check complete.
 /// ```
-
 pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expected: &Tensor<B, D>) {
     println!("{}", "Tensor Closeness Check Results:".bold());
     println!("===============================");
 
     for epsilon in [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8].iter() {
-        println!("{} {:.e}", "Epsilon:".bold(), epsilon);
+        println!("{} {:e}", "Epsilon:".bold(), epsilon);
 
         let close = output
             .clone()

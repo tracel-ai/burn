@@ -29,7 +29,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     }
 
     if ABSOLUTE_POS >= num_elems {
-        return;
+        terminate!();
     }
 
     let strides_tensor_dim = tensor.stride(dim);
@@ -44,18 +44,19 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     }
 }
 
-pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement>(
+    tensor: JitTensor<R>,
     dim: usize,
-    indices: JitTensor<R, I, 1>,
-    value: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
+    indices: JitTensor<R>,
+    value: JitTensor<R>,
+) -> JitTensor<R> {
+    let ndims = tensor.shape.num_dims();
     let tensor = match tensor.can_mut() {
         true => tensor,
         false => tensor.copy(),
     };
 
-    let mut strides = [0; D];
+    let mut strides = vec![0; ndims];
     let mut current = 1;
     let mut num_elems = 1;
 
@@ -79,10 +80,10 @@ pub(crate) fn select_assign<R: JitRuntime, E: JitElement, I: JitElement, const D
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
             // Ignored shape + custom strides.
-            TensorArg::from_raw_parts(&indices.handle, &strides, &strides, 1),
-            value.as_tensor_arg(1),
+            TensorArg::from_raw_parts::<I>(&indices.handle, &strides, &strides, 1),
+            value.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         );
     };

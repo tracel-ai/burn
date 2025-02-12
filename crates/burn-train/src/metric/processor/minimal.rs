@@ -1,22 +1,23 @@
-use super::{Event, EventProcessor, Metrics};
+use super::{Event, EventProcessor, ItemLazy, Metrics};
 use crate::metric::store::EventStoreClient;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// An [event processor](EventProcessor) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 #[derive(new)]
-pub(crate) struct MinimalEventProcessor<T, V> {
+pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
     metrics: Metrics<T, V>,
-    store: Rc<EventStoreClient>,
+    store: Arc<EventStoreClient>,
 }
 
-impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
+impl<T: ItemLazy, V: ItemLazy> EventProcessor for MinimalEventProcessor<T, V> {
     type ItemTrain = T;
     type ItemValid = V;
 
     fn process_train(&mut self, event: Event<Self::ItemTrain>) {
         match event {
             Event::ProcessedItem(item) => {
+                let item = item.sync();
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_train(&item, &metadata);
@@ -35,6 +36,7 @@ impl<T, V> EventProcessor for MinimalEventProcessor<T, V> {
     fn process_valid(&mut self, event: Event<Self::ItemValid>) {
         match event {
             Event::ProcessedItem(item) => {
+                let item = item.sync();
                 let metadata = (&item).into();
 
                 let update = self.metrics.update_valid(&item, &metadata);

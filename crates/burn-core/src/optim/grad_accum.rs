@@ -54,10 +54,8 @@ struct ModuleGradsAccumulator<'a, M> {
     phantom: PhantomData<M>,
 }
 
-impl<'a, B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B>
-    for ModuleGradsAccumulator<'a, M>
-{
-    fn visit_float<const D: usize>(&mut self, id: &ParamId, _tensor: &Tensor<B, D>) {
+impl<B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B> for ModuleGradsAccumulator<'_, M> {
+    fn visit_float<const D: usize>(&mut self, id: ParamId, _tensor: &Tensor<B, D>) {
         let grad_updated = match self.grads_new.remove::<B::InnerBackend, D>(id) {
             Some(new) => match self.grads.remove::<B::InnerBackend, D>(id) {
                 Some(grad) => grad.add(new),
@@ -69,8 +67,7 @@ impl<'a, B: AutodiffBackend, M: AutodiffModule<B>> ModuleVisitor<B>
             },
         };
 
-        self.grads
-            .register::<B::InnerBackend, D>(id.clone(), grad_updated);
+        self.grads.register::<B::InnerBackend, D>(id, grad_updated);
     }
 }
 

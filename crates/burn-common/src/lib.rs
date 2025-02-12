@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! # Burn Common Library
 //!
@@ -9,6 +10,9 @@
 pub mod id;
 
 pub use cubecl_common::*;
+
+#[cfg(feature = "rayon")]
+pub use rayon;
 
 extern crate alloc;
 

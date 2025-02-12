@@ -16,12 +16,10 @@ pub trait CheckpointStrategy: Clone + Copy + Debug + Default + Send + Sync + 'st
     fn compute_property<R: RetroForward>(retro_forward: R) -> ComputingProperty;
 
     /// Checkpoints parents if necessary in the strategy
-    fn checkpoint_parents<'a, B2, const D2: usize, A>(
-        parents: A,
-        builder: &mut CheckpointerBuilder,
-    ) where
+    fn checkpoint_parents<'a, B2, A>(parents: A, builder: &mut CheckpointerBuilder)
+    where
         B2: Backend,
-        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>;
+        A: IntoIterator<Item = &'a AutodiffTensor<B2>>;
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -36,12 +34,10 @@ impl CheckpointStrategy for NoCheckpointing {
 
     /// An operation marked as memory bound is actually compute bound.
     /// It's therefore useless to checkpoint the parents
-    fn checkpoint_parents<'a, B2, const D2: usize, A>(
-        _parents: A,
-        _builder: &mut CheckpointerBuilder,
-    ) where
+    fn checkpoint_parents<'a, B2, A>(_parents: A, _builder: &mut CheckpointerBuilder)
+    where
         B2: Backend,
-        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
+        A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
         // Nothing to do here
     }
@@ -63,10 +59,10 @@ impl CheckpointStrategy for BalancedCheckpointing {
     /// An operation marked as memory bound is really memory bound.
     /// Since the operation may not checkpoint its parents but may need them indirectly
     /// if asked to recompute itself, the method needs to know the parent tensors to maybe checkpoint them
-    fn checkpoint_parents<'a, B2, const D2: usize, A>(parents: A, builder: &mut CheckpointerBuilder)
+    fn checkpoint_parents<'a, B2, A>(parents: A, builder: &mut CheckpointerBuilder)
     where
         B2: Backend,
-        A: IntoIterator<Item = &'a AutodiffTensor<B2, D2>>,
+        A: IntoIterator<Item = &'a AutodiffTensor<B2>>,
     {
         for tensor in parents.into_iter() {
             builder.checkpoint(tensor, ActionType::Backup);

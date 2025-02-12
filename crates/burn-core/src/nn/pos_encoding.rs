@@ -59,7 +59,7 @@ impl<B: Backend> ModuleDisplay for PositionalEncoding<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [_, _, d_model] = self.sinusoids.shape().dims;
+        let [_, _, d_model] = self.sinusoids.shape().dims();
         content
             .add("d_model", &d_model)
             .add("max_sequence_size", &self.max_sequence_size)

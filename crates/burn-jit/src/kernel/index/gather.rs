@@ -6,13 +6,13 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
 fn gather_kernel<T: Numeric, I: Numeric>(
-    input: &Tensor<T>,
-    indices: &Tensor<I>,
-    output: &mut Tensor<T>,
+    input: &Tensor<Line<T>>,
+    indices: &Tensor<Line<I>>,
+    output: &mut Tensor<Line<T>>,
     dim: &u32,
 ) {
     if ABSOLUTE_POS >= indices.len() {
-        return;
+        terminate!();
     }
 
     let index = indices[ABSOLUTE_POS];
@@ -32,14 +32,14 @@ fn gather_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset];
 }
 
-pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize>(
+pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement>(
     dim: usize,
-    tensor: JitTensor<R, E, D>,
-    indices: JitTensor<R, I, D>,
-) -> JitTensor<R, E, D> {
+    tensor: JitTensor<R>,
+    indices: JitTensor<R>,
+) -> JitTensor<R> {
     let shape_output = indices.shape.clone();
     let total_elem = shape_output.num_elements();
-    let output = empty_device(tensor.client.clone(), tensor.device.clone(), shape_output);
+    let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);
 
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
@@ -48,9 +48,9 @@ pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement, const D: usize
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            tensor.as_tensor_arg::<E>(1),
+            indices.as_tensor_arg::<I>(1),
+            output.as_tensor_arg::<E>(1),
             ScalarArg::new(dim as u32),
         )
     }

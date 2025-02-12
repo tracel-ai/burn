@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{backend::Backend, Element, Shape, TensorData, TensorMetadata};
+use candle_core::WithDType;
+use half::{bf16, f16};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -9,60 +11,52 @@ use crate::{
 
 use super::tensor;
 
-pub fn cat<E: CandleElement, const D: usize>(
-    tensors: Vec<CandleTensor<E, D>>,
-    dim: usize,
-) -> CandleTensor<E, D> {
+pub fn cat(tensors: Vec<CandleTensor>, dim: usize) -> CandleTensor {
     let tensors: Vec<candle_core::Tensor> = tensors.into_iter().map(|t| t.tensor).collect();
     CandleTensor::new(candle_core::Tensor::cat(&tensors, dim).unwrap())
 }
 
-pub fn from_data<E: CandleElement, const D: usize>(
-    data: TensorData,
-    device: &CandleDevice,
-) -> CandleTensor<E, D> {
-    CandleTensor::from_data(data, *device)
+pub fn from_data<E: CandleElement>(data: TensorData, device: &CandleDevice) -> CandleTensor {
+    CandleTensor::from_data::<E>(data, device.clone())
 }
-pub fn into_data<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> TensorData {
-    TensorData::new(
-        tensor.tensor.flatten_all().unwrap().to_vec1::<E>().unwrap(),
-        tensor.shape(),
+pub fn into_data(tensor: CandleTensor) -> TensorData {
+    fn tensor_data_from_dtype<T: WithDType + Element>(tensor: &CandleTensor) -> TensorData {
+        TensorData::new(
+            tensor.tensor.flatten_all().unwrap().to_vec1::<T>().unwrap(),
+            tensor.shape(),
+        )
+    }
+
+    match tensor.tensor.dtype() {
+        candle_core::DType::BF16 => tensor_data_from_dtype::<bf16>(&tensor),
+        candle_core::DType::F16 => tensor_data_from_dtype::<f16>(&tensor),
+        candle_core::DType::F32 => tensor_data_from_dtype::<f32>(&tensor),
+        candle_core::DType::F64 => tensor_data_from_dtype::<f64>(&tensor),
+        candle_core::DType::U8 => tensor_data_from_dtype::<u8>(&tensor),
+        candle_core::DType::U32 => tensor_data_from_dtype::<u32>(&tensor),
+        candle_core::DType::I64 => tensor_data_from_dtype::<i64>(&tensor),
+    }
+}
+
+pub fn to_device(tensor: CandleTensor, device: &CandleDevice) -> CandleTensor {
+    CandleTensor::new(tensor.tensor.to_device(&(device.clone()).into()).unwrap())
+}
+
+pub fn empty(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
+    CandleTensor::new(
+        candle_core::Tensor::zeros(shape.dims, dtype, &(device.clone()).into()).unwrap(),
     )
 }
 
-pub fn to_device<E: CandleElement, const D: usize>(
-    tensor: CandleTensor<E, D>,
-    device: &CandleDevice,
-) -> CandleTensor<E, D> {
-    CandleTensor::new(tensor.tensor.to_device(&(*device).into()).unwrap())
-}
-
-pub fn empty<E: CandleElement, const D: usize>(
-    shape: Shape<D>,
-    device: &CandleDevice,
-) -> CandleTensor<E, D> {
-    CandleTensor::new(candle_core::Tensor::zeros(&shape.dims, E::DTYPE, &(*device).into()).unwrap())
-}
-
-pub fn swap_dims<E: CandleElement, const D: usize>(
-    mut tensor: CandleTensor<E, D>,
-    dim1: usize,
-    dim2: usize,
-) -> CandleTensor<E, D> {
+pub fn swap_dims(mut tensor: CandleTensor, dim1: usize, dim2: usize) -> CandleTensor {
     CandleTensor::new(tensor.tensor.transpose(dim1, dim2).unwrap())
 }
 
-pub fn permute<E: CandleElement, const D: usize>(
-    tensor: CandleTensor<E, D>,
-    axes: [usize; D],
-) -> CandleTensor<E, D> {
+pub fn permute(tensor: CandleTensor, axes: &[usize]) -> CandleTensor {
     CandleTensor::new(tensor.tensor.permute(axes).unwrap())
 }
 
-pub fn flip<E: CandleElement, const D: usize>(
-    tensor: CandleTensor<E, D>,
-    axes: &[usize],
-) -> CandleTensor<E, D> {
+pub fn flip(tensor: CandleTensor, axes: &[usize]) -> CandleTensor {
     // FIXME: Replace with an appropriate method when Candle provides one.
     let mut tensor = tensor.tensor;
     for &axis in axes {
@@ -79,27 +73,21 @@ pub fn flip<E: CandleElement, const D: usize>(
     CandleTensor::new(tensor)
 }
 
-pub fn reshape<E: CandleElement, const D1: usize, const D2: usize>(
-    tensor: CandleTensor<E, D1>,
-    shape: Shape<D2>,
-) -> CandleTensor<E, D2> {
-    CandleTensor::new(tensor.tensor.reshape(&shape.dims).unwrap())
+pub fn reshape(tensor: CandleTensor, shape: Shape) -> CandleTensor {
+    CandleTensor::new(tensor.tensor.reshape(shape.dims).unwrap())
 }
 
-pub fn device<E: CandleElement, const D: usize>(tensor: &CandleTensor<E, D>) -> CandleDevice {
+pub fn device(tensor: &CandleTensor) -> CandleDevice {
     tensor.tensor.device().clone().into()
 }
 
-pub fn shape<E: CandleElement, const D: usize>(tensor: &CandleTensor<E, D>) -> Shape<D> {
+pub fn shape(tensor: &CandleTensor) -> Shape {
     tensor.shape()
 }
 
-pub fn slice<E: CandleElement, const D1: usize, const D2: usize>(
-    tensor: CandleTensor<E, D1>,
-    ranges: [std::ops::Range<usize>; D2],
-) -> CandleTensor<E, D1> {
+pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleTensor {
     let mut narrow_tensor = tensor.tensor;
-    for (i, range) in ranges.iter().enumerate().take(D2) {
+    for (i, range) in ranges.iter().enumerate().take(ranges.len()) {
         narrow_tensor = narrow_tensor
             .narrow(i, range.start, range.end - range.start)
             .unwrap()
@@ -107,20 +95,15 @@ pub fn slice<E: CandleElement, const D1: usize, const D2: usize>(
     CandleTensor::new(narrow_tensor)
 }
 
-pub fn slice_assign<E: CandleElement, const D1: usize, const D2: usize>(
-    tensor: CandleTensor<E, D1>,
-    ranges: [std::ops::Range<usize>; D2],
-    value: CandleTensor<E, D1>,
-) -> CandleTensor<E, D1> {
-    CandleTensor::new(tensor.tensor.slice_assign(&ranges, &value.tensor).unwrap())
+pub fn slice_assign(
+    tensor: CandleTensor,
+    ranges: &[std::ops::Range<usize>],
+    value: CandleTensor,
+) -> CandleTensor {
+    CandleTensor::new(tensor.tensor.slice_assign(ranges, &value.tensor).unwrap())
 }
 
-pub fn narrow<E: CandleElement, const D: usize>(
-    tensor: CandleTensor<E, D>,
-    dim: usize,
-    start: usize,
-    length: usize,
-) -> CandleTensor<E, D> {
+pub fn narrow(tensor: CandleTensor, dim: usize, start: usize, length: usize) -> CandleTensor {
     let tensor = tensor.tensor.narrow(dim, start, length);
     match tensor {
         Ok(tensor) => CandleTensor::new(tensor),
@@ -128,28 +111,37 @@ pub fn narrow<E: CandleElement, const D: usize>(
     }
 }
 
-pub fn chunk<E: CandleElement, const D: usize>(
-    tensor: CandleTensor<E, D>,
-    chunks: usize,
-    dim: usize,
-) -> Vec<CandleTensor<E, D>> {
+pub fn chunk(tensor: CandleTensor, chunks: usize, dim: usize) -> Vec<CandleTensor> {
     let tensors = tensor.tensor.chunk(chunks, dim);
     match tensors {
-        Ok(tensors) => tensors
-            .into_iter()
-            .map(|tensor| CandleTensor::new(tensor))
-            .collect(),
+        Ok(tensors) => tensors.into_iter().map(CandleTensor::new).collect(),
         Err(e) => panic!("error chunk from Candle"),
     }
 }
 
-pub fn expand<E: CandleElement, const D1: usize, const D2: usize>(
-    tensor: CandleTensor<E, D1>,
-    shape: Shape<D2>,
-) -> CandleTensor<E, D2> {
-    CandleTensor::new(tensor.tensor.broadcast_as(&shape.dims).unwrap())
+pub fn expand(tensor: CandleTensor, shape: Shape) -> CandleTensor {
+    CandleTensor::new(tensor.tensor.broadcast_as(shape.dims).unwrap())
 }
 
-pub fn sign<E: CandleElement, const D: usize>(tensor: CandleTensor<E, D>) -> CandleTensor<E, D> {
+pub fn sign(tensor: CandleTensor) -> CandleTensor {
     CandleTensor::new(tensor.tensor.sign().unwrap())
+}
+
+pub fn mask_where_broadcasted(
+    tensor: CandleTensor,
+    mask: CandleTensor,
+    value: CandleTensor,
+) -> CandleTensor {
+    let shape = tensor
+        .tensor
+        .shape()
+        .broadcast_shape_binary_op(mask.tensor.shape(), "where_cond")
+        .unwrap();
+
+    let mut tensor = tensor.tensor;
+    if shape != *tensor.shape() {
+        tensor = tensor.broadcast_as(shape).unwrap();
+    }
+
+    CandleTensor::new(mask.tensor.where_cond(&value.tensor, &tensor).unwrap())
 }

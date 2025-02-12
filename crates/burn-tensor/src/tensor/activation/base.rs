@@ -78,6 +78,19 @@ pub fn softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> 
     tensor.div(tensor_tmp)
 }
 
+/// Applies the softmin function on the input tensor along the given dimension.
+///
+/// `softmin(x_i) = exp(-x_i) / sum_j(exp(-x_j))`
+///
+/// # Notes
+///
+/// The dimension argument `dim` specifies the dimension along which the function will be computed.
+/// It must in the range of `0` and `D-1`.
+pub fn softmin<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    check!(TensorCheck::dim_ops::<D>("softmin", dim));
+    softmax(tensor.neg(), dim)
+}
+
 /// Applies the softplus function
 ///
 /// `softplus(x_i) = log(1 + exp(\beta x_i)) / \beta`
@@ -131,6 +144,8 @@ pub fn sigmoid<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D>
 }
 
 /// Applies the hard sigmoid function
+///
+/// `hard_sigmoid(x) = max(0, min(1, alpha * x + beta))`
 pub fn hard_sigmoid<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     alpha: f64,

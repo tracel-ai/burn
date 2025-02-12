@@ -2,15 +2,12 @@ use backend_comparison::persistence::save;
 use burn::tensor::{
     backend::Backend, module::conv3d, ops::ConvOptions, Distribution, Shape, Tensor,
 };
-use burn_common::{
-    benchmark::{run_benchmark, Benchmark},
-    sync_type::SyncType,
-};
+use burn_common::benchmark::{run_benchmark, Benchmark};
 
 pub struct Conv3dBenchmark<B: Backend> {
-    input_shape: Shape<5>,
-    weight_shape: Shape<5>,
-    bias_shape: Shape<1>,
+    input_shape: Shape,
+    weight_shape: Shape,
+    bias_shape: Shape,
     options: ConvOptions<3>,
     device: B::Device,
 }
@@ -24,9 +21,9 @@ impl<B: Backend> Benchmark for Conv3dBenchmark<B> {
 
     fn shapes(&self) -> Vec<Vec<usize>> {
         vec![
-            self.input_shape.dims.into(),
-            self.weight_shape.dims.into(),
-            self.bias_shape.dims.into(),
+            self.input_shape.dims.clone(),
+            self.weight_shape.dims.clone(),
+            self.bias_shape.dims.clone(),
         ]
     }
 
@@ -51,7 +48,7 @@ impl<B: Backend> Benchmark for Conv3dBenchmark<B> {
     }
 
     fn sync(&self) {
-        B::sync(&self.device, SyncType::Wait)
+        B::sync(&self.device)
     }
 }
 

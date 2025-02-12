@@ -62,6 +62,13 @@ enum BackendValues {
     CandleCuda,
     #[strum(to_string = "candle-metal")]
     CandleMetal,
+    #[strum(to_string = "cuda")]
+    Cuda,
+    #[strum(to_string = "cuda-fusion")]
+    CudaFusion,
+    #[cfg(target_os = "linux")]
+    #[strum(to_string = "hip")]
+    Hip,
     #[strum(to_string = "ndarray")]
     Ndarray,
     #[strum(to_string = "ndarray-blas-accelerate")]
@@ -78,8 +85,10 @@ enum BackendValues {
     Wgpu,
     #[strum(to_string = "wgpu-fusion")]
     WgpuFusion,
-    #[strum(to_string = "cuda-jit")]
-    CudaJit,
+    #[strum(to_string = "wgpu-spirv")]
+    WgpuSpirv,
+    #[strum(to_string = "wgpu-spirv-fusion")]
+    WgpuSpirvFusion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, ValueEnum, Display, EnumIter)]
@@ -94,6 +103,8 @@ enum BenchmarkValues {
     Data,
     #[strum(to_string = "matmul")]
     Matmul,
+    #[strum(to_string = "matmul-fused")]
+    MatmulFused,
     #[strum(to_string = "unary")]
     Unary,
     #[strum(to_string = "max-pool2d")]
@@ -112,6 +123,8 @@ enum BenchmarkValues {
     Conv2d,
     #[strum(to_string = "conv3d")]
     Conv3d,
+    #[strum(to_string = "reduce")]
+    Reduce,
 }
 
 pub fn execute() {
@@ -222,16 +235,16 @@ fn run_backend_comparison_benchmarks(
 }
 
 fn run_cargo(
-    bench: &String,
-    backend: &String,
+    bench: &str,
+    backend: &str,
     url: &str,
     token: Option<&str>,
     progress_bar: &Option<Arc<Mutex<RunnerProgressBar>>>,
 ) -> io::Result<ExitStatus> {
     let processor: Arc<dyn OutputProcessor> = if let Some(pb) = progress_bar {
         Arc::new(NiceProcessor::new(
-            bench.clone(),
-            backend.clone(),
+            bench.to_string(),
+            backend.to_string(),
             pb.clone(),
         ))
     } else {

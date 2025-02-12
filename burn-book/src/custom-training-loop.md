@@ -149,6 +149,37 @@ You can find the code above available as an
 [example](https://github.com/tracel-ai/burn/tree/main/examples/custom-training-loop) for you to
 test.
 
+## Multiple optimizers
+
+It's common practice to set different learning rates, optimizer parameters, or use different optimizers entirely, for different parts
+of a model. In Burn, each `GradientParams` can contain only a subset of gradients to actually apply with an optimizer.
+This allows you to flexibly mix and match optimizers!
+
+```rust,ignore
+// Start with calculating all gradients
+let grads = loss.backward();
+
+// Now split the gradients into various parts.
+let grads_conv1 = GradientParams::from_module(&mut grads, &model.conv1);
+let grads_conv2 = GradientParams::from_module(&mut grads, &model.conv2);
+
+// You can step the model with these gradients, using different learning
+// rates for each param. You could also use an entirely different optimizer here!
+model = optim.step(config.lr * 2.0, model, grads_conv1);
+model = optim.step(config.lr * 4.0, model, grads_conv2);
+
+// For even more granular control you can split off individual parameter
+// eg. a linear bias usually needs a smaller learning rate.
+if let Some(bias) == model.linear1.bias {
+    let grads_bias = GradientParams::from_params(&mut grads, &model.linear1, &[bias.id]);
+    model = optim.step(config.lr * 0.1, model, grads_bias);
+}
+
+// Note that above calls remove gradients, so we can just get all "remaining" gradients.
+let grads = GradientsParams::from_grads(grads, &model);
+model = optim.step(config.lr, model, grads);
+```
+
 ## Custom Type
 
 The explanations above demonstrate how to create a basic training loop. However, you may find it

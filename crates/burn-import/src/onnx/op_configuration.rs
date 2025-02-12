@@ -1,13 +1,16 @@
 use burn::nn::{
     conv::{
-        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose2dConfig, ConvTranspose3dConfig,
+        Conv1dConfig, Conv2dConfig, Conv3dConfig, ConvTranspose1dConfig, ConvTranspose2dConfig,
+        ConvTranspose3dConfig,
     },
     pool::{AvgPool1dConfig, AvgPool2dConfig, MaxPool1dConfig, MaxPool2dConfig},
     BatchNormConfig, DropoutConfig, LayerNormConfig, LinearConfig, PaddingConfig1d,
     PaddingConfig2d, PaddingConfig3d,
 };
 
-use crate::burn::node::{expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig};
+use crate::burn::node::{
+    expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig, trilu::TriluConfig,
+};
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
 /// Create a Conv1dConfig from the attributes of the node
@@ -37,6 +40,10 @@ pub fn conv1d_config(curr: &Node) -> Conv1dConfig {
             "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
+    }
+
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
     }
 
     // the channels are inverted in the weight tensor
@@ -82,6 +89,10 @@ pub fn conv2d_config(curr: &Node) -> Conv2dConfig {
         }
     }
 
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
+    }
+
     // the channels are inverted in the weight tensor
     let shape = weight.shape.clone().unwrap();
     let channels: [usize; 2] = [shape[1] * group, shape[0]];
@@ -125,6 +136,10 @@ pub fn conv3d_config(curr: &Node) -> Conv3dConfig {
             "group" => group = value.clone().into_i64() as usize,
             _ => {}
         }
+    }
+
+    if kernel_shape.is_empty() {
+        kernel_shape = onnx_ir::util::infer_conv_kernel_shape(&curr.inputs[1].ty);
     }
 
     // the channels are inverted in the weight tensor
@@ -207,6 +222,81 @@ pub fn max_pool2d_config(curr: &Node) -> MaxPool2dConfig {
         .with_padding(padding)
         .with_dilation([dilations[0] as usize, dilations[1] as usize])
 }
+
+pub fn conv_transpose1d_config(curr: &Node) -> ConvTranspose1dConfig {
+    let mut attrs = curr.attrs.clone();
+
+    // Extract kernel_shape, default to an empty vector if not present
+    let kernel_shape = attrs
+        .remove("kernel_shape")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_default();
+
+    // Extract strides, default to 1 if not present
+    let stride = attrs
+        .remove("strides")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1]);
+
+    // Extract padding, default to 0 if not present
+    let pads = attrs
+        .remove("pads")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0, 0]);
+
+    // Extract dilations, default to 1 if not present
+    let dilations = attrs
+        .remove("dilations")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![1]);
+
+    // Extract group attribute, default to 1
+    let group = attrs
+        .remove("group")
+        .map(AttributeValue::into_i64)
+        .unwrap_or(1) as usize;
+
+    // Extract output_padding, default to 0 if not present
+    let output_padding = attrs
+        .remove("output_padding")
+        .map(AttributeValue::into_i64s)
+        .unwrap_or_else(|| vec![0]);
+
+    // Ensure no unused attributes remain
+    if !attrs.is_empty() {
+        panic!("Not all attributes are used: {attrs:?}");
+    }
+    // Check the pads are symmetric.
+    if pads.len() != 2 || pads[0] != pads[1] {
+        panic!(
+            "Asymmetric padding is not supported for ConvTranspose1d: {:?}",
+            pads
+        );
+    }
+    // Extract weight tensor, verify it's present
+    let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
+        weight
+    } else {
+        panic!("ConvTranspose1d: weight tensor must be present");
+    };
+
+    // Check if bias is present (third input)
+    let bias = curr.inputs.len() == 3;
+
+    // Extract channels from the weight tensor shape [out_channels, in_channels]
+    let shape = weight.shape.clone().unwrap();
+    let channels: [usize; 2] = [shape[1] * group, shape[0]];
+
+    // Create the ConvTranspose1d configuration
+    ConvTranspose1dConfig::new(channels, kernel_shape[0] as usize)
+        .with_stride(stride[0] as usize)
+        .with_padding(pads[0] as usize)
+        .with_dilation(dilations[0] as usize)
+        .with_padding_out(output_padding[0] as usize)
+        .with_groups(group)
+        .with_bias(bias)
+}
+
 pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let mut attrs = curr.attrs.clone();
     let kernel_shape = attrs
@@ -220,7 +310,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0]);
+        .unwrap_or_else(|| vec![0, 0, 0, 0]);
     let dilations = attrs
         .remove("dilations")
         .map(AttributeValue::into_i64s)
@@ -238,7 +328,13 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     if !attrs.is_empty() {
         panic!("Not all attributes are used: {attrs:?}");
     }
-
+    // Check the pads are symmetric.
+    let [left, top, right, bottom] = [pads[0], pads[1], pads[2], pads[3]];
+    if left < 0 || top < 0 || right < 0 || bottom < 0 {
+        panic!("Negative pad values are not supported");
+    } else if (left != right) || (top != bottom) {
+        panic!("Asymmetric padding is not supported");
+    }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
@@ -264,6 +360,7 @@ pub fn conv_transpose2d_config(curr: &Node) -> ConvTranspose2dConfig {
     .with_groups(group)
     .with_bias(bias)
 }
+
 pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     let mut attrs = curr.attrs.clone();
     let kernel_shape = attrs
@@ -277,7 +374,7 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     let pads = attrs
         .remove("pads")
         .map(AttributeValue::into_i64s)
-        .unwrap_or_else(|| vec![0, 0, 0]);
+        .unwrap_or_else(|| vec![0, 0, 0, 0, 0, 0]);
     let dilations = attrs
         .remove("dilations")
         .map(AttributeValue::into_i64s)
@@ -295,7 +392,15 @@ pub fn conv_transpose3d_config(curr: &Node) -> ConvTranspose3dConfig {
     if !attrs.is_empty() {
         panic!("Not all attributes are used: {attrs:?}");
     }
+    // Check the pads are symmetric.
+    let [left, top, front, right, bottom, back] =
+        [pads[0], pads[1], pads[2], pads[3], pads[4], pads[5]];
 
+    if left < 0 || top < 0 || front < 0 || right < 0 || bottom < 0 || back < 0 {
+        panic!("Negative pad values are not supported");
+    } else if (left != right) || (top != bottom) || (front != back) {
+        panic!("Asymmetric padding is not supported");
+    }
     // extract the channels from the weight tensor's shape [out_channels, in_channels, ...]
     let weight = if let ArgType::Tensor(ref weight) = curr.inputs[1].ty {
         weight
@@ -840,6 +945,25 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
     };
 
     TopKConfig::new(axis as usize, k as usize)
+}
+
+/// Create a TriluConfig from the attributes of the node
+pub fn trilu_config(node: &Node) -> TriluConfig {
+    let mut upper = true;
+    let mut diagonal = 0;
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "upper" => upper = value.clone().into_i64() != 0,
+            _ => {}
+        }
+    }
+    // The second input of the Trilu node is the diagonal value, coming from a constant node
+    if let Some(diagonal_arg) = node.inputs.get(1) {
+        if let Some(Data::Int64(diagonal_val)) = &diagonal_arg.value {
+            diagonal = *diagonal_val;
+        }
+    }
+    TriluConfig::new(upper, diagonal)
 }
 
 /// Create a PadConfig from the attributes of the node
@@ -1739,4 +1863,24 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     };
 
     axes
+}
+
+pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
+    let depth = curr.inputs[1]
+        .value
+        .clone()
+        .expect("OneHot: Only constant depth is currently supported")
+        .into_i64();
+
+    let values = curr.inputs[2]
+        .value
+        .clone()
+        .expect("OneHot: Only constant on/off values is currently supported")
+        .into_f32s();
+    let axis = curr
+        .attrs
+        .get("axis")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(-1);
+    (depth as usize, values.try_into().unwrap(), axis)
 }

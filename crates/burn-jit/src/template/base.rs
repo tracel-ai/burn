@@ -1,5 +1,6 @@
 use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
-use cubecl::{prelude::*, ExecutionMode, KernelId};
+use burn_common::ExecutionMode;
+use cubecl::{prelude::*, Compiler, KernelId};
 
 use super::SourceTemplate;
 
@@ -18,17 +19,23 @@ pub struct SourceKernel<K> {
     cube_dim: CubeDim,
 }
 
-impl<K: KernelSource> CubeTask for SourceKernel<K> {
-    fn compile(&self, _mode: ExecutionMode) -> CompiledKernel {
+impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
+    fn compile(
+        &self,
+        _compiler: &mut C,
+        _options: &C::CompilationOptions,
+        _mode: ExecutionMode,
+    ) -> CompiledKernel<C> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
 
         CompiledKernel {
-            name: Some(core::any::type_name::<K>()),
+            entrypoint_name: "main".to_string(),
+            debug_name: Some(core::any::type_name::<K>()),
             source,
             cube_dim: self.cube_dim,
-            shared_mem_bytes: 0,
             debug_info: None,
+            repr: None,
         }
     }
 
@@ -69,21 +76,20 @@ macro_rules! kernel_source {
 /// |     (D + 1)..(2 * D + 1) | rhs strides |
 /// | (2 * D + 1)..(3 * D + 1) | lhs shape   |
 /// | (3 * D + 1)..(4 * D + 1) | rhs shape   |
-pub fn build_info<R: JitRuntime, E: JitElement, const D: usize>(
-    tensors: &[&JitTensor<R, E, D>],
-) -> Vec<u32> {
-    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * D + 1];
-    info[0] = D as u32;
+pub fn build_info<R: JitRuntime, E: JitElement>(tensors: &[&JitTensor<R>]) -> Vec<u32> {
+    let ndims = tensors[0].shape.num_dims();
+    let mut info: Vec<u32> = vec![0; tensors.len() * 2 * ndims + 1];
+    info[0] = ndims as u32;
 
     let mut current = 1;
     for tensor in tensors.iter() {
-        for d in 0..D {
+        for d in 0..ndims {
             info[current] = tensor.strides[d] as u32;
             current += 1;
         }
     }
     for tensor in tensors.iter() {
-        for d in 0..D {
+        for d in 0..ndims {
             info[current] = tensor.shape.dims[d] as u32;
             current += 1;
         }

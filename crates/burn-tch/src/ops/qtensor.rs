@@ -3,67 +3,78 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QTensorPrimitive, Quantization, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationStrategy, QuantizationType,
+        QParams, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+        QuantizedBytes,
     },
-    DType, Shape, TensorData,
+    DType, Shape, TensorData, TensorMetadata,
 };
 
 use crate::{LibTorch, LibTorchDevice, QuantElement, TchElement, TchQTensor, TchShape, TchTensor};
 
 use super::TchOps;
 
+fn quantize<E: TchElement, Q: QuantElement>(
+    tensor: tch::Tensor,
+    scheme: &QuantizationScheme,
+    qparams: &QParams<E, Q>,
+) -> tch::Tensor {
+    let mut tensor = tensor;
+    // Quantize only works on Float Tensor
+    if tensor.kind() == tch::Kind::Half {
+        tensor = tensor.to_kind(tch::Kind::Float);
+    }
+
+    match scheme {
+        QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => tensor.quantize_per_tensor(
+            qparams.scale.elem(),
+            qparams.offset.unwrap().elem(),
+            tch::Kind::QInt8,
+        ),
+        QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+            tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8)
+        }
+    }
+}
+
 impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
-    fn q_from_data<const D: usize>(
-        data: TensorData,
-        device: &LibTorchDevice,
-    ) -> QuantizedTensor<Self, D> {
-        let shape_tch = TchShape::<D>::from(data.shape.as_slice());
+    fn q_from_data(data: TensorData, device: &LibTorchDevice) -> QuantizedTensor<Self> {
+        let shape_tch = TchShape::from(data.shape.as_slice());
         let device = (*device).into();
 
         // NOTE: tch-rs doesn't have `from_blob_quantized_*` APIs
         // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/quantized/Quantizer.cpp#L322
         // So for now we have to load the dequantized values to quantize them back since the dequantization
         // methods take the values provided when quantizing.
-        let (tensor, scheme) = match data.dtype {
-            DType::QFloat(strategy) => match strategy {
-                QuantizationStrategy::PerTensorAffineInt8(q) => {
-                    let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
-                    let tensor = tch::Tensor::from_slice(&values).to(device);
-                    let tensor = TchOps::<E>::quantize::<D, i8>(
-                        TchTensor::new(tensor.reshape(shape_tch.dims)),
-                        &strategy,
-                    )
-                    .tensor;
-                    (tensor, strategy.scheme())
+        match data.dtype {
+            DType::QFloat(scheme) => {
+                let num_elements = data.num_elements();
+                let q_bytes = QuantizedBytes {
+                    bytes: data.into_bytes(),
+                    scheme,
+                    num_elements,
+                };
+
+                let (values, qparams) = q_bytes.dequantize();
+                let tensor = tch::Tensor::from_slice(&values).to(device);
+                let tensor = quantize(tensor.reshape(shape_tch.dims), &scheme, &qparams);
+
+                TchQTensor {
+                    qtensor: TchTensor::new(tensor),
+                    scheme,
                 }
-                QuantizationStrategy::PerTensorSymmetricInt8(q) => {
-                    let values = q.dequantize(&data.iter::<i8>().collect::<Vec<_>>());
-                    let tensor = tch::Tensor::from_slice(&values).to(device);
-                    let tensor = TchOps::<E>::quantize::<D, i8>(
-                        TchTensor::new(tensor.reshape(shape_tch.dims)),
-                        &strategy,
-                    )
-                    .tensor;
-                    (tensor, strategy.scheme())
-                }
-            },
+            }
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
                 data.dtype
             ),
-        };
-        TchQTensor {
-            qtensor: TchTensor::new(tensor),
-            scheme,
         }
     }
 
-    fn quantize<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn quantize(
+        tensor: FloatTensor<Self>,
         scheme: &QuantizationScheme,
         qparams: QuantizationParametersPrimitive<Self>,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         // Quantize only works on Float Tensor
         if E::dtype() == DType::F16 {
@@ -89,14 +100,14 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
 
         TchQTensor {
             qtensor: TchTensor::new(qtensor),
-            scheme: scheme.clone(),
+            scheme: *scheme,
         }
     }
 
-    fn quantize_dynamic<const D: usize>(
-        tensor: FloatTensor<Self, D>,
+    fn quantize_dynamic(
+        tensor: FloatTensor<Self>,
         scheme: &QuantizationScheme,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
             QuantizationScheme::PerTensorAffine(dtype) => match dtype {
                 // Notes on `reduce_range`:
@@ -118,43 +129,36 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
 
         TchQTensor {
             qtensor: TchTensor::new(qtensor),
-            scheme: scheme.clone(),
+            scheme: *scheme,
         }
     }
 
-    fn dequantize<const D: usize>(tensor: QuantizedTensor<Self, D>) -> FloatTensor<Self, D> {
+    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
         TchTensor::new(tensor.qtensor.tensor.dequantize().to_kind(E::KIND))
     }
 
-    fn q_shape<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> Shape<D> {
-        tensor.qtensor.shape()
-    }
-
-    fn q_device<const D: usize>(tensor: &QuantizedTensor<Self, D>) -> LibTorchDevice {
+    fn q_device(tensor: &QuantizedTensor<Self>) -> LibTorchDevice {
         tensor.qtensor.tensor.device().into()
     }
 
-    fn q_to_device<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_to_device(
+        tensor: QuantizedTensor<Self>,
         device: &burn_tensor::Device<Self>,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = TchOps::to_device(tensor.qtensor, device);
         tensor
     }
 
-    fn q_reshape<const D1: usize, const D2: usize>(
-        tensor: QuantizedTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> QuantizedTensor<Self, D2> {
+    fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         TchQTensor {
             qtensor: TchOps::reshape(tensor.qtensor, shape),
             scheme: tensor.scheme,
         }
     }
 
-    async fn q_into_data<const D: usize>(tensor: QuantizedTensor<Self, D>) -> TensorData {
-        let shape = Self::q_shape(&tensor);
+    async fn q_into_data(tensor: QuantizedTensor<Self>) -> TensorData {
+        let shape = tensor.shape();
         let tensor = Self::q_reshape(tensor.clone(), Shape::new([shape.num_elements()]));
         let strategy = tensor.strategy();
 
@@ -164,79 +168,58 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         TensorData::quantized(values.unwrap(), shape, strategy)
     }
 
-    fn q_swap_dims<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_swap_dims(
+        tensor: QuantizedTensor<Self>,
         dim1: usize,
         dim2: usize,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         // NOTE: with per-channel quantization (future), the channel axis could be impacted by this op
         let mut tensor = tensor;
         tensor.qtensor = TchOps::swap_dims(tensor.qtensor, dim1, dim2);
         tensor
     }
 
-    fn q_permute<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        axes: [usize; D],
-    ) -> QuantizedTensor<Self, D> {
+    fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         // NOTE: with per-channel quantization (future), the channel axis could be impacted by this op
         let mut tensor = tensor;
         tensor.qtensor = TchOps::permute(tensor.qtensor, axes);
         tensor
     }
 
-    fn q_flip<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        axes: &[usize],
-    ) -> QuantizedTensor<Self, D> {
+    fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = TchOps::flip(tensor.qtensor, axes);
         tensor
     }
 
-    fn q_select<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_select(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
-        indices: IntTensor<Self, 1>,
-    ) -> QuantizedTensor<Self, D> {
+        indices: IntTensor<Self>,
+    ) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = TchOps::index_select_dim(tensor.qtensor, dim, indices);
         tensor
     }
 
-    fn q_slice<const D1: usize, const D2: usize>(
-        tensor: QuantizedTensor<Self, D1>,
-        ranges: [Range<usize>; D2],
-    ) -> QuantizedTensor<Self, D1> {
+    fn q_slice(tensor: QuantizedTensor<Self>, ranges: &[Range<usize>]) -> QuantizedTensor<Self> {
         let mut tensor = tensor;
         tensor.qtensor = TchOps::slice(tensor.qtensor, ranges);
         tensor
     }
 
-    fn q_argmax<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        dim: usize,
-    ) -> IntTensor<Self, D> {
-        TchOps::argmax(
-            TchTensor::<Q, D>::new(tensor.qtensor.tensor.int_repr()),
-            dim,
-        )
+    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
+        TchOps::argmax(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
-    fn q_argmin<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        dim: usize,
-    ) -> IntTensor<Self, D> {
-        TchOps::argmin(
-            TchTensor::<Q, D>::new(tensor.qtensor.tensor.int_repr()),
-            dim,
-        )
+    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
+        TchOps::argmin(TchTensor::new(tensor.qtensor.tensor.int_repr()), dim)
     }
 
-    fn q_max_dim_with_indices<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_max_dim_with_indices(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
-    ) -> (QuantizedTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         let (qtensor, indices) = TchOps::max_dim_with_indices(tensor.qtensor, dim);
         let values = TchQTensor {
             qtensor,
@@ -245,30 +228,24 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         (values, indices)
     }
 
-    fn q_max_dim<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        dim: usize,
-    ) -> QuantizedTensor<Self, D> {
+    fn q_max_dim(tensor: QuantizedTensor<Self>, dim: usize) -> QuantizedTensor<Self> {
         TchQTensor {
             qtensor: TchOps::max_dim(tensor.qtensor, dim),
             scheme: tensor.scheme,
         }
     }
 
-    fn q_min_dim<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        dim: usize,
-    ) -> QuantizedTensor<Self, D> {
+    fn q_min_dim(tensor: QuantizedTensor<Self>, dim: usize) -> QuantizedTensor<Self> {
         TchQTensor {
             qtensor: TchOps::min_dim(tensor.qtensor, dim),
             scheme: tensor.scheme,
         }
     }
 
-    fn q_min_dim_with_indices<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_min_dim_with_indices(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
-    ) -> (QuantizedTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         let (qtensor, indices) = TchOps::min_dim_with_indices(tensor.qtensor, dim);
         let values = TchQTensor {
             qtensor,
@@ -277,36 +254,33 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         (values, indices)
     }
 
-    fn q_narrow<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_narrow(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
         start: usize,
         length: usize,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         TchQTensor {
             qtensor: TchOps::narrow(tensor.qtensor, dim, start, length),
             scheme: tensor.scheme,
         }
     }
 
-    fn q_chunk<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_chunk(
+        tensor: QuantizedTensor<Self>,
         chunks: usize,
         dim: usize,
-    ) -> Vec<QuantizedTensor<Self, D>> {
+    ) -> Vec<QuantizedTensor<Self>> {
         TchOps::chunk(tensor.qtensor, chunks, dim)
             .into_iter()
             .map(|x| TchQTensor {
                 qtensor: x,
-                scheme: tensor.scheme.clone(),
+                scheme: tensor.scheme,
             })
             .collect()
     }
 
-    fn q_expand<const D1: usize, const D2: usize>(
-        tensor: QuantizedTensor<Self, D1>,
-        shape: Shape<D2>,
-    ) -> QuantizedTensor<Self, D2> {
+    fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
         // NOTE: with per-channel quantization (future), the channel axis could be impacted by this op
         TchQTensor {
             qtensor: TchOps::expand(tensor.qtensor, shape),
@@ -314,22 +288,22 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
     }
 
-    fn q_sort<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_sort(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
         descending: bool,
-    ) -> QuantizedTensor<Self, D> {
+    ) -> QuantizedTensor<Self> {
         TchQTensor {
             qtensor: TchOps::sort(tensor.qtensor, dim, descending),
             scheme: tensor.scheme,
         }
     }
 
-    fn q_sort_with_indices<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
+    fn q_sort_with_indices(
+        tensor: QuantizedTensor<Self>,
         dim: usize,
         descending: bool,
-    ) -> (QuantizedTensor<Self, D>, IntTensor<Self, D>) {
+    ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         let (qtensor, indices) = TchOps::sort_with_indices(tensor.qtensor, dim, descending);
         let tensor = TchQTensor {
             qtensor,
@@ -338,11 +312,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         (tensor, indices)
     }
 
-    fn q_argsort<const D: usize>(
-        tensor: QuantizedTensor<Self, D>,
-        dim: usize,
-        descending: bool,
-    ) -> IntTensor<Self, D> {
+    fn q_argsort(tensor: QuantizedTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         TchOps::argsort(tensor.qtensor, dim, descending)
     }
 }

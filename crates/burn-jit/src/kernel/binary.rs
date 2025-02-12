@@ -1,14 +1,22 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use std::marker::PhantomData;
+
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
-    tensor_vectorization_factor,
+    tensor_line_size_parallel,
 };
+
+use super::into_contiguous;
+
+pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
+    type BinaryOp<C: Numeric>: BinaryOp<C>;
+}
 
 #[cube]
 pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: C, rhs: C) -> C;
+    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
 }
 
 pub(crate) struct AddOp;
@@ -16,70 +24,105 @@ pub(crate) struct SubOp;
 pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
-pub(crate) struct PowOp;
+
+/// Since Powf only works on float, but we still want to implement the numeric binary op family, we
+/// set another precision in the family type to cast, when necessary, the input value to a valid
+/// float.
+///
+/// Because of this we won't benefit from the cubecl rust compilation speed improvement from using
+/// the family pattern for [PowOp], but at least we don't duplicate code.
+pub(crate) struct PowOp<F: Float> {
+    _f: PhantomData<F>,
+}
+
+impl BinaryOpFamily for AddOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for SubOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for MulOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for DivOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for RemainderOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl<F: Float> BinaryOpFamily for PowOp<F> {
+    type BinaryOp<C: Numeric> = Self;
+}
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for AddOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs + rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for SubOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs - rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for MulOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs * rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for DivOp {
-    fn execute(lhs: N, rhs: N) -> N {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
         lhs / rhs
     }
 }
 
 #[cube]
 impl<N: Numeric> BinaryOp<N> for RemainderOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        N::rem(lhs, rhs)
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::rem(lhs, rhs)
     }
 }
 
 #[cube]
-impl<N: Float> BinaryOp<N> for PowOp {
-    fn execute(lhs: N, rhs: N) -> N {
-        N::powf(lhs, rhs)
+impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        let lhs = Line::<F>::cast_from(lhs);
+        let rhs = Line::<F>::cast_from(rhs);
+        let out = Line::powf(lhs, rhs);
+
+        Line::cast_from(out)
     }
 }
 
-#[cube(launch)]
-pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOp<C>>(
-    input: &Tensor<C>,
+#[cube(launch_unchecked)]
+pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
+    input: &Tensor<Line<C>>,
     scalar: C,
-    output: &mut Tensor<C>,
+    output: &mut Tensor<Line<C>>,
 ) {
-    let offset_output = ABSOLUTE_POS;
-
-    if offset_output >= output.len() {
-        return;
+    if ABSOLUTE_POS >= output.len() {
+        terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::execute(input[ABSOLUTE_POS], scalar);
+    output[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar));
 }
 
-#[cube(launch)]
-pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
-    lhs: &Tensor<C>,
-    rhs: &Tensor<C>,
-    out: &mut Tensor<C>,
+#[cube(launch_unchecked)]
+pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
+    lhs: &Tensor<Line<C>>,
+    rhs: &Tensor<Line<C>>,
+    out: &mut Tensor<Line<C>>,
     #[comptime] rank: Option<u32>,
     #[comptime] to_contiguous_lhs: bool,
     #[comptime] to_contiguous_rhs: bool,
@@ -89,7 +132,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
     let mut offset_rhs = ABSOLUTE_POS;
 
     if offset_out >= out.len() {
-        return;
+        terminate!();
     }
 
     if to_contiguous_lhs {
@@ -114,21 +157,29 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOp<C>>(
         );
     }
 
-    out[offset_out] = O::execute(lhs[offset_lhs], rhs[offset_rhs]);
+    out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    lhs: JitTensor<R, E, D>,
-    rhs: JitTensor<R, E, D>,
-) -> JitTensor<R, E, D> {
-    let vectorization_factor_lhs =
-        tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, D - 1);
-    let vectorization_factor_rhs =
-        tensor_vectorization_factor(&[4, 2], &rhs.shape.dims, &rhs.strides, D - 1);
+pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
+    lhs: JitTensor<R>,
+    rhs: JitTensor<R>,
+) -> JitTensor<R> {
+    let ndims = lhs.shape.num_dims();
+    let line_size_lhs = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &lhs.shape.dims,
+        &lhs.strides,
+        ndims - 1,
+    );
+    let line_size_rhs = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &rhs.shape.dims,
+        &rhs.strides,
+        ndims - 1,
+    );
+    let line_size = Ord::min(line_size_lhs, line_size_rhs);
 
-    let vectorization_factor = u8::min(vectorization_factor_lhs, vectorization_factor_rhs);
-
-    let mut shape_out = [0; D];
+    let mut shape_out = vec![0; ndims];
     lhs.shape
         .dims
         .iter()
@@ -138,109 +189,115 @@ pub(crate) fn launch_binop<const D: usize, R: JitRuntime, E: JitElement, O: Bina
             shape_out[index] = usize::max(*dim_lhs, *dim_rhs);
         });
 
-    let shape_out = Shape::new(shape_out);
+    let shape_out = Shape::from(shape_out);
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    if lhs.can_mut_broadcast(&rhs) {
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
-            TensorArg::alias(0),
-            None,
-            false,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-        );
+    unsafe {
+        if lhs.can_mut_broadcast(&rhs) {
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                TensorArg::alias(0),
+                None,
+                false,
+                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+            );
 
-        lhs
-    } else if rhs.can_mut_broadcast(&lhs) {
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
-            TensorArg::alias(1),
-            None,
-            rhs.strides != lhs.strides || rhs.shape != lhs.shape,
-            false,
-        );
+            lhs
+        } else if rhs.can_mut_broadcast(&lhs) {
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                TensorArg::alias(1),
+                None,
+                rhs.strides != lhs.strides || rhs.shape != lhs.shape,
+                false,
+            );
 
-        rhs
-    } else {
-        let buffer = lhs.client.empty(num_elems * core::mem::size_of::<E>());
-        let output =
-            JitTensor::new_contiguous(lhs.client.clone(), lhs.device.clone(), shape_out, buffer);
-        let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
-        let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
+            rhs
+        } else {
+            let output = empty_device::<R, E>(lhs.client.clone(), lhs.device.clone(), shape_out);
+            let to_contiguous_lhs = lhs.strides != output.strides || lhs.shape != output.shape;
+            let to_contiguous_rhs = rhs.strides != output.strides || rhs.shape != output.shape;
 
-        kernel_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            lhs.as_tensor_arg(vectorization_factor),
-            rhs.as_tensor_arg(vectorization_factor),
-            output.as_tensor_arg(vectorization_factor),
-            None,
-            to_contiguous_lhs,
-            to_contiguous_rhs,
-        );
+            kernel_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                lhs.as_tensor_arg::<E>(line_size),
+                rhs.as_tensor_arg::<E>(line_size),
+                output.as_tensor_arg::<E>(line_size),
+                None,
+                to_contiguous_lhs,
+                to_contiguous_rhs,
+            );
 
-        output
+            output
+        }
     }
 }
 
-pub(crate) fn launch_scalar_binop<const D: usize, R: JitRuntime, E: JitElement, O: BinaryOp<E>>(
-    tensor: JitTensor<R, E, D>,
+pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
+    mut tensor: JitTensor<R>,
     scalar: E,
-) -> JitTensor<R, E, D> {
+) -> JitTensor<R> {
+    if !tensor.is_contiguous_buffer() {
+        tensor = into_contiguous(tensor);
+    }
+
     // Vectorization is only enabled when the last dimension is contiguous.
-    let vectorization_factor =
-        tensor_vectorization_factor(&[4, 2], &tensor.shape.dims, &tensor.strides, D - 1);
+    let ndims = tensor.shape.num_dims();
+    let line_size = tensor_line_size_parallel(
+        R::line_size_elem(&E::as_elem_native_unchecked()),
+        &tensor.shape.dims,
+        &tensor.strides,
+        ndims - 1,
+    );
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
     let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
+    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
 
-    if tensor.can_mut() {
-        kernel_scalar_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            cube_dim,
-            tensor.as_tensor_arg(vectorization_factor),
-            ScalarArg::new(scalar),
-            TensorArg::alias(0),
-        );
+    unsafe {
+        if tensor.can_mut() {
+            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                cube_dim,
+                tensor.as_tensor_arg::<E>(line_size),
+                ScalarArg::new(scalar),
+                TensorArg::alias(0),
+            );
 
-        tensor
-    } else {
-        let buffer = tensor.client.empty(num_elems * core::mem::size_of::<E>());
-        let output = JitTensor::new(
-            tensor.client.clone(),
-            buffer,
-            tensor.shape.clone(),
-            tensor.device.clone(),
-            tensor.strides,
-        );
+            tensor
+        } else {
+            let output = empty_device::<R, E>(
+                tensor.client.clone(),
+                tensor.device.clone(),
+                tensor.shape.clone(),
+            );
 
-        kernel_scalar_binop::launch::<E, O, R>(
-            &client,
-            cube_count,
-            CubeDim::default(),
-            tensor.as_tensor_arg(vectorization_factor),
-            ScalarArg::new(scalar),
-            output.as_tensor_arg(vectorization_factor),
-        );
+            kernel_scalar_binop::launch_unchecked::<E, O, R>(
+                &client,
+                cube_count,
+                CubeDim::default(),
+                tensor.as_tensor_arg::<E>(line_size),
+                ScalarArg::new(scalar),
+                output.as_tensor_arg::<E>(line_size),
+            );
 
-        output
+            output
+        }
     }
 }

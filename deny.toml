@@ -6,6 +6,7 @@
 # this list would mean the nix crate, as well as any of its exclusive
 # dependencies not shared by any other crates, would be ignored, as the target
 # list here is effectively saying which targets you are building for.
+[graph]
 targets = [
     { triple = "x86_64-unknown-linux-gnu" },
     { triple = "aarch64-unknown-linux-gnu" },
@@ -16,14 +17,6 @@ targets = [
 ]
 
 [advisories]
-# The lint level for security vulnerabilities
-vulnerability = "deny"
-# The lint level for unmaintained crates
-unmaintained = "deny"
-# The lint level for crates that have been yanked from their source registry
-yanked = "deny"
-# The lint level for crates with security notices.
-notice = "deny"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
@@ -70,10 +63,6 @@ unknown-registry = "deny"
 unknown-git = "deny"
 
 [licenses]
-# The lint level for crates which do not have a detectable license
-unlicensed = "deny"
-# Lint level for licenses considered copyleft
-copyleft = "deny"
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
 # canonical license text of a valid SPDX license file.
@@ -86,12 +75,15 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "Apache-2.0",
     "BSD-3-Clause",
+    "BSD-2-Clause",
+    "BSL-1.0", # in NOTICES.md
     "CC0-1.0",
     "ISC",
     "MIT",
     "MPL-2.0",
     "OpenSSL",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Unlicense",
     "Zlib",
 ]

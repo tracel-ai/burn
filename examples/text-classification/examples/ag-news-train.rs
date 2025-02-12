@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{decay::WeightDecayConfig, AdamConfig},
@@ -91,13 +93,43 @@ mod wgpu {
     }
 }
 
-#[cfg(feature = "cuda-jit")]
-mod cuda_jit {
+#[cfg(feature = "vulkan")]
+mod vulkan {
     use crate::{launch, ElemType};
-    use burn::backend::{Autodiff, CudaJit};
+    use burn::backend::{Autodiff, Vulkan};
 
     pub fn run() {
-        launch::<Autodiff<CudaJit<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Vulkan<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
+#[cfg(feature = "remote")]
+mod remote {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, RemoteBackend};
+
+    pub fn run() {
+        launch::<Autodiff<RemoteBackend>>(vec![Default::default()]);
+    }
+}
+
+#[cfg(feature = "cuda")]
+mod cuda {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, Cuda};
+
+    pub fn run() {
+        launch::<Autodiff<Cuda<ElemType, i32>>>(vec![Default::default()]);
+    }
+}
+
+#[cfg(feature = "hip")]
+mod hip {
+    use crate::{launch, ElemType};
+    use burn::backend::{Autodiff, Hip};
+
+    pub fn run() {
+        launch::<Autodiff<Hip<ElemType, i32>>>(vec![Default::default()]);
     }
 }
 
@@ -115,6 +147,12 @@ fn main() {
     tch_cpu::run();
     #[cfg(feature = "wgpu")]
     wgpu::run();
-    #[cfg(feature = "cuda-jit")]
-    cuda_jit::run();
+    #[cfg(feature = "cuda")]
+    cuda::run();
+    #[cfg(feature = "hip")]
+    hip::run();
+    #[cfg(feature = "remote")]
+    remote::run();
+    #[cfg(feature = "vulkan")]
+    vulkan::run();
 }

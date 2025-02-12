@@ -1,8 +1,8 @@
 use crate::renderer::TrainingProgress;
 
 use super::{FullHistoryPlot, RecentHistoryPlot, TerminalFrame};
-use crossterm::event::{Event, KeyCode, KeyEventKind};
 use ratatui::{
+    crossterm::event::{Event, KeyCode, KeyEventKind},
     prelude::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::Line,
@@ -164,25 +164,13 @@ impl NumericMetricsState {
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
                     .title("Iteration")
-                    .labels(
-                        axes.labels_x
-                            .clone()
-                            .into_iter()
-                            .map(|s| s.bold())
-                            .collect(),
-                    )
+                    .labels(axes.labels_x.clone().into_iter().map(|s| s.bold()))
                     .bounds(axes.bounds_x),
             )
             .y_axis(
                 Axis::default()
                     .style(Style::default().fg(Color::DarkGray))
-                    .labels(
-                        axes.labels_y
-                            .clone()
-                            .into_iter()
-                            .map(|s| s.bold())
-                            .collect(),
-                    )
+                    .labels(axes.labels_y.clone().into_iter().map(|s| s.bold()))
                     .bounds(axes.bounds_y),
             )
     }
@@ -194,7 +182,7 @@ pub(crate) enum NumericMetricView<'a> {
     None,
 }
 
-impl<'a> NumericMetricView<'a> {
+impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
             Self::Plots(titles, selected, chart, kind) => {
