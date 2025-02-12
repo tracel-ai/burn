@@ -1189,31 +1189,28 @@ fn select_indices<C: Numeric>(
 
     let mut result = Line::empty(line_size_ref);
     let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
+
+    let offset_dim = read_input::<u32>(
+        inputs,
+        outputs,
+        pos_indices,
+        coordinate_dim,
+        LayoutInfo::IsRef,
+        precision_indices,
+        config,
+        None,
+    );
+
     index *= line_size_ref;
+    index += offset_dim[0] * stride_input_dim;
 
     #[unroll]
     for i in 0..line_size_ref {
-        let index_indices = coordinate_dim;
-
-        let offset_dim = read_input::<u32>(
-            inputs,
-            outputs,
-            pos_indices,
-            index_indices,
-            LayoutInfo::IsRef,
-            precision_indices,
-            config,
-            None,
-        );
-        let offset_line = i * stride_input_line;
-        let offset_dim = offset_dim[0] * stride_input_dim;
-        let index_input = index + offset_dim + offset_line;
-
         let input = read_input::<C>(
             inputs,
             outputs,
             pos_input,
-            index_input,
+            index + i * stride_input_line,
             LayoutInfo::IsRef,
             precision_input,
             config,
