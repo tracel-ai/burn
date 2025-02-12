@@ -1032,7 +1032,7 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
 
             #[unroll]
             for i in start..end {
-                let index = comptime![swap_dims_transform(i.clone(), (dim1, dim2))];
+                let index = comptime![swap_dims_transform(&i, (dim1, dim2))];
                 let ogwl = offset_ref / layout.stride(i);
                 offset += ogwl % tensor.shape(index) * tensor.stride(index);
             }
@@ -1058,8 +1058,9 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
     }
 }
 
-fn swap_dims_transform<I: Index>(i: I, dims: (u32, u32)) -> u32 {
-    let i = i.value().as_const().unwrap().as_u32();
+fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> u32 {
+    let i_cloned: I = i.clone();
+    let i = i_cloned.value().as_const().unwrap().as_u32();
 
     if i == dims.0 {
         dims.1
