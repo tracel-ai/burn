@@ -54,7 +54,7 @@ pub(crate) fn get_seeds() -> [u32; 4] {
     };
     let mut seeds: Vec<u32> = Vec::with_capacity(4);
     for _ in 0..4 {
-        seeds.push(rng.gen());
+        seeds.push(rng.random());
     }
     *seed = Some(rng);
 

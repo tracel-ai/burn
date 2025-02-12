@@ -24,6 +24,8 @@ pub(crate) struct SubOp;
 pub(crate) struct MulOp;
 pub(crate) struct DivOp;
 pub(crate) struct RemainderOp;
+pub(crate) struct AndOp;
+pub(crate) struct OrOp;
 
 /// Since Powf only works on float, but we still want to implement the numeric binary op family, we
 /// set another precision in the family type to cast, when necessary, the input value to a valid
@@ -56,6 +58,14 @@ impl BinaryOpFamily for RemainderOp {
 }
 
 impl<F: Float> BinaryOpFamily for PowOp<F> {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for AndOp {
+    type BinaryOp<C: Numeric> = Self;
+}
+
+impl BinaryOpFamily for OrOp {
     type BinaryOp<C: Numeric> = Self;
 }
 
@@ -102,6 +112,20 @@ impl<N: Numeric, F: Float> BinaryOp<N> for PowOp<F> {
         let out = Line::powf(lhs, rhs);
 
         Line::cast_from(out)
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for AndOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::cast_from(Line::<bool>::cast_from(lhs).and(Line::<bool>::cast_from(rhs)))
+    }
+}
+
+#[cube]
+impl<N: Numeric> BinaryOp<N> for OrOp {
+    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+        Line::cast_from(Line::<bool>::cast_from(lhs).or(Line::<bool>::cast_from(rhs)))
     }
 }
 

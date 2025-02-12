@@ -191,6 +191,30 @@ pub trait BoolTensorOps<B: Backend> {
     /// The tensor with the result of the negation.
     fn bool_not(tensor: BoolTensor<B>) -> BoolTensor<B>;
 
+    /// Executes the logical and (`&&`) operation on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the logical and.
+    fn bool_and(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+
+    /// Executes the logical or (`||`) operation on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `lhs` - The left hand side tensor.
+    /// * `rhs` - The right hand side tensor.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with the result of the logical or.
+    fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+
     /// Transposes a bool tensor.
     ///
     /// # Arguments

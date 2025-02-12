@@ -132,10 +132,10 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.11"
-rand = { version = "0.8.5", default-features = false, features = [
+rand = { version = "0.9", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
-rand_distr = { version = "0.4.3", default-features = false }
+rand_distr = { version = "0.5", default-features = false }
 serde = { version = "1.0.217", default-features = false, features = [
     "derive",
     "alloc",
@@ -153,11 +153,11 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 ### For the release. ###
 # cubecl = { version = "0.4.0", default-features = false }
 # cubecl-common = { version = "0.4.0", default-features = false }

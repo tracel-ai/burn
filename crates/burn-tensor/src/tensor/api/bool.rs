@@ -39,6 +39,16 @@ where
         Tensor::new(B::bool_not(self.primitive))
     }
 
+    /// Performs logical and (`&&`) on two boolean tensors
+    pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_and(self.primitive, rhs.primitive))
+    }
+
+    /// Performs logical or (`||`) on two boolean tensors
+    pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
+        Tensor::new(B::bool_or(self.primitive, rhs.primitive))
+    }
+
     /// Compute the indices of the elements that are non-zero.
     ///
     /// # Returns

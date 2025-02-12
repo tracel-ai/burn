@@ -59,6 +59,14 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_not(tensor)
     }
 
+    fn bool_and(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        B::bool_and(lhs, rhs)
+    }
+
+    fn bool_or(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B> {
+        B::bool_or(lhs, rhs)
+    }
+
     fn bool_into_float(tensor: BoolTensor<B>) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
         AutodiffTensor::new(B::bool_into_float(tensor))
     }

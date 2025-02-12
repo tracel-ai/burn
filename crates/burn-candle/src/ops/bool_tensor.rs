@@ -71,6 +71,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         CandleTensor::new(tensor.tensor.eq(&x).unwrap())
     }
 
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let x = candle_core::Tensor::ones_like(&lhs.tensor).unwrap();
+        CandleTensor::new(lhs.tensor.add(&rhs.tensor).unwrap().gt(&x).unwrap())
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        CandleTensor::new(
+            lhs.tensor
+                .add(&rhs.tensor)
+                .unwrap()
+                .clamp(0u32, 1u32)
+                .unwrap(),
+        )
+    }
+
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         super::base::swap_dims(tensor, dim1, dim2)
     }
