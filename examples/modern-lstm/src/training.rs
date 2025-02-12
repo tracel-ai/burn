@@ -112,7 +112,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         let avg_valid_loss = valid_loss / valid_num_items as f32;
         valid_losses.push(avg_valid_loss);
 
-        // Display the averaged training and validataion metrics every 10 epochs
+        // Display the averaged training and validation metrics every 10 epochs
         if (epoch + 1) % 5 == 0 {
             println!(
                 "Epoch {}/{}, Avg Loss {:.4}, Avg Val Loss: {:.4}",

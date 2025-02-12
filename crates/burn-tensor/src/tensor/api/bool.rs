@@ -21,7 +21,7 @@ where
 {
     /// Create a boolean tensor from data on the given device.
     pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
-        Self::new(B::bool_from_data(data, device))
+        Self::new(B::bool_from_data(data.convert::<B::BoolElem>(), device))
     }
 
     /// Convert the bool tensor into an int tensor.

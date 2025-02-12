@@ -42,6 +42,7 @@ use crate::{
             matmul::MatmulNode,
             max_pool1d::MaxPool1dNode,
             max_pool2d::MaxPool2dNode,
+            one_hot::OneHotNode,
             pad::PadNode,
             prelu::PReluNode,
             random_normal::RandomNormalNode,
@@ -56,6 +57,7 @@ use crate::{
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
+            top_k::TopKNode,
             trilu::TriluNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
@@ -71,10 +73,11 @@ use super::op_configuration::{
     concat_config, conv1d_config, conv2d_config, conv3d_config, conv_transpose1d_config,
     conv_transpose2d_config, conv_transpose3d_config, dropout_config, expand_config,
     flatten_config, gather_config, hard_sigmoid_config, layer_norm_config, leaky_relu_config,
-    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, pad_config,
-    reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
+    linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
+    pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
     reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    split_config, squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
+    split_config, squeeze_config, tile_config, top_k_config, transpose_config, trilu_config,
+    unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -285,6 +288,7 @@ impl ParsedOnnxGraph {
                 NodeType::MatMul => graph.register(Self::matmul_conversion(node)),
                 NodeType::Neg => graph.register(Self::neg_conversion(node)),
                 NodeType::Not => graph.register(Self::not_conversion(node)),
+                NodeType::OneHot => graph.register(Self::one_hot_conversion(node)),
                 NodeType::Greater => graph.register(Self::greater_conversion(node)),
                 NodeType::GreaterOrEqual => graph.register(Self::greater_or_equal_conversion(node)),
                 NodeType::Less => graph.register(Self::less_conversion(node)),
@@ -351,6 +355,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::random_uniform_like_conversion(node))
                 }
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
+                NodeType::TopK => graph.register(Self::top_k_conversion(node)),
                 NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::RandomNormalLike => {
@@ -375,6 +380,7 @@ impl ParsedOnnxGraph {
             .iter()
             .map(|input| input.name.clone())
             .collect::<Vec<_>>();
+
         let output_names = self
             .0
             .outputs
@@ -1262,6 +1268,17 @@ impl ParsedOnnxGraph {
         TileNode::new(input, output, config)
     }
 
+    fn top_k_conversion(node: Node) -> TopKNode {
+        // Inputs
+        let input = TensorType::from(node.inputs.first().unwrap());
+
+        // Outputs
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = top_k_config(&node);
+
+        TopKNode::new(input, outputs, config)
+    }
+
     fn trilu_conversion(node: Node) -> TriluNode {
         let input = TensorType::from(node.inputs.first().unwrap());
         let output = TensorType::from(node.outputs.first().unwrap());
@@ -1275,6 +1292,15 @@ impl ParsedOnnxGraph {
         let config = split_config(&node);
 
         SplitNode::new(input, outputs, config)
+    }
+
+    fn one_hot_conversion(node: Node) -> OneHotNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+        let values_type = TensorType::from(node.inputs.get(2).unwrap());
+
+        let (num_classes, values, axis) = one_hot_config(&node);
+        OneHotNode::new(input, output, num_classes, values, values_type, axis)
     }
 
     fn floor_conversion(node: Node) -> FloorNode {

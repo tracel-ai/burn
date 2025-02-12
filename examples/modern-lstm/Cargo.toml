@@ -17,7 +17,7 @@ cuda = ["burn/cuda"]
 burn = { path = "../../crates/burn", features=["train"] }
 
 # Random number generator
-rand = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
 rand_distr = { workspace = true }
 
 # Serialization

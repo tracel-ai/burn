@@ -11,6 +11,7 @@ use crate::{
 };
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use burn_tensor::DType;
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
@@ -32,7 +33,12 @@ where
     }
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
-        super::from_data::<R, I>(data, device)
+        match data.dtype {
+            DType::I64 | DType::I32 | DType::I16 | DType::I8 | DType::U32 => {
+                super::from_data::<R>(data, device)
+            }
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_device(tensor: &IntTensor<Self>) -> Device<Self> {

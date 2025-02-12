@@ -9,7 +9,7 @@
 //!
 //! F. Bolelli, S. Allegretti, C. Grana.
 //! "One DAG to Rule Them All."
-//! IEEE Transactions on Pattern Analisys and Machine Intelligence, 2021
+//! IEEE Transactions on Pattern Analysis and Machine Intelligence, 2021
 
 #![allow(unreachable_code)]
 

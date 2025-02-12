@@ -1147,63 +1147,135 @@ fn select_indices<C: Numeric>(
         _ => panic!("Indices tensor isn't an input"),
     };
 
-    let stride_input = global_stride(inputs, dim, pos_input, precision_input);
+    let stride_input_dim = global_stride(inputs, dim, pos_input, precision_input);
 
-    let mut index = Line::empty(line_size_ref).fill(0);
-
-    if comptime![dim > 0] {
-        let index_before = global_offset(
-            inputs,
-            outputs,
-            write_pos,
-            comment!(input.clone()),
-            comptime![Some((0u32, dim))],
-            config,
-        );
-        index += Line::new(index_before);
-    }
-
-    if comptime![dim + 1 < config.rank] {
-        let index_after = global_offset(
-            inputs,
-            outputs,
-            write_pos,
-            input,
-            comptime![Some((dim + 1, config.rank))],
-            config,
-        );
-        index += Line::new(index_after);
-    }
-
+    let mut index = 0u32;
     let mut result = Line::empty(line_size_ref);
 
-    #[unroll]
-    for i in 0..line_size_ref {
-        let index_indices = ((write_pos * line_size_ref) + i) / stride_dim_ref % shape_dim_ref;
+    if comptime![dim != config.rank - 1] {
+        // In this scenario the select is actually broadcasted along the axis we're working on.
+        //
+        // Therefore the same indices are used to fetch multiple entries in the input tensor.
 
+        let write_pos_input = write_pos * line_size_ref;
+        let stride_input_line = global_stride(
+            inputs,
+            comptime![config.rank - 1],
+            pos_input,
+            precision_input,
+        );
+
+        if comptime![dim > 0] {
+            let index_before = global_offset(
+                inputs,
+                outputs,
+                write_pos_input,
+                comment!(input.clone()),
+                comptime![Some((0u32, dim))],
+                config,
+            );
+            index += index_before;
+        }
+
+        if comptime![dim + 1 < config.rank] {
+            let index_after = global_offset(
+                inputs,
+                outputs,
+                write_pos_input,
+                comment!(input.clone()),
+                comptime![Some((dim + 1, config.rank))],
+                config,
+            );
+            index += index_after;
+        }
+
+        let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32>(
             inputs,
             outputs,
             pos_indices,
-            index_indices,
+            coordinate_dim,
             LayoutInfo::IsRef,
             precision_indices,
             config,
             None,
         );
-        let index = index[i] + offset_dim[0] * stride_input;
 
-        let input = read_input::<C>(
-            inputs,
-            outputs,
-            pos_input,
-            index,
-            LayoutInfo::IsRef,
-            precision_input,
-            config,
-            None,
-        );
-        result[i] = input[0];
+        index *= line_size_ref;
+        index += offset_dim[0] * stride_input_dim;
+
+        #[unroll]
+        for i in 0..line_size_ref {
+            let input = read_input::<C>(
+                inputs,
+                outputs,
+                pos_input,
+                index + i * stride_input_line,
+                LayoutInfo::IsRef,
+                precision_input,
+                config,
+                None,
+            );
+            result[i] = input[0];
+        }
+    } else {
+        // In this scenario the select is actually performed on the last dimension we're working on.
+        //
+        // Therefore we need to fetch multiple indices that correspond to different entries in the
+        // input tensor.
+
+        if comptime![dim > 0] {
+            let index_before = global_offset(
+                inputs,
+                outputs,
+                write_pos,
+                comment!(input.clone()),
+                comptime![Some((0u32, dim))],
+                config,
+            );
+            index += index_before;
+        }
+
+        if comptime![dim + 1 < config.rank] {
+            let index_after = global_offset(
+                inputs,
+                outputs,
+                write_pos,
+                input,
+                comptime![Some((dim + 1, config.rank))],
+                config,
+            );
+            index += index_after;
+        }
+
+        let write_pos_indices = write_pos * line_size_ref;
+
+        #[unroll]
+        for i in 0..line_size_ref {
+            let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
+            let offset_dim = read_input::<u32>(
+                inputs,
+                outputs,
+                pos_indices,
+                coordinate_dim,
+                LayoutInfo::IsRef,
+                precision_indices,
+                config,
+                None,
+            );
+
+            let input = read_input::<C>(
+                inputs,
+                outputs,
+                pos_input,
+                index + (offset_dim[0] * stride_input_dim),
+                LayoutInfo::IsRef,
+                precision_input,
+                config,
+                None,
+            );
+            result[i] = input[0];
+        }
     }
 
     write::<C>(inputs, outputs, locals, write_pos, result, output, config);

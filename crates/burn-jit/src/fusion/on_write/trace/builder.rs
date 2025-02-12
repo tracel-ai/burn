@@ -61,7 +61,7 @@ impl FuseOnWriteTraceBuilder {
 
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
-    /// It is therefore the responsability of the operation to write the result to given tensor.
+    /// It is therefore the responsibility of the operation to write the result to given tensor.
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         let arg = self
             .output(tensor)
@@ -72,7 +72,7 @@ impl FuseOnWriteTraceBuilder {
 
     /// Register an input tensor that won't be automatically read into a local variable.
     ///
-    /// It is therefore the responsability of the operation to read the given tensor.
+    /// It is therefore the responsibility of the operation to read the given tensor.
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");

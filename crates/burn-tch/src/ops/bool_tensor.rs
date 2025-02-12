@@ -5,7 +5,10 @@ use std::ops::Range;
 
 impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        TchTensor::from_data::<bool>(data, (*device).into())
+        match data.dtype {
+            burn_tensor::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
+        }
     }
 
     fn bool_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {
