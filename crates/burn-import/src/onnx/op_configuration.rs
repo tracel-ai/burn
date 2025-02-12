@@ -1830,7 +1830,6 @@ pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
         .clone()
         .expect("OneHot: Only constant on/off values is currently supported")
         .into_f32s();
-    //let axis = curr.attrs.get("axis").unwrap_or(-1).clone().into_i64();
     let axis = curr
         .attrs
         .get("axis")
