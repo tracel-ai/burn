@@ -56,6 +56,7 @@ use crate::{
             squeeze::SqueezeNode,
             sum::SumNode,
             tile::TileNode,
+            top_k::TopKNode,
             trilu::TriluNode,
             unary::UnaryNode,
             unsqueeze::UnsqueezeNode,
@@ -74,7 +75,7 @@ use super::op_configuration::{
     linear_config, log_softmax_config, max_pool1d_config, max_pool2d_config, one_hot_config,
     pad_config, reduce_max_config, reduce_mean_config, reduce_min_config, reduce_prod_config,
     reduce_sum_config, reshape_config, resize_config, shape_config, slice_config, softmax_config,
-    squeeze_config, tile_config, transpose_config, trilu_config, unsqueeze_config,
+    squeeze_config, tile_config, top_k_config, transpose_config, trilu_config, unsqueeze_config,
 };
 use onnx_ir::{
     convert_constant_value,
@@ -352,6 +353,7 @@ impl ParsedOnnxGraph {
                     graph.register(Self::random_uniform_like_conversion(node))
                 }
                 NodeType::Tile => graph.register(Self::tile_conversion(node)),
+                NodeType::TopK => graph.register(Self::top_k_conversion(node)),
                 NodeType::Trilu => graph.register(Self::trilu_conversion(node)),
                 NodeType::RandomNormal => graph.register(Self::random_normal_conversion(node)),
                 NodeType::RandomNormalLike => {
@@ -375,6 +377,7 @@ impl ParsedOnnxGraph {
             .iter()
             .map(|input| input.name.clone())
             .collect::<Vec<_>>();
+
         let output_names = self
             .0
             .outputs
@@ -1260,6 +1263,17 @@ impl ParsedOnnxGraph {
         let config = tile_config(&node);
 
         TileNode::new(input, output, config)
+    }
+
+    fn top_k_conversion(node: Node) -> TopKNode {
+        // Inputs
+        let input = TensorType::from(node.inputs.first().unwrap());
+
+        // Outputs
+        let outputs = node.outputs.iter().map(TensorType::from).collect();
+        let config = top_k_config(&node);
+
+        TopKNode::new(input, outputs, config)
     }
 
     fn trilu_conversion(node: Node) -> TriluNode {

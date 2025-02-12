@@ -152,7 +152,7 @@ impl GraphData {
         for output in node.outputs.iter_mut() {
             self.input_name_map.insert(
                 output.name.clone(),
-                IOEntry::Node(self.processed_nodes.len(), 0),
+                IOEntry::Node(self.processed_nodes.len(), out_count - 1),
             );
             output.name = format!("{}_out{}", node.name, out_count);
             out_count += 1;
@@ -240,7 +240,6 @@ impl OnnxGraphBuilder {
         // TODO Update graph inputs and outputs to match the processed nodes inputs and outputs
         // This is necessary for the graph to be valid
         // ConstantOfShape updates input to be Shape argument and output Tensor dim is updated
-
         OnnxGraph {
             nodes: processed_nodes,
             inputs,

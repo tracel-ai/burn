@@ -112,6 +112,7 @@ fn main() {
         .input("tests/sum/sum_int.onnx")
         .input("tests/tanh/tanh.onnx")
         .input("tests/tile/tile.onnx")
+        .input("tests/top_k/top_k_opset_1.onnx")
         .input("tests/trilu/trilu_upper.onnx")
         .input("tests/trilu/trilu_lower.onnx")
         .input("tests/transpose/transpose.onnx")

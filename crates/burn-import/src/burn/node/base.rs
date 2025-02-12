@@ -14,7 +14,7 @@ use super::{
     random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
     random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode,
     resize::ResizeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode,
-    trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -119,6 +119,7 @@ pub enum Node<PS: PrecisionSettings> {
     Squeeze(SqueezeNode),
     Sum(SumNode),
     Tile(TileNode),
+    TopK(TopKNode),
     Trilu(TriluNode),
     Unary(UnaryNode),
     Unsqueeze(UnsqueezeNode),
@@ -173,6 +174,7 @@ macro_rules! match_all {
             Node::Squeeze(node) => $func(node),
             Node::Sum(node) => $func(node),
             Node::Tile(node) => $func(node),
+            Node::TopK(node) => $func(node),
             Node::Trilu(node) => $func(node),
             Node::Unary(node) => $func(node),
             Node::Unsqueeze(node) => $func(node),
@@ -235,6 +237,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::Squeeze(_) => "squeeze",
             Node::Sum(_) => "add",
             Node::Tile(_) => "tile",
+            Node::TopK(_) => "top_k",
             Node::Trilu(_) => "trilu",
             Node::Unary(unary) => unary.kind.as_str(),
             Node::Unsqueeze(_) => "unsqueeze",
