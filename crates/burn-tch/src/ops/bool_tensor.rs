@@ -68,13 +68,23 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn bool_and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
-        let sum = TchOps::add(lhs, rhs);
-        TchOps::greater_elem(sum, 1)
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_and_(rhs),
+            |lhs, rhs| rhs.logical_and_(lhs),
+            |lhs, rhs| lhs.logical_and(rhs),
+        )
     }
 
     fn bool_or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
-        let sum = TchOps::add(lhs, rhs);
-        TchOps::greater_elem(sum, 0)
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_or_(rhs),
+            |lhs, rhs| rhs.logical_or_(lhs),
+            |lhs, rhs| lhs.logical_or(rhs),
+        )
     }
 
     fn bool_into_int(tensor: TchTensor) -> TchTensor {
