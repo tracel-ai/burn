@@ -151,9 +151,9 @@ fn vectorization_default<'a, R: JitRuntime>(
             }
         }
 
-        if !multi_reads && shape_axis == 1 {
-            return Vect::Broadcated;
-        }
+         if !multi_reads && swapped_axis == 1 {
+             return Vect::Broadcated;
+         }
 
         for s in R::line_size_elem(&swapped.dtype.into()) {
             // The last dimension should be a multiple of the vector size or broadcated.
