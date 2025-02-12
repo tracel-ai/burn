@@ -1147,39 +1147,53 @@ fn select_indices<C: Numeric>(
         _ => panic!("Indices tensor isn't an input"),
     };
 
-    let stride_input = global_stride(inputs, dim, pos_input, precision_input);
+    let stride_input_dim = global_stride(inputs, dim, pos_input, precision_input);
+    let stride_input_line = if comptime![dim != config.rank] {
+        global_stride(
+            inputs,
+            comptime![config.rank - 1],
+            pos_input,
+            precision_input,
+        )
+    } else {
+        stride_input_dim
+    };
 
-    let mut index = Line::empty(line_size_ref).fill(0);
+    let mut index = 0u32;
+
+    let write_pos_input = write_pos * line_size_ref;
 
     if comptime![dim > 0] {
         let index_before = global_offset(
             inputs,
             outputs,
-            write_pos,
+            write_pos_input,
             comment!(input.clone()),
             comptime![Some((0u32, dim))],
             config,
         );
-        index += Line::new(index_before);
+        index += index_before;
     }
 
     if comptime![dim + 1 < config.rank] {
         let index_after = global_offset(
             inputs,
             outputs,
-            write_pos,
+            write_pos_input,
             input,
             comptime![Some((dim + 1, config.rank))],
             config,
         );
-        index += Line::new(index_after);
+        index += index_after;
     }
 
     let mut result = Line::empty(line_size_ref);
+    let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
+    index *= line_size_ref;
 
     #[unroll]
     for i in 0..line_size_ref {
-        let index_indices = ((write_pos * line_size_ref) + i) / stride_dim_ref % shape_dim_ref;
+        let index_indices = coordinate_dim;
 
         let offset_dim = read_input::<u32>(
             inputs,
@@ -1191,13 +1205,15 @@ fn select_indices<C: Numeric>(
             config,
             None,
         );
-        let index = index[i] + offset_dim[0] * stride_input;
+        let offset_line = i * stride_input_line;
+        let offset_dim = offset_dim[0] * stride_input_dim;
+        let index_input = index + offset_dim + offset_line;
 
         let input = read_input::<C>(
             inputs,
             outputs,
             pos_input,
-            index,
+            index_input,
             LayoutInfo::IsRef,
             precision_input,
             config,
