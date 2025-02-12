@@ -1,4 +1,4 @@
-use rand::{distributions::Standard, Rng, RngCore};
+use rand::{distr::StandardUniform, Rng, RngCore};
 
 use crate::{Element, ElementConversion};
 
@@ -22,8 +22,8 @@ pub enum Distribution {
 #[derive(new)]
 pub struct DistributionSampler<'a, E, R>
 where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
+    StandardUniform: rand::distr::Distribution<E>,
+    E: rand::distr::uniform::SampleUniform,
     R: RngCore,
 {
     kind: DistributionSamplerKind<E>,
@@ -33,17 +33,17 @@ where
 /// Distribution sampler kind for random value of a tensor.
 pub enum DistributionSamplerKind<E>
 where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
+    StandardUniform: rand::distr::Distribution<E>,
+    E: rand::distr::uniform::SampleUniform,
 {
     /// Standard distribution.
-    Standard(rand::distributions::Standard),
+    Standard(rand::distr::StandardUniform),
 
     /// Uniform distribution.
-    Uniform(rand::distributions::Uniform<E>),
+    Uniform(rand::distr::Uniform<E>),
 
     /// Bernoulli distribution.
-    Bernoulli(rand::distributions::Bernoulli),
+    Bernoulli(rand::distr::Bernoulli),
 
     /// Normal distribution.
     Normal(rand_distr::Normal<f64>),
@@ -51,8 +51,8 @@ where
 
 impl<E, R> DistributionSampler<'_, E, R>
 where
-    Standard: rand::distributions::Distribution<E>,
-    E: rand::distributions::uniform::SampleUniform,
+    StandardUniform: rand::distr::Distribution<E>,
+    E: rand::distr::uniform::SampleUniform,
     E: Element,
     R: RngCore,
 {
@@ -86,19 +86,19 @@ impl Distribution {
     pub fn sampler<R, E>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
     where
         R: RngCore,
-        E: Element + rand::distributions::uniform::SampleUniform,
-        Standard: rand::distributions::Distribution<E>,
+        E: Element + rand::distr::uniform::SampleUniform,
+        StandardUniform: rand::distr::Distribution<E>,
     {
         let kind = match self {
             Distribution::Default => {
-                DistributionSamplerKind::Standard(rand::distributions::Standard {})
+                DistributionSamplerKind::Standard(rand::distr::StandardUniform {})
             }
             Distribution::Uniform(low, high) => DistributionSamplerKind::Uniform(
-                rand::distributions::Uniform::new(low.elem::<E>(), high.elem::<E>()),
+                rand::distr::Uniform::new(low.elem::<E>(), high.elem::<E>()).unwrap(),
             ),
-            Distribution::Bernoulli(prob) => DistributionSamplerKind::Bernoulli(
-                rand::distributions::Bernoulli::new(prob).unwrap(),
-            ),
+            Distribution::Bernoulli(prob) => {
+                DistributionSamplerKind::Bernoulli(rand::distr::Bernoulli::new(prob).unwrap())
+            }
             Distribution::Normal(mean, std) => {
                 DistributionSamplerKind::Normal(rand_distr::Normal::new(mean, std).unwrap())
             }

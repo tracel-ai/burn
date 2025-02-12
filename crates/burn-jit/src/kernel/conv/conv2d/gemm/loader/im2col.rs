@@ -121,13 +121,13 @@ impl SimpleIm2col {
             let (tile_x, tile_y) = match config.tiling_order(ident) {
                 TilingOrderConfig::RowMajor => RowMajorTiling::to_x_y(
                     nth_tile,
-                    stage_tiling.total_row(),
-                    stage_tiling.total_col(),
+                    stage_tiling.tile_count_row(),
+                    stage_tiling.tile_count_col(),
                 ),
                 TilingOrderConfig::ColMajor => ColMajorTiling::to_x_y(
                     nth_tile,
-                    stage_tiling.total_row(),
-                    stage_tiling.total_col(),
+                    stage_tiling.tile_count_row(),
+                    stage_tiling.tile_count_col(),
                 ),
             };
 

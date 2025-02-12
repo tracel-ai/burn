@@ -59,7 +59,7 @@ impl<B: Backend, const D: usize> Benchmark for FromDataBenchmark<B, D> {
             TensorData::random::<B::FloatElem, _, _>(
                 self.shape.clone(),
                 Distribution::Default,
-                &mut rand::thread_rng(),
+                &mut rand::rng(),
             ),
             self.device.clone(),
         )

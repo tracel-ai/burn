@@ -292,8 +292,7 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor =
-            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
+        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)
@@ -386,7 +385,7 @@ mod tests {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 
@@ -401,7 +400,7 @@ mod tests {
         let data_expected = TensorData::random::<f32, _, _>(
             Shape::new([2, 3]),
             Distribution::Default,
-            &mut StdRng::from_entropy(),
+            &mut StdRng::from_os_rng(),
         );
         let tensor = TchTensor::from_data::<f32>(data_expected.clone(), tch::Device::Cpu);
 

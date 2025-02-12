@@ -1,5 +1,4 @@
 // Language
-use alloc::vec;
 use alloc::vec::Vec;
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::ops::FloatTensor;
@@ -21,7 +20,7 @@ use crate::{tensor::NdArrayTensor, NdArray};
 use crate::{NdArrayDevice, SEED};
 
 // Workspace crates
-use burn_tensor::{backend::Backend, Shape, TensorData};
+use burn_tensor::{backend::Backend, DType, Shape, TensorData};
 
 use super::{NdArrayMathOps, NdArrayOps};
 
@@ -29,7 +28,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     for NdArray<E, I, Q>
 {
     fn int_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<I> {
-        NdArrayTensor::from_data(data)
+        match data.dtype {
+            DType::I64 | DType::I32 => NdArrayTensor::from_data(data),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     async fn int_into_data(tensor: NdArrayTensor<I>) -> TensorData {
@@ -52,9 +54,8 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         NdArrayDevice::Cpu
     }
 
-    fn int_empty(shape: Shape, _device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<I> {
-        let values = vec![0; shape.num_elements()];
-        NdArrayTensor::from_data(TensorData::new(values, shape))
+    fn int_empty(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<I> {
+        Self::int_zeros(shape, device)
     }
 
     fn int_mask_where(
@@ -183,11 +184,11 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
     }
 
     fn int_zeros(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<I> {
-        Self::int_from_data(TensorData::zeros::<i64, _>(shape), device)
+        Self::int_from_data(TensorData::zeros::<I, _>(shape), device)
     }
 
     fn int_ones(shape: Shape, device: &<NdArray<E> as Backend>::Device) -> NdArrayTensor<I> {
-        Self::int_from_data(TensorData::ones::<i64, _>(shape), device)
+        Self::int_from_data(TensorData::ones::<I, _>(shape), device)
     }
 
     fn int_full(
@@ -310,7 +311,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps
         };
 
         let tensor = Self::int_from_data(
-            TensorData::random::<i64, _, _>(shape, effective_distribution, &mut rng),
+            TensorData::random::<I, _, _>(shape, effective_distribution, &mut rng),
             device,
         );
         *seed = Some(rng);

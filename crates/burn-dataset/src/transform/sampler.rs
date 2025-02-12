@@ -1,5 +1,5 @@
 use crate::Dataset;
-use rand::{distributions::Uniform, rngs::StdRng, seq::IteratorRandom, Rng, SeedableRng};
+use rand::{distr::Uniform, rngs::StdRng, seq::IteratorRandom, Rng, SeedableRng};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Sample items from a dataset.
@@ -36,7 +36,7 @@ where
         Self {
             dataset,
             size,
-            state: Mutex::new(SamplerState::WithReplacement(StdRng::from_entropy())),
+            state: Mutex::new(SamplerState::WithReplacement(StdRng::from_os_rng())),
             input: PhantomData,
         }
     }
@@ -52,7 +52,7 @@ where
             dataset,
             size,
             state: Mutex::new(SamplerState::WithoutReplacement(
-                StdRng::from_entropy(),
+                StdRng::from_os_rng(),
                 Vec::new(),
             )),
             input: PhantomData,
@@ -63,7 +63,9 @@ where
         let mut state = self.state.lock().unwrap();
 
         match state.deref_mut() {
-            SamplerState::WithReplacement(rng) => rng.sample(Uniform::new(0, self.dataset.len())),
+            SamplerState::WithReplacement(rng) => {
+                rng.sample(Uniform::new(0, self.dataset.len()).unwrap())
+            }
             SamplerState::WithoutReplacement(rng, indices) => {
                 if indices.is_empty() {
                     // Refill the state.

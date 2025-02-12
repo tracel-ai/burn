@@ -41,7 +41,7 @@ dirs = "5.0.1"
 fake = "3.0.1"
 flate2 = "1.0.35"
 float-cmp = "0.10.0"
-getrandom = { version = "0.2.15", default-features = false }
+getrandom = { version = "0.3.1", default-features = false }
 gix-tempfile = { version = "15.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.15.2"
@@ -64,7 +64,7 @@ r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
 rayon = "1.10.0"
 regex = "1.11.1"
-reqwest = "0.12.12"
+reqwest = { version="0.12.12", default-features = false, features=["rustls-tls"] }
 rmp-serde = "1.3.0"
 rstest = "0.23.0"
 rusqlite = "0.32.1"
@@ -132,10 +132,10 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.11"
-rand = { version = "0.8.5", default-features = false, features = [
+rand = { version = "0.9.0", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
-rand_distr = { version = "0.4.3", default-features = false }
+rand_distr = { version = "0.5.0", default-features = false }
 serde = { version = "1.0.217", default-features = false, features = [
     "derive",
     "alloc",
@@ -153,8 +153,8 @@ ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "29bcebb04145e79d9c176ed2b93f10a7e5b9c2aa" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5ff9df3f10a533885a2b61f4d55bb2f8d2750627" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "5ff9df3f10a533885a2b61f4d55bb2f8d2750627" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

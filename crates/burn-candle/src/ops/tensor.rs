@@ -5,6 +5,7 @@ use burn_tensor::{
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};
+use half::{bf16, f16};
 
 use crate::{
     element::{CandleElement, FloatCandleElement, IntCandleElement},
@@ -15,7 +16,13 @@ use super::base::{expand, permute, sign};
 
 impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle<F, I> {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> CandleTensor {
-        CandleTensor::from_data::<F>(data, device.clone())
+        match data.dtype {
+            burn_tensor::DType::F64 => super::base::from_data::<f64>(data, device),
+            burn_tensor::DType::F32 => super::base::from_data::<f32>(data, device),
+            burn_tensor::DType::F16 => super::base::from_data::<f16>(data, device),
+            burn_tensor::DType::BF16 => super::base::from_data::<bf16>(data, device),
+            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        }
     }
 
     fn float_random(

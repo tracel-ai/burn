@@ -49,7 +49,10 @@ mod tests {
 
         let indices_expected = TensorData::from([4, 3, 2]);
         indices.into_data().assert_eq(&indices_expected, false);
+    }
 
+    #[test]
+    fn test_topk_with_indices_3d() {
         // 3D
         let tensor = QTensor::<TestBackend, 3>::int8_affine([
             [[1., 4., 7.], [2., 5., 6.]],
