@@ -1148,28 +1148,22 @@ fn select_indices<C: Numeric>(
     };
 
     let stride_input_dim = global_stride(inputs, dim, pos_input, precision_input);
-    let stride_input_line = if comptime![dim != config.rank] {
-        global_stride(
-            inputs,
-            comptime![config.rank - 1],
-            pos_input,
-            precision_input,
-        )
-    } else {
-        stride_input_dim
-    };
 
     let mut index = 0u32;
     let mut result = Line::empty(line_size_ref);
 
-    let select_dim_vectorized = comptime![dim == config.rank - 1];
-
-    if !select_dim_vectorized {
+    if comptime![dim != config.rank - 1] {
         // In this scenario the select is actually broadcasted along the axis we're working on.
         //
         // Therefore the same indices are used to fetch multiple entries in the input tensor.
 
         let write_pos_input = write_pos * line_size_ref;
+        let stride_input_line = global_stride(
+            inputs,
+            comptime![config.rank - 1],
+            pos_input,
+            precision_input,
+        );
 
         if comptime![dim > 0] {
             let index_before = global_offset(
@@ -1229,6 +1223,7 @@ fn select_indices<C: Numeric>(
         //
         // Therefore we need to fetch multiple indices that correspond to different entries in the
         // input tensor.
+
         if comptime![dim > 0] {
             let index_before = global_offset(
                 inputs,
