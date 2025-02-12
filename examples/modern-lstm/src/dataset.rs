@@ -25,14 +25,14 @@ pub struct SequenceDatasetItem {
 impl SequenceDatasetItem {
     pub fn new(seq_length: usize, noise_level: f32) -> Self {
         // Start with two random numbers between 0 and 1
-        let mut seq = vec![rand::thread_rng().gen(), rand::thread_rng().gen()];
+        let mut seq = vec![rand::rng().random(), rand::rng().random()];
 
         // Generate sequence
         for _i in 0..seq_length {
             // Next number is sum of previous two plus noise
             let normal = Normal::new(0.0, noise_level).unwrap();
             let next_val =
-                seq[seq.len() - 2] + seq[seq.len() - 1] + normal.sample(&mut rand::thread_rng());
+                seq[seq.len() - 2] + seq[seq.len() - 1] + normal.sample(&mut rand::rng());
             seq.push(next_val);
         }
 

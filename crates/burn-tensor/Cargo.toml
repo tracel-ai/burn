@@ -43,7 +43,7 @@ serde = { workspace = true }
 serde_bytes = { workspace = true }
 
 [dev-dependencies]
-rand = { workspace = true, features = ["std", "std_rng"] } # Default enables std
+rand = { workspace = true, features = ["thread_rng"] } # Default enables std
 bincode = { workspace = true }
 
 [package.metadata.docs.rs]

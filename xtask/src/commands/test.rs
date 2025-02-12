@@ -103,7 +103,7 @@ pub(crate) fn handle_command(
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        vec!["--features", "vulkan"],
+                        vec!["--features", "test-vulkan"],
                         None,
                         None,
                         "std vulkan",
