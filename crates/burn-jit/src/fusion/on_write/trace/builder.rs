@@ -312,6 +312,7 @@ impl FuseOnWriteTraceBuilder {
             reads,
             writes,
             inputs_unhandled,
+            line_size_overrides: Vec::new(),
         }
     }
 

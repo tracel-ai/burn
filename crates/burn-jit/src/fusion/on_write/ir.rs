@@ -299,6 +299,25 @@ pub enum ElemwisePrecision {
     Bool,
 }
 
+impl Into<Elem> for ElemwisePrecision {
+    fn into(self) -> Elem {
+        match self {
+            Self::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
+            Self::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
+            Self::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
+            Self::I64 => Elem::Int(cubecl::ir::IntKind::I64),
+            Self::I32 => Elem::Int(cubecl::ir::IntKind::I32),
+            Self::I16 => Elem::Int(cubecl::ir::IntKind::I16),
+            Self::I8 => Elem::Int(cubecl::ir::IntKind::I8),
+            Self::U64 => Elem::UInt(cubecl::ir::UIntKind::U64),
+            Self::U32 => Elem::UInt(cubecl::ir::UIntKind::U32),
+            Self::U16 => Elem::UInt(cubecl::ir::UIntKind::U16),
+            Self::U8 => Elem::UInt(cubecl::ir::UIntKind::U8),
+            Self::Bool => Elem::Bool,
+        }
+    }
+}
+
 impl From<Elem> for ElemwisePrecision {
     fn from(value: Elem) -> Self {
         match value {

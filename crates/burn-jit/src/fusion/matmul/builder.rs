@@ -1,5 +1,5 @@
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
-use burn_ir::{FloatOperationIr, OperationIr};
+use burn_ir::{FloatOperationIr, OperationIr, TensorId};
 
 use crate::{
     fusion::{
@@ -17,6 +17,7 @@ pub(crate) struct MatmulBuilder<R: JitRuntime> {
     builder_fallback: FuseOnWriteBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
+    inputs: Option<(TensorId, TensorId)>,
 }
 
 impl<R: JitRuntime> MatmulBuilder<R> {
@@ -36,6 +37,7 @@ impl<R: JitRuntime> MatmulBuilder<R> {
             builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
+            inputs: None,
         }
     }
 }
@@ -59,6 +61,7 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
                     op.clone(),
                     Default::default(),
                 ));
+                self.inputs = Some((op.lhs.id, op.out.id));
             } else {
                 self.builder.close();
                 self.builder_fallback.close();
@@ -71,7 +74,11 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
 
     fn build(&self) -> JitOptimization<R> {
         let client = R::client(&self.device);
-        let trace = self.builder.build();
+
+        let mut trace = self.builder.build();
+        trace.line_size_override(self.inputs.unwrap().0);
+        trace.line_size_override(self.inputs.unwrap().1);
+
         let trace_fallback = self.builder_fallback.build();
 
         let matmul = MatmulOptimization::<R>::new(

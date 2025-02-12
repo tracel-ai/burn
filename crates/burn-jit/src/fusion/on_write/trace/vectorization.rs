@@ -5,6 +5,7 @@ use std::{
 
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
+use cubecl::tensor_line_size_parallel;
 
 use crate::{
     fusion::{
@@ -22,6 +23,7 @@ pub struct VectorizationPlanner<'a, R: JitRuntime> {
     reshapes: &'a Vec<Reshape>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
     indexed: &'a BTreeSet<TensorId>,
+    line_size_overrides: &'a Vec<TensorId>,
     _r: PhantomData<R>,
 }
 
@@ -31,12 +33,14 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
         settings: &'a FuseSettings,
         indexed: &'a BTreeSet<TensorId>,
+        line_size_overrides: &'a Vec<TensorId>,
     ) -> Self {
         Self {
             settings,
             reshapes,
             reads,
             indexed,
+            line_size_overrides,
             _r: PhantomData,
         }
     }
@@ -96,10 +100,23 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
         }
 
         for handle in plan.handle_inputs.iter_mut() {
-            handle.vectorization = match plan.vectorization.get(&handle.global_id) {
-                Some(v) => *v,
-                None => panic!("No vectorization factor found for {:?}", handle.global_id),
-            };
+            if self.line_size_overrides.contains(&handle.relative_id)
+                && !self.reads.contains_key(&handle.relative_id)
+            {
+                let elem = handle.precision.into();
+                let line_size = tensor_line_size_parallel(
+                    R::line_size_elem(&elem),
+                    &handle.global_shape,
+                    &handle.handle.strides,
+                    handle.handle.strides.len() - 1,
+                );
+                handle.vectorization = line_size;
+            } else {
+                handle.vectorization = match plan.vectorization.get(&handle.global_id) {
+                    Some(v) => *v,
+                    None => panic!("No vectorization factor found for {:?}", handle.global_id),
+                };
+            }
         }
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {

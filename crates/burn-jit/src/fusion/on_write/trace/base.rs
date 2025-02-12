@@ -31,6 +31,7 @@ pub struct FuseOnWriteTrace {
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub writes: BTreeMap<TensorId, ElemwiseOp>,
     pub inputs_unhandled: Vec<TensorId>,
+    pub line_size_overrides: Vec<TensorId>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -62,8 +63,14 @@ impl FuseOnWriteTrace {
         OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.reshapes)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.reshapes, &self.reads, &self.settings, &self.indexed)
-            .run::<Runner>(context, &mut plan);
+        VectorizationPlanner::<R>::new(
+            &self.reshapes,
+            &self.reads,
+            &self.settings,
+            &self.indexed,
+            &self.line_size_overrides,
+        )
+        .run::<Runner>(context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.reshapes, &self.ops)
             .execute::<_, BT>(client, runner, context, plan)
@@ -74,6 +81,10 @@ impl FuseOnWriteTrace {
             }
             Ok(val) => Ok(val),
         }
+    }
+
+    pub fn line_size_override(&mut self, tensor_id: TensorId) {
+        self.line_size_overrides.push(tensor_id);
     }
 
     fn rollback<R: JitRuntime>(
