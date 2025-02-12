@@ -67,7 +67,7 @@ pub fn read<C: CubePrimitive>(
             ),
             _ => comptime![panic!("Only input can be reshaped")],
         },
-        Arg::InputSwapDim { original, dims, .. } => match comptime![original.as_ref().clone()] {
+        Arg::InputSwapDims { original, dims, .. } => match comptime![original.as_ref().clone()] {
             Arg::Input(pos, precision, layout) => read_input(
                 inputs,
                 outputs,
@@ -1032,13 +1032,7 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
 
             #[unroll]
             for i in start..end {
-                let index = if i == dim1 {
-                    dim2
-                } else if i == dim2 {
-                    dim1
-                } else {
-                    i
-                };
+                let index = comptime![swap_dims_transform(i.clone(), (dim1, dim2))];
                 let ogwl = offset_ref / layout.stride(i);
                 offset += ogwl % tensor.shape(index) * tensor.stride(index);
             }
@@ -1061,6 +1055,18 @@ fn index_offset_with_layout<N: CubePrimitive, L: CubePrimitive>(
 
             offset / tensor.line_size()
         }
+    }
+}
+
+fn swap_dims_transform<I: Index>(i: I, dims: (u32, u32)) -> u32 {
+    let i = i.value().as_const().unwrap().as_u32();
+
+    if i == dims.0 {
+        dims.1
+    } else if i == dims.1 {
+        dims.0
+    } else {
+        i
     }
 }
 

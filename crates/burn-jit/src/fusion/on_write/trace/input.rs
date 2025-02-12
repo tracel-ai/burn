@@ -51,19 +51,14 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
                 && status == &TensorStatus::ReadWrite
                 && handle.handle.can_mut()
                 && !self.inputs_unhandled.contains(&tensor_relative.id)
-                && !self
-                    .views
-                    .iter()
-                    .any(|v| match v {
-                        TensorView::Reshape { reshaped, original } => {
-                            reshaped == &tensor_relative.id || original == &tensor_relative.id
-                        },
-                        TensorView::SwapDims { swapped, original, .. } => {
-                            swapped == &tensor_relative.id || original == &tensor_relative.id
-                        },
-                    }) 
-                        
-                    //}r.reshaped == tensor_relative.id || r.original == tensor_relative.id)
+                && !self.views.iter().any(|v| match v {
+                    TensorView::Reshape { reshaped, original } => {
+                        reshaped == &tensor_relative.id || original == &tensor_relative.id
+                    }
+                    TensorView::SwapDims {
+                        swapped, original, ..
+                    } => swapped == &tensor_relative.id || original == &tensor_relative.id,
+                })
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {

@@ -128,25 +128,25 @@ fn vectorization_default<'a, R: JitRuntime>(
         let swapped_axis = swapped.shape[swapped.shape.len() - 1];
         let shape_axis = original.shape[original.shape.len() - 1];
 
-        let rank = handle.strides.len();
-        let dim_stride = if dims.0 as usize == rank {
+        let last_dim_index = handle.strides.len() - 1;
+        let dim_index = if dims.0 as usize == last_dim_index {
             dims.1 as usize
-        } else if dims.1 as usize == rank {
+        } else if dims.1 as usize == last_dim_index {
             dims.0 as usize
         } else {
-            rank
+            last_dim_index
         };
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
         if multi_reads {
-            if handle.strides[rank - 1] != 1 {
+            if handle.strides[last_dim_index] != 1 {
                 return Vect::Max(1);
             }
-            if handle.strides[dim_stride - 1] != 1 {
+            if handle.strides[dim_index] != 1 {
                 return Vect::Max(1);
             }
         } else {
-            if handle.strides[dim_stride - 1] != 1 {
+            if handle.strides[dim_index] != 1 {
                 return Vect::Max(1);
             }
         }

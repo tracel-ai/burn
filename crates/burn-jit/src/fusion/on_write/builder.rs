@@ -200,22 +200,21 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationIr::SwapDims(desc) => {
+                // return false;
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
 
                 if self.builder.register(|build| {
-                    let input = build.input_swap_dims(
+                    build.input_swap_dims(
                         &desc.input,
                         &desc.out,
                         (desc.dim1 as u32, desc.dim2 as u32),
                     )?;
-                    let out = build.output(&desc.out)?;
-
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
 
                     Some(())
                 }) {
+                    println!("Fusing swap dims {desc:?}");
                     self.num_views += 1;
                     true
                 } else {
@@ -239,11 +238,7 @@ impl FuseOnWriteBuilder {
                 }
 
                 if self.builder.register(|build| {
-                    let input = build.input_reshaped(&desc.input, &desc.out)?;
-                    let out = build.output(&desc.out)?;
-
-                    build.register_operation(ElemwiseOp::Assign(UnaryElemwiseArgs { input, out }));
-
+                    build.input_reshaped(&desc.input, &desc.out)?;
                     Some(())
                 }) {
                     self.num_views += 1;

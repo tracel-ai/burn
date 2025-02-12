@@ -154,9 +154,13 @@ impl FuseOnWriteTraceBuilder {
         };
 
         let out = match self.locals.get(precision, tensor.id) {
-            Some(local) => local,
+            Some(local) => {
+                println!("Reusing out {local:?} for {tensor:?}");
+                local
+            }
             None => {
                 let out = self.locals.create(precision, tensor.id);
+                println!("Creating a new local {out:?}");
 
                 self.outputs.insert(precision_output, tensor.clone());
 
@@ -185,7 +189,7 @@ impl FuseOnWriteTraceBuilder {
         Some(input)
     }
 
-    /// Register an input that is reshaped.
+    /// Register an input with swapped dims.
     pub fn input_swap_dims(
         &mut self,
         tensor: &TensorIr,
@@ -220,7 +224,7 @@ impl FuseOnWriteTraceBuilder {
             None => self.inputs.insert(precision_input, tensor.clone()),
         };
 
-        let out = self.locals.create(precision, tensor.id);
+        let out = self.output(output)?;
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
         self.views.push(TensorView::SwapDims {
@@ -229,7 +233,7 @@ impl FuseOnWriteTraceBuilder {
             dims,
         });
 
-        let input = Arg::InputSwapDim {
+        let input = Arg::InputSwapDims {
             original: Box::new(original),
             dims,
         };
@@ -279,7 +283,7 @@ impl FuseOnWriteTraceBuilder {
             None => self.inputs.insert(precision_input, tensor.clone()),
         };
 
-        let out = self.locals.create(precision, tensor.id);
+        let out = self.output(output)?;
         let original = Arg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
         let mut shape = Sequence::new();
@@ -591,7 +595,7 @@ impl FuseOnWriteTraceBuilder {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct Locals {
     values: BTreeMap<ElemwisePrecision, BTreeMap<TensorId, u32>>,
 }

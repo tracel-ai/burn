@@ -69,6 +69,11 @@ impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error> {
+        println!("Executing ...");
+        for i in 0..config.ops.len() {
+            let op = config.ops.index(i);
+            println!("   {op:?}");
+        }
         let arg = match config.ref_layout {
             Arg::Input(index, precision, _) => match precision {
                 ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
