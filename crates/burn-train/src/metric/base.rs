@@ -51,6 +51,14 @@ pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
 
+    /// The parametrized name of the metric.
+    ///
+    /// By default, it returns the metric [`NAME`](Metric::NAME). This should be configured if a
+    /// metric can exist at different parameters (e.g., top-k accuracy for different values of k).
+    fn name(&self) -> String {
+        Self::NAME.to_string()
+    }
+
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.

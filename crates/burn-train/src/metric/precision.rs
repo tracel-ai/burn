@@ -105,12 +105,21 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
         self.state.update(
             100.0 * metric,
             sample_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        format!(
+            "{} @ {:?} [{:?}]",
+            Self::NAME,
+            self.config.decision_rule,
+            self.config.class_reduction
+        )
     }
 }
 

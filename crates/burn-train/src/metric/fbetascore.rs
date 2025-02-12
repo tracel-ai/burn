@@ -12,6 +12,9 @@ use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
+///
+/// The `beta` parameter represents the ratio of recall importance to precision importance.
+/// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
 #[derive(Default)]
 pub struct FBetaScoreMetric<B: Backend> {
     state: NumericMetricState,
@@ -117,12 +120,23 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
         self.state.update(
             100.0 * metric,
             sample_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "FBetaScore (0.5) @ TopK(1) [Macro]"
+        format!(
+            "{} ({}) @ {:?} [{:?}]",
+            Self::NAME,
+            self.beta,
+            self.config.decision_rule,
+            self.config.class_reduction
+        )
     }
 }
 

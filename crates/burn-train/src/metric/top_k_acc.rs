@@ -85,12 +85,17 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
         self.state.update(
             100.0 * accuracy,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "Top-K Accuracy @ TopK(5)"
+        format!("{} @ TopK({})", Self::NAME, self.k)
     }
 }
 

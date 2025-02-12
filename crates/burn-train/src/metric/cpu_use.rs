@@ -55,10 +55,10 @@ impl Metric for CpuUse {
             self.last_refresh = Instant::now();
         }
 
-        let formatted = format!("{}: {:.2} %", Self::NAME, self.current);
+        let formatted = format!("{}: {:.2} %", self.name(), self.current);
         let raw = format!("{:.2}", self.current);
 
-        MetricEntry::new(Self::NAME.to_string(), formatted, raw)
+        MetricEntry::new(self.name(), formatted, raw)
     }
 
     fn clear(&mut self) {}

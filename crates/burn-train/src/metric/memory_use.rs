@@ -62,7 +62,7 @@ impl Metric for CpuMemory {
             bytes2gb(self.ram_bytes_total),
         );
 
-        MetricEntry::new(Self::NAME.to_string(), formatted, raw.to_string())
+        MetricEntry::new(self.name(), formatted, raw.to_string())
     }
 
     fn clear(&mut self) {}

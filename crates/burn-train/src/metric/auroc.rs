@@ -91,7 +91,7 @@ impl<B: Backend> Metric for AurocMetric<B> {
         self.state.update(
             100.0 * area_under_curve,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 

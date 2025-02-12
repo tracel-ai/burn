@@ -45,7 +45,7 @@ impl<B: Backend> Metric for LossMetric<B> {
         self.state.update(
             loss,
             batch_size,
-            FormatOptions::new(Self::NAME).precision(2),
+            FormatOptions::new(self.name()).precision(2),
         )
     }
 

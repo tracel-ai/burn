@@ -78,12 +78,17 @@ impl<B: Backend> Metric for HammingScore<B> {
         self.state.update(
             100.0 * score,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "Hamming Score @ Threshold(0.5)"
+        format!("{} @ Threshold({})", Self::NAME, self.threshold)
     }
 }
 

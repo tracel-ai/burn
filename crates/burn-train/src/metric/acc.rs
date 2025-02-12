@@ -71,7 +71,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
         self.state.update(
             100.0 * accuracy,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
