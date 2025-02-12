@@ -9,7 +9,7 @@ use burn::nn::{
 };
 
 use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, tile::TileConfig, trilu::TriluConfig,
+    expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig, trilu::TriluConfig,
 };
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
@@ -898,6 +898,53 @@ pub fn tile_config(node: &Node) -> TileConfig {
         })
         .unwrap_or_default();
     TileConfig::new(repeat)
+}
+
+/// Create a TopKConfig from the attributes of the node.
+pub fn top_k_config(node: &Node) -> TopKConfig {
+    // extract the shape of the input data tensor
+    let data_tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    let k = match node.inputs.get(1) {
+        Some(k_tensor) => k_tensor
+            .clone()
+            .value
+            .expect("TopK: only constant 'k' tensor is currently supported")
+            .into_i64s()[0],
+        _ => node
+            .attrs
+            .get("k")
+            .expect("TopK: number of top elements 'k' is missing")
+            .clone()
+            .into_i64(),
+    };
+
+    let mut axis = match node.attrs.get("axis") {
+        Some(axis) => axis.clone().into_i64(),
+        None => -1,
+    };
+
+    // if axis is negative, it is counted from the end
+    if axis < 0 {
+        axis += data_tensor.dim as i64;
+    }
+
+    if let Some(largest) = node.attrs.get("largest") {
+        if largest.clone().into_i64() != 1 {
+            unimplemented!("TopK: only largest elements is supported")
+        }
+    };
+
+    if let Some(sorted) = node.attrs.get("sorted") {
+        if sorted.clone().into_i64() != 1 {
+            unimplemented!("TopK: only sorted elements is supported")
+        }
+    };
+
+    TopKConfig::new(axis as usize, k as usize)
 }
 
 /// Create a TriluConfig from the attributes of the node

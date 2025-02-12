@@ -42,6 +42,7 @@ pub(crate) mod slice;
 pub(crate) mod squeeze;
 pub(crate) mod sum;
 pub(crate) mod tile;
+pub(crate) mod top_k;
 pub(crate) mod trilu;
 pub(crate) mod unary;
 pub(crate) mod unsqueeze;
