@@ -274,7 +274,6 @@ pub(crate) fn implicit_conv<
     #[comptime] config: GMM::Config,
     #[comptime] has_bias: bool,
 ) {
-    // num_elements_x_dim / num_elements_y_dim
     let x_offset = CUBE_POS_X * config.stage_tiling(Ident::Lhs).total_row();
     let y_offset = CUBE_POS_Y * config.stage_tiling(Ident::Rhs).total_col();
     let k_range = (0, rhs.shape(0));
