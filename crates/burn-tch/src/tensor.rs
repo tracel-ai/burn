@@ -292,8 +292,7 @@ impl TchTensor {
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
         let shape_tch = TchShape::from(data.shape.as_slice());
-        let tensor =
-            tch::Tensor::from_slice(data.convert::<E>().as_slice::<E>().unwrap()).to(device);
+        let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);
 
         Self::new(tensor)

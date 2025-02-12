@@ -2,15 +2,12 @@ use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRunt
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
 
-pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
-    data: TensorData,
-    device: &R::Device,
-) -> JitTensor<R> {
+pub(crate) fn from_data<R: JitRuntime>(data: TensorData, device: &R::Device) -> JitTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.convert::<E>().as_bytes());
+    let buffer = client.create(data.as_bytes());
 
-    JitTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
+    JitTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
 pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {

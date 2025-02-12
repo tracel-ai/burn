@@ -25,7 +25,12 @@ where
     BT: BoolElement,
 {
     fn float_from_data(data: TensorData, device: &Device<Self>) -> FloatTensor<Self> {
-        super::from_data::<R, F>(data, device)
+        match data.dtype {
+            DType::F64 | DType::F32 | DType::F16 | DType::BF16 => {
+                super::from_data::<R>(data, device)
+            }
+            _ => unimplemented!("Unsupported dtype for `float_from_data`"),
+        }
     }
 
     fn float_random(
