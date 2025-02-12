@@ -1,6 +1,6 @@
-use crate::{element::JitElement, kernel, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, kernel, tensor::JitTensor, BoolElement, JitRuntime};
 use burn_tensor::{Shape, TensorData};
-use cubecl::CubeElement;
+use cubecl::tensor_vectorization_factor;
 
 pub(crate) fn from_data<R: JitRuntime, E: JitElement>(
     data: TensorData,
@@ -17,22 +17,31 @@ pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
+/// Read data from a `JitTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub(crate) fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
+pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
+    let actual_len = tensor.shape.num_elements() * size_of::<E>();
+    TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime>(tensor: JitTensor<R>) -> TensorData {
+pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
+    tensor: JitTensor<R>,
+) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
+    let actual_len = tensor.shape.num_elements() * size_of::<BT>();
     TensorData::new(
-        u32::from_bytes(&bytes).iter().map(|i| *i != 0).collect(),
+        BT::from_bytes(&bytes[..actual_len])
+            .iter()
+            .map(|i| *i != BT::false_val())
+            .collect(),
         tensor.shape,
     )
 }
@@ -67,7 +76,8 @@ pub(crate) fn swap_dims<R: JitRuntime>(
     tensor
 }
 
-pub(crate) fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
+/// Permute a tensor's dimensions
+pub fn permute<R: JitRuntime>(mut tensor: JitTensor<R>, axes: &[usize]) -> JitTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
@@ -126,7 +136,8 @@ pub(crate) fn expand<R: JitRuntime>(tensor: JitTensor<R>, target_shape: Shape) -
     }
 }
 
-pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
+/// Reshape a jit tensor to a new shape
+pub fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitTensor<R> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
@@ -136,5 +147,14 @@ pub(crate) fn reshape<R: JitRuntime>(tensor: JitTensor<R>, shape: Shape) -> JitT
         shape,
         tensor.handle,
         tensor.dtype,
+    )
+}
+
+pub(crate) fn max_vectorization<R: JitRuntime>(tensor: &JitTensor<R>) -> u8 {
+    tensor_vectorization_factor(
+        R::supported_line_sizes(),
+        &tensor.shape.dims,
+        &tensor.strides,
+        tensor.shape.num_dims() - 1,
     )
 }

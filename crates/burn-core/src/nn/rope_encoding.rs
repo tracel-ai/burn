@@ -31,7 +31,7 @@ impl RotaryEncodingConfig {
     /// Panics if the size of input embedding dimension is not even.
     /// Panics if the theta parameter is not positive.
     pub fn init<B: Backend>(&self, device: &B::Device) -> RotaryEncoding<B> {
-        self.initialize(None, device)
+        self.initialize(|x| x, device)
     }
 
     /// Initialize a new [RotaryEncoding](RotaryEncoding) module with a custom frequency scaling function.
@@ -43,10 +43,10 @@ impl RotaryEncodingConfig {
     /// Panics if the theta parameter is not positive.
     pub fn init_with_frequency_scaling<B: Backend>(
         &self,
-        scaling: fn(Tensor<B, 1>) -> Tensor<B, 1>,
+        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
         device: &B::Device,
     ) -> RotaryEncoding<B> {
-        self.initialize(Some(scaling), device)
+        self.initialize(scaling, device)
     }
 
     /// Initialize a new [RotaryEncoding](RotaryEncoding) module.
@@ -57,7 +57,7 @@ impl RotaryEncodingConfig {
     /// Panics if the theta parameter is not positive.
     fn initialize<B: Backend>(
         &self,
-        scaling: Option<fn(Tensor<B, 1>) -> Tensor<B, 1>>,
+        scaling: impl Fn(Tensor<B, 1>) -> Tensor<B, 1>,
         device: &B::Device,
     ) -> RotaryEncoding<B> {
         assert_eq!(
@@ -79,11 +79,9 @@ impl RotaryEncodingConfig {
         // Calculate (10000 ^ (2i / d_model)) by using the log base property `exp(log(10000) * (2i / d_model))`
         // This is done since burn doesn't support exponentiation of scalar to tensor
         let theta_i = exponent.mul_scalar(self.theta.ln()).exp();
-        let mut theta_i = theta_i.powf_scalar(-1.0);
+        let theta_i = theta_i.powf_scalar(-1.0);
 
-        if let Some(scaling) = scaling {
-            theta_i = scaling(theta_i)
-        }
+        let theta_i = scaling(theta_i);
 
         // Generate frequency values for positional embeddings
         let frequencies: Tensor<B, 2> =

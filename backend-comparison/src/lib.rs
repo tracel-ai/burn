@@ -1,3 +1,7 @@
+use std::error::Error;
+
+use tracing_subscriber::filter::LevelFilter;
+
 pub mod burnbenchapp;
 pub mod persistence;
 
@@ -26,10 +30,36 @@ pub fn get_sharing_url(args: &[String]) -> Option<&str> {
     get_argument(args, "--sharing-url")
 }
 
+pub fn init_log() -> Result<(), Box<dyn Error + Send + Sync>> {
+    let result = tracing_subscriber::fmt()
+        .with_max_level(LevelFilter::DEBUG)
+        .without_time()
+        .try_init();
+
+    if result.is_ok() {
+        update_panic_hook();
+    }
+    result
+}
+
+fn update_panic_hook() {
+    let hook = std::panic::take_hook();
+
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("PANIC => {}", info.to_string());
+        hook(info);
+    }));
+}
+
 #[macro_export]
 macro_rules! bench_on_backend {
     () => {
+        $crate::bench_on_backend!(bench)
+    };
+    ($fn_name:ident) => {
         use std::env;
+        backend_comparison::init_log().unwrap();
+
         let args: Vec<String> = env::args().collect();
         let url = backend_comparison::get_sharing_url(&args);
         let token = backend_comparison::get_sharing_token(&args);
@@ -61,25 +91,25 @@ macro_rules! bench_on_backend {
         let feature_name = "wgpu-spirv";
         #[cfg(feature = "wgpu-spirv-fusion")]
         let feature_name = "wgpu-spirv-fusion";
-        #[cfg(feature = "cuda-jit")]
-        let feature_name = "cuda-jit";
-        #[cfg(feature = "cuda-jit-fusion")]
-        let feature_name = "cuda-jit-fusion";
-        #[cfg(feature = "hip-jit")]
-        let feature_name = "hip-jit";
+        #[cfg(feature = "cuda")]
+        let feature_name = "cuda";
+        #[cfg(feature = "cuda-fusion")]
+        let feature_name = "cuda-fusion";
+        #[cfg(feature = "hip")]
+        let feature_name = "hip";
 
         #[cfg(any(feature = "wgpu"))]
         {
             use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
-            bench::<Wgpu<f32, i32>>(&WgpuDevice::default(), feature_name, url, token);
+            $fn_name::<Wgpu<f32, i32>>(&WgpuDevice::default(), feature_name, url, token);
         }
 
         #[cfg(any(feature = "wgpu-spirv"))]
         {
             use burn::backend::wgpu::{Wgpu, WgpuDevice};
 
-            bench::<Wgpu<half::f16, i32>>(&WgpuDevice::default(), feature_name, url, token);
+            $fn_name::<Wgpu<half::f16, i32>>(&WgpuDevice::default(), feature_name, url, token);
         }
 
         #[cfg(feature = "tch-gpu")]
@@ -90,7 +120,7 @@ macro_rules! bench_on_backend {
             let device = LibTorchDevice::Cuda(0);
             #[cfg(target_os = "macos")]
             let device = LibTorchDevice::Mps;
-            bench::<LibTorch<half::f16>>(&device, feature_name, url, token);
+            $fn_name::<LibTorch<half::f16>>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "tch-cpu")]
@@ -98,7 +128,7 @@ macro_rules! bench_on_backend {
             use burn::backend::{libtorch::LibTorchDevice, LibTorch};
 
             let device = LibTorchDevice::Cpu;
-            bench::<LibTorch>(&device, feature_name, url, token);
+            $fn_name::<LibTorch>(&device, feature_name, url, token);
         }
 
         #[cfg(any(
@@ -112,7 +142,7 @@ macro_rules! bench_on_backend {
             use burn::backend::NdArray;
 
             let device = NdArrayDevice::Cpu;
-            bench::<NdArray>(&device, feature_name, url, token);
+            $fn_name::<NdArray>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-cpu")]
@@ -121,7 +151,7 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::Cpu;
-            bench::<Candle>(&device, feature_name, url, token);
+            $fn_name::<Candle>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-cuda")]
@@ -130,7 +160,7 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::cuda(0);
-            bench::<Candle>(&device, feature_name, url, token);
+            $fn_name::<Candle>(&device, feature_name, url, token);
         }
 
         #[cfg(feature = "candle-metal")]
@@ -139,21 +169,21 @@ macro_rules! bench_on_backend {
             use burn::backend::Candle;
 
             let device = CandleDevice::metal(0);
-            bench::<Candle>(&device, feature_name, url, token);
+            $fn_name::<Candle>(&device, feature_name, url, token);
         }
 
-        #[cfg(feature = "cuda-jit")]
+        #[cfg(feature = "cuda")]
         {
-            use burn::backend::cuda_jit::{Cuda, CudaDevice};
+            use burn::backend::cuda::{Cuda, CudaDevice};
 
-            bench::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
+            $fn_name::<Cuda<half::f16>>(&CudaDevice::default(), feature_name, url, token);
         }
 
-        #[cfg(feature = "hip-jit")]
+        #[cfg(feature = "hip")]
         {
-            use burn::backend::hip_jit::{Hip, HipDevice};
+            use burn::backend::hip::{Hip, HipDevice};
 
-            bench::<Hip<half::f16>>(&HipDevice::default(), feature_name, url, token);
+            $fn_name::<Hip<half::f16>>(&HipDevice::default(), feature_name, url, token);
         }
     };
 }

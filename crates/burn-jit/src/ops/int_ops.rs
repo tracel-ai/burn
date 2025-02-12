@@ -1,6 +1,14 @@
+use self::unary_basic_int::BasicIntUnaryKind;
+
 use super::{expand, numeric, permute};
-use crate::kernel::prng::{random_bernoulli, random_normal, random_uniform};
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::kernel::{
+    launch_binop_int, launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
+    BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily,
+};
+use crate::{
+    element::BoolElement,
+    kernel::prng::{random_bernoulli, random_normal, random_uniform},
+};
 use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
@@ -8,11 +16,12 @@ use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use std::ops::Range;
 
-impl<R, F, I> IntTensorOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    BT: BoolElement,
 {
     fn int_empty(shape: Shape, device: &Device<Self>) -> IntTensor<Self> {
         super::empty::<R, I>(shape, device)
@@ -55,7 +64,7 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_where_auto::<R, I>(tensor, mask, value)
+        kernel::mask_where_auto::<R, I, BT>(tensor, mask, value)
     }
 
     fn int_mask_fill(
@@ -63,7 +72,7 @@ where
         mask: BoolTensor<Self>,
         value: IntElem<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_fill_auto(tensor, mask, value)
+        kernel::mask_fill_auto::<R, I, BT>(tensor, mask, value)
     }
 
     fn int_gather(
@@ -101,43 +110,43 @@ where
     }
 
     fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal::<R, I>(lhs, rhs)
+        kernel::equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem::<R, I>(lhs, rhs)
+        kernel::equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater::<R, I>(lhs, rhs)
+        kernel::greater::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_elem::<R, I>(lhs, rhs)
+        kernel::greater_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal::<R, I>(lhs, rhs)
+        kernel::greater_equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal_elem::<R, I>(lhs, rhs)
+        kernel::greater_equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower::<R, I>(lhs, rhs)
+        kernel::lower::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_elem::<R, I>(lhs, rhs)
+        kernel::lower_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal::<R, I>(lhs, rhs)
+        kernel::lower_equal::<R, I, BT>(lhs, rhs)
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal_elem::<R, I>(lhs, rhs)
+        kernel::lower_equal_elem::<R, I, BT>(lhs, rhs)
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -189,31 +198,31 @@ where
     }
 
     fn int_sum(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::sum::<R, I>(tensor, Default::default())
+        reduce::sum::<R, I>(tensor, Default::default()).unwrap()
     }
 
     fn int_sum_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::sum_dim::<R, I, I>(tensor, dim, Default::default())
+        reduce::reduce_dim::<R, I, I, reduce::Sum>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_prod(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        kernel::reduce::prod::<R, I>(tensor, Default::default())
+        reduce::reduce::<R, I, I, reduce::Prod>(tensor, Default::default()).unwrap()
     }
 
     fn int_prod_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::prod_dim::<R, I, I>(tensor, dim, Default::default())
+        reduce::reduce_dim::<R, I, I, reduce::Prod>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_mean_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::mean_dim::<R, I, I>(tensor, dim, Default::default())
+        reduce::reduce_dim::<R, I, I, reduce::Mean>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmax(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmax::<R, I, I>(tensor, dim, Default::default())
+        reduce::reduce_dim::<R, I, I, reduce::ArgMax>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        kernel::reduce::argmin::<R, I, I>(tensor, dim, Default::default())
+        reduce::reduce_dim::<R, I, I, reduce::ArgMin>(tensor, dim, Default::default()).unwrap()
     }
 
     fn int_clamp(
@@ -225,13 +234,23 @@ where
     }
 
     fn int_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
-        unary_op!(int(tensor) => |context, tensor| {
-            #[cube]
-            fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
+        struct Abs;
+
+        #[cube]
+        impl<N: Numeric> NumericUnaryOp<N> for Abs {
+            type Options = ();
+
+            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
                 Line::abs(input)
             }
-            execute::expand::<C>(context, tensor)
-        })
+        }
+
+        impl NumericUnaryOpFamily for Abs {
+            type Options<N: Numeric> = ();
+            type Unary<N: Numeric> = Self;
+        }
+
+        launch_unary_numeric::<R, I, Abs, _>(tensor, |_| ())
     }
 
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
@@ -277,6 +296,50 @@ where
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        kernel::flip::<R, I>(tensor, axes)
+        kernel::flip::<R, I, BT>(tensor, axes)
+    }
+
+    fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_and::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_and_scalar::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_or::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_or_scalar(lhs, rhs)
+    }
+
+    fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        numeric::bitwise_xor::<R, I>(lhs, rhs)
+    }
+
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        numeric::bitwise_xor_scalar(lhs, rhs)
+    }
+
+    fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_basic_int::launch::<R, _, I>(tensor, |_| &BasicIntUnaryKind::BitwiseNot)
+    }
+
+    fn bitwise_left_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        launch_binop_int::<R, I, kernel::BitwiseShlOp>(lhs, rhs)
+    }
+
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        launch_scalar_binop_int::<R, I, BitwiseShlOp>(lhs, rhs)
+    }
+
+    fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        launch_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
+    }
+
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+        launch_scalar_binop_int::<R, I, BitwiseShrOp>(lhs, rhs)
     }
 }

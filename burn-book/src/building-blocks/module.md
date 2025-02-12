@@ -89,15 +89,81 @@ You can implement your own mapper or visitor by implementing these simple traits
 ```rust, ignore
 /// Module visitor trait.
 pub trait ModuleVisitor<B: Backend> {
-    /// Visit a tensor in the module.
-    fn visit<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>);
+    /// Visit a float tensor in the module.
+    fn visit_float<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D>);
+    /// Visit an int tensor in the module.
+    fn visit_int<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Int>);
+    /// Visit a bool tensor in the module.
+    fn visit_bool<const D: usize>(&mut self, id: ParamId, tensor: &Tensor<B, D, Bool>);
 }
 
 /// Module mapper trait.
 pub trait ModuleMapper<B: Backend> {
-    /// Map a tensor in the module.
-    fn map<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) ->
-      Tensor<B, D>;
+    /// Map a float tensor in the module.
+    fn map_float<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D>) -> Tensor<B, D>;
+    /// Map an int tensor in the module.
+    fn map_int<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D, Int>) -> Tensor<B, D, Int>;
+    /// Map a bool tensor in the module.
+    fn map_bool<const D: usize>(&mut self, id: ParamId, tensor: Tensor<B, D, Bool>) -> Tensor<B, D, Bool>;
+}
+```
+
+Note that the trait doesn't require all methods to be implemented as they are already defined to
+perform no operation. If you're only interested in float tensors (like the majority of use cases),
+then you can simply implement `map_float` or `visit_float`.
+
+For example, the `ModuleMapper` trait could be implemented to clamp all parameters into the range
+`[min, max]`.
+
+```rust, ignore
+/// Clamp parameters into the range `[min, max]`.
+pub struct Clamp {
+    /// Lower-bound of the range.
+    pub min: f32,
+    /// Upper-bound of the range.
+    pub max: f32,
+}
+
+// Clamp all floating-point parameter tensors between `[min, max]`.
+impl<B: Backend> ModuleMapper<B> for Clamp {
+    fn map_float<const D: usize>(
+        &mut self,
+        _id: burn::module::ParamId,
+        tensor: burn::prelude::Tensor<B, D>,
+    ) -> burn::prelude::Tensor<B, D> {
+        tensor.clamp(self.min, self.max)
+    }
+}
+
+// Clamp module mapper into the range `[-0.5, 0.5]`
+let mut clamp = Clamp {
+    min: -0.5,
+    max: 0.5,
+};
+let model = model.map(&mut clamp);
+```
+
+If you want to use this during training to constrain your model parameters, make sure that the
+parameter tensors are still tracked for autodiff. This can be done with a simple adjustment to the
+implementation.
+
+```rust, ignore
+impl<B: AutodiffBackend> ModuleMapper<B> for Clamp {
+    fn map_float<const D: usize>(
+        &mut self,
+        _id: burn::module::ParamId,
+        tensor: burn::prelude::Tensor<B, D>,
+    ) -> burn::prelude::Tensor<B, D> {
+        let is_require_grad = tensor.is_require_grad();
+
+        let mut tensor = Tensor::from_inner(tensor.inner().clamp(self.min, self.max));
+
+        if is_require_grad {
+            tensor = tensor.require_grad();
+        }
+
+        tensor
+    }
 }
 ```
 
@@ -182,14 +248,14 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 ### Convolutions
 
-| Burn API          | PyTorch Equivalent   |
-| ----------------- | -------------------- |
-| `Conv1d`          | `nn.Conv1d`          |
-| `Conv2d`          | `nn.Conv2d`          |
-| `Conv3d`          | `nn.Conv3d`          |
-| `ConvTranspose1d` | `nn.ConvTranspose1d` |
-| `ConvTranspose2d` | `nn.ConvTranspose2d` |
-| `ConvTranspose3d` | `nn.ConvTranspose3d` |
+| Burn API          | PyTorch Equivalent             |
+| ----------------- | ------------------------------ |
+| `Conv1d`          | `nn.Conv1d`                    |
+| `Conv2d`          | `nn.Conv2d`                    |
+| `Conv3d`          | `nn.Conv3d`                    |
+| `ConvTranspose1d` | `nn.ConvTranspose1d`           |
+| `ConvTranspose2d` | `nn.ConvTranspose2d`           |
+| `ConvTranspose3d` | `nn.ConvTranspose3d`           |
 | `DeformConv2d`    | `torchvision.ops.DeformConv2d` |
 
 ### Pooling
@@ -228,3 +294,4 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `CrossEntropyLoss` | `nn.CrossEntropyLoss` |
 | `MseLoss`          | `nn.MSELoss`          |
 | `HuberLoss`        | `nn.HuberLoss`        |
+| `PoissonNllLoss`   | `nn.PoissonNLLLoss`   |

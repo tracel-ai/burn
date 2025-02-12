@@ -1,11 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-// Allow deprecated `Data` and `DataSerialize`
-#![allow(deprecated)]
 
-//! This library provides multiple tensor implementations hidden behind an easy to use API
-//! that supports reverse mode automatic differentiation.
+//! This library provides the core abstractions required to run tensor operations with Burn.
+//! `Tensor`s are generic over the backend to allow users to perform operations using different `Backend` implementations.
+//! Burn's tensors also support support auto-differentiation thanks to the `AutodiffBackend` trait.
 
 #[macro_use]
 extern crate derive_new;
@@ -13,10 +12,6 @@ extern crate derive_new;
 extern crate alloc;
 
 mod tensor;
-
-/// Burn Tensor representaton
-#[cfg(feature = "repr")]
-pub mod repr;
 
 #[cfg(feature = "export_tests")]
 #[allow(missing_docs)]
@@ -59,6 +54,8 @@ mod cube_wgpu {
     use crate::backend::{DeviceId, DeviceOps};
     use cubecl::wgpu::WgpuDevice;
 
+    // Allow deprecated `WgpuDevice::BestAvailable`
+    #[allow(deprecated)]
     impl DeviceOps for WgpuDevice {
         fn id(&self) -> DeviceId {
             match self {
@@ -67,13 +64,7 @@ mod cube_wgpu {
                 WgpuDevice::VirtualGpu(index) => DeviceId::new(2, *index as u32),
                 WgpuDevice::Cpu => DeviceId::new(3, 0),
                 WgpuDevice::BestAvailable | WgpuDevice::DefaultDevice => DeviceId::new(4, 0),
-                // For an existing device, use the 64 bit wgpu device ID as the burn DeviceID.
-                // We're only storing 32 bits, so wrap the the 64 bit value to 32 bits. This
-                // might collide - but a 1 in 4 billion chance seems ok given there's only a few
-                // devices in flight at any time.
-                WgpuDevice::Existing(id) => {
-                    DeviceId::new(5, (id.inner() % (u32::MAX as u64)) as u32)
-                }
+                WgpuDevice::Existing(id) => DeviceId::new(5, *id),
             }
         }
     }

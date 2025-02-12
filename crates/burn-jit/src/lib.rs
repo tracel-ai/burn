@@ -7,27 +7,24 @@
 extern crate derive_new;
 extern crate alloc;
 
-mod ops;
+/// Utilities for implementing JIT kernels
+pub mod ops;
 
 /// Kernel module
 pub mod kernel;
 /// Tensor module.
 pub mod tensor;
 
-pub(crate) mod tune;
-
 /// Elements for JIT backend
 pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{compute::CubeTask, Feature, Runtime};
-pub use element::{FloatElement, IntElement, JitElement};
+pub use element::{BoolElement, FloatElement, IntElement, JitElement};
 
 mod backend;
-mod bridge;
 
 pub use backend::*;
-pub use bridge::*;
 
 // Re-export cubecl.
 pub use cubecl;

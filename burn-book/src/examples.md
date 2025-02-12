@@ -85,6 +85,7 @@ The following additional examples are currently available if you want to check t
 | [PyTorch Import Inference](https://github.com/tracel-ai/burn/tree/main/examples/pytorch-import)           | Imports a PyTorch model pre-trained on MNIST to perform inference on a sample image with Burn.                                                                                               |
 | [Text Classification](https://github.com/tracel-ai/burn/tree/main/examples/text-classification)           | Trains a text classification transformer model on the AG News or DbPedia datasets. The trained model can then be used to classify a text sample.                                             |
 | [Text Generation](https://github.com/tracel-ai/burn/tree/main/examples/text-generation)                   | Trains a text generation transformer model on the DbPedia dataset.                                                                                                                           |
+| [Wasserstein GAN MNIST](https://github.com/tracel-ai/burn/tree/main/examples/wgan)                        | Trains a WGAN model to generate new handwritten digits based on MNIST.                                                                                                                       |
 
 For more information on each example, see their respective `README.md` file. Be sure to check out
 the [examples](https://github.com/tracel-ai/burn/tree/main/examples) directory for an up-to-date

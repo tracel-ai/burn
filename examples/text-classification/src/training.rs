@@ -88,7 +88,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
-        .init();
+        .init()
+        .unwrap();
 
     // Initialize learner
     let learner = LearnerBuilder::new(artifact_dir)

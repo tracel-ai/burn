@@ -6,12 +6,12 @@ use burn_tensor::{
 use core::ops::AddAssign;
 use ndarray::{
     s, Array2, Array4, ArrayView2, ArrayView3, ArrayView4, ArrayView6, ArrayViewMut2, Axis, Dim,
-    Ix4,
+    Ix4, Zip,
 };
 #[cfg(not(feature = "std"))]
 use num_traits::Float;
 
-use crate::{element::QuantElement, FloatNdArrayElement, NdArrayTensor};
+use crate::{FloatNdArrayElement, NdArrayTensor};
 
 use super::matmul::matmul;
 
@@ -255,19 +255,21 @@ pub mod backward {
     #[cfg(target_has_atomic = "32")]
     use core::sync::atomic::Ordering;
 
-    use crate::{element::IntNdArrayElement, NdArray};
     use atomic_float::AtomicF32;
-    use burn_tensor::ops::DeformConv2dBackward;
     use ndarray::{Array1, Array5, ArrayView4, ArrayView6, Ix4};
 
     use super::*;
 
+    pub(crate) type DeformConv2dBackward<F> = (
+        NdArrayTensor<F>,
+        NdArrayTensor<F>,
+        NdArrayTensor<F>,
+        Option<NdArrayTensor<F>>,
+        Option<NdArrayTensor<F>>,
+    );
+
     /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
-    pub(crate) fn deform_conv2d_backward<
-        F: FloatNdArrayElement,
-        I: IntNdArrayElement,
-        Q: QuantElement,
-    >(
+    pub(crate) fn deform_conv2d_backward<F: FloatNdArrayElement>(
         input: NdArrayTensor<F>,
         offset: NdArrayTensor<F>,
         weight: NdArrayTensor<F>,
@@ -275,7 +277,7 @@ pub mod backward {
         bias: Option<NdArrayTensor<F>>,
         out_grad: NdArrayTensor<F>,
         args: DeformConvOptions<2>,
-    ) -> DeformConv2dBackward<NdArray<F, I, Q>> {
+    ) -> DeformConv2dBackward<F> {
         let [batch_size, out_channels, out_h, out_w] = out_grad.shape().dims();
         let [_, _, kernel_h, kernel_w] = weight.shape().dims();
         let groups = args.weight_groups;
@@ -333,7 +335,7 @@ pub mod backward {
             (out_h, out_w),
         );
 
-        DeformConv2dBackward::new(
+        (
             input_gradient,
             offset_gradient,
             weight_grad,
@@ -586,29 +588,37 @@ pub mod backward {
                 AtomicF32::new(0.0)
             });
 
+        let compute_for_each = |(in_channel, kernel_y, kernel_x, batch, out_y, out_x), col: &F| {
+            let group = in_channel / channels_per_offset_group;
+            let offset = offset.slice(s![batch, .., out_y, out_x]);
+            let offset = offset
+                .to_shape((offs_groups, kernel_h, kernel_w, 2))
+                .unwrap();
+            let offset = offset.slice(s![group, kernel_y, kernel_x, ..]);
+            let offset = [offset[0], offset[1]];
+            let mask = mask
+                .as_ref()
+                .map(|it| it[[batch, group, kernel_y, kernel_x, out_y, out_x]].to_f32());
+            let y = F::from_elem(out_y * args.stride[0] + kernel_y * args.dilation[0])
+                - F::from_elem(args.padding[0])
+                + offset[0];
+            let x = F::from_elem(out_x * args.stride[1] + kernel_x * args.dilation[1])
+                - F::from_elem(args.padding[1])
+                + offset[1];
+            let grad_in = grad_in.slice(s![batch, in_channel, .., ..]);
+            deform_col2img_kernel(y.to_f32(), x.to_f32(), mask, col.to_f32(), grad_in);
+        };
+
+        // `for_each` expects a 2-tuple argument with `.into_par_iter()`, but 2 separate arguments otherwise
+        #[cfg(feature = "std")]
         run_par!(|| {
-            iter_par!(columns.indexed_iter()).for_each(
-                |((in_channel, kernel_y, kernel_x, batch, out_y, out_x), col)| {
-                    let group = in_channel / channels_per_offset_group;
-                    let offset = offset.slice(s![batch, .., out_y, out_x]);
-                    let offset = offset
-                        .to_shape((offs_groups, kernel_h, kernel_w, 2))
-                        .unwrap();
-                    let offset = offset.slice(s![group, kernel_y, kernel_x, ..]);
-                    let offset = [offset[0], offset[1]];
-                    let mask = mask
-                        .as_ref()
-                        .map(|it| it[[batch, group, kernel_y, kernel_x, out_y, out_x]].to_f32());
-                    let y = F::from_elem(out_y * args.stride[0] + kernel_y * args.dilation[0])
-                        - F::from_elem(args.padding[0])
-                        + offset[0];
-                    let x = F::from_elem(out_x * args.stride[1] + kernel_x * args.dilation[1])
-                        - F::from_elem(args.padding[1])
-                        + offset[1];
-                    let grad_in = grad_in.slice(s![batch, in_channel, .., ..]);
-                    deform_col2img_kernel(y.to_f32(), x.to_f32(), mask, col.to_f32(), grad_in);
-                },
-            )
+            iter_par!(Zip::indexed(columns))
+                .for_each(|(args0, args1)| compute_for_each(args0, args1))
+        });
+
+        #[cfg(not(feature = "std"))]
+        run_par!(|| {
+            iter_par!(Zip::indexed(columns)).for_each(|args0, args1| compute_for_each(args0, args1))
         });
 
         let grad_in: Array1<F> = grad_in

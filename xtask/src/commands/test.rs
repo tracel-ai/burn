@@ -67,9 +67,25 @@ pub(crate) fn handle_command(
                 "std with features: test-tch,record-item-custom-serde",
             )?;
 
+            // burn-vision
+            helpers::custom_crates_tests(
+                vec!["burn-vision"],
+                vec!["--features", "test-cpu"],
+                None,
+                None,
+                "std cpu",
+            )?;
+
             if std::env::var("DISABLE_WGPU").is_err() {
                 helpers::custom_crates_tests(
                     vec!["burn-core"],
+                    vec!["--features", "test-wgpu"],
+                    None,
+                    None,
+                    "std wgpu",
+                )?;
+                helpers::custom_crates_tests(
+                    vec!["burn-vision"],
                     vec!["--features", "test-wgpu"],
                     None,
                     None,
@@ -83,7 +99,14 @@ pub(crate) fn handle_command(
                         vec!["--features", "test-wgpu-spirv"],
                         None,
                         None,
-                        "std wgpu-spirv",
+                        "std vulkan",
+                    )?;
+                    helpers::custom_crates_tests(
+                        vec!["burn-vision"],
+                        vec!["--features", "vulkan"],
+                        None,
+                        None,
+                        "std vulkan",
                     )?;
                 }
             }
@@ -123,6 +146,7 @@ pub(crate) fn handle_command(
                         jobs: args.jobs,
                         ci: args.ci,
                         features: args.features.clone(),
+                        no_default_features: args.no_default_features,
                     },
                     env,
                 )

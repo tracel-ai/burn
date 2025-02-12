@@ -3,13 +3,14 @@ use burn_tensor::{
     DType, TensorData,
 };
 
-use crate::{FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
-impl<R, F, I> TransactionOps<Self> for JitBackend<R, F, I>
+impl<R, F, I, BT> TransactionOps<Self> for JitBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,
     I: IntElement,
+    BT: BoolElement,
 {
     fn tr_execute(
         transaction: burn_tensor::ops::TransactionPrimitive<Self>,
@@ -51,7 +52,7 @@ where
                 client = Some(t.client.clone());
             }
 
-            kinds.push(Kind::Bool(num_bindings, t.shape.into(), DType::U32));
+            kinds.push(Kind::Bool(num_bindings, t.shape.into(), BT::dtype()));
             num_bindings += 1;
             bindings.push(t.handle.binding())
         });
@@ -59,12 +60,12 @@ where
         let client = client.unwrap();
 
         async move {
-            let mut data = client
+            let mut data: Vec<Option<_>> = client
                 .read_async(bindings)
                 .await
                 .into_iter()
                 .map(Some)
-                .collect::<Vec<_>>();
+                .collect::<Vec<Option<_>>>();
 
             let mut result = TransactionPrimitiveResult::default();
 
@@ -72,27 +73,21 @@ where
                 match kind {
                     Kind::Float(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_floats.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_floats
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                     Kind::Int(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_ints.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_ints
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                     Kind::Bool(index, shape, dtype) => {
                         let bytes = data.get_mut(index).unwrap().take().unwrap();
-                        result.read_bools.push(TensorData {
-                            bytes,
-                            shape,
-                            dtype,
-                        });
+                        result
+                            .read_bools
+                            .push(TensorData::from_bytes(bytes, shape, dtype));
                     }
                 }
             }

@@ -11,7 +11,7 @@ pub(crate) use flip::*;
 pub(crate) use repeat_dim::*;
 pub(crate) use select::*;
 pub(crate) use select_assign::*;
-pub(crate) use slice::*;
+pub use slice::*;
 pub(crate) use slice_assign::*;
 
 pub(crate) use gather::*;

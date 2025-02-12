@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
+use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
 use burn_tensor::{
-    backend::{Backend, BackendBridge, DeviceId, DeviceOps},
-    repr::{OperationDescription, ReprBackend, TensorDescription, TensorHandle, TensorId},
+    backend::{Backend, DeviceId, DeviceOps},
     try_read_sync, DType, Shape, TensorData,
 };
 
@@ -27,7 +27,7 @@ macro_rules! impl_multi_backend_types {
 
             /// The type that can be used to point to a tensor of any kind.
             /// Each backend has its own variant.
-            pub enum Handle<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> {
+            pub enum Handle<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> {
                 #[allow(missing_docs)]
                 $DefaultBackend($DefaultBackend::Handle),
                 $(
@@ -79,7 +79,7 @@ macro_rules! impl_multi_backend_types {
 
             /// A local client with multiple runners (each responsible to execute tensor operations on a given backend).
             #[derive(Clone)]
-            pub enum MultiRunnerClient<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> {
+            pub enum MultiRunnerClient<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> {
                 #[allow(missing_docs)]
                 $DefaultBackend(Runner<$DefaultBackend>),
                 $(
@@ -88,17 +88,11 @@ macro_rules! impl_multi_backend_types {
                 )+
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
-                where <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-                $(
-                    <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-                )+
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> RunnerClient for MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>
             {
                type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 
-                fn register(&self, op: OperationDescription) {
+                fn register(&self, op: OperationIr) {
                     match self {
                         Self::$DefaultBackend(runner) => runner.register(op),
                         $(
@@ -107,7 +101,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                async fn read_tensor(&self, tensor: TensorDescription) -> TensorData {
+                async fn read_tensor(&self, tensor: TensorIr) -> TensorData {
                     match self {
                         Self::$DefaultBackend(runner) => runner.read_tensor(tensor).await,
                         $(
@@ -202,16 +196,8 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+, Br> RunnerChannel for DirectChannel<($DefaultBackend, $($OtherBackend),+), Br>
             where
-            // Restrict full precision backend handle to be the same
-            <<$DefaultBackend as Backend>::FullPrecisionBridge as BackendBridge<$DefaultBackend>>::Target:
-                ReprBackend<Handle = $DefaultBackend::Handle>,
-            $(
-                $OtherBackend: ReprBackend<FloatElem = $DefaultBackend::FloatElem, IntElem = $DefaultBackend::IntElem>,
-                <<$OtherBackend as Backend>::FullPrecisionBridge as BackendBridge<$OtherBackend>>::Target:
-                    ReprBackend<Handle = $OtherBackend::Handle>,
-            )+
                 Br: MultiBackendBridge<TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>, Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>>,
             {
                 type Device = Br::Device;
@@ -220,6 +206,7 @@ macro_rules! impl_multi_backend_types {
 
                 type FloatElem = $DefaultBackend::FloatElem;
                 type IntElem = $DefaultBackend::IntElem;
+                type BoolElem = $DefaultBackend::BoolElem;
 
                 type Client = MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>;
 
@@ -233,7 +220,7 @@ macro_rules! impl_multi_backend_types {
                 }
 
                 fn get_tensor_handle(
-                    tensor: &TensorDescription,
+                    tensor: &TensorIr,
                     client: &Self::Client,
                 ) -> <Self::Bridge as MultiBackendBridge>::TensorHandle {
                     match client {
@@ -273,7 +260,7 @@ macro_rules! impl_multi_backend_types {
                 }
             }
 
-            impl<$DefaultBackend: ReprBackend, $($OtherBackend: ReprBackend),+> MultiBackendBridge for ByteBridge<($DefaultBackend, $($OtherBackend),+)> {
+            impl<$DefaultBackend: BackendIr, $($OtherBackend: BackendIr),+> MultiBackendBridge for ByteBridge<($DefaultBackend, $($OtherBackend),+)> {
                 type TensorHandle = Handle<$DefaultBackend, $($OtherBackend),+>;
                 type Device = MultiDevice<$DefaultBackend, $($OtherBackend),+>;
 

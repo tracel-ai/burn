@@ -1,4 +1,6 @@
-use super::pool2d::{pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy};
+use super::pool2d::{
+    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+};
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
@@ -6,18 +8,30 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 struct MaxPoolStrategy;
 struct MaxPoolWithIndicesStrategy;
 
+impl Pool2dDirectStrategyFamily for MaxPoolStrategy {
+    type Indices = ();
+    type Config = ();
+    type Pool2d<N: Numeric> = Self;
+}
+
+impl Pool2dDirectStrategyFamily for MaxPoolWithIndicesStrategy {
+    type Indices = Tensor<i32>;
+    type Config = ();
+    type Pool2d<N: Numeric> = Self;
+}
+
 #[cube]
 impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
     type Accumulator = N;
     type Config = ();
     type Indices = ();
 
-    fn initialize(#[comptime] _config: Self::Config) -> Self::Accumulator {
-        N::MIN
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        N::min_value()
     }
 
     fn accumulate(
-        #[comptime] _config: Self::Config,
+        #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: u32,
         result: N,
@@ -28,7 +42,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
     }
 
     fn store(
-        #[comptime] _config: Self::Config,
+        #[comptime] _config: &Self::Config,
         position: u32,
         output: &mut Tensor<N>,
         _output_indices: &mut (),
@@ -44,12 +58,12 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     type Config = ();
     type Indices = Tensor<i32>;
 
-    fn initialize(#[comptime] _config: Self::Config) -> Self::Accumulator {
-        (N::MIN, 0i32)
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        (N::min_value(), 0i32)
     }
 
     fn accumulate(
-        #[comptime] _config: Self::Config,
+        #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         index: u32,
         result: N,
@@ -61,7 +75,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     }
 
     fn store(
-        #[comptime] _config: Self::Config,
+        #[comptime] _config: &Self::Config,
         position: u32,
         output: &mut Tensor<N>,
         output_indices: &mut Tensor<i32>,

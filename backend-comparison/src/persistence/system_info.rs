@@ -2,7 +2,7 @@ use burn::serde::{Deserialize, Serialize};
 use cubecl::wgpu::GraphicsApi;
 use std::collections::HashSet;
 use sysinfo;
-use wgpu;
+use wgpu::{self, Backends};
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct BenchmarkSystemInfo {
@@ -38,7 +38,7 @@ impl BenchmarkSystemInfo {
 
     fn enumerate_cpus() -> Vec<String> {
         let system = sysinfo::System::new_with_specifics(
-            sysinfo::RefreshKind::new().with_cpu(sysinfo::CpuRefreshKind::everything()),
+            sysinfo::RefreshKind::nothing().with_cpu(sysinfo::CpuRefreshKind::everything()),
         );
         let cpu_names: HashSet<String> = system
             .cpus()
@@ -51,7 +51,10 @@ impl BenchmarkSystemInfo {
     fn enumerate_gpus() -> Vec<String> {
         let instance = wgpu::Instance::default();
         let adapters: Vec<wgpu::Adapter> = instance
-            .enumerate_adapters(cubecl::wgpu::AutoGraphicsApi::backend().into())
+            .enumerate_adapters({
+                let backend = cubecl::wgpu::AutoGraphicsApi::backend();
+                Backends::from_bits(1 << backend as u32).unwrap()
+            })
             .into_iter()
             .filter(|adapter| {
                 let info = adapter.get_info();

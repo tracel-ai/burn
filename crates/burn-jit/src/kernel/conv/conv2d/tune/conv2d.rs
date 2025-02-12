@@ -1,28 +1,21 @@
-use burn_tensor::{
-    ops::{conv::calculate_conv_output_size, ConvOptions},
-    ElementConversion, Shape,
-};
-use cubecl::{
-    tune,
-    tune::{local_tuner, tune_with, LocalTuner},
-};
+use burn_tensor::{ops::ConvOptions, ElementConversion, Shape};
+use cubecl::tune::{local_tuner, LocalTuner, TunableSet};
 
+use super::Conv2dAutotuneKey;
 use crate::{
     kernel::{
         conv::{
-            batches_per_run, can_do_implicit_gemm, conv2d_direct, conv2d_im2col,
+            conv2d_direct, conv2d_gemm_cmma_balanced, conv2d_gemm_cmma_large_m, conv2d_im2col,
             conv2d_implicit_gemm,
         },
         prng::random_uniform,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitAutotuneKey, JitRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
 
-use super::Conv2dAutotuneKey;
-
 /// Executes autotune on conv2d operations
-pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weights: JitTensor<R>,
     bias: Option<JitTensor<R>>,
@@ -32,27 +25,33 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement, I: IntElement>(
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
 
+    let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
+        .with_tunable(conv2d_direct::<R, E>)
+        .with_tunable(conv2d_im2col::<R, E>)
+        .with_tunable(conv2d_implicit_gemm::<R, E>)
+        .with_tunable(conv2d_gemm_cmma_large_m::<R, E>)
+        .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
+
     TUNER.execute(
         &JitTuneId::new::<R>(&input.device),
         &client,
-        Box::new(Conv2dOperations::<R, E, I>::new(
-            input, weights, bias, options,
-        )),
+        &tunables,
+        (input, weights, bias, options),
     )
 }
 
-#[tune(
-    operations(conv2d_direct, conv2d_im2col, conv2d_implicit_gemm),
-    create_key = create_key::<R, E>,
-    should_run = should_run
-)]
-pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
-    key: JitAutotuneKey,
-    input: JitTensor<R>,
-    weights: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
-    options: ConvOptions<2>,
-) -> JitTensor<R> {
+pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
+    key: &JitAutotuneKey,
+    input: &JitTensor<R>,
+    _weights: &JitTensor<R>,
+    _bias: &Option<JitTensor<R>>,
+    options: &ConvOptions<2>,
+) -> (
+    JitTensor<R>,
+    JitTensor<R>,
+    Option<JitTensor<R>>,
+    ConvOptions<2>,
+) {
     let device = &input.device;
     let key = match key {
         JitAutotuneKey::Conv2d(key) => key,
@@ -71,50 +70,7 @@ pub fn conv2d_operations<R: JitRuntime, E: FloatElement, I: IntElement>(
         .has_bias
         .then(|| random_uniform(bias_shape, device, random_bounds.0, random_bounds.1));
 
-    tune_with!(input, weights, bias, options)
-}
-
-fn should_run<R: JitRuntime, F: FloatElement, I: IntElement>(
-    op: &Conv2dOperations<R, F, I>,
-    key: &JitAutotuneKey,
-    index: usize,
-) -> bool {
-    let key = match key {
-        JitAutotuneKey::Conv2d(key) => key,
-        _ => unreachable!(),
-    };
-
-    let out_h = calculate_conv_output_size(
-        key.kernel_size[0],
-        key.stride[0],
-        key.padding[0],
-        key.dilation[0],
-        key.height,
-    );
-    let out_w = calculate_conv_output_size(
-        key.kernel_size[1],
-        key.stride[1],
-        key.padding[1],
-        key.dilation[1],
-        key.width,
-    );
-
-    match index {
-        // im2col
-        1 => batches_per_run(key.batch_size, out_h, out_w).is_some(),
-        // Implicit gemm.
-        2 => can_do_implicit_gemm::<R, F>(
-            key.batch_size,
-            key.in_channels,
-            key.out_channels,
-            key.kernel_size,
-            op.options.groups,
-            out_h,
-            out_w,
-            &op.input.client,
-        ),
-        _ => true,
-    }
+    (input, weights, bias, options.clone())
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(

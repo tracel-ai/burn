@@ -1,10 +1,18 @@
-use super::pool2d::{pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy};
+use super::pool2d::{
+    pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
+};
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, prelude::ScalarArg, CubeDim};
 
 struct AvgPoolStrategy;
+
+impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
+    type Indices = ();
+    type Config = AvgPoolStrategyConfig;
+    type Pool2d<N: Numeric> = Self;
+}
 
 #[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct AvgPoolStrategyConfig {
@@ -19,7 +27,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     type Config = AvgPoolStrategyConfig;
     type Indices = ();
 
-    fn initialize(#[comptime] config: Self::Config) -> Self::Accumulator {
+    fn initialize(#[comptime] config: &Self::Config) -> Self::Accumulator {
         let sum = N::from_int(0);
         let count = comptime! {if config.count_include_pad {
             config.kernel_size_h * config.kernel_size_w
@@ -31,7 +39,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     }
 
     fn accumulate(
-        #[comptime] config: Self::Config,
+        #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: u32,
         result: N,
@@ -46,7 +54,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     }
 
     fn store(
-        #[comptime] _config: Self::Config,
+        #[comptime] _config: &Self::Config,
         position: u32,
         output: &mut Tensor<N>,
         _output_indices: &mut (),

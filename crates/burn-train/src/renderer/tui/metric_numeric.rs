@@ -182,7 +182,7 @@ pub(crate) enum NumericMetricView<'a> {
     None,
 }
 
-impl<'a> NumericMetricView<'a> {
+impl NumericMetricView<'_> {
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {
         match self {
             Self::Plots(titles, selected, chart, kind) => {

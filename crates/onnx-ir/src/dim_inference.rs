@@ -32,6 +32,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Erf => same_as_input(node),
         NodeType::Exp => same_as_input(node),
         NodeType::Expand => expand_update_outputs(node),
+        NodeType::Floor => same_as_input(node),
         NodeType::Flatten => flatten_update_outputs(node),
         NodeType::Gelu => same_as_input(node),
         NodeType::Gather => gather_update_outputs(node),

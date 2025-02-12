@@ -324,7 +324,7 @@ WGPU (WebGPU): Cross-Platform GPU Backend 🌐
 
 Based on the most popular and well-supported Rust graphics library, [WGPU](https://wgpu.rs), this
 backend automatically targets Vulkan, OpenGL, Metal, Direct X11/12, and WebGPU, by using the WebGPU
-shading language [WGSL](https://www.w3.org/TR/WGSL/https://www.w3.org/TR/WGSL/), or optionally
+shading language [WGSL](https://www.w3.org/TR/WGSL/), or optionally
 [SPIR-V](https://www.khronos.org/spir/) when targeting Vulkan. It can also be compiled to Web
 Assembly to run in the browser while leveraging the GPU, see
 [this demo](https://antimora.github.io/image-classification/). For more information on the benefits
@@ -567,6 +567,8 @@ Additional examples:
   sample.
 - [Text Generation](./examples/text-generation) : Trains a text generation transformer model on the
   DbPedia dataset.
+- [Wasserstein GAN MNIST](./examples/wgan) : Trains a WGAN model to generate new handwritten digits
+  based on MNIST.
 
 For more practical insights, you can clone the repository and run any of them directly on your
 computer!
@@ -619,19 +621,20 @@ leads to more reliable, bug-free solutions built faster (after some practice �
 <br />
 
 > **Deprecation Note**<br />Since `0.14.0`, the internal structure for tensor data has changed. The
-> previous `Data` struct is being deprecated in favor of the new `TensorData` struct, which allows
-> for more flexibility by storing the underlying data as bytes and keeping the data type as a field.
-> If you are using `Data` in your code, make sure to switch to `TensorData`.
+> previous `Data` struct was deprecated and officially removed since `0.17.0` in favor of the new
+> `TensorData` struct, which allows for more flexibility by storing the underlying data as bytes and
+> keeping the data type as a field. If you are using `Data` in your code, make sure to switch to
+> `TensorData`.
 
 <!-- >
 > In the event that you are trying to load a model record saved in a previous version, make sure to
-> enable the `record-backward-compat` feature. Otherwise, the record won't be deserialized correctly
-> and you will get an error message (which will also point you to the backward compatible feature
-> flag). The backward compatibility is maintained for deserialization (loading), so as soon as you
-> have saved the record again it will be saved according to the new structure and you won't need the
-> backward compatible feature flag anymore. Please note that binary formats are not backward
-> compatible. Thus, you will need to load your record in a previous version and save it to another
-> of the self-describing record formats before using the new version with the
+> enable the `record-backward-compat` feature using a previous version of burn (<=0.16.0). Otherwise,
+> the record won't be deserialized correctly and you will get an error message (which will also point
+> you to the backward compatible feature flag). The backward compatibility was maintained for
+> deserialization (loading), so as soon as you have saved the record again it will be saved according
+> to the new structure and you will be able to upgrade to this version. Please note that binary formats
+> are not backward compatible. Thus, you will need to load your record in a previous version and save it
+> to another of the self-describing record formats before using a compatible version (as described) with the
 > `record-backward-compat` feature flag. -->
 
 <details id="deprecation">
@@ -640,8 +643,9 @@ Loading Model Records From Previous Versions ⚠️
 </summary>
 <br />
 
-In the event that you are trying to load a model record saved in a previous version, make sure to
-enable the `record-backward-compat` feature flag.
+In the event that you are trying to load a model record saved in a version older than `0.14.0`, make
+sure to use a compatible version (`0.14`, `0.15` or `0.16`) with the `record-backward-compat`
+feature flag.
 
 ```
 features = [..., "record-backward-compat"]
@@ -650,13 +654,14 @@ features = [..., "record-backward-compat"]
 Otherwise, the record won't be deserialized correctly and you will get an error message. This error
 will also point you to the backward compatible feature flag.
 
-The backward compatibility is maintained for deserialization when loading records. Therefore, as
-soon as you have saved the record again it will be saved according to the new structure and you
-won't need the backward compatible feature flag anymore.
+The backward compatibility was maintained for deserialization when loading records. Therefore, as
+soon as you have saved the record again it will be saved according to the new structure and you can
+upgrade back to the current version
 
 Please note that binary formats are not backward compatible. Thus, you will need to load your record
 in a previous version and save it in any of the other self-describing record format (e.g., using the
-`NamedMpkFileRecorder`) before using the new version with the `record-backward-compat` feature flag.
+`NamedMpkFileRecorder`) before using a compatible version (as described) with the
+`record-backward-compat` feature flag.
 
 </details>
 

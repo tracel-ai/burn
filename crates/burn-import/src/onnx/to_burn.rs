@@ -32,6 +32,7 @@ use crate::{
             conv_transpose_3d::ConvTranspose3dNode,
             dropout::DropoutNode,
             expand::{ExpandNode, ExpandShape},
+            floor::FloorNode,
             gather::GatherNode,
             gather_elements::GatherElementsNode,
             global_avg_pool::GlobalAvgPoolNode,
@@ -268,6 +269,7 @@ impl ParsedOnnxGraph {
                 NodeType::Erf => graph.register(Self::erf_conversion(node)),
                 NodeType::Exp => graph.register(Self::exp_conversion(node)),
                 NodeType::Expand => graph.register(Self::expand_conversion(node)),
+                NodeType::Floor => graph.register(Self::floor_conversion(node)),
                 NodeType::Clip => graph.register(Self::clip_conversion(node)),
                 NodeType::Cos => graph.register(Self::cos_conversion(node)),
                 NodeType::Conv1d => graph.register(Self::conv1d_conversion::<PS>(node)),
@@ -1273,6 +1275,13 @@ impl ParsedOnnxGraph {
         let config = split_config(&node);
 
         SplitNode::new(input, outputs, config)
+    }
+
+    fn floor_conversion(node: Node) -> FloorNode {
+        let input = TensorType::from(node.inputs.first().unwrap());
+        let output = TensorType::from(node.outputs.first().unwrap());
+
+        FloorNode::new(input, output)
     }
 }
 

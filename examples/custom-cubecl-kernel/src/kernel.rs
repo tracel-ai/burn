@@ -17,7 +17,7 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
     let dim_k = rhs.shape(rhs.rank() - 1);
 
     if row >= n_rows || col >= n_cols {
-        return;
+        terminate!();
     }
 
     let offset_output = batch * n_rows * n_cols;

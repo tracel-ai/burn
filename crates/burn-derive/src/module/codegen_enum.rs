@@ -2,9 +2,11 @@ use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
 use crate::shared::enum_variant::{parse_variants, EnumVariant};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
+use syn::Visibility;
 
 pub(crate) struct EnumModuleCodegen {
     pub variants: Vec<EnumVariant>,
+    pub vis: Visibility,
 }
 
 impl ModuleCodegen for EnumModuleCodegen {
@@ -157,7 +159,7 @@ impl ModuleCodegen for EnumModuleCodegen {
     }
 
     fn record_codegen(self) -> Self::RecordCodegen {
-        EnumModuleRecordCodegen::new(self.variants)
+        EnumModuleRecordCodegen::new(self.variants, self.vis)
     }
 }
 
@@ -165,6 +167,7 @@ impl EnumModuleCodegen {
     pub fn from_ast(ast: &syn::DeriveInput) -> Self {
         Self {
             variants: parse_variants(ast),
+            vis: ast.vis.clone(),
         }
     }
 

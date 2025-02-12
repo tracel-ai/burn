@@ -3,7 +3,8 @@ use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
-pub(crate) fn slice<R: JitRuntime, E: JitElement>(
+/// Slice a jit tensor with a set of ranges
+pub fn slice<R: JitRuntime, E: JitElement>(
     tensor: JitTensor<R>,
     indices: &[Range<usize>],
 ) -> JitTensor<R> {
@@ -52,7 +53,7 @@ fn slice_kernel<E: CubePrimitive>(
     #[comptime] rank: u32,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let mut offset_input = 0;

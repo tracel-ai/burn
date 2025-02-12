@@ -3,7 +3,6 @@ use crate::{
     grads::Gradients,
     runtime::AutodiffClient,
     tensor::AutodiffTensor,
-    AutodiffBridge,
 };
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
@@ -24,8 +23,6 @@ pub struct Autodiff<B, C = NoCheckpointing> {
 impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type Device = B::Device;
 
-    type FullPrecisionBridge = AutodiffBridge<B::FullPrecisionBridge>;
-
     type FloatTensorPrimitive = AutodiffTensor<B>;
     type FloatElem = B::FloatElem;
 
@@ -33,6 +30,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     type IntElem = B::IntElem;
 
     type BoolTensorPrimitive = B::BoolTensorPrimitive;
+    type BoolElem = B::BoolElem;
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
     type QuantizedEncoding = B::QuantizedEncoding;

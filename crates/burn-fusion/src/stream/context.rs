@@ -1,4 +1,5 @@
-use burn_tensor::{repr::*, DType, Element, ElementConversion};
+use burn_ir::*;
+use burn_tensor::{DType, Element, ElementConversion};
 use half::{bf16, f16};
 use hashbrown::HashMap;
 
@@ -11,9 +12,9 @@ use hashbrown::HashMap;
 #[allow(clippy::too_many_arguments)]
 #[derive(new)]
 pub struct Context<'a, H> {
-    /// The tensor mapping where local tensor id points to the updated tensor description.
-    pub tensors: &'a HashMap<TensorId, TensorDescription>,
-    /// Handle container to retrieve tensors based on their description.
+    /// The tensor mapping where local tensor id points to the updated tensor representation.
+    pub tensors: &'a mut HashMap<TensorId, TensorIr>,
+    /// Handle container to retrieve tensors based on their representation.
     pub handles: &'a mut HandleContainer<H>,
     /// F32 scalars found in the graph in the order they appeared.
     pub scalar_f32: &'a Vec<f32>,
@@ -39,12 +40,9 @@ pub struct Context<'a, H> {
     pub scalar_u8: &'a Vec<u8>,
 }
 
-#[derive(Default)]
 pub(crate) struct OperationConverter {
-    tensors_relative2global: HashMap<TensorId, TensorDescription>,
-    tensors_global2relative: HashMap<TensorId, TensorDescription>,
-    /// Only useful to create new shape ID.
-    /// You should use tensor descriptions to retrieve the proper shape.
+    tensors_relative2global: HashMap<TensorId, TensorIr>,
+    tensors_global2relative: HashMap<TensorId, TensorIr>,
     shapes_global2relative: HashMap<usize, usize>,
     scalar_f32: Vec<f32>,
     scalar_f16: Vec<f16>,
@@ -59,8 +57,112 @@ pub(crate) struct OperationConverter {
     scalar_u8: Vec<u8>,
 }
 
+impl Default for OperationConverter {
+    fn default() -> Self {
+        let mut val = Self {
+            tensors_relative2global: Default::default(),
+            tensors_global2relative: Default::default(),
+            shapes_global2relative: Default::default(),
+            scalar_f32: Default::default(),
+            scalar_f16: Default::default(),
+            scalar_bf16: Default::default(),
+            scalar_i64: Default::default(),
+            scalar_i32: Default::default(),
+            scalar_i16: Default::default(),
+            scalar_i8: Default::default(),
+            scalar_u64: Default::default(),
+            scalar_u32: Default::default(),
+            scalar_u16: Default::default(),
+            scalar_u8: Default::default(),
+        };
+
+        // global 1 is always shape id 0.
+        val.shapes_global2relative.insert(1, 0);
+
+        val
+    }
+}
+
+/// Fork of a [context](Context) which owns its data.
+pub struct ContextOwned<H> {
+    tensors: HashMap<TensorId, TensorIr>,
+    handles: HandleContainer<H>,
+    scalar_f32: Vec<f32>,
+    scalar_f16: Vec<f16>,
+    scalar_bf16: Vec<bf16>,
+    scalar_i64: Vec<i64>,
+    scalar_i32: Vec<i32>,
+    scalar_i16: Vec<i16>,
+    scalar_i8: Vec<i8>,
+    scalar_u64: Vec<u64>,
+    scalar_u32: Vec<u32>,
+    scalar_u16: Vec<u16>,
+    scalar_u8: Vec<u8>,
+}
+
+impl<H: Clone> ContextOwned<H> {
+    /// Convert into [context](Context).
+    pub fn as_context(&mut self) -> Context<'_, H> {
+        Context {
+            tensors: &mut self.tensors,
+            handles: &mut self.handles,
+            scalar_f32: &self.scalar_f32,
+            scalar_f16: &self.scalar_f16,
+            scalar_bf16: &self.scalar_bf16,
+            scalar_i64: &self.scalar_i64,
+            scalar_i32: &self.scalar_i32,
+            scalar_i16: &self.scalar_i16,
+            scalar_i8: &self.scalar_i8,
+            scalar_u64: &self.scalar_u64,
+            scalar_u32: &self.scalar_u32,
+            scalar_u16: &self.scalar_u16,
+            scalar_u8: &self.scalar_u8,
+        }
+    }
+
+    /// Fork the context again.
+    pub fn fork(&self) -> ContextOwned<H> {
+        ContextOwned {
+            tensors: self.tensors.clone(),
+            handles: self.handles.fork(),
+            scalar_f32: self.scalar_f32.clone(),
+            scalar_f16: self.scalar_f16.clone(),
+            scalar_bf16: self.scalar_bf16.clone(),
+            scalar_i64: self.scalar_i64.clone(),
+            scalar_i32: self.scalar_i32.clone(),
+            scalar_i16: self.scalar_i16.clone(),
+            scalar_i8: self.scalar_i8.clone(),
+            scalar_u64: self.scalar_u64.clone(),
+            scalar_u32: self.scalar_u32.clone(),
+            scalar_u16: self.scalar_u16.clone(),
+            scalar_u8: self.scalar_u8.clone(),
+        }
+    }
+}
+
+impl<H: Clone> Context<'_, H> {
+    /// Fork the context into an [owned context](ContextOwned).
+    pub fn fork(&self) -> ContextOwned<H> {
+        ContextOwned {
+            tensors: self.tensors.clone(),
+            handles: self.handles.fork(),
+            scalar_f32: self.scalar_f32.clone(),
+            scalar_f16: self.scalar_f16.clone(),
+            scalar_bf16: self.scalar_bf16.clone(),
+            scalar_i64: self.scalar_i64.clone(),
+            scalar_i32: self.scalar_i32.clone(),
+            scalar_i16: self.scalar_i16.clone(),
+            scalar_i8: self.scalar_i8.clone(),
+            scalar_u64: self.scalar_u64.clone(),
+            scalar_u32: self.scalar_u32.clone(),
+            scalar_u16: self.scalar_u16.clone(),
+            scalar_u8: self.scalar_u8.clone(),
+        }
+    }
+}
+
 pub(crate) trait RelativeOps {
-    /// Convert (usually an [`OperationDescription`]) to a relative form.
+    /// Convert (usually an [`OperationIr`]) to a relative form.
     ///
     /// The id and the shape of tensors will be computed relative to existing
     /// operations in the queue. We do this because we want to fuse operations
@@ -78,10 +180,13 @@ trait RelativeOpsScalar<E: Element> {
 }
 
 impl OperationConverter {
-    pub(crate) fn context<'a, H>(&'a self, handles: &'a mut HandleContainer<H>) -> Context<'a, H> {
+    pub(crate) fn context<'a, H>(
+        &'a mut self,
+        handles: &'a mut HandleContainer<H>,
+    ) -> Context<'a, H> {
         Context {
             handles,
-            tensors: &self.tensors_relative2global,
+            tensors: &mut self.tensors_relative2global,
             scalar_f32: &self.scalar_f32,
             scalar_f16: &self.scalar_f16,
             scalar_bf16: &self.scalar_bf16,
@@ -99,7 +204,11 @@ impl OperationConverter {
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
+
         self.shapes_global2relative.clear();
+        // global 1 is always shape id 0.
+        self.shapes_global2relative.insert(1, 0);
+
         self.scalar_f32.clear();
         self.scalar_f16.clear();
         self.scalar_bf16.clear();
@@ -118,7 +227,7 @@ impl OperationConverter {
             burn_tensor::DType::F32 => self.scalar_f32.push(elem.elem()),
             burn_tensor::DType::F16 => self.scalar_f16.push(elem.elem()),
             burn_tensor::DType::BF16 => self.scalar_bf16.push(elem.elem()),
-            _ => todo!("Unsupported"),
+            _ => todo!("Unsupported float dtype ({dtype:?}) for scalar ({elem:?})"),
         }
 
         // We return 0 so that the id from a scalar operation is the same no matter its scalar
@@ -144,93 +253,74 @@ impl OperationConverter {
     }
 }
 
-impl RelativeOps for OperationDescription {
+impl RelativeOps for OperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            OperationDescription::BaseFloat(ops) => {
-                OperationDescription::BaseFloat(ops.to_relative(converter))
-            }
-            OperationDescription::BaseInt(ops) => {
-                OperationDescription::BaseInt(ops.to_relative(converter))
-            }
-            OperationDescription::BaseBool(ops) => {
-                OperationDescription::BaseBool(ops.to_relative(converter))
-            }
-            OperationDescription::NumericFloat(dtype, ops) => OperationDescription::NumericFloat(
+            OperationIr::BaseFloat(ops) => OperationIr::BaseFloat(ops.to_relative(converter)),
+            OperationIr::BaseInt(ops) => OperationIr::BaseInt(ops.to_relative(converter)),
+            OperationIr::BaseBool(ops) => OperationIr::BaseBool(ops.to_relative(converter)),
+            OperationIr::NumericFloat(dtype, ops) => OperationIr::NumericFloat(
                 *dtype,
                 ops.to_relative(converter, |converter, e| converter.relative_float(e, dtype)),
             ),
-            OperationDescription::NumericInt(dtype, ops) => OperationDescription::NumericInt(
+            OperationIr::NumericInt(dtype, ops) => OperationIr::NumericInt(
                 *dtype,
                 ops.to_relative(converter, |converter, e| converter.relative_int(e, dtype)),
             ),
-            OperationDescription::Bool(ops) => {
-                OperationDescription::Bool(ops.to_relative(converter))
-            }
-            OperationDescription::Int(ops) => OperationDescription::Int(ops.to_relative(converter)),
-            OperationDescription::Float(dtype, ops) => OperationDescription::Float(
+            OperationIr::Bool(ops) => OperationIr::Bool(ops.to_relative(converter)),
+            OperationIr::Int(ops) => OperationIr::Int(ops.to_relative(converter)),
+            OperationIr::Float(dtype, ops) => OperationIr::Float(
                 *dtype,
                 RelativeOpsScalar::<f32>::to_relative(ops, converter, |converter, e| {
                     converter.relative_float(e, dtype)
                 }),
             ),
-            OperationDescription::Module(ops) => {
-                OperationDescription::Module(ops.to_relative(converter))
-            }
-            OperationDescription::Custom(ops) => {
-                OperationDescription::Custom(ops.to_relative(converter))
-            }
+            OperationIr::Module(ops) => OperationIr::Module(ops.to_relative(converter)),
+            OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
+            OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
         }
     }
 }
 
-impl RelativeOps for ModuleOperationDescription {
+impl RelativeOps for ModuleOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            ModuleOperationDescription::Embedding(desc) => {
-                ModuleOperationDescription::Embedding(EmbeddingDescription {
-                    weights: desc.weights.to_relative(converter),
-                    indices: desc.indices.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::EmbeddingBackward(desc) => {
-                ModuleOperationDescription::EmbeddingBackward(EmbeddingBackwardDescription {
+            ModuleOperationIr::Embedding(desc) => ModuleOperationIr::Embedding(EmbeddingOpIr {
+                weights: desc.weights.to_relative(converter),
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::EmbeddingBackward(desc) => {
+                ModuleOperationIr::EmbeddingBackward(EmbeddingBackwardOpIr {
                     weights: desc.weights.to_relative(converter),
                     out_grad: desc.out_grad.to_relative(converter),
                     indices: desc.indices.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::Conv1d(desc) => {
-                ModuleOperationDescription::Conv1d(Conv1dDescription {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::Conv2d(desc) => {
-                ModuleOperationDescription::Conv2d(Conv2dDescription {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::Conv3d(desc) => {
-                ModuleOperationDescription::Conv3d(Conv3dDescription {
-                    x: desc.x.to_relative(converter),
-                    weight: desc.weight.to_relative(converter),
-                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
-                    options: desc.options.clone(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::DeformableConv2d(desc) => {
-                ModuleOperationDescription::DeformableConv2d(Box::new(DeformConv2dDescription {
+            ModuleOperationIr::Conv1d(desc) => ModuleOperationIr::Conv1d(Conv1dOpIr {
+                x: desc.x.to_relative(converter),
+                weight: desc.weight.to_relative(converter),
+                bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                options: desc.options.clone(),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::Conv2d(desc) => ModuleOperationIr::Conv2d(Conv2dOpIr {
+                x: desc.x.to_relative(converter),
+                weight: desc.weight.to_relative(converter),
+                bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                options: desc.options.clone(),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::Conv3d(desc) => ModuleOperationIr::Conv3d(Conv3dOpIr {
+                x: desc.x.to_relative(converter),
+                weight: desc.weight.to_relative(converter),
+                bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                options: desc.options.clone(),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::DeformableConv2d(desc) => {
+                ModuleOperationIr::DeformableConv2d(Box::new(DeformConv2dOpIr {
                     x: desc.x.to_relative(converter),
                     offset: desc.offset.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
@@ -240,26 +330,24 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 }))
             }
-            ModuleOperationDescription::DeformableConv2dBackward(desc) => {
-                ModuleOperationDescription::DeformableConv2dBackward(Box::new(
-                    DeformConv2dBackwardDescription {
-                        x: desc.x.to_relative(converter),
-                        offset: desc.offset.to_relative(converter),
-                        weight: desc.weight.to_relative(converter),
-                        mask: desc.mask.as_ref().map(|t| t.to_relative(converter)),
-                        bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
-                        out_grad: desc.out_grad.to_relative(converter),
-                        options: desc.options.clone(),
-                        input_grad: desc.input_grad.to_relative(converter),
-                        offset_grad: desc.offset_grad.to_relative(converter),
-                        weight_grad: desc.weight_grad.to_relative(converter),
-                        mask_grad: desc.mask_grad.as_ref().map(|t| t.to_relative(converter)),
-                        bias_grad: desc.bias_grad.as_ref().map(|t| t.to_relative(converter)),
-                    },
-                ))
+            ModuleOperationIr::DeformableConv2dBackward(desc) => {
+                ModuleOperationIr::DeformableConv2dBackward(Box::new(DeformConv2dBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    offset: desc.offset.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    mask: desc.mask.as_ref().map(|t| t.to_relative(converter)),
+                    bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                    out_grad: desc.out_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    input_grad: desc.input_grad.to_relative(converter),
+                    offset_grad: desc.offset_grad.to_relative(converter),
+                    weight_grad: desc.weight_grad.to_relative(converter),
+                    mask_grad: desc.mask_grad.as_ref().map(|t| t.to_relative(converter)),
+                    bias_grad: desc.bias_grad.as_ref().map(|t| t.to_relative(converter)),
+                }))
             }
-            ModuleOperationDescription::ConvTranspose1d(desc) => {
-                ModuleOperationDescription::ConvTranspose1d(ConvTranspose1dDescription {
+            ModuleOperationIr::ConvTranspose1d(desc) => {
+                ModuleOperationIr::ConvTranspose1d(ConvTranspose1dOpIr {
                     x: desc.x.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
                     bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
@@ -267,8 +355,8 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::ConvTranspose2d(desc) => {
-                ModuleOperationDescription::ConvTranspose2d(ConvTranspose2dDescription {
+            ModuleOperationIr::ConvTranspose2d(desc) => {
+                ModuleOperationIr::ConvTranspose2d(ConvTranspose2dOpIr {
                     x: desc.x.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
                     bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
@@ -276,8 +364,8 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::ConvTranspose3d(desc) => {
-                ModuleOperationDescription::ConvTranspose3d(ConvTranspose3dDescription {
+            ModuleOperationIr::ConvTranspose3d(desc) => {
+                ModuleOperationIr::ConvTranspose3d(ConvTranspose3dOpIr {
                     x: desc.x.to_relative(converter),
                     weight: desc.weight.to_relative(converter),
                     bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
@@ -285,28 +373,24 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::AvgPool1d(desc) => {
-                ModuleOperationDescription::AvgPool1d(AvgPool1dDescription {
-                    x: desc.x.to_relative(converter),
-                    kernel_size: desc.kernel_size,
-                    stride: desc.stride,
-                    padding: desc.padding,
-                    count_include_pad: desc.count_include_pad,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::AvgPool2d(desc) => {
-                ModuleOperationDescription::AvgPool2d(AvgPool2dDescription {
-                    x: desc.x.to_relative(converter),
-                    kernel_size: desc.kernel_size,
-                    stride: desc.stride,
-                    padding: desc.padding,
-                    count_include_pad: desc.count_include_pad,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            ModuleOperationDescription::AvgPool1dBackward(desc) => {
-                ModuleOperationDescription::AvgPool1dBackward(AvgPool1dBackwardDescription {
+            ModuleOperationIr::AvgPool1d(desc) => ModuleOperationIr::AvgPool1d(AvgPool1dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                count_include_pad: desc.count_include_pad,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::AvgPool2d(desc) => ModuleOperationIr::AvgPool2d(AvgPool2dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                count_include_pad: desc.count_include_pad,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::AvgPool1dBackward(desc) => {
+                ModuleOperationIr::AvgPool1dBackward(AvgPool1dBackwardOpIr {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     kernel_size: desc.kernel_size,
@@ -316,8 +400,8 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::AvgPool2dBackward(desc) => {
-                ModuleOperationDescription::AvgPool2dBackward(AvgPool2dBackwardDescription {
+            ModuleOperationIr::AvgPool2dBackward(desc) => {
+                ModuleOperationIr::AvgPool2dBackward(AvgPool2dBackwardOpIr {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     kernel_size: desc.kernel_size,
@@ -327,50 +411,44 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::AdaptiveAvgPool1d(desc) => {
-                ModuleOperationDescription::AdaptiveAvgPool1d(AdaptiveAvgPool1dDescription {
+            ModuleOperationIr::AdaptiveAvgPool1d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool1d(AdaptiveAvgPool1dOpIr {
                     x: desc.x.to_relative(converter),
                     output_size: desc.output_size,
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::AdaptiveAvgPool2d(desc) => {
-                ModuleOperationDescription::AdaptiveAvgPool2d(AdaptiveAvgPool2dDescription {
+            ModuleOperationIr::AdaptiveAvgPool2d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool2d(AdaptiveAvgPool2dOpIr {
                     x: desc.x.to_relative(converter),
                     output_size: desc.output_size,
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::AdaptiveAvgPool1dBackward(desc) => {
-                ModuleOperationDescription::AdaptiveAvgPool1dBackward(
-                    AdaptiveAvgPool1dBackwardDescription {
-                        x: desc.x.to_relative(converter),
-                        grad: desc.grad.to_relative(converter),
-                        out: desc.out.to_relative(converter),
-                    },
-                )
-            }
-            ModuleOperationDescription::AdaptiveAvgPool2dBackward(desc) => {
-                ModuleOperationDescription::AdaptiveAvgPool2dBackward(
-                    AdaptiveAvgPool2dBackwardDescription {
-                        x: desc.x.to_relative(converter),
-                        grad: desc.grad.to_relative(converter),
-                        out: desc.out.to_relative(converter),
-                    },
-                )
-            }
-            ModuleOperationDescription::MaxPool1d(desc) => {
-                ModuleOperationDescription::MaxPool1d(MaxPool1dDescription {
+            ModuleOperationIr::AdaptiveAvgPool1dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardOpIr {
                     x: desc.x.to_relative(converter),
-                    kernel_size: desc.kernel_size,
-                    stride: desc.stride,
-                    padding: desc.padding,
-                    dilation: desc.dilation,
+                    grad: desc.grad.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::MaxPool1dWithIndices(desc) => {
-                ModuleOperationDescription::MaxPool1dWithIndices(MaxPool1dWithIndicesDescription {
+            ModuleOperationIr::AdaptiveAvgPool2dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::MaxPool1d(desc) => ModuleOperationIr::MaxPool1d(MaxPool1dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                dilation: desc.dilation,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::MaxPool1dWithIndices(desc) => {
+                ModuleOperationIr::MaxPool1dWithIndices(MaxPool1dWithIndicesOpIr {
                     x: desc.x.to_relative(converter),
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
@@ -380,23 +458,11 @@ impl RelativeOps for ModuleOperationDescription {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::MaxPool1dWithIndicesBackward(desc) => {
-                ModuleOperationDescription::MaxPool1dWithIndicesBackward(
-                    MaxPool1dWithIndicesBackwardDescription {
-                        x: desc.x.to_relative(converter),
-                        grad: desc.grad.to_relative(converter),
-                        indices: desc.indices.to_relative(converter),
-                        kernel_size: desc.kernel_size,
-                        stride: desc.stride,
-                        padding: desc.padding,
-                        dilation: desc.dilation,
-                        out: desc.out.to_relative(converter),
-                    },
-                )
-            }
-            ModuleOperationDescription::MaxPool2d(desc) => {
-                ModuleOperationDescription::MaxPool2d(MaxPool2dDescription {
+            ModuleOperationIr::MaxPool1dWithIndicesBackward(desc) => {
+                ModuleOperationIr::MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardOpIr {
                     x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    indices: desc.indices.to_relative(converter),
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
                     padding: desc.padding,
@@ -404,8 +470,16 @@ impl RelativeOps for ModuleOperationDescription {
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::MaxPool2dWithIndices(desc) => {
-                ModuleOperationDescription::MaxPool2dWithIndices(MaxPool2dWithIndicesDescription {
+            ModuleOperationIr::MaxPool2d(desc) => ModuleOperationIr::MaxPool2d(MaxPool2dOpIr {
+                x: desc.x.to_relative(converter),
+                kernel_size: desc.kernel_size,
+                stride: desc.stride,
+                padding: desc.padding,
+                dilation: desc.dilation,
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::MaxPool2dWithIndices(desc) => {
+                ModuleOperationIr::MaxPool2dWithIndices(MaxPool2dWithIndicesOpIr {
                     x: desc.x.to_relative(converter),
                     kernel_size: desc.kernel_size,
                     stride: desc.stride,
@@ -415,30 +489,28 @@ impl RelativeOps for ModuleOperationDescription {
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::MaxPool2dWithIndicesBackward(desc) => {
-                ModuleOperationDescription::MaxPool2dWithIndicesBackward(
-                    MaxPool2dWithIndicesBackwardDescription {
-                        x: desc.x.to_relative(converter),
-                        grad: desc.grad.to_relative(converter),
-                        indices: desc.indices.to_relative(converter),
-                        kernel_size: desc.kernel_size,
-                        stride: desc.stride,
-                        padding: desc.padding,
-                        dilation: desc.dilation,
-                        out: desc.out.to_relative(converter),
-                    },
-                )
+            ModuleOperationIr::MaxPool2dWithIndicesBackward(desc) => {
+                ModuleOperationIr::MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    grad: desc.grad.to_relative(converter),
+                    indices: desc.indices.to_relative(converter),
+                    kernel_size: desc.kernel_size,
+                    stride: desc.stride,
+                    padding: desc.padding,
+                    dilation: desc.dilation,
+                    out: desc.out.to_relative(converter),
+                })
             }
-            ModuleOperationDescription::Interpolate(desc) => {
-                ModuleOperationDescription::Interpolate(InterpolateDescription {
+            ModuleOperationIr::Interpolate(desc) => {
+                ModuleOperationIr::Interpolate(InterpolateOpIr {
                     x: desc.x.to_relative(converter),
                     output_size: desc.output_size,
                     options: desc.options.clone(),
                     out: desc.out.to_relative(converter),
                 })
             }
-            ModuleOperationDescription::InterpolateBackward(desc) => {
-                ModuleOperationDescription::InterpolateBackward(InterpolateBackwardDescription {
+            ModuleOperationIr::InterpolateBackward(desc) => {
+                ModuleOperationIr::InterpolateBackward(InterpolateBackwardOpIr {
                     x: desc.x.to_relative(converter),
                     grad: desc.grad.to_relative(converter),
                     output_size: desc.output_size,
@@ -450,140 +522,188 @@ impl RelativeOps for ModuleOperationDescription {
     }
 }
 
-impl RelativeOpsScalar<f32> for FloatOperationDescription {
+impl RelativeOpsScalar<f32> for FloatOperationIr {
     fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
         F: Fn(&mut OperationConverter, &f32) -> f32,
     {
         match self {
-            FloatOperationDescription::Exp(desc) => {
-                FloatOperationDescription::Exp(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Log(desc) => {
-                FloatOperationDescription::Log(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Log1p(desc) => {
-                FloatOperationDescription::Log1p(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Erf(desc) => {
-                FloatOperationDescription::Erf(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::PowfScalar(desc) => {
-                FloatOperationDescription::PowfScalar(ScalarOperationDescription {
+            FloatOperationIr::Exp(desc) => FloatOperationIr::Exp(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Log(desc) => FloatOperationIr::Log(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Log1p(desc) => FloatOperationIr::Log1p(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Erf(desc) => FloatOperationIr::Erf(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::PowfScalar(desc) => FloatOperationIr::PowfScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs.elem()),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Sqrt(desc) => FloatOperationIr::Sqrt(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Cos(desc) => FloatOperationIr::Cos(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Sin(desc) => FloatOperationIr::Sin(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Tanh(desc) => FloatOperationIr::Tanh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::IntoInt(desc) => FloatOperationIr::IntoInt(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Matmul(desc) => FloatOperationIr::Matmul(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Random(desc) => FloatOperationIr::Random(RandomOpIr {
+                out: desc.out.to_relative(converter),
+                distribution: desc.distribution,
+            }),
+            FloatOperationIr::Recip(desc) => FloatOperationIr::Recip(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Quantize(desc) => FloatOperationIr::Quantize(QuantizeOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                qparams: QuantizationParametersIr {
+                    scale: desc.qparams.scale.to_relative(converter),
+                    offset: desc
+                        .qparams
+                        .offset
+                        .as_ref()
+                        .map(|x| x.to_relative(converter)),
+                },
+                scheme: desc.scheme,
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Dequantize(desc) => FloatOperationIr::Dequantize(DequantizeOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Round(desc) => FloatOperationIr::Round(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Floor(desc) => FloatOperationIr::Floor(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Ceil(desc) => FloatOperationIr::Ceil(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+        }
+    }
+}
+
+impl RelativeOps for BoolOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            BoolOperationIr::IntoFloat(desc) => BoolOperationIr::IntoFloat(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BoolOperationIr::IntoInt(desc) => BoolOperationIr::IntoInt(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BoolOperationIr::Not(desc) => BoolOperationIr::Not(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+        }
+    }
+}
+
+impl RelativeOps for IntOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            IntOperationIr::IntoFloat(desc) => IntOperationIr::IntoFloat(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseAnd(desc) => IntOperationIr::BitwiseAnd(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseAndScalar(desc) => {
+                IntOperationIr::BitwiseAndScalar(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs.elem()),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Sqrt(desc) => {
-                FloatOperationDescription::Sqrt(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
+            IntOperationIr::BitwiseOr(desc) => IntOperationIr::BitwiseOr(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseOrScalar(desc) => IntOperationIr::BitwiseOrScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseXor(desc) => IntOperationIr::BitwiseXor(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseXorScalar(desc) => {
+                IntOperationIr::BitwiseXorScalar(ScalarOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Cos(desc) => {
-                FloatOperationDescription::Cos(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Sin(desc) => {
-                FloatOperationDescription::Sin(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Tanh(desc) => {
-                FloatOperationDescription::Tanh(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::IntoInt(desc) => {
-                FloatOperationDescription::IntoInt(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Matmul(desc) => {
-                FloatOperationDescription::Matmul(BinaryOperationDescription {
+            IntOperationIr::BitwiseNot(desc) => IntOperationIr::BitwiseNot(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            IntOperationIr::BitwiseLeftShift(desc) => {
+                IntOperationIr::BitwiseLeftShift(BinaryOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Random(desc) => {
-                FloatOperationDescription::Random(RandomOperationDescription {
-                    out: desc.out.to_relative(converter),
-                    distribution: desc.distribution,
-                })
-            }
-            FloatOperationDescription::Recip(desc) => {
-                FloatOperationDescription::Recip(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
+            IntOperationIr::BitwiseLeftShiftScalar(desc) => {
+                IntOperationIr::BitwiseLeftShiftScalar(ScalarOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Quantize(desc) => {
-                FloatOperationDescription::Quantize(QuantizeOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    qparams: QuantizationParametersDescription {
-                        scale: desc.qparams.scale.to_relative(converter),
-                        offset: desc
-                            .qparams
-                            .offset
-                            .as_ref()
-                            .map(|x| x.to_relative(converter)),
-                    },
-                    scheme: desc.scheme,
+            IntOperationIr::BitwiseRightShift(desc) => {
+                IntOperationIr::BitwiseRightShift(BinaryOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
-            FloatOperationDescription::Dequantize(desc) => {
-                FloatOperationDescription::Dequantize(DequantizeOperationDescription {
-                    qtensor: QuantizedTensorDescription {
-                        tensor: desc.qtensor.tensor.to_relative(converter),
-                        qparams: QuantizationParametersDescription {
-                            scale: desc.qtensor.qparams.scale.to_relative(converter),
-                            offset: desc
-                                .qtensor
-                                .qparams
-                                .offset
-                                .as_ref()
-                                .map(|x| x.to_relative(converter)),
-                        },
-                        scheme: desc.qtensor.scheme,
-                    },
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Round(desc) => {
-                FloatOperationDescription::Round(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Floor(desc) => {
-                FloatOperationDescription::Floor(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            FloatOperationDescription::Ceil(desc) => {
-                FloatOperationDescription::Ceil(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
+            IntOperationIr::BitwiseRightShiftScalar(desc) => {
+                IntOperationIr::BitwiseRightShiftScalar(ScalarOpIr {
+                    lhs: desc.lhs.to_relative(converter),
+                    rhs: desc.rhs,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -591,49 +711,11 @@ impl RelativeOpsScalar<f32> for FloatOperationDescription {
     }
 }
 
-impl RelativeOps for BoolOperationDescription {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        match self {
-            BoolOperationDescription::IntoFloat(desc) => {
-                BoolOperationDescription::IntoFloat(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BoolOperationDescription::IntoInt(desc) => {
-                BoolOperationDescription::IntoInt(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BoolOperationDescription::Not(desc) => {
-                BoolOperationDescription::Not(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-        }
-    }
-}
-
-impl RelativeOps for IntOperationDescription {
-    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
-        match self {
-            IntOperationDescription::IntoFloat(desc) => {
-                IntOperationDescription::IntoFloat(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-        }
-    }
-}
-
-impl RelativeOps for CustomOpDescription {
-    fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpDescription {
+impl RelativeOps for CustomOpIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> CustomOpIr {
         let id = self.id.clone();
 
-        CustomOpDescription {
+        CustomOpIr {
             id,
             inputs: self
                 .inputs
@@ -649,125 +731,95 @@ impl RelativeOps for CustomOpDescription {
     }
 }
 
-impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
+impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
     fn to_relative<F>(&self, converter: &mut OperationConverter, local_elem: F) -> Self
     where
         F: Fn(&mut OperationConverter, &E) -> E,
     {
         match self {
-            NumericOperationDescription::Add(desc) => {
-                NumericOperationDescription::Add(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
+            NumericOperationIr::Add(desc) => NumericOperationIr::Add(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::AddScalar(desc) => NumericOperationIr::AddScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Sub(desc) => NumericOperationIr::Sub(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::SubScalar(desc) => NumericOperationIr::SubScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Div(desc) => NumericOperationIr::Div(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::DivScalar(desc) => NumericOperationIr::DivScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Rem(desc) => NumericOperationIr::Rem(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::RemScalar(desc) => NumericOperationIr::RemScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Mul(desc) => NumericOperationIr::Mul(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MulScalar(desc) => NumericOperationIr::MulScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Abs(desc) => NumericOperationIr::Abs(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Ones(desc) => NumericOperationIr::Ones(desc.to_relative(converter)),
+            NumericOperationIr::Zeros(desc) => {
+                NumericOperationIr::Zeros(desc.to_relative(converter))
             }
-            NumericOperationDescription::AddScalar(desc) => {
-                NumericOperationDescription::AddScalar(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Sub(desc) => {
-                NumericOperationDescription::Sub(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::SubScalar(desc) => {
-                NumericOperationDescription::SubScalar(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Div(desc) => {
-                NumericOperationDescription::Div(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::DivScalar(desc) => {
-                NumericOperationDescription::DivScalar(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Rem(desc) => {
-                NumericOperationDescription::Rem(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::RemScalar(desc) => {
-                NumericOperationDescription::RemScalar(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Mul(desc) => {
-                NumericOperationDescription::Mul(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MulScalar(desc) => {
-                NumericOperationDescription::MulScalar(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Abs(desc) => {
-                NumericOperationDescription::Abs(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Ones(desc) => {
-                NumericOperationDescription::Ones(desc.to_relative(converter))
-            }
-            NumericOperationDescription::Zeros(desc) => {
-                NumericOperationDescription::Zeros(desc.to_relative(converter))
-            }
-            NumericOperationDescription::Full(desc) => NumericOperationDescription::Full((
+            NumericOperationIr::Full(desc) => NumericOperationIr::Full((
                 desc.0.to_relative(converter),
                 local_elem(converter, &desc.1),
             )),
-            NumericOperationDescription::Gather(desc) => {
-                NumericOperationDescription::Gather(GatherOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    indices: desc.indices.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Scatter(desc) => {
-                NumericOperationDescription::Scatter(ScatterOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    indices: desc.indices.to_relative(converter),
-                    value: desc.value.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Select(desc) => {
-                NumericOperationDescription::Select(SelectOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    indices: desc.indices.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::SelectAssign(desc) => {
-                NumericOperationDescription::SelectAssign(SelectAssignOperationDescription {
+            NumericOperationIr::Gather(desc) => NumericOperationIr::Gather(GatherOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Scatter(desc) => NumericOperationIr::Scatter(ScatterOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Select(desc) => NumericOperationIr::Select(SelectOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::SelectAssign(desc) => {
+                NumericOperationIr::SelectAssign(SelectAssignOpIr {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
                     indices: desc.indices.to_relative(converter),
@@ -775,301 +827,245 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationDescription<E> {
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::MaskWhere(desc) => {
-                NumericOperationDescription::MaskWhere(MaskWhereOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    mask: desc.mask.to_relative(converter),
-                    value: desc.value.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MaskFill(desc) => {
-                NumericOperationDescription::MaskFill(MaskFillOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    mask: desc.mask.to_relative(converter),
-                    value: local_elem(converter, &desc.value),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MeanDim(desc) => {
-                NumericOperationDescription::MeanDim(ScalarOperationDescription {
+            NumericOperationIr::MaskWhere(desc) => NumericOperationIr::MaskWhere(MaskWhereOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MaskFill(desc) => NumericOperationIr::MaskFill(MaskFillOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
+                value: local_elem(converter, &desc.value),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MeanDim(desc) => {
+                NumericOperationIr::MeanDim(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs, // Dim should stay the same.
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::Mean(desc) => {
-                NumericOperationDescription::Mean(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Sum(desc) => {
-                NumericOperationDescription::Sum(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::SumDim(desc) => {
-                NumericOperationDescription::SumDim(ScalarOperationDescription {
+            NumericOperationIr::Mean(desc) => NumericOperationIr::Mean(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Sum(desc) => NumericOperationIr::Sum(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::SumDim(desc) => {
+                NumericOperationIr::SumDim(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs, // Dim should stay the same.
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::Prod(desc) => {
-                NumericOperationDescription::Prod(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::ProdDim(desc) => {
-                NumericOperationDescription::ProdDim(ScalarOperationDescription {
+            NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::ProdDim(desc) => {
+                NumericOperationIr::ProdDim(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs, // Dim should stay the same.
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::EqualElem(desc) => {
-                NumericOperationDescription::EqualElem(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Greater(desc) => {
-                NumericOperationDescription::Greater(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::GreaterElem(desc) => {
-                NumericOperationDescription::GreaterElem(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::GreaterEqual(desc) => {
-                NumericOperationDescription::GreaterEqual(BinaryOperationDescription {
+            NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::GreaterElem(desc) => NumericOperationIr::GreaterElem(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::GreaterEqual(desc) => {
+                NumericOperationIr::GreaterEqual(BinaryOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: desc.rhs.to_relative(converter),
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::GreaterEqualElem(desc) => {
-                NumericOperationDescription::GreaterEqualElem(ScalarOperationDescription {
+            NumericOperationIr::GreaterEqualElem(desc) => {
+                NumericOperationIr::GreaterEqualElem(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: local_elem(converter, &desc.rhs),
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::Lower(desc) => {
-                NumericOperationDescription::Lower(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::LowerElem(desc) => {
-                NumericOperationDescription::LowerElem(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: local_elem(converter, &desc.rhs),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::LowerEqual(desc) => {
-                NumericOperationDescription::LowerEqual(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::LowerEqualElem(desc) => {
-                NumericOperationDescription::LowerEqualElem(ScalarOperationDescription {
+            NumericOperationIr::Lower(desc) => NumericOperationIr::Lower(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::LowerElem(desc) => NumericOperationIr::LowerElem(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: local_elem(converter, &desc.rhs),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::LowerEqual(desc) => NumericOperationIr::LowerEqual(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::LowerEqualElem(desc) => {
+                NumericOperationIr::LowerEqualElem(ScalarOpIr {
                     lhs: desc.lhs.to_relative(converter),
                     rhs: local_elem(converter, &desc.rhs),
                     out: desc.out.to_relative(converter),
                 })
             }
-            NumericOperationDescription::ArgMax(desc) => {
-                NumericOperationDescription::ArgMax(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::ArgMin(desc) => {
-                NumericOperationDescription::ArgMin(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Max(desc) => {
-                NumericOperationDescription::Max(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MaxDimWithIndices(desc) => {
-                NumericOperationDescription::MaxDimWithIndices(ReduceDimWithIndicesDescription {
+            NumericOperationIr::ArgMax(desc) => NumericOperationIr::ArgMax(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Max(desc) => NumericOperationIr::Max(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MaxDimWithIndices(desc) => {
+                NumericOperationIr::MaxDimWithIndices(ReduceDimWithIndicesOpIr {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            NumericOperationDescription::MinDimWithIndices(desc) => {
-                NumericOperationDescription::MinDimWithIndices(ReduceDimWithIndicesDescription {
+            NumericOperationIr::MinDimWithIndices(desc) => {
+                NumericOperationIr::MinDimWithIndices(ReduceDimWithIndicesOpIr {
                     tensor: desc.tensor.to_relative(converter),
                     dim: desc.dim,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
             }
-            NumericOperationDescription::Min(desc) => {
-                NumericOperationDescription::Min(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MaxDim(desc) => {
-                NumericOperationDescription::MaxDim(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::MinDim(desc) => {
-                NumericOperationDescription::MinDim(ScalarOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::Clamp(desc) => {
-                NumericOperationDescription::Clamp(ClampOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    min: local_elem(converter, &desc.min),
-                    max: local_elem(converter, &desc.max),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationDescription::IntRandom(desc) => {
-                NumericOperationDescription::IntRandom(RandomOperationDescription {
-                    out: desc.out.to_relative(converter),
-                    distribution: desc.distribution,
-                })
-            }
-            NumericOperationDescription::Powf(desc) => {
-                NumericOperationDescription::Powf(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
+            NumericOperationIr::Min(desc) => NumericOperationIr::Min(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MaxDim(desc) => NumericOperationIr::MaxDim(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::MinDim(desc) => NumericOperationIr::MinDim(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs,
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::Clamp(desc) => NumericOperationIr::Clamp(ClampOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                min: local_elem(converter, &desc.min),
+                max: local_elem(converter, &desc.max),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::IntRandom(desc) => NumericOperationIr::IntRandom(RandomOpIr {
+                out: desc.out.to_relative(converter),
+                distribution: desc.distribution,
+            }),
+            NumericOperationIr::Powf(desc) => NumericOperationIr::Powf(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }
 
-impl RelativeOps for BaseOperationDescription {
+impl RelativeOps for BaseOperationIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         match self {
-            BaseOperationDescription::ToDevice(desc) => {
-                BaseOperationDescription::ToDevice(desc.to_relative(converter))
+            BaseOperationIr::ToDevice(desc) => {
+                BaseOperationIr::ToDevice(desc.to_relative(converter))
             }
-            BaseOperationDescription::Reshape(desc) => {
-                BaseOperationDescription::Reshape(ReshapeDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::SwapDims(desc) => {
-                BaseOperationDescription::SwapDims(SwapDimsDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    dim1: desc.dim1,
-                    dim2: desc.dim2,
-                })
-            }
-            BaseOperationDescription::Permute(desc) => {
-                BaseOperationDescription::Permute(PermuteOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    axes: desc.axes.clone(),
-                })
-            }
-            BaseOperationDescription::Expand(desc) => {
-                BaseOperationDescription::Expand(ExpandOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    shape: desc.shape.clone(),
-                })
-            }
-            BaseOperationDescription::Flip(desc) => {
-                BaseOperationDescription::Flip(FlipOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                    axes: desc.axes.clone(),
-                })
-            }
-            BaseOperationDescription::Slice(desc) => {
-                BaseOperationDescription::Slice(SliceOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::SliceAssign(desc) => {
-                BaseOperationDescription::SliceAssign(SliceAssignOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
-                    value: desc.value.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::Equal(desc) => {
-                BaseOperationDescription::Equal(BinaryOperationDescription {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::RepeatDim(desc) => {
-                BaseOperationDescription::RepeatDim(RepeatDimOperationDescription {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    times: desc.times,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::Cat(desc) => {
-                BaseOperationDescription::Cat(CatOperationDescription {
-                    tensors: desc
-                        .tensors
-                        .iter()
-                        .map(|tensor| tensor.to_relative(converter))
-                        .collect(),
-                    dim: desc.dim,
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::Cast(desc) => {
-                BaseOperationDescription::Cast(UnaryOperationDescription {
-                    input: desc.input.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            BaseOperationDescription::Empty(desc) => {
-                BaseOperationDescription::Empty(desc.to_relative(converter))
-            }
+            BaseOperationIr::Reshape(desc) => BaseOperationIr::Reshape(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::SwapDims(desc) => BaseOperationIr::SwapDims(SwapDimsOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                dim1: desc.dim1,
+                dim2: desc.dim2,
+            }),
+            BaseOperationIr::Permute(desc) => BaseOperationIr::Permute(PermuteOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axes: desc.axes.clone(),
+            }),
+            BaseOperationIr::Expand(desc) => BaseOperationIr::Expand(ExpandOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                shape: desc.shape.clone(),
+            }),
+            BaseOperationIr::Flip(desc) => BaseOperationIr::Flip(FlipOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axes: desc.axes.clone(),
+            }),
+            BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                ranges: desc.ranges.iter().map(|_range| 0..1).collect(),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Equal(desc) => BaseOperationIr::Equal(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::RepeatDim(desc) => BaseOperationIr::RepeatDim(RepeatDimOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                times: desc.times,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Cat(desc) => BaseOperationIr::Cat(CatOpIr {
+                tensors: desc
+                    .tensors
+                    .iter()
+                    .map(|tensor| tensor.to_relative(converter))
+                    .collect(),
+                dim: desc.dim,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Cast(desc) => BaseOperationIr::Cast(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
         }
     }
 }
 
-impl RelativeOps for TensorDescription {
+impl RelativeOps for InitOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        Self {
+            out: self.out.to_relative(converter),
+        }
+    }
+}
+
+impl RelativeOps for TensorIr {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         let relative_id = if let Some(value) = converter.tensors_global2relative.get(&self.id) {
             // If we already have the same tensor registered, we have to update its value, but not
@@ -1090,12 +1086,13 @@ impl RelativeOps for TensorDescription {
                 // We never saw this dim value before, therefore we create a new ID.
                 let dim_id = converter.shapes_global2relative.len();
                 relative_shape.push(dim_id);
+
                 converter.shapes_global2relative.insert(*dim, dim_id);
             }
         }
 
         // We create the relative tensor.
-        let relative_tensor = TensorDescription {
+        let relative_tensor = TensorIr {
             id: relative_id,
             shape: relative_shape,
             status: self.status.clone(),
@@ -1117,20 +1114,18 @@ impl RelativeOps for TensorDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{
-        repr::{TensorDescription, TensorId, TensorStatus},
-        DType,
-    };
+    use burn_ir::{TensorId, TensorIr, TensorStatus};
+    use burn_tensor::DType;
 
     #[test]
     fn tensor_description_to_relative() {
-        let tensor1 = TensorDescription {
+        let tensor1 = TensorIr {
             id: TensorId::new(500),
             shape: vec![512, 32, 2048],
             status: TensorStatus::ReadOnly,
             dtype: DType::F32,
         };
-        let tensor2 = TensorDescription {
+        let tensor2 = TensorIr {
             id: TensorId::new(501),
             shape: vec![512, 128, 2048],
             status: TensorStatus::ReadOnly,
@@ -1142,18 +1137,18 @@ mod tests {
 
         assert_eq!(
             tensor1_local,
-            TensorDescription {
+            TensorIr {
                 id: TensorId::new(0),
-                shape: vec![0, 1, 2],
+                shape: vec![1, 2, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }
         );
         assert_eq!(
             tensor2_local,
-            TensorDescription {
+            TensorIr {
                 id: TensorId::new(1),
-                shape: vec![0, 3, 2],
+                shape: vec![1, 4, 3],
                 status: TensorStatus::ReadOnly,
                 dtype: DType::F32
             }

@@ -1,16 +1,10 @@
 use alloc::{sync::Arc, vec::Vec};
 use burn_common::stub::Mutex;
-use burn_tensor::{
-    backend::Backend,
-    ops::FullPrecisionBackend,
-    repr::{
-        BaseOperationDescription, BoolOperationDescription, FloatOperationDescription,
-        HandleContainer, IntOperationDescription, ModuleOperationDescription,
-        NumericOperationDescription, OperationDescription, ReprBackend, TensorDescription,
-        TensorId, TensorStatus,
-    },
-    DType, Element, ElementConversion, FloatDType, Shape, TensorData,
+use burn_ir::{
+    BackendIr, BaseOperationIr, BoolOperationIr, FloatOperationIr, HandleContainer, IntOperationIr,
+    ModuleOperationIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus,
 };
+use burn_tensor::{backend::Backend, DType, ElementConversion, FloatDType, Shape, TensorData};
 use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
@@ -22,12 +16,12 @@ use crate::{
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
 /// (i.e., fetch and update) existing tensors.
-pub struct RunnerContext<B: ReprBackend> {
-    /// Handle container to retrieve tensors based on their description.
+pub struct RunnerContext<B: BackendIr> {
+    /// Handle container to retrieve tensors based on their intermediate representation.
     handles: HandleContainer<B::Handle>,
 }
 
-impl<B: ReprBackend> RunnerContext<B> {
+impl<B: BackendIr> RunnerContext<B> {
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&mut self) -> Arc<TensorId> {
         self.handles.create_tensor_uninit()
@@ -44,19 +38,15 @@ impl<B: ReprBackend> RunnerContext<B> {
     }
 }
 
-/// A runner is responsible for executing tensor operations for a given [intermediate backend](ReprBackend).
+/// A runner is responsible for executing tensor operations for a given [intermediate backend](BackendIr).
 #[derive(Clone)]
-pub struct Runner<B: ReprBackend> {
+pub struct Runner<B: BackendIr> {
     // Mutex for the mutable handles
     context: Arc<Mutex<RunnerContext<B>>>,
     device: B::Device,
 }
 
-impl<B: ReprBackend> Runner<B>
-where
-    // Restrict full precision backend handle to be the same
-    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
-{
+impl<B: BackendIr> Runner<B> {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
         Self {
@@ -67,8 +57,8 @@ where
         }
     }
 
-    /// Get the tensor handle for the given [tensor description](TensorDescription).
-    pub(crate) fn get_tensor_handle(&self, tensor: &TensorDescription) -> B::Handle {
+    /// Get the tensor handle for the given [tensor representation](TensorIr).
+    pub(crate) fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
     }
@@ -111,8 +101,8 @@ where
         core::mem::drop(ctx);
     }
 
-    /// Register a tensor and returns its description.
-    pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorDescription {
+    /// Register a tensor and returns its intermediate representation.
+    pub fn register_tensor_data_desc(&self, data: TensorData) -> TensorIr {
         let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
         let shape = data.shape.clone();
@@ -133,7 +123,7 @@ where
 
         core::mem::drop(ctx);
 
-        TensorDescription {
+        TensorIr {
             id: *id,
             shape,
             status: TensorStatus::ReadWrite,
@@ -141,13 +131,13 @@ where
         }
     }
 
-    /// Register an empty tensor and returns its description.
-    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorDescription {
+    /// Register an empty tensor and returns its intermediate representation.
+    pub fn register_empty_tensor_desc(&self, shape: Vec<usize>, dtype: DType) -> TensorIr {
         let mut ctx = self.context.lock().unwrap();
         let id = ctx.create_empty_handle();
         core::mem::drop(ctx);
 
-        TensorDescription {
+        TensorIr {
             id: *id,
             shape,
             status: TensorStatus::NotInit,
@@ -159,82 +149,78 @@ where
         &self,
         shape: Vec<usize>,
         dtype: FloatDType,
-    ) -> TensorDescription {
+    ) -> TensorIr {
         self.register_empty_tensor_desc(shape, dtype.into())
     }
 }
 
-impl<B: ReprBackend> RunnerClient for Runner<B>
-where
-    // Restrict full precision backend handle to be the same
-    FullPrecisionBackend<B>: ReprBackend<Handle = B::Handle>,
-{
+impl<B: BackendIr> RunnerClient for Runner<B> {
     type Device = B::Device;
 
     /// Execute a tensor operation.
-    fn register(&self, op: OperationDescription) {
+    fn register(&self, op: OperationIr) {
         // Remove unused tensor handles
         let mut ctx = self.context.lock().unwrap();
         ctx.free_orphans();
 
         let handles = &mut ctx.handles;
-        match &op {
+        match op {
             // For every op: get the input(s), execute the operation and register the output(s)
-            OperationDescription::BaseFloat(op) => match op {
-                BaseOperationDescription::ToDevice(_) => unreachable!(),
-                BaseOperationDescription::Reshape(desc) => {
+            OperationIr::BaseFloat(op) => match op {
+                BaseOperationIr::ToDevice(_) => unreachable!(),
+                BaseOperationIr::Reshape(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_reshape(tensor, desc.out.shape.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SwapDims(desc) => {
+                BaseOperationIr::SwapDims(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_swap_dims(tensor, desc.dim1, desc.dim2);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Permute(desc) => {
+                BaseOperationIr::Permute(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_permute(tensor, &desc.axes);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Flip(desc) => {
+                BaseOperationIr::Flip(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_flip(tensor, &desc.axes);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Expand(desc) => {
+                BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_expand(tensor, desc.shape.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Slice(desc) => {
+                BaseOperationIr::Slice(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
                     let output = B::float_slice(tensor, &desc.ranges);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SliceAssign(desc) => {
+                BaseOperationIr::SliceAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let value = handles.get_float_tensor::<B>(&desc.value);
 
                     let output = B::float_slice_assign(tensor, &desc.ranges, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Equal(desc) => {
+                BaseOperationIr::Equal(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_equal)
                 }
-                BaseOperationDescription::RepeatDim(desc) => {
+                BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
                     let output = B::float_repeat_dim(tensor, desc.dim, desc.times);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cat(desc) => {
+                BaseOperationIr::Cat(desc) => {
                     let tensors = desc
                         .tensors
                         .iter()
@@ -244,87 +230,72 @@ where
                     let output = B::float_cat(tensors, desc.dim);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cast(desc) => {
-                    let input_dtype = desc.input.dtype;
-                    let out_dtype = desc.out.dtype;
-                    let float_dtype = B::FloatElem::dtype();
-                    let full_dtype = <FullPrecisionBackend<B> as Backend>::FloatElem::dtype();
-
-                    if input_dtype == float_dtype && out_dtype == full_dtype {
-                        let tensor = handles.get_float_tensor::<B>(&desc.input);
-                        let output = B::float_into_full_precision(tensor);
-                        handles
-                            .register_float_tensor::<FullPrecisionBackend<B>>(&desc.out.id, output);
-                    } else if input_dtype == full_dtype && out_dtype == float_dtype {
-                        let tensor =
-                            handles.get_float_tensor::<FullPrecisionBackend<B>>(&desc.input);
-                        let output = B::float_from_full_precision(tensor);
-                        handles.register_float_tensor::<B>(&desc.out.id, output);
-                    } else {
-                        unimplemented!() // only cast to and from full precision
-                    }
+                BaseOperationIr::Cast(desc) => {
+                    let tensor = handles.get_float_tensor::<B>(&desc.input);
+                    let output = B::float_cast(tensor, desc.out.dtype.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Empty(desc) => {
+                BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_empty(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
             },
-            OperationDescription::BaseInt(op) => match op {
-                BaseOperationDescription::ToDevice(_) => unreachable!(),
-                BaseOperationDescription::Reshape(desc) => {
+            OperationIr::BaseInt(op) => match op {
+                BaseOperationIr::ToDevice(_) => unreachable!(),
+                BaseOperationIr::Reshape(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_reshape(tensor, desc.out.shape.clone().into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SwapDims(desc) => {
+                BaseOperationIr::SwapDims(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_swap_dims(tensor, desc.dim1, desc.dim2);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Permute(desc) => {
+                BaseOperationIr::Permute(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_permute(tensor, &desc.axes);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Flip(desc) => {
+                BaseOperationIr::Flip(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_flip(tensor, &desc.axes);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Expand(desc) => {
+                BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_expand(tensor, desc.shape.clone().into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Slice(desc) => {
+                BaseOperationIr::Slice(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let output = B::int_slice(tensor, &desc.ranges);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SliceAssign(desc) => {
+                BaseOperationIr::SliceAssign(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let value = handles.get_int_tensor::<B>(&desc.value);
 
                     let output = B::int_slice_assign(tensor, &desc.ranges, value);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Equal(desc) => {
+                BaseOperationIr::Equal(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_equal)
                 }
-                BaseOperationDescription::RepeatDim(desc) => {
+                BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let output = B::int_repeat_dim(tensor, desc.dim, desc.times);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cat(desc) => {
+                BaseOperationIr::Cat(desc) => {
                     let tensors = desc
                         .tensors
                         .iter()
@@ -334,72 +305,72 @@ where
                     let output = B::int_cat(tensors, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cast(_) => unreachable!(),
-                BaseOperationDescription::Empty(desc) => {
+                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_empty(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
                 }
             },
-            OperationDescription::BaseBool(op) => match op {
-                BaseOperationDescription::ToDevice(_) => unreachable!(),
-                BaseOperationDescription::Reshape(desc) => {
+            OperationIr::BaseBool(op) => match op {
+                BaseOperationIr::ToDevice(_) => unreachable!(),
+                BaseOperationIr::Reshape(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_reshape(tensor, desc.out.shape.clone().into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SwapDims(desc) => {
+                BaseOperationIr::SwapDims(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_swap_dims(tensor, desc.dim1, desc.dim2);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Permute(desc) => {
+                BaseOperationIr::Permute(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_permute(tensor, &desc.axes);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Flip(desc) => {
+                BaseOperationIr::Flip(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_flip(tensor, &desc.axes);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Expand(desc) => {
+                BaseOperationIr::Expand(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_expand(tensor, desc.shape.clone().into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Slice(desc) => {
+                BaseOperationIr::Slice(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
 
                     let output = B::bool_slice(tensor, &desc.ranges);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::SliceAssign(desc) => {
+                BaseOperationIr::SliceAssign(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
                     let value = handles.get_bool_tensor::<B>(&desc.value);
 
                     let output = B::bool_slice_assign(tensor, &desc.ranges, value);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Equal(desc) => {
+                BaseOperationIr::Equal(desc) => {
                     let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
                     let rhs = handles.get_bool_tensor::<B>(&desc.rhs);
 
                     let output = B::bool_equal(lhs, rhs);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::RepeatDim(desc) => {
+                BaseOperationIr::RepeatDim(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
 
                     let output = B::bool_repeat_dim(tensor, desc.dim, desc.times);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cat(desc) => {
+                BaseOperationIr::Cat(desc) => {
                     let tensors = desc
                         .tensors
                         .iter()
@@ -409,70 +380,70 @@ where
                     let output = B::bool_cat(tensors, desc.dim);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
-                BaseOperationDescription::Cast(_) => unreachable!(),
-                BaseOperationDescription::Empty(desc) => {
+                BaseOperationIr::Cast(_) => unreachable!(),
+                BaseOperationIr::Empty(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::bool_empty(shape, &self.device);
                     handles.register_bool_tensor::<B>(&desc.id, output);
                 }
             },
-            OperationDescription::NumericFloat(_dtype, op) => match op {
-                NumericOperationDescription::Add(desc) => {
+            OperationIr::NumericFloat(_dtype, op) => match op {
+                NumericOperationIr::Add(desc) => {
                     binary_float_ops!(handles, desc, B::float_add)
                 }
-                NumericOperationDescription::AddScalar(desc) => {
+                NumericOperationIr::AddScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_add_scalar)
                 }
-                NumericOperationDescription::Sub(desc) => {
+                NumericOperationIr::Sub(desc) => {
                     binary_float_ops!(handles, desc, B::float_sub)
                 }
-                NumericOperationDescription::SubScalar(desc) => {
+                NumericOperationIr::SubScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_sub_scalar)
                 }
-                NumericOperationDescription::Div(desc) => {
+                NumericOperationIr::Div(desc) => {
                     binary_float_ops!(handles, desc, B::float_div)
                 }
-                NumericOperationDescription::DivScalar(desc) => {
+                NumericOperationIr::DivScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_div_scalar)
                 }
-                NumericOperationDescription::Rem(desc) => {
+                NumericOperationIr::Rem(desc) => {
                     binary_float_ops!(handles, desc, B::float_remainder)
                 }
-                NumericOperationDescription::RemScalar(desc) => {
+                NumericOperationIr::RemScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_remainder_scalar)
                 }
-                NumericOperationDescription::Mul(desc) => {
+                NumericOperationIr::Mul(desc) => {
                     binary_float_ops!(handles, desc, B::float_mul)
                 }
-                NumericOperationDescription::MulScalar(desc) => {
+                NumericOperationIr::MulScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_mul_scalar)
                 }
-                NumericOperationDescription::Abs(desc) => {
+                NumericOperationIr::Abs(desc) => {
                     unary_float_ops!(handles, desc, B::float_abs)
                 }
-                NumericOperationDescription::Ones(desc) => {
+                NumericOperationIr::Ones(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_ones(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Zeros(desc) => {
+                NumericOperationIr::Zeros(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_zeros(shape, &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Full((desc, elem)) => {
+                NumericOperationIr::Full((desc, elem)) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::float_full(shape, elem.elem(), &self.device);
                     handles.register_float_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Gather(desc) => {
+                NumericOperationIr::Gather(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::float_gather(desc.dim, tensor, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::Scatter(desc) => {
+                NumericOperationIr::Scatter(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
@@ -480,14 +451,14 @@ where
                     let output = B::float_scatter(desc.dim, tensor, indices, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::Select(desc) => {
+                NumericOperationIr::Select(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::float_select(tensor, desc.dim, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::SelectAssign(desc) => {
+                NumericOperationIr::SelectAssign(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_float_tensor::<B>(&desc.value);
@@ -495,7 +466,7 @@ where
                     let output = B::float_select_assign(tensor, desc.dim, indices, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MaskWhere(desc) => {
+                NumericOperationIr::MaskWhere(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
                     let value = handles.get_float_tensor::<B>(&desc.value);
@@ -503,158 +474,158 @@ where
                     let output = B::float_mask_where(tensor, mask, value);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MaskFill(desc) => {
+                NumericOperationIr::MaskFill(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
                     let output = B::float_mask_fill(tensor, mask, desc.value.elem());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MeanDim(desc) => {
+                NumericOperationIr::MeanDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_mean_dim)
                 }
-                NumericOperationDescription::Mean(desc) => {
+                NumericOperationIr::Mean(desc) => {
                     unary_float_ops!(handles, desc, B::float_mean)
                 }
-                NumericOperationDescription::Sum(desc) => {
+                NumericOperationIr::Sum(desc) => {
                     unary_float_ops!(handles, desc, B::float_sum)
                 }
-                NumericOperationDescription::SumDim(desc) => {
+                NumericOperationIr::SumDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_sum_dim)
                 }
-                NumericOperationDescription::Prod(desc) => {
+                NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
                 }
-                NumericOperationDescription::ProdDim(desc) => {
+                NumericOperationIr::ProdDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_prod_dim)
                 }
-                NumericOperationDescription::EqualElem(desc) => {
+                NumericOperationIr::EqualElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_equal_elem)
                 }
-                NumericOperationDescription::Greater(desc) => {
+                NumericOperationIr::Greater(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater)
                 }
-                NumericOperationDescription::GreaterElem(desc) => {
+                NumericOperationIr::GreaterElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_greater_elem)
                 }
-                NumericOperationDescription::GreaterEqual(desc) => {
+                NumericOperationIr::GreaterEqual(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater_equal)
                 }
-                NumericOperationDescription::GreaterEqualElem(desc) => {
+                NumericOperationIr::GreaterEqualElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_greater_equal_elem)
                 }
-                NumericOperationDescription::Lower(desc) => {
+                NumericOperationIr::Lower(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_lower)
                 }
-                NumericOperationDescription::LowerElem(desc) => {
+                NumericOperationIr::LowerElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_lower_elem)
                 }
-                NumericOperationDescription::LowerEqual(desc) => {
+                NumericOperationIr::LowerEqual(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_lower_equal)
                 }
-                NumericOperationDescription::LowerEqualElem(desc) => {
+                NumericOperationIr::LowerEqualElem(desc) => {
                     scalar_float_cmp_ops!(handles, desc, B::float_lower_equal_elem)
                 }
-                NumericOperationDescription::ArgMax(desc) => {
+                NumericOperationIr::ArgMax(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmax)
                 }
-                NumericOperationDescription::ArgMin(desc) => {
+                NumericOperationIr::ArgMin(desc) => {
                     scalar_float2int_ops!(handles, desc, B::float_argmin)
                 }
-                NumericOperationDescription::Max(desc) => {
+                NumericOperationIr::Max(desc) => {
                     unary_float_ops!(handles, desc, B::float_max)
                 }
-                NumericOperationDescription::MaxDimWithIndices(desc) => {
+                NumericOperationIr::MaxDimWithIndices(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::float_max_dim_with_indices(tensor, desc.dim);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
-                NumericOperationDescription::MinDimWithIndices(desc) => {
+                NumericOperationIr::MinDimWithIndices(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::float_min_dim_with_indices(tensor, desc.dim);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
-                NumericOperationDescription::Min(desc) => {
+                NumericOperationIr::Min(desc) => {
                     unary_float_ops!(handles, desc, B::float_min)
                 }
-                NumericOperationDescription::MaxDim(desc) => {
+                NumericOperationIr::MaxDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_max_dim)
                 }
-                NumericOperationDescription::MinDim(desc) => {
+                NumericOperationIr::MinDim(desc) => {
                     scalar_float_dim_ops!(handles, desc, B::float_min_dim)
                 }
-                NumericOperationDescription::Clamp(desc) => {
+                NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
                     let output = B::float_clamp(tensor, desc.min.elem(), desc.max.elem());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::IntRandom(_) => unreachable!(),
-                NumericOperationDescription::Powf(desc) => {
+                NumericOperationIr::IntRandom(_) => unreachable!(),
+                NumericOperationIr::Powf(desc) => {
                     binary_float_ops!(handles, desc, B::float_powf)
                 }
             },
-            OperationDescription::NumericInt(_dtype, op) => match op {
-                NumericOperationDescription::Add(desc) => {
+            OperationIr::NumericInt(_dtype, op) => match op {
+                NumericOperationIr::Add(desc) => {
                     binary_int_ops!(handles, desc, B::int_add)
                 }
-                NumericOperationDescription::AddScalar(desc) => {
+                NumericOperationIr::AddScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_add_scalar)
                 }
-                NumericOperationDescription::Sub(desc) => {
+                NumericOperationIr::Sub(desc) => {
                     binary_int_ops!(handles, desc, B::int_sub)
                 }
-                NumericOperationDescription::SubScalar(desc) => {
+                NumericOperationIr::SubScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_sub_scalar)
                 }
-                NumericOperationDescription::Div(desc) => {
+                NumericOperationIr::Div(desc) => {
                     binary_int_ops!(handles, desc, B::int_div)
                 }
-                NumericOperationDescription::DivScalar(desc) => {
+                NumericOperationIr::DivScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_div_scalar)
                 }
-                NumericOperationDescription::Rem(desc) => {
+                NumericOperationIr::Rem(desc) => {
                     binary_int_ops!(handles, desc, B::int_remainder)
                 }
-                NumericOperationDescription::RemScalar(desc) => {
+                NumericOperationIr::RemScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_remainder_scalar)
                 }
-                NumericOperationDescription::Mul(desc) => {
+                NumericOperationIr::Mul(desc) => {
                     binary_int_ops!(handles, desc, B::int_mul)
                 }
-                NumericOperationDescription::MulScalar(desc) => {
+                NumericOperationIr::MulScalar(desc) => {
                     scalar_int_ops!(handles, desc, B::int_mul_scalar)
                 }
-                NumericOperationDescription::Abs(desc) => {
+                NumericOperationIr::Abs(desc) => {
                     unary_int_ops!(handles, desc, B::int_abs)
                 }
-                NumericOperationDescription::Ones(desc) => {
+                NumericOperationIr::Ones(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_ones(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Zeros(desc) => {
+                NumericOperationIr::Zeros(desc) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_zeros(shape, &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Full((desc, elem)) => {
+                NumericOperationIr::Full((desc, elem)) => {
                     let shape = Shape::from(desc.shape.clone());
                     let output = B::int_full(shape, elem.elem(), &self.device);
                     handles.register_int_tensor::<B>(&desc.id, output);
                 }
-                NumericOperationDescription::Gather(desc) => {
+                NumericOperationIr::Gather(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::int_gather(desc.dim, tensor, indices);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::Scatter(desc) => {
+                NumericOperationIr::Scatter(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
@@ -662,14 +633,14 @@ where
                     let output = B::int_scatter(desc.dim, tensor, indices, value);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::Select(desc) => {
+                NumericOperationIr::Select(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::int_select(tensor, desc.dim, indices);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::SelectAssign(desc) => {
+                NumericOperationIr::SelectAssign(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let value = handles.get_int_tensor::<B>(&desc.value);
@@ -677,7 +648,7 @@ where
                     let output = B::int_select_assign(tensor, desc.dim, indices, value);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MaskWhere(desc) => {
+                NumericOperationIr::MaskWhere(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
                     let value = handles.get_int_tensor::<B>(&desc.value);
@@ -685,103 +656,103 @@ where
                     let output = B::int_mask_where(tensor, mask, value);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MaskFill(desc) => {
+                NumericOperationIr::MaskFill(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
                     let output = B::int_mask_fill(tensor, mask, desc.value.elem());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::MeanDim(desc) => {
+                NumericOperationIr::MeanDim(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_mean_dim)
                 }
-                NumericOperationDescription::Mean(desc) => {
+                NumericOperationIr::Mean(desc) => {
                     unary_int_ops!(handles, desc, B::int_mean)
                 }
-                NumericOperationDescription::Sum(desc) => {
+                NumericOperationIr::Sum(desc) => {
                     unary_int_ops!(handles, desc, B::int_sum)
                 }
-                NumericOperationDescription::SumDim(desc) => {
+                NumericOperationIr::SumDim(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_sum_dim)
                 }
-                NumericOperationDescription::Prod(desc) => {
+                NumericOperationIr::Prod(desc) => {
                     unary_int_ops!(handles, desc, B::int_prod)
                 }
-                NumericOperationDescription::ProdDim(desc) => {
+                NumericOperationIr::ProdDim(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_prod_dim)
                 }
-                NumericOperationDescription::EqualElem(desc) => {
+                NumericOperationIr::EqualElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_equal_elem)
                 }
-                NumericOperationDescription::Greater(desc) => {
+                NumericOperationIr::Greater(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_greater)
                 }
-                NumericOperationDescription::GreaterElem(desc) => {
+                NumericOperationIr::GreaterElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_greater_elem)
                 }
-                NumericOperationDescription::GreaterEqual(desc) => {
+                NumericOperationIr::GreaterEqual(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_greater_equal)
                 }
-                NumericOperationDescription::GreaterEqualElem(desc) => {
+                NumericOperationIr::GreaterEqualElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_greater_equal_elem)
                 }
-                NumericOperationDescription::Lower(desc) => {
+                NumericOperationIr::Lower(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_lower)
                 }
-                NumericOperationDescription::LowerElem(desc) => {
+                NumericOperationIr::LowerElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_lower_elem)
                 }
-                NumericOperationDescription::LowerEqual(desc) => {
+                NumericOperationIr::LowerEqual(desc) => {
                     binary_int_cmp_ops!(handles, desc, B::int_lower_equal)
                 }
-                NumericOperationDescription::LowerEqualElem(desc) => {
+                NumericOperationIr::LowerEqualElem(desc) => {
                     scalar_int_cmp_ops!(handles, desc, B::int_lower_equal_elem)
                 }
-                NumericOperationDescription::ArgMax(desc) => {
+                NumericOperationIr::ArgMax(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_argmax)
                 }
-                NumericOperationDescription::ArgMin(desc) => {
+                NumericOperationIr::ArgMin(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_argmin)
                 }
-                NumericOperationDescription::Max(desc) => {
+                NumericOperationIr::Max(desc) => {
                     unary_int_ops!(handles, desc, B::int_max)
                 }
-                NumericOperationDescription::MaxDimWithIndices(desc) => {
+                NumericOperationIr::MaxDimWithIndices(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::int_max_dim_with_indices(tensor, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
-                NumericOperationDescription::MinDimWithIndices(desc) => {
+                NumericOperationIr::MinDimWithIndices(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let (output, output_idx) = B::int_min_dim_with_indices(tensor, desc.dim);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output_idx);
                 }
-                NumericOperationDescription::Min(desc) => {
+                NumericOperationIr::Min(desc) => {
                     unary_int_ops!(handles, desc, B::int_min)
                 }
-                NumericOperationDescription::MaxDim(desc) => {
+                NumericOperationIr::MaxDim(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_max_dim)
                 }
-                NumericOperationDescription::MinDim(desc) => {
+                NumericOperationIr::MinDim(desc) => {
                     scalar_int_dim_ops!(handles, desc, B::int_min_dim)
                 }
-                NumericOperationDescription::Clamp(desc) => {
+                NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
                     let output = B::int_clamp(tensor, desc.min.elem(), desc.max.elem());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::IntRandom(desc) => {
+                NumericOperationIr::IntRandom(desc) => {
                     let shape = Shape::from(desc.out.shape.clone());
 
                     let output = B::int_random(shape, desc.distribution, &self.device);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationDescription::Powf(desc) => {
+                NumericOperationIr::Powf(desc) => {
                     let lhs = handles.get_int_tensor::<B>(&desc.lhs);
                     let rhs = handles.get_float_tensor::<B>(&desc.rhs);
 
@@ -789,101 +760,134 @@ where
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Bool(op) => match op {
-                BoolOperationDescription::IntoFloat(desc) => {
+            OperationIr::Bool(op) => match op {
+                BoolOperationIr::IntoFloat(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                BoolOperationDescription::IntoInt(desc) => {
+                BoolOperationIr::IntoInt(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_into_int(tensor);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                BoolOperationDescription::Not(desc) => {
+                BoolOperationIr::Not(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.input);
 
                     let output = B::bool_not(tensor);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Int(op) => match op {
-                IntOperationDescription::IntoFloat(desc) => {
+            OperationIr::Int(op) => match op {
+                IntOperationIr::IntoFloat(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.input);
 
                     let output = B::int_into_float(tensor);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                IntOperationIr::BitwiseAnd(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_and)
+                }
+                IntOperationIr::BitwiseAndScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_and_scalar)
+                }
+                IntOperationIr::BitwiseOr(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_or)
+                }
+                IntOperationIr::BitwiseOrScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_or_scalar)
+                }
+                IntOperationIr::BitwiseXor(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_xor)
+                }
+                IntOperationIr::BitwiseXorScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_xor_scalar)
+                }
+                IntOperationIr::BitwiseNot(desc) => {
+                    unary_int_ops!(handles, desc, B::bitwise_not)
+                }
+                IntOperationIr::BitwiseLeftShift(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_left_shift)
+                }
+                IntOperationIr::BitwiseRightShift(desc) => {
+                    binary_int_ops!(handles, desc, B::bitwise_right_shift)
+                }
+                IntOperationIr::BitwiseLeftShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_left_shift_scalar)
+                }
+                IntOperationIr::BitwiseRightShiftScalar(desc) => {
+                    scalar_int_ops!(handles, desc, B::bitwise_right_shift_scalar)
+                }
             },
-            OperationDescription::Float(_dtype, op) => match op {
-                FloatOperationDescription::Exp(desc) => {
+            OperationIr::Float(_dtype, op) => match op {
+                FloatOperationIr::Exp(desc) => {
                     unary_float_ops!(handles, desc, B::float_exp)
                 }
-                FloatOperationDescription::Log(desc) => {
+                FloatOperationIr::Log(desc) => {
                     unary_float_ops!(handles, desc, B::float_log)
                 }
-                FloatOperationDescription::Log1p(desc) => {
+                FloatOperationIr::Log1p(desc) => {
                     unary_float_ops!(handles, desc, B::float_log1p)
                 }
-                FloatOperationDescription::Erf(desc) => {
+                FloatOperationIr::Erf(desc) => {
                     unary_float_ops!(handles, desc, B::float_erf)
                 }
-                FloatOperationDescription::PowfScalar(desc) => {
+                FloatOperationIr::PowfScalar(desc) => {
                     scalar_float_ops!(handles, desc, B::float_powf_scalar)
                 }
-                FloatOperationDescription::Sqrt(desc) => {
+                FloatOperationIr::Sqrt(desc) => {
                     unary_float_ops!(handles, desc, B::float_sqrt)
                 }
-                FloatOperationDescription::Cos(desc) => {
+                FloatOperationIr::Cos(desc) => {
                     unary_float_ops!(handles, desc, B::float_cos)
                 }
-                FloatOperationDescription::Sin(desc) => {
+                FloatOperationIr::Sin(desc) => {
                     unary_float_ops!(handles, desc, B::float_sin)
                 }
-                FloatOperationDescription::Tanh(desc) => {
+                FloatOperationIr::Tanh(desc) => {
                     unary_float_ops!(handles, desc, B::float_tanh)
                 }
-                FloatOperationDescription::Round(desc) => {
+                FloatOperationIr::Round(desc) => {
                     unary_float_ops!(handles, desc, B::float_round)
                 }
-                FloatOperationDescription::Floor(desc) => {
+                FloatOperationIr::Floor(desc) => {
                     unary_float_ops!(handles, desc, B::float_floor)
                 }
-                FloatOperationDescription::Ceil(desc) => {
+                FloatOperationIr::Ceil(desc) => {
                     unary_float_ops!(handles, desc, B::float_ceil)
                 }
-                FloatOperationDescription::IntoInt(desc) => {
+                FloatOperationIr::IntoInt(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
 
                     let output = B::float_into_int(tensor);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                FloatOperationDescription::Matmul(desc) => {
+                FloatOperationIr::Matmul(desc) => {
                     binary_float_ops!(handles, desc, B::float_matmul)
                 }
-                FloatOperationDescription::Random(desc) => {
+                FloatOperationIr::Random(desc) => {
                     let shape = Shape::from(desc.out.shape.clone());
 
                     let output = B::float_random(shape, desc.distribution, &self.device);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                FloatOperationDescription::Recip(desc) => {
+                FloatOperationIr::Recip(desc) => {
                     unary_float_ops!(handles, desc, B::float_recip)
                 }
-                FloatOperationDescription::Quantize(_) => todo!(),
-                FloatOperationDescription::Dequantize(_) => todo!(),
+                FloatOperationIr::Quantize(_) => todo!(),
+                FloatOperationIr::Dequantize(_) => todo!(),
             },
-            OperationDescription::Module(op) => match op {
-                ModuleOperationDescription::Embedding(desc) => {
+            OperationIr::Module(op) => match op {
+                ModuleOperationIr::Embedding(desc) => {
                     let weights = handles.get_float_tensor::<B>(&desc.weights);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
 
                     let output = B::embedding(weights, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::EmbeddingBackward(desc) => {
+                ModuleOperationIr::EmbeddingBackward(desc) => {
                     let weights = handles.get_float_tensor::<B>(&desc.weights);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let output_grad = handles.get_float_tensor::<B>(&desc.out_grad);
@@ -891,7 +895,7 @@ where
                     let output = B::embedding_backward(weights, output_grad, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::Conv1d(desc) => {
+                ModuleOperationIr::Conv1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -902,7 +906,7 @@ where
                     let output = B::conv1d(x, weight, bias, desc.clone().options.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::Conv2d(desc) => {
+                ModuleOperationIr::Conv2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -913,7 +917,7 @@ where
                     let output = B::conv2d(x, weight, bias, desc.clone().options.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::Conv3d(desc) => {
+                ModuleOperationIr::Conv3d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -924,7 +928,7 @@ where
                     let output = B::conv3d(x, weight, bias, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::DeformableConv2d(desc) => {
+                ModuleOperationIr::DeformableConv2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let offset = handles.get_float_tensor::<B>(&desc.offset);
                     let mask = desc
@@ -947,7 +951,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::DeformableConv2dBackward(desc) => {
+                ModuleOperationIr::DeformableConv2dBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let offset = handles.get_float_tensor::<B>(&desc.offset);
                     let mask = desc
@@ -983,7 +987,7 @@ where
                         handles.register_float_tensor::<B>(&field.id, bias_grad);
                     }
                 }
-                ModuleOperationDescription::ConvTranspose1d(desc) => {
+                ModuleOperationIr::ConvTranspose1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -994,7 +998,7 @@ where
                     let output = B::conv_transpose1d(x, weight, bias, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::ConvTranspose2d(desc) => {
+                ModuleOperationIr::ConvTranspose2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -1005,7 +1009,7 @@ where
                     let output = B::conv_transpose2d(x, weight, bias, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::ConvTranspose3d(desc) => {
+                ModuleOperationIr::ConvTranspose3d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
                     let bias = desc
@@ -1016,7 +1020,7 @@ where
                     let output = B::conv_transpose3d(x, weight, bias, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AvgPool1d(desc) => {
+                ModuleOperationIr::AvgPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::avg_pool1d(
@@ -1028,7 +1032,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AvgPool2d(desc) => {
+                ModuleOperationIr::AvgPool2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::avg_pool2d(
@@ -1040,7 +1044,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AvgPool1dBackward(desc) => {
+                ModuleOperationIr::AvgPool1dBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let grad = handles.get_float_tensor::<B>(&desc.grad);
 
@@ -1054,7 +1058,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AvgPool2dBackward(desc) => {
+                ModuleOperationIr::AvgPool2dBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let grad = handles.get_float_tensor::<B>(&desc.grad);
 
@@ -1068,33 +1072,33 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AdaptiveAvgPool1d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::adaptive_avg_pool1d(x, desc.output_size);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AdaptiveAvgPool2d(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::adaptive_avg_pool2d(x, desc.output_size);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AdaptiveAvgPool1dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool1dBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let grad = handles.get_float_tensor::<B>(&desc.grad);
 
                     let output = B::adaptive_avg_pool1d_backward(x, grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::AdaptiveAvgPool2dBackward(desc) => {
+                ModuleOperationIr::AdaptiveAvgPool2dBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let grad = handles.get_float_tensor::<B>(&desc.grad);
 
                     let output = B::adaptive_avg_pool2d_backward(x, grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::MaxPool1d(desc) => {
+                ModuleOperationIr::MaxPool1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::max_pool1d(
@@ -1106,7 +1110,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::MaxPool1dWithIndices(desc) => {
+                ModuleOperationIr::MaxPool1dWithIndices(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::max_pool1d_with_indices(
@@ -1119,7 +1123,7 @@ where
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
                 }
-                ModuleOperationDescription::MaxPool1dWithIndicesBackward(desc) => {
+                ModuleOperationIr::MaxPool1dWithIndicesBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let output_grad = handles.get_float_tensor::<B>(&desc.grad);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
@@ -1135,7 +1139,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
                 }
-                ModuleOperationDescription::MaxPool2d(desc) => {
+                ModuleOperationIr::MaxPool2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::max_pool2d(
@@ -1147,7 +1151,7 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::MaxPool2dWithIndices(desc) => {
+                ModuleOperationIr::MaxPool2dWithIndices(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::max_pool2d_with_indices(
@@ -1160,7 +1164,7 @@ where
                     handles.register_float_tensor::<B>(&desc.out.id, output.output);
                     handles.register_int_tensor::<B>(&desc.out_indices.id, output.indices);
                 }
-                ModuleOperationDescription::MaxPool2dWithIndicesBackward(desc) => {
+                ModuleOperationIr::MaxPool2dWithIndicesBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let output_grad = handles.get_float_tensor::<B>(&desc.grad);
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
@@ -1176,13 +1180,13 @@ where
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output.x_grad);
                 }
-                ModuleOperationDescription::Interpolate(desc) => {
+                ModuleOperationIr::Interpolate(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
 
                     let output = B::interpolate(x, desc.output_size, desc.options.clone().into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
-                ModuleOperationDescription::InterpolateBackward(desc) => {
+                ModuleOperationIr::InterpolateBackward(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let grad = handles.get_float_tensor::<B>(&desc.grad);
 
@@ -1195,13 +1199,16 @@ where
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
             },
-            OperationDescription::Custom(_) => {
+            OperationIr::Custom(_) => {
                 panic!("Can't execute custom operation here")
+            }
+            OperationIr::Init(_) => {
+                // Nothing to do.
             }
         }
     }
 
-    fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send {
+    fn read_tensor(&self, tensor: TensorIr) -> impl Future<Output = TensorData> + Send {
         let mut ctx = self.context.lock().unwrap();
 
         enum Output<B: Backend> {

@@ -2,13 +2,13 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     element::JitElement,
-    kernel::into_contiguous,
+    kernel::{conv::ConvLaunchError, into_contiguous},
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
     tensor::JitTensor,
-    IntElement, JitRuntime,
+    JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Shape};
 
@@ -32,7 +32,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     args: ConvArgs,
 ) {
     if ABSOLUTE_POS >= output.len() {
-        return;
+        terminate!();
     }
 
     let in_c_per_group = weight.shape(0) / args.groups;
@@ -121,13 +121,12 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
+pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims();
@@ -185,5 +184,5 @@ pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement, I: IntElement>(
         ),
     );
 
-    output
+    Ok(output)
 }

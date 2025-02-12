@@ -7,6 +7,7 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
+use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -102,6 +103,15 @@ where
     /// Converts from a primitive tensor into a tensor.
     pub fn from_primitive(tensor: K::Primitive) -> Self {
         Self::new(tensor)
+    }
+
+    /// Returns the tensor primitive data type.
+    ///
+    /// # Note
+    /// Some element types are encoded in different primitive types depending on the backend
+    /// (e.g., bool could be encoded as `u8` or `u32`).
+    pub fn dtype(&self) -> DType {
+        self.primitive.dtype()
     }
 
     /// Create an empty tensor of the given shape.
@@ -795,6 +805,7 @@ where
     /// # Arguments
     ///
     /// * `ranges` - A type implementing the `RangesArg` trait, which can be:
+    ///   - A single `core::ops::Range<usize>` (slice the first dimension)
     ///   - An array of `core::ops::Range<usize>`
     ///   - An array of `Option<(i64, i64)>`
     ///   - An array of `(i64, i64)` tuples
@@ -947,6 +958,19 @@ where
             data.shape.as_slice()
         ));
         Self::new(K::from_data(data, device))
+    }
+
+    /// Create a tensor from the given data on the given device enforcing the given data type.
+    pub fn from_data_dtype<T>(data: T, device: &B::Device, dtype: DType) -> Self
+    where
+        T: Into<TensorData>,
+    {
+        let data = data.into();
+        check!(TensorCheck::creation_ops::<D>(
+            "From Data",
+            data.shape.as_slice()
+        ));
+        Self::new(K::from_data_dtype(data, device, dtype))
     }
 
     /// Repeat the tensor along the given dimension.
@@ -1873,7 +1897,15 @@ where
         writeln!(f, "  device:  {:?},", self.device())?;
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
-        writeln!(f, "  dtype:  {:?},", self.primitive.dtype().name())?;
+
+        // Bool tensors might be encoded in a different type, which we abstract for the display
+        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
+            DType::Bool
+        } else {
+            self.primitive.dtype()
+        };
+
+        writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
     }
 }
@@ -2136,6 +2168,17 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// For creating a tensor from data, users should prefer the [Tensor::from_data](Tensor::from_data) function,
     /// which is more high-level and designed for public use.
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive;
+    /// Creates a tensor from the given data enforcing the given data type.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    ///
+    /// For creating a tensor from data, users should prefer the [Tensor::from_data_dtype](Tensor::from_data_dtype)
+    /// function, which is more high-level and designed for public use.
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -2482,7 +2525,16 @@ impl<B: Backend> BasicOps<B> for Float {
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
         match data.dtype {
             DType::QFloat(_strategy) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
-            _ => TensorPrimitive::Float(B::float_from_data(data, device)),
+            _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
+        }
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        match dtype {
+            DType::QFloat(_strategy) => {
+                TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
+            }
+            _ => TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device)),
         }
     }
 
@@ -2655,7 +2707,11 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::int_from_data(data, device)
+        B::int_from_data(data.convert::<B::IntElem>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::int_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -2767,7 +2823,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
-        B::bool_from_data(data, device)
+        B::bool_from_data(data.convert::<bool>(), device)
+    }
+
+    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
+        B::bool_from_data(data.convert_dtype(dtype), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -2967,6 +3027,13 @@ impl<const D2: usize> RangesArg<D2> for [(i64, i64); D2] {
             .collect::<Vec<_>>();
 
         ranges.try_into().unwrap()
+    }
+}
+
+impl RangesArg<1> for core::ops::Range<usize> {
+    fn into_ranges(self, shape: Shape) -> [core::ops::Range<usize>; 1] {
+        let (start, end) = Self::clamp_range(self.start, self.end, shape.dims[0]);
+        [(start..end)]
     }
 }
 

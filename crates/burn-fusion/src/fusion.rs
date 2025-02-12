@@ -1,14 +1,12 @@
-use burn_tensor::{
-    backend::{DeviceId, DeviceOps},
-    repr::ReprBackend,
-};
+use burn_ir::BackendIr;
+use burn_tensor::backend::{DeviceId, DeviceOps};
 
 use crate::{client::FusionClient, Client, FusionDevice, FusionRuntime};
 
 use std::{any::Any, collections::HashMap, ops::DerefMut};
 
-/// Type alias for [representation backend handle](burn_tensor::repr::ReprBackend::Handle).
-pub type Handle<B> = <B as ReprBackend>::Handle;
+/// Type alias for [representation backend handle](burn_ir::BackendIr::Handle).
+pub type Handle<B> = <B as BackendIr>::Handle;
 type Key = (core::any::TypeId, DeviceId);
 
 pub(crate) struct FusionClientLocator {

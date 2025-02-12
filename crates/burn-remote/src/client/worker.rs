@@ -3,7 +3,7 @@ use crate::shared::{ConnectionId, SessionId, Task, TaskResponse, TaskResponseCon
 use futures_util::{SinkExt, StreamExt};
 use std::{collections::HashMap, sync::Arc};
 use tokio_tungstenite::{
-    connect_async_with_config,
+    connect_async_with_config, tungstenite,
     tungstenite::protocol::{Message, WebSocketConfig},
 };
 
@@ -56,28 +56,29 @@ impl ClientWorker {
             log::info!("Connecting to {address_request} ...");
             let (mut stream_request, _) = connect_async_with_config(
                 address_request.clone(),
-                Some(WebSocketConfig {
-                    max_send_queue: None,
-                    write_buffer_size: 0,
-                    max_write_buffer_size: usize::MAX,
-                    max_message_size: None,
-                    max_frame_size: Some(MB * 512),
-                    accept_unmasked_frames: true,
-                }),
+                Some(
+                    WebSocketConfig::default()
+                        .write_buffer_size(0)
+                        .max_message_size(None)
+                        .max_frame_size(Some(MB * 512))
+                        .accept_unmasked_frames(true)
+                        .read_buffer_size(64 * 1024) // 64 KiB (previous default)
+                ),
                 true,
             )
             .await
             .expect("Failed to connect");
             let (mut stream_response, _) = connect_async_with_config(
                 address_response,
-                Some(WebSocketConfig {
-                    max_send_queue: None,
-                    write_buffer_size: 0,
-                    max_write_buffer_size: usize::MAX,
-                    max_message_size: None,
-                    max_frame_size: Some(MB * 512),
-                    accept_unmasked_frames: true,
-                }),
+                Some(
+                    WebSocketConfig::default()
+                        .write_buffer_size(0)
+                        .max_message_size(None)
+                        .max_frame_size(Some(MB * 512))
+                        .accept_unmasked_frames(true)
+                        .read_buffer_size(64 * 1024) // 64 KiB (previous default)
+
+                ),
                 true,
             )
             .await
@@ -87,7 +88,7 @@ impl ClientWorker {
 
             // Init the connection.
             let session_id = SessionId::new();
-            let bytes = rmp_serde::to_vec(&Task::Init(session_id)).expect("Can serialize tasks to bytes.");
+            let bytes: tungstenite::Bytes = rmp_serde::to_vec(&Task::Init(session_id)).expect("Can serialize tasks to bytes.").into();
             stream_request.send(Message::Binary(bytes.clone())).await.expect("Can send the message on the websocket.");
             stream_response.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
 
@@ -129,7 +130,7 @@ impl ClientWorker {
                         ClientRequest::WithoutCallback(task) => task,
 
                     };
-                    let bytes = rmp_serde::to_vec(&task).expect("Can serialize tasks to bytes.");
+                    let bytes = rmp_serde::to_vec(&task).expect("Can serialize tasks to bytes.").into();
                     stream_request.send(Message::Binary(bytes)).await.expect("Can send the message on the websocket.");
                 }
             });

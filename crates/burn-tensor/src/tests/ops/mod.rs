@@ -7,6 +7,7 @@ mod arange;
 mod arange_step;
 mod arg;
 mod argwhere_nonzero;
+mod bitwise;
 mod bool;
 mod cartesian_grid;
 mod cast;

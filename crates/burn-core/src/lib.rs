@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![recursion_limit = "135"]
 
 //! The core crate of Burn.
 
@@ -48,6 +49,7 @@ pub use burn_remote::server;
 
 extern crate alloc;
 
+/// Backend for test cases
 #[cfg(all(
     test,
     not(feature = "test-tch"),
@@ -57,14 +59,18 @@ extern crate alloc;
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 
 #[cfg(all(test, feature = "test-tch"))]
+/// Backend for test cases
 pub type TestBackend = burn_tch::LibTorch<f32>;
 
 #[cfg(all(test, feature = "test-wgpu"))]
+/// Backend for test cases
 pub type TestBackend = burn_wgpu::Wgpu;
 
 #[cfg(all(test, feature = "test-cuda"))]
+/// Backend for test cases
 pub type TestBackend = burn_cuda::Cuda;
 
+/// Backend for autodiff test cases
 #[cfg(feature = "std")]
 #[cfg(test)]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;

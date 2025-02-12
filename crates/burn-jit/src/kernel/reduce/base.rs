@@ -1,83 +1,168 @@
-use cubecl::prelude::Numeric;
-
 #[cfg(feature = "autotune")]
-use crate::kernel::reduce::reduce_dim_autotune;
+use super::{autotune_reduce, autotune_sum};
 use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use burn_tensor::Shape;
+pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
+use cubecl::reduce::shared_sum;
 
-use super::{
-    naive::{base::ReduceDimNaive, kernel::reduce_dim_naive},
-    shared::{base::ReduceDimShared, kernel::reduce_dim_shared},
-    subcube::{base::ReduceDimSubcube, kernel::reduce_dim_subcube},
-};
+/// Specialize reduce function to compute the sum of all elements of the `input` tensor and return
+/// the value into a single-element tensor of shape `1 x 1 x 1 x ...` with the same rank as `input`.
+///
+/// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
+///
+/// Return an error if the `client` doesn't support atomic add for the type `E`.
+pub fn sum<Run: JitRuntime, E: JitElement>(
+    tensor: JitTensor<Run>,
+    cube_count: SumStrategy,
+) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+    let client = tensor.client.clone();
+    let device = tensor.device.clone();
 
-#[allow(dead_code)]
-pub(crate) trait ReduceDimAlgorithm<EI: JitElement + Numeric, EO: JitElement>:
-    core::fmt::Debug + ReduceDimNaive<EI> + ReduceDimShared<EI, EO> + ReduceDimSubcube<EI, EO>
-{
+    match cube_count {
+        SumStrategy::OneShot(cube_count) => {
+            let handle = client.create(E::as_bytes(&[E::from_int(0)]));
+            let output =
+                JitTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
+            shared_sum::<Run, E>(
+                &client,
+                tensor.as_handle_ref(),
+                output.as_handle_ref(),
+                cube_count,
+            )?;
+
+            Ok(output)
+        }
+        SumStrategy::Chained(strategy) => reduce::<Run, E, E, Sum>(tensor, strategy),
+        #[cfg(feature = "autotune")]
+        SumStrategy::Autotune => Ok(autotune_sum::<Run, E>(&client, tensor)),
+    }
 }
 
-/// Creates an empty output tensor with reduce output shape
-pub fn init_reduce_output<R: JitRuntime, EI: JitElement, EO: JitElement>(
-    input: &JitTensor<R>,
-    reduce_dim: usize,
-) -> JitTensor<R> {
-    let mut shape_out = input.shape.clone();
-    shape_out.dims[reduce_dim] = 1;
-
-    empty_device::<R, EO>(input.client.clone(), input.device.clone(), shape_out)
+/// Select a strategy to perform a sum.
+pub enum SumStrategy {
+    /// Run a single kernel with many cubes working in parallel to sum all elements.
+    /// The provided value is the number of elements summed per unit (up-to-rounding )
+    OneShot(u32),
+    /// Use multiple kernels
+    Chained(ReduceStrategy),
+    /// Use autotune to find the best cube count given the hardware and the input.
+    #[cfg(feature = "autotune")]
+    Autotune,
 }
 
+impl Default for SumStrategy {
+    fn default() -> Self {
+        #[cfg(feature = "autotune")]
+        return Self::Autotune;
+
+        #[cfg(not(feature = "autotune"))]
+        return Self::OneShot(4);
+    }
+}
+
+/// Reduce all elements of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+///
+/// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
+///
+/// If there is no error, the output is a tensor with decreasing strides
+/// where the shape of reduced dim is set to 1 but all shape are similar to the input.
+pub fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
+    mut tensor: JitTensor<Run>,
+    strategy: ReduceStrategy,
+) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+    // In practice, it looks like starting by the axis with the smallest shape
+    // and going in increasing order lead to the fastest calculation.
+    let sorted_axis = argsort(&tensor.shape.dims);
+    for axis in sorted_axis {
+        tensor = reduce_dim::<Run, In, Out, Rd>(tensor, axis, strategy)?;
+    }
+    // reshape to scalar tensor
+    tensor.shape = Shape::new([1]);
+    tensor.strides = vec![1];
+    Ok(tensor)
+}
+
+fn argsort(shape: &[usize]) -> Vec<usize> {
+    let mut indices = (0..shape.len()).collect::<Vec<_>>();
+    indices.sort_by_key(|&i| &shape[i]);
+    indices
+}
+
+/// Reduce the given `axis` of the `input` tensor using the instruction `Rd` and the given [Strategy](ReduceStrategy).
+///
+/// Return an error if `strategy` is `Specific(strategy)` and the specified strategy is not supported by the `client`.
+/// Also returns an error if the `axis` is larger than the `input` rank or if the shape of `output` is invalid.
+///
+/// If there is no error, the output is a tensor with decreasing strides
+/// where the shape of reduced dim is set to 1 but all shape are similar to the input.
+pub fn reduce_dim<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
+    input: JitTensor<Run>,
+    dim: usize,
+    strategy: ReduceStrategy,
+) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+    let client = input.client.clone();
+    let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
+        cubecl::reduce::ReduceError::InvalidAxis {
+            axis: dim,
+            rank: input.shape.num_dims(),
+        },
+    )?;
+    let result = match strategy {
+        ReduceStrategy::Unspecified => cubecl::reduce::reduce::<Run, In, Out, Rd>(
+            &client,
+            input.as_handle_ref(),
+            output.as_handle_ref(),
+            dim,
+            None,
+        ),
+        ReduceStrategy::Specific(strategy) => cubecl::reduce::reduce::<Run, In, Out, Rd>(
+            &client,
+            input.as_handle_ref(),
+            output.as_handle_ref(),
+            dim,
+            Some(strategy),
+        ),
+        #[cfg(feature = "autotune")]
+        ReduceStrategy::Autotune => {
+            autotune_reduce::<Run, In, Out, Rd>(&client, input, output.clone(), dim);
+            Ok(())
+        }
+    };
+    result.map(|_| output)
+}
+
+/// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
+/// or return `None` if `axis` is out-of-bound.
+pub fn init_reduce_output<Run: JitRuntime, In: JitElement, Out: JitElement>(
+    input: &JitTensor<Run>,
+    dim: usize,
+) -> Option<JitTensor<Run>> {
+    (dim < input.shape.num_dims()).then(|| {
+        let mut shape_out = input.shape.clone();
+        shape_out.dims[dim] = 1;
+        empty_device::<Run, Out>(input.client.clone(), input.device.clone(), shape_out)
+    })
+}
+
+/// Select a strategy to perform a reduction.
 #[derive(Copy, Clone, Debug)]
-#[allow(missing_docs)]
 pub enum ReduceStrategy {
-    /// Naive
-    Naive,
-    /// Use shared memory as an accumulator
-    SharedMemory,
-    /// Use subcube functions
-    Subcube,
+    /// Use a best-effort strategy based on the hardware capacity.
+    /// This differs from Autotune as it doesn't try and compare many strategies to select the best.
+    Unspecified,
+    /// Fix the exact strategy for the reduction.
+    Specific(cubecl::reduce::ReduceStrategy),
+    /// Use autotune to find the best strategy given the hardware and the inputs.
     #[cfg(feature = "autotune")]
     Autotune,
 }
 
 impl Default for ReduceStrategy {
     fn default() -> Self {
-        // if autotune is enabled, default to autotune
         #[cfg(feature = "autotune")]
-        return ReduceStrategy::Autotune;
+        return Self::Autotune;
 
         #[cfg(not(feature = "autotune"))]
-        ReduceStrategy::Naive
+        return Self::Unspecified;
     }
 }
-
-macro_rules! reduce_operation {
-    ($name:ident, $ops:ident) => {
-        #[derive(Debug)]
-        pub(crate) struct $ops;
-
-        impl<EI: JitElement, EO: JitElement> ReduceDimAlgorithm<EI, EO> for $ops {}
-
-        /// Executes the reduce operation with the given strategy.
-        pub fn $name<R: JitRuntime, EI: JitElement, EO: JitElement>(
-            tensor: JitTensor<R>,
-            dim: usize,
-            strategy: ReduceStrategy,
-        ) -> JitTensor<R> {
-            match strategy {
-                ReduceStrategy::Naive => reduce_dim_naive::<$ops, R, EI, EO>(tensor, dim),
-                ReduceStrategy::SharedMemory => reduce_dim_shared::<$ops, R, EI, EO>(tensor, dim),
-                ReduceStrategy::Subcube => reduce_dim_subcube::<$ops, R, EI, EO>(tensor, dim),
-                #[cfg(feature = "autotune")]
-                ReduceStrategy::Autotune => reduce_dim_autotune::<$ops, R, EI, EO>(tensor, dim),
-            }
-        }
-    };
-}
-
-// Autotunable reduce operation variants
-reduce_operation!(sum_dim, SumDim);
-reduce_operation!(mean_dim, MeanDim);
-reduce_operation!(prod_dim, ProdDim);
-reduce_operation!(argmin, Argmin);
-reduce_operation!(argmax, Argmax);

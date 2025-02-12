@@ -6,7 +6,7 @@ use super::{
     constant::ConstantNode, constant_of_shape::ConstantOfShapeNode, conv1d::Conv1dNode,
     conv2d::Conv2dNode, conv3d::Conv3dNode, conv_transpose_1d::ConvTranspose1dNode,
     conv_transpose_2d::ConvTranspose2dNode, conv_transpose_3d::ConvTranspose3dNode,
-    dropout::DropoutNode, expand::ExpandNode, gather::GatherNode,
+    dropout::DropoutNode, expand::ExpandNode, floor::FloorNode, gather::GatherNode,
     gather_elements::GatherElementsNode, global_avg_pool::GlobalAvgPoolNode,
     layer_norm::LayerNormNode, linear::LinearNode, mask_where::WhereNode, matmul::MatmulNode,
     max_pool1d::MaxPool1dNode, max_pool2d::MaxPool2dNode, mean::MeanNode, pad::PadNode,
@@ -17,13 +17,12 @@ use super::{
     unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
-use burn::backend::NdArray;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
 use serde::Serialize;
 
 /// Backend used for serialization.
-pub type SerializationBackend = NdArray<f32>;
+pub type SerializationBackend = burn_ndarray::NdArray<f32>;
 
 /// Codegen trait that should be implemented by all [node](Node) entries.
 pub trait NodeCodegen<PS: PrecisionSettings>: std::fmt::Debug {
@@ -101,6 +100,7 @@ pub enum Node<PS: PrecisionSettings> {
     PRelu(PReluNode),
     Dropout(DropoutNode),
     Expand(ExpandNode),
+    Floor(FloorNode),
     Gather(GatherNode),
     GatherElements(GatherElementsNode),
     GlobalAvgPool(GlobalAvgPoolNode),
@@ -154,6 +154,7 @@ macro_rules! match_all {
             Node::PRelu(node) => $func(node),
             Node::Dropout(node) => $func(node),
             Node::Expand(node) => $func(node),
+            Node::Floor(node) => $func(node),
             Node::Gather(node) => $func(node),
             Node::GatherElements(node) => $func(node),
             Node::GlobalAvgPool(node) => $func(node),
@@ -215,6 +216,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::PRelu(_) => "prelu",
             Node::Dropout(_) => "dropout",
             Node::Expand(_) => "expand",
+            Node::Floor(_) => "floor",
             Node::Gather(_) => "gather",
             Node::GatherElements(_) => "gather_elements",
             Node::GlobalAvgPool(_) => "global_avg_pool",

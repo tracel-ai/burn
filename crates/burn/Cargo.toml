@@ -9,7 +9,7 @@ license.workspace = true
 name = "burn"
 readme.workspace = true
 repository = "https://github.com/tracel-ai/burn"
-rust-version = "1.81"
+rust-version = "1.82"
 version.workspace = true
 
 [features]
@@ -24,7 +24,7 @@ train = ["burn-train", "autodiff", "dataset"]
 tui = ["burn-train?/tui"]
 
 ##  Includes system info metrics (CPU/GPU usage, etc)
-metrics = ["burn-train?/metrics"]
+metrics = ["burn-train?/sys-metrics"]
 
 # Datasets
 dataset = ["burn-core/dataset"]
@@ -32,6 +32,7 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
 
 # Backends
@@ -49,15 +50,16 @@ openblas-system = ["burn-core/openblas-system"]
 template = ["burn-core/template"]
 
 candle = ["burn-core/candle"]
-cuda-jit = ["burn-core/cuda-jit"]
-hip-jit = ["burn-core/hip-jit"]
+cuda = ["burn-core/cuda"]
+hip = ["burn-core/hip"]
 ndarray = ["burn-core/ndarray"]
+remote = ["burn-core/remote"]
+router = ["burn-core/router"]
+server = ["burn-core/server"]
 tch = ["burn-core/tch"]
 wgpu = ["burn-core/wgpu"]
-wgpu-spirv = ["burn-core/wgpu-spirv"]
-remote = ["burn-core/remote"]
-server = ["burn-core/server"]
-router = ["burn-core/router"]
+vulkan = ["burn-core/vulkan"]
+webgpu = ["burn-core/webgpu"]
 
 # Network utils
 network = ["burn-core/network"]
@@ -66,12 +68,11 @@ network = ["burn-core/network"]
 experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # Records
-record-backward-compat = ["burn-core/record-backward-compat"]
 record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "0.16.0", default-features = false }
-burn-train = { path = "../burn-train", version = "0.16.0", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "0.17.0", default-features = false }
+burn-train = { path = "../burn-train", version = "0.17.0", optional = true, default-features = false }

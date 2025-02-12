@@ -1,4 +1,4 @@
-use burn_tensor::repr::OperationDescription;
+use burn_ir::OperationIr;
 
 use crate::stream::store::{ExecutionPlanId, ExecutionPlanStore, ExecutionTrigger};
 
@@ -32,7 +32,7 @@ pub(crate) trait OperationsStore {
     type Id: Copy;
 
     /// retrieve the list of operations corresponding on the provided id.
-    fn get(&self, id: Self::Id) -> &[OperationDescription];
+    fn get(&self, id: Self::Id) -> &[OperationIr];
 }
 
 impl<ID> OperationsValidator<ID> {
@@ -45,12 +45,8 @@ impl<ID> OperationsValidator<ID> {
     }
 
     /// Update the state of the validator based on the newly added operation.
-    pub(crate) fn update<S>(
-        &mut self,
-        added: &OperationDescription,
-        added_position: usize,
-        store: &S,
-    ) where
+    pub(crate) fn update<S>(&mut self, added: &OperationIr, added_position: usize, store: &S)
+    where
         S: OperationsStore<Id = ID>,
         ID: PartialEq + Copy,
     {
@@ -112,10 +108,10 @@ pub(crate) enum TriggerProgress {
 /// trigger.
 pub(crate) type TriggerId = usize;
 
-impl<'b, O> OperationsStore for TriggerOperationsStore<'b, O> {
+impl<O> OperationsStore for TriggerOperationsStore<'_, O> {
     type Id = TriggerId;
 
-    fn get(&self, id: Self::Id) -> &[OperationDescription] {
+    fn get(&self, id: Self::Id) -> &[OperationIr] {
         match &self.store.get_unchecked(self.id).triggers[id] {
             ExecutionTrigger::OnOperations(operations) => operations,
             ExecutionTrigger::OnSync => &[],
@@ -131,10 +127,10 @@ pub(crate) struct ExecutionPlanOperationsStore<'a, O> {
     store: &'a ExecutionPlanStore<O>,
 }
 
-impl<'b, O> OperationsStore for ExecutionPlanOperationsStore<'b, O> {
+impl<O> OperationsStore for ExecutionPlanOperationsStore<'_, O> {
     type Id = ExecutionPlanId;
 
-    fn get(&self, id: Self::Id) -> &[OperationDescription] {
+    fn get(&self, id: Self::Id) -> &[OperationIr] {
         &self.store.get_unchecked(id).operations
     }
 }

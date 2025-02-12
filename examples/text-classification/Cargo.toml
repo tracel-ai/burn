@@ -16,10 +16,10 @@ ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
-wgpu-spirv = ["wgpu", "burn/wgpu-spirv"]
+vulkan = ["burn/vulkan", "burn/default"]
 remote = ["burn/remote"]
-cuda-jit = ["burn/cuda-jit"]
-hip-jit = ["burn/hip-jit"]
+cuda = ["burn/cuda"]
+hip = ["burn/hip"]
 
 [dependencies]
 # Burn
@@ -34,7 +34,7 @@ burn = { path = "../../crates/burn", features = [
 ], default-features = false }
 
 # Tokenizer
-tokenizers = { version = "0.20.3", default-features = false, features = [
+tokenizers = { version = "0.21.0", default-features = false, features = [
   "onig",
   "http",
 ] }

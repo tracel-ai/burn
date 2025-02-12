@@ -64,7 +64,7 @@ represent the corresponding Burn Op.
 | [Expand][54]                     |       ✅       |      ✅      |
 | [EyeLike][55]                    |       ❌       |      ❌      |
 | [Flatten][56]                    |       ✅       |      ✅      |
-| [Floor][57]                      |       ❌       |      ❌      |
+| [Floor][57]                      |       ✅       |      ✅      |
 | [Gather][58]                     |       ✅       |      ✅      |
 | [GatherElements][59]             |       ✅       |      ✅      |
 | [GatherND][60]                   |       ❌       |      ❌      |
@@ -179,7 +179,7 @@ represent the corresponding Burn Op.
 | [Softplus][170]                  |       ❌       |      ❌      |
 | [Softsign][171]                  |       ❌       |      ❌      |
 | [SpaceToDepth][172]              |       ❌       |      ❌      |
-| [Split][173]                     |       ✅       |      ✅      |
+| [Split][173]                     |       ❌       |      ❌      |
 | [SplitToSequence][174]           |       ❌       |      ❌      |
 | [Sqrt][175]                      |       ✅       |      ✅      |
 | [Squeeze][176]                   |       ✅       |      ✅      |

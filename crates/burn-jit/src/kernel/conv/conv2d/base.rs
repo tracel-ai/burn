@@ -1,15 +1,14 @@
-use burn_tensor::{
-    ops::{ConvOptions, ConvTransposeOptions},
-    TensorData,
-};
+use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
-use crate::{tensor::JitTensor, FloatElement, IntElement, JitElement, JitRuntime};
+use crate::{
+    kernel::conv::ConvLaunchError, tensor::JitTensor, FloatElement, IntElement, JitRuntime,
+};
 
 #[cfg(feature = "autotune")]
 use super::{conv2d_autotune, conv_transpose2d_autotune};
 use super::{
     conv2d_direct, conv2d_im2col, conv_transpose2d_col2im, conv_transpose2d_direct,
-    implicit_gemm::conv2d_implicit_gemm,
+    gemm::launch::conv2d_gemm_cmma_large_m, implicit_gemm::conv2d_implicit_gemm,
 };
 
 /// The strategy to be used when launching a convolution kernel.
@@ -24,6 +23,9 @@ pub enum Conv2dStrategy {
     /// Implicit GEMM implementation of convolution. Lower memory usage but requires CMMA and
     /// has constraints on tensor shape.
     ImplicitGemm,
+    /// Implicit GEMM implementation of convolution. Uses `cubecl` matmul components to provide
+    /// the flexibility needed to work well for varied problem sizes.
+    ImplicitGemmComplex,
 }
 
 impl Default for Conv2dStrategy {
@@ -69,20 +71,21 @@ impl Default for ConvTranspose2dStrategy {
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
-pub fn conv2d<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv2d<R: JitRuntime, E: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     match strategy {
-        Conv2dStrategy::Direct => conv2d_direct::<R, E, I>(input, weight, bias, options),
+        Conv2dStrategy::Direct => conv2d_direct::<R, E>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
-        Conv2dStrategy::Autotune => conv2d_autotune::<R, E, I>(input, weight, bias, options),
-        Conv2dStrategy::Gemm => conv2d_im2col::<R, E, I>(input, weight, bias, options),
-        Conv2dStrategy::ImplicitGemm => {
-            conv2d_implicit_gemm::<R, E, I>(input, weight, bias, options)
+        Conv2dStrategy::Autotune => Ok(conv2d_autotune::<R, E>(input, weight, bias, options)),
+        Conv2dStrategy::Gemm => conv2d_im2col::<R, E>(input, weight, bias, options),
+        Conv2dStrategy::ImplicitGemm => conv2d_implicit_gemm::<R, E>(input, weight, bias, options),
+        Conv2dStrategy::ImplicitGemmComplex => {
+            conv2d_gemm_cmma_large_m::<R, E>(input, weight, bias, options)
         }
     }
 }
@@ -101,23 +104,17 @@ pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
     bias: Option<JitTensor<R>>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> JitTensor<R> {
+) -> Result<JitTensor<R>, ConvLaunchError> {
     match strategy {
         ConvTranspose2dStrategy::Direct => {
-            conv_transpose2d_direct::<R, E, I>(input, weight, bias, options)
+            conv_transpose2d_direct::<R, E>(input, weight, bias, options)
         }
         #[cfg(feature = "autotune")]
-        ConvTranspose2dStrategy::Autotune => {
-            conv_transpose2d_autotune::<R, E, I>(input, weight, bias, options)
-        }
+        ConvTranspose2dStrategy::Autotune => Ok(conv_transpose2d_autotune::<R, E>(
+            input, weight, bias, options,
+        )),
         ConvTranspose2dStrategy::Gemm => {
-            conv_transpose2d_col2im::<R, E, I>(input, weight, bias, options)
+            conv_transpose2d_col2im::<R, E>(input, weight, bias, options)
         }
     }
-}
-
-#[allow(unused)]
-pub(crate) fn debug_data<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>) -> TensorData {
-    let bytes = tensor.client.read_one(tensor.handle.binding());
-    TensorData::new(E::from_bytes(&bytes).to_vec(), tensor.shape)
 }

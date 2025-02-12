@@ -1,12 +1,10 @@
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
-use crate::PrecisionBridge;
-use crate::{NdArrayQTensor, NdArrayTensor};
+use crate::{NdArrayQTensor, NdArrayTensor, NdArrayTensorFloat};
 use alloc::string::String;
 use burn_common::stub::Mutex;
+use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_tensor::backend::{Backend, DeviceId, DeviceOps};
 use burn_tensor::ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_tensor::quantization::QuantizationScheme;
-use burn_tensor::repr::{HandleKind, QuantizedKind, ReprBackend, TensorHandle};
 use core::marker::PhantomData;
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -46,15 +44,15 @@ pub struct NdArray<E = f32, I = i64, Q = i8> {
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for NdArray<E, I, Q> {
     type Device = NdArrayDevice;
-    type FullPrecisionBridge = PrecisionBridge<f32>;
 
-    type FloatTensorPrimitive = NdArrayTensor<E>;
+    type FloatTensorPrimitive = NdArrayTensorFloat;
     type FloatElem = E;
 
     type IntTensorPrimitive = NdArrayTensor<I>;
     type IntElem = I;
 
     type BoolTensorPrimitive = NdArrayTensor<bool>;
+    type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor<Q>;
     type QuantizedEncoding = Q;
@@ -74,9 +72,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> Backend for 
     }
 }
 
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
-    for NdArray<E, I, Q>
-{
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q> {
     type Handle = HandleKind<Self>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
@@ -100,14 +96,10 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
         }
     }
 
-    fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        _scheme: QuantizationScheme,
-    ) -> QuantizedTensor<Self> {
-        let handle = handles.tensor.handle;
-        match handle {
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
+        match handle.handle {
             HandleKind::Quantized(handle) => handle,
-            _ => panic!("Expected quantized handle, got {}", handle.name()),
+            _ => panic!("Expected quantized handle, got {}", handle.handle.name()),
         }
     }
 
@@ -123,13 +115,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ReprBackend
         HandleKind::Bool(tensor)
     }
 
-    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> QuantizedKind<Self::Handle> {
-        QuantizedKind {
-            tensor: HandleKind::Quantized(tensor),
-            // The quantized tensor primitive already encapsulates the required quantization
-            // parameters so we set the scale as an empty handle (unused).
-            scale: HandleKind::Empty,
-            offset: None,
-        }
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
+        HandleKind::Quantized(tensor)
     }
 }

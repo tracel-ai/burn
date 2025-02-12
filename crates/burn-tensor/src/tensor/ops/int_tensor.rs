@@ -1185,4 +1185,37 @@ pub trait IntTensorOps<B: Backend> {
     fn int_argsort(tensor: IntTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
         argsort::<B, Int>(tensor, dim, descending)
     }
+
+    /// Bitwise AND operation for Int Tensors
+    fn bitwise_and(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise AND operation for Int Tensors with a scalar
+    fn bitwise_and_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise OR operation for Int Tensors
+    fn bitwise_or(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise OR operation for Int Tensors with a scalar
+    fn bitwise_or_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise XOR operation for Int Tensors
+    fn bitwise_xor(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise XOR operation for Int Tensors with a scalar
+    fn bitwise_xor_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise NOT operation for Int Tensors
+    fn bitwise_not(tensor: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise left shift operation for Int Tensors
+    fn bitwise_left_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise left shift operation for Int Tensors with a scalar
+    fn bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+
+    /// Bitwise right shift operation for Int Tensors
+    fn bitwise_right_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Bitwise right shift operation for Int Tensors with a scalar
+    fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
 }

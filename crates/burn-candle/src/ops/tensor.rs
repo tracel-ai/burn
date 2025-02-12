@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use burn_tensor::{
-    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, FullPrecisionBackend, IntTensor},
+    ops::{BoolTensor, FloatElem, FloatTensor, FloatTensorOps, IntTensor},
     Device, Distribution, ElementConversion, FloatDType, Shape, TensorData,
 };
 use candle_core::{backend::BackendStorage, shape, Tensor};

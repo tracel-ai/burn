@@ -6,20 +6,23 @@ use cmma::{Matrix, MatrixIdent, MatrixLayout};
 use cubecl::{
     cube,
     ir::{Elem, FloatKind},
+    linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError},
     prelude::*,
-    Compiler, CubeCount, CubeDim, Feature,
+    CubeCount, CubeDim, Feature,
 };
 use half::f16;
 
 use crate::{
-    kernel::{into_contiguous, slice, slice_assign},
+    kernel::{conv::ConvLaunchError, into_contiguous, slice, slice_assign},
     ops::{
         numeric::{empty_device, zeros_device},
         permute,
     },
     tensor::JitTensor,
-    FloatElement, IntElement, JitRuntime,
+    FloatElement, JitRuntime,
 };
+
+use super::nchw_to_nhwc;
 
 /// Perform a 2D convolution using the implicit GEMM algorithm. Requires `cmma` to be available.
 ///
@@ -28,14 +31,13 @@ use crate::{
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-#[allow(clippy::extra_unused_type_parameters)]
-pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
+pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
     input: JitTensor<R>,
     weight: JitTensor<R>,
     bias: Option<JitTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
-    let is_tf32 = F::as_elem() == Elem::Float(FloatKind::F32)
+) -> Result<JitTensor<R>, ConvLaunchError> {
+    let is_tf32 = F::as_elem_native_unchecked() == Elem::Float(FloatKind::F32)
         && input
             .client
             .properties()
@@ -65,7 +67,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
 
     let padded_batch_size = padded_batch_size(batch_size, out_h, out_w);
 
-    if !can_do_implicit_gemm::<R, F>(
+    check_availability::<R, F>(
         batch_size,
         in_channels,
         out_channels,
@@ -74,17 +76,13 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
         out_h,
         out_w,
         &input.client,
-    ) {
-        panic!(
-            "Requirements for implicit GEMM not met:
-- CMMA must be available
-- `groups` must be 1
-- subcube size must be non-variable (might not hold on Intel)
-        "
-        );
-    }
+    )?;
 
-    let input = into_contiguous(permute(input, &[0, 2, 3, 1]));
+    // If input is contiguous NCHW, use custom transpose kernel
+    let input = match input.is_contiguous() {
+        true => nchw_to_nhwc::<R, F>(input),
+        false => into_contiguous(permute(input, &[0, 2, 3, 1])),
+    };
     let weight = into_contiguous(permute(weight, &[2, 3, 1, 0]));
 
     let out_shape = Shape::new([padded_batch_size, out_h, out_w, padded_out_channels]);
@@ -205,7 +203,7 @@ pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement, I: IntElement>(
     let out = slice::<R, F>(out, &[0..batch_size, 0..out_h, 0..out_w, 0..out_channels]);
 
     // Reset to NCHW
-    permute(out, &[0, 3, 1, 2])
+    Ok(permute(out, &[0, 3, 1, 2]))
 }
 
 fn find_common_vec(channels: usize, elems_per_thread: u32, supported_vecs: &[u8]) -> u8 {
@@ -313,14 +311,23 @@ fn implicit_gemm_kernel<F: Float, FMat: Float>(
 
     let pos = calculate_positions(gemm_settings);
 
+    let in_vec = input.line_size();
+    let weight_vec = weight.line_size();
+
     // Shared memory tiles, currently only holds enough data for
     // each warp to have its own tile for a single MMA op (8 * 16 * 16 elements)
     // conceptually a WARPS_PER_CUBE x (CMMA_M * CMMA_K) matrix
-    let mut smem_input_tile = SharedMemory::<FMat>::new(cmma_input_tile_size * warps_per_cube);
-    let mut smem_weight_tile = SharedMemory::<FMat>::new(cmma_filter_tile_size * warps_per_cube);
+    let mut smem_input_tile = SharedMemory::<FMat>::new_lined(
+        comptime!(cmma_input_tile_size * warps_per_cube / in_vec),
+        in_vec,
+    );
+    let mut smem_weight_tile = SharedMemory::<FMat>::new_lined(
+        comptime!(cmma_filter_tile_size * warps_per_cube / weight_vec),
+        weight_vec,
+    );
 
-    let input_tile_start = pos.cube_linear_warp_idx * cmma_input_tile_size;
-    let weight_tile_start = pos.cube_linear_warp_idx * cmma_filter_tile_size;
+    let input_tile_start = pos.cube_linear_warp_idx * (cmma_input_tile_size / in_vec);
+    let weight_tile_start = pos.cube_linear_warp_idx * (cmma_filter_tile_size / weight_vec);
     let mut input_tile =
         smem_input_tile.slice_mut(input_tile_start, input_tile_start + cmma_input_tile_size);
     let mut weight_tile =
@@ -436,8 +443,8 @@ fn execute_gemm<F: Float, FMat: Float>(
     weight: &Tensor<Line<F>>,
     bias: &Tensor<F>,
     out: &mut SliceMut<F>,
-    input_tile: &mut SliceMut<FMat>,
-    weight_tile: &mut SliceMut<FMat>,
+    input_tile: &mut SliceMut<Line<FMat>>,
+    weight_tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     args: &ConvArgs,
@@ -479,7 +486,7 @@ fn execute_gemm<F: Float, FMat: Float>(
 fn load_input_tile<F: Float, FMat: Float>(
     input: &Tensor<Line<F>>,
     args: &ConvArgs,
-    tile: &mut SliceMut<FMat>,
+    tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     k: u32,
@@ -505,7 +512,7 @@ fn load_input_tile<F: Float, FMat: Float>(
 
     let cmma_input_tile_size = cmma_m * cmma_k;
     let elems_per_thread = cmma_input_tile_size / warp_size;
-    let vec = vectorization_of(input);
+    let vec = input.line_size();
 
     let height = input.shape(1) as i32;
     let width = input.shape(2) as i32;
@@ -561,21 +568,18 @@ fn load_input_tile<F: Float, FMat: Float>(
             + channel;
         let value = select(
             in_bounds && m_in_bounds && k_in_bounds,
-            FMat::cast_from(input[idx / vec]),
-            FMat::vectorized(0.0, vec),
+            Line::cast_from(input[idx / vec]),
+            Line::new(FMat::new(0.0)),
         );
 
-        #[unroll]
-        for i in 0..vec {
-            tile[m + i] = value[i];
-        }
+        tile[m / vec] = value;
     }
 }
 
 #[cube]
 fn load_weight_tile<F: Float, FMat: Float>(
     weight: &Tensor<Line<F>>,
-    tile: &mut SliceMut<FMat>,
+    tile: &mut SliceMut<Line<FMat>>,
     dims: &Dimensions,
     pos: &Positions,
     k: u32,
@@ -595,7 +599,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
         kernel_w, kernel_h, ..
     } = kernel_settings;
 
-    let vec = vectorization_of(weight);
+    let vec = weight.line_size();
     let cmma_filter_tile_size = cmma_k * cmma_n;
     let elems_per_thread = cmma_filter_tile_size / warp_size;
     let start = pos.intra_warp_unit_idx * elems_per_thread;
@@ -624,18 +628,15 @@ fn load_weight_tile<F: Float, FMat: Float>(
 
         let idx = k_idx + global_n;
 
-        let value = FMat::cast_from(weight[idx / vec]);
-        let value = select(k_in_bounds && n_in_bounds, value, FMat::new(0.0));
+        let value = Line::cast_from(weight[idx / vec]);
+        let value = select(k_in_bounds && n_in_bounds, value, Line::new(FMat::new(0.0)));
 
-        #[unroll]
-        for i in 0..vec {
-            tile[n + i] = value[i];
-        }
+        tile[n / vec] = value;
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
+pub(crate) fn check_availability<R: JitRuntime, E: FloatElement>(
     batch_size: usize,
     in_channels: usize,
     out_channels: usize,
@@ -644,12 +645,12 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     out_h: usize,
     out_w: usize,
     client: &ComputeClient<R::Server, R::Channel>,
-) -> bool {
+) -> Result<(), ConvLaunchError> {
     let cmma_k = match (
-        E::as_elem(),
+        E::as_elem_native_unchecked(),
         client
             .properties()
-            .feature_enabled(Feature::Type(tf32::as_elem())),
+            .feature_enabled(Feature::Type(tf32::as_elem_native_unchecked())),
     ) {
         (Elem::Float(FloatKind::F32), true) => 8,
         _ => 16,
@@ -664,19 +665,44 @@ pub(crate) fn can_do_implicit_gemm<R: JitRuntime, E: FloatElement>(
     let gemm_n = out_channels;
     let gemm_k = in_channels * kernel_h * kernel_w;
 
-    let size = find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32);
+    let (cmma_m, cmma_n, cmma_k) =
+        find_cmma_size::<R, E>(client, gemm_m as u32, gemm_k as u32, gemm_n as u32).ok_or_else(
+            || {
+                ConvLaunchError::Matmul(MatmulLaunchError::Unavailable(
+                    MatmulAvailabilityError::CmmaInstructionUnavailable {
+                        input: E::as_elem_native_unchecked(),
+                        output: E::as_elem_native_unchecked(),
+                        m: 16,
+                        n: 16,
+                        k: cmma_k as u32,
+                    },
+                ))
+            },
+        )?;
 
-    if let Some((cmma_m, cmma_k, cmma_n)) = size {
-        let warps_per_cube = 8;
+    let warps_per_cube = 8;
 
-        let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
-        let topology = client.properties().hardware_properties();
-        let not_intel = topology.plane_size_min >= 32;
+    let smem_size = ((cmma_m + cmma_n) * cmma_k * warps_per_cube) as usize * size_of::<f16>();
+    let topology = client.properties().hardware_properties();
 
-        <R::Compiler as Compiler>::max_shared_memory_size() >= smem_size && groups == 1 && not_intel
-    } else {
-        false
+    if topology.max_shared_memory_size < smem_size {
+        return Err(ConvLaunchError::Matmul(MatmulLaunchError::InvalidConfig(
+            Box::new("Not enough shared memory"),
+        )));
     }
+
+    if topology.plane_size_min < 32 {
+        return Err(ConvLaunchError::Matmul(MatmulLaunchError::Unavailable(
+            MatmulAvailabilityError::PlaneDimUnsupported {
+                plane_dim: topology.plane_size_min,
+            },
+        )));
+    }
+
+    if groups != 1 {
+        return Err(ConvLaunchError::Groups(groups));
+    }
+    Ok(())
 }
 
 fn padded_k(
@@ -730,13 +756,18 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<(u8, u8, u8)> {
     let (requested_sizes, matrix_elem) = match (
-        F::as_elem(),
+        F::as_elem_native_unchecked(),
         client
             .properties()
-            .feature_enabled(Feature::Type(tf32::as_elem())),
+            .feature_enabled(Feature::Type(tf32::as_elem_native_unchecked())),
     ) {
-        (Elem::Float(FloatKind::F32), true) => (vec![(16, 8, 16)], tf32::as_elem()),
-        _ => (vec![(16, 16, 16), (32, 16, 8), (8, 16, 32)], f16::as_elem()),
+        (Elem::Float(FloatKind::F32), true) => {
+            (vec![(16, 8, 16)], tf32::as_elem_native_unchecked())
+        }
+        _ => (
+            vec![(16, 16, 16), (32, 16, 8), (8, 16, 32)],
+            f16::as_elem_native_unchecked(),
+        ),
     };
 
     requested_sizes
@@ -746,7 +777,7 @@ fn supported_cmma_sizes<R: JitRuntime, F: Float>(
             client.properties().feature_enabled(Feature::Cmma {
                 a: matrix_elem,
                 b: matrix_elem,
-                c: F::as_elem(),
+                c: F::as_elem_native_unchecked(),
                 m: *m,
                 k: *k,
                 n: *n,

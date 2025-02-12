@@ -10,19 +10,23 @@ pub use burn_jit::{
 };
 
 pub use burn_jit::{tensor::JitTensor, JitBackend};
-pub use burn_jit::{FloatElement, IntElement};
+pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
-pub use cubecl::ir::CubeDim;
-pub use cubecl::wgpu::*;
+pub use cubecl::CubeDim;
 
-pub type Wgsl = cubecl::wgpu::WgslCompiler;
-#[cfg(feature = "spirv")]
-pub type SpirV = cubecl::wgpu::spirv::VkSpirvCompiler;
+pub use cubecl::wgpu::{
+    init_device, init_setup, init_setup_async, AutoCompiler, MemoryConfiguration, RuntimeOptions,
+    WgpuDevice, WgpuResource, WgpuRuntime, WgpuSetup, WgpuStorage,
+};
+// Vulkan and WebGpu would have conflicting type names
+pub mod graphics {
+    pub use cubecl::wgpu::{AutoGraphicsApi, Dx12, GraphicsApi, Metal, OpenGl, Vulkan, WebGpu};
+}
 
-#[cfg(feature = "spirv")]
-type Compiler = SpirV;
-#[cfg(not(feature = "spirv"))]
-type Compiler = Wgsl;
+#[cfg(feature = "cubecl-spirv")]
+pub use cubecl::wgpu::vulkan::VkSpirvCompiler;
+#[cfg(feature = "cubecl-wgsl")]
+pub use cubecl::wgpu::WgslCompiler;
 
 #[cfg(feature = "fusion")]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -40,14 +44,14 @@ type Compiler = Wgsl;
 /// ```rust, ignore
 /// fn custom_init() {
 ///     let device = Default::default();
-///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///     burn::backend::wgpu::init_setup::<burn::backend::wgpu::graphics::Vulkan>(
 ///         &device,
 ///         Default::default(),
 ///     );
 /// }
 /// ```
 /// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
-/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
+/// It's also possible to use an existing wgpu device, by using `init_device`.
 ///
 /// # Notes
 ///
@@ -56,8 +60,8 @@ type Compiler = Wgsl;
 ///
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
-pub type Wgpu<F = f32, I = i32, C = Compiler> =
-    burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I>>;
+pub type Wgpu<F = f32, I = i32, B = u32> =
+    burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I, B>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -75,14 +79,14 @@ pub type Wgpu<F = f32, I = i32, C = Compiler> =
 /// ```rust, ignore
 /// fn custom_init() {
 ///     let device = Default::default();
-///     burn::backend::wgpu::init_sync::<burn::backend::wgpu::Vulkan>(
+///     burn::backend::wgpu::init_setup::<burn::backend::wgpu::graphics::Vulkan>(
 ///         &device,
 ///         Default::default(),
 ///     );
 /// }
 /// ```
 /// will mean the given device (in this case the default) will be initialized to use Vulkan as the graphics API.
-/// It's also possible to use an existing wgpu device, by using `init_existing_device`.
+/// It's also possible to use an existing wgpu device, by using `init_device`.
 ///
 /// # Notes
 ///
@@ -91,19 +95,28 @@ pub type Wgpu<F = f32, I = i32, C = Compiler> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32, C = Compiler> = JitBackend<cubecl::wgpu::WgpuRuntime<C>, F, I>;
+pub type Wgpu<F = f32, I = i32, B = u32> = JitBackend<cubecl::wgpu::WgpuRuntime, F, I, B>;
+
+#[cfg(feature = "vulkan")]
+/// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
+pub type Vulkan<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
+
+#[cfg(feature = "webgpu")]
+/// Tensor backend that uses the wgpu crate to execute GPU compute shaders written in WGSL.
+pub type WebGpu<F = f32, I = i32, B = u32> = Wgpu<F, I, B>;
 
 #[cfg(test)]
 mod tests {
     use burn_jit::JitBackend;
-    #[cfg(feature = "spirv")]
+    #[cfg(feature = "vulkan")]
     pub use half::f16;
-    pub type TestRuntime = cubecl::wgpu::WgpuRuntime<super::Compiler>;
+
+    pub type TestRuntime = cubecl::wgpu::WgpuRuntime;
 
     // Don't test `flex32` for now, burn sees it as `f32` but is actually `f16` precision, so it
     // breaks a lot of tests from precision issues
-    #[cfg(feature = "spirv")]
-    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64]);
-    #[cfg(not(feature = "spirv"))]
-    burn_jit::testgen_all!([f32], [i32]);
+    #[cfg(feature = "vulkan")]
+    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
+    #[cfg(not(feature = "vulkan"))]
+    burn_jit::testgen_all!([f32], [i32], [u32]);
 }

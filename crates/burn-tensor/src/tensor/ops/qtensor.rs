@@ -4,7 +4,7 @@ use core::{future::Future, ops::Range};
 use crate::{
     backend::Backend,
     quantization::{QTensorPrimitive, QuantizationParametersPrimitive, QuantizationScheme},
-    Device, Shape, TensorData,
+    Device, Shape, TensorData, TensorMetadata,
 };
 
 use super::{BoolTensor, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor};
@@ -73,17 +73,6 @@ pub trait QTensorOps<B: Backend> {
 
     /// Convert the tensor back to a higher precision data type.
     fn dequantize(tensor: QuantizedTensor<B>) -> FloatTensor<B>;
-
-    /// Gets the shape of the tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The shape of the tensor.
-    fn q_shape(tensor: &QuantizedTensor<B>) -> Shape;
 
     /// Gets the device of the tensor.
     ///
@@ -460,7 +449,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// The transposed tensor.
     fn q_transpose(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let ndims = Self::q_shape(&tensor).num_dims();
+        let ndims = tensor.shape().num_dims();
         Self::q_swap_dims(tensor, ndims - 2, ndims - 1)
     }
 
@@ -1071,7 +1060,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum element of `tensor`.
     fn q_max(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let shape = B::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::q_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::q_max_dim(tensor, 0)
@@ -1123,7 +1112,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum element of `tensor`.
     fn q_min(tensor: QuantizedTensor<B>) -> QuantizedTensor<B> {
-        let shape = B::q_shape(&tensor);
+        let shape = tensor.shape();
         let tensor = B::q_reshape(tensor, Shape::new([shape.num_elements()]));
 
         B::q_min_dim(tensor, 0)

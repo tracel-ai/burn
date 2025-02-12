@@ -5,9 +5,7 @@ use super::tensor::{BoolTensorSerde, FloatTensorSerde, IntTensorSerde};
 use super::{PrecisionSettings, Record};
 use crate::module::{Param, ParamId};
 
-#[allow(deprecated)]
-use burn_tensor::DataSerialize;
-use burn_tensor::{backend::Backend, Bool, Element, Int, Tensor};
+use burn_tensor::{backend::Backend, Bool, Int, Tensor};
 
 use hashbrown::HashMap;
 use serde::{
@@ -143,23 +141,6 @@ where
     }
 }
 
-#[allow(deprecated)]
-impl<E, B> Record<B> for DataSerialize<E>
-where
-    E: Element,
-    B: Backend,
-{
-    type Item<S: PrecisionSettings> = DataSerialize<S::FloatElem>;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        self.convert()
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
-        item.convert()
-    }
-}
-
 /// (De)serialize parameters into a clean format.
 #[derive(new, Debug, Clone, Serialize, Deserialize)]
 pub struct ParamSerde<T> {
@@ -261,6 +242,7 @@ primitive!(u16);
 primitive!(u8);
 
 // Signed Integer Types
+primitive!(isize);
 primitive!(i64);
 primitive!(i32);
 primitive!(i16);

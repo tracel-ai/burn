@@ -8,6 +8,8 @@ throughout the training process. We currently offer a restricted range of metric
 | Accuracy         | Calculate the accuracy in percentage                    |
 | TopKAccuracy     | Calculate the top-k accuracy in percentage              |
 | Precision        | Calculate precision in percentage                       |
+| Recall           | Calculate recall in percentage                          |
+| FBetaScore       | Calculate F<sub>β </sub>score in percentage             |
 | AUROC            | Calculate the area under curve of ROC in percentage     |
 | Loss             | Output the loss used for the backward pass              |
 | CPU Temperature  | Fetch the temperature of CPUs                           |

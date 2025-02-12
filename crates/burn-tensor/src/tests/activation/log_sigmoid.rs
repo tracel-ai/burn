@@ -23,10 +23,12 @@ mod tests {
         let expected = TensorData::from([0.0, -300.0]);
         output.into_data().assert_approx_eq(&expected, 4);
 
-        let tensor =
-            TestTensor::<1>::from([<FloatType as Numeric>::MAX, <FloatType as Numeric>::MIN]);
+        let tensor = TestTensor::<1>::from([
+            <FloatType as Numeric>::max_value(),
+            <FloatType as Numeric>::min_value(),
+        ]);
         let output = activation::log_sigmoid(tensor);
-        let expected = TensorData::from([0.0, <FloatType as Numeric>::MIN.to_f32()]);
+        let expected = TensorData::from([0.0, <FloatType as Numeric>::min_value().to_f32()]);
 
         output.into_data().assert_approx_eq(&expected, 4);
     }

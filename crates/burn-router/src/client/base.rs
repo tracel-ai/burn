@@ -8,9 +8,9 @@ use hashbrown::HashMap;
 
 use spin::Mutex;
 
+use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_tensor::{
     backend::{DeviceId, DeviceOps},
-    repr::{OperationDescription, TensorDescription, TensorId},
     DType, FloatDType, TensorData,
 };
 
@@ -29,9 +29,9 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     type Device: DeviceOps;
 
     /// Register a new tensor operation to be executed by the (runner) server.
-    fn register(&self, op: OperationDescription);
+    fn register(&self, op: OperationIr);
     /// Read the values contained by a tensor.
-    fn read_tensor(&self, tensor: TensorDescription) -> impl Future<Output = TensorData> + Send;
+    fn read_tensor(&self, tensor: TensorIr) -> impl Future<Output = TensorData> + Send;
     /// Create a new [RouterTensor] from the tensor data.
     fn register_tensor_data(&self, data: TensorData) -> RouterTensor<Self>;
     /// Create a new [RouterTensor] with no resources associated.

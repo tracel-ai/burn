@@ -1,12 +1,13 @@
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
+use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
-use crate::tensor::{JitQuantizationParameters, QJitTensor};
+use crate::fusion::matmul::builder::MatmulBuilder;
+use crate::BoolElement;
 use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
+
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
-use burn_tensor::quantization::QuantizationScheme;
-use burn_tensor::repr::{QuantizedKind, TensorHandle};
-use burn_tensor::DType;
-use burn_tensor::{repr::ReprBackend, Shape};
+use burn_ir::{BackendIr, TensorHandle};
+use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use cubecl::client::ComputeClient;
 use cubecl::prelude::{TensorArg, TensorHandleRef};
@@ -18,7 +19,9 @@ use serde::{Deserialize, Serialize};
 /// More optimization variants should be added here.
 pub enum JitOptimization<R: JitRuntime> {
     /// Element wise optimization.
-    ElementWise2(ElemwiseOptimization<R>),
+    ElementWise(ElemwiseOptimization<R>),
+    /// Matrix multiplication optimization.
+    Matmul(MatmulOptimization<R>),
 }
 
 /// Fusion optimization state type for JIT.
@@ -28,40 +31,51 @@ pub enum JitOptimization<R: JitRuntime> {
 pub enum JitOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
+    /// Matrix multiplication optimization state.
+    Matmul(MatmulOptimizationState),
 }
 
-impl<R> burn_fusion::Optimization<FusionJitRuntime<R>> for JitOptimization<R>
+impl<R, BT> burn_fusion::Optimization<FusionJitRuntime<R, BT>> for JitOptimization<R>
 where
     R: JitRuntime,
+    BT: BoolElement,
 {
     fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
         match self {
-            Self::ElementWise2(op) => op.execute(context),
+            Self::ElementWise(op) => op.execute::<BT>(context),
+            Self::Matmul(op) => op.execute::<BT>(context),
         }
     }
 
     fn len(&self) -> usize {
         match self {
-            Self::ElementWise2(op) => op.num_ops_fused(),
+            Self::ElementWise(op) => op.num_ops_fused(),
+            Self::Matmul(op) => op.num_ops_fused(),
         }
     }
 
     fn to_state(&self) -> JitOptimizationState {
         match self {
-            Self::ElementWise2(value) => JitOptimizationState::ElementWise(value.to_state()),
+            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
+            Self::Matmul(value) => JitOptimizationState::Matmul(value.to_state()),
         }
     }
 
     fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
         match state {
             JitOptimizationState::ElementWise(state) => {
-                Self::ElementWise2(ElemwiseOptimization::from_state(device, state))
+                Self::ElementWise(ElemwiseOptimization::from_state(device, state))
+            }
+            JitOptimizationState::Matmul(state) => {
+                Self::Matmul(MatmulOptimization::from_state(device, state))
             }
         }
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R, F, I> {
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
+    for JitBackend<R, F, I, BT>
+{
     type Handle = JitFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
@@ -77,23 +91,9 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
     }
 
     fn quantized_tensor(
-        handles: QuantizedKind<TensorHandle<Self::Handle>>,
-        scheme: QuantizationScheme,
+        handle: TensorHandle<Self::Handle>,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
-        let qtensor = handles.tensor.handle.into_tensor(handles.tensor.shape);
-        let scale = handles.scale.handle.into_tensor(handles.scale.shape);
-        let offset = handles.offset;
-
-        let qparams = JitQuantizationParameters {
-            scale,
-            offset: offset.map(|h| h.handle.into_tensor(h.shape)),
-        };
-
-        QJitTensor {
-            qtensor,
-            scheme,
-            qparams,
-        }
+        handle.handle.into_tensor(handle.shape)
     }
 
     fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
@@ -108,44 +108,48 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> ReprBackend for JitBackend<R
         tensor.into()
     }
 
-    fn quantized_tensor_handle(
-        tensor: burn_tensor::ops::QuantizedTensor<Self>,
-    ) -> QuantizedKind<Self::Handle> {
-        let qtensor: JitFusionHandle<R> = tensor.qtensor.into();
-        let scale: JitFusionHandle<R> = tensor.qparams.scale.into();
-
-        QuantizedKind {
-            tensor: qtensor,
-            scale,
-            offset: tensor.qparams.offset.map(|offset| offset.into()),
-        }
+    fn quantized_tensor_handle(tensor: burn_tensor::ops::QuantizedTensor<Self>) -> Self::Handle {
+        tensor.into()
     }
 }
 
-impl<R: JitRuntime> FusionRuntime for FusionJitRuntime<R> {
+impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
     type FusionDevice = R::JitDevice;
     type FusionClient = MutexFusionClient<Self>;
+    type BoolRepr = BT;
 
     fn optimizations(
         device: R::Device,
     ) -> Vec<Box<dyn burn_fusion::OptimizationBuilder<Self::Optimization>>> {
-        vec![Box::new(ElementWiseBuilder::<R>::new(device.clone()))]
+        vec![
+            Box::new(ElementWiseBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+            )),
+            Box::new(MatmulBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+            )),
+        ]
     }
 }
 
 /// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
-pub struct FusionJitRuntime<R: JitRuntime> {
+pub struct FusionJitRuntime<R: JitRuntime, BT: BoolElement> {
     _b: PhantomData<R>,
+    _bool: PhantomData<BT>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement> FusionBackend for JitBackend<R, F, I> {
-    type FusionRuntime = FusionJitRuntime<R>;
+impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
+    for JitBackend<R, F, I, BT>
+{
+    type FusionRuntime = FusionJitRuntime<R, BT>;
 
-    type FullPrecisionBackend = JitBackend<R, f32, i32>;
+    type FullPrecisionBackend = JitBackend<R, f32, i32, BT>;
 
     fn cast_float(
         tensor: burn_tensor::ops::FloatTensor<Self>,

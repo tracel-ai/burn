@@ -1,6 +1,7 @@
 use crate::element::JitElement;
-use crate::kernel::{launch_unary, unary_op, UnaryOp};
+use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::JitRuntime;
+use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
@@ -22,7 +23,8 @@ pub struct JitTensor<R: JitRuntime> {
     pub device: R::Device,
     /// The strides of the tensor.
     pub strides: Vec<usize>,
-    pub(crate) dtype: DType,
+    /// The datatype of the tensor.
+    pub dtype: DType,
 }
 
 impl<R: JitRuntime, E: JitElement> From<JitTensor<R>> for TensorHandle<R, E> {
@@ -65,16 +67,24 @@ where
 
 impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
     fn dtype(&self) -> DType {
-        match self.dtype {
-            // NOTE: bool tensors are stored as u32, we currently make this assumption
-            // since `TensorMetadata::dtype()` is used for display purposes only at this time.
-            DType::U32 => DType::Bool,
-            _ => self.dtype,
-        }
+        self.dtype
     }
 
     fn shape(&self) -> Shape {
         self.shape.clone()
+    }
+}
+
+impl<R: JitRuntime> QTensorPrimitive for JitTensor<R> {
+    fn scheme(&self) -> &burn_tensor::quantization::QuantizationScheme {
+        if let DType::QFloat(scheme) = &self.dtype {
+            scheme
+        } else {
+            panic!(
+                "Quantization scheme is not valid for dtype {:?}",
+                self.dtype,
+            )
+        }
     }
 }
 
@@ -167,9 +177,9 @@ macro_rules! execute_with_dtype {
                 type $element = i8;
                 $op
             }
-            // NOTE: bool and qfloat dtypes are actually represented as u32
+            // NOTE: bool and qfloat dtypes are actually represented as u32/u8
             // burn_tensor::DType::Bool => {
-            //     type $element = u32;
+            //     type $element = u32/u8;
             //     $op
             // }
             // burn_tensor::DType::QFloat(_) => {
@@ -246,7 +256,16 @@ where
             strides: &self.strides,
             shape: &self.shape.dims,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
+            elem_size: self.elem_size(),
+        }
+    }
+
+    fn elem_size(&self) -> usize {
+        if let DType::QFloat(_) = self.dtype {
+            // Encoded as u32
+            core::mem::size_of::<u32>()
+        } else {
+            self.dtype.size()
         }
     }
 
@@ -259,6 +278,17 @@ where
                 handle.handle,
                 handle.strides,
                 handle.shape,
+                vectorisation,
+            )
+        }
+    }
+
+    /// Return the reference to an array argument.
+    pub fn as_array_arg<E: JitElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+        unsafe {
+            ArrayArg::from_raw_parts::<E>(
+                &self.handle,
+                self.handle.size() as usize / core::mem::size_of::<E>(),
                 vectorisation,
             )
         }
@@ -285,15 +315,29 @@ where
 
     /// Copy the current tensor.
     pub fn copy(&self) -> Self {
-        execute_with_dtype!(self.dtype, E, {
-            unary_op!(numeric(self.clone()) => |context, tensor| {
-                #[cube]
-                fn execute<C: Numeric>(input: Line<C>) -> Line<C> {
-                    input
-                }
-                execute::expand::<C>(context, tensor)
-            })
-        })
+        struct Copy;
+
+        #[cube]
+        impl<N: Numeric> NumericUnaryOp<N> for Copy {
+            type Options = ();
+
+            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
+                input
+            }
+        }
+
+        impl NumericUnaryOpFamily for Copy {
+            type Options<N: Numeric> = ();
+            type Unary<N: Numeric> = Self;
+        }
+
+        let tensor = self.clone();
+
+        execute_with_dtype!(
+            tensor.dtype,
+            E,
+            launch_unary_numeric::<R, E, Copy, _>(tensor, |_| ())
+        )
     }
 
     /// Check if the tensor is safe to mutate.
