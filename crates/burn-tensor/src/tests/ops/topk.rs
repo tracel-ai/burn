@@ -64,7 +64,6 @@ mod tests {
 
         let values_expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 7.]]]);
 
-        println!("Value {values}");
         values.into_data().assert_approx_eq(&values_expected, 5);
 
         let indices_expected = TensorData::from([[[2, 1], [2, 1]], [[2, 0], [0, 2]]]);
