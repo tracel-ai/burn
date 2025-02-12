@@ -18,13 +18,14 @@ use super::ir::{ArgType, Argument, Node, NodeType};
 
 use protobuf::Message;
 
-const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 12] = [
+const LIFT_CONSTANTS_FOR_NODE_TYPES: [NodeType; 13] = [
     NodeType::BatchNormalization,
     NodeType::Clip,
     NodeType::Conv1d,
     NodeType::Conv2d,
     NodeType::Dropout,
     NodeType::Expand,
+    NodeType::OneHot,
     NodeType::Reshape,
     NodeType::Resize,
     NodeType::Unsqueeze,

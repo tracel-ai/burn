@@ -1,6 +1,7 @@
-pytorch2.0.1:X
+pytorch2.6.0:Y
 
-input1/relu1/Relu"Relu	torch_jitZ
+input1/relu1/Relu"Relu
+main_graphZ
 input
 
 
