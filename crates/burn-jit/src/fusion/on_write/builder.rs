@@ -200,7 +200,6 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationIr::SwapDims(desc) => {
-                // return false;
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -214,7 +213,6 @@ impl FuseOnWriteBuilder {
 
                     Some(())
                 }) {
-                    println!("Fusing swap dims {desc:?}");
                     self.num_views += 1;
                     true
                 } else {

@@ -154,13 +154,9 @@ impl FuseOnWriteTraceBuilder {
         };
 
         let out = match self.locals.get(precision, tensor.id) {
-            Some(local) => {
-                println!("Reusing out {local:?} for {tensor:?}");
-                local
-            }
+            Some(local) => local,
             None => {
                 let out = self.locals.create(precision, tensor.id);
-                println!("Creating a new local {out:?}");
 
                 self.outputs.insert(precision_output, tensor.clone());
 
