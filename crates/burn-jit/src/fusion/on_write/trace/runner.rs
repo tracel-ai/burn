@@ -145,10 +145,8 @@ fn vectorization_default<'a, R: JitRuntime>(
             if handle.strides[dim_index] != 1 {
                 return Vect::Max(1);
             }
-        } else {
-            if handle.strides[dim_index] != 1 {
-                return Vect::Max(1);
-            }
+        } else if handle.strides[dim_index] != 1 {
+            return Vect::Max(1);
         }
 
         if !multi_reads && swapped_axis == 1 {
@@ -161,10 +159,8 @@ fn vectorization_default<'a, R: JitRuntime>(
                 if swapped_axis % s as usize == 0 {
                     return Vect::Max(s);
                 }
-            } else {
-                if swapped_axis % s as usize == 0 && shape_axis % s as usize == 0 {
-                    return Vect::Max(s);
-                }
+            } else if swapped_axis % s as usize == 0 && shape_axis % s as usize == 0 {
+                return Vect::Max(s);
             }
         }
 
