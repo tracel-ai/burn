@@ -43,7 +43,10 @@ pub(crate) async fn bool_into_data<R: CubeRuntime, BT: BoolElement>(
     )
 }
 
-pub(crate) fn to_device<R: CubeRuntime>(tensor: CubeTensor<R>, device: &R::Device) -> CubeTensor<R> {
+pub(crate) fn to_device<R: CubeRuntime>(
+    tensor: CubeTensor<R>,
+    device: &R::Device,
+) -> CubeTensor<R> {
     if &tensor.device == device {
         return tensor;
     }

@@ -16,7 +16,7 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    FloatElement, CubeRuntime,
+    CubeRuntime, FloatElement,
 };
 
 use super::ConvLaunchError;

@@ -2,7 +2,7 @@ use crate::{
     element::CubeElement,
     kernel::{self},
     tensor::CubeTensor,
-    IntElement, CubeRuntime,
+    CubeRuntime, IntElement,
 };
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};

@@ -1,11 +1,11 @@
 use cubecl::{
     flex32,
     prelude::{Float, Int, Numeric},
-    CubeElement,
+    CubeElement as CubeElem,
 };
 
 /// The base element trait for the jit backend.
-pub trait CubeElement: burn_tensor::Element + CubeElement + PartialEq + Numeric {}
+pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 
 /// The float element type for the jit backend.
 pub trait FloatElement: CubeElement + Float {}

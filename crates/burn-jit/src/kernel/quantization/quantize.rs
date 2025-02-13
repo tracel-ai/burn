@@ -1,6 +1,6 @@
 use crate::tensor::CubeTensor;
 use crate::FloatElement;
-use crate::{IntElement, CubeElement, CubeRuntime};
+use crate::{CubeElement, CubeRuntime, IntElement};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;

@@ -19,7 +19,7 @@ use crate::{
         permute,
     },
     tensor::CubeTensor,
-    FloatElement, CubeRuntime,
+    CubeRuntime, FloatElement,
 };
 
 use super::nchw_to_nhwc;

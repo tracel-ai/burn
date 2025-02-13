@@ -7,7 +7,7 @@ use burn_jit::{
         reshape,
     },
     tensor::CubeTensor,
-    IntElement, CubeRuntime,
+    CubeRuntime, IntElement,
 };
 
 const CUBE_SIZE: u32 = 256;

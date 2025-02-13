@@ -1,7 +1,7 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
 use crate::{
-    kernel::conv::ConvLaunchError, tensor::CubeTensor, FloatElement, IntElement, CubeRuntime,
+    kernel::conv::ConvLaunchError, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement,
 };
 
 #[cfg(feature = "autotune")]

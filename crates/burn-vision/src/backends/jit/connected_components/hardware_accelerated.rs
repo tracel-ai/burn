@@ -11,7 +11,7 @@ use burn_jit::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,
-    BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};

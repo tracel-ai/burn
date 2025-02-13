@@ -13,7 +13,7 @@ use crate::{
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    FloatElement, CubeElement, CubeRuntime,
+    CubeElement, CubeRuntime, FloatElement,
 };
 
 use super::batches_per_run;
@@ -117,7 +117,10 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     }
 }
 
-pub(crate) fn index<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
+pub(crate) fn index<R: CubeRuntime, E: CubeElement>(
+    tensor: CubeTensor<R>,
+    i: usize,
+) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.shape.dims[1..].iter() {

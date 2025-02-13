@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, tensor::CubeTensor, FloatElement, IntElement, CubeRuntime};
+use crate::{element::BoolElement, tensor::CubeTensor, CubeRuntime, FloatElement, IntElement};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};

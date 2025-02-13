@@ -1,4 +1,4 @@
-use crate::{tensor::CubeTensor, FloatElement, CubeAutotuneKey, CubeRuntime};
+use crate::{tensor::CubeTensor, CubeAutotuneKey, CubeRuntime, FloatElement};
 use burn_tensor::{DType, Shape};
 use core::fmt::Debug;
 use cubecl::AutotuneKey;

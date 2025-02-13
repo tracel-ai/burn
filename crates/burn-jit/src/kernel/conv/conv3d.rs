@@ -12,7 +12,7 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    FloatElement, CubeRuntime,
+    CubeRuntime, FloatElement,
 };
 
 #[derive(CubeLaunch)]

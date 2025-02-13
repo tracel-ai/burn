@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, kernel, FloatElement, IntElement, CubeBackend, CubeRuntime};
+use crate::{element::BoolElement, kernel, CubeBackend, CubeRuntime, FloatElement, IntElement};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;

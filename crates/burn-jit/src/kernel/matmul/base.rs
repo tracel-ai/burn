@@ -1,7 +1,7 @@
 use cubecl::linalg::matmul::kernels::MatmulLaunchError;
 
 use super::init_matmul_output;
-use crate::{tensor::CubeTensor, FloatElement, CubeRuntime};
+use crate::{tensor::CubeTensor, CubeRuntime, FloatElement};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;

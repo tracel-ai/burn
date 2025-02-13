@@ -7,7 +7,7 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, CubeAutotuneKey, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
 };
 
 use super::ConvTranspose2dAutotuneKey;

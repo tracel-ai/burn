@@ -3,7 +3,7 @@ use crate::kernel::{
     BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
 };
 use crate::{element::CubeElement, tensor::CubeTensor};
-use crate::{FloatElement, IntElement, CubeRuntime};
+use crate::{CubeRuntime, FloatElement, IntElement};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
 use cubecl::tensor_vectorization_factor;
@@ -102,7 +102,10 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Add two tensors
-pub fn add<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn add<R: CubeRuntime, E: CubeElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_binop::<R, E, AddOp>(lhs, rhs)
 }
 
@@ -112,7 +115,10 @@ pub fn add_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) ->
 }
 
 /// Subtract two tensors
-pub fn sub<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn sub<R: CubeRuntime, E: CubeElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_binop::<R, E, SubOp>(lhs, rhs)
 }
 
@@ -122,7 +128,10 @@ pub fn sub_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) ->
 }
 
 /// Multiply two tensors
-pub fn mul<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn mul<R: CubeRuntime, E: CubeElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_binop::<R, E, MulOp>(lhs, rhs)
 }
 
@@ -132,7 +141,10 @@ pub fn mul_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) ->
 }
 
 /// Divide two tensors
-pub fn div<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn div<R: CubeRuntime, E: CubeElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_binop::<R, E, DivOp>(lhs, rhs)
 }
 
@@ -150,12 +162,18 @@ pub fn remainder<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Calculate the remainder of a tensor with a scalar
-pub fn remainder_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn remainder_scalar<R: CubeRuntime, E: CubeElement>(
+    lhs: CubeTensor<R>,
+    rhs: E,
+) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, RemainderOp>(lhs, rhs)
 }
 
 /// Calculate the power of two tensors
-pub fn pow<R: CubeRuntime, E: FloatElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn pow<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_binop::<R, E, PowOp<E>>(lhs, rhs)
 }
 
@@ -168,7 +186,10 @@ pub fn bitwise_and<R: CubeRuntime, E: IntElement>(
 }
 
 /// Bitwise and with a scalar
-pub fn bitwise_and_scalar<R: CubeRuntime, E: IntElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn bitwise_and_scalar<R: CubeRuntime, E: IntElement>(
+    lhs: CubeTensor<R>,
+    rhs: E,
+) -> CubeTensor<R> {
     launch_scalar_binop_int::<R, E, BitwiseAndOp>(lhs, rhs)
 }
 
@@ -181,7 +202,10 @@ pub fn bitwise_or<R: CubeRuntime, E: IntElement>(
 }
 
 /// Bitwise or with a scalar
-pub fn bitwise_or_scalar<R: CubeRuntime, E: IntElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn bitwise_or_scalar<R: CubeRuntime, E: IntElement>(
+    lhs: CubeTensor<R>,
+    rhs: E,
+) -> CubeTensor<R> {
     launch_scalar_binop_int::<R, E, BitwiseOrOp>(lhs, rhs)
 }
 
@@ -194,6 +218,9 @@ pub fn bitwise_xor<R: CubeRuntime, E: IntElement>(
 }
 
 /// Bitwise xor with a scalar
-pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn bitwise_xor_scalar<R: CubeRuntime, E: IntElement>(
+    lhs: CubeTensor<R>,
+    rhs: E,
+) -> CubeTensor<R> {
     launch_scalar_binop_int::<R, E, BitwiseXorOp>(lhs, rhs)
 }

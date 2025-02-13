@@ -7,8 +7,8 @@ use burn_tensor::{
 };
 
 use crate::{
-    element::BoolElement, kernel, tensor::CubeTensor, FloatElement, IntElement, CubeBackend,
-    CubeRuntime,
+    element::BoolElement, kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement,
+    IntElement,
 };
 
 /// Create a quantized tensor with packed values (u32).

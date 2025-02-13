@@ -1,6 +1,6 @@
 use crate::{
-    kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor, FloatElement,
-    CubeRuntime,
+    kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime,
+    FloatElement,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},

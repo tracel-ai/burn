@@ -7,7 +7,7 @@ mod prefix_sum;
 use burn_jit::{
     ops::numeric::{full_device, zeros_device},
     tensor::CubeTensor,
-    BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::Shape;
 pub use hardware_accelerated::*;

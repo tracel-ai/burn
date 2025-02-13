@@ -21,7 +21,7 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    FloatElement, IntElement, CubeBackend, CubeRuntime,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 
 use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};

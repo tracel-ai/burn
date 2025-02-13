@@ -9,7 +9,7 @@ use crate::{
     kernel::matmul::{matmul, MatmulStrategy},
 };
 use crate::{execute_with_dtype, CubeBackend};
-use crate::{FloatElement, IntElement, CubeRuntime};
+use crate::{CubeRuntime, FloatElement, IntElement};
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use burn_tensor::{DType, ElementConversion, FloatDType};

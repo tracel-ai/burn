@@ -164,7 +164,10 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
         )
     }
 
-    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute_fallback<BT: BoolElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) {
         match self.matmul_standard.lhs.precision() {
             ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
             ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),

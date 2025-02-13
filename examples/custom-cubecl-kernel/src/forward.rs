@@ -3,8 +3,8 @@ use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
 use super::Backend;
 use burn::tensor::Shape;
 use burn_jit::{
-    element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, FloatElement, IntElement,
-    CubeBackend, CubeRuntime,
+    element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, CubeBackend, CubeRuntime,
+    FloatElement, IntElement,
 };
 use cubecl::{CubeCount, CubeDim};
 

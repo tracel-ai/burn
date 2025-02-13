@@ -4,7 +4,7 @@ use crate::{
         self,
         conv::{Conv2dStrategy, ConvTranspose2dStrategy},
     },
-    FloatElement, IntElement, CubeBackend, CubeRuntime,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,

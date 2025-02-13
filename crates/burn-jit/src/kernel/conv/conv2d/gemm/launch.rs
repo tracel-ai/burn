@@ -29,7 +29,7 @@ use crate::{
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
-    FloatElement, CubeElement, CubeRuntime,
+    CubeElement, CubeRuntime, FloatElement,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul

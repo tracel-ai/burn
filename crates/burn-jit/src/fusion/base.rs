@@ -3,7 +3,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
-use crate::{kernel, tensor::CubeTensor, FloatElement, IntElement, CubeBackend, CubeRuntime};
+use crate::{kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};

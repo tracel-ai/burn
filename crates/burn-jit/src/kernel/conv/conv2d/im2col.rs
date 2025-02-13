@@ -13,7 +13,7 @@ use crate::{
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    FloatElement, CubeRuntime,
+    CubeRuntime, FloatElement,
 };
 
 #[derive(CubeLaunch)]

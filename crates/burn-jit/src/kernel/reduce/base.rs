@@ -95,7 +95,12 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Rd: cubecl::reduce::Reduce>(
+pub fn reduce_dim<
+    Run: CubeRuntime,
+    In: CubeElement,
+    Out: CubeElement,
+    Rd: cubecl::reduce::Reduce,
+>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,

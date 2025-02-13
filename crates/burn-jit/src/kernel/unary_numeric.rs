@@ -46,7 +46,10 @@ pub(crate) fn unary_numeric<N: Numeric, O: NumericUnaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_unary_numeric<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
+pub(crate) fn launch_unary_numeric<R, E, O, Args>(
+    tensor: CubeTensor<R>,
+    args: Args,
+) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
