@@ -1,6 +1,6 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
@@ -11,7 +11,7 @@ use cubecl::reduce::shared_sum;
 /// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
 ///
 /// Return an error if the `client` doesn't support atomic add for the type `E`.
-pub fn sum<Run: JitRuntime, E: JitElement>(
+pub fn sum<Run: CubeRuntime, E: JitElement>(
     tensor: CubeTensor<Run>,
     cube_count: SumStrategy,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
@@ -66,7 +66,7 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
+pub fn reduce<Run: CubeRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
     mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
 ) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
@@ -95,7 +95,7 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
+pub fn reduce_dim<Run: CubeRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
     input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
@@ -133,7 +133,7 @@ pub fn reduce_dim<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
 /// or return `None` if `axis` is out-of-bound.
-pub fn init_reduce_output<Run: JitRuntime, In: JitElement, Out: JitElement>(
+pub fn init_reduce_output<Run: CubeRuntime, In: JitElement, Out: JitElement>(
     input: &CubeTensor<Run>,
     dim: usize,
 ) -> Option<CubeTensor<Run>> {

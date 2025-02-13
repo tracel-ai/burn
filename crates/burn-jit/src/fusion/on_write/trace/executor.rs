@@ -13,11 +13,11 @@ use crate::{
         on_write::ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
         JitFusionHandle,
     },
-    BoolElement, JitRuntime,
+    BoolElement, CubeRuntime,
 };
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
-pub struct LaunchPlanExecutor<'a, R: JitRuntime> {
+pub struct LaunchPlanExecutor<'a, R: CubeRuntime> {
     scalars: &'a BTreeMap<ElemwisePrecision, u32>,
     views: &'a Vec<TensorView>,
     ops: &'a Vec<ElemwiseOp>,
@@ -25,13 +25,13 @@ pub struct LaunchPlanExecutor<'a, R: JitRuntime> {
 }
 
 #[derive(new)]
-pub struct ExecutionError<R: JitRuntime, Runner: TraceRunner<R>> {
+pub struct ExecutionError<R: CubeRuntime, Runner: TraceRunner<R>> {
     pub runner_error: Runner::Error,
     pub handles_input: Vec<HandleInput<R>>,
     pub handles_output: Vec<HandleOutput<R>>,
 }
 
-impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
+impl<'a, R: CubeRuntime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a BTreeMap<ElemwisePrecision, u32>,
         views: &'a Vec<TensorView>,

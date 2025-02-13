@@ -1,7 +1,7 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
 use crate::{
-    kernel::conv::ConvLaunchError, tensor::CubeTensor, FloatElement, IntElement, JitRuntime,
+    kernel::conv::ConvLaunchError, tensor::CubeTensor, FloatElement, IntElement, CubeRuntime,
 };
 
 #[cfg(feature = "autotune")]
@@ -71,7 +71,7 @@ impl Default for ConvTranspose2dStrategy {
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
-pub fn conv2d<R: JitRuntime, E: FloatElement>(
+pub fn conv2d<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -98,7 +98,7 @@ pub fn conv2d<R: JitRuntime, E: FloatElement>(
 /// * `options` - The options to use for the convolution
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
-pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
+pub fn conv_transpose2d<R: CubeRuntime, E: FloatElement, I: IntElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

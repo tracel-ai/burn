@@ -1,4 +1,4 @@
-use crate::{fusion::JitFusionHandle, BoolElement, JitRuntime};
+use crate::{fusion::JitFusionHandle, BoolElement, CubeRuntime};
 
 use super::{
     super::{
@@ -48,7 +48,7 @@ pub enum TensorView {
 
 impl FuseOnWriteTrace {
     /// Run a trace with the given [runner](TraceRunner).
-    pub fn run<R: JitRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
+    pub fn run<R: CubeRuntime, BT: BoolElement, Runner: TraceRunner<R>>(
         &self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -83,7 +83,7 @@ impl FuseOnWriteTrace {
         }
     }
 
-    fn rollback<R: JitRuntime>(
+    fn rollback<R: CubeRuntime>(
         &self,
         context: &mut Context<'_, JitFusionHandle<R>>,
         handle_inputs: Vec<HandleInput<R>>,

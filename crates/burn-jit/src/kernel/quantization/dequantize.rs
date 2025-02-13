@@ -1,6 +1,6 @@
 use crate::tensor::CubeTensor;
 use crate::FloatElement;
-use crate::{JitElement, JitRuntime};
+use crate::{JitElement, CubeRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
 use burn_tensor::DType;
 use cubecl::calculate_cube_count_elemwise;
@@ -109,7 +109,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 
 pub(crate) fn dequantize_per_tensor<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: JitElement,
 {
     // The actual number of elements is 1/4 (four int8 values packed in a single u32)
@@ -167,7 +167,7 @@ where
 /// Convert the tensor back to a higher precision data type.
 pub fn dequantize<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
 {
     dequantize_per_tensor::<R, F>(tensor)

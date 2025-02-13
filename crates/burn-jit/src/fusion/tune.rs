@@ -1,5 +1,5 @@
 use super::JitFusionHandle;
-use crate::JitRuntime;
+use crate::CubeRuntime;
 use burn_fusion::stream::{Context, ContextOwned};
 
 /// Fusion context used when tuning kernels.
@@ -7,7 +7,7 @@ use burn_fusion::stream::{Context, ContextOwned};
 /// Either the original context is returned or a fork of the original.
 /// The fork is only given when performing autotuning, and not when actually performing the
 /// operation.
-pub enum TuneContext<'a, R: JitRuntime> {
+pub enum TuneContext<'a, R: CubeRuntime> {
     Original(&'a mut Context<'a, JitFusionHandle<R>>),
     Fork(Box<ContextOwned<JitFusionHandle<R>>>),
 }
@@ -18,7 +18,7 @@ pub enum TuneContext<'a, R: JitRuntime> {
 ///
 /// This should only be used with the [tuner](cubecl::tune::LocalTuner), since safety assumptions
 /// are made based on its behavior.
-pub struct TuneInput<R: JitRuntime, O> {
+pub struct TuneInput<R: CubeRuntime, O> {
     context: UnsafeTuneContext<R>,
     optimization: *const O,
 }
@@ -33,15 +33,15 @@ pub struct TuneInput<R: JitRuntime, O> {
 /// [cubecl::tune::LocalTuner::execute] function. This is the case, since autotune functions are
 /// tuned using a cloned version of the input; therefore, a fork of the context will be used to find
 /// the best kernel to use, which can be async.
-enum UnsafeTuneContext<R: JitRuntime> {
+enum UnsafeTuneContext<R: CubeRuntime> {
     Original(*mut Context<'static, JitFusionHandle<R>>),
     Fork(Box<ContextOwned<JitFusionHandle<R>>>),
 }
 
-unsafe impl<R: JitRuntime> Send for UnsafeTuneContext<R> {}
-unsafe impl<R: JitRuntime, O> Send for TuneInput<R, O> {}
+unsafe impl<R: CubeRuntime> Send for UnsafeTuneContext<R> {}
+unsafe impl<R: CubeRuntime, O> Send for TuneInput<R, O> {}
 
-impl<R: JitRuntime, O> TuneInput<R, O> {
+impl<R: CubeRuntime, O> TuneInput<R, O> {
     /// Create a new autotune input from the [context](Context) and an optimization.
     pub fn new(context: &mut Context<JitFusionHandle<R>>, optimization: &O) -> Self {
         let context = UnsafeTuneContext::new(context);
@@ -65,7 +65,7 @@ impl<R: JitRuntime, O> TuneInput<R, O> {
     }
 }
 
-impl<R: JitRuntime> UnsafeTuneContext<R> {
+impl<R: CubeRuntime> UnsafeTuneContext<R> {
     fn new(context: &mut Context<'_, JitFusionHandle<R>>) -> Self {
         let ptr = core::ptr::from_mut(context);
 
@@ -84,7 +84,7 @@ impl<R: JitRuntime> UnsafeTuneContext<R> {
     }
 }
 
-impl<R: JitRuntime, O> Clone for TuneInput<R, O> {
+impl<R: CubeRuntime, O> Clone for TuneInput<R, O> {
     fn clone(&self) -> Self {
         Self {
             context: self.context.clone(),
@@ -93,7 +93,7 @@ impl<R: JitRuntime, O> Clone for TuneInput<R, O> {
     }
 }
 
-impl<R: JitRuntime> Clone for UnsafeTuneContext<R> {
+impl<R: CubeRuntime> Clone for UnsafeTuneContext<R> {
     fn clone(&self) -> Self {
         let context = match self {
             UnsafeTuneContext::Original(ptr) => {

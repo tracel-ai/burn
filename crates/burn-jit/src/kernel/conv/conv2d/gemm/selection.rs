@@ -2,7 +2,7 @@ use super::{
     algorithm::{Algorithm, ImplicitCmmaConv},
     precision::ConvPrecision,
 };
-use crate::JitRuntime;
+use crate::CubeRuntime;
 use cubecl::linalg::matmul::components::{CompleteStageTiling, MatmulSelection, MatmulSize};
 
 pub struct ConvSelection {
@@ -10,7 +10,7 @@ pub struct ConvSelection {
 }
 
 pub trait ConvSelector<A: Algorithm> {
-    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(plane_dim: u32) -> (A::Selection, A::Input);
+    fn select_kernel<R: CubeRuntime, CS: ConvPrecision>(plane_dim: u32) -> (A::Selection, A::Input);
 }
 
 /// Large m stage size for the usual case where `batch_size * out_h * out_w` is significantly larger
@@ -21,7 +21,7 @@ pub struct Large;
 pub struct Balanced;
 
 impl ConvSelector<ImplicitCmmaConv> for Large {
-    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(
+    fn select_kernel<R: CubeRuntime, CS: ConvPrecision>(
         plane_dim: u32,
     ) -> (
         <ImplicitCmmaConv as Algorithm>::Selection,
@@ -48,7 +48,7 @@ impl ConvSelector<ImplicitCmmaConv> for Large {
 }
 
 impl ConvSelector<ImplicitCmmaConv> for Balanced {
-    fn select_kernel<R: JitRuntime, CS: ConvPrecision>(
+    fn select_kernel<R: CubeRuntime, CS: ConvPrecision>(
         plane_dim: u32,
     ) -> (
         <ImplicitCmmaConv as Algorithm>::Selection,

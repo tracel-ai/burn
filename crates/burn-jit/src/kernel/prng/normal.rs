@@ -6,7 +6,7 @@ use burn_tensor::Shape;
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::CubeTensor,
-    JitElement, JitRuntime,
+    JitElement, CubeRuntime,
 };
 
 use super::{random, PrngArgs, PrngRuntime};
@@ -82,7 +82,7 @@ impl<E: JitElement> PrngArgs<E> for Normal<E> {
 }
 
 /// Pseudo-random generator with uniform distribution
-pub fn random_normal<R: JitRuntime, E: JitElement>(
+pub fn random_normal<R: CubeRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     mean: E,

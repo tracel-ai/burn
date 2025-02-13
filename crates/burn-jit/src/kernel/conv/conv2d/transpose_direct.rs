@@ -8,7 +8,7 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    JitRuntime,
+    CubeRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Shape};
 
@@ -121,7 +121,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement>(
+pub fn conv_transpose2d_direct<R: CubeRuntime, E: JitElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

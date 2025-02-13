@@ -8,11 +8,11 @@ use burn_tensor::{
 
 use crate::{
     element::BoolElement, kernel, tensor::CubeTensor, FloatElement, IntElement, CubeBackend,
-    JitRuntime,
+    CubeRuntime,
 };
 
 /// Create a quantized tensor with packed values (u32).
-fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
+fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
     scheme: QuantizationScheme,
@@ -32,7 +32,7 @@ fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
 
 impl<R, F, I, BT> QTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

@@ -4,7 +4,7 @@ use crate::{
     element::JitElement,
     kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily},
     tensor::CubeTensor,
-    JitRuntime,
+    CubeRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -13,7 +13,7 @@ struct Options<C: Numeric> {
     max_value: C,
 }
 
-pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
+pub(crate) fn clamp<R: CubeRuntime, E: JitElement>(
     input: CubeTensor<R>,
     min_value: E,
     max_value: E,

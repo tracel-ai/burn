@@ -11,7 +11,7 @@ use burn_jit::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,
-    BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime,
+    BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime,
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};
@@ -464,7 +464,7 @@ fn compact_stats<I: Int>(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
+pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
     img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,

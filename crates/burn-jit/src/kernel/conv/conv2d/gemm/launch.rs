@@ -29,7 +29,7 @@ use crate::{
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
-    FloatElement, JitElement, JitRuntime,
+    FloatElement, JitElement, CubeRuntime,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -39,7 +39,7 @@ use crate::{
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
+pub fn conv2d_gemm_cmma_large_m<R: CubeRuntime, F: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -55,7 +55,7 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
 /// * `weight` - The weights (filter) applied to each kernel
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
-pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
+pub fn conv2d_gemm_cmma_balanced<R: CubeRuntime, F: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -65,7 +65,7 @@ pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
 }
 
 fn conv2d_gemm_cmma_strategy<
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     Alg: Algorithm,
     S: ConvSelector<Alg>,
@@ -95,7 +95,7 @@ fn conv2d_gemm_cmma_strategy<
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 pub fn conv2d_gemm_with_algo<
-    R: JitRuntime,
+    R: CubeRuntime,
     SP: ConvPrecision,
     Alg: Algorithm,
     S: ConvSelector<Alg>,
@@ -226,7 +226,7 @@ where
     Ok(permute(out, &[0, 3, 1, 2]))
 }
 
-pub(crate) fn has_tf32<R: JitRuntime>(c: &CubeTensor<R>) -> bool {
+pub(crate) fn has_tf32<R: CubeRuntime>(c: &CubeTensor<R>) -> bool {
     c.client
         .properties()
         .feature_enabled(Feature::Type(Elem::Float(FloatKind::TF32)))

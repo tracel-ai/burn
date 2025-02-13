@@ -11,7 +11,7 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    FloatElement, JitRuntime,
+    FloatElement, CubeRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -120,7 +120,7 @@ fn direct_conv2d_kernel<F: Float>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
+pub fn conv2d_direct<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

@@ -1,5 +1,5 @@
 use super::super::ir::{ElemwiseConfig, GlobalArgsLaunch};
-use crate::{fusion::JitFusionHandle, JitRuntime};
+use crate::{fusion::JitFusionHandle, CubeRuntime};
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use std::collections::BTreeMap;
@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with a provided [element wise config](ElemwiseConfig).
-pub trait TraceRunner<R: JitRuntime> {
+pub trait TraceRunner<R: CubeRuntime> {
     /// The error that might happen while running the trace.
     type Error;
 
@@ -40,7 +40,7 @@ pub trait TraceRunner<R: JitRuntime> {
     }
 }
 
-fn vectorization_default<'a, R: JitRuntime>(
+fn vectorization_default<'a, R: CubeRuntime>(
     vectorizations: &mut BTreeMap<TensorId, u8>,
     handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
     inputs: impl Iterator<Item = &'a TensorIr>,

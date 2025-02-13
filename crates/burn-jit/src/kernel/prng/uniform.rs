@@ -4,7 +4,7 @@ use cubecl::prelude::*;
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
     tensor::CubeTensor,
-    JitElement, JitRuntime,
+    JitElement, CubeRuntime,
 };
 
 use super::{random, PrngArgs, PrngRuntime};
@@ -66,7 +66,7 @@ impl<E: JitElement> PrngArgs<E> for Uniform<E> {
 }
 
 /// Pseudo-random generator with uniform distribution
-pub fn random_uniform<R: JitRuntime, E: JitElement>(
+pub fn random_uniform<R: CubeRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     lower_bound: E,
@@ -83,7 +83,7 @@ pub fn random_uniform<R: JitRuntime, E: JitElement>(
 }
 /// Pseudo-random generator for uniform distribution, based on
 /// another tensor.
-pub fn random_like_uniform<R: JitRuntime, E: JitElement>(
+pub fn random_like_uniform<R: CubeRuntime, E: JitElement>(
     tensor: &CubeTensor<R>,
     lower_bound: E,
     upper_bound: E,

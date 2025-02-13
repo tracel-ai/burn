@@ -13,7 +13,7 @@ use crate::{
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    FloatElement, JitElement, JitRuntime,
+    FloatElement, JitElement, CubeRuntime,
 };
 
 use super::batches_per_run;
@@ -25,7 +25,7 @@ use super::batches_per_run;
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
+pub fn conv_transpose2d_col2im<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -117,7 +117,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
     }
 }
 
-pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
+pub(crate) fn index<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.shape.dims[1..].iter() {
@@ -131,7 +131,7 @@ pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>, i: usiz
 }
 
 #[allow(clippy::too_many_arguments)]
-fn execute<R: JitRuntime, E: FloatElement>(
+fn execute<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -160,7 +160,7 @@ fn execute<R: JitRuntime, E: FloatElement>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn col2im<R: JitRuntime, E: FloatElement>(
+fn col2im<R: CubeRuntime, E: FloatElement>(
     columns: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
     out: CubeTensor<R>,

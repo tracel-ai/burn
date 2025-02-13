@@ -1,6 +1,6 @@
 use crate::element::JitElement;
 use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
-use crate::JitRuntime;
+use crate::CubeRuntime;
 use burn_tensor::quantization::QTensorPrimitive;
 use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
@@ -12,8 +12,8 @@ use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 #[derive(new)]
-pub struct CubeTensor<R: JitRuntime> {
-    /// Compute client for the [runtime](JitRuntime).
+pub struct CubeTensor<R: CubeRuntime> {
+    /// Compute client for the [runtime](CubeRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
     pub handle: Handle,
@@ -27,7 +27,7 @@ pub struct CubeTensor<R: JitRuntime> {
     pub dtype: DType,
 }
 
-impl<R: JitRuntime, E: JitElement> From<CubeTensor<R>> for TensorHandle<R, E> {
+impl<R: CubeRuntime, E: JitElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
@@ -35,7 +35,7 @@ impl<R: JitRuntime, E: JitElement> From<CubeTensor<R>> for TensorHandle<R, E> {
 
 impl<R> core::fmt::Debug for CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
@@ -51,7 +51,7 @@ where
 
 impl<R> Clone for CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
 {
     fn clone(&self) -> Self {
         Self {
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<R: JitRuntime> TensorMetadata for CubeTensor<R> {
+impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -75,7 +75,7 @@ impl<R: JitRuntime> TensorMetadata for CubeTensor<R> {
     }
 }
 
-impl<R: JitRuntime> QTensorPrimitive for CubeTensor<R> {
+impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
     fn scheme(&self) -> &burn_tensor::quantization::QuantizationScheme {
         if let DType::QFloat(scheme) = &self.dtype {
             scheme
@@ -193,7 +193,7 @@ macro_rules! execute_with_dtype {
 
 impl<R> CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
 {
     /// Create a new tensor with a contiguous memory layout.
     pub fn new_contiguous(

@@ -11,11 +11,11 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, CubeRuntime, JitTuneId,
 };
 
 /// Executes autotune on conv2d operations
-pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
+pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weights: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -40,7 +40,7 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
     )
 }
 
-pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
+pub fn create_conv2d_input<R: CubeRuntime, E: FloatElement>(
     key: &JitAutotuneKey,
     input: &CubeTensor<R>,
     _weights: &CubeTensor<R>,
@@ -73,7 +73,7 @@ pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
     (input, weights, bias, options.clone())
 }
 
-fn create_key<R: JitRuntime, E: FloatElement>(
+fn create_key<R: CubeRuntime, E: FloatElement>(
     input: &CubeTensor<R>,
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,

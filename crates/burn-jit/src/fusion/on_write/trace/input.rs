@@ -1,7 +1,7 @@
 use super::TensorView;
 use crate::{
     fusion::{on_write::settings::FuseSettings, JitFusionHandle},
-    JitRuntime,
+    CubeRuntime,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorStatus};
@@ -11,7 +11,7 @@ use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};
 
 /// Fetch and register [input handles](HandleInput) and itendify potential inputs that
 /// can be used inplace.
-pub struct InputPlanner<'a, R: JitRuntime> {
+pub struct InputPlanner<'a, R: CubeRuntime> {
     inputs: &'a RegisteredTensors,
     inputs_unhandled: &'a Vec<TensorId>,
     views: &'a Vec<TensorView>,
@@ -20,7 +20,7 @@ pub struct InputPlanner<'a, R: JitRuntime> {
     _r: PhantomData<R>,
 }
 
-impl<'a, R: JitRuntime> InputPlanner<'a, R> {
+impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         inputs_unhandled: &'a Vec<TensorId>,

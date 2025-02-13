@@ -1,9 +1,9 @@
-use crate::{element::BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime};
+use crate::{element::BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime};
 use burn_tensor::ops::ActivationOps;
 
 impl<R, F, I, BT> ActivationOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

@@ -3,7 +3,7 @@ use std::any::TypeId;
 use crate::fusion::elemwise::optimization::ElemwiseRunner;
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::kernel::matmul;
-use crate::{fusion::JitFusionHandle, JitRuntime};
+use crate::{fusion::JitFusionHandle, CubeRuntime};
 use crate::{BoolElement, FloatElement};
 
 use burn_fusion::stream::Context;
@@ -31,7 +31,7 @@ use super::spec::FusedMatmulSpec;
 use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
-pub struct MatmulOptimization<R: JitRuntime> {
+pub struct MatmulOptimization<R: CubeRuntime> {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
@@ -53,7 +53,7 @@ pub struct MatmulOptimizationState {
     len: usize,
 }
 
-impl<R: JitRuntime> MatmulOptimization<R> {
+impl<R: CubeRuntime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseOnWriteTrace,
         trace_fallback: FuseOnWriteTrace,
@@ -251,7 +251,7 @@ impl From<MatmulLaunchError> for FusedMatmulError {
     }
 }
 
-impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
+impl<R: CubeRuntime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;
 
     fn run<'a>(
@@ -273,7 +273,7 @@ impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
 }
 
 impl FusedMatmul {
-    fn matmul_fused<'a, R: JitRuntime, EG: Numeric>(
+    fn matmul_fused<'a, R: CubeRuntime, EG: Numeric>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,

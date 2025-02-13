@@ -6,20 +6,20 @@ use crate::{
         on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
-    JitRuntime,
+    CubeRuntime,
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct MatmulBuilder<R: JitRuntime> {
+pub(crate) struct MatmulBuilder<R: CubeRuntime> {
     builder: FuseOnWriteBuilder,
     builder_fallback: FuseOnWriteBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
 }
 
-impl<R: JitRuntime> MatmulBuilder<R> {
+impl<R: CubeRuntime> MatmulBuilder<R> {
     pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -40,7 +40,7 @@ impl<R: JitRuntime> MatmulBuilder<R> {
     }
 }
 
-impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R> {
+impl<R: CubeRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R> {
     fn register(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;

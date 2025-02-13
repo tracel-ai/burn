@@ -5,18 +5,18 @@ use crate::{
         on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
         JitOptimization,
     },
-    JitRuntime,
+    CubeRuntime,
 };
 
 use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: JitRuntime> {
+pub(crate) struct ElementWiseBuilder<R: CubeRuntime> {
     builder: FuseOnWriteBuilder,
     device: R::Device,
 }
 
-impl<R: JitRuntime> ElementWiseBuilder<R> {
+impl<R: CubeRuntime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -38,7 +38,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
     }
 }
 
-impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
+impl<R: CubeRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_ir::OperationIr) {
         self.builder.register(operation);
     }

@@ -19,7 +19,7 @@ use crate::{
         permute,
     },
     tensor::CubeTensor,
-    FloatElement, JitRuntime,
+    FloatElement, CubeRuntime,
 };
 
 use super::nchw_to_nhwc;
@@ -31,7 +31,7 @@ use super::nchw_to_nhwc;
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
+pub fn conv2d_implicit_gemm<R: CubeRuntime, F: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -636,7 +636,7 @@ fn load_weight_tile<F: Float, FMat: Float>(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn check_availability<R: JitRuntime, E: FloatElement>(
+pub(crate) fn check_availability<R: CubeRuntime, E: FloatElement>(
     batch_size: usize,
     in_channels: usize,
     out_channels: usize,
@@ -738,7 +738,7 @@ fn padded_batch_size(batch_size: usize, out_h: usize, out_w: usize) -> usize {
     batch_size.div_ceil(target) * target
 }
 
-fn find_cmma_size<R: JitRuntime, F: Float>(
+fn find_cmma_size<R: CubeRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
     gemm_m: u32,
     gemm_k: u32,
@@ -752,7 +752,7 @@ fn find_cmma_size<R: JitRuntime, F: Float>(
         .map(|(m, k, n)| (m as u32, n as u32, k as u32))
 }
 
-fn supported_cmma_sizes<R: JitRuntime, F: Float>(
+fn supported_cmma_sizes<R: CubeRuntime, F: Float>(
     client: &ComputeClient<R::Server, R::Channel>,
 ) -> Vec<(u8, u8, u8)> {
     let (requested_sizes, matrix_elem) = match (

@@ -1,8 +1,8 @@
-use crate::{element::JitElement, kernel, tensor::CubeTensor, BoolElement, JitRuntime};
+use crate::{element::JitElement, kernel, tensor::CubeTensor, BoolElement, CubeRuntime};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
 
-pub(crate) fn from_data<R: JitRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
+pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let shape: Shape = (&data.shape).into();
     let client = R::client(device);
     let buffer = client.create(data.as_bytes());
@@ -10,7 +10,7 @@ pub(crate) fn from_data<R: JitRuntime>(data: TensorData, device: &R::Device) -> 
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
@@ -20,7 +20,7 @@ pub(crate) async fn into_data<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
+pub fn into_data_sync<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one(tensor.handle.binding());
@@ -28,7 +28,7 @@ pub fn into_data_sync<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>) -> Te
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
 }
 
-pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
+pub(crate) async fn bool_into_data<R: CubeRuntime, BT: BoolElement>(
     tensor: CubeTensor<R>,
 ) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
@@ -43,7 +43,7 @@ pub(crate) async fn bool_into_data<R: JitRuntime, BT: BoolElement>(
     )
 }
 
-pub(crate) fn to_device<R: JitRuntime>(tensor: CubeTensor<R>, device: &R::Device) -> CubeTensor<R> {
+pub(crate) fn to_device<R: CubeRuntime>(tensor: CubeTensor<R>, device: &R::Device) -> CubeTensor<R> {
     if &tensor.device == device {
         return tensor;
     }
@@ -52,7 +52,7 @@ pub(crate) fn to_device<R: JitRuntime>(tensor: CubeTensor<R>, device: &R::Device
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: JitRuntime, E: JitElement>(
+pub(crate) fn empty<R: CubeRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
 ) -> CubeTensor<R> {
@@ -62,7 +62,7 @@ pub(crate) fn empty<R: JitRuntime, E: JitElement>(
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, E::dtype())
 }
 
-pub(crate) fn swap_dims<R: JitRuntime>(
+pub(crate) fn swap_dims<R: CubeRuntime>(
     mut tensor: CubeTensor<R>,
     dim1: usize,
     dim2: usize,
@@ -74,7 +74,7 @@ pub(crate) fn swap_dims<R: JitRuntime>(
 }
 
 /// Permute a tensor's dimensions
-pub fn permute<R: JitRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> CubeTensor<R> {
+pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> CubeTensor<R> {
     // remap strides
     tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
 
@@ -83,7 +83,7 @@ pub fn permute<R: JitRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cube
 
     tensor
 }
-pub(crate) fn expand<R: JitRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
+pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
     let ndims_in = tensor.shape.num_dims();
     let ndims_out = target_shape.num_dims();
 
@@ -134,7 +134,7 @@ pub(crate) fn expand<R: JitRuntime>(tensor: CubeTensor<R>, target_shape: Shape) 
 }
 
 /// Reshape a jit tensor to a new shape
-pub fn reshape<R: JitRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
+pub fn reshape<R: CubeRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
     // TODO: Not force standard layout all the time (improve performance).
     let tensor = kernel::into_contiguous(tensor);
 
@@ -147,7 +147,7 @@ pub fn reshape<R: JitRuntime>(tensor: CubeTensor<R>, shape: Shape) -> CubeTensor
     )
 }
 
-pub(crate) fn max_vectorization<R: JitRuntime>(tensor: &CubeTensor<R>) -> u8 {
+pub(crate) fn max_vectorization<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
     tensor_vectorization_factor(
         R::supported_line_sizes(),
         &tensor.shape.dims,

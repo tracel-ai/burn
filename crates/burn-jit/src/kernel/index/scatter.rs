@@ -2,7 +2,7 @@ use crate::{
     element::JitElement,
     kernel::{self},
     tensor::CubeTensor,
-    IntElement, JitRuntime,
+    IntElement, CubeRuntime,
 };
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
@@ -65,7 +65,7 @@ fn scatter_kernel<T: Numeric, I: Int>(
     }
 }
 
-pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
+pub(crate) fn scatter<R: CubeRuntime, E: JitElement, I: IntElement>(
     dim: usize,
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,

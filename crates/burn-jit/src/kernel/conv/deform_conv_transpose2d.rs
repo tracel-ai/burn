@@ -21,7 +21,7 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    FloatElement, IntElement, CubeBackend, JitRuntime,
+    FloatElement, IntElement, CubeBackend, CubeRuntime,
 };
 
 use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
@@ -29,7 +29,7 @@ use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]
 pub(crate) fn deform_conv2d_backward<
-    R: JitRuntime,
+    R: CubeRuntime,
     E: FloatElement,
     I: IntElement,
     BT: BoolElement,
@@ -86,7 +86,7 @@ pub(crate) fn deform_conv2d_backward<
     ))
 }
 
-fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
+fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -123,7 +123,7 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
 
 type InputGradients<R> = (CubeTensor<R>, CubeTensor<R>, Option<CubeTensor<R>>);
 
-fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
+fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
     image: CubeTensor<R>,
     weight: CubeTensor<R>,
     offset: CubeTensor<R>,
@@ -182,7 +182,7 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     Ok((input_gradient, offset_gradient, mask_gradient))
 }
 
-fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
+fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
     columns: CubeTensor<R>,
     image: CubeTensor<R>,
     offset: CubeTensor<R>,
@@ -433,7 +433,7 @@ fn get_coordinate_weight<F: Float>(
     }
 }
 
-fn compute_input_grad<R: JitRuntime, E: FloatElement>(
+fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
     columns: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,

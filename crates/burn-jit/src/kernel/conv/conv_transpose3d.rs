@@ -8,7 +8,7 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    JitRuntime,
+    CubeRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
@@ -145,7 +145,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
+pub(crate) fn conv_transpose3d<R: CubeRuntime, E: JitElement + Element>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

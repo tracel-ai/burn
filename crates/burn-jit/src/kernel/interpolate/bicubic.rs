@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{tensor::CubeTensor, FloatElement, JitRuntime};
+use crate::{tensor::CubeTensor, FloatElement, CubeRuntime};
 
 #[cube(launch)]
 fn interpolate_bicubic_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {
@@ -121,7 +121,7 @@ fn cubic_convolution_2<F: Float>(x: F, a: F) -> F {
     conv - F::new(4.0) * a
 }
 
-pub(crate) fn interpolate_bicubic_launch<R: JitRuntime, E: FloatElement>(
+pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
 ) -> CubeTensor<R> {

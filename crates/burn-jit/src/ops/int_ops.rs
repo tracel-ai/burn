@@ -9,7 +9,7 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use crate::{kernel, FloatElement, IntElement, CubeBackend, JitRuntime};
+use crate::{kernel, FloatElement, IntElement, CubeBackend, CubeRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::DType;
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
@@ -19,7 +19,7 @@ use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

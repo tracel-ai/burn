@@ -4,7 +4,7 @@ use crate::{
     element::JitElement,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
-    BoolElement, JitRuntime,
+    BoolElement, CubeRuntime,
 };
 
 #[cube(launch)]
@@ -58,7 +58,7 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement, BT: BoolElement>(
+pub fn mask_fill<R: CubeRuntime, E: JitElement, BT: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: E,
@@ -70,7 +70,7 @@ pub fn mask_fill<R: JitRuntime, E: JitElement, BT: BoolElement>(
     }
 }
 
-fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_fill_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: EI,
@@ -100,7 +100,7 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_fill_inplace<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: EI,

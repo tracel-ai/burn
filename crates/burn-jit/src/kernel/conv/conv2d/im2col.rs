@@ -13,7 +13,7 @@ use crate::{
     },
     ops::{numeric::empty_device, reshape, swap_dims},
     tensor::CubeTensor,
-    FloatElement, JitRuntime,
+    FloatElement, CubeRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -132,7 +132,7 @@ pub(crate) fn batches_per_run(
     Ok(1)
 }
 
-fn im2col<R: JitRuntime, E: FloatElement>(
+fn im2col<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     options: ConvOptions<2>,
     kernel_h: usize,
@@ -196,7 +196,7 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
+pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -268,7 +268,7 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
     Ok(out)
 }
 
-fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
+fn execute_1x1_kernel<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,
@@ -295,7 +295,7 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     Ok(swap_dims(out, 0, 1))
 }
 
-fn execute<R: JitRuntime, E: FloatElement>(
+fn execute<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     out: CubeTensor<R>,

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -51,7 +51,7 @@ where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
     for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
-    R: JitRuntime,
+    R: CubeRuntime,
     E: JitElement + Float,
     O: FloatUnaryOpFamily,
 {
@@ -115,7 +115,7 @@ pub(crate) mod unary_basic {
 
     pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
-        R: JitRuntime,
+        R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> &'a BasicFloatUnaryKind,
     {
         execute_with_dtype!(

@@ -1,6 +1,6 @@
 use crate::tensor::CubeTensor;
 use crate::FloatElement;
-use crate::{IntElement, JitElement, JitRuntime};
+use crate::{IntElement, JitElement, CubeRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
@@ -163,7 +163,7 @@ pub(crate) fn quantize_per_tensor<R, F, I>(
     scheme: QuantizationScheme,
 ) -> CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: JitElement,
     I: IntElement,
 {
@@ -243,7 +243,7 @@ pub fn quantize<R, F, I>(
     offset: Option<CubeTensor<R>>,
 ) -> CubeTensor<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
 {

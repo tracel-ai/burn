@@ -16,7 +16,7 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    FloatElement, JitRuntime,
+    FloatElement, CubeRuntime,
 };
 
 use super::ConvLaunchError;
@@ -188,7 +188,7 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     result
 }
 
-pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
+pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
@@ -257,7 +257,7 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
     output
 }
 
-pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
+pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     offset: CubeTensor<R>,
     weight: CubeTensor<R>,

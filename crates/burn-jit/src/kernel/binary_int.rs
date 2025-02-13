@@ -1,4 +1,4 @@
-use crate::{ops::numeric::empty_device, tensor::CubeTensor, IntElement, JitRuntime};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, IntElement, CubeRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -133,7 +133,7 @@ pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
     out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
+pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -220,7 +220,7 @@ pub(crate) fn launch_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamil
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
+pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
     mut tensor: CubeTensor<R>,
     scalar: E,
 ) -> CubeTensor<R> {

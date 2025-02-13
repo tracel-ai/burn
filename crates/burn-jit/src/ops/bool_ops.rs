@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, kernel, FloatElement, IntElement, CubeBackend, JitRuntime};
+use crate::{element::BoolElement, kernel, FloatElement, IntElement, CubeBackend, CubeRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
@@ -7,7 +7,7 @@ use super::{expand, permute};
 
 impl<R, F, I, BT> BoolTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

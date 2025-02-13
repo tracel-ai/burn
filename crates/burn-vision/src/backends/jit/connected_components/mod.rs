@@ -7,7 +7,7 @@ mod prefix_sum;
 use burn_jit::{
     ops::numeric::{full_device, zeros_device},
     tensor::CubeTensor,
-    BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime,
+    BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime,
 };
 use burn_tensor::Shape;
 pub use hardware_accelerated::*;
@@ -19,7 +19,7 @@ pub(crate) fn stats_from_opts<R, F, I, BT>(
     opts: ConnectedStatsOptions,
 ) -> ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

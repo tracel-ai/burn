@@ -1,6 +1,6 @@
 use cubecl::prelude::*;
 
-use crate::{ops::numeric::empty_device, tensor::CubeTensor, JitElement, JitRuntime, SEED};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, JitElement, CubeRuntime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
@@ -8,7 +8,7 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
+pub(crate) fn random<P: PrngRuntime<E>, R: CubeRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,

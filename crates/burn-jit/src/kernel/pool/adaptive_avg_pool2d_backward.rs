@@ -1,4 +1,4 @@
-use crate::{element::JitElement, tensor::CubeTensor, JitRuntime};
+use crate::{element::JitElement, tensor::CubeTensor, CubeRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
@@ -80,7 +80,7 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
+pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: JitElement>(
     x: CubeTensor<R>,
     out_grad: CubeTensor<R>,
 ) -> CubeTensor<R> {

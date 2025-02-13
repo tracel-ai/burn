@@ -5,7 +5,7 @@ use crate::{
 use burn_fusion::{client::FusionClient, stream::Operation, Fusion, FusionBackend, FusionRuntime};
 #[cfg(feature = "fusion")]
 use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
-use burn_jit::{BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime};
+use burn_jit::{BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime};
 use burn_tensor::{
     ops::{BoolTensor, IntTensor},
     Element,
@@ -15,7 +15,7 @@ use super::connected_components::hardware_accelerated;
 
 impl<R, F, I, BT> VisionOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

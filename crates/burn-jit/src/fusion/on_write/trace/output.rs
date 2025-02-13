@@ -9,7 +9,7 @@ use crate::{
         strides_dyn_rank, JitFusionHandle,
     },
     tensor::is_contiguous,
-    BoolElement, JitRuntime,
+    BoolElement, CubeRuntime,
 };
 
 use super::{
@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
-pub struct OutputPlanner<'a, R: JitRuntime> {
+pub struct OutputPlanner<'a, R: CubeRuntime> {
     inputs: &'a RegisteredTensors,
     views: &'a Vec<TensorView>,
     outputs_sorted: Vec<OutputSorted<'a>>,
@@ -42,7 +42,7 @@ enum OutputKind {
     Transform(TensorView),
 }
 
-impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
+impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         outputs: &'a RegisteredTensors,

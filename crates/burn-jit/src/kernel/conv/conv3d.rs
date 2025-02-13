@@ -12,7 +12,7 @@ use crate::{
         reshape,
     },
     tensor::CubeTensor,
-    FloatElement, JitRuntime,
+    FloatElement, CubeRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -139,7 +139,7 @@ fn conv3d_kernel<F: Float>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
+pub(crate) fn conv3d<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

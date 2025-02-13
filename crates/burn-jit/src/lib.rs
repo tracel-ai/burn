@@ -44,7 +44,7 @@ pub mod template;
 pub mod tests;
 
 /// Just-in-Time runtime extending the [cube runtime](Runtime).
-pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
+pub trait CubeRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
     /// The device that should also implement [burn_tensor::backend::DeviceOps].
     type JitDevice: burn_tensor::backend::DeviceOps;
     /// The cube server with the [JitAutotuneKey].
@@ -63,7 +63,7 @@ pub struct JitTuneId {
 
 impl JitTuneId {
     /// Create a new ID.
-    pub fn new<R: JitRuntime>(device: &R::Device) -> Self {
+    pub fn new<R: CubeRuntime>(device: &R::Device) -> Self {
         Self {
             device: DeviceOps::id(device),
             name: R::name(),

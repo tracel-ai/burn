@@ -1,6 +1,6 @@
 use crate::{
     kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor, FloatElement,
-    JitRuntime,
+    CubeRuntime,
 };
 use burn_tensor::{
     ops::{InterpolateMode, InterpolateOptions},
@@ -15,7 +15,7 @@ use super::{
 /// Interpolate operation
 ///
 /// Supports nearest, bilinear and bicubic modes
-pub fn interpolate<R: JitRuntime, E: FloatElement>(
+pub fn interpolate<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
@@ -37,7 +37,7 @@ pub fn interpolate<R: JitRuntime, E: FloatElement>(
 /// Backward interpolate operation
 ///
 /// Note: only nearest mode is supported
-pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
+pub fn interpolate_backward<R: CubeRuntime, E: FloatElement>(
     input: CubeTensor<R>,
     out_grad: CubeTensor<R>,
     _output_size: [usize; 2],

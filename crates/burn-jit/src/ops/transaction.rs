@@ -3,11 +3,11 @@ use burn_tensor::{
     DType, TensorData,
 };
 
-use crate::{element::BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime};
+use crate::{element::BoolElement, FloatElement, IntElement, CubeBackend, CubeRuntime};
 
 impl<R, F, I, BT> TransactionOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

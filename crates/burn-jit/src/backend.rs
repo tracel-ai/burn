@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, tensor::CubeTensor, FloatElement, IntElement, JitRuntime};
+use crate::{element::BoolElement, tensor::CubeTensor, FloatElement, IntElement, CubeRuntime};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
@@ -13,7 +13,7 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct CubeBackend<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
+pub struct CubeBackend<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
@@ -22,7 +22,7 @@ pub struct CubeBackend<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolEl
 
 impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     R::Server: ComputeServer,
     R::Device: burn_tensor::backend::DeviceOps,
     F: FloatElement,
@@ -61,7 +61,7 @@ where
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::Debug
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::Debug
     for CubeBackend<R, F, I, BT>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -69,7 +69,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
     for CubeBackend<R, F, I, BT>
 {
     fn clone(&self) -> Self {
@@ -77,7 +77,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
     for CubeBackend<R, F, I, BT>
 {
     fn default() -> Self {
@@ -85,7 +85,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
     }
 }
 
-impl<R: cubecl::Runtime> JitRuntime for R
+impl<R: cubecl::Runtime> CubeRuntime for R
 where
     R::Device: DeviceOps,
 {
@@ -94,7 +94,7 @@ where
 }
 
 #[cfg(not(feature = "fusion"))]
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     for CubeBackend<R, F, I, BT>
 {
     type Handle = CubeTensor<R>;

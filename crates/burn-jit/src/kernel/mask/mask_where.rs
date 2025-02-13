@@ -4,7 +4,7 @@ use crate::{
     element::JitElement,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
-    BoolElement, JitRuntime,
+    BoolElement, CubeRuntime,
 };
 
 #[cube(launch)]
@@ -65,7 +65,7 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: JitRuntime, E: JitElement, BT: BoolElement>(
+pub fn mask_where<R: CubeRuntime, E: JitElement, BT: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
@@ -78,7 +78,7 @@ pub fn mask_where<R: JitRuntime, E: JitElement, BT: BoolElement>(
     }
 }
 
-fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_where_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
@@ -108,7 +108,7 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_where_inplace<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,

@@ -10,12 +10,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
-    JitAutotuneKey, JitElement, JitRuntime, JitTuneId,
+    JitAutotuneKey, JitElement, CubeRuntime, JitTuneId,
 };
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<
-    Run: JitRuntime,
+    Run: CubeRuntime,
     In: JitElement,
     Out: JitElement,
     Rd: cubecl::reduce::Reduce,
@@ -56,7 +56,7 @@ pub struct ReduceAutotuneKey {
 }
 
 impl ReduceAutotuneKey {
-    pub(crate) fn generate<Run: JitRuntime>(input: &CubeTensor<Run>, axis: usize) -> Self {
+    pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>, axis: usize) -> Self {
         let rank = input.shape.num_dims();
 
         if axis > rank {
@@ -83,7 +83,7 @@ impl ReduceAutotuneKey {
     }
 }
 
-pub(crate) fn create_key<Run: JitRuntime>(
+pub(crate) fn create_key<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     _output: &CubeTensor<Run>,
     dim: &usize,
@@ -96,7 +96,7 @@ mod reduce_ops {
 
     use super::*;
 
-    pub(crate) fn reduce_input_gen<Run: JitRuntime, In: JitElement, Out: JitElement>(
+    pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: JitElement, Out: JitElement>(
         _key: &JitAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
@@ -115,7 +115,7 @@ mod reduce_ops {
     }
 
     pub(crate) fn reduce<
-        Run: JitRuntime,
+        Run: CubeRuntime,
         In: JitElement,
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
@@ -138,7 +138,7 @@ mod reduce_ops {
     }
 
     pub(crate) fn reduce_shared<
-        Run: JitRuntime,
+        Run: CubeRuntime,
         In: JitElement,
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
@@ -161,7 +161,7 @@ mod reduce_ops {
     }
 
     pub(crate) fn reduce_plane<
-        Run: JitRuntime,
+        Run: CubeRuntime,
         In: JitElement,
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
@@ -184,7 +184,7 @@ mod reduce_ops {
     }
 
     pub(crate) fn reduce_shared_plane<
-        Run: JitRuntime,
+        Run: CubeRuntime,
         In: JitElement,
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
@@ -209,7 +209,7 @@ mod reduce_ops {
 
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
-pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
+pub fn autotune_sum<Run: CubeRuntime, E: JitElement>(
     client: &ComputeClient<Run::Server, Run::Channel>,
     input: CubeTensor<Run>,
 ) -> CubeTensor<Run> {
@@ -235,7 +235,7 @@ pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
     )
 }
 
-pub(crate) fn create_key_sum<Run: JitRuntime>(input: &CubeTensor<Run>) -> JitAutotuneKey {
+pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> JitAutotuneKey {
     JitAutotuneKey::Sum(SumAutotuneKey::generate(input))
 }
 
@@ -248,7 +248,7 @@ pub struct SumAutotuneKey {
 }
 
 impl SumAutotuneKey {
-    pub(crate) fn generate<Run: JitRuntime>(input: &CubeTensor<Run>) -> Self {
+    pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>) -> Self {
         let dtype = input.dtype;
         let length = input.shape.num_elements();
         Self { dtype, length }
@@ -261,7 +261,7 @@ mod sum_ops {
 
     use super::*;
 
-    pub(crate) fn sum_input_gen<Run: JitRuntime, E: JitElement>(
+    pub(crate) fn sum_input_gen<Run: CubeRuntime, E: JitElement>(
         _key: &JitAutotuneKey,
         input: &CubeTensor<Run>,
     ) -> CubeTensor<Run> {
@@ -269,7 +269,7 @@ mod sum_ops {
         random_like_uniform(input, random_bounds.0, random_bounds.1)
     }
 
-    pub(crate) fn sum_one_shot<Run: JitRuntime, E: JitElement, const C: u32>(
+    pub(crate) fn sum_one_shot<Run: CubeRuntime, E: JitElement, const C: u32>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
@@ -288,7 +288,7 @@ mod sum_ops {
     }
 
     #[cfg(feature = "autotune")]
-    pub(crate) fn sum_chained<Run: JitRuntime, E: JitElement>(
+    pub(crate) fn sum_chained<Run: CubeRuntime, E: JitElement>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run, E, E, Sum>(
