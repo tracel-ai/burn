@@ -3,12 +3,12 @@ mod tests {
     use super::*;
 
     // Use the reexported test dependency.
-    use burn_jit::tests::serial_test;
+    use burn_cubecl::tests::serial_test;
     use serial_test::serial;
 
     use core::f32;
 
-    use burn_jit::kernel::prng::tests_utils::calculate_bin_stats;
+    use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use burn_tensor::{backend::Backend, Distribution, Shape, Tensor};
 
     #[test]

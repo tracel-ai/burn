@@ -10,7 +10,7 @@ use burn::{
     },
     tensor::{Shape, TensorMetadata},
 };
-use burn_jit::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
+use burn_cubecl::{element::BoolElement, FloatElement, IntElement, JitBackend, JitRuntime};
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
     for Autodiff<JitBackend<R, F, I, BT>>

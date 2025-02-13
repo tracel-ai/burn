@@ -1,7 +1,7 @@
 use burn_tensor::Shape;
 use cubecl::prelude::*;
 
-use burn_jit::{
+use burn_cubecl::{
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,

@@ -43,49 +43,49 @@ macro_rules! testgen_all {
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         mod jit {
-            burn_jit::testgen_jit!([$($float),*], [$($int),*], [$($bool),*]);
+            burn_cubecl::testgen_jit!([$($float),*], [$($int),*], [$($bool),*]);
 
             mod kernel {
                 use super::*;
 
-                burn_jit::testgen_conv2d!();
-                burn_jit::testgen_conv3d!();
-                burn_jit::testgen_conv_transpose2d!();
-                burn_jit::testgen_conv_transpose3d!();
+                burn_cubecl::testgen_conv2d!();
+                burn_cubecl::testgen_conv3d!();
+                burn_cubecl::testgen_conv_transpose2d!();
+                burn_cubecl::testgen_conv_transpose3d!();
 
-                burn_jit::testgen_repeat_dim!();
-                burn_jit::testgen_gather!();
-                burn_jit::testgen_scatter!();
+                burn_cubecl::testgen_repeat_dim!();
+                burn_cubecl::testgen_gather!();
+                burn_cubecl::testgen_scatter!();
 
-                burn_jit::testgen_select!();
-                burn_jit::testgen_select_assign!();
+                burn_cubecl::testgen_select!();
+                burn_cubecl::testgen_select_assign!();
 
-                burn_jit::testgen_slice!();
-                burn_jit::testgen_slice_assign!();
+                burn_cubecl::testgen_slice!();
+                burn_cubecl::testgen_slice_assign!();
 
-                burn_jit::testgen_mask_where!();
-                burn_jit::testgen_mask_fill!();
+                burn_cubecl::testgen_mask_where!();
+                burn_cubecl::testgen_mask_fill!();
 
-                burn_jit::testgen_avg_pool2d!();
-                burn_jit::testgen_max_pool2d!();
-                burn_jit::testgen_max_pool2d_backward!();
+                burn_cubecl::testgen_avg_pool2d!();
+                burn_cubecl::testgen_max_pool2d!();
+                burn_cubecl::testgen_max_pool2d_backward!();
 
-                burn_jit::testgen_bernoulli!();
-                burn_jit::testgen_normal!();
-                burn_jit::testgen_uniform!();
+                burn_cubecl::testgen_bernoulli!();
+                burn_cubecl::testgen_normal!();
+                burn_cubecl::testgen_uniform!();
 
-                burn_jit::testgen_cast!();
-                burn_jit::testgen_cat!();
-                burn_jit::testgen_clamp!();
-                burn_jit::testgen_unary!();
+                burn_cubecl::testgen_cast!();
+                burn_cubecl::testgen_cat!();
+                burn_cubecl::testgen_clamp!();
+                burn_cubecl::testgen_unary!();
 
-                burn_jit::testgen_reduce!();
+                burn_cubecl::testgen_reduce!();
 
-                burn_jit::testgen_quantization!();
+                burn_cubecl::testgen_quantization!();
             }
         }
         mod jit_fusion {
-            burn_jit::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
+            burn_cubecl::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
         }
     };
 }
@@ -98,7 +98,7 @@ macro_rules! testgen_jit {
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         pub use super::*;
-        use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
+        use burn_cubecl::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
         pub type TestBackend = JitBackend<TestRuntime, f32, i32, u32>;
         pub type TestBackend2<F, I, B> = JitBackend<TestRuntime, F, I, B>;
@@ -138,7 +138,7 @@ macro_rules! testgen_jit_fusion {
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
         use super::*;
-        use burn_jit::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
+        use burn_cubecl::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
 
         pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime, f32, i32, u32>>;
         pub type TestBackend2<F, I, B> = burn_fusion::Fusion<JitBackend<TestRuntime, F, I, B>>;

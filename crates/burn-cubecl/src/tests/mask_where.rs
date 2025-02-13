@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(mask_where)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::{mask_where, MaskWhereStrategy};
+    use burn_cubecl::kernel::{mask_where, MaskWhereStrategy};
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor, TensorPrimitive};
 
     #[test]
