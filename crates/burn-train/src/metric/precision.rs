@@ -92,7 +92,6 @@ impl<B: Backend> PrecisionMetric<B> {
 }
 
 impl<B: Backend> Metric for PrecisionMetric<B> {
-    const NAME: &'static str = "Precision";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -116,10 +115,8 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     fn name(&self) -> String {
         // "Precision @ Threshold(0.5) [Macro]"
         format!(
-            "{} @ {:?} [{:?}]",
-            Self::NAME,
-            self.config.decision_rule,
-            self.config.class_reduction
+            "Precision @ {:?} [{:?}]",
+            self.config.decision_rule, self.config.class_reduction
         )
     }
 }
@@ -136,7 +133,10 @@ mod tests {
         ClassReduction::{self, *},
         Metric, MetricMetadata, Numeric, PrecisionMetric,
     };
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use crate::{
+        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
+        TestBackend,
+    };
     use burn_core::tensor::TensorData;
     use rstest::rstest;
 
@@ -180,5 +180,19 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = PrecisionMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+        let metric_b = PrecisionMetric::<TestBackend>::multiclass(2, ClassReduction::Macro);
+        let metric_c = PrecisionMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
+
+        let metric_a = PrecisionMetric::<TestBackend>::binary(0.5);
+        let metric_b = PrecisionMetric::<TestBackend>::binary(0.75);
+        assert_ne!(metric_a.name(), metric_b.name());
     }
 }

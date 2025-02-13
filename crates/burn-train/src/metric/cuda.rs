@@ -30,8 +30,6 @@ impl<T> Adaptor<()> for T {
 }
 
 impl Metric for CudaMetric {
-    const NAME: &'static str = "CUDA Stats";
-
     type Input = ();
 
     fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
@@ -101,4 +99,8 @@ impl Metric for CudaMetric {
     }
 
     fn clear(&mut self) {}
+
+    fn name(&self) -> String {
+        "CUDA Stats".to_string()
+    }
 }

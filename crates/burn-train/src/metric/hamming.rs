@@ -52,8 +52,6 @@ impl<B: Backend> Default for HammingScore<B> {
 }
 
 impl<B: Backend> Metric for HammingScore<B> {
-    const NAME: &'static str = "Hamming Score";
-
     type Input = HammingScoreInput<B>;
 
     fn update(&mut self, input: &HammingScoreInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
@@ -87,8 +85,7 @@ impl<B: Backend> Metric for HammingScore<B> {
     }
 
     fn name(&self) -> String {
-        // "Hamming Score @ Threshold(0.5)"
-        format!("{} @ Threshold({})", Self::NAME, self.threshold)
+        format!("Hamming Score @ Threshold({})", self.threshold)
     }
 }
 
@@ -156,5 +153,15 @@ mod tests {
             &MetricMetadata::fake(),
         );
         assert_eq!(75.0, metric.value());
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = HammingScore::<TestBackend>::new().with_threshold(0.5);
+        let metric_b = HammingScore::<TestBackend>::new().with_threshold(0.75);
+        let metric_c = HammingScore::<TestBackend>::new().with_threshold(0.5);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
     }
 }

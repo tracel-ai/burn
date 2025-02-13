@@ -26,8 +26,6 @@ impl Default for CpuTemperature {
 }
 
 impl Metric for CpuTemperature {
-    const NAME: &'static str = "CPU Temperature";
-
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -46,6 +44,10 @@ impl Metric for CpuTemperature {
     }
 
     fn clear(&mut self) {}
+
+    fn name(&self) -> String {
+        "CPU Temperature".to_string()
+    }
 }
 
 impl Numeric for CpuTemperature {

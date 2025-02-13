@@ -64,28 +64,22 @@ Generating your own custom metrics is done by implementing the `Metric` trait.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
 pub trait Metric: Send + Sync {
-    /// The name of the metric.
-    ///
-    /// This should be unique, so avoid using short generic names, prefer using the long name.
-    const NAME: &'static str;
-
     /// The input type of the metric.
     type Input;
 
     /// The parametrized name of the metric.
     ///
-    /// By default, it returns the metric [`NAME`](Metric::NAME). This should be configured if a
-    /// metric can exist at different parameters (e.g., top-k accuracy for different values of k).
-    fn name(&self) -> String {
-        Self::NAME.to_string()
-    }
+    /// This should be unique, so avoid using short generic names, prefer using the long name.
+    ///
+    /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
+    /// values of k), the name should be unique for each instance.
+    fn name(&self) -> String;
 
     /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
 }
-
 ```
 
 As an example, let's see how the loss metric is implemented.
@@ -106,8 +100,6 @@ pub struct LossInput<B: Backend> {
 
 
 impl<B: Backend> Metric for LossMetric<B> {
-    const NAME: &'static str = "Loss";
-
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -130,6 +122,10 @@ impl<B: Backend> Metric for LossMetric<B> {
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "Loss".to_string()
     }
 }
 ```

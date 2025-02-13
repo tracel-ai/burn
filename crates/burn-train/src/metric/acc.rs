@@ -35,8 +35,6 @@ impl<B: Backend> AccuracyMetric<B> {
 }
 
 impl<B: Backend> Metric for AccuracyMetric<B> {
-    const NAME: &'static str = "Accuracy";
-
     type Input = AccuracyInput<B>;
 
     fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
@@ -77,6 +75,10 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "Accuracy".to_string()
     }
 }
 
