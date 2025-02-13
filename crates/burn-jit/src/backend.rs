@@ -90,7 +90,7 @@ where
     R::Device: DeviceOps,
 {
     type CubeDevice = R::Device;
-    type JitServer = R::Server;
+    type CubeServer = R::Server;
 }
 
 #[cfg(not(feature = "fusion"))]
