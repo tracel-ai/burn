@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
@@ -28,7 +28,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: CubeRuntime, E: JitElement, I: JitElement>(
+pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     tensor: CubeTensor<R>,
     dim: usize,
     indices: CubeTensor<R>,

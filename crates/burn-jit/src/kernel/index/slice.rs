@@ -1,10 +1,10 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
-pub fn slice<R: CubeRuntime, E: JitElement>(
+pub fn slice<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
@@ -69,7 +69,7 @@ fn slice_kernel<E: CubePrimitive>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn slice_on_output<R: CubeRuntime, E: JitElement>(
+pub(crate) fn slice_on_output<R: CubeRuntime, E: CubeElement>(
     tensor: CubeTensor<R>,
     output: CubeTensor<R>,
     indices: &[Range<usize>],

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, tensor::CubeTensor, CubeRuntime};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
@@ -44,7 +44,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric>(
     }
 }
 
-pub(crate) fn select_assign<R: CubeRuntime, E: JitElement, I: JitElement>(
+pub(crate) fn select_assign<R: CubeRuntime, E: CubeElement, I: CubeElement>(
     tensor: CubeTensor<R>,
     dim: usize,
     indices: CubeTensor<R>,

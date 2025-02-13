@@ -2,7 +2,7 @@ use crate::kernel::{
     launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int, AddOp,
     BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
 };
-use crate::{element::JitElement, tensor::CubeTensor};
+use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{FloatElement, IntElement, CubeRuntime};
 use burn_tensor::{ElementConversion, Shape};
 use cubecl::client::ComputeClient;
@@ -10,7 +10,7 @@ use cubecl::tensor_vectorization_factor;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 /// Create a tensor filled with `value`
-pub fn full<R: CubeRuntime, E: JitElement>(
+pub fn full<R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
     value: E,
@@ -21,7 +21,7 @@ pub fn full<R: CubeRuntime, E: JitElement>(
 }
 
 /// Create a tensor filled with `value`
-pub fn full_device<R: CubeRuntime, E: JitElement>(
+pub fn full_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     shape: Shape,
     device: R::Device,
@@ -59,14 +59,14 @@ pub fn full_device<R: CubeRuntime, E: JitElement>(
 }
 
 /// Create a tensor filled with zeros
-pub fn zeros<R: CubeRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
+pub fn zeros<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
 
     zeros_device::<R, E>(client, device.clone(), shape)
 }
 
 /// Create a tensor filled with zeros
-pub fn zeros_device<R: CubeRuntime, E: JitElement>(
+pub fn zeros_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
@@ -75,14 +75,14 @@ pub fn zeros_device<R: CubeRuntime, E: JitElement>(
 }
 
 /// Create a tensor filled with ones
-pub fn ones<R: CubeRuntime, E: JitElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
+pub fn ones<R: CubeRuntime, E: CubeElement>(shape: Shape, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
 
     ones_device::<R, E>(client, device.clone(), shape)
 }
 
 /// Create a tensor filled with ones
-pub fn ones_device<R: CubeRuntime, E: JitElement>(
+pub fn ones_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
@@ -91,7 +91,7 @@ pub fn ones_device<R: CubeRuntime, E: JitElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device<R: CubeRuntime, E: JitElement>(
+pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     shape: Shape,
@@ -102,47 +102,47 @@ pub fn empty_device<R: CubeRuntime, E: JitElement>(
 }
 
 /// Add two tensors
-pub fn add<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn add<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
     launch_binop::<R, E, AddOp>(lhs, rhs)
 }
 
 /// Add a tensor and a scalar
-pub fn add_scalar<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn add_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, AddOp>(lhs, rhs)
 }
 
 /// Subtract two tensors
-pub fn sub<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn sub<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
     launch_binop::<R, E, SubOp>(lhs, rhs)
 }
 
 /// Subtract a tensor and a scalar
-pub fn sub_scalar<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn sub_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, SubOp>(lhs, rhs)
 }
 
 /// Multiply two tensors
-pub fn mul<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn mul<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
     launch_binop::<R, E, MulOp>(lhs, rhs)
 }
 
 /// Multiply a tensor and a scalar
-pub fn mul_scalar<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn mul_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, MulOp>(lhs, rhs)
 }
 
 /// Divide two tensors
-pub fn div<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
+pub fn div<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: CubeTensor<R>) -> CubeTensor<R> {
     launch_binop::<R, E, DivOp>(lhs, rhs)
 }
 
 /// Divide a tensor by a scalar
-pub fn div_scalar<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn div_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, DivOp>(lhs, rhs)
 }
 
 /// Calculate remainder of two tensors
-pub fn remainder<R: CubeRuntime, E: JitElement>(
+pub fn remainder<R: CubeRuntime, E: CubeElement>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -150,7 +150,7 @@ pub fn remainder<R: CubeRuntime, E: JitElement>(
 }
 
 /// Calculate the remainder of a tensor with a scalar
-pub fn remainder_scalar<R: CubeRuntime, E: JitElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
+pub fn remainder_scalar<R: CubeRuntime, E: CubeElement>(lhs: CubeTensor<R>, rhs: E) -> CubeTensor<R> {
     launch_scalar_binop::<R, E, RemainderOp>(lhs, rhs)
 }
 

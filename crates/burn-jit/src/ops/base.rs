@@ -1,4 +1,4 @@
-use crate::{element::JitElement, kernel, tensor::CubeTensor, BoolElement, CubeRuntime};
+use crate::{element::CubeElement, kernel, tensor::CubeTensor, BoolElement, CubeRuntime};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
 
@@ -10,7 +10,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
 }
 
-pub(crate) async fn into_data<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
+pub(crate) async fn into_data<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
@@ -20,7 +20,7 @@ pub(crate) async fn into_data<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<
 
 /// Read data from a `CubeTensor` synchronously
 #[allow(unused, reason = "useful for debugging kernels")]
-pub fn into_data_sync<R: CubeRuntime, E: JitElement>(tensor: CubeTensor<R>) -> TensorData {
+pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> TensorData {
     let tensor = kernel::into_contiguous(tensor);
 
     let bytes = tensor.client.read_one(tensor.handle.binding());
@@ -52,7 +52,7 @@ pub(crate) fn to_device<R: CubeRuntime>(tensor: CubeTensor<R>, device: &R::Devic
     tensor.to_client(client, device.clone())
 }
 
-pub(crate) fn empty<R: CubeRuntime, E: JitElement>(
+pub(crate) fn empty<R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
 ) -> CubeTensor<R> {

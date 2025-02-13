@@ -1,7 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
     BoolElement, CubeRuntime,
@@ -58,7 +58,7 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: CubeRuntime, E: JitElement, BT: BoolElement>(
+pub fn mask_fill<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: E,
@@ -70,7 +70,7 @@ pub fn mask_fill<R: CubeRuntime, E: JitElement, BT: BoolElement>(
     }
 }
 
-fn mask_fill_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_fill_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: EI,
@@ -100,7 +100,7 @@ fn mask_fill_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_fill_inplace<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_fill_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: EI,

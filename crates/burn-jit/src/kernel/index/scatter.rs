@@ -1,5 +1,5 @@
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     kernel::{self},
     tensor::CubeTensor,
     IntElement, CubeRuntime,
@@ -65,7 +65,7 @@ fn scatter_kernel<T: Numeric, I: Int>(
     }
 }
 
-pub(crate) fn scatter<R: CubeRuntime, E: JitElement, I: IntElement>(
+pub(crate) fn scatter<R: CubeRuntime, E: CubeElement, I: IntElement>(
     dim: usize,
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,

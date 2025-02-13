@@ -10,14 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
-    JitAutotuneKey, JitElement, CubeRuntime, CubeTuneId,
+    JitAutotuneKey, CubeElement, CubeRuntime, CubeTuneId,
 };
 
 /// Executes autotune on reduce operations.
 pub fn autotune_reduce<
     Run: CubeRuntime,
-    In: JitElement,
-    Out: JitElement,
+    In: CubeElement,
+    Out: CubeElement,
     Rd: cubecl::reduce::Reduce,
 >(
     client: &ComputeClient<Run::Server, Run::Channel>,
@@ -96,7 +96,7 @@ mod reduce_ops {
 
     use super::*;
 
-    pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: JitElement, Out: JitElement>(
+    pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
         _key: &JitAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
@@ -116,8 +116,8 @@ mod reduce_ops {
 
     pub(crate) fn reduce<
         Run: CubeRuntime,
-        In: JitElement,
-        Out: JitElement,
+        In: CubeElement,
+        Out: CubeElement,
         Rd: cubecl::reduce::Reduce,
     >(
         input: CubeTensor<Run>,
@@ -139,8 +139,8 @@ mod reduce_ops {
 
     pub(crate) fn reduce_shared<
         Run: CubeRuntime,
-        In: JitElement,
-        Out: JitElement,
+        In: CubeElement,
+        Out: CubeElement,
         Rd: cubecl::reduce::Reduce,
     >(
         input: CubeTensor<Run>,
@@ -162,8 +162,8 @@ mod reduce_ops {
 
     pub(crate) fn reduce_plane<
         Run: CubeRuntime,
-        In: JitElement,
-        Out: JitElement,
+        In: CubeElement,
+        Out: CubeElement,
         Rd: cubecl::reduce::Reduce,
     >(
         input: CubeTensor<Run>,
@@ -185,8 +185,8 @@ mod reduce_ops {
 
     pub(crate) fn reduce_shared_plane<
         Run: CubeRuntime,
-        In: JitElement,
-        Out: JitElement,
+        In: CubeElement,
+        Out: CubeElement,
         Rd: cubecl::reduce::Reduce,
     >(
         input: CubeTensor<Run>,
@@ -209,7 +209,7 @@ mod reduce_ops {
 
 /// Executes autotune on reduce operations.
 #[cfg(feature = "autotune")]
-pub fn autotune_sum<Run: CubeRuntime, E: JitElement>(
+pub fn autotune_sum<Run: CubeRuntime, E: CubeElement>(
     client: &ComputeClient<Run::Server, Run::Channel>,
     input: CubeTensor<Run>,
 ) -> CubeTensor<Run> {
@@ -261,7 +261,7 @@ mod sum_ops {
 
     use super::*;
 
-    pub(crate) fn sum_input_gen<Run: CubeRuntime, E: JitElement>(
+    pub(crate) fn sum_input_gen<Run: CubeRuntime, E: CubeElement>(
         _key: &JitAutotuneKey,
         input: &CubeTensor<Run>,
     ) -> CubeTensor<Run> {
@@ -269,7 +269,7 @@ mod sum_ops {
         random_like_uniform(input, random_bounds.0, random_bounds.1)
     }
 
-    pub(crate) fn sum_one_shot<Run: CubeRuntime, E: JitElement, const C: u32>(
+    pub(crate) fn sum_one_shot<Run: CubeRuntime, E: CubeElement, const C: u32>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
@@ -288,7 +288,7 @@ mod sum_ops {
     }
 
     #[cfg(feature = "autotune")]
-    pub(crate) fn sum_chained<Run: CubeRuntime, E: JitElement>(
+    pub(crate) fn sum_chained<Run: CubeRuntime, E: CubeElement>(
         input: CubeTensor<Run>,
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run, E, E, Sum>(

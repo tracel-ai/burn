@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -52,7 +52,7 @@ where
     // argument.
     for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
     R: CubeRuntime,
-    E: JitElement + Numeric,
+    E: CubeElement + Numeric,
     O: NumericUnaryOpFamily,
 {
     let ndims = tensor.shape.num_dims();

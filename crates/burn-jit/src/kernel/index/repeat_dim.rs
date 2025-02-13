@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -19,7 +19,7 @@ fn repeat_dim_kernel<E: CubePrimitive>(input: &Tensor<E>, output: &mut Tensor<E>
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn repeat_dim<R: CubeRuntime, E: JitElement>(
+pub(crate) fn repeat_dim<R: CubeRuntime, E: CubeElement>(
     input: CubeTensor<R>,
     dim: usize,
     times: usize,

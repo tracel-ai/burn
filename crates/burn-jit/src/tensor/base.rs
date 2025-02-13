@@ -1,4 +1,4 @@
-use crate::element::JitElement;
+use crate::element::CubeElement;
 use crate::kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily};
 use crate::CubeRuntime;
 use burn_tensor::quantization::QTensorPrimitive;
@@ -27,7 +27,7 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub dtype: DType,
 }
 
-impl<R: CubeRuntime, E: JitElement> From<CubeTensor<R>> for TensorHandle<R, E> {
+impl<R: CubeRuntime, E: CubeElement> From<CubeTensor<R>> for TensorHandle<R, E> {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
@@ -270,7 +270,7 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a, E: JitElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a, E: CubeElement>(&'a self, vectorisation: u8) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
         unsafe {
@@ -284,7 +284,7 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn as_array_arg<E: JitElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+    pub fn as_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
         unsafe {
             ArrayArg::from_raw_parts::<E>(
                 &self.handle,

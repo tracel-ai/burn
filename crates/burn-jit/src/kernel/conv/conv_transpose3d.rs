@@ -1,7 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
@@ -145,7 +145,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv_transpose3d<R: CubeRuntime, E: JitElement + Element>(
+pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

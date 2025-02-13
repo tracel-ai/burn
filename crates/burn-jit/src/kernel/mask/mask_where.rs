@@ -1,7 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
     BoolElement, CubeRuntime,
@@ -65,7 +65,7 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: CubeRuntime, E: JitElement, BT: BoolElement>(
+pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
@@ -78,7 +78,7 @@ pub fn mask_where<R: CubeRuntime, E: JitElement, BT: BoolElement>(
     }
 }
 
-fn mask_where_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_where_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,
@@ -108,7 +108,7 @@ fn mask_where_readonly<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_where_inplace<R: CubeRuntime, EI: JitElement, EM: BoolElement>(
+fn mask_where_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
     input: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,

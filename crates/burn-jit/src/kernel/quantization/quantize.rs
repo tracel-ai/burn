@@ -1,6 +1,6 @@
 use crate::tensor::CubeTensor;
 use crate::FloatElement;
-use crate::{IntElement, JitElement, CubeRuntime};
+use crate::{IntElement, CubeElement, CubeRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
@@ -164,7 +164,7 @@ pub(crate) fn quantize_per_tensor<R, F, I>(
 ) -> CubeTensor<R>
 where
     R: CubeRuntime,
-    F: JitElement,
+    F: CubeElement,
     I: IntElement,
 {
     let ndims = tensor.shape.num_dims();

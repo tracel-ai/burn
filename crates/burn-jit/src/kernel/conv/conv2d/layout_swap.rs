@@ -4,7 +4,7 @@ use cubecl::{prelude::*, CubeCount, CubeDim};
 use crate::{
     ops::{max_vectorization, numeric::empty_device},
     tensor::CubeTensor,
-    JitElement, CubeRuntime,
+    CubeElement, CubeRuntime,
 };
 
 /// Efficiently transpose an NCHW tensor to NHWC for use in kernels that prefer NHWC for performance.
@@ -18,7 +18,7 @@ use crate::{
 ///
 /// The input in NHWC format
 ///
-pub fn nchw_to_nhwc<R: CubeRuntime, E: JitElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn nchw_to_nhwc<R: CubeRuntime, E: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let tiles_per_block = 8;
     let warp_size = 32;
     let tile_dim = 16;

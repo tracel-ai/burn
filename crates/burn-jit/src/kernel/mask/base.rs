@@ -1,8 +1,8 @@
 use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
-use crate::{element::JitElement, tensor::CubeTensor, BoolElement, CubeRuntime};
+use crate::{element::CubeElement, tensor::CubeTensor, BoolElement, CubeRuntime};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: CubeRuntime, E: JitElement, BT: BoolElement>(
+pub(crate) fn mask_fill_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     tensor: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: E,
@@ -17,7 +17,7 @@ pub(crate) fn mask_fill_auto<R: CubeRuntime, E: JitElement, BT: BoolElement>(
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: CubeRuntime, E: JitElement, BT: BoolElement>(
+pub(crate) fn mask_where_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
     tensor: CubeTensor<R>,
     mask: CubeTensor<R>,
     value: CubeTensor<R>,

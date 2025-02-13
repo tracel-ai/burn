@@ -1,8 +1,8 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 
 /// Creates an empty output tensor with matmul output shape
-pub fn init_matmul_output<R: CubeRuntime, E: JitElement>(
+pub fn init_matmul_output<R: CubeRuntime, E: CubeElement>(
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
 ) -> CubeTensor<R> {

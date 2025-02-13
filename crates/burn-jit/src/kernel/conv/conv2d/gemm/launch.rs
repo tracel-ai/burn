@@ -29,7 +29,7 @@ use crate::{
     },
     ops::{numeric::empty_device, permute, reshape},
     tensor::CubeTensor,
-    FloatElement, JitElement, CubeRuntime,
+    FloatElement, CubeElement, CubeRuntime,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -106,7 +106,7 @@ pub fn conv2d_gemm_with_algo<
     options: ConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvLaunchError>
 where
-    SP::EG: JitElement,
+    SP::EG: CubeElement,
 {
     if options.groups != 1 {
         return Err(ConvLaunchError::Groups(options.groups));

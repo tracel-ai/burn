@@ -1,4 +1,4 @@
-use crate::{tensor::CubeTensor, JitElement, CubeRuntime};
+use crate::{tensor::CubeTensor, CubeElement, CubeRuntime};
 use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
 use std::any::TypeId;
@@ -30,7 +30,7 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: CubeRuntime, EI: JitElement, EO: JitElement>(input: CubeTensor<R>) -> CubeTensor<R> {
+pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     if TypeId::of::<EI>() == TypeId::of::<EO>() {
         return CubeTensor::new_contiguous(
             input.client,

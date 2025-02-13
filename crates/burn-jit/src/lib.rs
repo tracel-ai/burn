@@ -20,7 +20,7 @@ pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{compute::CubeTask, Feature, Runtime};
-pub use element::{BoolElement, FloatElement, IntElement, JitElement};
+pub use element::{BoolElement, FloatElement, IntElement, CubeElement};
 
 mod backend;
 

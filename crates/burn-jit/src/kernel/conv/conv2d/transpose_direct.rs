@@ -1,7 +1,7 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     kernel::{conv::ConvLaunchError, into_contiguous},
     ops::{
         numeric::{empty_device, zeros_device},
@@ -121,7 +121,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv_transpose2d_direct<R: CubeRuntime, E: JitElement>(
+pub fn conv_transpose2d_direct<R: CubeRuntime, E: CubeElement>(
     input: CubeTensor<R>,
     weight: CubeTensor<R>,
     bias: Option<CubeTensor<R>>,

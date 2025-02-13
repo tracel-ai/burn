@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -160,7 +160,7 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
     out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop<R: CubeRuntime, E: JitElement, O: BinaryOpFamily>(
+pub(crate) fn launch_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
@@ -247,7 +247,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, E: JitElement, O: BinaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: JitElement, O: BinaryOpFamily>(
+pub(crate) fn launch_scalar_binop<R: CubeRuntime, E: CubeElement, O: BinaryOpFamily>(
     mut tensor: CubeTensor<R>,
     scalar: E,
 ) -> CubeTensor<R> {
