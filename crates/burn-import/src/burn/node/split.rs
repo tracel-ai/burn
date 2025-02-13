@@ -35,7 +35,6 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let axis = self.config.axis.to_tokens();
 
-        let split_tensors = syn::Ident::new("split_tensors", proc_macro2::Span::call_site());
         let outputs = self
             .outputs
             .iter()
@@ -126,7 +125,7 @@ mod tests {
                     &self,
                     tensor1: Tensor<B, 2>,
                 ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-                    let split_tensors = tensor1.split(2, 0);
+                    let mut split_tensors = tensor1.split(2, 0);
 
                     let [tensor2, tensor3] = split_tensors.try_into().unwrap();
                         (tensor2, tensor3)

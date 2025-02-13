@@ -915,7 +915,7 @@ fn split_update_outputs(node: &mut Node) {
     };
 
     let input_dims = match &input_tensor.shape {
-        Some(shape) => shape.iter().map(|dim| *dim).collect::<Vec<usize>>(),
+        Some(shape) => shape.to_vec(),
         None => panic!("Split: Input tensor shape is not defined"),
     };
 
@@ -970,8 +970,8 @@ fn split_update_outputs(node: &mut Node) {
         let mut sizes = vec![split_size; num_outputs];
 
         // According to ONNX spec, the last chunk will be smaller if not evenly divisible
-        for i in 0..remainder {
-            sizes[i] += 1;
+        for size in sizes.iter_mut().take(remainder) {
+            *size += 1;
         }
 
         sizes
