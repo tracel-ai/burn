@@ -186,25 +186,23 @@ macro_rules! execute_with_float_dtype {
     }};
 }
 
-#[cfg(test)]
 mod utils {
     use super::*;
-    use crate::element::FloatNdArrayElement;
 
     impl<E> NdArrayTensor<E>
     where
-        E: Default + Clone,
+        E: Element,
     {
-        pub(crate) fn into_data(self) -> TensorData
-        where
-            E: FloatNdArrayElement,
-        {
+        pub(crate) fn into_data(self) -> TensorData {
             let shape = self.shape();
 
             let vec = if self.is_contiguous() {
                 match self.array.try_into_owned_nocopy() {
                     Ok(owned) => {
-                        let (vec, _offset) = owned.into_raw_vec_and_offset();
+                        let (mut vec, offset) = owned.into_raw_vec_and_offset();
+                        if let Some(offset) = offset {
+                            vec.drain(..offset);
+                        }
                         vec
                     }
                     Err(array) => array.into_iter().collect(),

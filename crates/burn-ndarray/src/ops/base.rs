@@ -38,18 +38,7 @@ where
     E: Copy + Debug + burn_tensor::Element,
 {
     pub fn into_data(tensor: NdArrayTensor<E>) -> TensorData {
-        let shape = tensor.shape();
-        let values = match tensor.array.is_standard_layout() {
-            true => {
-                let (mut values, offset) = tensor.array.into_owned().into_raw_vec_and_offset();
-                if let Some(offset) = offset {
-                    values.drain(..offset);
-                }
-                values
-            }
-            false => tensor.array.into_iter().collect(),
-        };
-        TensorData::new(values, shape)
+        tensor.into_data()
     }
 
     pub fn slice(tensor: NdArrayTensor<E>, ranges: &[Range<usize>]) -> NdArrayTensor<E> {
