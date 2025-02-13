@@ -2226,8 +2226,11 @@ mod tests {
         let shape = [5, 2];
         let input = Tensor::ones(shape, &device);
 
-        let split_tensors = model.forward(input);
-        assert_eq!(split_tensors.len(), 3);
+        let (tensor_1, tensor_2, tensor_3) = model.forward(input);
+
+        assert_eq!(tensor_1.shape(), Shape::from([2, 2]));
+        assert_eq!(tensor_2.shape(), Shape::from([2, 2]));
+        assert_eq!(tensor_3.shape(), Shape::from([1, 2]));
     }
 
     #[test]
