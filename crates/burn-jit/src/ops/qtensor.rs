@@ -7,7 +7,7 @@ use burn_tensor::{
 };
 
 use crate::{
-    element::BoolElement, kernel, tensor::CubeTensor, FloatElement, IntElement, JitBackend,
+    element::BoolElement, kernel, tensor::CubeTensor, FloatElement, IntElement, CubeBackend,
     JitRuntime,
 };
 
@@ -30,7 +30,7 @@ fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
     )
 }
 
-impl<R, F, I, BT> QTensorOps<Self> for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> QTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,

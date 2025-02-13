@@ -21,7 +21,7 @@ use crate::{
         reshape, swap_dims,
     },
     tensor::CubeTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    FloatElement, IntElement, CubeBackend, JitRuntime,
 };
 
 use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
@@ -41,14 +41,14 @@ pub(crate) fn deform_conv2d_backward<
     bias: Option<CubeTensor<R>>,
     out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
-) -> Result<DeformConv2dBackward<JitBackend<R, E, I, BT>>, ConvLaunchError> {
+) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvLaunchError> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
 
         reshape(grad, bias.shape)
     });

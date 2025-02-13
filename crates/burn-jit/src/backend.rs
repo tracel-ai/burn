@@ -13,14 +13,14 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 /// Generic tensor backend that can be compiled just-in-time to any shader runtime
 #[derive(new)]
-pub struct JitBackend<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
+pub struct CubeBackend<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> {
     _runtime: PhantomData<R>,
     _float_elem: PhantomData<F>,
     _int_elem: PhantomData<I>,
     _bool_elem: PhantomData<BT>,
 }
 
-impl<R, F, I, BT> Backend for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> Backend for CubeBackend<R, F, I, BT>
 where
     R: JitRuntime,
     R::Server: ComputeServer,
@@ -62,15 +62,15 @@ where
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> core::fmt::Debug
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("JitBackend {{ runtime: {}}}", R::name()))
+        f.write_fmt(format_args!("CubeBackend {{ runtime: {}}}", R::name()))
     }
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     fn clone(&self) -> Self {
         Self::new()
@@ -78,7 +78,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Clone
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Default
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     fn default() -> Self {
         Self::new()
@@ -95,7 +95,7 @@ where
 
 #[cfg(not(feature = "fusion"))]
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     type Handle = CubeTensor<R>;
 

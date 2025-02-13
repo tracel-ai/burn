@@ -2,19 +2,19 @@
 
 extern crate alloc;
 
-use burn_jit::JitBackend;
+use burn_jit::CubeBackend;
 pub use cubecl::cuda::CudaDevice;
 use cubecl::cuda::CudaRuntime;
 
 #[cfg(not(feature = "fusion"))]
-pub type Cuda<F = f32, I = i32> = JitBackend<CudaRuntime, F, I, u8>;
+pub type Cuda<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
 
 #[cfg(feature = "fusion")]
-pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<JitBackend<CudaRuntime, F, I, u8>>;
+pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F, I, u8>>;
 
 #[cfg(test)]
 mod tests {
-    use burn_jit::JitBackend;
+    use burn_jit::CubeBackend;
 
     pub type TestRuntime = cubecl::cuda::CudaRuntime;
     pub use half::f16;

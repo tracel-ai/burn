@@ -11,7 +11,7 @@ use burn_jit::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,
-    BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
+    BoolElement, FloatElement, IntElement, CubeBackend, JitRuntime,
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};
@@ -471,7 +471,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
 ) -> Result<
     (
         CubeTensor<R>,
-        ConnectedStatsPrimitive<JitBackend<R, F, I, BT>>,
+        ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>,
     ),
     String,
 > {
@@ -566,7 +566,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             )
         };
         if stats_opt.compact_labels {
-            let max_label = JitBackend::<R, F, I, BT>::int_max(stats.max_label);
+            let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
             let max_label = into_data_sync::<R, I>(max_label).convert::<u32>();
             let max_label = max_label.as_slice::<u32>().unwrap()[0] as usize;
             let sliced = kernel::slice::<R, I>(

@@ -4,7 +4,7 @@ use super::Backend;
 use burn::{
     backend::wgpu::{
         build_info, into_contiguous, kernel_source, BoolElement, FloatElement, IntElement,
-        JitBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        CubeBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -42,7 +42,7 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for JitBackend<WgpuRuntime, F, I, BT>
+    for CubeBackend<WgpuRuntime, F, I, BT>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,

@@ -100,8 +100,8 @@ macro_rules! testgen_jit {
         pub use super::*;
         use burn_jit::tests::{burn_autodiff, burn_ndarray, burn_tensor, serial_test};
 
-        pub type TestBackend = JitBackend<TestRuntime, f32, i32, u32>;
-        pub type TestBackend2<F, I, B> = JitBackend<TestRuntime, F, I, B>;
+        pub type TestBackend = CubeBackend<TestRuntime, f32, i32, u32>;
+        pub type TestBackend2<F, I, B> = CubeBackend<TestRuntime, F, I, B>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
@@ -140,8 +140,8 @@ macro_rules! testgen_jit_fusion {
         use super::*;
         use burn_jit::tests::{burn_autodiff, burn_fusion, burn_ndarray, burn_tensor};
 
-        pub type TestBackend = burn_fusion::Fusion<JitBackend<TestRuntime, f32, i32, u32>>;
-        pub type TestBackend2<F, I, B> = burn_fusion::Fusion<JitBackend<TestRuntime, F, I, B>>;
+        pub type TestBackend = burn_fusion::Fusion<CubeBackend<TestRuntime, f32, i32, u32>>;
+        pub type TestBackend2<F, I, B> = burn_fusion::Fusion<CubeBackend<TestRuntime, F, I, B>>;
         pub type ReferenceBackend = burn_ndarray::NdArray<f32>;
 
         pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;

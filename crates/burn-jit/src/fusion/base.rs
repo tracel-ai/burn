@@ -3,7 +3,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
-use crate::{kernel, tensor::CubeTensor, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{kernel, tensor::CubeTensor, FloatElement, IntElement, CubeBackend, JitRuntime};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
@@ -74,7 +74,7 @@ where
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     type Handle = JitFusionHandle<R>;
 
@@ -145,11 +145,11 @@ pub struct FusionJitRuntime<R: JitRuntime, BT: BoolElement> {
 }
 
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     type FusionRuntime = FusionJitRuntime<R, BT>;
 
-    type FullPrecisionBackend = JitBackend<R, f32, i32, BT>;
+    type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 
     fn cast_float(
         tensor: burn_tensor::ops::FloatTensor<Self>,

@@ -4,13 +4,13 @@ use super::Backend;
 use burn::tensor::Shape;
 use burn_jit::{
     element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, FloatElement, IntElement,
-    JitBackend, JitRuntime,
+    CubeBackend, JitRuntime,
 };
 use cubecl::{CubeCount, CubeDim};
 
-/// Implement our custom backend trait for the generic `JitBackend`.
+/// Implement our custom backend trait for the generic `CubeBackend`.
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for JitBackend<R, F, I, BT>
+    for CubeBackend<R, F, I, BT>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,

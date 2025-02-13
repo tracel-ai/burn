@@ -200,7 +200,7 @@ the raw `WgpuBackend` type.
 
 ```rust, ignore
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
-impl<F: FloatElement, I: IntElement> Backend for JitBackend<WgpuRuntime, F, I> {
+impl<F: FloatElement, I: IntElement> Backend for CubeBackend<WgpuRuntime, F, I> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,

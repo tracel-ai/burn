@@ -9,7 +9,7 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use crate::{kernel, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{kernel, FloatElement, IntElement, CubeBackend, JitRuntime};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_tensor::DType;
 use burn_tensor::{ops::IntTensorOps, Distribution, ElementConversion, Shape, TensorData};
@@ -17,7 +17,7 @@ use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use std::ops::Range;
 
-impl<R, F, I, BT> IntTensorOps<Self> for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
     R: JitRuntime,
     F: FloatElement,

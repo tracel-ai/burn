@@ -131,8 +131,8 @@ kernel. We'll go into implementing our custom backend trait for the generic JIT 
 automatically implements the trait for `burn-cuda`, `burn-wgpu` as well as fusion.
 
 ```rust, ignore
-/// Implement our custom backend trait for the generic `JitBackend`.
-impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F, I> {
+/// Implement our custom backend trait for the generic `CubeBackend`.
+impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for CubeBackend<R, F, I> {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
         rhs: FloatTensor<Self>,
@@ -363,7 +363,7 @@ The only remaining part is to implement our autodiff-decorated backend trait for
 
 ```rust, ignore
 impl<R: JitRuntime, F: FloatElement, I: IntElement> AutodiffBackend
-    for Autodiff<JitBackend<R, F, I>>
+    for Autodiff<CubeBackend<R, F, I>>
 {
 }
 ```
