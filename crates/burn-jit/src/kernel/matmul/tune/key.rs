@@ -1,4 +1,4 @@
-use crate::{tensor::CubeTensor, FloatElement, JitAutotuneKey, CubeRuntime};
+use crate::{tensor::CubeTensor, FloatElement, CubeAutotuneKey, CubeRuntime};
 use burn_tensor::{DType, Shape};
 use core::fmt::Debug;
 use cubecl::AutotuneKey;
@@ -51,8 +51,8 @@ pub(crate) fn create_key<R: CubeRuntime, E: FloatElement>(
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
     _out: &CubeTensor<R>,
-) -> JitAutotuneKey {
-    JitAutotuneKey::Matmul(MatmulAutotuneKey::from_shape(
+) -> CubeAutotuneKey {
+    CubeAutotuneKey::Matmul(MatmulAutotuneKey::from_shape(
         &lhs.shape,
         &rhs.shape,
         E::dtype(),

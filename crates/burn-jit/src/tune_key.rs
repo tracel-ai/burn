@@ -9,7 +9,7 @@ use std::fmt::Display;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 /// Key for all autotune-enabled operations
-pub enum JitAutotuneKey {
+pub enum CubeAutotuneKey {
     /// Key for matmul operation
     Matmul(MatmulAutotuneKey),
     /// Key for reduce dim operations
@@ -22,16 +22,16 @@ pub enum JitAutotuneKey {
     ConvTranspose2d(ConvTranspose2dAutotuneKey),
 }
 
-impl Display for JitAutotuneKey {
+impl Display for CubeAutotuneKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            JitAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
-            JitAutotuneKey::Reduce(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
-            JitAutotuneKey::Sum(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
-            JitAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
-            JitAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
+            CubeAutotuneKey::Matmul(matmul_key) => std::fmt::Display::fmt(&matmul_key, f),
+            CubeAutotuneKey::Reduce(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            CubeAutotuneKey::Sum(reduce_key) => std::fmt::Display::fmt(&reduce_key, f),
+            CubeAutotuneKey::Conv2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
+            CubeAutotuneKey::ConvTranspose2d(conv2d_key) => std::fmt::Display::fmt(&conv2d_key, f),
         }
     }
 }
 
-impl AutotuneKey for JitAutotuneKey {}
+impl AutotuneKey for CubeAutotuneKey {}

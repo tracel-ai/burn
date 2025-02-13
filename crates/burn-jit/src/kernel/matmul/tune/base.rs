@@ -9,14 +9,14 @@ use crate::{
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
     tensor::CubeTensor,
-    tune_key::JitAutotuneKey,
+    tune_key::CubeAutotuneKey,
     CubeRuntime, CubeTuneId,
 };
 
 use super::key::create_key;
 
 fn matmul_input_gen<R: CubeRuntime, E: FloatElement>(
-    _key: &JitAutotuneKey,
+    _key: &CubeAutotuneKey,
     lhs: &CubeTensor<R>,
     rhs: &CubeTensor<R>,
     out: &CubeTensor<R>,
@@ -40,7 +40,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     let client = lhs.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
-    JitAutotuneKey, CubeElement, CubeRuntime, CubeTuneId,
+    CubeAutotuneKey, CubeElement, CubeRuntime, CubeTuneId,
 };
 
 /// Executes autotune on reduce operations.
@@ -27,7 +27,7 @@ pub fn autotune_reduce<
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<Run>, reduce_input_gen::<Run, In, Out>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
@@ -87,8 +87,8 @@ pub(crate) fn create_key<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     _output: &CubeTensor<Run>,
     dim: &usize,
-) -> JitAutotuneKey {
-    JitAutotuneKey::Reduce(ReduceAutotuneKey::generate(input, *dim))
+) -> CubeAutotuneKey {
+    CubeAutotuneKey::Reduce(ReduceAutotuneKey::generate(input, *dim))
 }
 
 mod reduce_ops {
@@ -97,7 +97,7 @@ mod reduce_ops {
     use super::*;
 
     pub(crate) fn reduce_input_gen<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
-        _key: &JitAutotuneKey,
+        _key: &CubeAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
         dim: &usize,
@@ -215,7 +215,7 @@ pub fn autotune_sum<Run: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<Run> {
     use sum_ops::*;
 
-    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key_sum::<Run>, sum_input_gen::<Run, E>)
         .with_tunable(sum_one_shot::<Run, E, 1>)
@@ -235,8 +235,8 @@ pub fn autotune_sum<Run: CubeRuntime, E: CubeElement>(
     )
 }
 
-pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> JitAutotuneKey {
-    JitAutotuneKey::Sum(SumAutotuneKey::generate(input))
+pub(crate) fn create_key_sum<Run: CubeRuntime>(input: &CubeTensor<Run>) -> CubeAutotuneKey {
+    CubeAutotuneKey::Sum(SumAutotuneKey::generate(input))
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
@@ -262,7 +262,7 @@ mod sum_ops {
     use super::*;
 
     pub(crate) fn sum_input_gen<Run: CubeRuntime, E: CubeElement>(
-        _key: &JitAutotuneKey,
+        _key: &CubeAutotuneKey,
         input: &CubeTensor<Run>,
     ) -> CubeTensor<Run> {
         let random_bounds: (E, E) = ((-10.0_f32).elem::<E>(), (10.0_f32).elem::<E>());

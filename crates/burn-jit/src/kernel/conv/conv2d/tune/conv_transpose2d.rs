@@ -7,7 +7,7 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, JitAutotuneKey, CubeRuntime, CubeTuneId,
+    FloatElement, CubeAutotuneKey, CubeRuntime, CubeTuneId,
 };
 
 use super::ConvTranspose2dAutotuneKey;
@@ -21,7 +21,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_set = TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
         .with_tunable(conv_transpose2d_direct::<R, E>)
@@ -36,7 +36,7 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
 }
 
 pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
-    key: &JitAutotuneKey,
+    key: &CubeAutotuneKey,
     input: &CubeTensor<R>,
     _weights: &CubeTensor<R>,
     _bias: &Option<CubeTensor<R>>,
@@ -48,7 +48,7 @@ pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
     ConvTransposeOptions<2>,
 ) {
     let key = match key {
-        JitAutotuneKey::ConvTranspose2d(key) => key,
+        CubeAutotuneKey::ConvTranspose2d(key) => key,
         _ => unreachable!(),
     };
     let device = &input.device;
@@ -72,7 +72,7 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,
     options: &ConvTransposeOptions<2>,
-) -> JitAutotuneKey {
+) -> CubeAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
     let ConvTransposeOptions {
@@ -82,7 +82,7 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
         groups,
         padding_out,
     } = options.clone();
-    JitAutotuneKey::ConvTranspose2d(ConvTranspose2dAutotuneKey::new(
+    CubeAutotuneKey::ConvTranspose2d(ConvTranspose2dAutotuneKey::new(
         [kernel_h, kernel_w],
         stride,
         padding,

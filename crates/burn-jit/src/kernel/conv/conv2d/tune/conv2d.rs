@@ -11,7 +11,7 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, JitAutotuneKey, CubeRuntime, CubeTuneId,
+    FloatElement, CubeAutotuneKey, CubeRuntime, CubeTuneId,
 };
 
 /// Executes autotune on conv2d operations
@@ -23,7 +23,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
         .with_tunable(conv2d_direct::<R, E>)
@@ -41,7 +41,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
 }
 
 pub fn create_conv2d_input<R: CubeRuntime, E: FloatElement>(
-    key: &JitAutotuneKey,
+    key: &CubeAutotuneKey,
     input: &CubeTensor<R>,
     _weights: &CubeTensor<R>,
     _bias: &Option<CubeTensor<R>>,
@@ -54,7 +54,7 @@ pub fn create_conv2d_input<R: CubeRuntime, E: FloatElement>(
 ) {
     let device = &input.device;
     let key = match key {
-        JitAutotuneKey::Conv2d(key) => key,
+        CubeAutotuneKey::Conv2d(key) => key,
         _ => unreachable!(),
     };
 
@@ -78,7 +78,7 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
     weights: &CubeTensor<R>,
     bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<2>,
-) -> JitAutotuneKey {
+) -> CubeAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
     let ConvOptions {
@@ -87,7 +87,7 @@ fn create_key<R: CubeRuntime, E: FloatElement>(
         dilation,
         groups,
     } = options.clone();
-    JitAutotuneKey::Conv2d(Conv2dAutotuneKey::new(
+    CubeAutotuneKey::Conv2d(Conv2dAutotuneKey::new(
         [kernel_h, kernel_w],
         stride,
         padding,

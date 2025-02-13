@@ -30,7 +30,7 @@ pub use backend::*;
 pub use cubecl;
 
 mod tune_key;
-pub use tune_key::JitAutotuneKey;
+pub use tune_key::CubeAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
 /// Module for interacting with fusion
@@ -47,7 +47,7 @@ pub mod tests;
 pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeServer> {
     /// The device that should also implement [burn_tensor::backend::DeviceOps].
     type CubeDevice: burn_tensor::backend::DeviceOps;
-    /// The cube server with the [JitAutotuneKey].
+    /// The cube server with the [CubeAutotuneKey].
     type CubeServer: cubecl::server::ComputeServer<
         Kernel = Box<dyn CubeTask<Self::Compiler>>,
         Feature = Feature,
