@@ -21,19 +21,10 @@ pub struct SplitNode {
 
 impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
     fn output_types(&self) -> Vec<Type> {
-        let tensor = &self.outputs[0];
-        let dims = tensor.dim;
-
-        let dims_literal = proc_macro2::Literal::usize_unsuffixed(dims);
-
-        let vec_tensor_type = quote! {Vec<Tensor<B, #dims_literal>>};
-
-        let other_type = OtherType {
-            name: syn::Ident::new("split_tensors", proc_macro2::Span::call_site()),
-            ty: vec_tensor_type,
-        };
-
-        vec![Type::Other(other_type)]
+        self.outputs
+            .iter()
+            .map(|t| Type::Tensor(t.clone()))
+            .collect()
     }
 
     fn input_types(&self) -> Vec<Type> {
@@ -43,18 +34,30 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let input = scope.tensor_use_owned(&self.input, node_position);
         let axis = self.config.axis.to_tokens();
+
         let split_tensors = syn::Ident::new("split_tensors", proc_macro2::Span::call_site());
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|t| t.name.clone())
+            .collect::<Vec<_>>();
+
+        let unpack_outputs = quote! {
+            let [#(#outputs),*] = split_tensors.try_into().unwrap();
+        };
 
         let split_code = if let Some(split_sizes) = &self.config.split_sizes {
             let split_sizes_tokens = split_sizes.to_tokens();
             quote! {
-                let #split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
+                let mut split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
+                #unpack_outputs
             }
         } else {
             let num_outputs = self.config.num_outputs.unwrap();
             let num_outputs_tokens = num_outputs.to_tokens();
             quote! {
-                let #split_tensors = #input.split(#num_outputs_tokens, #axis);
+                let mut split_tensors = #input.split(#num_outputs_tokens, #axis);
+                #unpack_outputs
             }
         };
 
@@ -96,7 +99,7 @@ mod tests {
 
         graph.register_input_output(
             vec!["tensor1".to_string()],
-            vec!["split_tensors".to_string()],
+            vec!["tensor2".to_string(), "tensor3".to_string()],
         );
 
         let expected = quote! {
@@ -124,10 +127,11 @@ mod tests {
                 pub fn forward(
                     &self,
                     tensor1: Tensor<B, 2>,
-                ) -> Vec<Tensor<B, 2>> {
+                ) -> (Tensor<B, 2>, Tensor<B, 2>) {
                     let split_tensors = tensor1.split(2, 0);
 
-                    split_tensors
+                    let [tensor2, tensor3] = split_tensors.try_into().unwrap();
+                        (tensor2, tensor3)
                 }
             }
         };
