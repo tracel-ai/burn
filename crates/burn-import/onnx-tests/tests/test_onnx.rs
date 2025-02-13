@@ -2244,6 +2244,7 @@ mod tests {
             .assert_eq(&expected_indices_tensor, true);
     }
 
+    #[test]
     fn one_hot() {
         // Test for OneHot model
 
