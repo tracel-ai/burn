@@ -637,11 +637,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-cubecl"
+version = "0.17.0"
+dependencies = [
+ "burn-autodiff",
+ "burn-common",
+ "burn-fusion",
+ "burn-ir",
+ "burn-ndarray",
+ "burn-tensor",
+ "burn-tensor-testgen",
+ "bytemuck",
+ "cubecl",
+ "derive-new 0.7.0",
+ "futures-lite",
+ "half",
+ "hashbrown 0.15.2",
+ "log",
+ "num-traits",
+ "paste",
+ "rand 0.9.0",
+ "serde",
+ "serial_test",
+ "spin",
+ "text_placeholder",
+]
+
+[[package]]
 name = "burn-cuda"
 version = "0.17.0"
 dependencies = [
+ "burn-cubecl",
  "burn-fusion",
- "burn-jit",
  "burn-tensor",
  "bytemuck",
  "cubecl",
@@ -712,8 +739,8 @@ dependencies = [
 name = "burn-hip"
 version = "0.17.0"
 dependencies = [
+ "burn-cubecl",
  "burn-fusion",
- "burn-jit",
  "burn-tensor",
  "bytemuck",
  "cubecl",
@@ -757,33 +784,6 @@ dependencies = [
  "hashbrown 0.15.2",
  "portable-atomic-util",
  "serde",
-]
-
-[[package]]
-name = "burn-jit"
-version = "0.17.0"
-dependencies = [
- "burn-autodiff",
- "burn-common",
- "burn-fusion",
- "burn-ir",
- "burn-ndarray",
- "burn-tensor",
- "burn-tensor-testgen",
- "bytemuck",
- "cubecl",
- "derive-new 0.7.0",
- "futures-lite",
- "half",
- "hashbrown 0.15.2",
- "log",
- "num-traits",
- "paste",
- "rand 0.9.0",
- "serde",
- "serial_test",
- "spin",
- "text_placeholder",
 ]
 
 [[package]]
@@ -919,10 +919,10 @@ name = "burn-vision"
 version = "0.17.0"
 dependencies = [
  "burn-candle",
+ "burn-cubecl",
  "burn-cuda",
  "burn-fusion",
  "burn-ir",
- "burn-jit",
  "burn-ndarray",
  "burn-tch",
  "burn-tensor",
@@ -938,8 +938,8 @@ dependencies = [
 name = "burn-wgpu"
 version = "0.17.0"
 dependencies = [
+ "burn-cubecl",
  "burn-fusion",
- "burn-jit",
  "burn-tensor",
  "cubecl",
  "half",
@@ -1498,9 +1498,9 @@ dependencies = [
 
 [[package]]
 name = "csv-core"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5efa2b3d7902f4b634a20cae3c9c4e6209dc4779feb6863329607560143efa70"
+checksum = "7d02f3b0da4c6504f86e9cd789d8dbafab48c2321be74e9987593de5a894d93d"
 dependencies = [
  "memchr",
 ]
@@ -1794,7 +1794,7 @@ name = "custom-cubecl-kernel"
 version = "0.17.0"
 dependencies = [
  "burn",
- "burn-jit",
+ "burn-cubecl",
  "bytemuck",
  "cubecl",
  "derive-new 0.7.0",
@@ -5424,16 +5424,16 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52cd4b1eff68bf27940dd39811292c49e007f4d0b4c357358dc9b0197be6b527"
+checksum = "1c40286217b4ba3a71d644d752e6a0b71f13f1b6a2c5311acfcbe0c2418ed904"
 dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

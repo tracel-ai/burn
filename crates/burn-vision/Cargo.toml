@@ -17,23 +17,23 @@ version.workspace = true
 
 [features]
 candle = ["burn-candle"]
-default = ["ndarray", "jit-backend", "fusion"]
+default = ["ndarray", "cubecl-backend", "fusion"]
 export-tests = ["burn-tensor-testgen"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
-jit-backend = ["cubecl", "burn-jit"]
+cubecl-backend = ["cubecl", "burn-cubecl"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
 
 # Test features
 test-cpu = ["export-tests"]
-test-cuda = ["jit-backend", "export-tests"]
-test-vulkan = ["burn-wgpu/vulkan", "jit-backend", "export-tests"]
-test-wgpu = ["jit-backend", "export-tests"]
+test-cuda = ["cubecl-backend", "export-tests"]
+test-vulkan = ["burn-wgpu/vulkan", "cubecl-backend", "export-tests"]
+test-wgpu = ["cubecl-backend", "export-tests"]
 
 [dependencies]
 burn-candle = { path = "../burn-candle", version = "0.17.0", optional = true }
 burn-fusion = { path = "../burn-fusion", version = "0.17.0", optional = true }
-burn-jit = { path = "../burn-jit", version = "0.17.0", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "0.17.0", optional = true }
 burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0" }

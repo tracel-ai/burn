@@ -574,9 +574,9 @@ pub enum BoolOperationIr {
     IntoInt(UnaryOpIr),
     /// Operation corresponding to [not](burn_tensor::ops::BoolTensorOps::bool_not).
     Not(UnaryOpIr),
-    /// Operation corresponding to [and](crate::ops::BoolTensorOps::bool_and).
+    /// Operation corresponding to [and](burn_tensor::ops::BoolTensorOps::bool_and).
     And(BinaryOpIr),
-    /// Operation corresponding to [or](crate::ops::BoolTensorOps::bool_or).
+    /// Operation corresponding to [or](burn_tensor::ops::BoolTensorOps::bool_or).
     Or(BinaryOpIr),
 }
 
