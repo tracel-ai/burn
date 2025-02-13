@@ -114,6 +114,7 @@ impl<B: Backend> Metric for PrecisionMetric<B> {
     }
 
     fn name(&self) -> String {
+        // "Precision @ Threshold(0.5) [Macro]"
         format!(
             "{} @ {:?} [{:?}]",
             Self::NAME,
