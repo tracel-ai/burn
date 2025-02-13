@@ -192,18 +192,18 @@ The way `cubecl` handles tensor-scalar operations is by transforming both into a
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
 the existing implementation for the situation where both sides of the operation were tensors. The
 `cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
-The actual implementation is defined in `burn-jit`.
+The actual implementation is defined in `burn-cubecl`.
 
-Here is where code was added for powf in `burn-jit` and `cubecl`:
+Here is where code was added for powf in `burn-cubecl` and `cubecl`:
 
 1. to the implementation of
-   [`FloatTensorOps` under `crates/burn-jit/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/float_ops.rs#L410)
+   [`FloatTensorOps` under `crates/burn-cubecl/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/float_ops.rs#L410)
 2. the function being called was added to
-   [crates/burn-jit/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/ops/numeric.rs#L147)
+   [crates/burn-cubecl/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/numeric.rs#L147)
 3. the operator was defined in
    [`cubecl-core/src/ir/operation.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-core/src/ir/operation.rs#L68)
 4. how the operation looks to the gpu was added to
-   [`crates/burn-jit/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-jit/src/fusion/on_write/ir.rs#L52)
+   [`crates/burn-cubecl/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/fusion/on_write/ir.rs#L52)
 5. the mappings between the gpu operation and the CPP, WGSL and SPIR-V instructions were added to
    [`cubecl-cpp/src/shared/base.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/base.rs#L456),
    [`cubecl-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L652)

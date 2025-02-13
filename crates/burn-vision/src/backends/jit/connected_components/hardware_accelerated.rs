@@ -7,7 +7,7 @@ use crate::{
     backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
     ConnectedStatsPrimitive, Connectivity,
 };
-use burn_jit::{
+use burn_cubecl::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
     tensor::CubeTensor,

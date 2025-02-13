@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(normal)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::prng::tests_utils::calculate_bin_stats;
+    use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use burn_tensor::{backend::Backend, Distribution, Shape, Tensor, TensorData};
     use serial_test::serial;
 

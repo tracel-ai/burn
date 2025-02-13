@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use burn_jit::CubeBackend;
+use burn_cubecl::CubeBackend;
 pub use cubecl::cuda::CudaDevice;
 use cubecl::cuda::CudaRuntime;
 
@@ -14,11 +14,11 @@ pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F
 
 #[cfg(test)]
 mod tests {
-    use burn_jit::CubeBackend;
+    use burn_cubecl::CubeBackend;
 
     pub type TestRuntime = cubecl::cuda::CudaRuntime;
     pub use half::f16;
 
     // TODO: Add tests for bf16
-    burn_jit::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
+    burn_cubecl::testgen_all!([f16, f32], [i8, i16, i32, i64], [u8, u32]);
 }

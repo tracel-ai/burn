@@ -2,13 +2,13 @@
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
 description = "Generic backend that can be compiled just-in-time to any shader language target"
-documentation = "https://docs.rs/burn-jit"
+documentation = "https://docs.rs/burn-cubecl"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu"]
 license.workspace = true
-name = "burn-jit"
+name = "burn-cubecl"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-jit"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cubecl"
 version.workspace = true
 
 [features]

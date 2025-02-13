@@ -5,7 +5,7 @@ mod tests {
 
     use burn_tensor::{backend::Backend, ops::IntTensorOps, Distribution, Int, Shape, Tensor};
 
-    use burn_jit::kernel::prng::tests_utils::calculate_bin_stats;
+    use burn_cubecl::kernel::prng::tests_utils::calculate_bin_stats;
     use serial_test::serial;
 
     #[test]

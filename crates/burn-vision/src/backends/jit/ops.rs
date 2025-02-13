@@ -1,11 +1,11 @@
 use crate::{
     backends::cpu, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, VisionOps,
 };
+use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 #[cfg(feature = "fusion")]
 use burn_fusion::{client::FusionClient, stream::Operation, Fusion, FusionBackend, FusionRuntime};
 #[cfg(feature = "fusion")]
 use burn_ir::{CustomOpIr, HandleContainer, OperationIr};
-use burn_jit::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 use burn_tensor::{
     ops::{BoolTensor, IntTensor},
     Element,

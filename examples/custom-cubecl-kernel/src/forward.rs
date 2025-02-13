@@ -2,7 +2,7 @@ use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
 
 use super::Backend;
 use burn::tensor::Shape;
-use burn_jit::{
+use burn_cubecl::{
     element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, CubeBackend, CubeRuntime,
     FloatElement, IntElement,
 };

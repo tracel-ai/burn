@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(matmul)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::matmul::{matmul, MatmulStrategy};
+    use burn_cubecl::kernel::matmul::{matmul, MatmulStrategy};
     use burn_tensor::{Shape, Tensor, TensorPrimitive};
 
     mod simple {
@@ -112,7 +112,7 @@ mod tests {
 
     mod padding {
         use super::*;
-        use burn_jit::kernel::matmul::padding::{crop, pad_round};
+        use burn_cubecl::kernel::matmul::padding::{crop, pad_round};
         use burn_tensor::backend::Backend;
 
         fn padding_already_round_should_have_same_shape() {

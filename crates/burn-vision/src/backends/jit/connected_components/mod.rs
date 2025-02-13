@@ -4,7 +4,7 @@ mod hardware_accelerated;
 /// to really use it in a general case. Needs more work to use as a normal tensor method.
 mod prefix_sum;
 
-use burn_jit::{
+use burn_cubecl::{
     ops::numeric::{full_device, zeros_device},
     tensor::CubeTensor,
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,

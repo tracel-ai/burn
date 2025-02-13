@@ -12,13 +12,13 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-wgpu"
 version.workspace = true
 
 [features]
-autotune = ["burn-jit/autotune"]
-default = ["std", "autotune", "fusion", "burn-jit/default", "cubecl/default"]
-doc = ["burn-jit/doc"]
+autotune = ["burn-cubecl/autotune"]
+default = ["std", "autotune", "fusion", "burn-cubecl/default", "cubecl/default"]
+doc = ["burn-cubecl/doc"]
 exclusive-memory-only = ["cubecl/exclusive-memory-only"]
-fusion = ["burn-fusion", "burn-jit/fusion"]
-std = ["burn-jit/std", "cubecl/std"]
-template = ["burn-jit/template", "cubecl/template"]
+fusion = ["burn-fusion", "burn-cubecl/fusion"]
+std = ["burn-cubecl/std", "cubecl/std"]
+template = ["burn-cubecl/template", "cubecl/template"]
 
 # Backends
 vulkan = ["cubecl-spirv"]
@@ -32,14 +32,14 @@ cubecl-wgsl = []
 cubecl = { workspace = true, features = ["wgpu"] }
 
 burn-fusion = { path = "../burn-fusion", version = "0.17.0", optional = true }
-burn-jit = { path = "../burn-jit", version = "0.17.0", default-features = false }
+burn-cubecl = { path = "../burn-cubecl", version = "0.17.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
     "cubecl-wgpu",
 ] }
 
 
 [dev-dependencies]
-burn-jit = { path = "../burn-jit", version = "0.17.0", default-features = false, features = [
+burn-cubecl = { path = "../burn-cubecl", version = "0.17.0", default-features = false, features = [
     "export_tests",
 ] }
 half = { workspace = true }

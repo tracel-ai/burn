@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(conv2d)]
 mod tests {
     use super::*;
-    use burn_jit::{
+    use burn_cubecl::{
         kernel::{conv::nchw_to_nhwc, into_contiguous},
         tests::into_data_sync,
     };

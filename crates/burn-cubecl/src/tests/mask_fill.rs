@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(mask_fill)]
 mod tests {
     use super::*;
-    use burn_jit::kernel::{mask_fill, MaskFillStrategy};
+    use burn_cubecl::kernel::{mask_fill, MaskFillStrategy};
     use burn_tensor::{backend::Backend, Bool, Distribution, Tensor, TensorPrimitive};
 
     #[test]
