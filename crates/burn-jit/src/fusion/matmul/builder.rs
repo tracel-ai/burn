@@ -4,7 +4,7 @@ use burn_ir::{FloatOperationIr, OperationIr};
 use crate::{
     fusion::{
         on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
-        JitOptimization,
+        CubeOptimization,
     },
     CubeRuntime,
 };
@@ -40,7 +40,7 @@ impl<R: CubeRuntime> MatmulBuilder<R> {
     }
 }
 
-impl<R: CubeRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R> {
+impl<R: CubeRuntime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
     fn register(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
@@ -74,7 +74,7 @@ impl<R: CubeRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R
         }
     }
 
-    fn build(&self) -> JitOptimization<R> {
+    fn build(&self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.builder.build();
         let trace_fallback = self.builder_fallback.build();
@@ -88,7 +88,7 @@ impl<R: CubeRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R
             self.matmul.as_ref().unwrap().clone(),
         );
 
-        JitOptimization::Matmul(matmul)
+        CubeOptimization::Matmul(matmul)
     }
 
     fn reset(&mut self) {

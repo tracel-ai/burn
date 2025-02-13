@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for JIT.
 ///
 /// More optimization variants should be added here.
-pub enum JitOptimization<R: CubeRuntime> {
+pub enum CubeOptimization<R: CubeRuntime> {
     /// Element wise optimization.
     ElementWise(ElemwiseOptimization<R>),
     /// Matrix multiplication optimization.
@@ -28,14 +28,14 @@ pub enum JitOptimization<R: CubeRuntime> {
 ///
 /// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
-pub enum JitOptimizationState {
+pub enum CubeOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
     /// Matrix multiplication optimization state.
     Matmul(MatmulOptimizationState),
 }
 
-impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for JitOptimization<R>
+impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
 where
     R: CubeRuntime,
     BT: BoolElement,
@@ -54,19 +54,19 @@ where
         }
     }
 
-    fn to_state(&self) -> JitOptimizationState {
+    fn to_state(&self) -> CubeOptimizationState {
         match self {
-            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
-            Self::Matmul(value) => JitOptimizationState::Matmul(value.to_state()),
+            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
+            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
         }
     }
 
-    fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
+    fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
         match state {
-            JitOptimizationState::ElementWise(state) => {
+            CubeOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElemwiseOptimization::from_state(device, state))
             }
-            JitOptimizationState::Matmul(state) => {
+            CubeOptimizationState::Matmul(state) => {
                 Self::Matmul(MatmulOptimization::from_state(device, state))
             }
         }
@@ -114,8 +114,8 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
 }
 
 impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT> {
-    type OptimizationState = JitOptimizationState;
-    type Optimization = JitOptimization<R>;
+    type OptimizationState = CubeOptimizationState;
+    type Optimization = CubeOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
     type FusionClient = MutexFusionClient<Self>;
