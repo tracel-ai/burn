@@ -394,6 +394,78 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         out
     }
 
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new)]
+        struct AndOps<B: FusionBackend> {
+            desc: BinaryOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for AndOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_bool_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_bool_tensor::<B>(&self.desc.rhs);
+                let output = B::bool_and(lhs, rhs);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationIr::Bool(BoolOperationIr::And(desc.clone())),
+            AndOps::<B>::new(desc),
+        );
+
+        out
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        #[derive(new)]
+        struct OrOps<B: FusionBackend> {
+            desc: BinaryOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for OrOps<B> {
+            fn execute(self: Box<Self>, handles: &mut HandleContainer<B::Handle>) {
+                let lhs = handles.get_bool_tensor::<B>(&self.desc.lhs);
+                let rhs = handles.get_bool_tensor::<B>(&self.desc.rhs);
+                let output = B::bool_or(lhs, rhs);
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let stream_1 = lhs.stream;
+        let stream_2 = rhs.stream;
+        let out = lhs
+            .client
+            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+        out.client.register(
+            vec![stream_1, stream_2],
+            OperationIr::Bool(BoolOperationIr::Or(desc.clone())),
+            OrOps::<B>::new(desc),
+        );
+
+        out
+    }
+
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         #[derive(new)]
         struct SwapDimsOps<B: FusionBackend> {

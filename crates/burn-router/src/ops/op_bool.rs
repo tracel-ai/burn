@@ -165,6 +165,36 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         out
     }
 
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Bool(BoolOperationIr::And(desc)));
+
+        out
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        let client = lhs.client.clone();
+        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+
+        let desc = BinaryOpIr {
+            lhs: lhs.into_ir(),
+            rhs: rhs.into_ir(),
+            out: out.to_ir_out(),
+        };
+
+        client.register(OperationIr::Bool(BoolOperationIr::Or(desc)));
+
+        out
+    }
+
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
         let client = tensor.client.clone();
         let mut shape = tensor.shape.clone();

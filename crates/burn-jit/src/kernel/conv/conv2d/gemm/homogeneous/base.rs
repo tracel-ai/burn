@@ -207,6 +207,7 @@ where
             cube_dim,
             cube_count,
             advanced_config,
+            false,
         );
         let size = SMM::stage_shape(&smm_config);
 

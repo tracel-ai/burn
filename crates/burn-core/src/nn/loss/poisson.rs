@@ -211,6 +211,8 @@ impl PoissonNllLoss {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::approx_constant)]
+
     use super::*;
     use crate::tensor::TensorData;
     use crate::TestBackend;

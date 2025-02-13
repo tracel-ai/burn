@@ -9,7 +9,7 @@ use core::future::Future;
 
 use super::{RouterTensor, RunnerClient};
 use crate::{
-    binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
+    binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
     scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_dim_ops, scalar_float_ops,
     scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
@@ -778,6 +778,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
                     let output = B::bool_not(tensor);
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BoolOperationIr::And(desc) => {
+                    binary_bool_ops!(handles, desc, B::bool_and)
+                }
+                BoolOperationIr::Or(desc) => {
+                    binary_bool_ops!(handles, desc, B::bool_or)
                 }
             },
             OperationIr::Int(op) => match op {

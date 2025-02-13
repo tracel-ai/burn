@@ -70,6 +70,26 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
         )
     }
 
+    fn bool_and(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_and_(rhs),
+            |lhs, rhs| rhs.logical_and_(lhs),
+            |lhs, rhs| lhs.logical_and(rhs),
+        )
+    }
+
+    fn bool_or(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.logical_or_(rhs),
+            |lhs, rhs| rhs.logical_or_(lhs),
+            |lhs, rhs| lhs.logical_or(rhs),
+        )
+    }
+
     fn bool_into_int(tensor: TchTensor) -> TchTensor {
         let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
         TchTensor::new(tensor)
