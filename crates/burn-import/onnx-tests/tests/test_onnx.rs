@@ -80,6 +80,7 @@ include_models!(
     mul,
     neg,
     not,
+    one_hot,
     pad,
     pow,
     pow_int,
@@ -120,6 +121,7 @@ include_models!(
     sum_int,
     tanh,
     tile,
+    top_k_opset_1,
     trilu_upper,
     trilu_lower,
     transpose,
@@ -134,7 +136,7 @@ mod tests {
 
     use super::*;
 
-    use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
+    use burn::tensor::{cast::ToElement, Bool, Int, Shape, Tensor, TensorData};
 
     use float_cmp::ApproxEq;
 
@@ -2214,6 +2216,44 @@ mod tests {
         assert!(f_output.equal(f_expected).all().into_scalar());
         assert!(i_output.equal(i_expected).all().into_scalar());
         assert!(b_output.equal(b_expected).all().into_scalar());
+    }
+
+    #[test]
+    fn top_k_opset_1() {
+        // Initialize the model
+        let device = Default::default();
+        let model = top_k_opset_1::Model::<Backend>::new(&device);
+
+        // Run the model
+        let input = Tensor::<Backend, 2>::from_floats(
+            [[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0]],
+            &device,
+        );
+        let (values_tensor, indices_tensor) = model.forward(input);
+
+        // expected results
+        let expected_values_tensor =
+            TensorData::from([[4.0, 3.0, 2.to_f32()], [4.0, 3.0, 2.to_f32()]]);
+        let expected_indices_tensor = TensorData::from([[3i64, 2, 1], [3, 2, 1]]);
+
+        values_tensor
+            .to_data()
+            .assert_eq(&expected_values_tensor, true);
+        indices_tensor
+            .to_data()
+            .assert_eq(&expected_indices_tensor, true);
+    }
+
+    fn one_hot() {
+        // Test for OneHot model
+
+        let device = Default::default();
+        let model = one_hot::Model::<Backend>::new(&device);
+        let input: Tensor<Backend, 1, Int> = Tensor::from_ints([1, 0, 2], &device);
+        let expected: Tensor<Backend, 2, burn::prelude::Float> =
+            Tensor::from_data(TensorData::from([[0, 1, 0], [1, 0, 0], [0, 0, 1]]), &device);
+        let output: Tensor<Backend, 2, Int> = model.forward(input);
+        output.to_data().assert_approx_eq(&expected.to_data(), 3);
     }
 
     #[test]

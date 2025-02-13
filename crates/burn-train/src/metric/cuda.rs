@@ -30,14 +30,12 @@ impl<T> Adaptor<()> for T {
 }
 
 impl Metric for CudaMetric {
-    const NAME: &'static str = "CUDA Stats";
-
     type Input = ();
 
     fn update(&mut self, _item: &(), _metadata: &MetricMetadata) -> MetricEntry {
         let not_available = || {
             MetricEntry::new(
-                Self::NAME.to_string(),
+                self.name(),
                 "Unavailable".to_string(),
                 "Unavailable".to_string(),
             )
@@ -91,7 +89,7 @@ impl Metric for CudaMetric {
                 formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
             }
 
-            MetricEntry::new(Self::NAME.to_string(), formatted, raw_running)
+            MetricEntry::new(self.name(), formatted, raw_running)
         };
 
         match &self.nvml {
@@ -101,4 +99,8 @@ impl Metric for CudaMetric {
     }
 
     fn clear(&mut self) {}
+
+    fn name(&self) -> String {
+        "CUDA Stats".to_string()
+    }
 }

@@ -91,7 +91,7 @@ impl Distribution {
     {
         let kind = match self {
             Distribution::Default => {
-                DistributionSamplerKind::Standard(rand::distr::StandardUniform)
+                DistributionSamplerKind::Standard(rand::distr::StandardUniform {})
             }
             Distribution::Uniform(low, high) => DistributionSamplerKind::Uniform(
                 rand::distr::Uniform::new(low.elem::<E>(), high.elem::<E>()).unwrap(),

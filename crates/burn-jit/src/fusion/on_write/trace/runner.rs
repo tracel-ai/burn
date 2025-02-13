@@ -27,8 +27,16 @@ pub trait TraceRunner<R: JitRuntime> {
         inputs: impl Iterator<Item = &'a TensorIr>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
+        swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
     ) {
-        vectorization_default(vectorizations, handles_inputs, inputs, outputs, reshaped)
+        vectorization_default(
+            vectorizations,
+            handles_inputs,
+            inputs,
+            outputs,
+            reshaped,
+            swapped,
+        )
     }
 }
 
@@ -38,11 +46,14 @@ fn vectorization_default<'a, R: JitRuntime>(
     inputs: impl Iterator<Item = &'a TensorIr>,
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
+    swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
 ) {
     enum Vect {
         Broadcated,
         Max(u8),
     }
+
+    let swapped: Vec<_> = swapped.collect();
 
     // The default version uses the last dimension as vectorization axis and assumes a
     // perpendicular contiguous line.
@@ -109,16 +120,78 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
+    let vectorization_swapped = |handle: &JitFusionHandle<R>,
+                                 swapped: &TensorIr,
+                                 original: &TensorIr,
+                                 multi_reads: bool,
+                                 dims: &(u32, u32)| {
+        let swapped_axis = swapped.shape[swapped.shape.len() - 1];
+        let shape_axis = original.shape[original.shape.len() - 1];
+
+        let last_dim_index = handle.strides.len() - 1;
+        let dim_index = if dims.0 as usize == last_dim_index {
+            dims.1 as usize
+        } else if dims.1 as usize == last_dim_index {
+            dims.0 as usize
+        } else {
+            last_dim_index
+        };
+
+        // Last dimension strides should be 1, otherwise vecX won't be contiguous.
+        if multi_reads {
+            if handle.strides[last_dim_index] != 1 {
+                return Vect::Max(1);
+            }
+            if handle.strides[dim_index] != 1 {
+                return Vect::Max(1);
+            }
+        } else if handle.strides[dim_index] != 1 {
+            return Vect::Max(1);
+        }
+
+        if !multi_reads && swapped_axis == 1 {
+            return Vect::Broadcated;
+        }
+
+        for s in R::line_size_elem(&swapped.dtype.into()) {
+            // The last dimension should be a multiple of the vector size or broadcated.
+            if multi_reads {
+                if swapped_axis % s as usize == 0 {
+                    return Vect::Max(s);
+                }
+            } else if swapped_axis % s as usize == 0 && shape_axis % s as usize == 0 {
+                return Vect::Max(s);
+            }
+        }
+
+        Vect::Max(1)
+    };
+
     let mut max_current = u8::MAX;
 
     for (handle, tensor) in handles_inputs.zip(inputs) {
-        match vectorization_input(handle, tensor) {
-            Vect::Broadcated => vectorizations.insert(tensor.id, 1),
-            Vect::Max(val) => {
-                max_current = Ord::min(val, max_current);
-                vectorizations.insert(tensor.id, 0)
+        if let Some((s, o, mr, dims)) = swapped.iter().find(|(_s, o, _mr, _dims)| o.id == tensor.id)
+        {
+            match vectorization_swapped(handle, s, o, *mr, dims) {
+                Vect::Broadcated => {
+                    vectorizations.insert(o.id, 1);
+                    vectorizations.insert(s.id, 1);
+                }
+                Vect::Max(val) => {
+                    vectorizations.insert(o.id, 0);
+                    vectorizations.insert(s.id, 0);
+                    max_current = Ord::min(val, max_current);
+                }
             }
-        };
+        } else {
+            match vectorization_input(handle, tensor) {
+                Vect::Broadcated => vectorizations.insert(tensor.id, 1),
+                Vect::Max(val) => {
+                    max_current = Ord::min(val, max_current);
+                    vectorizations.insert(tensor.id, 0)
+                }
+            };
+        }
     }
 
     for tensor in outputs {

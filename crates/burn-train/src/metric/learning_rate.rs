@@ -25,19 +25,21 @@ impl Default for LearningRateMetric {
 }
 
 impl Metric for LearningRateMetric {
-    const NAME: &'static str = "Learning Rate";
-
     type Input = ();
 
     fn update(&mut self, _item: &(), metadata: &MetricMetadata) -> MetricEntry {
         let lr = metadata.lr.unwrap_or(0.0);
 
         self.state
-            .update(lr, 1, FormatOptions::new("Learning Rate").precision(2))
+            .update(lr, 1, FormatOptions::new(self.name()).precision(2))
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "Learning Rate".to_string()
     }
 }
 

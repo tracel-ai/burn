@@ -46,8 +46,6 @@ impl Default for CpuMemory {
 }
 
 impl Metric for CpuMemory {
-    const NAME: &'static str = "CPU Memory";
-
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -62,10 +60,14 @@ impl Metric for CpuMemory {
             bytes2gb(self.ram_bytes_total),
         );
 
-        MetricEntry::new(Self::NAME.to_string(), formatted, raw.to_string())
+        MetricEntry::new(self.name(), formatted, raw.to_string())
     }
 
     fn clear(&mut self) {}
+
+    fn name(&self) -> String {
+        "CPU Memory".to_string()
+    }
 }
 
 impl Numeric for CpuMemory {

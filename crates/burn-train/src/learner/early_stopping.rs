@@ -89,6 +89,7 @@ impl MetricEarlyStoppingStrategy {
     ///
     /// The metric should be registered for early stopping to work, otherwise no data is collected.
     pub fn new<Me: Metric>(
+        metric: &Me,
         aggregate: Aggregate,
         direction: Direction,
         split: Split,
@@ -100,7 +101,7 @@ impl MetricEarlyStoppingStrategy {
         };
 
         Self {
-            metric_name: Me::NAME.to_string(),
+            metric_name: metric.name(),
             condition,
             aggregate,
             direction,
@@ -185,7 +186,9 @@ mod tests {
     }
 
     fn test_early_stopping(n_epochs: usize, data: &[(&[f64], bool, &str)]) {
-        let mut early_stopping = MetricEarlyStoppingStrategy::new::<LossMetric<TestBackend>>(
+        let loss = LossMetric::<TestBackend>::new();
+        let mut early_stopping = MetricEarlyStoppingStrategy::new(
+            &loss,
             Aggregate::Mean,
             Direction::Lowest,
             Split::Train,
@@ -195,7 +198,7 @@ mod tests {
         let mut metrics = Metrics::<f64, f64>::default();
 
         store.register_logger_train(InMemoryMetricLogger::default());
-        metrics.register_train_metric_numeric(LossMetric::<TestBackend>::new());
+        metrics.register_train_metric_numeric(loss);
 
         let store = Arc::new(EventStoreClient::new(store));
         let mut processor = MinimalEventProcessor::new(metrics, store.clone());

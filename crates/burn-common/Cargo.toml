@@ -19,7 +19,7 @@ network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 rayon = ["dep:rayon"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-getrandom = { workspace = true, features = ["js"] }
+getrandom = { workspace = true, features = ["wasm_js"] }
 web-time = { version = "1.1.0" }
 
 [dependencies]

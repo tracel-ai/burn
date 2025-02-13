@@ -121,7 +121,7 @@ represent the corresponding Burn Op.
 | [NonMaxSuppression][112]         | ❌             | ❌           |
 | [NonZero][113]                   | ❌             | ❌           |
 | [Not][114]                       | ✅             | ✅           |
-| [OneHot][115]                    | ❌             | ✅           |
+| [OneHot][115]                    | ✅             | ✅           |
 | [Optional][116]                  | ❌             | ❌           |
 | [OptionalGetElement][117]        | ❌             | ❌           |
 | [OptionalHasElement][118]        | ❌             | ❌           |
@@ -192,7 +192,7 @@ represent the corresponding Burn Op.
 | [TfIdfVectorizer][183]           | ❌             | ❌           |
 | [ThresholdedRelu][184]           | ❌             | ❌           |
 | [Tile][185]                      | ✅             | ✅           |
-| [TopK][186]                      | ❌             | ✅           |
+| [TopK][186]                      | ✅             | ✅           |
 | [Transpose][187]                 | ✅             | ✅           |
 | [Trilu][188]                     | ✅             | ✅           |
 | [Unique][189]                    | ❌             | ❌           |

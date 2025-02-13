@@ -20,11 +20,11 @@ burn-tensor = { path = "../burn-tensor", version = "0.17.0" }
 
 half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
-rand = { workspace = true, features = ["std"] }
 tch = { workspace = true, features = ["download-libtorch"] }
 log = { workspace = true }
 
 [dev-dependencies]
+rand = { workspace = true, features = ["thread_rng"] }
 burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", default-features = false, features = [
   "export_tests",
 ] }

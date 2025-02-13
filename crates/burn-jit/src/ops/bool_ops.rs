@@ -25,8 +25,10 @@ where
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<BT>().collect(), data.shape);
-        super::from_data::<R, BT>(data, device)
+        if data.dtype != BT::dtype() {
+            unimplemented!("Unsupported dtype for `bool_from_data`")
+        }
+        super::from_data::<R>(data, device)
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

@@ -45,8 +45,6 @@ impl Default for CpuUse {
 }
 
 impl Metric for CpuUse {
-    const NAME: &'static str = "CPU Usage";
-
     type Input = ();
 
     fn update(&mut self, _item: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -55,13 +53,17 @@ impl Metric for CpuUse {
             self.last_refresh = Instant::now();
         }
 
-        let formatted = format!("{}: {:.2} %", Self::NAME, self.current);
+        let formatted = format!("{}: {:.2} %", self.name(), self.current);
         let raw = format!("{:.2}", self.current);
 
-        MetricEntry::new(Self::NAME.to_string(), formatted, raw)
+        MetricEntry::new(self.name(), formatted, raw)
     }
 
     fn clear(&mut self) {}
+
+    fn name(&self) -> String {
+        "CPU Usage".to_string()
+    }
 }
 
 impl Numeric for CpuUse {

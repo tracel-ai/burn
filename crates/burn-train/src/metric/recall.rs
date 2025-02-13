@@ -92,7 +92,6 @@ impl<B: Backend> RecallMetric<B> {
 }
 
 impl<B: Backend> Metric for RecallMetric<B> {
-    const NAME: &'static str = "Recall";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -104,12 +103,20 @@ impl<B: Backend> Metric for RecallMetric<B> {
         self.state.update(
             100.0 * metric,
             sample_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "Recall @ Threshold(0.5) [Macro]"
+        format!(
+            "Recall @ {:?} [{:?}]",
+            self.config.decision_rule, self.config.class_reduction
+        )
     }
 }
 
@@ -125,7 +132,10 @@ mod tests {
         ClassReduction::{self, *},
         Metric, MetricMetadata, Numeric, RecallMetric,
     };
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use crate::{
+        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
+        TestBackend,
+    };
     use burn_core::tensor::TensorData;
     use rstest::rstest;
 
@@ -169,5 +179,19 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = RecallMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+        let metric_b = RecallMetric::<TestBackend>::multiclass(2, ClassReduction::Macro);
+        let metric_c = RecallMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
+
+        let metric_a = RecallMetric::<TestBackend>::binary(0.5);
+        let metric_b = RecallMetric::<TestBackend>::binary(0.75);
+        assert_ne!(metric_a.name(), metric_b.name());
     }
 }

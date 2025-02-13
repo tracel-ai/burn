@@ -589,7 +589,7 @@ version = "0.17.0"
 dependencies = [
  "cubecl-common",
  "dashmap",
- "getrandom 0.2.15",
+ "getrandom 0.3.1",
  "indicatif",
  "rayon",
  "reqwest",
@@ -1508,6 +1508,7 @@ dependencies = [
 [[package]]
 name = "cubecl"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "cubecl-core",
  "cubecl-cuda",
@@ -1522,13 +1523,14 @@ dependencies = [
 [[package]]
 name = "cubecl-common"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bytemuck",
  "derive-new 0.6.0",
  "derive_more 1.0.0",
  "embassy-futures",
  "futures-lite",
- "getrandom 0.2.15",
+ "getrandom 0.3.1",
  "half",
  "log",
  "num-traits",
@@ -1542,6 +1544,7 @@ dependencies = [
 [[package]]
 name = "cubecl-core"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bitflags 2.8.0",
  "bytemuck",
@@ -1562,6 +1565,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cpp"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1575,6 +1579,7 @@ dependencies = [
 [[package]]
 name = "cubecl-cuda"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1590,6 +1595,7 @@ dependencies = [
 [[package]]
 name = "cubecl-hip"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bytemuck",
  "cubecl-common",
@@ -1615,6 +1621,7 @@ dependencies = [
 [[package]]
 name = "cubecl-ir"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "cubecl-common",
  "cubecl-macros-internal",
@@ -1632,10 +1639,12 @@ dependencies = [
 [[package]]
 name = "cubecl-linalg"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bytemuck",
  "cubecl-core",
  "cubecl-runtime",
+ "cubecl-std",
  "half",
  "serde",
 ]
@@ -1643,6 +1652,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "cubecl-common",
  "darling",
@@ -1657,6 +1667,7 @@ dependencies = [
 [[package]]
 name = "cubecl-macros-internal"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -1667,6 +1678,7 @@ dependencies = [
 [[package]]
 name = "cubecl-opt"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "cubecl-common",
  "cubecl-ir",
@@ -1682,6 +1694,7 @@ dependencies = [
 [[package]]
 name = "cubecl-reduce"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "cubecl-core",
  "cubecl-runtime",
@@ -1691,6 +1704,7 @@ dependencies = [
 [[package]]
 name = "cubecl-runtime"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "async-channel",
  "async-lock",
@@ -1712,6 +1726,7 @@ dependencies = [
 [[package]]
 name = "cubecl-spirv"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "bitflags 2.8.0",
  "cubecl-common",
@@ -1724,8 +1739,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cubecl-std"
+version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
+dependencies = [
+ "cubecl-core",
+ "cubecl-runtime",
+]
+
+[[package]]
 name = "cubecl-wgpu"
 version = "0.5.0"
+source = "git+https://github.com/tracel-ai/cubecl?rev=5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680#5ac5d57e24dbe8a06fd5a52bc730cb7673c7b680"
 dependencies = [
  "ash",
  "async-channel",
@@ -2095,15 +2120,6 @@ name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
-
-[[package]]
-name = "encoding_rs"
-version = "0.8.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
-dependencies = [
- "cfg-if",
-]
 
 [[package]]
 name = "enum-as-inner"
@@ -2646,8 +2662,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a49c392881ce6d5c3b8cb70f98717b7c07aabbdff06687b9030dbfbe2725f8"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.13.3+wasi-0.2.2",
+ "wasm-bindgen",
  "windows-targets 0.52.6",
 ]
 
@@ -2855,25 +2873,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "h2"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccae279728d634d083c00f6099cb58f01cc99c145b84b8be2f6c74618d79922e"
-dependencies = [
- "atomic-waker",
- "bytes",
- "fnv",
- "futures-core",
- "futures-sink",
- "http",
- "indexmap",
- "slab",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
 name = "half"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3057,7 +3056,6 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "h2",
  "http",
  "http-body",
  "httparse",
@@ -3084,22 +3082,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
-]
-
-[[package]]
-name = "hyper-tls"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
-dependencies = [
- "bytes",
- "http-body-util",
- "hyper",
- "hyper-util",
- "native-tls",
- "tokio",
- "tokio-native-tls",
- "tower-service",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -3920,7 +3903,7 @@ dependencies = [
  "hexf-parse",
  "indexmap",
  "log",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "spirv 0.3.0+sdk-1.3.268.0",
  "strum",
  "termcolor",
@@ -5402,6 +5385,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
 
 [[package]]
+name = "quinn"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62e96808277ec6f97351a2380e6c25114bc9e67037775464979f3037c92d05ef"
+dependencies = [
+ "bytes",
+ "pin-project-lite",
+ "quinn-proto",
+ "quinn-udp",
+ "rustc-hash 2.1.1",
+ "rustls",
+ "socket2",
+ "thiserror 2.0.11",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "quinn-proto"
+version = "0.11.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2fe5ef3495d7d2e377ff17b1a8ce2ee2ec2a18cde8b6ad6619d65d0701c135d"
+dependencies = [
+ "bytes",
+ "getrandom 0.2.15",
+ "rand 0.8.5",
+ "ring",
+ "rustc-hash 2.1.1",
+ "rustls",
+ "rustls-pki-types",
+ "slab",
+ "thiserror 2.0.11",
+ "tinyvec",
+ "tracing",
+ "web-time",
+]
+
+[[package]]
+name = "quinn-udp"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52cd4b1eff68bf27940dd39811292c49e007f4d0b4c357358dc9b0197be6b527"
+dependencies = [
+ "cfg_aliases",
+ "libc",
+ "once_cell",
+ "socket2",
+ "tracing",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5771,40 +5806,39 @@ checksum = "43e734407157c3c2034e0258f5e4473ddb361b1e85f95a66690d67264d7cd1da"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "encoding_rs",
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2",
  "http",
  "http-body",
  "http-body-util",
  "hyper",
  "hyper-rustls",
- "hyper-tls",
  "hyper-util",
  "ipnet",
  "js-sys",
  "log",
  "mime",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
+ "quinn",
+ "rustls",
  "rustls-pemfile",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "sync_wrapper",
- "system-configuration",
  "tokio",
- "tokio-native-tls",
+ "tokio-rustls",
  "tower",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots",
  "windows-registry",
 ]
 
@@ -5859,7 +5893,7 @@ name = "rspirv"
 version = "0.12.0+sdk-1.3.296.0"
 source = "git+https://github.com/gfx-rs/rspirv.git?rev=e19c11fdb30295127cff1d018189bd436892415e#e19c11fdb30295127cff1d018189bd436892415e"
 dependencies = [
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "spirv 0.3.0+sdk-1.3.296.0",
 ]
 
@@ -5930,6 +5964,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
+name = "rustc-hash"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5993,6 +6033,9 @@ name = "rustls-pki-types"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "917ce264624a4b4db1c364dcc35bfca9ded014d0a958cd47ad3e960e988ea51c"
+dependencies = [
+ "web-time",
+]
 
 [[package]]
 name = "rustls-webpki"
@@ -6612,27 +6655,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "system-configuration"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
-dependencies = [
- "bitflags 2.8.0",
- "core-foundation",
- "system-configuration-sys",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
 name = "system-deps"
 version = "6.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6946,16 +6968,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-native-tls"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
-dependencies = [
- "native-tls",
- "tokio",
-]
-
-[[package]]
 name = "tokio-rustls"
 version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7201,7 +7213,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "deb68604048ff8fa93347f02441e4487594adc20bb8a084f9e564d2b827a0a9f"
 dependencies = [
- "rustc-hash",
+ "rustc-hash 1.1.0",
 ]
 
 [[package]]
@@ -7661,7 +7673,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "profiling",
  "raw-window-handle",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror 2.0.11",
  "wgpu-hal",
@@ -7704,7 +7716,7 @@ dependencies = [
  "range-alloc",
  "raw-window-handle",
  "renderdoc-sys",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "smallvec",
  "thiserror 2.0.11",
  "wasm-bindgen",

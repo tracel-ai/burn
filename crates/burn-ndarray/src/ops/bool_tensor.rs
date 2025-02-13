@@ -20,6 +20,9 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     for NdArray<E, I, Q>
 {
     fn bool_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
+        if !data.dtype.is_bool() {
+            unimplemented!("Unsupported dtype for `bool_from_data`")
+        }
         NdArrayTensor::from_data(data)
     }
 

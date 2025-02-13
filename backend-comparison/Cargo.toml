@@ -45,7 +45,7 @@ half = { workspace = true }
 indicatif = { workspace = true }
 os_info = { workspace = true }
 percent-encoding = { workspace = true }
-rand = { workspace = true }
+rand = { workspace = true, features = ["thread_rng"] }
 reqwest = { workspace = true, features = ["blocking", "json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

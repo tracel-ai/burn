@@ -22,8 +22,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        let data: TensorData = TensorData::new(data.iter::<bool>().collect(), data.shape);
-        super::base::from_data::<u8>(data, device)
+        match data.dtype {
+            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
+        }
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {

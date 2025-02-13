@@ -55,19 +55,27 @@ impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
 Generating your own custom metrics is done by implementing the `Metric` trait.
 
 ```rust , ignore
+
 /// Metric trait.
+///
+/// # Notes
 ///
 /// Implementations should define their own input type only used by the metric.
 /// This is important since some conflict may happen when the model output is adapted for each
 /// metric's input type.
-///
-/// The only exception is for metrics that don't need any input, setting the associated type
-/// to the null type `()`.
 pub trait Metric: Send + Sync {
     /// The input type of the metric.
     type Input;
 
-    /// Updates the metric state and returns the current metric entry.
+    /// The parametrized name of the metric.
+    ///
+    /// This should be unique, so avoid using short generic names, prefer using the long name.
+    ///
+    /// For a metric that can exist at different parameters (e.g., top-k accuracy for different
+    /// values of k), the name should be unique for each instance.
+    fn name(&self) -> String;
+
+    /// Update the metric state and returns the current metric entry.
     fn update(&mut self, item: &Self::Input, metadata: &MetricMetadata) -> MetricEntry;
     /// Clear the metric state.
     fn clear(&mut self);
@@ -90,18 +98,34 @@ pub struct LossInput<B: Backend> {
     tensor: Tensor<B, 1>,
 }
 
+
 impl<B: Backend> Metric for LossMetric<B> {
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
-        let loss = loss.tensor.clone().mean().into_scalar().elem::<f64>();
+        let [batch_size] = loss.tensor.dims();
+        let loss = loss
+            .tensor
+            .clone()
+            .mean()
+            .into_data()
+            .iter::<f64>()
+            .next()
+            .unwrap();
 
-        self.state
-            .update(loss, 1, FormatOptions::new("Loss").precision(2))
+        self.state.update(
+            loss,
+            batch_size,
+            FormatOptions::new(self.name()).precision(2),
+        )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "Loss".to_string()
     }
 }
 ```

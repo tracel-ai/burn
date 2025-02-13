@@ -12,7 +12,10 @@ use super::TchOps;
 
 impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
-        TchTensor::from_data::<i64>(data, (*device).into())
+        match data.dtype {
+            burn_tensor::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+        }
     }
 
     fn int_repeat_dim(tensor: TchTensor, dim: usize, times: usize) -> TchTensor {

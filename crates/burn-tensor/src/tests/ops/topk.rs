@@ -43,8 +43,7 @@ mod tests {
     }
 
     #[test]
-    fn test_topk_with_indices() {
-        // 1D
+    fn test_topk_with_indices_1d() {
         let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
 
         let (values, indices) = tensor.topk_with_indices(3, /*dim*/ 0);
@@ -54,8 +53,10 @@ mod tests {
 
         let indices_expected = TensorData::from([4, 3, 2]);
         indices.into_data().assert_eq(&indices_expected, false);
+    }
 
-        // 3D
+    #[test]
+    fn test_topk_with_indices_3d() {
         let tensor =
             TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 7.]]]);
 

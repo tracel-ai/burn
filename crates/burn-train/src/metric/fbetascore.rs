@@ -12,6 +12,9 @@ use core::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
+///
+/// The `beta` parameter represents the ratio of recall importance to precision importance.
+/// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
 #[derive(Default)]
 pub struct FBetaScoreMetric<B: Backend> {
     state: NumericMetricState,
@@ -99,7 +102,6 @@ impl<B: Backend> FBetaScoreMetric<B> {
 }
 
 impl<B: Backend> Metric for FBetaScoreMetric<B> {
-    const NAME: &'static str = "FBetaScore";
     type Input = ConfusionStatsInput<B>;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -117,12 +119,20 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
         self.state.update(
             100.0 * metric,
             sample_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        // "FBetaScore (0.5) @ TopK(1) [Macro]"
+        format!(
+            "FBetaScore ({}) @ {:?} [{:?}]",
+            self.beta, self.config.decision_rule, self.config.class_reduction
+        )
     }
 }
 
@@ -138,7 +148,10 @@ mod tests {
         ClassReduction::{self, *},
         FBetaScoreMetric, Metric, MetricMetadata, Numeric,
     };
-    use crate::tests::{dummy_classification_input, ClassificationType, THRESHOLD};
+    use crate::{
+        tests::{dummy_classification_input, ClassificationType, THRESHOLD},
+        TestBackend,
+    };
     use burn_core::tensor::TensorData;
     use rstest::rstest;
 
@@ -191,5 +204,19 @@ mod tests {
         let _entry = metric.update(&input, &MetricMetadata::fake());
         TensorData::from([metric.value()])
             .assert_approx_eq(&TensorData::from([expected * 100.0]), 3)
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 1, ClassReduction::Macro);
+        let metric_b = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 2, ClassReduction::Macro);
+        let metric_c = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 1, ClassReduction::Macro);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
+
+        let metric_a = FBetaScoreMetric::<TestBackend>::binary(0.5, 0.5);
+        let metric_b = FBetaScoreMetric::<TestBackend>::binary(0.75, 0.5);
+        assert_ne!(metric_a.name(), metric_b.name());
     }
 }

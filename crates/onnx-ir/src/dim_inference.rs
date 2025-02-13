@@ -58,6 +58,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Mul => same_as_input(node),
         NodeType::Neg => same_as_input(node),
         NodeType::Not => same_as_input(node),
+        NodeType::OneHot => one_hot_output_shape(node),
         NodeType::Pad => same_as_input(node),
         NodeType::PRelu => same_as_input_broadcast(node),
         NodeType::Pow => same_as_input_broadcast(node),
@@ -86,6 +87,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Sub => same_as_input_broadcast(node),
         NodeType::Sum => same_as_input_broadcast(node),
         NodeType::Tanh => same_as_input(node),
+        NodeType::TopK => top_k_update_output(node),
         NodeType::Transpose => same_as_input(node),
         NodeType::Trilu => same_as_input(node),
         NodeType::Unsqueeze => unsqueeze_update_output(node),
@@ -343,16 +345,11 @@ fn reshape_update_outputs(node: &mut Node) {
         node.attrs.get("shape").cloned().map(|v| v.into_i64s())
     };
 
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Reshape: invalid output types"),
-    };
-
     if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: node.inputs[0].ty.elem_type().clone(),
             dim: shape.len(),
             shape: None, // shape is calculated at runtime
-            ..output
         });
     }
 }
@@ -493,7 +490,7 @@ fn unsqueeze_update_output(node: &mut Node) {
     };
 
     let output_elem = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
         ArgType::Scalar(elem_type) => elem_type.clone(),
         _ => panic!("Unsqueeze: invalid output type"),
     };
@@ -509,6 +506,35 @@ fn unsqueeze_update_output(node: &mut Node) {
 
 fn same_as_input(node: &mut Node) {
     node.outputs[0].ty = node.inputs[0].ty.clone();
+}
+
+fn top_k_update_output(node: &mut Node) {
+    let dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("TopK: invalid input type"),
+    };
+
+    let output_values_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("TopK: invalid output type"),
+    };
+
+    let output_indices_elem = match &node.outputs[1].ty {
+        ArgType::Tensor(_) => ElementType::Int64,
+        _ => panic!("TopK: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim,
+        shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_values_elem,
+    });
+
+    node.outputs[1].ty = ArgType::Tensor(TensorType {
+        dim,
+        shape: None, // shape is tracked and calculated at runtime
+        elem_type: output_indices_elem,
+    });
 }
 
 /// Temporary pass-through stub for dimension inference so that we can export the IR model.
@@ -938,4 +964,23 @@ fn set_broadcasting_output_shape(node: &mut Node) {
             *s = out_shape[0];
         }
     }
+}
+
+fn one_hot_output_shape(node: &mut Node) {
+    let input_dim = match &node.inputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.dim,
+        _ => panic!("OneHot: invalid input type"),
+    };
+    let new_dim = input_dim + 1;
+
+    let output_elem = match &node.outputs[0].ty {
+        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        _ => panic!("OneHot: invalid output type"),
+    };
+
+    node.outputs[0].ty = ArgType::Tensor(TensorType {
+        dim: new_dim,
+        shape: None,
+        elem_type: output_elem,
+    });
 }

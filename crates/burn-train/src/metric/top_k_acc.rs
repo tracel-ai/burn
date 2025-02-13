@@ -45,8 +45,6 @@ impl<B: Backend> TopKAccuracyMetric<B> {
 }
 
 impl<B: Backend> Metric for TopKAccuracyMetric<B> {
-    const NAME: &'static str = "Top-K Accuracy";
-
     type Input = TopKAccuracyInput<B>;
 
     fn update(&mut self, input: &TopKAccuracyInput<B>, _metadata: &MetricMetadata) -> MetricEntry {
@@ -85,12 +83,16 @@ impl<B: Backend> Metric for TopKAccuracyMetric<B> {
         self.state.update(
             100.0 * accuracy,
             batch_size,
-            FormatOptions::new(Self::NAME).unit("%").precision(2),
+            FormatOptions::new(self.name()).unit("%").precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        format!("Top-K Accuracy @ TopK({})", self.k)
     }
 }
 
@@ -148,5 +150,15 @@ mod tests {
 
         let _entry = metric.update(&input, &MetricMetadata::fake());
         assert_eq!(50.0, metric.value());
+    }
+
+    #[test]
+    fn test_parameterized_unique_name() {
+        let metric_a = TopKAccuracyMetric::<TestBackend>::new(2);
+        let metric_b = TopKAccuracyMetric::<TestBackend>::new(1);
+        let metric_c = TopKAccuracyMetric::<TestBackend>::new(2);
+
+        assert_ne!(metric_a.name(), metric_b.name());
+        assert_eq!(metric_a.name(), metric_c.name());
     }
 }
