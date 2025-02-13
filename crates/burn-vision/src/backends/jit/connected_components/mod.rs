@@ -24,9 +24,9 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    let [batches, height, width] = l.shape.dims();
-    let shape = Shape::new([batches, height * width]);
-    let zeros = || zeros_device::<R, u32>(l.client.clone(), l.device.clone(), shape.clone());
+    let [height, width] = l.shape.dims();
+    let shape = Shape::new([height * width]);
+    let zeros = || zeros_device::<R, I>(l.client.clone(), l.device.clone(), shape.clone());
     let max = I::max_value();
     let max = || full_device::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
@@ -46,6 +46,6 @@ where
         top: opts.bounds_enabled.then(max).unwrap_or_else(dummy),
         right: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
         bottom: opts.bounds_enabled.then(zeros).unwrap_or_else(dummy),
-        max_label: zeros_device::<R, u32>(l.client.clone(), l.device.clone(), Shape::new([1])),
+        max_label: zeros_device::<R, I>(l.client.clone(), l.device.clone(), Shape::new([1])),
     }
 }

@@ -34,17 +34,17 @@ pub struct ConnectedStatsOptions {
 #[derive(Clone, Debug)]
 pub struct ConnectedStats<B: Backend> {
     /// Total area of each component
-    pub area: Tensor<B, 3, Int>,
+    pub area: Tensor<B, 1, Int>,
     /// Topmost y coordinate in the component
-    pub top: Tensor<B, 3, Int>,
+    pub top: Tensor<B, 1, Int>,
     /// Leftmost x coordinate in the component
-    pub left: Tensor<B, 3, Int>,
+    pub left: Tensor<B, 1, Int>,
     /// Rightmost x coordinate in the component
-    pub right: Tensor<B, 3, Int>,
+    pub right: Tensor<B, 1, Int>,
     /// Bottommost y coordinate in the component
-    pub bottom: Tensor<B, 3, Int>,
+    pub bottom: Tensor<B, 1, Int>,
     /// Scalar tensor of the max label
-    pub max_label: Tensor<B, 2, Int>,
+    pub max_label: Tensor<B, 1, Int>,
 }
 
 /// Primitive version of [`ConnectedStats`], to be returned by the backend
@@ -72,6 +72,20 @@ impl<B: Backend> From<ConnectedStatsPrimitive<B>> for ConnectedStats<B> {
             right: Tensor::from_primitive(value.right),
             bottom: Tensor::from_primitive(value.bottom),
             max_label: Tensor::from_primitive(value.max_label),
+        }
+    }
+}
+
+impl<B: Backend> ConnectedStats<B> {
+    /// Convert a connected stats into the corresponding primitive
+    pub fn into_primitive(self) -> ConnectedStatsPrimitive<B> {
+        ConnectedStatsPrimitive {
+            area: self.area.into_primitive(),
+            top: self.top.into_primitive(),
+            left: self.left.into_primitive(),
+            right: self.right.into_primitive(),
+            bottom: self.bottom.into_primitive(),
+            max_label: self.max_label.into_primitive(),
         }
     }
 }

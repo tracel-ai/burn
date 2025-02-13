@@ -13,7 +13,8 @@
 
 #![allow(unreachable_code)]
 
-use ndarray::{s, Array2, ArrayView2, Axis};
+use burn_tensor::{Element, ElementConversion};
+use ndarray::Array2;
 
 use crate::Connectivity;
 
@@ -23,10 +24,15 @@ use super::{max_labels, Solver, StatsOp};
 mod Spaghetti4C_forest_labels;
 pub(crate) use Spaghetti4C_forest_labels::*;
 
-pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl StatsOp) -> Array2<u32> {
-    let (h, w) = img.dim();
+pub fn process<I: Element, B: Element, LabelsSolver: Solver<I>>(
+    img: Vec<B>,
+    h: usize,
+    w: usize,
+    stats: &mut impl StatsOp<I>,
+) -> Array2<I> {
+    let img = img.as_ptr();
 
-    let mut img_labels = Array2::default(img.raw_dim());
+    let mut img_labels: Vec<I> = vec![0.elem(); h * w];
 
     // A quick and dirty upper bound for the maximum number of labels.
     // Following formula comes from the fact that a 2x2 block in 4-connectivity case
@@ -42,41 +48,48 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl Stats
     let solver = &mut solver;
 
     let w = w as i32;
+    // SAFETY:
+    // This code is generated from constraints and includes manual bounds checks, so unchecked pointer
+    // indexes are always safe.
+    unsafe {
+        // First row
+        {
+            let r = 0;
+            //Pointers:
+            // Row pointers for the input image
+            let img_row00 = img.add(r * w as usize);
 
-    // First row
-    {
-        let r = 0;
-        //Pointers:
-        // Row pointers for the input image
-        let img_row00 = img.index_axis(Axis(0), r);
+            // Row pointers for the output image
+            let img_labels_row00 = img_labels.as_mut_ptr().add(r * w as usize);
+            let mut c = -1i32;
 
-        // Row pointers for the output image
-        let mut img_labels_row00 = img_labels.slice_mut(s![r, ..]);
-        let mut c = -1i32;
+            let entry = firstLabels::fl_tree_0;
 
-        let entry = firstLabels::fl_tree_0;
+            include!("Spaghetti4C_first_line_forest_code.rs");
+        }
 
-        include!("Spaghetti4C_first_line_forest_code.rs");
-    }
+        for r in 1..h {
+            //Pointers:
+            // Row pointers for the input image
+            let img_row00 = img.add(r * w as usize);
+            let img_row11 = img.add((r - 1) * w as usize);
 
-    for r in 1..h {
-        //Pointers:
-        // Row pointers for the input image
-        let img_row00 = img.index_axis(Axis(0), r);
-        let img_row11 = img.index_axis(Axis(0), r - 1);
+            // Row pointers for the output image
+            let img_labels_row00 = img_labels.as_mut_ptr().add(r * w as usize);
+            let img_labels_row11 = img_labels.as_mut_ptr().add((r - 1) * w as usize);
+            let mut c = -1i32;
 
-        // Row pointers for the output image
-        let (mut img_labels_row00, img_labels_row11) =
-            img_labels.multi_slice_mut((s![r, ..], s![r - 1, ..]));
-        let mut c = -1i32;
+            let entry = centerLabels::cl_tree_0;
 
-        let entry = centerLabels::cl_tree_0;
-
-        include!("Spaghetti4C_center_line_forest_code.rs");
+            include!("Spaghetti4C_center_line_forest_code.rs");
+        }
     }
 
     let n_labels = solver.flatten();
-    stats.init(n_labels);
+    stats.init(n_labels.to_usize());
+
+    // SAFETY: This is always valid
+    let mut img_labels = unsafe { Array2::from_shape_vec_unchecked((h, w as usize), img_labels) };
 
     img_labels.indexed_iter_mut().for_each(|((r, c), label)| {
         *label = solver.get_label(*label);
@@ -84,5 +97,6 @@ pub fn process<LabelsSolver: Solver>(img: ArrayView2<u8>, stats: &mut impl Stats
     });
 
     stats.finish();
+
     img_labels
 }

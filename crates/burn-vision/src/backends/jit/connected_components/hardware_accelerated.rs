@@ -13,7 +13,7 @@ use burn_jit::{
     tensor::JitTensor,
     BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
 };
-use burn_tensor::{ops::IntTensorOps, Shape};
+use burn_tensor::{cast::ToElement, ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};
 
 use super::prefix_sum::prefix_sum;
@@ -72,25 +72,24 @@ fn strip_labeling<I: Int, BT: CubePrimitive>(
 ) {
     let mut shared_pixels = SharedMemory::<u32>::new(BLOCK_H);
 
-    let batch = ABSOLUTE_POS_Z;
     let y = ABSOLUTE_POS_Y;
-    let rows = labels.shape(1);
-    let cols = labels.shape(2);
+    let rows = labels.shape(0);
+    let cols = labels.shape(1);
 
     if y >= rows {
         terminate!();
     }
 
-    let img_stride = img.stride(1);
-    let labels_stride = labels.stride(1);
+    let img_stride = img.stride(0);
+    let labels_stride = labels.stride(0);
 
-    let img_line_base = batch * img.stride(0) + y * img_stride + UNIT_POS_X;
-    let labels_line_base = batch * labels.stride(0) + y * labels.stride(1) + UNIT_POS_X;
+    let img_line_base = y * img_stride + UNIT_POS_X;
+    let labels_line_base = y * labels.stride(0) + UNIT_POS_X;
 
     let mut distance_y = 0;
     let mut distance_y_1 = 0;
 
-    for i in range_stepped(0, img.shape(2), PLANE_DIM) {
+    for i in range_stepped(0, img.shape(1), PLANE_DIM) {
         let x = UNIT_POS_X + i;
 
         if x < cols {
@@ -199,23 +198,22 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
     labels: &Tensor<Atomic<I>>,
     #[comptime] connectivity: Connectivity,
 ) {
-    let batch = CUBE_POS_Z;
     let plane_start_x = CUBE_POS_X * (CUBE_DIM_X * CUBE_DIM_Z - PLANE_DIM) + UNIT_POS_Z * PLANE_DIM;
     let y = (CUBE_POS_Y + 1) * BLOCK_H;
     let x = plane_start_x + UNIT_POS_X;
 
-    let img_step = img.stride(1);
-    let labels_step = labels.stride(1);
-    let cols = img.shape(2);
+    let img_step = img.stride(0);
+    let labels_step = labels.stride(0);
+    let cols = img.shape(1);
 
-    if y < labels.shape(1) && x < labels.shape(2) {
+    if y < labels.shape(0) && x < labels.shape(1) {
         let mut mask = 0xffffffffu32;
         if cols - plane_start_x < 32 {
             mask >>= 32 - (cols - plane_start_x);
         }
 
-        let img_index = batch * img.stride(0) + y * img_step + x;
-        let labels_index = batch * labels.stride(0) + y * labels_step + x;
+        let img_index = y * img_step + x;
+        let labels_index = y * labels_step + x;
 
         let img_index_up = img_index - img_step;
         let labels_index_up = labels_index - labels_step;
@@ -299,15 +297,14 @@ fn strip_merge<I: Int, BT: CubePrimitive>(
 
 #[cube(launch_unchecked)]
 fn relabeling<I: Int, BT: CubePrimitive>(img: &Tensor<BT>, labels: &mut Tensor<I>) {
-    let batch = ABSOLUTE_POS_Z;
     let plane_start_x = CUBE_POS_X * CUBE_DIM_X;
     let y = ABSOLUTE_POS_Y;
     let x = plane_start_x + UNIT_POS_X;
 
-    let cols = labels.shape(2);
-    let rows = labels.shape(1);
-    let img_step = img.stride(1);
-    let labels_step = labels.stride(1);
+    let cols = labels.shape(1);
+    let rows = labels.shape(0);
+    let img_step = img.stride(0);
+    let labels_step = labels.stride(0);
 
     if x < cols && y < rows {
         let mut mask = 0xffffffffu32;
@@ -315,8 +312,8 @@ fn relabeling<I: Int, BT: CubePrimitive>(img: &Tensor<BT>, labels: &mut Tensor<I
             mask >>= 32 - (cols - plane_start_x);
         }
 
-        let img_index = batch * img.stride(0) + y * img_step + x;
-        let labels_index = batch * labels.stride(0) + y * labels_step + x;
+        let img_index = y * img_step + x;
+        let labels_index = y * labels_step + x;
 
         let p = bool::cast_from(img[img_index]);
         let pixels = ballot_dyn(UNIT_POS_Y, p) & mask;
@@ -350,15 +347,13 @@ fn analysis<I: Int, BT: CubePrimitive>(
     max_label: &mut Tensor<Atomic<I>>,
     #[comptime] opts: ConnectedStatsOptions,
 ) {
-    let batch = ABSOLUTE_POS_Z;
     let y = ABSOLUTE_POS_Y;
     let x = ABSOLUTE_POS_X;
 
-    let cols = labels.shape(2);
-    let rows = labels.shape(1);
-    let img_step = img.stride(1);
-    let labels_step = labels.stride(1);
-    let b_offs = batch * labels.stride(0);
+    let cols = labels.shape(1);
+    let rows = labels.shape(0);
+    let img_step = img.stride(0);
+    let labels_step = labels.stride(0);
 
     if x < cols && y < rows {
         let mut mask = 0xffffffffu32;
@@ -366,8 +361,8 @@ fn analysis<I: Int, BT: CubePrimitive>(
             mask >>= 32 - (cols - CUBE_POS_X * CUBE_DIM_X);
         }
 
-        let img_index = b_offs + y * img_step + x;
-        let labels_index = b_offs + y * labels_step + x;
+        let img_index = y * img_step + x;
+        let labels_index = y * labels_step + x;
 
         let p = bool::cast_from(img[img_index]);
         let pixels = ballot_dyn(UNIT_POS_Y, p) & mask;
@@ -379,21 +374,21 @@ fn analysis<I: Int, BT: CubePrimitive>(
 
         if p && s_dist == 0 {
             label = u32::cast_from(labels[labels_index]) - 1;
-            while label != u32::cast_from(labels[b_offs + label]) - 1 {
-                label = u32::cast_from(labels[b_offs + label]) - 1;
+            while label != u32::cast_from(labels[label]) - 1 {
+                label = u32::cast_from(labels[label]) - 1;
             }
             label += 1;
 
-            Atomic::add(&area[b_offs + label], I::cast_from(count));
+            Atomic::add(&area[label], I::cast_from(count));
 
             if opts.bounds_enabled {
-                Atomic::min(&left[b_offs + label], I::cast_from(x));
-                Atomic::min(&top[b_offs + label], I::cast_from(y));
-                Atomic::max(&right[b_offs + label], I::cast_from(max_x));
-                Atomic::max(&bottom[b_offs + label], I::cast_from(y));
+                Atomic::min(&left[label], I::cast_from(x));
+                Atomic::min(&top[label], I::cast_from(y));
+                Atomic::max(&right[label], I::cast_from(max_x));
+                Atomic::max(&bottom[label], I::cast_from(y));
             }
             if comptime!(opts.max_label_enabled || opts.compact_labels) {
-                Atomic::max(&max_label[batch], I::cast_from(label));
+                Atomic::max(&max_label[0], I::cast_from(label));
             }
         }
 
@@ -411,11 +406,10 @@ fn compact_labels<I: Int>(
     remap: &Tensor<I>,
     max_label: &Tensor<Atomic<I>>,
 ) {
-    let batch = ABSOLUTE_POS_Z;
     let x = ABSOLUTE_POS_X;
     let y = ABSOLUTE_POS_Y;
 
-    let labels_pos = batch * labels.stride(0) + y * labels.stride(1) + x * labels.stride(2);
+    let labels_pos = y * labels.stride(0) + x;
 
     if labels_pos >= labels.len() {
         terminate!();
@@ -425,7 +419,7 @@ fn compact_labels<I: Int>(
     if label != 0 {
         let new_label = remap[label];
         labels[labels_pos] = new_label;
-        Atomic::max(&max_label[batch], new_label);
+        Atomic::max(&max_label[0], new_label);
     }
 }
 
@@ -488,9 +482,9 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         return Err("Requires plane size of at least 32".into());
     }
 
-    let [batches, rows, cols] = img.shape.dims();
+    let [rows, cols] = img.shape.dims();
 
-    let labels = zeros_device::<R, u32>(client.clone(), device.clone(), img.shape.clone());
+    let labels = zeros_device::<R, I>(client.clone(), device.clone(), img.shape.clone());
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp
@@ -498,7 +492,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
     // in wgpu.
     let warp_size = 32;
     let cube_dim = CubeDim::new_2d(warp_size, BLOCK_H);
-    let cube_count = CubeCount::Static(1, (rows as u32).div_ceil(cube_dim.y), batches as u32);
+    let cube_count = CubeCount::new_2d(1, (rows as u32).div_ceil(cube_dim.y));
 
     unsafe {
         strip_labeling::launch_unchecked::<I, BT, R>(
@@ -513,10 +507,9 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
 
     let horizontal_warps = Ord::min((cols as u32).div_ceil(warp_size), 32);
     let cube_dim_merge = CubeDim::new_3d(warp_size, 1, horizontal_warps);
-    let cube_count = CubeCount::Static(
+    let cube_count = CubeCount::new_2d(
         Ord::max((cols as u32 + warp_size * 30 - 1) / (warp_size * 31), 1),
         (rows as u32 - 1) / BLOCK_H,
-        batches as u32,
     );
 
     unsafe {
@@ -530,10 +523,9 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         )
     };
 
-    let cube_count = CubeCount::Static(
+    let cube_count = CubeCount::new_2d(
         (cols as u32).div_ceil(cube_dim.x),
         (rows as u32).div_ceil(cube_dim.y),
-        batches as u32,
     );
 
     let mut stats = stats_from_opts(labels.clone(), stats_opt);
@@ -567,22 +559,21 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
         };
         if stats_opt.compact_labels {
             let max_label = JitBackend::<R, F, I, BT>::int_max(stats.max_label);
-            let max_label = into_data_sync::<R, I>(max_label).convert::<u32>();
-            let max_label = max_label.as_slice::<u32>().unwrap()[0] as usize;
+            let max_label = into_data_sync::<R, I>(max_label);
+            let max_label = ToElement::to_usize(&max_label.as_slice::<I>().unwrap()[0]);
             let sliced = kernel::slice::<R, I>(
                 stats.area.clone(),
-                &[0..batches, 0..(max_label + 1).next_multiple_of(4)],
+                #[allow(clippy::single_range_in_vec_init)]
+                &[0..(max_label + 1).next_multiple_of(4)],
             );
             let relabel = prefix_sum::<R, I>(sliced);
 
             let cube_dim = CubeDim::default();
-            let cube_count = CubeCount::new_3d(
+            let cube_count = CubeCount::new_2d(
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),
-                batches as u32,
             );
-            stats.max_label =
-                zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([batches]));
+            stats.max_label = zeros_device::<R, I>(client.clone(), device.clone(), Shape::new([1]));
             unsafe {
                 compact_labels::launch_unchecked::<I, R>(
                     &client,
@@ -595,8 +586,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             };
 
             let cube_dim = CubeDim::new_1d(256);
-            let cube_count =
-                CubeCount::new_3d((rows * cols).div_ceil(256) as u32, 1, batches as u32);
+            let cube_count = CubeCount::new_1d((rows * cols).div_ceil(256) as u32);
             unsafe {
                 compact_stats::launch_unchecked::<I, R>(
                     &client,
