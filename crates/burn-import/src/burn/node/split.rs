@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{OtherType, Scope, TensorType, ToTokens, Type};
+use crate::burn::{Scope, TensorType, ToTokens, Type};
 use burn::config::Config;
 use burn::record::PrecisionSettings;
 use proc_macro2::TokenStream;
@@ -46,7 +46,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
             let [#(#outputs),*] = split_tensors.try_into().unwrap();
         };
 
-        let split_code = if let Some(split_sizes) = &self.config.split_sizes {
+        if let Some(split_sizes) = &self.config.split_sizes {
             let split_sizes_tokens = split_sizes.to_tokens();
             quote! {
                 let mut split_tensors = #input.split_with_sizes(#split_sizes_tokens, #axis);
@@ -59,9 +59,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
                 let mut split_tensors = #input.split(#num_outputs_tokens, #axis);
                 #unpack_outputs
             }
-        };
-
-        split_code
+        }
     }
 
     fn into_node(self) -> Node<PS> {
