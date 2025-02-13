@@ -1,4 +1,4 @@
-use crate::{element::CubeElement, kernel, tensor::CubeTensor, BoolElement, CubeRuntime};
+use crate::{element::CubeElement, kernel, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::{Shape, TensorData};
 use cubecl::tensor_vectorization_factor;
 
@@ -26,21 +26,6 @@ pub fn into_data_sync<R: CubeRuntime, E: CubeElement>(tensor: CubeTensor<R>) -> 
     let bytes = tensor.client.read_one(tensor.handle.binding());
     let actual_len = tensor.shape.num_elements() * size_of::<E>();
     TensorData::new(E::from_bytes(&bytes[..actual_len]).to_vec(), tensor.shape)
-}
-
-pub(crate) async fn bool_into_data<R: CubeRuntime, BT: BoolElement>(
-    tensor: CubeTensor<R>,
-) -> TensorData {
-    let tensor = kernel::into_contiguous(tensor);
-    let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
-    let actual_len = tensor.shape.num_elements() * size_of::<BT>();
-    TensorData::new(
-        BT::from_bytes(&bytes[..actual_len])
-            .iter()
-            .map(|i| *i != BT::false_val())
-            .collect(),
-        tensor.shape,
-    )
 }
 
 pub(crate) fn to_device<R: CubeRuntime>(
