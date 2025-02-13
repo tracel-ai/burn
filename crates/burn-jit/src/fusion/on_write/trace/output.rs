@@ -1,5 +1,5 @@
 use burn_fusion::stream::Context;
-use burn_ir::TensorIr;
+use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
 use cubecl::{client::ComputeClient, ir::Elem};
 
@@ -13,7 +13,8 @@ use crate::{
 };
 
 use super::{
-    super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors, Reshape,
+    super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors,
+    TensorView,
 };
 use std::collections::BTreeMap;
 
@@ -22,7 +23,7 @@ use std::collections::BTreeMap;
 /// It is also responsible to select the reference tensor.
 pub struct OutputPlanner<'a, R: JitRuntime> {
     inputs: &'a RegisteredTensors,
-    reshapes: &'a Vec<Reshape>,
+    views: &'a Vec<TensorView>,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
@@ -38,14 +39,14 @@ struct OutputSorted<'a> {
 enum OutputKind {
     Normal,
     Inplace { input_pos: usize },
-    Reshaped { reshape: Reshape },
+    Transform(TensorView),
 }
 
 impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         outputs: &'a RegisteredTensors,
-        reshapes: &'a Vec<Reshape>,
+        views: &'a Vec<TensorView>,
     ) -> Self {
         let mut mapper = OutputPositionMapper::default();
         let mut outputs_sorted: Vec<_> = outputs
@@ -79,7 +80,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         Self {
             inputs,
             outputs_sorted,
-            reshapes,
+            views,
             handles,
             globals,
             mapper,
@@ -120,7 +121,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
                         strides,
                     );
                 }
-                OutputKind::Reshaped { reshape } => {
+                OutputKind::Transform(TensorView::Reshape { original, .. }) => {
                     self.reshaped_output::<BT>(
                         client,
                         device,
@@ -129,7 +130,19 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
                         output,
                         tensor_global,
                         strides,
-                        reshape,
+                        original,
+                    );
+                }
+                OutputKind::Transform(TensorView::SwapDims { original, dims, .. }) => {
+                    self.swapped_dims_output::<BT>(
+                        client,
+                        device,
+                        context,
+                        plan,
+                        output,
+                        tensor_global,
+                        original,
+                        dims,
                     );
                 }
             }
@@ -166,14 +179,11 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         output: &OutputSorted,
         strides: &[usize],
     ) -> OutputKind {
-        if let Some(reshape) = self
-            .reshapes
-            .iter()
-            .find(|r| r.reshaped == output.tensor_relative.id)
-        {
-            return OutputKind::Reshaped {
-                reshape: reshape.clone(),
-            };
+        if let Some(transform) = self.views.iter().find(|v| match v {
+            TensorView::Reshape { reshaped, .. } => reshaped == &output.tensor_relative.id,
+            TensorView::SwapDims { swapped, .. } => swapped == &output.tensor_relative.id,
+        }) {
+            return OutputKind::Transform(transform.clone());
         }
 
         plan.potential_inplaces
@@ -311,12 +321,13 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Vec<usize>,
-        reshape: Reshape,
+        original: TensorId,
     ) {
-        let original_handle = plan
+        let (pos_input, original_handle) = plan
             .handle_inputs
             .iter()
-            .find(|handle| handle.relative_id == reshape.original)
+            .enumerate()
+            .find(|(_i, handle)| handle.relative_id == original)
             .unwrap();
 
         // We encode bool tensors as `B`.
@@ -343,7 +354,7 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
                 .register_handle(tensor_global.id, handle.clone());
             // IT will never be access, just a way to keep the original position working.
             self.handles[output.pos_original] = Some(HandleOutput::Alias {
-                input_pos: 0,
+                input_pos: pos_input,
                 precision: output.precision,
             });
             self.globals[output.pos_original] = Some(tensor_global);
@@ -358,6 +369,55 @@ impl<'a, R: JitRuntime> OutputPlanner<'a, R> {
                 strides,
             );
         }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn swapped_dims_output<BT: BoolElement>(
+        &mut self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        device: &R::Device,
+        context: &mut Context<'_, JitFusionHandle<R>>,
+        plan: &mut LaunchPlan<'a, R>,
+        output: OutputSorted,
+        tensor_global: TensorIr,
+        original: TensorId,
+        dims: (u32, u32),
+    ) {
+        let (pos_input, original_handle) = plan
+            .handle_inputs
+            .iter()
+            .enumerate()
+            .find(|(_i, handle)| handle.relative_id == original)
+            .unwrap();
+
+        // We encode bool tensors as `B`.
+        let dtype = match tensor_global.dtype {
+            DType::Bool => BT::dtype(),
+            _ => tensor_global.dtype,
+        };
+
+        plan.writes.remove(&output.tensor_relative.id);
+
+        let strides = original_handle.handle.strides.clone();
+        let mut handle = JitFusionHandle {
+            client: client.clone(),
+            handle: original_handle.handle.handle.clone(),
+            device: device.clone(),
+            strides,
+            dtype,
+        };
+        handle.strides.swap(dims.0 as usize, dims.1 as usize);
+
+        context
+            .handles
+            .register_handle(tensor_global.id, handle.clone());
+
+        // IT will never be access, just a way to keep the original position working.
+        self.handles[output.pos_original] = Some(HandleOutput::Alias {
+            input_pos: pos_input,
+            precision: output.precision,
+        });
+        self.globals[output.pos_original] = Some(tensor_global);
     }
 }
 
