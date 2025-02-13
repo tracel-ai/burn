@@ -345,16 +345,11 @@ fn reshape_update_outputs(node: &mut Node) {
         node.attrs.get("shape").cloned().map(|v| v.into_i64s())
     };
 
-    let output = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.clone(),
-        _ => panic!("Reshape: invalid output types"),
-    };
-
     if let Some(shape) = shape {
         node.outputs[0].ty = ArgType::Tensor(TensorType {
+            elem_type: node.inputs[0].ty.elem_type().clone(),
             dim: shape.len(),
             shape: None, // shape is calculated at runtime
-            ..output
         });
     }
 }
@@ -495,7 +490,7 @@ fn unsqueeze_update_output(node: &mut Node) {
     };
 
     let output_elem = match &node.outputs[0].ty {
-        ArgType::Tensor(tensor) => tensor.elem_type.clone(),
+        ArgType::Tensor(_) => node.inputs[0].ty.elem_type().clone(),
         ArgType::Scalar(elem_type) => elem_type.clone(),
         _ => panic!("Unsqueeze: invalid output type"),
     };
