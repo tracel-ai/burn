@@ -1,5 +1,5 @@
 use crate::{fusion::on_write::kernel::fuse_on_write, BoolElement};
-use crate::{fusion::JitFusionHandle, CubeRuntime};
+use crate::{fusion::CubeFusionHandle, CubeRuntime};
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ pub struct ElemwiseOptimizationState {
 
 impl<R: CubeRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
-    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         self.trace
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();

@@ -1,4 +1,4 @@
-use super::JitFusionHandle;
+use super::CubeFusionHandle;
 use crate::CubeRuntime;
 use burn_fusion::stream::{Context, ContextOwned};
 
@@ -8,8 +8,8 @@ use burn_fusion::stream::{Context, ContextOwned};
 /// The fork is only given when performing autotuning, and not when actually performing the
 /// operation.
 pub enum TuneContext<'a, R: CubeRuntime> {
-    Original(&'a mut Context<'a, JitFusionHandle<R>>),
-    Fork(Box<ContextOwned<JitFusionHandle<R>>>),
+    Original(&'a mut Context<'a, CubeFusionHandle<R>>),
+    Fork(Box<ContextOwned<CubeFusionHandle<R>>>),
 }
 
 /// Fusion input wrapper containing the context and the optimization.
@@ -34,8 +34,8 @@ pub struct TuneInput<R: CubeRuntime, O> {
 /// tuned using a cloned version of the input; therefore, a fork of the context will be used to find
 /// the best kernel to use, which can be async.
 enum UnsafeTuneContext<R: CubeRuntime> {
-    Original(*mut Context<'static, JitFusionHandle<R>>),
-    Fork(Box<ContextOwned<JitFusionHandle<R>>>),
+    Original(*mut Context<'static, CubeFusionHandle<R>>),
+    Fork(Box<ContextOwned<CubeFusionHandle<R>>>),
 }
 
 unsafe impl<R: CubeRuntime> Send for UnsafeTuneContext<R> {}
@@ -43,7 +43,7 @@ unsafe impl<R: CubeRuntime, O> Send for TuneInput<R, O> {}
 
 impl<R: CubeRuntime, O> TuneInput<R, O> {
     /// Create a new autotune input from the [context](Context) and an optimization.
-    pub fn new(context: &mut Context<JitFusionHandle<R>>, optimization: &O) -> Self {
+    pub fn new(context: &mut Context<CubeFusionHandle<R>>, optimization: &O) -> Self {
         let context = UnsafeTuneContext::new(context);
         // We can erase the lifetime for the same reason we do with the context.
         let optimization = core::ptr::from_ref(optimization);
@@ -66,7 +66,7 @@ impl<R: CubeRuntime, O> TuneInput<R, O> {
 }
 
 impl<R: CubeRuntime> UnsafeTuneContext<R> {
-    fn new(context: &mut Context<'_, JitFusionHandle<R>>) -> Self {
+    fn new(context: &mut Context<'_, CubeFusionHandle<R>>) -> Self {
         let ptr = core::ptr::from_mut(context);
 
         // It is necessary for the lifetime.
@@ -97,7 +97,7 @@ impl<R: CubeRuntime> Clone for UnsafeTuneContext<R> {
     fn clone(&self) -> Self {
         let context = match self {
             UnsafeTuneContext::Original(ptr) => {
-                let context: &mut Context<'static, JitFusionHandle<R>> =
+                let context: &mut Context<'static, CubeFusionHandle<R>> =
                     unsafe { ptr.as_mut().unwrap() };
                 context.fork()
             }

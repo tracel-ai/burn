@@ -3,7 +3,7 @@ use std::any::TypeId;
 use crate::fusion::elemwise::optimization::ElemwiseRunner;
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::kernel::matmul;
-use crate::{fusion::JitFusionHandle, CubeRuntime};
+use crate::{fusion::CubeFusionHandle, CubeRuntime};
 use crate::{BoolElement, FloatElement};
 
 use burn_fusion::stream::Context;
@@ -82,7 +82,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         #[cfg(feature = "autotune")]
         fused_matmul_autotune::<R, BT>(self, context);
 
@@ -130,7 +130,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
 
     pub fn execute_standard_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -142,7 +142,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
 
     pub fn execute_specialized_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -154,7 +154,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
 
     pub fn execute_pipelined_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -164,7 +164,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
         )
     }
 
-    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         match self.matmul_standard.lhs.precision() {
             ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
             ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
@@ -175,7 +175,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
 
     fn run_fallback<BT: BoolElement, EG: FloatElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) {
         let (out_tensor, out_desc) = {
             let lhs = context
@@ -214,7 +214,7 @@ impl<R: CubeRuntime> MatmulOptimization<R> {
         };
         context
             .handles
-            .register_handle(out_desc.id, JitFusionHandle::from(out_tensor));
+            .register_handle(out_desc.id, CubeFusionHandle::from(out_tensor));
 
         self.trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)

@@ -1,7 +1,7 @@
 use crate::{
     fusion::{
         tune::{TuneContext, TuneInput},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
     kernel::matmul::MatmulAutotuneKey,
     BoolElement, CubeRuntime, CubeTuneId,
@@ -27,7 +27,7 @@ pub struct FusedMatmulAutotuneKey {
 /// Executes autotune on matmul operations
 pub fn fused_matmul_autotune<R: CubeRuntime, BT: BoolElement>(
     optimization: &MatmulOptimization<R>,
-    context: &mut Context<JitFusionHandle<R>>,
+    context: &mut Context<CubeFusionHandle<R>>,
 ) {
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 

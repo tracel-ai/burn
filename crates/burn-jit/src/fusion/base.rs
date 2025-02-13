@@ -40,7 +40,7 @@ where
     R: CubeRuntime,
     BT: BoolElement,
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context),
@@ -76,7 +76,7 @@ where
 impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     for CubeBackend<R, F, I, BT>
 {
-    type Handle = JitFusionHandle<R>;
+    type Handle = CubeFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
         handle.handle.into_tensor(handle.shape)
@@ -116,7 +116,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
 impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT> {
     type OptimizationState = CubeOptimizationState;
     type Optimization = CubeOptimization<R>;
-    type FusionHandle = JitFusionHandle<R>;
+    type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
     type FusionClient = MutexFusionClient<Self>;
     type BoolRepr = BT;
@@ -157,8 +157,8 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     ) -> Self::Handle {
         fn cast<R: CubeRuntime, F: FloatElement, FTarget: FloatElement>(
             tensor: CubeTensor<R>,
-        ) -> JitFusionHandle<R> {
-            JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
+        ) -> CubeFusionHandle<R> {
+            CubeFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
 
         match dtype {
@@ -183,7 +183,7 @@ pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 }
 
 /// Handle to be used when fusing operations.
-pub struct JitFusionHandle<R: CubeRuntime> {
+pub struct CubeFusionHandle<R: CubeRuntime> {
     /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
@@ -194,17 +194,17 @@ pub struct JitFusionHandle<R: CubeRuntime> {
     pub(crate) strides: Vec<usize>,
 }
 
-impl<R: CubeRuntime> core::fmt::Debug for JitFusionHandle<R> {
+impl<R: CubeRuntime> core::fmt::Debug for CubeFusionHandle<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "JitFusionHandle {{ device: {:?}, runtime: {}}}",
+            "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
             self.device,
             R::name(),
         ))
     }
 }
 
-impl<R: CubeRuntime> Clone for JitFusionHandle<R> {
+impl<R: CubeRuntime> Clone for CubeFusionHandle<R> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -216,10 +216,10 @@ impl<R: CubeRuntime> Clone for JitFusionHandle<R> {
     }
 }
 
-unsafe impl<R: CubeRuntime> Send for JitFusionHandle<R> {}
-unsafe impl<R: CubeRuntime> Sync for JitFusionHandle<R> {}
+unsafe impl<R: CubeRuntime> Send for CubeFusionHandle<R> {}
+unsafe impl<R: CubeRuntime> Sync for CubeFusionHandle<R> {}
 
-impl<R: CubeRuntime> JitFusionHandle<R> {
+impl<R: CubeRuntime> CubeFusionHandle<R> {
     pub(crate) fn into_tensor(self, shape: Shape) -> CubeTensor<R> {
         CubeTensor {
             client: self.client,
@@ -256,7 +256,7 @@ impl<R: CubeRuntime> JitFusionHandle<R> {
     }
 }
 
-impl<R: CubeRuntime> From<CubeTensor<R>> for JitFusionHandle<R> {
+impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
     fn from(value: CubeTensor<R>) -> Self {
         Self {
             client: value.client,

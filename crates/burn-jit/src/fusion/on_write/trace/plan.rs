@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::{
     fusion::{
         on_write::ir::{Arg, ElemwiseOp, ElemwisePrecision},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
     CubeRuntime,
 };
@@ -55,7 +55,7 @@ pub enum HandleOutput<R: CubeRuntime> {
     Owned {
         global_id: TensorId,
         precision: ElemwisePrecision,
-        handle: JitFusionHandle<R>,
+        handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,
         vectorization: u8,
     },
@@ -66,7 +66,7 @@ pub struct HandleInput<R: CubeRuntime> {
     pub relative_id: TensorId,
     pub global_id: TensorId,
     pub precision: ElemwisePrecision,
-    pub handle: JitFusionHandle<R>,
+    pub handle: CubeFusionHandle<R>,
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
 }

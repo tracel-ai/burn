@@ -9,7 +9,7 @@ use burn_ir::TensorId;
 use crate::{
     fusion::{
         on_write::{ir::ElemwiseOp, settings::FuseSettings},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
     CubeRuntime,
 };
@@ -42,7 +42,7 @@ impl<'a, R: CubeRuntime> VectorizationPlanner<'a, R> {
     }
     pub fn run<Runner: TraceRunner<R>>(
         self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let tensors_reshaped = self.views.iter().filter_map(|view| match view {

@@ -6,7 +6,7 @@ use cubecl::{client::ComputeClient, ir::Elem};
 use crate::{
     fusion::{
         on_write::ir::{Arg, ElemwiseOp, LayoutInfo},
-        strides_dyn_rank, JitFusionHandle,
+        strides_dyn_rank, CubeFusionHandle,
     },
     tensor::is_contiguous,
     BoolElement, CubeRuntime,
@@ -91,7 +91,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         // So that we can borrow self during the iteration.
@@ -201,7 +201,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
 
     fn inplace_output(
         &mut self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -251,7 +251,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -288,7 +288,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         };
         let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
 
-        let handle = JitFusionHandle {
+        let handle = CubeFusionHandle {
             client: client.clone(),
             handle: client.empty(size),
             device: device.clone(),
@@ -316,7 +316,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -342,7 +342,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         ) {
             plan.writes.remove(&output.tensor_relative.id);
 
-            let handle = JitFusionHandle {
+            let handle = CubeFusionHandle {
                 client: client.clone(),
                 handle: original_handle.handle.handle.clone(),
                 device: device.clone(),
@@ -376,7 +376,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -399,7 +399,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         plan.writes.remove(&output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
-        let mut handle = JitFusionHandle {
+        let mut handle = CubeFusionHandle {
             client: client.clone(),
             handle: original_handle.handle.handle.clone(),
             device: device.clone(),

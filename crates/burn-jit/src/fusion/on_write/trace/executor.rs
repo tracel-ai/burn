@@ -11,7 +11,7 @@ use super::{HandleInput, HandleOutput, LaunchPlan, TensorView, TraceRunner};
 use crate::{
     fusion::{
         on_write::ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
     BoolElement, CubeRuntime,
 };
@@ -49,7 +49,7 @@ impl<'a, R: CubeRuntime> LaunchPlanExecutor<'a, R> {
         self,
         client: &ComputeClient<R::Server, R::Channel>,
         runner: &Runner,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
         let reference = match plan.reference {
@@ -95,7 +95,7 @@ impl<'a, R: CubeRuntime> LaunchPlanExecutor<'a, R> {
 
     fn register_inputs<'h>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         handle_inputs: &'h [HandleInput<R>],
     ) -> GlobalArgsLaunch<'h, R> {
         let mut inputs = GlobalArgsLaunch::default();
