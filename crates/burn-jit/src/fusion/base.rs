@@ -3,7 +3,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
-use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{kernel, tensor::CubeTensor, FloatElement, IntElement, JitBackend, JitRuntime};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
@@ -156,7 +156,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBacke
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
         fn cast<R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: JitTensor<R>,
+            tensor: CubeTensor<R>,
         ) -> JitFusionHandle<R> {
             JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
@@ -220,8 +220,8 @@ unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
 unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
 
 impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor(self, shape: Shape) -> JitTensor<R> {
-        JitTensor {
+    pub(crate) fn into_tensor(self, shape: Shape) -> CubeTensor<R> {
+        CubeTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
@@ -256,8 +256,8 @@ impl<R: JitRuntime> JitFusionHandle<R> {
     }
 }
 
-impl<R: JitRuntime> From<JitTensor<R>> for JitFusionHandle<R> {
-    fn from(value: JitTensor<R>) -> Self {
+impl<R: JitRuntime> From<CubeTensor<R>> for JitFusionHandle<R> {
+    fn from(value: CubeTensor<R>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,

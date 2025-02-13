@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -46,7 +46,7 @@ pub(crate) fn unary_numeric<N: Numeric, O: NumericUnaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_unary_numeric<R, E, O, Args>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+pub(crate) fn launch_unary_numeric<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.

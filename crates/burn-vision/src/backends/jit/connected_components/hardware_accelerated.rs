@@ -10,7 +10,7 @@ use crate::{
 use burn_jit::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
@@ -465,12 +465,12 @@ fn compact_stats<I: Int>(
 
 #[allow(clippy::type_complexity)]
 pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
-    img: JitTensor<R>,
+    img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,
 ) -> Result<
     (
-        JitTensor<R>,
+        CubeTensor<R>,
         ConnectedStatsPrimitive<JitBackend<R, F, I, BT>>,
     ),
     String,

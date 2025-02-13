@@ -1,13 +1,13 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
 pub fn slice<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R>,
+    tensor: CubeTensor<R>,
     indices: &[Range<usize>],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let mut dims = tensor.shape.dims.clone();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
@@ -26,7 +26,7 @@ pub fn slice<R: JitRuntime, E: JitElement>(
     if offset_start % memory_offset_alignment == 0u64
         && offset_end % memory_offset_alignment == 0u64
     {
-        JitTensor::new(
+        CubeTensor::new(
             tensor.client,
             tensor
                 .handle
@@ -70,10 +70,10 @@ fn slice_kernel<E: CubePrimitive>(
 }
 
 pub(crate) fn slice_on_output<R: JitRuntime, E: JitElement>(
-    tensor: JitTensor<R>,
-    output: JitTensor<R>,
+    tensor: CubeTensor<R>,
+    output: CubeTensor<R>,
     indices: &[Range<usize>],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<R, u32>::new();
 

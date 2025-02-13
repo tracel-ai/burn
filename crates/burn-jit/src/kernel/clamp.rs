@@ -3,7 +3,7 @@ use cubecl::prelude::*;
 use crate::{
     element::JitElement,
     kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     JitRuntime,
 };
 
@@ -14,10 +14,10 @@ struct Options<C: Numeric> {
 }
 
 pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R>,
+    input: CubeTensor<R>,
     min_value: E,
     max_value: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     struct ClampOp;
 
     #[cube]

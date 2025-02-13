@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked)]
@@ -20,10 +20,10 @@ fn repeat_dim_kernel<E: CubePrimitive>(input: &Tensor<E>, output: &mut Tensor<E>
 }
 
 pub(crate) fn repeat_dim<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R>,
+    input: CubeTensor<R>,
     dim: usize,
     times: usize,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let mut shape = input.shape.clone();
 
     // Create output handle

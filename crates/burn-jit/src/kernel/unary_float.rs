@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -46,7 +46,7 @@ pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_unary_float<R, E, O, Args>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+pub(crate) fn launch_unary_float<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
@@ -113,7 +113,7 @@ pub(crate) mod unary_basic {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+    pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
         R: JitRuntime,
         for<'a> Args: FnOnce(&'a ()) -> &'a BasicFloatUnaryKind,

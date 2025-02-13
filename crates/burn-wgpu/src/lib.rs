@@ -9,7 +9,7 @@ pub use burn_jit::{
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
 
-pub use burn_jit::{tensor::JitTensor, JitBackend};
+pub use burn_jit::{tensor::CubeTensor, JitBackend};
 pub use burn_jit::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
 pub use cubecl::CubeDim;

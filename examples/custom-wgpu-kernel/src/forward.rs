@@ -4,7 +4,7 @@ use super::Backend;
 use burn::{
     backend::wgpu::{
         build_info, into_contiguous, kernel_source, BoolElement, FloatElement, IntElement,
-        JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        JitBackend, CubeTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -82,7 +82,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

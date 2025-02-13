@@ -1,4 +1,4 @@
-use crate::tensor::JitTensor;
+use crate::tensor::CubeTensor;
 use crate::FloatElement;
 use crate::{JitElement, JitRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
@@ -107,7 +107,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     }
 }
 
-pub(crate) fn dequantize_per_tensor<R, F>(tensor: JitTensor<R>) -> JitTensor<R>
+pub(crate) fn dequantize_per_tensor<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
     R: JitRuntime,
     F: JitElement,
@@ -124,7 +124,7 @@ where
     let client = tensor.client.clone();
     let handle = client.empty(num_out_elems * core::mem::size_of::<F>());
 
-    let output = JitTensor::new_contiguous(
+    let output = CubeTensor::new_contiguous(
         client.clone(),
         tensor.device.clone(),
         tensor.shape.clone(),
@@ -165,7 +165,7 @@ where
 }
 
 /// Convert the tensor back to a higher precision data type.
-pub fn dequantize<R, F>(tensor: JitTensor<R>) -> JitTensor<R>
+pub fn dequantize<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
     R: JitRuntime,
     F: FloatElement,

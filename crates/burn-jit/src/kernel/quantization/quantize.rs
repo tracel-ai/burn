@@ -1,4 +1,4 @@
-use crate::tensor::JitTensor;
+use crate::tensor::CubeTensor;
 use crate::FloatElement;
 use crate::{IntElement, JitElement, JitRuntime};
 use burn_tensor::quantization::{QuantizationScheme, QuantizationType};
@@ -157,11 +157,11 @@ pub(crate) fn quantize_per_tensor_symmetric_int8_kernel(
 }
 
 pub(crate) fn quantize_per_tensor<R, F, I>(
-    tensor: JitTensor<R>,
-    scale: JitTensor<R>,
-    offset: Option<JitTensor<R>>,
+    tensor: CubeTensor<R>,
+    scale: CubeTensor<R>,
+    offset: Option<CubeTensor<R>>,
     scheme: QuantizationScheme,
-) -> JitTensor<R>
+) -> CubeTensor<R>
 where
     R: JitRuntime,
     F: JitElement,
@@ -183,7 +183,7 @@ where
         // Scale and offset qparams are also packed in the tensor dat
         let handle = client
             .empty(output_num_elems + core::mem::size_of::<f32>() + core::mem::size_of::<i32>());
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
@@ -209,7 +209,7 @@ where
     } else {
         // Scale qparam is also packed in the tensor data
         let handle = client.empty(output_num_elems + core::mem::size_of::<f32>());
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             client.clone(),
             tensor.device.clone(),
             tensor.shape.clone(),
@@ -237,11 +237,11 @@ where
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R, F, I>(
-    tensor: JitTensor<R>,
+    tensor: CubeTensor<R>,
     scheme: &QuantizationScheme,
-    scale: JitTensor<R>,
-    offset: Option<JitTensor<R>>,
-) -> JitTensor<R>
+    scale: CubeTensor<R>,
+    offset: Option<CubeTensor<R>>,
+) -> CubeTensor<R>
 where
     R: JitRuntime,
     F: FloatElement,

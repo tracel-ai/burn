@@ -18,7 +18,7 @@ use crate::{
         numeric::{empty_device, zeros_device},
         permute,
     },
-    tensor::JitTensor,
+    tensor::CubeTensor,
     FloatElement, JitRuntime,
 };
 
@@ -32,11 +32,11 @@ use super::nchw_to_nhwc;
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_implicit_gemm<R: JitRuntime, F: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let is_tf32 = F::as_elem_native_unchecked() == Elem::Float(FloatKind::F32)
         && input
             .client

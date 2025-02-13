@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use cubecl::frontend::{Numeric, Tensor, ABSOLUTE_POS};
 use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::CubeDim;
@@ -34,9 +34,9 @@ fn gather_kernel<T: Numeric, I: Numeric>(
 
 pub(crate) fn gather<R: JitRuntime, E: JitElement, I: JitElement>(
     dim: usize,
-    tensor: JitTensor<R>,
-    indices: JitTensor<R>,
-) -> JitTensor<R> {
+    tensor: CubeTensor<R>,
+    indices: CubeTensor<R>,
+) -> CubeTensor<R> {
     let shape_output = indices.shape.clone();
     let total_elem = shape_output.num_elements();
     let output = empty_device::<R, E>(tensor.client.clone(), tensor.device.clone(), shape_output);

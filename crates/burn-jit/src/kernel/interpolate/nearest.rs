@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{tensor::CubeTensor, FloatElement, JitRuntime};
 
 #[cube(launch_unchecked)]
 fn interpolate_nearest_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {
@@ -32,9 +32,9 @@ fn interpolate_nearest_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F
 }
 
 pub(crate) fn interpolate_nearest_launch<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    output: JitTensor<R>,
-) -> JitTensor<R> {
+    input: CubeTensor<R>,
+    output: CubeTensor<R>,
+) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 

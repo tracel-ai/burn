@@ -7,7 +7,7 @@ use burn_tensor::{
 };
 
 use crate::{
-    element::BoolElement, kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend,
+    element::BoolElement, kernel, tensor::CubeTensor, FloatElement, IntElement, JitBackend,
     JitRuntime,
 };
 
@@ -17,11 +17,11 @@ fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
     shape: S,
     scheme: QuantizationScheme,
     device: &R::Device,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = R::client(device);
     let buffer = client.create(data);
 
-    JitTensor::new_contiguous(
+    CubeTensor::new_contiguous(
         client,
         device.clone(),
         shape.into(),

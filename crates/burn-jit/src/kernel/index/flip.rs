@@ -1,5 +1,5 @@
 use crate::{
-    element::JitElement, ops::numeric::empty_device, tensor::JitTensor, BoolElement, JitRuntime,
+    element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, BoolElement, JitRuntime,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -34,9 +34,9 @@ fn flip_kernel<E: CubePrimitive, Bool: Int>(
 }
 
 pub(crate) fn flip<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    tensor: JitTensor<R>,
+    tensor: CubeTensor<R>,
     indices: &[usize],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let output = empty_device::<R, E>(
         tensor.client.clone(),
         tensor.device.clone(),
@@ -46,10 +46,10 @@ pub(crate) fn flip<R: JitRuntime, E: JitElement, BT: BoolElement>(
 }
 
 pub(crate) fn flip_on_output<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    tensor: JitTensor<R>,
-    output: JitTensor<R>,
+    tensor: CubeTensor<R>,
+    output: CubeTensor<R>,
     indices: &[usize],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, BT>::new();
 

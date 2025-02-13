@@ -28,7 +28,7 @@ use crate::{
         into_contiguous,
     },
     ops::{numeric::empty_device, permute, reshape},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     FloatElement, JitElement, JitRuntime,
 };
 
@@ -40,11 +40,11 @@ use crate::{
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Large>(input, weight, bias, options)
 }
 
@@ -56,11 +56,11 @@ pub fn conv2d_gemm_cmma_large_m<R: JitRuntime, F: FloatElement>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 pub fn conv2d_gemm_cmma_balanced<R: JitRuntime, F: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     conv2d_gemm_cmma_strategy::<R, F, ImplicitCmmaConv, Balanced>(input, weight, bias, options)
 }
 
@@ -70,11 +70,11 @@ fn conv2d_gemm_cmma_strategy<
     Alg: Algorithm,
     S: ConvSelector<Alg>,
 >(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     if TypeId::of::<F>() == TypeId::of::<flex32>() {
         conv2d_gemm_with_algo::<R, (F, f16, f32), Alg, S>(input, weight, bias, options)
     } else if TypeId::of::<F>() == TypeId::of::<bf16>() || TypeId::of::<F>() == TypeId::of::<f16>()
@@ -100,11 +100,11 @@ pub fn conv2d_gemm_with_algo<
     Alg: Algorithm,
     S: ConvSelector<Alg>,
 >(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError>
+) -> Result<CubeTensor<R>, ConvLaunchError>
 where
     SP::EG: JitElement,
 {
@@ -226,7 +226,7 @@ where
     Ok(permute(out, &[0, 3, 1, 2]))
 }
 
-pub(crate) fn has_tf32<R: JitRuntime>(c: &JitTensor<R>) -> bool {
+pub(crate) fn has_tf32<R: JitRuntime>(c: &CubeTensor<R>) -> bool {
     c.client
         .properties()
         .feature_enabled(Feature::Type(Elem::Float(FloatKind::TF32)))

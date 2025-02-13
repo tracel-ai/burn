@@ -10,7 +10,7 @@ use crate::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
-    tensor::JitTensor,
+    tensor::CubeTensor,
     FloatElement, JitRuntime,
 };
 
@@ -121,11 +121,11 @@ fn direct_conv2d_kernel<F: Float>(
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv2d_direct<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [batch_size, _, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let channels_per_group = out_channels / options.groups;

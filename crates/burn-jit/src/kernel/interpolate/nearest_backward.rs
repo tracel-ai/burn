@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{tensor::CubeTensor, FloatElement, JitRuntime};
 
 #[cube(launch_unchecked)]
 fn interpolate_nearest_backward_kernel<F: Float>(grad: &Tensor<F>, output: &mut Tensor<F>) {
@@ -56,9 +56,9 @@ fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: JitRuntime, E: FloatElement>(
-    out_grad: JitTensor<R>,
-    output: JitTensor<R>,
-) -> JitTensor<R> {
+    out_grad: CubeTensor<R>,
+    output: CubeTensor<R>,
+) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 

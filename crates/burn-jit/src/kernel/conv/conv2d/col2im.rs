@@ -12,7 +12,7 @@ use crate::{
         slice,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     FloatElement, JitElement, JitRuntime,
 };
 
@@ -26,11 +26,11 @@ use super::batches_per_run;
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
     let [batch_size, _, input_h, input_w] = input.shape.dims();
     let groups = options.groups;
@@ -117,7 +117,7 @@ pub fn conv_transpose2d_col2im<R: JitRuntime, E: FloatElement>(
     }
 }
 
-pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>, i: usize) -> JitTensor<R> {
+pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
     for dim in tensor.shape.dims[1..].iter() {
@@ -132,10 +132,10 @@ pub(crate) fn index<R: JitRuntime, E: JitElement>(tensor: JitTensor<R>, i: usize
 
 #[allow(clippy::too_many_arguments)]
 fn execute<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
-    image: JitTensor<R>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
+    image: CubeTensor<R>,
     options: ConvTransposeOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
@@ -161,9 +161,9 @@ fn execute<R: JitRuntime, E: FloatElement>(
 
 #[allow(clippy::too_many_arguments)]
 fn col2im<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
-    out: JitTensor<R>,
+    columns: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
+    out: CubeTensor<R>,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,

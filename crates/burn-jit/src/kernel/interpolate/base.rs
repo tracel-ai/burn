@@ -1,5 +1,5 @@
 use crate::{
-    kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor, FloatElement,
+    kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor, FloatElement,
     JitRuntime,
 };
 use burn_tensor::{
@@ -16,10 +16,10 @@ use super::{
 ///
 /// Supports nearest, bilinear and bicubic modes
 pub fn interpolate<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
+    input: CubeTensor<R>,
     output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let input = into_contiguous(input);
     let [batch_size, channels, _, _] = input.shape.dims();
     let [out_height, out_width] = output_size;
@@ -38,16 +38,16 @@ pub fn interpolate<R: JitRuntime, E: FloatElement>(
 ///
 /// Note: only nearest mode is supported
 pub fn interpolate_backward<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    out_grad: JitTensor<R>,
+    input: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
     _output_size: [usize; 2],
     options: InterpolateOptions,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let out_grad = into_contiguous(out_grad);
     let output_shape = input.shape.clone();
     let num_elems = input.shape.num_elements();
     let buffer = input.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new_contiguous(
+    let output = CubeTensor::new_contiguous(
         input.client.clone(),
         input.device.clone(),
         output_shape,

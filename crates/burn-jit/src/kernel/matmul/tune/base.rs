@@ -8,7 +8,7 @@ use crate::{
     element::FloatElement,
     kernel::{matmul::utils::init_matmul_output, prng::random_like_uniform},
     ops::numeric::empty_device,
-    tensor::JitTensor,
+    tensor::CubeTensor,
     tune_key::JitAutotuneKey,
     JitRuntime, JitTuneId,
 };
@@ -17,10 +17,10 @@ use super::key::create_key;
 
 fn matmul_input_gen<R: JitRuntime, E: FloatElement>(
     _key: &JitAutotuneKey,
-    lhs: &JitTensor<R>,
-    rhs: &JitTensor<R>,
-    out: &JitTensor<R>,
-) -> (JitTensor<R>, JitTensor<R>, JitTensor<R>) {
+    lhs: &CubeTensor<R>,
+    rhs: &CubeTensor<R>,
+    out: &CubeTensor<R>,
+) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
     let random_bounds: (E, E) = ((-10.0).elem::<E>(), (10.0).elem::<E>());
     let lhs = random_like_uniform(lhs, random_bounds.0, random_bounds.1);
     let rhs = random_like_uniform(rhs, random_bounds.0, random_bounds.1);
@@ -32,10 +32,10 @@ fn matmul_input_gen<R: JitRuntime, E: FloatElement>(
 
 /// Executes autotune on matmul operations
 pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: Option<JitTensor<R>>,
-) -> JitTensor<R> {
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: Option<CubeTensor<R>>,
+) -> CubeTensor<R> {
     let output = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));
 
     let client = lhs.client.clone();
@@ -58,9 +58,9 @@ pub fn matmul_autotune<R: JitRuntime, E: FloatElement + Element>(
 }
 
 fn matmul_accelerated<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: JitTensor<R>,
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
         &Strategy::Standard,
@@ -73,9 +73,9 @@ fn matmul_accelerated<R: JitRuntime, E: FloatElement>(
 }
 
 fn matmul_tiling2d<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: JitTensor<R>,
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
         &Strategy::Tiling2D(Tiling2dConfig::default()),
@@ -88,9 +88,9 @@ fn matmul_tiling2d<R: JitRuntime, E: FloatElement>(
 }
 
 fn matmul_simple<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: JitTensor<R>,
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
         &Strategy::Simple,

@@ -1,4 +1,4 @@
-use crate::{element::BoolElement, tensor::JitTensor, FloatElement, IntElement, JitRuntime};
+use crate::{element::BoolElement, tensor::CubeTensor, FloatElement, IntElement, JitRuntime};
 use burn_tensor::backend::{Backend, DeviceOps};
 use cubecl::server::ComputeServer;
 use rand::{rngs::StdRng, SeedableRng};
@@ -35,10 +35,10 @@ where
     type IntElem = I;
     type BoolElem = BT;
 
-    type FloatTensorPrimitive = JitTensor<R>;
-    type IntTensorPrimitive = JitTensor<R>;
-    type BoolTensorPrimitive = JitTensor<R>;
-    type QuantizedTensorPrimitive = JitTensor<R>;
+    type FloatTensorPrimitive = CubeTensor<R>;
+    type IntTensorPrimitive = CubeTensor<R>;
+    type BoolTensorPrimitive = CubeTensor<R>;
+    type QuantizedTensorPrimitive = CubeTensor<R>;
     type QuantizedEncoding = u32;
 
     fn name() -> String {
@@ -97,7 +97,7 @@ where
 impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     for JitBackend<R, F, I, BT>
 {
-    type Handle = JitTensor<R>;
+    type Handle = CubeTensor<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
         handle.handle

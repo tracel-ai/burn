@@ -9,7 +9,7 @@ use cubecl::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::JitTensor,
+    kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
     JitAutotuneKey, JitElement, JitRuntime, JitTuneId,
 };
 
@@ -21,8 +21,8 @@ pub fn autotune_reduce<
     Rd: cubecl::reduce::Reduce,
 >(
     client: &ComputeClient<Run::Server, Run::Channel>,
-    input: JitTensor<Run>,
-    output: JitTensor<Run>,
+    input: CubeTensor<Run>,
+    output: CubeTensor<Run>,
     dim: usize,
 ) {
     use reduce_ops::*;
@@ -56,7 +56,7 @@ pub struct ReduceAutotuneKey {
 }
 
 impl ReduceAutotuneKey {
-    pub(crate) fn generate<Run: JitRuntime>(input: &JitTensor<Run>, axis: usize) -> Self {
+    pub(crate) fn generate<Run: JitRuntime>(input: &CubeTensor<Run>, axis: usize) -> Self {
         let rank = input.shape.num_dims();
 
         if axis > rank {
@@ -84,8 +84,8 @@ impl ReduceAutotuneKey {
 }
 
 pub(crate) fn create_key<Run: JitRuntime>(
-    input: &JitTensor<Run>,
-    _output: &JitTensor<Run>,
+    input: &CubeTensor<Run>,
+    _output: &CubeTensor<Run>,
     dim: &usize,
 ) -> JitAutotuneKey {
     JitAutotuneKey::Reduce(ReduceAutotuneKey::generate(input, *dim))
@@ -98,10 +98,10 @@ mod reduce_ops {
 
     pub(crate) fn reduce_input_gen<Run: JitRuntime, In: JitElement, Out: JitElement>(
         _key: &JitAutotuneKey,
-        input: &JitTensor<Run>,
-        output: &JitTensor<Run>,
+        input: &CubeTensor<Run>,
+        output: &CubeTensor<Run>,
         dim: &usize,
-    ) -> (JitTensor<Run>, JitTensor<Run>, usize) {
+    ) -> (CubeTensor<Run>, CubeTensor<Run>, usize) {
         let random_bounds: (In, In) = ((-10.0_f32).elem::<In>(), (10.0_f32).elem::<In>());
         let input = random_like_uniform(input, random_bounds.0, random_bounds.1);
 
@@ -120,8 +120,8 @@ mod reduce_ops {
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
     >(
-        input: JitTensor<Run>,
-        output: JitTensor<Run>,
+        input: CubeTensor<Run>,
+        output: CubeTensor<Run>,
         axis: usize,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
@@ -143,8 +143,8 @@ mod reduce_ops {
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
     >(
-        input: JitTensor<Run>,
-        output: JitTensor<Run>,
+        input: CubeTensor<Run>,
+        output: CubeTensor<Run>,
         axis: usize,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
@@ -166,8 +166,8 @@ mod reduce_ops {
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
     >(
-        input: JitTensor<Run>,
-        output: JitTensor<Run>,
+        input: CubeTensor<Run>,
+        output: CubeTensor<Run>,
         axis: usize,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
@@ -189,8 +189,8 @@ mod reduce_ops {
         Out: JitElement,
         Rd: cubecl::reduce::Reduce,
     >(
-        input: JitTensor<Run>,
-        output: JitTensor<Run>,
+        input: CubeTensor<Run>,
+        output: CubeTensor<Run>,
         axis: usize,
     ) -> Result<(), String> {
         cubecl::reduce::reduce::<Run, In, Out, Rd>(
@@ -211,8 +211,8 @@ mod reduce_ops {
 #[cfg(feature = "autotune")]
 pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
     client: &ComputeClient<Run::Server, Run::Channel>,
-    input: JitTensor<Run>,
-) -> JitTensor<Run> {
+    input: CubeTensor<Run>,
+) -> CubeTensor<Run> {
     use sum_ops::*;
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
@@ -235,7 +235,7 @@ pub fn autotune_sum<Run: JitRuntime, E: JitElement>(
     )
 }
 
-pub(crate) fn create_key_sum<Run: JitRuntime>(input: &JitTensor<Run>) -> JitAutotuneKey {
+pub(crate) fn create_key_sum<Run: JitRuntime>(input: &CubeTensor<Run>) -> JitAutotuneKey {
     JitAutotuneKey::Sum(SumAutotuneKey::generate(input))
 }
 
@@ -248,7 +248,7 @@ pub struct SumAutotuneKey {
 }
 
 impl SumAutotuneKey {
-    pub(crate) fn generate<Run: JitRuntime>(input: &JitTensor<Run>) -> Self {
+    pub(crate) fn generate<Run: JitRuntime>(input: &CubeTensor<Run>) -> Self {
         let dtype = input.dtype;
         let length = input.shape.num_elements();
         Self { dtype, length }
@@ -263,19 +263,19 @@ mod sum_ops {
 
     pub(crate) fn sum_input_gen<Run: JitRuntime, E: JitElement>(
         _key: &JitAutotuneKey,
-        input: &JitTensor<Run>,
-    ) -> JitTensor<Run> {
+        input: &CubeTensor<Run>,
+    ) -> CubeTensor<Run> {
         let random_bounds: (E, E) = ((-10.0_f32).elem::<E>(), (10.0_f32).elem::<E>());
         random_like_uniform(input, random_bounds.0, random_bounds.1)
     }
 
     pub(crate) fn sum_one_shot<Run: JitRuntime, E: JitElement, const C: u32>(
-        input: JitTensor<Run>,
-    ) -> Result<JitTensor<Run>, String> {
+        input: CubeTensor<Run>,
+    ) -> Result<CubeTensor<Run>, String> {
         let client = input.client.clone();
         let device = input.device.clone();
         let handle = client.create(E::as_bytes(&[E::from_int(0)]));
-        let output = JitTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
+        let output = CubeTensor::new_contiguous(client, device, [1].into(), handle, E::dtype());
 
         cubecl::reduce::shared_sum::<Run, E>(
             &input.client,
@@ -289,8 +289,8 @@ mod sum_ops {
 
     #[cfg(feature = "autotune")]
     pub(crate) fn sum_chained<Run: JitRuntime, E: JitElement>(
-        input: JitTensor<Run>,
-    ) -> Result<JitTensor<Run>, String> {
+        input: CubeTensor<Run>,
+    ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run, E, E, Sum>(
             input,
             crate::kernel::reduce::ReduceStrategy::Autotune,

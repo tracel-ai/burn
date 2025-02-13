@@ -7,7 +7,7 @@ use crate::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
-    tensor::JitTensor,
+    tensor::CubeTensor,
     JitRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Shape};
@@ -122,11 +122,11 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 /// * `options` - The options to use for the convolution
 ///
 pub fn conv_transpose2d_direct<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims();

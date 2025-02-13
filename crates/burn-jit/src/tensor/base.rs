@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 
 /// The basic tensor primitive struct.
 #[derive(new)]
-pub struct JitTensor<R: JitRuntime> {
+pub struct CubeTensor<R: JitRuntime> {
     /// Compute client for the [runtime](JitRuntime).
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
@@ -27,19 +27,19 @@ pub struct JitTensor<R: JitRuntime> {
     pub dtype: DType,
 }
 
-impl<R: JitRuntime, E: JitElement> From<JitTensor<R>> for TensorHandle<R, E> {
-    fn from(val: JitTensor<R>) -> Self {
+impl<R: JitRuntime, E: JitElement> From<CubeTensor<R>> for TensorHandle<R, E> {
+    fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(val.shape.dims.to_vec(), val.strides.to_vec(), val.handle)
     }
 }
 
-impl<R> core::fmt::Debug for JitTensor<R>
+impl<R> core::fmt::Debug for CubeTensor<R>
 where
     R: JitRuntime,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "JitTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
+            "CubeTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
             self.shape,
             self.device,
             self.strides,
@@ -49,7 +49,7 @@ where
     }
 }
 
-impl<R> Clone for JitTensor<R>
+impl<R> Clone for CubeTensor<R>
 where
     R: JitRuntime,
 {
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
+impl<R: JitRuntime> TensorMetadata for CubeTensor<R> {
     fn dtype(&self) -> DType {
         self.dtype
     }
@@ -75,7 +75,7 @@ impl<R: JitRuntime> TensorMetadata for JitTensor<R> {
     }
 }
 
-impl<R: JitRuntime> QTensorPrimitive for JitTensor<R> {
+impl<R: JitRuntime> QTensorPrimitive for CubeTensor<R> {
     fn scheme(&self) -> &burn_tensor::quantization::QuantizationScheme {
         if let DType::QFloat(scheme) = &self.dtype {
             scheme
@@ -191,7 +191,7 @@ macro_rules! execute_with_dtype {
     }};
 }
 
-impl<R> JitTensor<R>
+impl<R> CubeTensor<R>
 where
     R: JitRuntime,
 {

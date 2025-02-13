@@ -5,7 +5,7 @@ use burn_tensor::Shape;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     JitElement, JitRuntime,
 };
 
@@ -87,6 +87,6 @@ pub fn random_normal<R: JitRuntime, E: JitElement>(
     device: &R::Device,
     mean: E,
     std: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     random(shape, device, Normal { mean, std })
 }

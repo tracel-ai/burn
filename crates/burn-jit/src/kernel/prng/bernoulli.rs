@@ -3,7 +3,7 @@ use cubecl::prelude::*;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     JitElement, JitRuntime,
 };
 
@@ -59,6 +59,6 @@ pub fn random_bernoulli<R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     probability: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     random(shape, device, Bernoulli { probability })
 }

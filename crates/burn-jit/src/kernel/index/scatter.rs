@@ -1,7 +1,7 @@
 use crate::{
     element::JitElement,
     kernel::{self},
-    tensor::JitTensor,
+    tensor::CubeTensor,
     IntElement, JitRuntime,
 };
 use cubecl::prelude::*;
@@ -67,10 +67,10 @@ fn scatter_kernel<T: Numeric, I: Int>(
 
 pub(crate) fn scatter<R: JitRuntime, E: JitElement, I: IntElement>(
     dim: usize,
-    tensor: JitTensor<R>,
-    indices: JitTensor<R>,
-    value: JitTensor<R>,
-) -> JitTensor<R> {
+    tensor: CubeTensor<R>,
+    indices: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut indices = kernel::into_contiguous(indices);
     let tensor = kernel::into_contiguous(tensor);

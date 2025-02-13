@@ -10,17 +10,17 @@ use crate::{
         },
         prng::random_uniform,
     },
-    tensor::JitTensor,
+    tensor::CubeTensor,
     FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
 };
 
 /// Executes autotune on conv2d operations
 pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weights: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weights: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = input.client.clone();
 
     static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
@@ -42,14 +42,14 @@ pub fn conv2d_autotune<R: JitRuntime, E: FloatElement>(
 
 pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
     key: &JitAutotuneKey,
-    input: &JitTensor<R>,
-    _weights: &JitTensor<R>,
-    _bias: &Option<JitTensor<R>>,
+    input: &CubeTensor<R>,
+    _weights: &CubeTensor<R>,
+    _bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<2>,
 ) -> (
-    JitTensor<R>,
-    JitTensor<R>,
-    Option<JitTensor<R>>,
+    CubeTensor<R>,
+    CubeTensor<R>,
+    Option<CubeTensor<R>>,
     ConvOptions<2>,
 ) {
     let device = &input.device;
@@ -74,9 +74,9 @@ pub fn create_conv2d_input<R: JitRuntime, E: FloatElement>(
 }
 
 fn create_key<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R>,
-    weights: &JitTensor<R>,
-    bias: &Option<JitTensor<R>>,
+    input: &CubeTensor<R>,
+    weights: &CubeTensor<R>,
+    bias: &Option<CubeTensor<R>>,
     options: &ConvOptions<2>,
 ) -> JitAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();

@@ -1,7 +1,7 @@
 use burn_tensor::ops::{ConvOptions, ConvTransposeOptions};
 
 use crate::{
-    kernel::conv::ConvLaunchError, tensor::JitTensor, FloatElement, IntElement, JitRuntime,
+    kernel::conv::ConvLaunchError, tensor::CubeTensor, FloatElement, IntElement, JitRuntime,
 };
 
 #[cfg(feature = "autotune")]
@@ -72,12 +72,12 @@ impl Default for ConvTranspose2dStrategy {
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
 pub fn conv2d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
     strategy: Conv2dStrategy,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     match strategy {
         Conv2dStrategy::Direct => conv2d_direct::<R, E>(input, weight, bias, options),
         #[cfg(feature = "autotune")]
@@ -99,12 +99,12 @@ pub fn conv2d<R: JitRuntime, E: FloatElement>(
 /// * `strategy` - The convolution algorithm to use. Autotune will pick the fastest available option.
 ///
 pub fn conv_transpose2d<R: JitRuntime, E: FloatElement, I: IntElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
     strategy: ConvTranspose2dStrategy,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     match strategy {
         ConvTranspose2dStrategy::Direct => {
             conv_transpose2d_direct::<R, E>(input, weight, bias, options)

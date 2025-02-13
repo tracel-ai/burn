@@ -172,7 +172,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement> Backend for JitBackend<R, F,
 
         // Create the output tensor primitive.
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

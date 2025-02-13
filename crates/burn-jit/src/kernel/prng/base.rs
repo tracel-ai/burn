@@ -1,6 +1,6 @@
 use cubecl::prelude::*;
 
-use crate::{ops::numeric::empty_device, tensor::JitTensor, JitElement, JitRuntime, SEED};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, JitElement, JitRuntime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
@@ -12,7 +12,7 @@ pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
     let seeds = get_seeds();

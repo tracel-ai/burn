@@ -3,7 +3,7 @@ use crate::{kernel::fused_matmul_add_relu_kernel, FloatTensor};
 use super::Backend;
 use burn::tensor::Shape;
 use burn_jit::{
-    element::BoolElement, kernel::into_contiguous, tensor::JitTensor, FloatElement, IntElement,
+    element::BoolElement, kernel::into_contiguous, tensor::CubeTensor, FloatElement, IntElement,
     JitBackend, JitRuntime,
 };
 use cubecl::{CubeCount, CubeDim};
@@ -50,7 +50,7 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

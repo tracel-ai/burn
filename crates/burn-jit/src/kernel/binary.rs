@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::JitElement, ops::numeric::empty_device, tensor::CubeTensor, JitRuntime};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -161,9 +161,9 @@ pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
 }
 
 pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let line_size_lhs = tensor_line_size_parallel(
         R::line_size_elem(&E::as_elem_native_unchecked()),
@@ -248,9 +248,9 @@ pub(crate) fn launch_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
 }
 
 pub(crate) fn launch_scalar_binop<R: JitRuntime, E: JitElement, O: BinaryOpFamily>(
-    mut tensor: JitTensor<R>,
+    mut tensor: CubeTensor<R>,
     scalar: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     if !tensor.is_contiguous_buffer() {
         tensor = into_contiguous(tensor);
     }

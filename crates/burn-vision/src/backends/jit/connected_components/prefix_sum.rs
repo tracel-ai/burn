@@ -6,7 +6,7 @@ use burn_jit::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
-    tensor::JitTensor,
+    tensor::CubeTensor,
     IntElement, JitRuntime,
 };
 
@@ -214,7 +214,7 @@ fn count_trailing_zeros(num: u32) -> u32 {
 }
 
 /// Compute the prefix sum of a tensor
-pub fn prefix_sum<R: JitRuntime, I: IntElement>(input: JitTensor<R>) -> JitTensor<R> {
+pub fn prefix_sum<R: JitRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
     let num_elems = input.shape.num_elements() as u32;
