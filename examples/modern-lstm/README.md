@@ -21,7 +21,7 @@ the project's specific needs.
 
 ```sh
 # Cuda backend
-cargo run --example lstm-train --release --features cuda-jit
+cargo run --example lstm-train --release --features cuda
 
 # Wgpu backend
 cargo run --example lstm-train --release --features wgpu
@@ -42,5 +42,5 @@ cargo run --example lstm-train --release --features ndarray-blas-netlib
 ### Inference
 
 ```sh
-cargo run --example lstm-infer --release --features cuda-jit
+cargo run --example lstm-infer --release --features cuda
 ```

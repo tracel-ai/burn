@@ -42,7 +42,7 @@ where
     type QuantizedEncoding = u32;
 
     fn name() -> String {
-        format!("jit<{}>", R::name())
+        format!("cubecl<{}>", R::name())
     }
 
     fn seed(seed: u64) {

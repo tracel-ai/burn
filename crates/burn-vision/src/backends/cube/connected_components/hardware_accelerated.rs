@@ -4,7 +4,7 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
+    backends::cube::connected_components::stats_from_opts, ConnectedStatsOptions,
     ConnectedStatsPrimitive, Connectivity,
 };
 use burn_cubecl::{

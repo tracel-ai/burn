@@ -42,7 +42,7 @@ macro_rules! testgen_all {
         $crate::testgen_all!([Float], [Int], [Bool]);
     };
     ([$($float:ident),*], [$($int:ident),*], [$($bool:ident),*]) => {
-        mod jit {
+        mod cube {
             burn_cubecl::testgen_jit!([$($float),*], [$($int),*], [$($bool),*]);
 
             mod kernel {
@@ -84,7 +84,7 @@ macro_rules! testgen_all {
                 burn_cubecl::testgen_quantization!();
             }
         }
-        mod jit_fusion {
+        mod cube_fusion {
             burn_cubecl::testgen_jit_fusion!([$($float),*], [$($int),*], [$($bool),*]);
         }
     };
