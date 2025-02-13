@@ -4,7 +4,7 @@ use crate::{
         JitFusionHandle,
     },
     kernel::matmul::MatmulAutotuneKey,
-    BoolElement, CubeRuntime, JitTuneId,
+    BoolElement, CubeRuntime, CubeTuneId,
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -29,7 +29,7 @@ pub fn fused_matmul_autotune<R: CubeRuntime, BT: BoolElement>(
     optimization: &MatmulOptimization<R>,
     context: &mut Context<JitFusionHandle<R>>,
 ) {
-    static TUNER: LocalTuner<FusedMatmulAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_standard_fused::<R, BT>)
@@ -38,7 +38,7 @@ pub fn fused_matmul_autotune<R: CubeRuntime, BT: BoolElement>(
         .with_tunable(tune_fallback::<R, BT>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&optimization.device),
+        &CubeTuneId::new::<R>(&optimization.device),
         &optimization.client,
         &tunables,
         TuneInput::new(context, optimization),

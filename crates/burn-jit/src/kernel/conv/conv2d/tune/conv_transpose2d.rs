@@ -7,7 +7,7 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, JitAutotuneKey, CubeRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, CubeRuntime, CubeTuneId,
 };
 
 use super::ConvTranspose2dAutotuneKey;
@@ -21,14 +21,14 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_set = TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
         .with_tunable(conv_transpose2d_direct::<R, E>)
         .with_tunable(conv_transpose2d_col2im::<R, E>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.device),
         &client,
         &tune_set,
         (input, weights, bias, options),

@@ -10,7 +10,7 @@ use crate::{
     ops::numeric::empty_device,
     tensor::CubeTensor,
     tune_key::JitAutotuneKey,
-    CubeRuntime, JitTuneId,
+    CubeRuntime, CubeTuneId,
 };
 
 use super::key::create_key;
@@ -40,7 +40,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
 
     let client = lhs.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, matmul_input_gen::<R, E>)
         .with_tunable(matmul_tiling2d::<R, E>)
@@ -48,7 +48,7 @@ pub fn matmul_autotune<R: CubeRuntime, E: FloatElement + Element>(
         .with_tunable(matmul_simple::<R, E>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&lhs.device),
+        &CubeTuneId::new::<R>(&lhs.device),
         &client,
         &tunables,
         (lhs, rhs, output.clone()),

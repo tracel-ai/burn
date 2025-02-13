@@ -56,12 +56,12 @@ pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeSer
 
 /// ID used to identify a Just-in-Time environment.
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub struct JitTuneId {
+pub struct CubeTuneId {
     device: DeviceId,
     name: &'static str,
 }
 
-impl JitTuneId {
+impl CubeTuneId {
     /// Create a new ID.
     pub fn new<R: CubeRuntime>(device: &R::Device) -> Self {
         Self {
@@ -71,7 +71,7 @@ impl JitTuneId {
     }
 }
 
-impl core::fmt::Display for JitTuneId {
+impl core::fmt::Display for CubeTuneId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "device-{}-{}-{}",

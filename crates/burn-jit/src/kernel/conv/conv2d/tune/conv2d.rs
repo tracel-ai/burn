@@ -11,7 +11,7 @@ use crate::{
         prng::random_uniform,
     },
     tensor::CubeTensor,
-    FloatElement, JitAutotuneKey, CubeRuntime, JitTuneId,
+    FloatElement, JitAutotuneKey, CubeRuntime, CubeTuneId,
 };
 
 /// Executes autotune on conv2d operations
@@ -23,7 +23,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R, E>, create_conv2d_input::<R, E>)
         .with_tunable(conv2d_direct::<R, E>)
@@ -33,7 +33,7 @@ pub fn conv2d_autotune<R: CubeRuntime, E: FloatElement>(
         .with_tunable(conv2d_gemm_cmma_balanced::<R, E>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.device),
         &client,
         &tunables,
         (input, weights, bias, options),

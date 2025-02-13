@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     kernel::prng::random_like_uniform, ops::numeric::empty_device, tensor::CubeTensor,
-    JitAutotuneKey, JitElement, CubeRuntime, JitTuneId,
+    JitAutotuneKey, JitElement, CubeRuntime, CubeTuneId,
 };
 
 /// Executes autotune on reduce operations.
@@ -27,7 +27,7 @@ pub fn autotune_reduce<
 ) {
     use reduce_ops::*;
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<Run>, reduce_input_gen::<Run, In, Out>)
         .with_tunable(reduce::<Run, In, Out, Rd>)
@@ -36,7 +36,7 @@ pub fn autotune_reduce<
         .with_tunable(reduce_shared_plane::<Run, In, Out, Rd>);
 
     TUNER.execute(
-        &JitTuneId::new::<Run>(&input.device),
+        &CubeTuneId::new::<Run>(&input.device),
         client,
         &tunables,
         (input, output, dim),
@@ -215,7 +215,7 @@ pub fn autotune_sum<Run: CubeRuntime, E: JitElement>(
 ) -> CubeTensor<Run> {
     use sum_ops::*;
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<JitAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key_sum::<Run>, sum_input_gen::<Run, E>)
         .with_tunable(sum_one_shot::<Run, E, 1>)
@@ -228,7 +228,7 @@ pub fn autotune_sum<Run: CubeRuntime, E: JitElement>(
         .with_tunable(sum_chained::<Run, E>);
 
     TUNER.execute(
-        &JitTuneId::new::<Run>(&input.device),
+        &CubeTuneId::new::<Run>(&input.device),
         client,
         &tunables,
         input,
