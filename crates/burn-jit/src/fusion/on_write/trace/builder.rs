@@ -356,7 +356,7 @@ impl FuseOnWriteTraceBuilder {
             );
         }
 
-        let reshapes = self.views.clone();
+        let views = self.views.clone();
         let settings = self.settings;
         let inputs_unhandled = self.inputs_unhandled.clone();
         let indexed = self.indexed.keys().cloned().collect::<BTreeSet<_>>();
@@ -366,7 +366,7 @@ impl FuseOnWriteTraceBuilder {
             inputs,
             settings,
             scalars,
-            views: reshapes,
+            views,
             indexed,
             shape_ref,
             ops,

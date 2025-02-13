@@ -65,7 +65,12 @@ impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for MatmulBuilder<R>
             }
         } else {
             self.builder.register(operation);
-            self.builder_fallback.register(operation);
+
+            // We might not be able to accept an operation because of unhandled tensors in the
+            // fused matmul builder. To keep both builders in sync we have to check their length.
+            if self.builder_fallback.len() < self.builder.len() {
+                self.builder_fallback.register(operation);
+            }
         }
     }
 

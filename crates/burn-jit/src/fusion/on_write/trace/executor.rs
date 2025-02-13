@@ -34,12 +34,12 @@ pub struct ExecutionError<R: JitRuntime, Runner: TraceRunner<R>> {
 impl<'a, R: JitRuntime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a BTreeMap<ElemwisePrecision, u32>,
-        reshapes: &'a Vec<TensorView>,
+        views: &'a Vec<TensorView>,
         ops: &'a Vec<ElemwiseOp>,
     ) -> Self {
         Self {
             scalars,
-            views: reshapes,
+            views,
             ops,
             _r: PhantomData,
         }

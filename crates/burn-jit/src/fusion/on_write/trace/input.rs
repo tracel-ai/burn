@@ -24,7 +24,7 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         inputs_unhandled: &'a Vec<TensorId>,
-        reshapes: &'a Vec<TensorView>,
+        views: &'a Vec<TensorView>,
         shape_ref: &'a Vec<usize>,
         settings: &'a FuseSettings,
     ) -> Self {
@@ -32,7 +32,7 @@ impl<'a, R: JitRuntime> InputPlanner<'a, R> {
             inputs,
             settings,
             inputs_unhandled,
-            views: reshapes,
+            views,
             shape_ref,
             _r: PhantomData,
         }

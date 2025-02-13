@@ -40,6 +40,7 @@ impl<R: JitRuntime> ElementWiseBuilder<R> {
 
 impl<R: JitRuntime> OptimizationBuilder<JitOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_ir::OperationIr) {
+        println!("Operation {operation:?}");
         self.builder.register(operation);
     }
 

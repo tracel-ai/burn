@@ -119,6 +119,7 @@ impl OptimizationBuilder<FuseOnWriteTrace> for FuseOnWriteBuilder {
         };
 
         self.status = OptimizationStatus::Open;
+        println!("Increament num op");
         self.num_ops += 1;
     }
 
@@ -214,6 +215,7 @@ impl FuseOnWriteBuilder {
                     Some(())
                 }) {
                     self.num_views += 1;
+                    println!("Num views increment");
                     true
                 } else {
                     false
