@@ -89,7 +89,7 @@ impl<R: cubecl::Runtime> CubeRuntime for R
 where
     R::Device: DeviceOps,
 {
-    type JitDevice = R::Device;
+    type CubeDevice = R::Device;
     type JitServer = R::Server;
 }
 

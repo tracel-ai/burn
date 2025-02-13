@@ -117,7 +117,7 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
     type OptimizationState = JitOptimizationState;
     type Optimization = JitOptimization<R>;
     type FusionHandle = JitFusionHandle<R>;
-    type FusionDevice = R::JitDevice;
+    type FusionDevice = R::CubeDevice;
     type FusionClient = MutexFusionClient<Self>;
     type BoolRepr = BT;
 
