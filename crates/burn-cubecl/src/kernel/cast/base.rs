@@ -1,4 +1,4 @@
-use crate::{tensor::JitTensor, JitElement, JitRuntime};
+use crate::{tensor::CubeTensor, CubeElement, CubeRuntime};
 use cubecl::linalg::tensor::index_offset_with_layout;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, tensor_vectorization_factor};
 use std::any::TypeId;
@@ -30,9 +30,11 @@ pub(crate) fn cast_element<I: CubePrimitive, O: CubePrimitive>(
 /// Cast a tensor to the given element type.
 ///
 /// Note: When input element is semantically a boolean, prefer bool_cast function.
-pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement>(input: JitTensor<R>) -> JitTensor<R> {
+pub fn cast<R: CubeRuntime, EI: CubeElement, EO: CubeElement>(
+    input: CubeTensor<R>,
+) -> CubeTensor<R> {
     if TypeId::of::<EI>() == TypeId::of::<EO>() {
-        return JitTensor::new_contiguous(
+        return CubeTensor::new_contiguous(
             input.client,
             input.device,
             input.shape,
@@ -53,7 +55,7 @@ pub fn cast<R: JitRuntime, EI: JitElement, EO: JitElement>(input: JitTensor<R>) 
         calculate_cube_count_elemwise(num_elems / vectorization_factor as usize, cube_dim);
     let client = input.client.clone();
     let handle = client.empty(num_elems * core::mem::size_of::<EO>());
-    let output = JitTensor::new_contiguous(
+    let output = CubeTensor::new_contiguous(
         client.clone(),
         input.device.clone(),
         input.shape.clone(),

@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use cubecl::prelude::*;
 use cubecl::{calculate_cube_count_elemwise, CubeDim};
 
@@ -28,11 +28,11 @@ fn select_kernel<T: Numeric, I: Numeric>(
     output[ABSOLUTE_POS] = input[offset_input];
 }
 
-pub(crate) fn select<R: JitRuntime, E: JitElement, I: JitElement>(
-    tensor: JitTensor<R>,
+pub(crate) fn select<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+    tensor: CubeTensor<R>,
     dim: usize,
-    indices: JitTensor<R>,
-) -> JitTensor<R> {
+    indices: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape.dims[0];

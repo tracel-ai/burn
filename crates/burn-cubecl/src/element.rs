@@ -1,20 +1,20 @@
 use cubecl::{
     flex32,
     prelude::{Float, Int, Numeric},
-    CubeElement,
+    CubeElement as CubeElem,
 };
 
 /// The base element trait for the jit backend.
-pub trait JitElement: burn_tensor::Element + CubeElement + PartialEq + Numeric {}
+pub trait CubeElement: burn_tensor::Element + CubeElem + PartialEq + Numeric {}
 
 /// The float element type for the jit backend.
-pub trait FloatElement: JitElement + Float {}
+pub trait FloatElement: CubeElement + Float {}
 
 /// The int element type for the jit backend.
-pub trait IntElement: JitElement + Int {}
+pub trait IntElement: CubeElement + Int {}
 
 /// The element type for booleans for the jit backend.
-pub trait BoolElement: JitElement + Int {
+pub trait BoolElement: CubeElement + Int {
     /// The true value for the boolean element.
     fn true_val() -> Self {
         Self::from_int(1)
@@ -34,19 +34,19 @@ pub trait BoolElement: JitElement + Int {
     }
 }
 
-impl JitElement for u64 {}
-impl JitElement for u32 {}
-impl JitElement for u16 {}
-impl JitElement for u8 {}
-impl JitElement for i64 {}
-impl JitElement for i32 {}
-impl JitElement for i16 {}
-impl JitElement for i8 {}
-impl JitElement for f64 {}
-impl JitElement for f32 {}
-impl JitElement for flex32 {}
-impl JitElement for half::f16 {}
-impl JitElement for half::bf16 {}
+impl CubeElement for u64 {}
+impl CubeElement for u32 {}
+impl CubeElement for u16 {}
+impl CubeElement for u8 {}
+impl CubeElement for i64 {}
+impl CubeElement for i32 {}
+impl CubeElement for i16 {}
+impl CubeElement for i8 {}
+impl CubeElement for f64 {}
+impl CubeElement for f32 {}
+impl CubeElement for flex32 {}
+impl CubeElement for half::f16 {}
+impl CubeElement for half::bf16 {}
 
 impl FloatElement for f64 {}
 impl FloatElement for f32 {}

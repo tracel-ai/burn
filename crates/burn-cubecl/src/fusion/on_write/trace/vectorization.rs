@@ -9,15 +9,15 @@ use burn_ir::TensorId;
 use crate::{
     fusion::{
         on_write::{ir::ElemwiseOp, settings::FuseSettings},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
-    JitRuntime,
+    CubeRuntime,
 };
 
 use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner};
 
 /// Select the best vectorization factor for each tensor handle.
-pub struct VectorizationPlanner<'a, R: JitRuntime> {
+pub struct VectorizationPlanner<'a, R: CubeRuntime> {
     settings: &'a FuseSettings,
     views: &'a Vec<TensorView>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -25,7 +25,7 @@ pub struct VectorizationPlanner<'a, R: JitRuntime> {
     _r: PhantomData<R>,
 }
 
-impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
+impl<'a, R: CubeRuntime> VectorizationPlanner<'a, R> {
     pub fn new(
         views: &'a Vec<TensorView>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -42,7 +42,7 @@ impl<'a, R: JitRuntime> VectorizationPlanner<'a, R> {
     }
     pub fn run<Runner: TraceRunner<R>>(
         self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let tensors_reshaped = self.views.iter().filter_map(|view| match view {

@@ -8,8 +8,8 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{matmul, MatmulStrategy},
 };
-use crate::{execute_with_dtype, JitBackend};
-use crate::{FloatElement, IntElement, JitRuntime};
+use crate::{execute_with_dtype, CubeBackend};
+use crate::{CubeRuntime, FloatElement, IntElement};
 use burn_tensor::ops::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_tensor::{ops::FloatTensorOps, Distribution, Shape, TensorData};
 use burn_tensor::{DType, ElementConversion, FloatDType};
@@ -17,9 +17,9 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use std::ops::Range;
 
-impl<R, F, I, BT> FloatTensorOps<Self> for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> FloatTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

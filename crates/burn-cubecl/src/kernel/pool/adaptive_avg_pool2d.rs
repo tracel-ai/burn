@@ -1,4 +1,4 @@
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -76,10 +76,10 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R>,
+pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime, E: CubeElement>(
+    input: CubeTensor<R>,
     output_size: [usize; 2],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = input.shape.dims();
 
     let output_shape = Shape::new([batch_size, channels, output_size[0], output_size[1]]);

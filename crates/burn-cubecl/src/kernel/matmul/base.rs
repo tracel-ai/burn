@@ -1,7 +1,7 @@
 use cubecl::linalg::matmul::kernels::MatmulLaunchError;
 
 use super::init_matmul_output;
-use crate::{tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{tensor::CubeTensor, CubeRuntime, FloatElement};
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
@@ -27,12 +27,12 @@ impl Default for MatmulStrategy {
 }
 
 /// Launch a matmul kernel using the given strategy.
-pub fn matmul<R: JitRuntime, E: FloatElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-    out: Option<JitTensor<R>>,
+pub fn matmul<R: CubeRuntime, E: FloatElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+    out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
-) -> Result<JitTensor<R>, MatmulLaunchError> {
+) -> Result<CubeTensor<R>, MatmulLaunchError> {
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));

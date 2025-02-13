@@ -1,4 +1,4 @@
-use crate::{ops::numeric::empty_device, tensor::JitTensor, IntElement, JitRuntime};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime, IntElement};
 use burn_tensor::Shape;
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
@@ -133,10 +133,10 @@ pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
     out[offset_out] = O::BinaryOp::<C>::execute(lhs[offset_lhs], rhs[offset_rhs]);
 }
 
-pub(crate) fn launch_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub(crate) fn launch_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let line_size_lhs = tensor_line_size_parallel(
         R::line_size_elem(&E::as_elem_native_unchecked()),
@@ -220,10 +220,10 @@ pub(crate) fn launch_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamil
     }
 }
 
-pub(crate) fn launch_scalar_binop_int<R: JitRuntime, E: IntElement, O: BinaryOpIntFamily>(
-    mut tensor: JitTensor<R>,
+pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, E: IntElement, O: BinaryOpIntFamily>(
+    mut tensor: CubeTensor<R>,
     scalar: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     if !tensor.is_contiguous_buffer() {
         tensor = into_contiguous(tensor);
     }

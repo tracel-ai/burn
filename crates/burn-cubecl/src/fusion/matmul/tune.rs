@@ -1,10 +1,10 @@
 use crate::{
     fusion::{
         tune::{TuneContext, TuneInput},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
     kernel::matmul::MatmulAutotuneKey,
-    BoolElement, JitRuntime, JitTuneId,
+    BoolElement, CubeRuntime, CubeTuneId,
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -25,11 +25,11 @@ pub struct FusedMatmulAutotuneKey {
 }
 
 /// Executes autotune on matmul operations
-pub fn fused_matmul_autotune<R: JitRuntime, BT: BoolElement>(
+pub fn fused_matmul_autotune<R: CubeRuntime, BT: BoolElement>(
     optimization: &MatmulOptimization<R>,
-    context: &mut Context<JitFusionHandle<R>>,
+    context: &mut Context<CubeFusionHandle<R>>,
 ) {
-    static TUNER: LocalTuner<FusedMatmulAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
         .with_tunable(tune_standard_fused::<R, BT>)
@@ -38,14 +38,14 @@ pub fn fused_matmul_autotune<R: JitRuntime, BT: BoolElement>(
         .with_tunable(tune_fallback::<R, BT>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&optimization.device),
+        &CubeTuneId::new::<R>(&optimization.device),
         &optimization.client,
         &tunables,
         TuneInput::new(context, optimization),
     );
 }
 
-pub(crate) fn create_key<R: JitRuntime>(
+pub(crate) fn create_key<R: CubeRuntime>(
     input: &TuneInput<R, MatmulOptimization<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
@@ -66,14 +66,14 @@ pub(crate) fn create_key<R: JitRuntime>(
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
 }
 
-fn input_gen<R: JitRuntime>(
+fn input_gen<R: CubeRuntime>(
     _key: &FusedMatmulAutotuneKey,
     input: &TuneInput<R, MatmulOptimization<R>>,
 ) -> TuneInput<R, MatmulOptimization<R>> {
     input.clone()
 }
 
-fn tune_standard_fused<R: JitRuntime, BT: BoolElement>(
+fn tune_standard_fused<R: CubeRuntime, BT: BoolElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();
@@ -88,7 +88,7 @@ fn tune_standard_fused<R: JitRuntime, BT: BoolElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_specialized_fused<R: JitRuntime, BT: BoolElement>(
+fn tune_specialized_fused<R: CubeRuntime, BT: BoolElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();
@@ -103,7 +103,7 @@ fn tune_specialized_fused<R: JitRuntime, BT: BoolElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_pipelined_fused<R: JitRuntime, BT: BoolElement>(
+fn tune_pipelined_fused<R: CubeRuntime, BT: BoolElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();
@@ -118,7 +118,7 @@ fn tune_pipelined_fused<R: JitRuntime, BT: BoolElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_fallback<R: JitRuntime, BT: BoolElement>(
+fn tune_fallback<R: CubeRuntime, BT: BoolElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();

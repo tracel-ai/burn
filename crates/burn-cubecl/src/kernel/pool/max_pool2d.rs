@@ -1,7 +1,7 @@
 use super::pool2d::{
     pool2d_direct, Pool2dDirectArgsLaunch, Pool2dDirectStrategy, Pool2dDirectStrategyFamily,
 };
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::{ops::conv::calculate_pool_output_size, Shape};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, CubeDim};
 
@@ -86,13 +86,13 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     }
 }
 
-pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R>,
+pub(crate) fn max_pool2d<R: CubeRuntime, E: CubeElement>(
+    x: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(
@@ -138,13 +138,13 @@ pub(crate) fn max_pool2d<R: JitRuntime, E: JitElement>(
     output
 }
 
-pub(crate) fn max_pool2d_with_indices<R: JitRuntime, E: JitElement, I: JitElement>(
-    x: JitTensor<R>,
+pub(crate) fn max_pool2d_with_indices<R: CubeRuntime, E: CubeElement, I: CubeElement>(
+    x: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> (JitTensor<R>, JitTensor<R>) {
+) -> (CubeTensor<R>, CubeTensor<R>) {
     let [batch_size, channels, _, _] = x.shape.dims();
 
     let size_0 = calculate_pool_output_size(

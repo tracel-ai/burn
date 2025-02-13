@@ -1,10 +1,10 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     ops::{max_vectorization, numeric::empty_device},
-    tensor::JitTensor,
-    BoolElement, JitRuntime,
+    tensor::CubeTensor,
+    BoolElement, CubeRuntime,
 };
 
 #[cube(launch)]
@@ -58,23 +58,23 @@ pub enum MaskFillStrategy {
 }
 
 /// Execute the mask fill kernel with the given strategy.
-pub fn mask_fill<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
+pub fn mask_fill<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
     value: E,
     strategy: MaskFillStrategy,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     match strategy {
         MaskFillStrategy::Readonly => mask_fill_readonly::<R, E, BT>(input, mask, value),
         MaskFillStrategy::Inplace => mask_fill_inplace::<R, E, BT>(input, mask, value),
     }
 }
 
-fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
+fn mask_fill_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
     value: EI,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let output = empty_device::<R, EI>(
         input.client.clone(),
@@ -100,11 +100,11 @@ fn mask_fill_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_fill_inplace<R: JitRuntime, EI: JitElement, EM: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
+fn mask_fill_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
     value: EI,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);

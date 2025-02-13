@@ -3,8 +3,8 @@ use cubecl::prelude::*;
 
 use crate::{
     kernel::prng::{cast_uint_to_float, lcg_step, taus_step_0, taus_step_1, taus_step_2},
-    tensor::JitTensor,
-    JitElement, JitRuntime,
+    tensor::CubeTensor,
+    CubeElement, CubeRuntime,
 };
 
 use super::{random, PrngArgs, PrngRuntime};
@@ -15,7 +15,7 @@ pub(crate) struct Bernoulli<E: Numeric> {
 }
 
 #[cube]
-impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
+impl<E: CubeElement> PrngRuntime<E> for Bernoulli<E> {
     fn inner_loop(
         args: Bernoulli<E>,
         write_index_base: u32,
@@ -46,7 +46,7 @@ impl<E: JitElement> PrngRuntime<E> for Bernoulli<E> {
     }
 }
 
-impl<E: JitElement> PrngArgs<E> for Bernoulli<E> {
+impl<E: CubeElement> PrngArgs<E> for Bernoulli<E> {
     type Args = Self;
 
     fn args<'a, R: Runtime>(self) -> BernoulliLaunch<'a, E, R> {
@@ -55,10 +55,10 @@ impl<E: JitElement> PrngArgs<E> for Bernoulli<E> {
 }
 
 /// Pseudo-random generator with bernoulli distribution
-pub fn random_bernoulli<R: JitRuntime, E: JitElement>(
+pub fn random_bernoulli<R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
     probability: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     random(shape, device, Bernoulli { probability })
 }

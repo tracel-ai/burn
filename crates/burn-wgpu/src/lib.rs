@@ -9,7 +9,7 @@ pub use burn_cubecl::{
     template::{build_info, KernelSource, SourceKernel, SourceTemplate},
 };
 
-pub use burn_cubecl::{tensor::JitTensor, JitBackend};
+pub use burn_cubecl::{tensor::CubeTensor, CubeBackend};
 pub use burn_cubecl::{BoolElement, FloatElement, IntElement};
 pub use cubecl::flex32;
 pub use cubecl::CubeDim;
@@ -61,7 +61,7 @@ pub use cubecl::wgpu::WgslCompiler;
 /// You can disable the `fusion` feature flag to remove that functionality, which might be
 /// necessary on `wasm` for now.
 pub type Wgpu<F = f32, I = i32, B = u32> =
-    burn_fusion::Fusion<JitBackend<cubecl::wgpu::WgpuRuntime, F, I, B>>;
+    burn_fusion::Fusion<CubeBackend<cubecl::wgpu::WgpuRuntime, F, I, B>>;
 
 #[cfg(not(feature = "fusion"))]
 /// Tensor backend that uses the wgpu crate for executing GPU compute shaders.
@@ -95,7 +95,7 @@ pub type Wgpu<F = f32, I = i32, B = u32> =
 ///
 /// You can enable the `fusion` feature flag to add that functionality, which might improve
 /// performance.
-pub type Wgpu<F = f32, I = i32, B = u32> = JitBackend<cubecl::wgpu::WgpuRuntime, F, I, B>;
+pub type Wgpu<F = f32, I = i32, B = u32> = CubeBackend<cubecl::wgpu::WgpuRuntime, F, I, B>;
 
 #[cfg(feature = "vulkan")]
 /// Tensor backend that leverages the Vulkan graphics API to execute GPU compute shaders compiled to SPIR-V.
@@ -107,7 +107,7 @@ pub type WebGpu<F = f32, I = i32, B = u32> = Wgpu<F, I, B>;
 
 #[cfg(test)]
 mod tests {
-    use burn_cubecl::JitBackend;
+    use burn_cubecl::CubeBackend;
     #[cfg(feature = "vulkan")]
     pub use half::f16;
 

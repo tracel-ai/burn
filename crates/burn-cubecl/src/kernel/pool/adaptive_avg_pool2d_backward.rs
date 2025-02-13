@@ -1,4 +1,4 @@
-use crate::{element::JitElement, tensor::JitTensor, JitRuntime};
+use crate::{element::CubeElement, tensor::CubeTensor, CubeRuntime};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch)]
@@ -80,14 +80,14 @@ fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
     }
 }
 
-pub(crate) fn adaptive_avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R>,
-    out_grad: JitTensor<R>,
-) -> JitTensor<R> {
+pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
+    x: CubeTensor<R>,
+    out_grad: CubeTensor<R>,
+) -> CubeTensor<R> {
     let output_shape = x.shape.clone();
     let num_elems = output_shape.num_elements();
     let output_buffer = x.client.empty(num_elems * core::mem::size_of::<E>());
-    let output = JitTensor::new_contiguous(
+    let output = CubeTensor::new_contiguous(
         x.client.clone(),
         x.device.clone(),
         output_shape,

@@ -1,10 +1,10 @@
 use cubecl::{calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     ops::{max_vectorization, numeric::empty_device},
-    tensor::JitTensor,
-    BoolElement, JitRuntime,
+    tensor::CubeTensor,
+    BoolElement, CubeRuntime,
 };
 
 #[cube(launch)]
@@ -65,12 +65,12 @@ pub enum MaskWhereStrategy {
 }
 
 /// Execute the mask where kernel with the given strategy.
-pub fn mask_where<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
-    value: JitTensor<R>,
+pub fn mask_where<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
+    value: CubeTensor<R>,
     strategy: MaskWhereStrategy,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     match strategy {
         MaskWhereStrategy::Readonly => mask_where_readonly::<R, E, BT>(input, mask, value),
         MaskWhereStrategy::InplaceLhs => mask_where_inplace::<R, E, BT>(input, mask, value, false),
@@ -78,11 +78,11 @@ pub fn mask_where<R: JitRuntime, E: JitElement, BT: BoolElement>(
     }
 }
 
-fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
-    value: JitTensor<R>,
-) -> JitTensor<R> {
+fn mask_where_readonly<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let output = empty_device::<R, EI>(
         input.client.clone(),
@@ -108,12 +108,12 @@ fn mask_where_readonly<R: JitRuntime, EI: JitElement, EM: BoolElement>(
     output
 }
 
-fn mask_where_inplace<R: JitRuntime, EI: JitElement, EM: BoolElement>(
-    input: JitTensor<R>,
-    mask: JitTensor<R>,
-    value: JitTensor<R>,
+fn mask_where_inplace<R: CubeRuntime, EI: CubeElement, EM: BoolElement>(
+    input: CubeTensor<R>,
+    mask: CubeTensor<R>,
+    value: CubeTensor<R>,
     reverse: bool,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let ndims = input.shape.num_dims();
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(input.shape.num_elements(), cube_dim);

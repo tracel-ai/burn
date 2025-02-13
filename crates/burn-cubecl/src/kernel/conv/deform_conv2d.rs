@@ -15,8 +15,8 @@ use crate::{
         numeric::{ones_device, zeros_device},
         reshape, swap_dims,
     },
-    tensor::JitTensor,
-    FloatElement, JitRuntime,
+    tensor::CubeTensor,
+    CubeRuntime, FloatElement,
 };
 
 use super::ConvLaunchError;
@@ -188,14 +188,14 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     result
 }
 
-pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    offset: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
+pub(crate) fn deform_im2col<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
     options: DeformConvOptions<2>,
     out_dims: (usize, usize),
     kernel_dims: (usize, usize),
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
 
@@ -257,14 +257,14 @@ pub(crate) fn deform_im2col<R: JitRuntime, E: FloatElement>(
     output
 }
 
-pub(crate) fn deform_conv2d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    offset: JitTensor<R>,
-    weight: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
-    bias: Option<JitTensor<R>>,
+pub(crate) fn deform_conv2d<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
+    bias: Option<CubeTensor<R>>,
     options: DeformConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let input = into_contiguous(input);
     let offset = into_contiguous(offset);
     let weight = into_contiguous(weight);

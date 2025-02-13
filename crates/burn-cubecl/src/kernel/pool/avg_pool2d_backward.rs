@@ -1,6 +1,6 @@
 use crate::{
-    element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
-    JitRuntime,
+    element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor,
+    CubeRuntime,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -108,14 +108,14 @@ fn loop_ranges(
     (oh_start, oh_end, ow_start, ow_end)
 }
 
-pub(crate) fn avg_pool2d_backward<R: JitRuntime, E: JitElement>(
-    x: JitTensor<R>,
-    grad: JitTensor<R>,
+pub(crate) fn avg_pool2d_backward<R: CubeRuntime, E: CubeElement>(
+    x: CubeTensor<R>,
+    grad: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let grad = into_contiguous(grad);
     let dilation = 1;
 

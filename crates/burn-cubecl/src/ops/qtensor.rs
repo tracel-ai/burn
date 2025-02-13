@@ -7,21 +7,21 @@ use burn_tensor::{
 };
 
 use crate::{
-    element::BoolElement, kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend,
-    JitRuntime,
+    element::BoolElement, kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement,
+    IntElement,
 };
 
 /// Create a quantized tensor with packed values (u32).
-fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
+fn new_qtensor<R: CubeRuntime, S: Into<Shape>>(
     data: &[u8],
     shape: S,
     scheme: QuantizationScheme,
     device: &R::Device,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = R::client(device);
     let buffer = client.create(data);
 
-    JitTensor::new_contiguous(
+    CubeTensor::new_contiguous(
         client,
         device.clone(),
         shape.into(),
@@ -30,9 +30,9 @@ fn new_qtensor<R: JitRuntime, S: Into<Shape>>(
     )
 }
 
-impl<R, F, I, BT> QTensorOps<Self> for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> QTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

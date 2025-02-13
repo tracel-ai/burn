@@ -1,12 +1,12 @@
 use super::{mask_where::MaskWhereStrategy, MaskFillStrategy};
-use crate::{element::JitElement, tensor::JitTensor, BoolElement, JitRuntime};
+use crate::{element::CubeElement, tensor::CubeTensor, BoolElement, CubeRuntime};
 
 /// Execute the mask fill kernel.
-pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    tensor: JitTensor<R>,
-    mask: JitTensor<R>,
+pub(crate) fn mask_fill_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    tensor: CubeTensor<R>,
+    mask: CubeTensor<R>,
     value: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let strategy = if tensor.can_mut() {
         MaskFillStrategy::Inplace
     } else {
@@ -17,11 +17,11 @@ pub(crate) fn mask_fill_auto<R: JitRuntime, E: JitElement, BT: BoolElement>(
 }
 
 /// Execute the mask where kernel.
-pub(crate) fn mask_where_auto<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    tensor: JitTensor<R>,
-    mask: JitTensor<R>,
-    value: JitTensor<R>,
-) -> JitTensor<R> {
+pub(crate) fn mask_where_auto<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    tensor: CubeTensor<R>,
+    mask: CubeTensor<R>,
+    value: CubeTensor<R>,
+) -> CubeTensor<R> {
     let strategy = if tensor.can_mut_broadcast(&value) {
         MaskWhereStrategy::InplaceLhs
     } else if value.can_mut_broadcast(&tensor) {

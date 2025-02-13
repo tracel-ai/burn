@@ -3,8 +3,8 @@ use crate::FloatTensor;
 use super::Backend;
 use burn::{
     backend::wgpu::{
-        build_info, into_contiguous, kernel_source, BoolElement, FloatElement, IntElement,
-        JitBackend, JitTensor, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
+        build_info, into_contiguous, kernel_source, BoolElement, CubeBackend, CubeTensor,
+        FloatElement, IntElement, KernelSource, SourceKernel, SourceTemplate, WgpuRuntime,
     },
     tensor::Shape,
 };
@@ -42,7 +42,7 @@ impl<E: FloatElement> KernelSource for FusedMatmulAddRelu<E> {
 
 /// Implement our custom backend trait for the existing backend `WgpuBackend`.
 impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
-    for JitBackend<WgpuRuntime, F, I, BT>
+    for CubeBackend<WgpuRuntime, F, I, BT>
 {
     fn fused_matmul_add_relu(
         lhs: FloatTensor<Self>,
@@ -82,7 +82,7 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
             .empty(shape_out.num_elements() * core::mem::size_of::<F>());
 
         // Create the output tensor primitive.
-        let output = JitTensor::new_contiguous(
+        let output = CubeTensor::new_contiguous(
             lhs.client.clone(),
             lhs.device.clone(),
             shape_out,

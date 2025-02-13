@@ -1,6 +1,6 @@
 #[cfg(feature = "autotune")]
 use super::{autotune_reduce, autotune_sum};
-use crate::{element::JitElement, ops::numeric::empty_device, tensor::JitTensor, JitRuntime};
+use crate::{element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime};
 use burn_tensor::Shape;
 pub use cubecl::reduce::instructions::{ArgMax, ArgMin, Mean, Prod, Sum};
 use cubecl::reduce::shared_sum;
@@ -11,10 +11,10 @@ use cubecl::reduce::shared_sum;
 /// This is expected to be faster for larger tensors than calling [reduce] with the `Sum` instruction.
 ///
 /// Return an error if the `client` doesn't support atomic add for the type `E`.
-pub fn sum<Run: JitRuntime, E: JitElement>(
-    tensor: JitTensor<Run>,
+pub fn sum<Run: CubeRuntime, E: CubeElement>(
+    tensor: CubeTensor<Run>,
     cube_count: SumStrategy,
-) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     let client = tensor.client.clone();
     let device = tensor.device.clone();
 
@@ -22,7 +22,7 @@ pub fn sum<Run: JitRuntime, E: JitElement>(
         SumStrategy::OneShot(cube_count) => {
             let handle = client.create(E::as_bytes(&[E::from_int(0)]));
             let output =
-                JitTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
+                CubeTensor::new_contiguous(client.clone(), device, [1].into(), handle, E::dtype());
             shared_sum::<Run, E>(
                 &client,
                 tensor.as_handle_ref(),
@@ -66,10 +66,10 @@ impl Default for SumStrategy {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
-    mut tensor: JitTensor<Run>,
+pub fn reduce<Run: CubeRuntime, In: CubeElement, Out: CubeElement, Rd: cubecl::reduce::Reduce>(
+    mut tensor: CubeTensor<Run>,
     strategy: ReduceStrategy,
-) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
     let sorted_axis = argsort(&tensor.shape.dims);
@@ -95,11 +95,16 @@ fn argsort(shape: &[usize]) -> Vec<usize> {
 ///
 /// If there is no error, the output is a tensor with decreasing strides
 /// where the shape of reduced dim is set to 1 but all shape are similar to the input.
-pub fn reduce_dim<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::reduce::Reduce>(
-    input: JitTensor<Run>,
+pub fn reduce_dim<
+    Run: CubeRuntime,
+    In: CubeElement,
+    Out: CubeElement,
+    Rd: cubecl::reduce::Reduce,
+>(
+    input: CubeTensor<Run>,
     dim: usize,
     strategy: ReduceStrategy,
-) -> Result<JitTensor<Run>, cubecl::reduce::ReduceError> {
+) -> Result<CubeTensor<Run>, cubecl::reduce::ReduceError> {
     let client = input.client.clone();
     let output = init_reduce_output::<Run, In, Out>(&input, dim).ok_or(
         cubecl::reduce::ReduceError::InvalidAxis {
@@ -133,10 +138,10 @@ pub fn reduce_dim<Run: JitRuntime, In: JitElement, Out: JitElement, Rd: cubecl::
 
 /// Creates an empty output tensor with the proper shape and decreasing strides to reduce the given `axis` of `input`
 /// or return `None` if `axis` is out-of-bound.
-pub fn init_reduce_output<Run: JitRuntime, In: JitElement, Out: JitElement>(
-    input: &JitTensor<Run>,
+pub fn init_reduce_output<Run: CubeRuntime, In: CubeElement, Out: CubeElement>(
+    input: &CubeTensor<Run>,
     dim: usize,
-) -> Option<JitTensor<Run>> {
+) -> Option<CubeTensor<Run>> {
     (dim < input.shape.num_dims()).then(|| {
         let mut shape_out = input.shape.clone();
         shape_out.dims[dim] = 1;

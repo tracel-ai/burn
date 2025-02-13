@@ -9,13 +9,13 @@ use burn::{
             ops::{broadcast_shape, Backward, Ops, OpsKind},
             Autodiff, NodeID,
         },
-        wgpu::{BoolElement, FloatElement, IntElement, JitBackend, WgpuRuntime},
+        wgpu::{BoolElement, CubeBackend, FloatElement, IntElement, WgpuRuntime},
     },
     tensor::{Shape, TensorMetadata},
 };
 
 impl<F: FloatElement, I: IntElement, BT: BoolElement> AutodiffBackend
-    for Autodiff<JitBackend<WgpuRuntime, F, I, BT>>
+    for Autodiff<CubeBackend<WgpuRuntime, F, I, BT>>
 {
 }
 

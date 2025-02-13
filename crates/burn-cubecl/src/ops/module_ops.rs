@@ -4,7 +4,7 @@ use crate::{
         self,
         conv::{Conv2dStrategy, ConvTranspose2dStrategy},
     },
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::ops::{
     ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
@@ -12,9 +12,9 @@ use burn_tensor::ops::{
 };
 use burn_tensor::ops::{FloatTensor, IntTensor};
 
-impl<R, F, I, BT> ModuleOps<Self> for JitBackend<R, F, I, BT>
+impl<R, F, I, BT> ModuleOps<Self> for CubeBackend<R, F, I, BT>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,

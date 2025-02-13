@@ -1,5 +1,5 @@
 use crate::{fusion::on_write::kernel::fuse_on_write, BoolElement};
-use crate::{fusion::JitFusionHandle, JitRuntime};
+use crate::{fusion::CubeFusionHandle, CubeRuntime};
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use crate::fusion::on_write::{
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
-pub struct ElemwiseOptimization<R: JitRuntime> {
+pub struct ElemwiseOptimization<R: CubeRuntime> {
     trace: FuseOnWriteTrace,
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
@@ -25,9 +25,9 @@ pub struct ElemwiseOptimizationState {
     len: usize,
 }
 
-impl<R: JitRuntime> ElemwiseOptimization<R> {
+impl<R: CubeRuntime> ElemwiseOptimization<R> {
     /// Execute the optimization.
-    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         self.trace
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
             .unwrap();
@@ -59,7 +59,7 @@ impl<R: JitRuntime> ElemwiseOptimization<R> {
 
 pub struct ElemwiseRunner;
 
-impl<R: JitRuntime> TraceRunner<R> for ElemwiseRunner {
+impl<R: CubeRuntime> TraceRunner<R> for ElemwiseRunner {
     type Error = (); // No error possible
 
     fn run<'a>(

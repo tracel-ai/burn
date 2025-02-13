@@ -3,7 +3,7 @@ use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 use crate::fusion::elemwise::builder::ElementWiseBuilder;
 use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
-use crate::{kernel, tensor::JitTensor, FloatElement, IntElement, JitBackend, JitRuntime};
+use crate::{kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// Fusion optimization type for JIT.
 ///
 /// More optimization variants should be added here.
-pub enum JitOptimization<R: JitRuntime> {
+pub enum CubeOptimization<R: CubeRuntime> {
     /// Element wise optimization.
     ElementWise(ElemwiseOptimization<R>),
     /// Matrix multiplication optimization.
@@ -28,19 +28,19 @@ pub enum JitOptimization<R: JitRuntime> {
 ///
 /// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
-pub enum JitOptimizationState {
+pub enum CubeOptimizationState {
     /// Element wise state.
     ElementWise(ElemwiseOptimizationState),
     /// Matrix multiplication optimization state.
     Matmul(MatmulOptimizationState),
 }
 
-impl<R, BT> burn_fusion::Optimization<FusionJitRuntime<R, BT>> for JitOptimization<R>
+impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     BT: BoolElement,
 {
-    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, JitFusionHandle<R>>) {
+    fn execute(&mut self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context),
@@ -54,29 +54,29 @@ where
         }
     }
 
-    fn to_state(&self) -> JitOptimizationState {
+    fn to_state(&self) -> CubeOptimizationState {
         match self {
-            Self::ElementWise(value) => JitOptimizationState::ElementWise(value.to_state()),
-            Self::Matmul(value) => JitOptimizationState::Matmul(value.to_state()),
+            Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
+            Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
         }
     }
 
-    fn from_state(device: &R::Device, state: JitOptimizationState) -> Self {
+    fn from_state(device: &R::Device, state: CubeOptimizationState) -> Self {
         match state {
-            JitOptimizationState::ElementWise(state) => {
+            CubeOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElemwiseOptimization::from_state(device, state))
             }
-            JitOptimizationState::Matmul(state) => {
+            CubeOptimizationState::Matmul(state) => {
                 Self::Matmul(MatmulOptimization::from_state(device, state))
             }
         }
     }
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
-    for JitBackend<R, F, I, BT>
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
+    for CubeBackend<R, F, I, BT>
 {
-    type Handle = JitFusionHandle<R>;
+    type Handle = CubeFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
         handle.handle.into_tensor(handle.shape)
@@ -113,11 +113,11 @@ impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     }
 }
 
-impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
-    type OptimizationState = JitOptimizationState;
-    type Optimization = JitOptimization<R>;
-    type FusionHandle = JitFusionHandle<R>;
-    type FusionDevice = R::JitDevice;
+impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT> {
+    type OptimizationState = CubeOptimizationState;
+    type Optimization = CubeOptimization<R>;
+    type FusionHandle = CubeFusionHandle<R>;
+    type FusionDevice = R::CubeDevice;
     type FusionClient = MutexFusionClient<Self>;
     type BoolRepr = BT;
 
@@ -139,26 +139,26 @@ impl<R: JitRuntime, BT: BoolElement> FusionRuntime for FusionJitRuntime<R, BT> {
 
 /// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
-pub struct FusionJitRuntime<R: JitRuntime, BT: BoolElement> {
+pub struct FusionCubeRuntime<R: CubeRuntime, BT: BoolElement> {
     _b: PhantomData<R>,
     _bool: PhantomData<BT>,
 }
 
-impl<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
-    for JitBackend<R, F, I, BT>
+impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
+    for CubeBackend<R, F, I, BT>
 {
-    type FusionRuntime = FusionJitRuntime<R, BT>;
+    type FusionRuntime = FusionCubeRuntime<R, BT>;
 
-    type FullPrecisionBackend = JitBackend<R, f32, i32, BT>;
+    type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 
     fn cast_float(
         tensor: burn_tensor::ops::FloatTensor<Self>,
         dtype: burn_tensor::DType,
     ) -> Self::Handle {
-        fn cast<R: JitRuntime, F: FloatElement, FTarget: FloatElement>(
-            tensor: JitTensor<R>,
-        ) -> JitFusionHandle<R> {
-            JitFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
+        fn cast<R: CubeRuntime, F: FloatElement, FTarget: FloatElement>(
+            tensor: CubeTensor<R>,
+        ) -> CubeFusionHandle<R> {
+            CubeFusionHandle::from(kernel::cast::<R, F, FTarget>(tensor))
         }
 
         match dtype {
@@ -183,7 +183,7 @@ pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
 }
 
 /// Handle to be used when fusing operations.
-pub struct JitFusionHandle<R: JitRuntime> {
+pub struct CubeFusionHandle<R: CubeRuntime> {
     /// Compute client for jit.
     pub client: ComputeClient<R::Server, R::Channel>,
     /// The buffer where the data are stored.
@@ -194,17 +194,17 @@ pub struct JitFusionHandle<R: JitRuntime> {
     pub(crate) strides: Vec<usize>,
 }
 
-impl<R: JitRuntime> core::fmt::Debug for JitFusionHandle<R> {
+impl<R: CubeRuntime> core::fmt::Debug for CubeFusionHandle<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "JitFusionHandle {{ device: {:?}, runtime: {}}}",
+            "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
             self.device,
             R::name(),
         ))
     }
 }
 
-impl<R: JitRuntime> Clone for JitFusionHandle<R> {
+impl<R: CubeRuntime> Clone for CubeFusionHandle<R> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -216,12 +216,12 @@ impl<R: JitRuntime> Clone for JitFusionHandle<R> {
     }
 }
 
-unsafe impl<R: JitRuntime> Send for JitFusionHandle<R> {}
-unsafe impl<R: JitRuntime> Sync for JitFusionHandle<R> {}
+unsafe impl<R: CubeRuntime> Send for CubeFusionHandle<R> {}
+unsafe impl<R: CubeRuntime> Sync for CubeFusionHandle<R> {}
 
-impl<R: JitRuntime> JitFusionHandle<R> {
-    pub(crate) fn into_tensor(self, shape: Shape) -> JitTensor<R> {
-        JitTensor {
+impl<R: CubeRuntime> CubeFusionHandle<R> {
+    pub(crate) fn into_tensor(self, shape: Shape) -> CubeTensor<R> {
+        CubeTensor {
             client: self.client,
             handle: self.handle,
             device: self.device,
@@ -256,8 +256,8 @@ impl<R: JitRuntime> JitFusionHandle<R> {
     }
 }
 
-impl<R: JitRuntime> From<JitTensor<R>> for JitFusionHandle<R> {
-    fn from(value: JitTensor<R>) -> Self {
+impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
+    fn from(value: CubeTensor<R>) -> Self {
         Self {
             client: value.client,
             handle: value.handle,

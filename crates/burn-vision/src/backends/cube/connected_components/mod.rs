@@ -6,8 +6,8 @@ mod prefix_sum;
 
 use burn_cubecl::{
     ops::numeric::{full_device, zeros_device},
-    tensor::JitTensor,
-    BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
+    tensor::CubeTensor,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::Shape;
 pub use hardware_accelerated::*;
@@ -15,11 +15,11 @@ pub use hardware_accelerated::*;
 use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive};
 
 pub(crate) fn stats_from_opts<R, F, I, BT>(
-    l: JitTensor<R>,
+    l: CubeTensor<R>,
     opts: ConnectedStatsOptions,
-) -> ConnectedStatsPrimitive<JitBackend<R, F, I, BT>>
+) -> ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>
 where
-    R: JitRuntime,
+    R: CubeRuntime,
     F: FloatElement,
     I: IntElement,
     BT: BoolElement,
@@ -30,7 +30,7 @@ where
     let max = I::max_value();
     let max = || full_device::<R, I>(l.client.clone(), shape.clone(), l.device.clone(), max);
     let dummy = || {
-        JitTensor::new_contiguous(
+        CubeTensor::new_contiguous(
             l.client.clone(),
             l.device.clone(),
             shape.clone(),

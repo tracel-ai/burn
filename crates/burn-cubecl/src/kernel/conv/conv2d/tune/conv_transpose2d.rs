@@ -6,49 +6,49 @@ use crate::{
         conv::{conv_transpose2d_col2im, conv_transpose2d_direct},
         prng::random_uniform,
     },
-    tensor::JitTensor,
-    FloatElement, JitAutotuneKey, JitRuntime, JitTuneId,
+    tensor::CubeTensor,
+    CubeAutotuneKey, CubeRuntime, CubeTuneId, FloatElement,
 };
 
 use super::ConvTranspose2dAutotuneKey;
 
 /// Executes autotune on conv2d operations
-pub fn conv_transpose2d_autotune<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weights: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+pub fn conv_transpose2d_autotune<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    weights: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    static TUNER: LocalTuner<JitAutotuneKey, JitTuneId> = local_tuner!();
+    static TUNER: LocalTuner<CubeAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tune_set = TunableSet::new(create_key::<R, E>, create_transpose2d_input::<R, E>)
         .with_tunable(conv_transpose2d_direct::<R, E>)
         .with_tunable(conv_transpose2d_col2im::<R, E>);
 
     TUNER.execute(
-        &JitTuneId::new::<R>(&input.device),
+        &CubeTuneId::new::<R>(&input.device),
         &client,
         &tune_set,
         (input, weights, bias, options),
     )
 }
 
-pub fn create_transpose2d_input<R: JitRuntime, E: FloatElement>(
-    key: &JitAutotuneKey,
-    input: &JitTensor<R>,
-    _weights: &JitTensor<R>,
-    _bias: &Option<JitTensor<R>>,
+pub fn create_transpose2d_input<R: CubeRuntime, E: FloatElement>(
+    key: &CubeAutotuneKey,
+    input: &CubeTensor<R>,
+    _weights: &CubeTensor<R>,
+    _bias: &Option<CubeTensor<R>>,
     options: &ConvTransposeOptions<2>,
 ) -> (
-    JitTensor<R>,
-    JitTensor<R>,
-    Option<JitTensor<R>>,
+    CubeTensor<R>,
+    CubeTensor<R>,
+    Option<CubeTensor<R>>,
     ConvTransposeOptions<2>,
 ) {
     let key = match key {
-        JitAutotuneKey::ConvTranspose2d(key) => key,
+        CubeAutotuneKey::ConvTranspose2d(key) => key,
         _ => unreachable!(),
     };
     let device = &input.device;
@@ -67,12 +67,12 @@ pub fn create_transpose2d_input<R: JitRuntime, E: FloatElement>(
     (input, weights, bias, options.clone())
 }
 
-fn create_key<R: JitRuntime, E: FloatElement>(
-    input: &JitTensor<R>,
-    weights: &JitTensor<R>,
-    bias: &Option<JitTensor<R>>,
+fn create_key<R: CubeRuntime, E: FloatElement>(
+    input: &CubeTensor<R>,
+    weights: &CubeTensor<R>,
+    bias: &Option<CubeTensor<R>>,
     options: &ConvTransposeOptions<2>,
-) -> JitAutotuneKey {
+) -> CubeAutotuneKey {
     let [batch_size, in_channels, height, width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weights.shape.dims();
     let ConvTransposeOptions {
@@ -82,7 +82,7 @@ fn create_key<R: JitRuntime, E: FloatElement>(
         groups,
         padding_out,
     } = options.clone();
-    JitAutotuneKey::ConvTranspose2d(ConvTranspose2dAutotuneKey::new(
+    CubeAutotuneKey::ConvTranspose2d(ConvTranspose2dAutotuneKey::new(
         [kernel_h, kernel_w],
         stride,
         padding,

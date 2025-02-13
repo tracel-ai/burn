@@ -11,8 +11,8 @@ use crate::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
-    tensor::JitTensor,
-    FloatElement, JitRuntime,
+    tensor::CubeTensor,
+    CubeRuntime, FloatElement,
 };
 
 #[derive(CubeLaunch)]
@@ -139,12 +139,12 @@ fn conv3d_kernel<F: Float>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv3d<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+pub(crate) fn conv3d<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<3>,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();

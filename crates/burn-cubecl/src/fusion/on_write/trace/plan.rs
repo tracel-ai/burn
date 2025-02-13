@@ -3,16 +3,16 @@ use std::collections::BTreeMap;
 use crate::{
     fusion::{
         on_write::ir::{Arg, ElemwiseOp, ElemwisePrecision},
-        JitFusionHandle,
+        CubeFusionHandle,
     },
-    JitRuntime,
+    CubeRuntime,
 };
 use burn_ir::{TensorId, TensorIr};
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
-pub(crate) struct LaunchPlan<'a, R: JitRuntime> {
+pub(crate) struct LaunchPlan<'a, R: CubeRuntime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
@@ -25,7 +25,7 @@ pub(crate) struct LaunchPlan<'a, R: JitRuntime> {
     pub rank: usize,
 }
 
-impl<R: JitRuntime> LaunchPlan<'_, R> {
+impl<R: CubeRuntime> LaunchPlan<'_, R> {
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,
@@ -47,7 +47,7 @@ impl<R: JitRuntime> LaunchPlan<'_, R> {
 }
 
 #[derive(Debug)]
-pub enum HandleOutput<R: JitRuntime> {
+pub enum HandleOutput<R: CubeRuntime> {
     Alias {
         input_pos: usize,
         precision: ElemwisePrecision,
@@ -55,18 +55,18 @@ pub enum HandleOutput<R: JitRuntime> {
     Owned {
         global_id: TensorId,
         precision: ElemwisePrecision,
-        handle: JitFusionHandle<R>,
+        handle: CubeFusionHandle<R>,
         global_shape: Vec<usize>,
         vectorization: u8,
     },
 }
 
 #[derive(Debug)]
-pub struct HandleInput<R: JitRuntime> {
+pub struct HandleInput<R: CubeRuntime> {
     pub relative_id: TensorId,
     pub global_id: TensorId,
     pub precision: ElemwisePrecision,
-    pub handle: JitFusionHandle<R>,
+    pub handle: CubeFusionHandle<R>,
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
 }

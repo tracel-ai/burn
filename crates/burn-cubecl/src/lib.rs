@@ -20,7 +20,7 @@ pub mod element;
 
 use burn_tensor::backend::{DeviceId, DeviceOps};
 use cubecl::{compute::CubeTask, Feature, Runtime};
-pub use element::{BoolElement, FloatElement, IntElement, JitElement};
+pub use element::{BoolElement, CubeElement, FloatElement, IntElement};
 
 mod backend;
 
@@ -30,7 +30,7 @@ pub use backend::*;
 pub use cubecl;
 
 mod tune_key;
-pub use tune_key::JitAutotuneKey;
+pub use tune_key::CubeAutotuneKey;
 
 #[cfg(any(feature = "fusion", test))]
 /// Module for interacting with fusion
@@ -44,11 +44,11 @@ pub mod template;
 pub mod tests;
 
 /// Just-in-Time runtime extending the [cube runtime](Runtime).
-pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer> {
+pub trait CubeRuntime: Runtime<Device = Self::CubeDevice, Server = Self::CubeServer> {
     /// The device that should also implement [burn_tensor::backend::DeviceOps].
-    type JitDevice: burn_tensor::backend::DeviceOps;
-    /// The cube server with the [JitAutotuneKey].
-    type JitServer: cubecl::server::ComputeServer<
+    type CubeDevice: burn_tensor::backend::DeviceOps;
+    /// The cube server with the [CubeAutotuneKey].
+    type CubeServer: cubecl::server::ComputeServer<
         Kernel = Box<dyn CubeTask<Self::Compiler>>,
         Feature = Feature,
     >;
@@ -56,14 +56,14 @@ pub trait JitRuntime: Runtime<Device = Self::JitDevice, Server = Self::JitServer
 
 /// ID used to identify a Just-in-Time environment.
 #[derive(Hash, PartialEq, Eq, Debug, Clone)]
-pub struct JitTuneId {
+pub struct CubeTuneId {
     device: DeviceId,
     name: &'static str,
 }
 
-impl JitTuneId {
+impl CubeTuneId {
     /// Create a new ID.
-    pub fn new<R: JitRuntime>(device: &R::Device) -> Self {
+    pub fn new<R: CubeRuntime>(device: &R::Device) -> Self {
         Self {
             device: DeviceOps::id(device),
             name: R::name(),
@@ -71,7 +71,7 @@ impl JitTuneId {
     }
 }
 
-impl core::fmt::Display for JitTuneId {
+impl core::fmt::Display for CubeTuneId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "device-{}-{}-{}",

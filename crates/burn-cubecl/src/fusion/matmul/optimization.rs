@@ -3,7 +3,7 @@ use std::any::TypeId;
 use crate::fusion::elemwise::optimization::ElemwiseRunner;
 use crate::fusion::on_write::ir::ElemwisePrecision;
 use crate::kernel::matmul;
-use crate::{fusion::JitFusionHandle, JitRuntime};
+use crate::{fusion::CubeFusionHandle, CubeRuntime};
 use crate::{BoolElement, FloatElement};
 
 use burn_fusion::stream::Context;
@@ -31,7 +31,7 @@ use super::spec::FusedMatmulSpec;
 use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
-pub struct MatmulOptimization<R: JitRuntime> {
+pub struct MatmulOptimization<R: CubeRuntime> {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
@@ -53,7 +53,7 @@ pub struct MatmulOptimizationState {
     len: usize,
 }
 
-impl<R: JitRuntime> MatmulOptimization<R> {
+impl<R: CubeRuntime> MatmulOptimization<R> {
     pub fn new(
         trace: FuseOnWriteTrace,
         trace_fallback: FuseOnWriteTrace,
@@ -82,7 +82,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute<BT: BoolElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         #[cfg(feature = "autotune")]
         fused_matmul_autotune::<R, BT>(self, context);
 
@@ -130,7 +130,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
 
     pub fn execute_standard_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -142,7 +142,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
 
     pub fn execute_specialized_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -154,7 +154,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
 
     pub fn execute_pipelined_fused<BT: BoolElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
@@ -164,7 +164,10 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         )
     }
 
-    pub fn execute_fallback<BT: BoolElement>(&self, context: &mut Context<'_, JitFusionHandle<R>>) {
+    pub fn execute_fallback<BT: BoolElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) {
         match self.matmul_standard.lhs.precision() {
             ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
             ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
@@ -175,7 +178,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
 
     fn run_fallback<BT: BoolElement, EG: FloatElement>(
         &self,
-        context: &mut Context<'_, JitFusionHandle<R>>,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
     ) {
         let (out_tensor, out_desc) = {
             let lhs = context
@@ -214,7 +217,7 @@ impl<R: JitRuntime> MatmulOptimization<R> {
         };
         context
             .handles
-            .register_handle(out_desc.id, JitFusionHandle::from(out_tensor));
+            .register_handle(out_desc.id, CubeFusionHandle::from(out_tensor));
 
         self.trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
@@ -251,7 +254,7 @@ impl From<MatmulLaunchError> for FusedMatmulError {
     }
 }
 
-impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
+impl<R: CubeRuntime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;
 
     fn run<'a>(
@@ -273,7 +276,7 @@ impl<R: JitRuntime> TraceRunner<R> for FusedMatmul {
 }
 
 impl FusedMatmul {
-    fn matmul_fused<'a, R: JitRuntime, EG: Numeric>(
+    fn matmul_fused<'a, R: CubeRuntime, EG: Numeric>(
         &'a self,
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,

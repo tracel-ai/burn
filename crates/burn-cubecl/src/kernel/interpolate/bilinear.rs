@@ -1,6 +1,6 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{tensor::JitTensor, FloatElement, JitRuntime};
+use crate::{tensor::CubeTensor, CubeRuntime, FloatElement};
 
 #[cube(launch)]
 fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<F>) {
@@ -79,10 +79,10 @@ fn interpolate_bilinear_kernel<F: Float>(input: &Tensor<F>, output: &mut Tensor<
     output[ABSOLUTE_POS] = p_a + p_b + p_c + p_d;
 }
 
-pub(crate) fn interpolate_bilinear_launch<R: JitRuntime, F: FloatElement>(
-    input: JitTensor<R>,
-    output: JitTensor<R>,
-) -> JitTensor<R> {
+pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime, F: FloatElement>(
+    input: CubeTensor<R>,
+    output: CubeTensor<R>,
+) -> CubeTensor<R> {
     let cube_dim = CubeDim::default();
     let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
 

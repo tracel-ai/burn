@@ -1,5 +1,5 @@
 use super::super::ir::{ElemwiseConfig, GlobalArgsLaunch};
-use crate::{fusion::JitFusionHandle, JitRuntime};
+use crate::{fusion::CubeFusionHandle, CubeRuntime};
 use burn_ir::{TensorId, TensorIr};
 use cubecl::prelude::*;
 use std::collections::BTreeMap;
@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with a provided [element wise config](ElemwiseConfig).
-pub trait TraceRunner<R: JitRuntime> {
+pub trait TraceRunner<R: CubeRuntime> {
     /// The error that might happen while running the trace.
     type Error;
 
@@ -23,7 +23,7 @@ pub trait TraceRunner<R: JitRuntime> {
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, u8>,
-        handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
+        handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
         inputs: impl Iterator<Item = &'a TensorIr>,
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
@@ -40,9 +40,9 @@ pub trait TraceRunner<R: JitRuntime> {
     }
 }
 
-fn vectorization_default<'a, R: JitRuntime>(
+fn vectorization_default<'a, R: CubeRuntime>(
     vectorizations: &mut BTreeMap<TensorId, u8>,
-    handles_inputs: impl Iterator<Item = &'a JitFusionHandle<R>>,
+    handles_inputs: impl Iterator<Item = &'a CubeFusionHandle<R>>,
     inputs: impl Iterator<Item = &'a TensorIr>,
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
@@ -57,7 +57,7 @@ fn vectorization_default<'a, R: JitRuntime>(
 
     // The default version uses the last dimension as vectorization axis and assumes a
     // perpendicular contiguous line.
-    let vectorization_input = |handle: &JitFusionHandle<R>, desc: &TensorIr| {
+    let vectorization_input = |handle: &CubeFusionHandle<R>, desc: &TensorIr| {
         let rank = handle.strides.len();
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -120,7 +120,7 @@ fn vectorization_default<'a, R: JitRuntime>(
         Vect::Max(1)
     };
 
-    let vectorization_swapped = |handle: &JitFusionHandle<R>,
+    let vectorization_swapped = |handle: &CubeFusionHandle<R>,
                                  swapped: &TensorIr,
                                  original: &TensorIr,
                                  multi_reads: bool,

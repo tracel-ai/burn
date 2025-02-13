@@ -1,6 +1,6 @@
 use cubecl::prelude::*;
 
-use crate::{ops::numeric::empty_device, tensor::JitTensor, JitElement, JitRuntime, SEED};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, CubeElement, CubeRuntime, SEED};
 use burn_common::rand::get_seeded_rng;
 use burn_tensor::Shape;
 use rand::Rng;
@@ -8,11 +8,11 @@ use rand::Rng;
 pub(crate) const N_VALUES_PER_THREAD: usize = 128;
 
 /// Pseudo-random generator
-pub(crate) fn random<P: PrngRuntime<E>, R: JitRuntime, E: JitElement>(
+pub(crate) fn random<P: PrngRuntime<E>, R: CubeRuntime, E: CubeElement>(
     shape: Shape,
     device: &R::Device,
     prng: P,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device::<R, E>(client.clone(), device.clone(), shape);
     let seeds = get_seeds();
@@ -61,14 +61,14 @@ pub(crate) fn get_seeds() -> [u32; 4] {
     seeds.try_into().unwrap()
 }
 
-pub(crate) trait PrngArgs<E: JitElement>: Send + Sync + 'static {
+pub(crate) trait PrngArgs<E: CubeElement>: Send + Sync + 'static {
     type Args: LaunchArg;
 
     fn args<'a, R: Runtime>(self) -> <Self::Args as LaunchArg>::RuntimeArg<'a, R>;
 }
 
 #[cube]
-pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static + PrngArgs<E> {
+pub(crate) trait PrngRuntime<E: CubeElement>: Send + Sync + 'static + PrngArgs<E> {
     #[allow(clippy::too_many_arguments)]
     fn inner_loop(
         args: Self::Args,
@@ -84,7 +84,7 @@ pub(crate) trait PrngRuntime<E: JitElement>: Send + Sync + 'static + PrngArgs<E>
 }
 
 #[cube(launch)]
-fn prng_kernel<P: PrngRuntime<E>, E: JitElement>(
+fn prng_kernel<P: PrngRuntime<E>, E: CubeElement>(
     output: &mut Tensor<E>,
     seed_0: u32,
     seed_1: u32,

@@ -1,7 +1,7 @@
-use crate::{execute_with_dtype, tensor::JitTensor, JitRuntime};
+use crate::{execute_with_dtype, tensor::CubeTensor, CubeRuntime};
 
 /// Make a jit tensor contiguous.
-pub fn into_contiguous<R: JitRuntime>(tensor: JitTensor<R>) -> JitTensor<R> {
+pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     if tensor.is_contiguous() {
         return tensor;
     }
@@ -12,7 +12,7 @@ pub fn into_contiguous<R: JitRuntime>(tensor: JitTensor<R>) -> JitTensor<R> {
             &tensor.as_handle_ref(),
         );
 
-        JitTensor::new(
+        CubeTensor::new(
             tensor.client,
             output.handle,
             output.shape.into(),

@@ -20,8 +20,8 @@ use crate::{
         numeric::{empty_device, ones_device, zeros_device},
         reshape, swap_dims,
     },
-    tensor::JitTensor,
-    FloatElement, IntElement, JitBackend, JitRuntime,
+    tensor::CubeTensor,
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 
 use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
@@ -29,26 +29,26 @@ use super::{bilinear_interpolate, deform_im2col, index, ConvLaunchError};
 /// Calculate the [deformable 2D convolution](crate::ops::ModuleOps::deform_conv2d) backward pass using convolutions.
 #[allow(clippy::single_range_in_vec_init)]
 pub(crate) fn deform_conv2d_backward<
-    R: JitRuntime,
+    R: CubeRuntime,
     E: FloatElement,
     I: IntElement,
     BT: BoolElement,
 >(
-    input: JitTensor<R>,
-    offset: JitTensor<R>,
-    weight: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
-    bias: Option<JitTensor<R>>,
-    out_grad: JitTensor<R>,
+    input: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
+    bias: Option<CubeTensor<R>>,
+    out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
-) -> Result<DeformConv2dBackward<JitBackend<R, E, I, BT>>, ConvLaunchError> {
+) -> Result<DeformConv2dBackward<CubeBackend<R, E, I, BT>>, ConvLaunchError> {
     let [_, _, out_h, out_w] = out_grad.shape.dims();
     let [_, _, kernel_h, kernel_w] = weight.shape.dims();
 
     let gradient_bias = bias.map(|bias| {
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
-        let grad = JitBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(out_grad.clone(), 0);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 2);
+        let grad = CubeBackend::<R, E, I, BT>::float_sum_dim(grad, 3);
 
         reshape(grad, bias.shape)
     });
@@ -86,15 +86,15 @@ pub(crate) fn deform_conv2d_backward<
     ))
 }
 
-fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    offset: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
-    out_grad: JitTensor<R>,
+fn compute_weight_grad<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
+    out_grad: CubeTensor<R>,
     options: DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [_, in_channels, _, _] = input.shape.dims();
     let [_, out_channels, _, _] = out_grad.shape.dims();
     let (kernel_h, kernel_w) = kernel_dims;
@@ -121,14 +121,14 @@ fn compute_weight_grad<R: JitRuntime, E: FloatElement>(
     ))
 }
 
-type InputGradients<R> = (JitTensor<R>, JitTensor<R>, Option<JitTensor<R>>);
+type InputGradients<R> = (CubeTensor<R>, CubeTensor<R>, Option<CubeTensor<R>>);
 
-fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
-    image: JitTensor<R>,
-    weight: JitTensor<R>,
-    offset: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
-    out_grad: JitTensor<R>,
+fn backward_gradient_inputs<R: CubeRuntime, E: FloatElement>(
+    image: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
+    out_grad: CubeTensor<R>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
 ) -> Result<InputGradients<R>, ConvLaunchError> {
@@ -182,14 +182,14 @@ fn backward_gradient_inputs<R: JitRuntime, E: FloatElement>(
     Ok((input_gradient, offset_gradient, mask_gradient))
 }
 
-fn compute_offset_and_mask_gradient<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R>,
-    image: JitTensor<R>,
-    offset: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
+fn compute_offset_and_mask_gradient<R: CubeRuntime, E: FloatElement>(
+    columns: CubeTensor<R>,
+    image: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
-) -> Result<(JitTensor<R>, Option<JitTensor<R>>), ConvLaunchError> {
+) -> Result<(CubeTensor<R>, Option<CubeTensor<R>>), ConvLaunchError> {
     let client = offset.client.clone();
     let device = offset.device.clone();
     let (kernel_height, kernel_width) = kernel_dims;
@@ -433,14 +433,14 @@ fn get_coordinate_weight<F: Float>(
     }
 }
 
-fn compute_input_grad<R: JitRuntime, E: FloatElement>(
-    columns: JitTensor<R>,
-    offset: JitTensor<R>,
-    mask: Option<JitTensor<R>>,
+fn compute_input_grad<R: CubeRuntime, E: FloatElement>(
+    columns: CubeTensor<R>,
+    offset: CubeTensor<R>,
+    mask: Option<CubeTensor<R>>,
     options: &DeformConvOptions<2>,
     kernel_dims: (usize, usize),
     input_shape: Shape,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let client = offset.client.clone();
     let device = offset.device.clone();
 

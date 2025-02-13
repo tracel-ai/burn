@@ -1,6 +1,6 @@
 use crate::{
-    element::JitElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::JitTensor,
-    IntElement, JitRuntime,
+    element::CubeElement, kernel::into_contiguous, ops::numeric::empty_device, tensor::CubeTensor,
+    CubeRuntime, IntElement,
 };
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -73,15 +73,15 @@ fn loop_ranges(
     (oh_start, oh_end, ow_start, ow_end)
 }
 
-pub(crate) fn max_pool2d_with_indices_backward<R: JitRuntime, E: JitElement, I: IntElement>(
-    x: JitTensor<R>,
-    grad: JitTensor<R>,
-    indices: JitTensor<R>,
+pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime, E: CubeElement, I: IntElement>(
+    x: CubeTensor<R>,
+    grad: CubeTensor<R>,
+    indices: CubeTensor<R>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let grad = into_contiguous(grad);
     let indices = into_contiguous(indices);
 

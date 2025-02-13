@@ -1,4 +1,4 @@
-use crate::{ops::numeric::empty_device, tensor::JitTensor, IntElement, JitRuntime};
+use crate::{ops::numeric::empty_device, tensor::CubeTensor, CubeRuntime, IntElement};
 use cubecl::{
     calculate_cube_count_elemwise, linalg::tensor::index_offset_with_layout, prelude::*,
     tensor_line_size_parallel,
@@ -46,10 +46,10 @@ pub(crate) fn unary_int<I: Int, O: IntUnaryOpFamily>(
     }
 }
 
-pub(crate) fn launch_unary_int<R, E, O, Args>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+pub(crate) fn launch_unary_int<R, E, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options<E>, R>,
-    R: JitRuntime,
+    R: CubeRuntime,
     E: IntElement + Int,
     O: IntUnaryOpFamily,
 {
@@ -107,9 +107,9 @@ pub(crate) mod unary_basic_int {
 
     use super::*;
 
-    pub(crate) fn launch<R, Args, I>(tensor: JitTensor<R>, args: Args) -> JitTensor<R>
+    pub(crate) fn launch<R, Args, I>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
     where
-        R: JitRuntime,
+        R: CubeRuntime,
         for<'a> Args: FnOnce(&'a ()) -> &'a BasicIntUnaryKind,
         I: IntElement,
     {

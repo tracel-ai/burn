@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    element::JitElement, ops::numeric::empty_device, tensor::JitTensor, BoolElement, JitRuntime,
+    element::CubeElement, ops::numeric::empty_device, tensor::CubeTensor, BoolElement, CubeRuntime,
 };
 use burn_tensor::Shape;
 use cubecl::{
@@ -130,10 +130,10 @@ pub(crate) fn kernel_cmp<SS: ScalarOpSpec, O: ComparisonOp<SS::C>>(
     out[offset_out] = Line::cast_from(O::execute(lhs[offset_lhs], rhs[offset_rhs]));
 }
 
-pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: ComparisonOp<E>>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub(crate) fn launch_cmp<R: CubeRuntime, E: CubeElement, BT: BoolElement, O: ComparisonOp<E>>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     let ndims = lhs.shape.num_dims();
     let vectorization_factor_lhs =
         tensor_vectorization_factor(&[4, 2], &lhs.shape.dims, &lhs.strides, ndims - 1);
@@ -174,7 +174,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
             rhs.strides != lhs.strides || rhs.shape != lhs.shape,
         );
 
-        JitTensor::new(
+        CubeTensor::new(
             lhs.client,
             lhs.handle,
             lhs.shape,
@@ -195,7 +195,7 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
             false,
         );
 
-        JitTensor::new(
+        CubeTensor::new(
             rhs.client,
             rhs.handle,
             rhs.shape,
@@ -225,14 +225,14 @@ pub(crate) fn launch_cmp<R: JitRuntime, E: JitElement, BT: BoolElement, O: Compa
 }
 
 pub(crate) fn launch_scalar_cmp<
-    R: JitRuntime,
-    E: JitElement,
+    R: CubeRuntime,
+    E: CubeElement,
     BT: BoolElement,
     O: ComparisonOp<E>,
 >(
-    mut tensor: JitTensor<R>,
+    mut tensor: CubeTensor<R>,
     scalar: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     if !tensor.is_contiguous_buffer() {
         tensor = into_contiguous(tensor);
     }
@@ -259,7 +259,7 @@ pub(crate) fn launch_scalar_cmp<
             TensorArg::alias(0),
         );
 
-        JitTensor::new(
+        CubeTensor::new(
             tensor.client,
             tensor.handle,
             tensor.shape,
@@ -287,72 +287,72 @@ pub(crate) fn launch_scalar_cmp<
     }
 }
 
-pub fn equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub fn equal<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_cmp::<R, E, BT, EqualOp>(lhs, rhs)
 }
 
-pub fn greater<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub fn greater<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_cmp::<R, E, BT, GreaterOp>(lhs, rhs)
 }
 
-pub fn greater_equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub fn greater_equal<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_cmp::<R, E, BT, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub fn lower<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_cmp::<R, E, BT, LowerOp>(lhs, rhs)
 }
 
-pub fn lower_equal<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
-    rhs: JitTensor<R>,
-) -> JitTensor<R> {
+pub fn lower_equal<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
+    rhs: CubeTensor<R>,
+) -> CubeTensor<R> {
     launch_cmp::<R, E, BT, LowerEqualOp>(lhs, rhs)
 }
 
-pub fn equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
+pub fn equal_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
     rhs: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, EqualOp>(lhs, rhs)
 }
 
-pub fn greater_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
+pub fn greater_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
     rhs: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, GreaterOp>(lhs, rhs)
 }
 
-pub fn lower_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
+pub fn lower_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
     rhs: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, LowerOp>(lhs, rhs)
 }
 
-pub fn greater_equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
+pub fn greater_equal_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
     rhs: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, GreaterEqualOp>(lhs, rhs)
 }
 
-pub fn lower_equal_elem<R: JitRuntime, E: JitElement, BT: BoolElement>(
-    lhs: JitTensor<R>,
+pub fn lower_equal_elem<R: CubeRuntime, E: CubeElement, BT: BoolElement>(
+    lhs: CubeTensor<R>,
     rhs: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     launch_scalar_cmp::<R, E, BT, LowerEqualOp>(lhs, rhs)
 }

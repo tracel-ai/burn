@@ -4,14 +4,14 @@
 //! DASIP, 2018
 
 use crate::{
-    backends::jit::connected_components::stats_from_opts, ConnectedStatsOptions,
+    backends::cube::connected_components::stats_from_opts, ConnectedStatsOptions,
     ConnectedStatsPrimitive, Connectivity,
 };
 use burn_cubecl::{
     kernel,
     ops::{into_data_sync, numeric::zeros_device},
-    tensor::JitTensor,
-    BoolElement, FloatElement, IntElement, JitBackend, JitRuntime,
+    tensor::CubeTensor,
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_tensor::{ops::IntTensorOps, Shape};
 use cubecl::{prelude::*, Feature};
@@ -464,14 +464,14 @@ fn compact_stats<I: Int>(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
-    img: JitTensor<R>,
+pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement>(
+    img: CubeTensor<R>,
     stats_opt: ConnectedStatsOptions,
     connectivity: Connectivity,
 ) -> Result<
     (
-        JitTensor<R>,
-        ConnectedStatsPrimitive<JitBackend<R, F, I, BT>>,
+        CubeTensor<R>,
+        ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>,
     ),
     String,
 > {
@@ -566,7 +566,7 @@ pub fn hardware_accelerated<R: JitRuntime, F: FloatElement, I: IntElement, BT: B
             )
         };
         if stats_opt.compact_labels {
-            let max_label = JitBackend::<R, F, I, BT>::int_max(stats.max_label);
+            let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
             let max_label = into_data_sync::<R, I>(max_label).convert::<u32>();
             let max_label = max_label.as_slice::<u32>().unwrap()[0] as usize;
             let sliced = kernel::slice::<R, I>(

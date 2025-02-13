@@ -1,14 +1,14 @@
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     kernel::into_contiguous,
     ops::{
         numeric::{empty_device, zeros_device},
         reshape,
     },
-    tensor::JitTensor,
-    JitRuntime,
+    tensor::CubeTensor,
+    CubeRuntime,
 };
 use burn_tensor::{ops::ConvTransposeOptions, Element, Shape};
 
@@ -145,12 +145,12 @@ fn conv_transpose3d_kernel<E: Numeric>(
     output[ABSOLUTE_POS] = sum;
 }
 
-pub(crate) fn conv_transpose3d<R: JitRuntime, E: JitElement + Element>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+pub(crate) fn conv_transpose3d<R: CubeRuntime, E: CubeElement + Element>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<3>,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let input = into_contiguous(input);
     let weight = into_contiguous(weight);
     let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();

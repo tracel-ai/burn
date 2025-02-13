@@ -1,10 +1,10 @@
 use cubecl::prelude::*;
 
 use crate::{
-    element::JitElement,
+    element::CubeElement,
     kernel::{launch_unary_numeric, NumericUnaryOp, NumericUnaryOpFamily},
-    tensor::JitTensor,
-    JitRuntime,
+    tensor::CubeTensor,
+    CubeRuntime,
 };
 
 #[derive(CubeLaunch)]
@@ -13,11 +13,11 @@ struct Options<C: Numeric> {
     max_value: C,
 }
 
-pub(crate) fn clamp<R: JitRuntime, E: JitElement>(
-    input: JitTensor<R>,
+pub(crate) fn clamp<R: CubeRuntime, E: CubeElement>(
+    input: CubeTensor<R>,
     min_value: E,
     max_value: E,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     struct ClampOp;
 
     #[cube]

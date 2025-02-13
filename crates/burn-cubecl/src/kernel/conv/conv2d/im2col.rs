@@ -12,8 +12,8 @@ use crate::{
         AddOp,
     },
     ops::{numeric::empty_device, reshape, swap_dims},
-    tensor::JitTensor,
-    FloatElement, JitRuntime,
+    tensor::CubeTensor,
+    CubeRuntime, FloatElement,
 };
 
 #[derive(CubeLaunch)]
@@ -132,14 +132,14 @@ pub(crate) fn batches_per_run(
     Ok(1)
 }
 
-fn im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
+fn im2col<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
     options: ConvOptions<2>,
     kernel_h: usize,
     kernel_w: usize,
     out_h: usize,
     out_w: usize,
-) -> JitTensor<R> {
+) -> CubeTensor<R> {
     let input = into_contiguous(input);
     let [batch_size, in_channels, _, _] = input.shape.dims();
 
@@ -196,12 +196,12 @@ fn im2col<R: JitRuntime, E: FloatElement>(
 /// * `bias` - The bias added to each channel
 /// * `options` - The options to use for the convolution
 ///
-pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+pub fn conv2d_im2col<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [batch_size, in_channels, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
     let groups = options.groups;
@@ -268,12 +268,12 @@ pub fn conv2d_im2col<R: JitRuntime, E: FloatElement>(
     Ok(out)
 }
 
-fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    bias: Option<JitTensor<R>>,
+fn execute_1x1_kernel<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    bias: Option<CubeTensor<R>>,
     options: ConvOptions<2>,
-) -> Result<JitTensor<R>, ConvLaunchError> {
+) -> Result<CubeTensor<R>, ConvLaunchError> {
     let [batch_size, _, height, width] = input.shape.dims();
     let [out_channels, in_c_per_grp, _, _] = weight.shape.dims();
     let groups = options.groups;
@@ -295,10 +295,10 @@ fn execute_1x1_kernel<R: JitRuntime, E: FloatElement>(
     Ok(swap_dims(out, 0, 1))
 }
 
-fn execute<R: JitRuntime, E: FloatElement>(
-    input: JitTensor<R>,
-    weight: JitTensor<R>,
-    out: JitTensor<R>,
+fn execute<R: CubeRuntime, E: FloatElement>(
+    input: CubeTensor<R>,
+    weight: CubeTensor<R>,
+    out: CubeTensor<R>,
     options: ConvOptions<2>,
     out_h: usize,
     out_w: usize,
