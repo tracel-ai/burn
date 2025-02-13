@@ -27,8 +27,6 @@ impl<B: Backend> LossMetric<B> {
 }
 
 impl<B: Backend> Metric for LossMetric<B> {
-    const NAME: &'static str = "Loss";
-
     type Input = LossInput<B>;
 
     fn update(&mut self, loss: &Self::Input, _metadata: &MetricMetadata) -> MetricEntry {
@@ -45,12 +43,16 @@ impl<B: Backend> Metric for LossMetric<B> {
         self.state.update(
             loss,
             batch_size,
-            FormatOptions::new(Self::NAME).precision(2),
+            FormatOptions::new(self.name()).precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.state.reset()
+    }
+
+    fn name(&self) -> String {
+        "Loss".to_string()
     }
 }
 

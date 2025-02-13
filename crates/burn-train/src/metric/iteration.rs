@@ -19,8 +19,6 @@ impl IterationSpeedMetric {
 }
 
 impl Metric for IterationSpeedMetric {
-    const NAME: &'static str = "Iteration Speed";
-
     type Input = ();
 
     fn update(&mut self, _: &Self::Input, metadata: &MetricMetadata) -> MetricEntry {
@@ -35,12 +33,18 @@ impl Metric for IterationSpeedMetric {
         self.state.update(
             raw,
             1,
-            FormatOptions::new(Self::NAME).unit("iter/sec").precision(2),
+            FormatOptions::new(self.name())
+                .unit("iter/sec")
+                .precision(2),
         )
     }
 
     fn clear(&mut self) {
         self.instant = None;
+    }
+
+    fn name(&self) -> String {
+        "Iteration Speed".to_string()
     }
 }
 

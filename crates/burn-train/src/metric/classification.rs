@@ -1,13 +1,14 @@
 use std::num::NonZeroUsize;
 
 /// Necessary data for classification metrics.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ClassificationMetricConfig {
     pub decision_rule: DecisionRule,
     pub class_reduction: ClassReduction,
 }
 
 /// The prediction decision rule for classification metrics.
+#[derive(Debug)]
 pub enum DecisionRule {
     /// Consider a class predicted if its probability exceeds the threshold.
     Threshold(f64),
@@ -22,7 +23,7 @@ impl Default for DecisionRule {
 }
 
 /// The reduction strategy for classification metrics.
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub enum ClassReduction {
     /// Computes the statistics over all classes before averaging
     Micro,

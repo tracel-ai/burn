@@ -75,7 +75,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .early_stopping(MetricEarlyStoppingStrategy::new::<LossMetric<B>>(
+        .early_stopping(MetricEarlyStoppingStrategy::new(
+            &LossMetric::<B>::new(),
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
