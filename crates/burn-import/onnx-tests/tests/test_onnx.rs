@@ -127,7 +127,8 @@ include_models!(
     transpose,
     unsqueeze,
     unsqueeze_opset11,
-    unsqueeze_opset16
+    unsqueeze_opset16,
+    split
 );
 
 #[cfg(test)]
@@ -2219,6 +2220,17 @@ mod tests {
     }
 
     #[test]
+    fn split() {
+        let device = Default::default();
+        let model = split::Model::<Backend>::new(&device);
+        let shape = [5, 2];
+        let input = Tensor::ones(shape, &device);
+
+        let split_tensors = model.forward(input);
+        assert_eq!(split_tensors.len(), 3);
+    }
+
+    #[test]
     fn top_k_opset_1() {
         // Initialize the model
         let device = Default::default();
@@ -2244,6 +2256,7 @@ mod tests {
             .assert_eq(&expected_indices_tensor, true);
     }
 
+    #[test]
     fn one_hot() {
         // Test for OneHot model
 

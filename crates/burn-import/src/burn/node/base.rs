@@ -13,8 +13,8 @@ use super::{
     pad::PadNode, prelu::PReluNode, random_normal::RandomNormalNode,
     random_normal_like::RandomNormalLikeNode, random_uniform::RandomUniformNode,
     random_uniform_like::RandomUniformLikeNode, range::RangeNode, reshape::ReshapeNode,
-    resize::ResizeNode, slice::SliceNode, squeeze::SqueezeNode, sum::SumNode, tile::TileNode,
-    top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
+    resize::ResizeNode, slice::SliceNode, split::SplitNode, squeeze::SqueezeNode, sum::SumNode,
+    tile::TileNode, top_k::TopKNode, trilu::TriluNode, unary::UnaryNode, unsqueeze::UnsqueezeNode,
 };
 use crate::burn::{BurnImports, Scope, Type};
 use burn::record::PrecisionSettings;
@@ -117,6 +117,7 @@ pub enum Node<PS: PrecisionSettings> {
     Resize(ResizeNode),
     Slice(SliceNode),
     Squeeze(SqueezeNode),
+    Split(SplitNode),
     Sum(SumNode),
     Tile(TileNode),
     TopK(TopKNode),
@@ -184,6 +185,7 @@ macro_rules! match_all {
             Node::RandomUniform(node) => $func(node),
             Node::RandomUniformLike(node) => $func(node),
             Node::ConstantOfShape(node) => $func(node),
+            Node::Split(node) => $func(node),
             _ => unimplemented!(),
         }
     }};
@@ -247,6 +249,7 @@ impl<PS: PrecisionSettings> Node<PS> {
             Node::RandomUniform(_) => "random_uniform",
             Node::RandomUniformLike(_) => "random_uniform_like",
             Node::ConstantOfShape(_) => "constant_of_shape",
+            Node::Split(_) => "split",
             _ => unimplemented!(),
         }
     }
