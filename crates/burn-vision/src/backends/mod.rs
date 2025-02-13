@@ -1,3 +1,3 @@
 pub(crate) mod cpu;
-#[cfg(feature = "jit-backend")]
-mod jit;
+#[cfg(feature = "cubecl-backend")]
+mod cube;
