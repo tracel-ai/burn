@@ -109,6 +109,37 @@ pub enum ElemwiseOp {
     },
 }
 
+impl ElemwiseOp {
+    /// Element type used for the computation.
+    pub(crate) fn cmp_elem(&self) -> Elem {
+        match self {
+            ElemwiseOp::Add(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Sub(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Mul(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Div(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Powf(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Abs(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Exp(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Log(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Log1p(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Cos(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Sin(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Tanh(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Erf(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Recip(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Assign(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Equal(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Lower(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Greater(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::LowerEqual(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::GreaterEqual(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
+            ElemwiseOp::Gather { output, .. } => output.precision().into_elem(),
+            ElemwiseOp::Select { output, .. } => output.precision().into_elem(),
+        }
+    }
+}
+
 #[derive(CubeLaunch)]
 pub struct ReshapedTensor {
     #[cube(comptime)]
@@ -327,6 +358,24 @@ impl From<Elem> for ElemwisePrecision {
             },
             Elem::Bool => Self::Bool,
             _ => panic!("Unsupported precision for fusion: {value}"),
+        }
+    }
+}
+impl ElemwisePrecision {
+    pub fn into_elem(self) -> Elem {
+        match self {
+            ElemwisePrecision::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
+            ElemwisePrecision::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
+            ElemwisePrecision::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
+            ElemwisePrecision::I64 => Elem::Int(cubecl::ir::IntKind::I64),
+            ElemwisePrecision::I32 => Elem::Int(cubecl::ir::IntKind::I32),
+            ElemwisePrecision::I16 => Elem::Int(cubecl::ir::IntKind::I16),
+            ElemwisePrecision::I8 => Elem::Int(cubecl::ir::IntKind::I8),
+            ElemwisePrecision::U64 => Elem::UInt(cubecl::ir::UIntKind::U64),
+            ElemwisePrecision::U32 => Elem::UInt(cubecl::ir::UIntKind::U32),
+            ElemwisePrecision::U16 => Elem::UInt(cubecl::ir::UIntKind::U16),
+            ElemwisePrecision::U8 => Elem::UInt(cubecl::ir::UIntKind::U8),
+            ElemwisePrecision::Bool => Elem::Bool,
         }
     }
 }

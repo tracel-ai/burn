@@ -3,6 +3,8 @@ use super::ir::*;
 use cubecl::prelude::*;
 use half::{bf16, f16};
 
+const DYN_ELEM_ID: u8 = u8::MAX;
+
 #[cube]
 /// Fuse element-wise operations at the given write position.
 ///
@@ -42,903 +44,217 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[unroll]
     for index in 0..config.ops.len() {
         let op = comptime! { config.ops.index(index).clone() };
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_elem()]);
 
         match op {
-            ElemwiseOp::Add(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    add::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    add::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    add::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    add::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    add::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    add::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    add::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    add::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    add::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    add::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    add::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Div(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    div::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    div::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    div::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    div::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    div::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    div::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    div::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    div::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    div::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    div::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    div::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Sub(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    sub::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    sub::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    sub::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    sub::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    sub::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    sub::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    sub::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    sub::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    sub::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    sub::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    sub::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Mul(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    mul::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    mul::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    mul::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    mul::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    mul::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    mul::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    mul::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    mul::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    mul::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    mul::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    mul::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Powf(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    powf::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    powf::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    powf::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Erf(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    erf::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    erf::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    erf::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Abs(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    abs::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    abs::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    abs::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    assign::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    assign::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    assign::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    assign::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    abs::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    abs::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    abs::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    abs::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Log(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    log::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    log::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    log::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Log1p(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    log1p::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    log1p::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    log1p::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Recip(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    recip::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    recip::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    recip::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Assign(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    assign::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    assign::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    assign::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    assign::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    assign::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    assign::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    assign::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    assign::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    assign::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    assign::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    assign::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::Bool => {
-                    assign::<bool>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-            },
-            ElemwiseOp::Exp(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    exp::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    exp::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    exp::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Cos(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    cos::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    cos::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    cos::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Sin(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    sin::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    sin::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    sin::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Tanh(op) => match op.out.precision() {
-                ElemwisePrecision::F32 => {
-                    tanh::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    tanh::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    tanh::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Equal(op) => match op.lhs.precision() {
-                ElemwisePrecision::F32 => {
-                    equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::Bool => {
-                    equal::<bool>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-            },
-            ElemwiseOp::Greater(op) => match op.lhs.precision() {
-                ElemwisePrecision::F32 => {
-                    greater::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    greater::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    greater::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    greater::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    greater::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    greater::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    greater::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    greater::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    greater::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    greater::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    greater::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::GreaterEqual(op) => match op.lhs.precision() {
-                ElemwisePrecision::F32 => {
-                    greater_equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    greater_equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    greater_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    greater_equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    greater_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    greater_equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    greater_equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    greater_equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    greater_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    greater_equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    greater_equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::Lower(op) => match op.lhs.precision() {
-                ElemwisePrecision::F32 => {
-                    lower::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    lower::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    lower::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    lower::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    lower::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    lower::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    lower::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    lower::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    lower::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    lower::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    lower::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
-            ElemwiseOp::LowerEqual(op) => match op.lhs.precision() {
-                ElemwisePrecision::F32 => {
-                    lower_equal::<f32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::F16 => {
-                    lower_equal::<f16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::BF16 => {
-                    lower_equal::<bf16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I64 => {
-                    lower_equal::<i64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I32 => {
-                    lower_equal::<i32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I16 => {
-                    lower_equal::<i16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::I8 => {
-                    lower_equal::<i8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U64 => {
-                    lower_equal::<u64>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U32 => {
-                    lower_equal::<u32>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U16 => {
-                    lower_equal::<u16>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                ElemwisePrecision::U8 => {
-                    lower_equal::<u8>(inputs, outputs, &mut locals, write_pos, op, config)
-                }
-                _ => comptime![panic!("Unsupported precision {op:?}")],
-            },
+            ElemwiseOp::Add(op) => add::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Div(op) => div::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Sub(op) => sub::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Mul(op) => mul::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Powf(op) => powf::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Erf(op) => erf::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Abs(op) => abs::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Log(op) => log::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Log1p(op) => log1p::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Recip(op) => recip::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Assign(op) => assign::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Exp(op) => exp::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Cos(op) => cos::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Sin(op) => sin::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Tanh(op) => tanh::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Equal(op) => equal::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Greater(op) => greater::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::GreaterEqual(op) => greater_equal::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::Lower(op) => lower::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
+            ElemwiseOp::LowerEqual(op) => lower_equal::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                op,
+                config,
+            ),
             ElemwiseOp::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
                 out,
-            } => match out.precision() {
-                ElemwisePrecision::F32 => conditional_assign::<f32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::F16 => conditional_assign::<f16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::BF16 => conditional_assign::<bf16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::I64 => conditional_assign::<i64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::I32 => conditional_assign::<i32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::I16 => conditional_assign::<i16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::I8 => conditional_assign::<i8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::U64 => conditional_assign::<u64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::U32 => conditional_assign::<u32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::U16 => conditional_assign::<u16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                ElemwisePrecision::U8 => conditional_assign::<u8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    cond,
-                    lhs,
-                    rhs,
-                    out,
-                    config,
-                ),
-                _ => comptime![panic!("Unsupported precision")],
-            },
+            } => conditional_assign::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                cond,
+                lhs,
+                rhs,
+                out,
+                config,
+            ),
             ElemwiseOp::Gather {
                 input,
                 indices,
                 output,
                 dim,
-            } => match output.precision() {
-                ElemwisePrecision::F32 => gather::<f32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::F16 => gather::<f16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::BF16 => gather::<bf16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I64 => gather::<i64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I32 => gather::<i32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I16 => gather::<i16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I8 => gather::<i8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U64 => gather::<u64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U32 => gather::<u32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U16 => gather::<u16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U8 => gather::<u8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                _ => comptime![panic!("Unsupported precision")],
-            },
+            } => gather::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                dim,
+                input,
+                indices,
+                output,
+                config,
+            ),
             ElemwiseOp::Select {
                 input,
                 indices,
                 output,
                 dim,
-            } => match output.precision() {
-                ElemwisePrecision::F32 => select_indices::<f32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::F16 => select_indices::<f16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::BF16 => select_indices::<bf16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I64 => select_indices::<i64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I32 => select_indices::<i32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I16 => select_indices::<i16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::I8 => select_indices::<i8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U64 => select_indices::<u64>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U32 => select_indices::<u32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U16 => select_indices::<u16>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                ElemwisePrecision::U8 => select_indices::<u8>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    write_pos,
-                    dim,
-                    input,
-                    indices,
-                    output,
-                    config,
-                ),
-                _ => comptime![panic!("Unsupported precision")],
-            },
+            } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
+                inputs,
+                outputs,
+                &mut locals,
+                write_pos,
+                dim,
+                input,
+                indices,
+                output,
+                config,
+            ),
         }
     }
 }
