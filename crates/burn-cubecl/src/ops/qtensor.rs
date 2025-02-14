@@ -40,12 +40,12 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
-                | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
+                QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",

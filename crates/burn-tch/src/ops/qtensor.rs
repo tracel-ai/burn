@@ -3,8 +3,8 @@ use std::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        QParams, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
-        QuantizedBytes,
+        QParams, QuantizationMode, QuantizationParametersPrimitive, QuantizationScheme,
+        QuantizationType, QuantizedBytes,
     },
     DType, Shape, TensorData, TensorMetadata,
 };
@@ -25,14 +25,16 @@ fn quantize<E: TchElement, Q: QuantElement>(
     }
 
     match scheme {
-        QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => tensor.quantize_per_tensor(
-            qparams.scale.elem(),
-            qparams.offset.unwrap().elem(),
-            tch::Kind::QInt8,
-        ),
-        QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+        QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => tensor
+            .quantize_per_tensor(
+                qparams.scale.elem(),
+                qparams.offset.unwrap().elem(),
+                tch::Kind::QInt8,
+            ),
+        QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
             tensor.quantize_per_tensor(qparams.scale.elem(), 0, tch::Kind::QInt8)
         }
+        QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
     }
 }
 
@@ -82,20 +84,21 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
 
         let qtensor = match scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, dtype) => match dtype {
                 QuantizationType::QInt8 => tensor.tensor.quantize_per_tensor_tensor_qparams(
                     &qparams.scale.tensor,
                     &qparams.offset.unwrap().tensor,
                     tch::Kind::QInt8,
                 ),
             },
-            QuantizationScheme::PerTensorSymmetric(_) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => {
                 tensor.tensor.quantize_per_tensor_tensor_qparams(
                     &qparams.scale.tensor,
                     &tch::Tensor::zeros_like(&qparams.scale.tensor),
                     tch::Kind::QInt8,
                 )
             }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
         };
 
         TchQTensor {
@@ -109,7 +112,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         scheme: &QuantizationScheme,
     ) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, dtype) => match dtype {
                 // Notes on `reduce_range`:
                 // https://github.com/pytorch/pytorch/issues/93140
                 // https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
@@ -117,7 +120,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     .tensor
                     .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
             },
-            QuantizationScheme::PerTensorSymmetric(dtype) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, dtype) => {
                 log::warn!("LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization");
                 match dtype {
                     QuantizationType::QInt8 => tensor
@@ -125,6 +128,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                         .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
                 }
             }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
         };
 
         TchQTensor {

@@ -84,7 +84,7 @@ macro_rules! testgen_quantization {
 
             use burn_tensor::{
                 backend::Backend,
-                quantization::{QuantizationScheme, QuantizationType},
+                quantization::{QuantizationMode, QuantizationScheme, QuantizationType},
                 Tensor, TensorData,
             };
 
@@ -101,13 +101,19 @@ macro_rules! testgen_quantization {
                 /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
                 pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
                     Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8),
+                        &QuantizationScheme::PerTensor(
+                            QuantizationMode::Symmetric,
+                            QuantizationType::QInt8,
+                        ),
                     )
                 }
                 /// Creates a quantized int8 tensor from the floating point data using per-tensor affine quantization.
                 pub fn int8_affine<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
                     Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
-                        &QuantizationScheme::PerTensorAffine(QuantizationType::QInt8),
+                        &QuantizationScheme::PerTensor(
+                            QuantizationMode::Affine,
+                            QuantizationType::QInt8,
+                        ),
                     )
                 }
             }

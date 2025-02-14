@@ -1,8 +1,8 @@
 use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     quantization::{
-        AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        AffineQuantization, QTensorPrimitive, QuantizationMode, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
     DType, Shape, TensorData, TensorMetadata,
 };
@@ -331,24 +331,21 @@ impl TchQTensor {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match &self.scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = self.qtensor.tensor.q_scale();
-                    let offset = self.qtensor.tensor.q_zero_point();
-                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                        scale as f32,
-                        offset as i8,
-                    ))
-                }
-            },
-            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = self.qtensor.tensor.q_scale();
-                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                        scale as f32,
-                    ))
-                }
-            },
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
+                let scale = self.qtensor.tensor.q_scale();
+                let offset = self.qtensor.tensor.q_zero_point();
+                QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                    scale as f32,
+                    offset as i8,
+                ))
+            }
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+                let scale = self.qtensor.tensor.q_scale();
+                QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                    scale as f32,
+                ))
+            }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
         }
     }
 }
@@ -375,7 +372,7 @@ mod tests {
 
     use super::*;
     use burn_tensor::ops::QTensorOps;
-    use burn_tensor::quantization::QuantizationParametersPrimitive;
+    use burn_tensor::quantization::{QuantizationMode, QuantizationParametersPrimitive};
     use burn_tensor::{Distribution, Tensor, TensorPrimitive};
     use rand::prelude::StdRng;
     use rand::SeedableRng;
@@ -440,7 +437,8 @@ mod tests {
     fn should_support_qtensor_strategy() {
         let tensor =
             TchTensor::from_data::<f32>(TensorData::from([-1.8, -1.0, 0.0, 0.5]), tch::Device::Cpu);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive::<LibTorch<f32, i8>> {
             scale: TchTensor::from_data::<f32>(TensorData::from([0.009_019_608]), tch::Device::Cpu),
             offset: Some(TchTensor::from_data::<i8>(

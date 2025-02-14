@@ -3,9 +3,9 @@ use crate::{backend::Backend, Tensor};
 /// The observed input calibration range.
 #[derive(Clone, Debug)]
 pub struct CalibrationRange<B: Backend> {
-    /// Minimum observed value.
+    /// Minimum observed value(s).
     pub min: Tensor<B, 1>,
-    /// Maximum observed value.
+    /// Maximum observed value(s).
     pub max: Tensor<B, 1>,
 }
 
@@ -19,7 +19,10 @@ pub trait Calibration {
 }
 
 /// Computes the per-tensor quantization range mapping based on the min and max values.
-pub struct MinMaxCalibration {}
+pub struct MinMaxCalibration {
+    // /// Quantization granularity.
+    // pub granularity:
+}
 
 impl Calibration for MinMaxCalibration {
     fn compute_range<B: Backend, const D: usize>(

@@ -1,7 +1,7 @@
 use burn_tensor::{
     quantization::{
-        AffineQuantization, QParams, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
-        QuantizationType, SymmetricQuantization,
+        AffineQuantization, QParams, QTensorPrimitive, QuantizationMode, QuantizationScheme,
+        QuantizationStrategy, QuantizationType, SymmetricQuantization,
     },
     DType, Element, Shape, TensorData, TensorMetadata,
 };
@@ -348,17 +348,18 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
     /// Returns the quantization strategy, including quantization parameters, for the given tensor.
     pub fn strategy(&self) -> QuantizationStrategy {
         match self.scheme {
-            QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
                     self.qparams.scale,
                     self.qparams.offset.unwrap().elem(),
                 ))
             }
-            QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
                     self.qparams.scale,
                 ))
             }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
         }
     }
 }
@@ -455,7 +456,8 @@ mod tests {
         let device = Default::default();
 
         let tensor = B::float_from_data(TensorData::from([-1.8f32, -1.0, 0.0, 0.5]), &device);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
         let qparams = QuantizationParametersPrimitive {
             scale: B::float_from_data(TensorData::from([scale]), &device),
             offset: Some(B::int_from_data(TensorData::from([offset as i64]), &device)),

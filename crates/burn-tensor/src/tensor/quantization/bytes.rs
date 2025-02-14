@@ -5,7 +5,8 @@ use alloc::vec::Vec;
 
 use super::{
     pack_i8s_to_u32s, unpack_u32s_to_i8s, AffineQuantization, QParams, Quantization,
-    QuantizationScheme, QuantizationStrategy, QuantizationType, SymmetricQuantization,
+    QuantizationMode, QuantizationScheme, QuantizationStrategy, QuantizationType,
+    SymmetricQuantization,
 };
 
 /// Quantized data bytes representation.
@@ -85,14 +86,15 @@ impl QuantizedBytes {
         let scale = *bytemuck::checked::from_bytes(&qparams_bytes[total_bytes - scale_size..]);
 
         let offset = match scheme {
-            QuantizationScheme::PerTensorAffine(_) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, _) => {
                 let offset_size = core::mem::size_of::<i32>(); // zero-point offset is stored as i32
                 Some(*bytemuck::checked::from_bytes::<i32>(
                     &qparams_bytes
                         [total_bytes - scale_size - offset_size..total_bytes - scale_size],
                 ) as i8)
             }
-            QuantizationScheme::PerTensorSymmetric(_) => None,
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => None,
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
         };
 
         (values, QParams { scale, offset })
@@ -123,7 +125,7 @@ impl QuantizedBytes {
         let scale_size = 1; // f32 scale is the same number of bytes as u32
         let mut values_end = values.len() - scale_size;
 
-        if let QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) = self.scheme {
+        if let QuantizationScheme::PerTensor(QuantizationMode::Affine, _) = self.scheme {
             values_end -= 1; // zero-point offset is stored as i32 (same number of bytes as u32)
         }
 
@@ -135,7 +137,7 @@ impl QuantizedBytes {
     /// Dequantizes the data according to its quantization scheme.
     pub fn dequantize(self) -> (Vec<f32>, QParams<f32, i8>) {
         match self.scheme {
-            QuantizationScheme::PerTensorAffine(QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = AffineQuantization::<f32, i8, i32>::init(
                     qparams.scale,
@@ -143,11 +145,12 @@ impl QuantizedBytes {
                 );
                 (strategy.dequantize(&values), qparams)
             }
-            QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 let (values, qparams) = self.into_vec_i8();
                 let strategy = SymmetricQuantization::<f32, i8>::init(qparams.scale);
                 (strategy.dequantize(&values), qparams)
             }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
         }
     }
 }

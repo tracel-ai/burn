@@ -3,7 +3,7 @@ mod tests {
     use super::*;
     use burn_tensor::ops::QTensorOps;
     use burn_tensor::quantization::{
-        AffineQuantization, QParams, QuantizationParameters, QuantizationScheme,
+        AffineQuantization, QParams, QuantizationMode, QuantizationParameters, QuantizationScheme,
         QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
     };
     use burn_tensor::{DType, Tensor, TensorData};
@@ -27,7 +27,8 @@ mod tests {
     fn should_support_quantize_affine_int8() {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
         let qparams = QuantizationParameters {
             scale: Tensor::from_floats([0.009_019_608], &device),
             offset: Some(Tensor::from_ints([72], &device)),
@@ -55,7 +56,8 @@ mod tests {
     fn should_support_quantize_symmetric_int8() {
         let device = Default::default();
         let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
-        let scheme = QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8);
         let qparams = QuantizationParameters {
             scale: Tensor::from_floats([0.014_173_228], &device),
             offset: None,
@@ -107,7 +109,8 @@ mod tests {
         // NOTE: we use fully representable values since different backend implementations could differ slightly
         // due to rounding discrepancies
         let tensor = TestTensor::<1>::from_floats([5., 0., 4., -10.], &device);
-        let scheme = QuantizationScheme::PerTensorAffine(QuantizationType::QInt8);
+        let scheme =
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8);
 
         let x_q = tensor.quantize_dynamic(&scheme);
 

@@ -8,7 +8,7 @@ use burn_common::{iter_slice_par, run_par};
 use num_traits::{Float, PrimInt};
 use serde::{Deserialize, Serialize};
 
-use super::{QuantizationScheme, QuantizationType};
+use super::{QuantizationMode, QuantizationScheme, QuantizationType};
 
 /// Quantization strategy.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,10 +24,10 @@ impl QuantizationStrategy {
     pub fn scheme(&self) -> QuantizationScheme {
         match self {
             QuantizationStrategy::PerTensorAffineInt8(_) => {
-                QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
+                QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8)
             }
             QuantizationStrategy::PerTensorSymmetricInt8(_) => {
-                QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8)
+                QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8)
             }
         }
     }

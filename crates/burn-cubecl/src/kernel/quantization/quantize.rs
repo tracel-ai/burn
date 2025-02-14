@@ -248,11 +248,9 @@ where
     I: IntElement,
 {
     match scheme {
-        QuantizationScheme::PerTensorAffine(dtype)
-        | QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-            QuantizationType::QInt8 => {
-                quantize_per_tensor::<R, F, I>(tensor, scale, offset, *scheme)
-            }
-        },
+        QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+            quantize_per_tensor::<R, F, I>(tensor, scale, offset, *scheme)
+        }
+        QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, _block_layout) => todo!(),
     }
 }

@@ -3,8 +3,9 @@ use core::ops::Range;
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
     quantization::{
-        AffineQuantization, QParams, QuantizationParametersPrimitive, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
+        AffineQuantization, QParams, QuantizationMode, QuantizationParametersPrimitive,
+        QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
+        SymmetricQuantization,
     },
     DType, ElementConversion, Shape, TensorData, TensorMetadata,
 };
@@ -45,8 +46,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 };
 
                 match scheme {
-                    QuantizationScheme::PerTensorAffine(QuantizationType::QInt8)
-                    | QuantizationScheme::PerTensorSymmetric(QuantizationType::QInt8) => {
+                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
                         let (values, qparams) = q_bytes.into_vec_i8();
 
                         let data = TensorData::new(values, shape).convert::<Q>();
@@ -61,6 +61,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                             qparams,
                         }
                     }
+                    QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
                 }
             }
             _ => panic!(
@@ -76,39 +77,36 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         let (strategy, qparams) = match scheme {
-            QuantizationScheme::PerTensorAffine(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = into_data_f(qparams.scale).iter().next().unwrap();
-                    let offset = into_data(qparams.offset.unwrap())
-                        .iter::<Q>()
-                        .next()
-                        .unwrap();
-                    (
-                        QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                            scale,
-                            offset.elem(),
-                        )),
-                        QParams {
-                            scale,
-                            offset: Some(offset),
-                        },
-                    )
-                }
-            },
-            QuantizationScheme::PerTensorSymmetric(dtype) => match dtype {
-                QuantizationType::QInt8 => {
-                    let scale = into_data_f(qparams.scale).iter().next().unwrap();
-                    (
-                        QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                            scale,
-                        )),
-                        QParams {
-                            scale,
-                            offset: None,
-                        },
-                    )
-                }
-            },
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
+                let scale = into_data_f(qparams.scale).iter().next().unwrap();
+                let offset = into_data(qparams.offset.unwrap())
+                    .iter::<Q>()
+                    .next()
+                    .unwrap();
+                (
+                    QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
+                        scale,
+                        offset.elem(),
+                    )),
+                    QParams {
+                        scale,
+                        offset: Some(offset),
+                    },
+                )
+            }
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+                let scale = into_data_f(qparams.scale).iter().next().unwrap();
+                (
+                    QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
+                        scale,
+                    )),
+                    QParams {
+                        scale,
+                        offset: None,
+                    },
+                )
+            }
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
         };
 
         let shape = tensor.shape();
