@@ -120,16 +120,32 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
                 let shape = tensor_type.clone().shape.unwrap().to_tokens();
+                let dim = tensor_type.dim.to_tokens();
 
                 match tensor_type.kind {
                     crate::burn::TensorKind::Int => Some(quote! {
-                        let #name: burn::module::Param<#ty> = burn::nn::zeros_int(#shape, device);
+                        let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
+                            burn::module::ParamId::new(),
+                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Int>::zeros(#shape, &device),
+                            device.clone(),
+                            false
+                        );
                     }),
                     crate::burn::TensorKind::Float => Some(quote! {
-                        let #name: burn::module::Param<#ty> = burn::nn::zeros_float(#shape, device);
+                        let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
+                            burn::module::ParamId::new(),
+                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Float>::zeros(#shape, &device),
+                            device.clone(),
+                            false,
+                        );
                     }),
                     crate::burn::TensorKind::Bool => Some(quote! {
-                        let #name: burn::module::Param<#ty> = burn::nn::zeros_bool(#shape, device);
+                        let #name: burn::module::Param<#ty> = burn::module::Param::uninitialized(
+                            burn::module::ParamId::new(),
+                            move |device, _require_grad| Tensor::<B, #dim, burn::tensor::Bool>::empty(#shape, &device),
+                            device.clone(),
+                            false,
+                        );
                     }),
                 }
             }
