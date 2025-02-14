@@ -205,10 +205,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     }
 }
 
-fn into_tensor<R: CubeRuntime>(
-    handle: CubeFusionHandle<R>,
-    shape: Shape,
-) -> CubeTensor<R> {
+fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
     CubeTensor {
         client: handle.client,
         handle: handle.handle,

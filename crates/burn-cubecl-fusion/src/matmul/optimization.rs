@@ -182,18 +182,6 @@ impl<R: Runtime> MatmulOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) {
-        match self.matmul_standard.lhs.precision() {
-            ElemwisePrecision::F32 => self.run_fallback::<BT, f32>(context),
-            ElemwisePrecision::F16 => self.run_fallback::<BT, f16>(context),
-            ElemwisePrecision::BF16 => self.run_fallback::<BT, bf16>(context),
-            _ => panic!("Unsupported precision"),
-        }
-    }
-
-    fn run_fallback<BT: CubeElement, EG: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) {
         let (out_tensor, out_desc) = {
             let lhs = context
                 .tensors
@@ -217,20 +205,6 @@ impl<R: Runtime> MatmulOptimization<R> {
                 .fallback
                 .run((lhs_handle, &lhs.shape), (rhs_handle, &rhs.shape));
 
-            // let lhs_tensor = lhs_handle.into_tensor(Shape {
-            //     dims: lhs.shape.clone(),
-            // });
-            // let rhs_tensor = rhs_handle.into_tensor(Shape {
-            //     dims: rhs.shape.clone(),
-            // });
-            // todo!();
-            // let out_tensor = matmul::matmul::<R, EG>(
-            //     lhs_tensor,
-            //     rhs_tensor,
-            //     None,
-            //     matmul::MatmulStrategy::default(),
-            // )
-            // .unwrap();
             (out_handle, out)
         };
         context

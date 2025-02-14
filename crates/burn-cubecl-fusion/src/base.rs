@@ -10,7 +10,7 @@ use cubecl::prelude::{TensorArg, TensorHandleRef};
 use cubecl::{CubeElement, Runtime};
 use serde::{Deserialize, Serialize};
 
-/// Fusion optimization type for JIT.
+/// Fusion optimization type for cubecl.
 ///
 /// More optimization variants should be added here.
 pub enum CubeOptimization<R: Runtime> {
@@ -20,7 +20,7 @@ pub enum CubeOptimization<R: Runtime> {
     Matmul(MatmulOptimization<R>),
 }
 
-/// Fusion optimization state type for JIT.
+/// Fusion optimization state type for cubecl.
 ///
 /// More optimization variants should be added here.
 #[derive(Serialize, Deserialize)]
