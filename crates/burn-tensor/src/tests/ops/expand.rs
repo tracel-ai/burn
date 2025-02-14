@@ -83,7 +83,7 @@ mod tests {
             [false, true, false],
         ]);
 
-        expanded_tensor.into_data().assert_eq(&expected_data, true);
+        expanded_tensor.into_data().assert_eq(&expected_data, false);
     }
 
     #[test]

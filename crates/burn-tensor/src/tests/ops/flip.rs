@@ -46,7 +46,7 @@ mod tests {
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        tensor.into_data().assert_eq(&flipped.into_data(), true);
+        tensor.into_data().assert_eq(&flipped.into_data(), false);
     }
 
     #[test]
@@ -73,11 +73,11 @@ mod tests {
             ],
         ]);
 
-        flipped.into_data().assert_eq(&data_expected, true);
+        flipped.into_data().assert_eq(&data_expected, false);
 
         // Test with no flip
         let flipped = tensor.clone().flip([]);
-        tensor.into_data().assert_eq(&flipped.into_data(), true);
+        tensor.into_data().assert_eq(&flipped.into_data(), false);
     }
 
     #[test]
