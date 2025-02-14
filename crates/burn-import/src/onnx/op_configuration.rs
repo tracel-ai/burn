@@ -1869,7 +1869,7 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
 pub fn split_config(node: &Node) -> SplitConfig {
     // Axis to split along (default is 0 per ONNX spec)
     let mut axis: i64 = 0;
-    let mut num_outputs: Option<usize> = None;
+    let mut split_size: Option<usize> = None;
     let mut split_sizes: Option<Vec<usize>> = None;
 
     let tensor = match node.inputs.first().unwrap().clone().ty {
@@ -1880,7 +1880,25 @@ pub fn split_config(node: &Node) -> SplitConfig {
     for (key, value) in node.attrs.iter() {
         match key.as_str() {
             "axis" => axis = value.clone().into_i64(),
-            "num_outputs" => num_outputs = Some(value.clone().into_i64() as usize),
+            "num_outputs" => {
+                let num_outputs = value.clone().into_i64() as usize;
+
+                if num_outputs == 0 {
+                    panic!("Split error: 'num_outputs' must be greater than zero.");
+                }
+
+                let dim_size = tensor.shape.clone().unwrap()[axis as usize];
+                let calculated_split_size =
+                    dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+                if calculated_split_size == 0 {
+                    panic!(
+                        "Split error: Computed split size is zero. Ensure 'num_outputs' is valid."
+                    );
+                }
+
+                split_size = Some(calculated_split_size);
+            }
             _ => {}
         }
     }
@@ -1898,23 +1916,28 @@ pub fn split_config(node: &Node) -> SplitConfig {
     }
 
     // Only one of 'split_sizes' or 'num_outputs' is provided
-    if split_sizes.is_some() && num_outputs.is_some() {
+    if split_sizes.is_some() && split_size.is_some() {
         panic!("Split: Either 'split' input or 'num_outputs' attribute should be specified, but not both.");
     }
 
-    // If neither 'split_sizes' nor 'num_outputs' is provided, infer 'num_outputs' from the number of outputs
-    if split_sizes.is_none() && num_outputs.is_none() {
-        num_outputs = Some(node.outputs.len());
-    }
+    // Infer split_size if neither split_sizes nor split_size is provided
+    if split_sizes.is_none() && split_size.is_none() {
+        let num_outputs = node.outputs.len();
+        let dim_size = tensor.shape.unwrap()[axis as usize];
 
-    // Final validation to ensure one of 'split_sizes' or 'num_outputs' is specified
-    if split_sizes.is_none() && num_outputs.is_none() {
-        panic!("Split: Either 'split' input or 'num_outputs' attribute must be specified.");
+        let calculated_split_size =
+            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+        if calculated_split_size == 0 {
+            panic!("Split error: Computed split size is zero. Ensure 'num_outputs' is valid.");
+        }
+
+        split_size = Some(calculated_split_size);
     }
 
     SplitConfig {
         axis: axis as usize,
-        num_outputs,
+        split_size,
         split_sizes,
     }
 }
