@@ -5,8 +5,8 @@ use cubecl::{
             components::{
                 global::{
                     self,
-                    full_load::{self, CyclicLoading, RhsLoader},
                     output_loader::Unloader,
+                    single_stage::{self, loader::RhsLoader, CyclicLoading},
                     AccumulatorLoader, GlobalConfig, InputLoader,
                 },
                 stage::{
@@ -69,7 +69,7 @@ where
     >,
 {
     type LhsLoader = SimpleIm2colLoader<CS, Self::Config>;
-    type Config = HomogeneousConfig<full_load::Config<SMM::Config>>;
+    type Config = HomogeneousConfig<single_stage::Config<SMM::Config>>;
     type RhsLoader = RhsLoader<CS::EG, CS::ES, SMM::Config, CyclicLoading>;
     type AccumulatorLoader = BiasLoader<CS, SMM::Config>;
 
@@ -187,7 +187,7 @@ impl<SMM> ConvolutionConfigFactory for ImplicitGemmConvolutionFamily<SMM>
 where
     SMM: StageMatmulFamily,
 {
-    type Config = config::HomogeneousConfig<full_load::Config<SMM::Config>>;
+    type Config = config::HomogeneousConfig<single_stage::Config<SMM::Config>>;
     type Input = SMM::Input;
 
     fn check_config(config: &Self::Config) -> Result<(), InvalidConfigError> {
@@ -212,7 +212,7 @@ where
         let size = SMM::stage_shape(&smm_config);
 
         config::HomogeneousConfig::new(
-            full_load::Config::new(
+            single_stage::Config::new(
                 smm_config,
                 // TODO: Find the correct condition to avoid check bounds.
                 true,
@@ -224,6 +224,7 @@ where
                 problem.rhs_line_size as u32,
                 problem.out_line_size as u32,
                 size.k,
+                global::LoadMode::Coalesced,
             ),
             (problem.out_shape_y as u32, problem.out_shape_x as u32),
             problem.kernel_size,
@@ -360,20 +361,20 @@ pub mod config {
             self.matmul.tiling_order(ident)
         }
 
-        fn check_m_bounds(&self) -> bool {
-            self.matmul.check_m_bounds()
+        fn check_row_bounds(&self, ident: Ident) -> bool {
+            self.matmul.check_row_bounds(ident)
         }
 
-        fn check_n_bounds(&self) -> bool {
-            self.matmul.check_n_bounds()
-        }
-
-        fn check_k_bounds(&self) -> bool {
-            self.matmul.check_k_bounds()
+        fn check_col_bounds(&self, ident: Ident) -> bool {
+            self.matmul.check_col_bounds(ident)
         }
 
         fn transpose_load(&self, ident: Ident) -> bool {
             self.matmul.transpose_load(ident)
+        }
+
+        fn load_mode(&self) -> global::LoadMode {
+            self.matmul.load_mode()
         }
     }
 
