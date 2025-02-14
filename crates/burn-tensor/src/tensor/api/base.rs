@@ -15,11 +15,11 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
 use crate::{
     backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
 };
+use crate::{cast::ToElement, check::TensorCheck};
 use crate::{DType, Element, TensorPrimitive};
 
 use super::{TensorMetadata, Transaction};
@@ -1694,6 +1694,7 @@ where
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
                     _ => acc.push_str(&format!("{:?}", elem)),
                 }
             } else {
