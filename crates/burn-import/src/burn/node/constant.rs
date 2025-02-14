@@ -121,9 +121,17 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
                 let shape = tensor_type.clone().shape.unwrap().to_tokens();
 
-                Some(quote! {
-                    let #name: burn::module::Param<#ty> = burn::nn::Initializer::Zeros.init(#shape, device).set_require_grad(false);
-                })
+                match tensor_type.kind {
+                    crate::burn::TensorKind::Int => Some(quote! {
+                        let #name: burn::module::Param<#ty> = burn::nn::zeros_int(#shape, device);
+                    }),
+                    crate::burn::TensorKind::Float => Some(quote! {
+                        let #name: burn::module::Param<#ty> = burn::nn::zeros_float(#shape, device);
+                    }),
+                    crate::burn::TensorKind::Bool => Some(quote! {
+                        let #name: burn::module::Param<#ty> = burn::nn::zeros_bool(#shape, device);
+                    }),
+                }
             }
             _ => None,
         }

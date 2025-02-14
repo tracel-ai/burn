@@ -70,6 +70,55 @@ pub enum Initializer {
     },
 }
 
+/// Placeholder docstring
+pub fn zeros_int<B: Backend, const D: usize, S: Into<Shape>>(
+    shape: S,
+    device: &B::Device,
+) -> Param<Tensor<B, D, burn_tensor::Int>> {
+    let device = device.clone();
+    let shape: Shape = shape.into();
+    Param::uninitialized(
+        ParamId::new(),
+        move |device, _require_grad| Tensor::<B, D, burn_tensor::Int>::zeros(shape.clone(), device),
+        device,
+        false,
+    )
+}
+
+/// Placeholder docstring
+pub fn zeros_float<B: Backend, const D: usize, S: Into<Shape>>(
+    shape: S,
+    device: &B::Device,
+) -> Param<Tensor<B, D, burn_tensor::Float>> {
+    let device = device.clone();
+    let shape: Shape = shape.into();
+    Param::uninitialized(
+        ParamId::new(),
+        move |device, _require_grad| {
+            Tensor::<B, D, burn_tensor::Float>::zeros(shape.clone(), device)
+        },
+        device,
+        false,
+    )
+}
+
+/// Placeholder docstring
+pub fn zeros_bool<B: Backend, const D: usize, S: Into<Shape>>(
+    shape: S,
+    device: &B::Device,
+) -> Param<Tensor<B, D, burn_tensor::Bool>> {
+    let device = device.clone();
+    let shape: Shape = shape.into();
+    Param::uninitialized(
+        ParamId::new(),
+        move |device, _require_grad| {
+            Tensor::<B, D, burn_tensor::Bool>::empty(shape.clone(), device)
+        },
+        device,
+        false,
+    )
+}
+
 impl Initializer {
     /// Inits a tensor parameter of given shape with values depending on initializer kind.
     ///
