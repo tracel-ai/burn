@@ -2783,7 +2783,7 @@ impl<B: Backend> BasicOps<B> for Int {
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
-    type Elem = bool;
+    type Elem = B::BoolElem;
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)

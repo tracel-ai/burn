@@ -78,7 +78,12 @@ impl<B: Backend> PrecisionMetric<B> {
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
             Macro => {
-                if aggregated_metric.contains_nan().any().into_scalar() {
+                if aggregated_metric
+                    .contains_nan()
+                    .any()
+                    .into_scalar()
+                    .to_bool()
+                {
                     let nan_mask = aggregated_metric.is_nan();
                     aggregated_metric = aggregated_metric
                         .clone()
