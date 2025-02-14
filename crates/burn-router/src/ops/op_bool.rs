@@ -5,7 +5,7 @@ use burn_ir::{
     OperationIr, PermuteOpIr, RepeatDimOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
 };
 use burn_tensor::ops::{BoolTensor, BoolTensorOps, FloatElem, FloatTensor, IntElem, IntTensor};
-use burn_tensor::{DType, Device, Element, Shape, TensorData, TensorMetadata};
+use burn_tensor::{Device, Element, Shape, TensorData, TensorMetadata};
 
 use crate::{get_client, BackendRouter, RunnerChannel, RunnerClient};
 
@@ -13,7 +13,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
         // Get the runtime client on which to register the operation for execution.
         let client = get_client::<R>(device);
-        let out = client.register_empty_tensor(shape.into(), DType::Bool);
+        let out = client.register_empty_tensor(shape.into(), R::BoolElem::dtype());
 
         client.register(OperationIr::BaseBool(BaseOperationIr::Empty(
             out.to_ir_out(),
@@ -138,7 +138,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -167,7 +167,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -182,7 +182,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
 
     fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let out = client.register_empty_tensor(lhs.shape.clone(), DType::Bool);
+        let out = client.register_empty_tensor(lhs.shape.clone(), R::BoolElem::dtype());
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),

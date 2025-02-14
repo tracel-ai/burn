@@ -7,7 +7,6 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
-use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -1899,12 +1898,7 @@ where
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
-        // Bool tensors might be encoded in a different type, which we abstract for the display
-        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
-            DType::Bool
-        } else {
-            self.primitive.dtype()
-        };
+        let dtype = self.primitive.dtype();
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")

@@ -8,7 +8,7 @@ use crate::{
 use burn_ir::*;
 use burn_tensor::{
     ops::{binary_ops_shape, BoolTensor, FloatTensor, IntElem, IntTensor, IntTensorOps},
-    DType, Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
+    Device, Distribution, Element, ElementConversion, Shape, TensorData, TensorMetadata,
 };
 use core::ops::Range;
 use std::marker::PhantomData;
@@ -550,9 +550,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream_1 = lhs.stream;
         let stream_2 = rhs.stream;
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -574,7 +575,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream = lhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(lhs.shape.clone(), DType::Bool);
+            .tensor_uninitialized(lhs.shape.clone(), B::BoolElem::dtype());
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
@@ -598,9 +599,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream_1 = lhs.stream;
         let stream_2 = rhs.stream;
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -625,7 +627,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream = lhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(lhs.shape.clone(), DType::Bool);
+            .tensor_uninitialized(lhs.shape.clone(), B::BoolElem::dtype());
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
@@ -649,9 +651,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream_1 = lhs.stream;
         let stream_2 = rhs.stream;
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -676,7 +679,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream = lhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(lhs.shape.clone(), DType::Bool);
+            .tensor_uninitialized(lhs.shape.clone(), B::BoolElem::dtype());
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
@@ -700,9 +703,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream_1 = lhs.stream;
         let stream_2 = rhs.stream;
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -727,7 +731,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream = lhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(lhs.shape.clone(), DType::Bool);
+            .tensor_uninitialized(lhs.shape.clone(), B::BoolElem::dtype());
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
@@ -751,9 +755,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let stream_1 = lhs.stream;
         let stream_2 = rhs.stream;
-        let out = lhs
-            .client
-            .tensor_uninitialized(binary_ops_shape(&lhs.shape, &rhs.shape), DType::Bool);
+        let out = lhs.client.tensor_uninitialized(
+            binary_ops_shape(&lhs.shape, &rhs.shape),
+            B::BoolElem::dtype(),
+        );
 
         let desc = BinaryOpIr {
             lhs: lhs.into_ir(),
@@ -778,7 +783,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let stream = lhs.stream;
         let out = lhs
             .client
-            .tensor_uninitialized(lhs.shape.clone(), DType::Bool);
+            .tensor_uninitialized(lhs.shape.clone(), B::BoolElem::dtype());
 
         let desc = ScalarOpIr {
             lhs: lhs.into_ir(),
