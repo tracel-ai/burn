@@ -1,16 +1,62 @@
+use crate::brain_tumor_data::BrainTumorBatch;
 use crate::brain_tumor_data::BrainTumorBatcher;
 use crate::brain_tumor_data::BrainTumorDataset;
 use crate::unet_model::{UNet, UNetConfig};
 use burn::data::dataloader::DataLoaderBuilder;
-use burn::module::AutodiffModule;
 use burn::module::Module;
 use burn::nn::loss::BinaryCrossEntropyLossConfig;
-use burn::optim::{AdamConfig, GradientsParams, Optimizer};
+use burn::optim::AdamConfig;
+use burn::prelude::Backend;
 use burn::prelude::Config;
 use burn::record::CompactRecorder;
 use burn::tensor::backend::AutodiffBackend;
-use burn::tensor::{Float, Int, Tensor};
+use burn::tensor::Float;
+use burn::tensor::Int;
+use burn::tensor::Tensor;
+use burn::train::metric::HammingScore;
+use burn::train::metric::LossMetric;
+use burn::train::Learner;
+use burn::train::LearnerBuilder;
+use burn::train::MultiLabelClassificationOutput;
+use burn::train::TrainOutput;
+use burn::train::TrainStep;
+use burn::train::ValidStep;
 use std::path::Path;
+
+impl<B: Backend> UNet<B> {
+    pub fn forward_segmentation(
+        &self,
+        source_tensor: Tensor<B, 4>,
+        target_tensor: Tensor<B, 4, Int>,
+    ) -> MultiLabelClassificationOutput<B> {
+        let output: Tensor<B, 4, Float> = self.forward(source_tensor);
+        // pixel-wise binary cross entropy loss
+        let output_flat: Tensor<B, 2, Float> = output.flatten(1, 3);
+        let target_flat: Tensor<B, 2, Int> = target_tensor.flatten(1, 3);
+        let loss = BinaryCrossEntropyLossConfig::new()
+            .with_logits(true)
+            .init(&output_flat.device())
+            .forward(output_flat.clone(), target_flat.clone());
+
+        MultiLabelClassificationOutput::new(loss, output_flat, target_flat)
+    }
+}
+
+impl<B: AutodiffBackend> TrainStep<BrainTumorBatch<B>, MultiLabelClassificationOutput<B>>
+    for UNet<B>
+{
+    fn step(&self, batch: BrainTumorBatch<B>) -> TrainOutput<MultiLabelClassificationOutput<B>> {
+        let item = self.forward_segmentation(batch.source_tensor, batch.target_tensor);
+
+        TrainOutput::new(self, item.loss.backward(), item)
+    }
+}
+
+impl<B: Backend> ValidStep<BrainTumorBatch<B>, MultiLabelClassificationOutput<B>> for UNet<B> {
+    fn step(&self, batch: BrainTumorBatch<B>) -> MultiLabelClassificationOutput<B> {
+        self.forward_segmentation(batch.source_tensor, batch.target_tensor)
+    }
+}
 
 #[derive(Config)]
 pub struct UNetTrainingConfig {
@@ -23,7 +69,7 @@ pub struct UNetTrainingConfig {
     #[config(default = 42)]
     pub seed: u64,
     #[config(default = 1e-4)]
-    pub lr: f64, // TODO: explore using LrScheduler as is done in Learner? https://burn.dev/docs/burn/lr_scheduler/trait.LrScheduler.html
+    pub learning_rate: f64,
     pub model: UNetConfig,
     pub optimizer: AdamConfig,
 }
@@ -44,26 +90,19 @@ pub fn train<B: AutodiffBackend>(
 
     // Save training config
     config
-        .save(artifact_dir.join("config.json")) // .save(format!("{artifact_dir}/config.json"))
+        .save(artifact_dir.join("config.json"))
         .expect("Config should be saved successfully");
     B::seed(config.seed);
-
-    // Create the model and optimizer
-    let mut model: UNet<B> = config.model.init::<B>(device);
-    let mut optim = config.optimizer.init::<B, UNet<B>>();
 
     // Create the batcher.
     let batcher_train = BrainTumorBatcher::<B>::new(device.clone());
     let batcher_valid = BrainTumorBatcher::<B::InnerBackend>::new(device.clone());
-    let batcher_test = BrainTumorBatcher::<B::InnerBackend>::new(device.clone());
 
     // Create the datasets
     let train_dataset: BrainTumorDataset =
         BrainTumorDataset::train().expect("Failed to build training dataset");
     let valid_dataset: BrainTumorDataset =
         BrainTumorDataset::valid().expect("Failed to build validation dataset");
-    let test_dataset: BrainTumorDataset =
-        BrainTumorDataset::test().expect("Failed to build test dataset");
 
     // Create the dataloaders.
     let dataloader_train = DataLoaderBuilder::new(batcher_train)
@@ -78,66 +117,25 @@ pub fn train<B: AutodiffBackend>(
         .num_workers(config.num_workers)
         .build(valid_dataset);
 
-    let _dataloader_test = DataLoaderBuilder::new(batcher_test)
-        .batch_size(config.batch_size)
-        .shuffle(config.seed)
-        .num_workers(config.num_workers)
-        .build(test_dataset);
+    let learner: Learner<_> = LearnerBuilder::new(artifact_dir.to_path_buf())
+        .metric_train_numeric(HammingScore::new())
+        .metric_valid_numeric(HammingScore::new())
+        .metric_train_numeric(LossMetric::new())
+        .metric_valid_numeric(LossMetric::new())
+        .with_file_checkpointer(CompactRecorder::new())
+        .devices(vec![device.clone()])
+        .num_epochs(config.num_epochs)
+        .summary()
+        .build(
+            config.model.init::<B>(&device),       // Initialize the model
+            config.optimizer.init::<B, UNet<B>>(), // Initialize the optimizer
+            config.learning_rate,
+        );
 
-    let loss_config = BinaryCrossEntropyLossConfig::new().with_logits(true);
-    // Iterate over our training and validation loop for X epochs.
-    for epoch in 0..config.num_epochs {
-        // Implement the training loop
-
-        for (iteration, batch) in dataloader_train.iter().enumerate() {
-            let output: Tensor<B, 4, Float> = model.forward(batch.source_tensor);
-            // pixel-wise binary cross entropy loss
-            let output_flat: Tensor<B, 2, Float> = output.flatten(1, 3);
-            let target_flat: Tensor<B, 2, Int> = batch.target_tensor.flatten(1, 3);
-
-            let loss: Tensor<B, 1> = loss_config
-                .init(device)
-                .forward(output_flat.clone(), target_flat.clone());
-
-            println!(
-                "[Train - Epoch {} - Iteration {}] Loss {}",
-                epoch,
-                iteration,
-                loss.clone().into_scalar(),
-            );
-
-            // Gradients for the current backward pass
-            let grads = loss.backward();
-            // Gradients linked to each parameter of the model
-            let grads = GradientsParams::from_grads(grads, &model);
-            // Update the model using the optimizer
-            model = optim.step(config.lr, model, grads);
-        }
-
-        // Get the model without autodiff
-        let model_valid = model.valid();
-
-        // Implement the validation loop
-        for (iteration, batch) in dataloader_valid.iter().enumerate() {
-            let output = model_valid.forward(batch.source_tensor);
-            // pixel-wise binary cross entropy loss
-            let output_flat: Tensor<B::InnerBackend, 2, Float> = output.flatten(1, 3);
-            let target_flat: Tensor<B::InnerBackend, 2, Int> = batch.target_tensor.flatten(1, 3);
-            let loss: Tensor<B::InnerBackend, 1> = loss_config
-                .init(device)
-                .forward(output_flat.clone(), target_flat.clone());
-
-            println!(
-                "[Valid - Epoch {} - Iteration {}] Loss {}",
-                epoch,
-                iteration,
-                loss.clone().into_scalar(),
-            );
-        }
-    }
+    let model_trained = learner.fit(dataloader_train, dataloader_valid);
 
     // Save the trained model
-    model
+    model_trained
         .save_file(artifact_dir.join("UNet"), &CompactRecorder::new())
-        .expect("UNet saved.");
+        .expect("Trained UNet model should be saved successfully");
 }

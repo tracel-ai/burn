@@ -23,7 +23,7 @@ fn main() {
         .with_batch_size(4)
         .with_num_workers(1)
         .with_seed(42)
-        .with_lr(1e-3);
+        .with_learning_rate(1e-3);
 
     unet::training::train::<Autodiff<MyBackend>>(training_artifact_dir, training_config, &device);
 }

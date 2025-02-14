@@ -129,21 +129,23 @@ pub struct UpConfig {
 
 impl UpConfig {
     /// Returns the initialized Up struct
+    /// The second double convolution block has an input channel size of 2 * self.out_channels to account for the concatenated skip connection.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Up<B> {
         Up {
             conv_trans: ConvTranspose2dConfig::new([self.in_channels, self.out_channels], [2, 2])
                 .with_stride([2, 2])
                 .init(device),
-            conv_block: DoubleConvConfig::new(self.out_channels, self.out_channels).init(device),
+            conv_block: DoubleConvConfig::new(2 * self.out_channels, self.out_channels)
+                .init(device),
         }
     }
 }
 
 impl<B: Backend> Up<B> {
-    pub fn forward(&self, x: Tensor<B, 4, Float>) -> Tensor<B, 4, Float> {
-        // TODO: skip connections!
-        let x = self.conv_trans.forward(x);
-        self.conv_block.forward(x)
+    pub fn forward(&self, x: Tensor<B, 4, Float>, x0: Tensor<B, 4, Float>) -> Tensor<B, 4, Float> {
+        // Note the use of concatenated skip connections here.
+        let x = self.conv_trans.forward(x); //
+        self.conv_block.forward(Tensor::cat(vec![x, x0], 1))
     }
 }
 
@@ -230,10 +232,10 @@ impl<B: Backend> UNet<B> {
         let x2 = self.down2.forward(x1.clone()); // [b, 256, h/4, w/4]
         let x3 = self.down3.forward(x2.clone()); // [b, 512, h/8, w/8]
         let x4 = self.down4.forward(x3.clone()); // [b, 1024, h/16, w/16]
-        let x3 = self.up4.forward(x4.clone()) + x3; // [b, 512, h/8, w/8]
-        let x2 = self.up3.forward(x3) + x2; // [b, 256, h/4, w/4]
-        let x1 = self.up2.forward(x2) + x1; // [b, 128, h/2, w/2]
-        let x0 = self.up1.forward(x1) + x0; // [b, 64, h, w]
+        let x3 = self.up4.forward(x4, x3); // [b, 512, h/8, w/8]
+        let x2 = self.up3.forward(x3, x2); // [b, 256, h/4, w/4]
+        let x1 = self.up2.forward(x2, x1); // [b, 128, h/2, w/2]
+        let x0 = self.up1.forward(x1, x0); // [b, 64, h, w]
         self.outc.forward(x0) // [b, 1, h, w]
     }
 }

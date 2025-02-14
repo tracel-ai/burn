@@ -4,11 +4,11 @@ use burn::data::dataset::InMemDataset;
 use burn::prelude::Backend;
 use burn::tensor::Float;
 use burn::tensor::Int;
+use burn::tensor::Shape;
 use burn::tensor::Tensor;
 use burn::tensor::TensorData;
 use image::error::ParameterError;
 use image::error::ParameterErrorKind;
-use image::DynamicImage;
 use image::ImageBuffer;
 use image::ImageError;
 use image::ImageFormat;
@@ -21,34 +21,9 @@ use std::path::Path;
 use std::path::PathBuf;
 
 // height and width of the images used in training
-pub const WIDTH: usize = 256;
-pub const HEIGHT: usize = 256;
-const TRAINING_DATA_DIRECTORY_STR: &str = "data1";
-
-// fn load_image_paths(path: &Path, output_vec: &mut Vec<Box<Path>>) -> Result<(), std::io::Error> {
-//     let supported_extensions = ["png", "jpg", "jpeg", "bmp", "tiff"];
-
-//     for entry in std::fs::read_dir(path)? {
-//         if let Ok(entry) = entry {
-//             let path = entry.path();
-//             if path.is_file()
-//                 && path
-//                     .extension()
-//                     .and_then(|ext| ext.to_str())
-//                     .map_or(false, |ext_str| {
-//                         supported_extensions
-//                             .iter()
-//                             .any(|&supported_ext| supported_ext.eq_ignore_ascii_case(ext_str))
-//                     })
-//             {
-//                 output_vec.push(path.into_boxed_path());
-//             }
-//         }
-//     }
-
-//     output_vec.sort();
-//     Ok(())
-// }
+pub const WIDTH: usize = 512;
+pub const HEIGHT: usize = 512;
+const TRAINING_DATA_DIRECTORY_STR: &str = "data";
 
 fn load_image_paths(path: &Path, output_vec: &mut Vec<Box<Path>>) -> Result<(), std::io::Error> {
     let supported_extensions = ["png", "jpg", "jpeg", "bmp", "tiff"];
@@ -113,12 +88,10 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
     let channel_config = ChannelConfig::from_input_channels(image_tensor.dims()[1])?;
 
     // Assume batch_size is 1, only saves a single image
-    // ---Scale the input tensor from f32 (0.0-1.0) to (0.0-255.0) for casting to u8 in vec.
     let image_tensor_0: Tensor<B, 3, Float> = image_tensor
         .slice([Some((0, 1)), None, None, None])
         .squeeze(0)
         .clamp(0.0, 255.0)
-        //.mul_scalar(255.0) // class 0 -> 0.0, class 1.0 -> 255.0
         .round();
 
     let image: Vec<u8> = image_tensor_0.into_data().iter::<u8>().collect::<Vec<u8>>();
@@ -178,77 +151,8 @@ impl From<image::ImageError> for DatasetError {
 
 #[derive(Debug, Clone)]
 pub struct BrainTumorItem {
-    pub source_image_vec: Vec<f32>,
+    pub source_image_vec: Vec<u8>,
     pub target_mask_vec: Vec<u8>,
-}
-
-pub fn source_dynamic_image_to_vector(img: &DynamicImage) -> Vec<f32> {
-    // Ensure the image dimensions match WIDTH and HEIGHT
-    assert_eq!(
-        img.width(),
-        WIDTH as u32,
-        "Image width does not match WIDTH constant"
-    );
-    assert_eq!(
-        img.height(),
-        HEIGHT as u32,
-        "Image height does not match HEIGHT constant"
-    );
-
-    // Convert to RGB if not already
-    let rgb_img = match img {
-        DynamicImage::ImageRgb8(rgb_img) => rgb_img.clone(),
-        _ => img.to_rgb8(),
-    };
-
-    // Create array to store result
-    let mut result: Vec<f32> = Vec::<f32>::with_capacity(HEIGHT * WIDTH * 3);
-
-    // Iterate over pixels and fill the vector
-    for x in 0..WIDTH {
-        for y in 0..HEIGHT {
-            let pixel = rgb_img.get_pixel(x as u32, y as u32);
-            result.push(pixel[0] as f32 / 255.0);
-            result.push(pixel[1] as f32 / 255.0);
-            result.push(pixel[2] as f32 / 255.0);
-        }
-    }
-    result
-}
-
-pub fn target_dynamic_image_to_vector(img: &DynamicImage) -> Vec<u8> {
-    // Ensure the image dimensions match WIDTH and HEIGHT
-    assert_eq!(
-        img.width(),
-        WIDTH as u32,
-        "Image width does not match WIDTH constant"
-    );
-    assert_eq!(
-        img.height(),
-        HEIGHT as u32,
-        "Image height does not match HEIGHT constant"
-    );
-
-    // Convert to RGB if not already
-    let rgb_img = match img {
-        DynamicImage::ImageRgb8(rgb_img) => rgb_img.clone(),
-        _ => img.to_rgb8(),
-    };
-
-    // Create array to store result
-    let mut result: Vec<u8> = Vec::<u8>::with_capacity(HEIGHT * WIDTH * 3);
-
-    // Iterate over pixels and fill the vector
-    // This particular dataset has only two classes:
-    // black (0,0,0) -> class 0
-    // white (255,255,255) -> class 1
-    for x in 0..WIDTH {
-        for y in 0..HEIGHT {
-            let pixel = rgb_img.get_pixel(x as u32, y as u32);
-            result.push(pixel[0] / 255_u8);
-        }
-    }
-    result
 }
 
 pub struct BrainTumorDataset {
@@ -375,11 +279,15 @@ impl BrainTumorDataset {
             .into_iter()
             .zip(filtered_target_paths)
             .map(|(source_path, target_path)| {
-                let source_image: DynamicImage = image::open(source_path)?;
-                let target_mask: DynamicImage = image::open(target_path)?;
                 Ok(BrainTumorItem {
-                    source_image_vec: source_dynamic_image_to_vector(&source_image),
-                    target_mask_vec: target_dynamic_image_to_vector(&target_mask),
+                    source_image_vec: image::open(source_path).unwrap().into_rgb8().into_raw(),
+                    target_mask_vec: image::open(target_path)
+                        .unwrap()
+                        .into_rgb8()
+                        .iter()
+                        .step_by(3)
+                        .map(|&x| x)
+                        .collect(),
                 })
             })
             .collect::<Result<Vec<_>, DatasetError>>()?;
@@ -414,16 +322,24 @@ impl<B: Backend> Batcher<BrainTumorItem, BrainTumorBatch<B>> for BrainTumorBatch
         let mut sources: Vec<Tensor<B, 3, Float>> = Vec::with_capacity(items.len());
         let mut targets: Vec<Tensor<B, 3, Int>> = Vec::with_capacity(items.len());
         for item in items {
-            let a: Box<[f32]> = item.source_image_vec.into_boxed_slice();
-            let d = TensorData::from(&*a).convert::<B::FloatElem>();
-            let u: Tensor<B, 1, Float> = Tensor::from_data(d, &self.device);
-            let u: Tensor<B, 3, Float> = u.reshape([WIDTH, HEIGHT, 3]).swap_dims(0, 2);
+            let u: Tensor<B, 3, Float> = Tensor::<B, 3>::from_data(
+                TensorData::new(item.source_image_vec, Shape::new([HEIGHT, WIDTH, 3]))
+                    .convert::<B::FloatElem>(),
+                &self.device,
+            )
+            .swap_dims(0, 1)
+            .swap_dims(0, 2)
+            .div_scalar(255.0);
             sources.push(u);
 
-            let a: Box<[u8]> = item.target_mask_vec.into_boxed_slice();
-            let d = TensorData::from(&*a).convert::<B::IntElem>();
-            let u: Tensor<B, 1, Int> = Tensor::from_data(d, &self.device);
-            let u: Tensor<B, 3, Int> = u.reshape([WIDTH, HEIGHT, 1]).swap_dims(0, 2);
+            let u: Tensor<B, 3, Int> = Tensor::<B, 3, Int>::from_data(
+                TensorData::new(item.target_mask_vec, Shape::new([HEIGHT, WIDTH, 1]))
+                    .convert::<B::IntElem>(),
+                &self.device,
+            )
+            .swap_dims(0, 1)
+            .swap_dims(0, 2)
+            .div_scalar(255); // 0 -> 0; 255 -> 1;
             targets.push(u);
         }
 
