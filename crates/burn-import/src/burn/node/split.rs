@@ -8,7 +8,7 @@ use quote::quote;
 #[derive(Config, Debug)]
 pub struct SplitConfig {
     pub axis: usize,
-    pub num_outputs: Option<usize>,
+    pub split_size: Option<usize>,
     pub split_sizes: Option<Vec<usize>>,
 }
 
@@ -52,10 +52,10 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for SplitNode {
                 #unpack_outputs
             }
         } else {
-            let num_outputs = self.config.num_outputs.unwrap();
-            let num_outputs_tokens = num_outputs.to_tokens();
+            let split_size = &self.config.split_size.unwrap();
+            let split_size_tokens = split_size.to_tokens();
             quote! {
-                let mut split_tensors = #input.split(#num_outputs_tokens, #axis);
+                let mut split_tensors = #input.split(#split_size_tokens, #axis);
                 #unpack_outputs
             }
         }
@@ -89,7 +89,7 @@ mod tests {
             ],
             SplitConfig {
                 axis: 0,
-                num_outputs: Some(2),
+                split_size: Some(2),
                 split_sizes: None,
             },
         ));
