@@ -635,7 +635,7 @@ impl RelativeOps for BoolOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
-            BoolOperationIr::Or(desc) => BoolOperationIr::And(BinaryOpIr {
+            BoolOperationIr::Or(desc) => BoolOperationIr::Or(BinaryOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
