@@ -41,12 +41,6 @@ pub mod record;
 /// Module for the tensor.
 pub mod tensor;
 
-/// Backend module.
-pub mod backend;
-
-#[cfg(feature = "server")]
-pub use burn_remote::server;
-
 extern crate alloc;
 
 /// Backend for test cases

@@ -555,8 +555,17 @@ checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 name = "burn"
 version = "0.17.0"
 dependencies = [
+ "burn-autodiff",
+ "burn-candle",
  "burn-core",
+ "burn-cuda",
+ "burn-hip",
+ "burn-ndarray",
+ "burn-remote",
+ "burn-router",
+ "burn-tch",
  "burn-train",
+ "burn-wgpu",
 ]
 
 [[package]]
@@ -605,7 +614,6 @@ dependencies = [
  "ahash",
  "bincode",
  "burn-autodiff",
- "burn-candle",
  "burn-common",
  "burn-cuda",
  "burn-dataset",

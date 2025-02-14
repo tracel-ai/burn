@@ -13,9 +13,49 @@ rust-version = "1.82"
 version.workspace = true
 
 [features]
-default = ["burn-core/default", "burn-train?/default", "std"]
-doc = ["default", "train", "burn-core/doc", "burn-train/doc"]
-std = ["burn-core/std"]
+default = [
+    "burn-core/default",
+    "burn-train?/default",
+    "std",
+    # Backends
+    "burn-candle?/default",
+    "burn-ndarray?/default",
+    "burn-tch?/default",
+    "burn-wgpu?/default",
+    "burn-router?/default",
+    "burn-cuda?/default",
+    "burn-autodiff?/default",
+    "burn-hip?/default",
+]
+doc = [
+    "default",
+    "train",
+    "burn-core/doc",
+    "burn-train/doc",
+    # Backends
+    "burn-candle/doc",
+    "burn-ndarray/doc",
+    "burn-tch/doc",
+    "burn-wgpu/doc",
+    "burn-router/doc",
+    "burn-cuda/doc",
+    "burn-autodiff?/std",
+    "burn-hip/doc",
+
+]
+std = [
+    "burn-core/std",
+    # Backends
+    "burn-candle?/std",
+    "burn-ndarray?/std",
+    "burn-wgpu?/std",
+    "burn-router?/std",
+    "burn-cuda?/std",
+    "burn-autodiff?/std",
+    "burn-hip?/std",
+]
+
+network = ["burn-core/network"]
 
 # Training with full features
 train = ["burn-train", "autodiff", "dataset"]
@@ -32,43 +72,40 @@ dataset = ["burn-core/dataset"]
 sqlite = ["burn-core/sqlite"]
 sqlite-bundled = ["burn-core/sqlite-bundled"]
 
+# Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
+record-item-custom-serde = ["burn-core/record-item-custom-serde"]
+# Serialization formats
+experimental-named-tensor = ["burn-core/experimental-named-tensor"]
+
+
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
 
-# Backends
-autodiff = ["burn-core/autodiff"]
-fusion = ["burn-core/fusion"]
+# Backend
+autodiff = ["burn-autodiff"]
+fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
 
 ## Backend features
-accelerate = ["burn-core/accelerate"]
-autotune = ["burn-core/autotune"]
-blas-netlib = ["burn-core/blas-netlib"]
-candle-cuda = ["burn-core/candle-cuda"]
-metal = ["burn-core/metal"]
-openblas = ["burn-core/openblas"]
-openblas-system = ["burn-core/openblas-system"]
-template = ["burn-core/template"]
+accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
+autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-hip?/autotune"]
+blas-netlib = ["burn-ndarray?/blas-netlib"]
+metal = ["burn-candle?/metal"]
+openblas = ["burn-ndarray?/blas-openblas"]
+openblas-system = ["burn-ndarray?/blas-openblas-system"]
+remote = ["burn-remote/client"]
+router = ["burn-router"]
+server = ["burn-remote/server"]
+template = ["burn-wgpu?/template"]
 
-candle = ["burn-core/candle"]
-cuda = ["burn-core/cuda"]
-hip = ["burn-core/hip"]
-ndarray = ["burn-core/ndarray"]
-remote = ["burn-core/remote"]
-router = ["burn-core/router"]
-server = ["burn-core/server"]
-tch = ["burn-core/tch"]
-wgpu = ["burn-core/wgpu"]
-vulkan = ["burn-core/vulkan"]
-webgpu = ["burn-core/webgpu"]
-
-# Network utils
-network = ["burn-core/network"]
-
-# Experimental
-experimental-named-tensor = ["burn-core/experimental-named-tensor"]
-
-# Records
-record-item-custom-serde = ["burn-core/record-item-custom-serde"]
+candle = ["burn-candle"]
+candle-cuda = ["candle", "burn-candle/cuda"]
+cuda = ["burn-cuda"]
+hip = ["burn-hip"]
+ndarray = ["burn-ndarray"]
+tch = ["burn-tch"]
+wgpu = ["burn-wgpu"]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu"]
 
 [dependencies]
 
@@ -76,3 +113,14 @@ record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 
 burn-core = { path = "../burn-core", version = "0.17.0", default-features = false }
 burn-train = { path = "../burn-train", version = "0.17.0", optional = true, default-features = false }
+
+# Backends
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", optional = true }
+burn-candle = { path = "../burn-candle", version = "0.17.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "0.17.0", optional = true, default-features = false }
+burn-hip = { path = "../burn-hip", version = "0.17.0", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.17.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.17.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", optional = true, default-features = false }
