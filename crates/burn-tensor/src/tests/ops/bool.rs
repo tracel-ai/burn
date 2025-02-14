@@ -18,4 +18,22 @@ mod tests {
         let data_expected = TensorData::from([[false, true, false], [true, true, true]]);
         assert_eq!(data_expected, data_actual);
     }
+
+    #[test]
+    fn test_bool_and() {
+        let tensor1 = TestTensorBool::<2>::from([[false, true, false], [true, false, true]]);
+        let tensor2 = TestTensorBool::<2>::from([[true, true, false], [false, false, true]]);
+        let data_actual = tensor1.bool_and(tensor2).into_data();
+        let data_expected = TensorData::from([[false, true, false], [false, false, true]]);
+        assert_eq!(data_expected, data_actual);
+    }
+
+    #[test]
+    fn test_bool_or() {
+        let tensor1 = TestTensorBool::<2>::from([[false, true, false], [true, false, true]]);
+        let tensor2 = TestTensorBool::<2>::from([[true, true, false], [false, false, true]]);
+        let data_actual = tensor1.bool_or(tensor2).into_data();
+        let data_expected = TensorData::from([[true, true, false], [true, false, true]]);
+        assert_eq!(data_expected, data_actual);
+    }
 }

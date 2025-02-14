@@ -1,4 +1,8 @@
-use crate::{element::BoolElement, kernel, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{
+    element::BoolElement,
+    kernel::{self, AndOp, OrOp},
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
+};
 use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
 use std::ops::Range;
@@ -61,6 +65,14 @@ where
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         kernel::equal_elem::<R, BT, BT>(tensor, BT::false_val())
+    }
+
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        kernel::launch_binop::<R, BT, AndOp>(lhs, rhs)
+    }
+
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        kernel::launch_binop::<R, BT, OrOp>(lhs, rhs)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {

@@ -411,19 +411,19 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, S: MatmulSelector>(
         || TypeId::of::<EG>() == TypeId::of::<flex32>()
     {
         S::select_kernel::<FusedMatmulSpec<EG, half::f16, f32>, R>(
-            client, input, output, problem, plane_size,
+            client, input, output, problem, plane_size, false,
         )
     } else if TypeId::of::<EG>() == TypeId::of::<half::bf16>() {
         S::select_kernel::<FusedMatmulSpec<EG, half::bf16, f32>, R>(
-            client, input, output, problem, plane_size,
+            client, input, output, problem, plane_size, false,
         )
     } else if S::stage_tf32_supported() {
         S::select_kernel::<FusedMatmulSpec<EG, tf32, f32>, R>(
-            client, input, output, problem, plane_size,
+            client, input, output, problem, plane_size, false,
         )
     } else {
         S::select_kernel::<FusedMatmulSpec<EG, EG, f32>, R>(
-            client, input, output, problem, plane_size,
+            client, input, output, problem, plane_size, false,
         )
     }
 }
