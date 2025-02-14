@@ -642,6 +642,7 @@ version = "0.17.0"
 dependencies = [
  "burn-autodiff",
  "burn-common",
+ "burn-cubecl-fusion",
  "burn-fusion",
  "burn-ir",
  "burn-ndarray",

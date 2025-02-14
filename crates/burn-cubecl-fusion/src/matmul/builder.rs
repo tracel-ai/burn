@@ -25,8 +25,7 @@ impl<R: Runtime> MatmulBuilder<R> {
     pub fn new(
         device: R::Device,
         bool_precision: ElemwisePrecision,
-
-        fallback: Box<dyn MatmulFallbackFn<R>>,
+        fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
         let client = R::client(&device);
         let props = client.properties();

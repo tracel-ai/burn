@@ -110,7 +110,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn from_state(
         device: &R::Device,
         state: MatmulOptimizationState,
-        fallback: Box<dyn MatmulFallbackFn<R>>,
+        fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
         Self {
             trace: state.trace,

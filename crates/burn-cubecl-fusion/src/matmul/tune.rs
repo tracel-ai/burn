@@ -4,15 +4,13 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use cubecl::{
+    linalg::matmul::tune_key::MatmulAutotuneKey,
     tune::{local_tuner, LocalTuner, TunableSet},
-    AutotuneKey, CubeElement, Runtime,
+    AutotuneKey, CubeElement, CubeTuneId, Runtime,
 };
 use serde::{Deserialize, Serialize};
 
 use super::optimization::MatmulOptimization;
-
-#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
-pub struct MatmulAutotuneKey;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize, Deserialize, AutotuneKey)]
 pub struct FusedMatmulAutotuneKey {
@@ -22,8 +20,6 @@ pub struct FusedMatmulAutotuneKey {
     #[autotune(anchor)]
     num_ops: usize,
 }
-
-pub type CubeTuneId = String;
 
 /// Executes autotune on matmul operations
 pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
@@ -59,11 +55,7 @@ pub(crate) fn create_key<R: Runtime>(
     let rhs = context.tensors.get(&opt.matmul_standard.op.rhs.id).unwrap();
     let out = context.tensors.get(&opt.matmul_standard.op.out.id).unwrap();
 
-    let key = MatmulAutotuneKey::from_shape(
-        &lhs.shape.clone().into(),
-        &rhs.shape.clone().into(),
-        out.dtype,
-    );
+    let key = MatmulAutotuneKey::from_shape(&lhs.shape, &rhs.shape, out.dtype.into());
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
 }
 
