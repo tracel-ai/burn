@@ -286,7 +286,7 @@ impl BrainTumorDataset {
                         .into_rgb8()
                         .iter()
                         .step_by(3)
-                        .map(|&x| x)
+                        .copied()
                         .collect(),
                 })
             })

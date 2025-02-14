@@ -41,7 +41,7 @@ pub fn infer<B: Backend>(
     let data = dyn_image.into_rgb8().into_raw();
     let source_tensor = Tensor::<B, 3>::from_data(
         TensorData::new(data, Shape::new([HEIGHT, WIDTH, 3])).convert::<B::FloatElem>(),
-        &device,
+        device,
     )
     .swap_dims(0, 1)
     .swap_dims(0, 2)

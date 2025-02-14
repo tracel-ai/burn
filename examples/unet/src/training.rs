@@ -117,7 +117,7 @@ pub fn train<B: AutodiffBackend>(
         .num_workers(config.num_workers)
         .build(valid_dataset);
 
-    let learner: Learner<_> = LearnerBuilder::new(artifact_dir.to_path_buf())
+    let learner: Learner<_> = LearnerBuilder::new(artifact_dir)
         .metric_train_numeric(HammingScore::new())
         .metric_valid_numeric(HammingScore::new())
         .metric_train_numeric(LossMetric::new())
@@ -127,7 +127,7 @@ pub fn train<B: AutodiffBackend>(
         .num_epochs(config.num_epochs)
         .summary()
         .build(
-            config.model.init::<B>(&device),       // Initialize the model
+            config.model.init::<B>(device),        // Initialize the model
             config.optimizer.init::<B, UNet<B>>(), // Initialize the optimizer
             config.learning_rate,
         );
