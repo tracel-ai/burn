@@ -76,8 +76,10 @@ pub struct CubeFusionHandle<R: Runtime> {
     pub handle: cubecl::server::Handle,
     /// The device of the current tensor.
     pub device: R::Device,
-    pub(crate) dtype: DType,
-    pub(crate) strides: Vec<usize>,
+    /// The element type of the tensor.
+    pub dtype: DType,
+    /// The strides of the tensor.
+    pub strides: Vec<usize>,
 }
 
 impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {

@@ -9,4 +9,4 @@ mod base;
 pub(crate) mod on_write;
 pub(crate) mod tune;
 
-pub(crate) use base::*;
+pub use base::*;

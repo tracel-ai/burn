@@ -13,7 +13,7 @@ use crate::{
 use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct MatmulBuilder<R: Runtime> {
+pub struct MatmulBuilder<R: Runtime> {
     builder: FuseOnWriteBuilder,
     builder_fallback: FuseOnWriteBuilder,
     device: R::Device,

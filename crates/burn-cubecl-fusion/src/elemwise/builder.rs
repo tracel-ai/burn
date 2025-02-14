@@ -9,7 +9,7 @@ use crate::{
 use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: Runtime> {
+pub struct ElementWiseBuilder<R: Runtime> {
     builder: FuseOnWriteBuilder,
     device: R::Device,
 }

@@ -1,39 +1,20 @@
-use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
-use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
-use crate::fusion::elemwise::builder::ElementWiseBuilder;
-use crate::fusion::matmul::builder::MatmulBuilder;
 use crate::BoolElement;
 use crate::{kernel, tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
+use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
+use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
+use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
+use burn_cubecl_fusion::matmul::MatmulFallbackFn;
+use burn_cubecl_fusion::CubeFusionHandle;
+use burn_cubecl_fusion::{
+    elemwise::builder::ElementWiseBuilder, CubeOptimization, CubeOptimizationState,
+};
 use burn_fusion::{client::MutexFusionClient, FusionBackend, FusionRuntime};
 use burn_ir::{BackendIr, TensorHandle};
-use burn_tensor::{DType, Shape};
+use burn_tensor::Shape;
 use core::marker::PhantomData;
-use cubecl::client::ComputeClient;
-use cubecl::prelude::{TensorArg, TensorHandleRef};
 use half::{bf16, f16};
-use serde::{Deserialize, Serialize};
-
-/// Fusion optimization type for JIT.
-///
-/// More optimization variants should be added here.
-pub enum CubeOptimization<R: CubeRuntime> {
-    /// Element wise optimization.
-    ElementWise(ElemwiseOptimization<R>),
-    /// Matrix multiplication optimization.
-    Matmul(MatmulOptimization<R>),
-}
-
-/// Fusion optimization state type for JIT.
-///
-/// More optimization variants should be added here.
-#[derive(Serialize, Deserialize)]
-pub enum CubeOptimizationState {
-    /// Element wise state.
-    ElementWise(ElemwiseOptimizationState),
-    /// Matrix multiplication optimization state.
-    Matmul(MatmulOptimizationState),
-}
+use std::sync::Arc;
 
 impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
 where
@@ -66,10 +47,63 @@ where
             CubeOptimizationState::ElementWise(state) => {
                 Self::ElementWise(ElemwiseOptimization::from_state(device, state))
             }
-            CubeOptimizationState::Matmul(state) => {
-                Self::Matmul(MatmulOptimization::from_state(device, state))
-            }
+            CubeOptimizationState::Matmul(state) => Self::Matmul(MatmulOptimization::from_state(
+                device,
+                state,
+                Arc::new(FallbackMatmul),
+            )),
         }
+    }
+}
+
+struct FallbackMatmul;
+
+impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
+    fn run(
+        &self,
+        lhs: (CubeFusionHandle<R>, &[usize]),
+        rhs: (CubeFusionHandle<R>, &[usize]),
+    ) -> CubeFusionHandle<R> {
+        match lhs.0.dtype {
+            burn_tensor::DType::F64 => run_fallback_matmul::<R, f64>(lhs, rhs),
+            burn_tensor::DType::F32 => run_fallback_matmul::<R, f32>(lhs, rhs),
+            burn_tensor::DType::F16 => run_fallback_matmul::<R, f16>(lhs, rhs),
+            burn_tensor::DType::BF16 => run_fallback_matmul::<R, bf16>(lhs, rhs),
+            _ => todo!("Not yet supported"),
+        }
+    }
+}
+
+fn run_fallback_matmul<R: CubeRuntime, EG: FloatElement>(
+    lhs: (CubeFusionHandle<R>, &[usize]),
+    rhs: (CubeFusionHandle<R>, &[usize]),
+) -> CubeFusionHandle<R> {
+    let lhs_tensor = into_tensor(
+        lhs.0,
+        Shape {
+            dims: lhs.1.to_vec(),
+        },
+    );
+    let rhs_tensor = into_tensor(
+        rhs.0,
+        Shape {
+            dims: rhs.1.to_vec(),
+        },
+    );
+    let out_tensor = crate::kernel::matmul::matmul::<R, EG>(
+        lhs_tensor,
+        rhs_tensor,
+        None,
+        crate::kernel::matmul::MatmulStrategy::default(),
+    )
+    .unwrap();
+
+    CubeFusionHandle {
+        client: out_tensor.client,
+        handle: out_tensor.handle,
+        device: out_tensor.device,
+        dtype: out_tensor.dtype,
+        strides: out_tensor.strides,
     }
 }
 
@@ -79,21 +113,21 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     type Handle = CubeFusionHandle<R>;
 
     fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        into_tensor(handle.handle, handle.shape)
     }
 
     fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::IntTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        into_tensor(handle.handle, handle.shape)
     }
 
     fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::BoolTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        into_tensor(handle.handle, handle.shape)
     }
 
     fn quantized_tensor(
         handle: TensorHandle<Self::Handle>,
     ) -> burn_tensor::ops::QuantizedTensor<Self> {
-        handle.handle.into_tensor(handle.shape)
+        into_tensor(handle.handle, handle.shape)
     }
 
     fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
@@ -132,6 +166,7 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
             Box::new(MatmulBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
+                Arc::new(FallbackMatmul),
             )),
         ]
     }
@@ -170,89 +205,17 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
     }
 }
 
-pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
-    let mut strides = vec![0; shape.len()];
-
-    let mut current = 1;
-    shape.iter().enumerate().rev().for_each(|(index, val)| {
-        strides[index] = current;
-        current *= val;
-    });
-
-    strides
-}
-
-/// Handle to be used when fusing operations.
-pub struct CubeFusionHandle<R: CubeRuntime> {
-    /// Compute client for jit.
-    pub client: ComputeClient<R::Server, R::Channel>,
-    /// The buffer where the data are stored.
-    pub handle: cubecl::server::Handle,
-    /// The device of the current tensor.
-    pub device: R::Device,
-    pub(crate) dtype: DType,
-    pub(crate) strides: Vec<usize>,
-}
-
-impl<R: CubeRuntime> core::fmt::Debug for CubeFusionHandle<R> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "CubeFusionHandle {{ device: {:?}, runtime: {}}}",
-            self.device,
-            R::name(),
-        ))
-    }
-}
-
-impl<R: CubeRuntime> Clone for CubeFusionHandle<R> {
-    fn clone(&self) -> Self {
-        Self {
-            client: self.client.clone(),
-            handle: self.handle.clone(),
-            device: self.device.clone(),
-            strides: self.strides.clone(),
-            dtype: self.dtype,
-        }
-    }
-}
-
-unsafe impl<R: CubeRuntime> Send for CubeFusionHandle<R> {}
-unsafe impl<R: CubeRuntime> Sync for CubeFusionHandle<R> {}
-
-impl<R: CubeRuntime> CubeFusionHandle<R> {
-    pub(crate) fn into_tensor(self, shape: Shape) -> CubeTensor<R> {
-        CubeTensor {
-            client: self.client,
-            handle: self.handle,
-            device: self.device,
-            shape,
-            strides: self.strides,
-            dtype: self.dtype,
-        }
-    }
-    /// Return the reference to a tensor handle.
-    pub fn as_handle_ref<'a>(&'a self, shape: &'a [usize]) -> TensorHandleRef<'a, R> {
-        TensorHandleRef {
-            handle: &self.handle,
-            strides: &self.strides,
-            shape,
-            runtime: PhantomData,
-            elem_size: self.dtype.size(),
-        }
-    }
-    /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, shape: &'a [usize], vectorisation: u8) -> TensorArg<'a, R> {
-        let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
-
-        unsafe {
-            TensorArg::from_raw_parts_and_size(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                vectorisation,
-                self.dtype.size(),
-            )
-        }
+fn into_tensor<R: CubeRuntime>(
+    handle: CubeFusionHandle<R>,
+    shape: Shape,
+) -> CubeTensor<R> {
+    CubeTensor {
+        client: handle.client,
+        handle: handle.handle,
+        device: handle.device,
+        shape,
+        strides: handle.strides,
+        dtype: handle.dtype,
     }
 }
 
