@@ -12,7 +12,6 @@ class Model(nn.Module):
 
     def forward(self, x):
         x = torch.split(x, 2)
-        x= [chunk.float() for chunk in x]
         return x
 
 
