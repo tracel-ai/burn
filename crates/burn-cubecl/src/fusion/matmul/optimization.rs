@@ -13,7 +13,7 @@ use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
 use cubecl::linalg::matmul::components::MatmulProblem;
 use cubecl::linalg::matmul::kernels::matmul::{
-    MatmulSelector, PipelinedSelector, SpecializedSelector, StandardSelector,
+    MatmulSelector, SimplePipelinedSelector, SimpleSelector, SpecializedSelector,
 };
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
@@ -361,7 +361,7 @@ impl FusedMatmul {
 
         match self.selector {
             FusedMatmulSelector::Standard => {
-                match matmul_launch_kernel::<R, EG, StandardSelector<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, SimpleSelector<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -373,7 +373,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::Pipelined => {
-                match matmul_launch_kernel::<R, EG, PipelinedSelector<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, SimplePipelinedSelector<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,

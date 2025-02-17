@@ -12,6 +12,7 @@ use cubecl::{
     },
     prelude::*,
 };
+use cubecl::prelude::pipeline::Pipeline;
 use std::marker::PhantomData;
 
 use crate::kernel::conv::{precision::ConvPrecision, reader::im2col::Im2colReader, ConvGemmConfig};
@@ -37,6 +38,11 @@ impl<CS: ConvPrecision, G: ConvGemmConfig> InputLoader<CS::EG, CS::ES, G>
             Ident::Lhs,
             config,
         );
+    }
+
+    /// Fills the stage at the current k offset.
+    fn fill_stage_window(_this: &mut Self, _pipeline: Pipeline<CS::ES>, #[comptime] _config: G) {
+        comptime!(todo!());
     }
 
     fn advance_view(this: &mut Self, k_offset: u32) {
