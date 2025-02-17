@@ -210,7 +210,7 @@ impl FuseOnWriteTraceBuilder {
                 match self.inputs.get_index(precision_input, tensor.id) {
                     Some(index) => {
                         self.inputs.update(precision_input, tensor);
-                        index as u32
+                        index
                     }
                     None => {
                         return None;
@@ -269,7 +269,7 @@ impl FuseOnWriteTraceBuilder {
                 match self.inputs.get_index(precision_input, tensor.id) {
                     Some(index) => {
                         self.inputs.update(precision_input, tensor);
-                        index as u32
+                        index
                     }
                     None => {
                         return None;
@@ -349,7 +349,7 @@ impl FuseOnWriteTraceBuilder {
                 tensor.id,
                 ElemwiseOp::Assign(UnaryElemwiseArgs {
                     input: local,
-                    out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
+                    out: Arg::Output(out_index, precision, LayoutInfo::Unknown),
                 }),
             );
         }

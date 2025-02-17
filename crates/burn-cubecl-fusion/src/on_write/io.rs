@@ -225,7 +225,7 @@ fn get_offset(
             index_offset_with_layout(
                 inputs,
                 tensor,
-                &layout,
+                layout,
                 ref_pos,
                 range,
                 config.rank,
@@ -237,7 +237,7 @@ fn get_offset(
             index_offset_with_layout(
                 inputs,
                 tensor,
-                &layout,
+                layout,
                 ref_pos,
                 range,
                 config.rank,

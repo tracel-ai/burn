@@ -208,7 +208,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .unwrap();
 
             plan.reference = Some(Reference {
-                layout: Arg::Input(index_input as u32, output.precision, LayoutInfo::IsRef),
+                layout: Arg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             });

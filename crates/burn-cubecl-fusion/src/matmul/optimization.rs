@@ -207,9 +207,7 @@ impl<R: Runtime> MatmulOptimization<R> {
 
             (out_handle, out)
         };
-        context
-            .handles
-            .register_handle(out_desc.id, CubeFusionHandle::from(out_tensor));
+        context.handles.register_handle(out_desc.id, out_tensor);
 
         self.trace_fallback
             .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)

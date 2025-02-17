@@ -253,7 +253,7 @@ impl LaunchArg for GlobalTensor {
     }
 }
 
-impl<'a, R: Runtime> ArgSettings<R> for GlobalTensorArg<'a, R> {
+impl<R: Runtime> ArgSettings<R> for GlobalTensorArg<'_, R> {
     fn register(&self, launcher: &mut KernelLauncher<R>) {
         launcher.register_tensor(&self.tensor)
     }
