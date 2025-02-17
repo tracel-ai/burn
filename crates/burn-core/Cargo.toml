@@ -15,61 +15,27 @@ version.workspace = true
 dataset = ["burn-dataset"]
 default = [
     "std",
-    "burn-candle?/default",
     "burn-common/default",
     "burn-dataset?/default",
-    "burn-ndarray?/default",
-    "burn-tch?/default",
     "burn-tensor/default",
-    "burn-wgpu?/default",
-    "burn-router?/default",
-    "burn-cuda?/default",
-    "burn-autodiff?/default",
-    "burn-hip?/default",
 ]
 doc = [
     "std",
-    # Backends
     "dataset",
-    "candle",
-    "fusion",
-    "ndarray",
-    "tch",
-    "wgpu",
-    "cuda",
-    "hip",
     "audio",
     "vision",
-    "autodiff",
-    "remote",
-    "router",
-    "server",
     # Doc features
-    "burn-candle/doc",
     "burn-common/doc",
     "burn-dataset/doc",
-    "burn-ndarray/doc",
-    "burn-tch/doc",
     "burn-tensor/doc",
-    "burn-wgpu/doc",
-    "burn-router/doc",
-    "burn-cuda/doc",
-    "burn-hip/doc",
 ]
 network = ["burn-common/network"]
 sqlite = ["burn-dataset?/sqlite"]
 sqlite-bundled = ["burn-dataset?/sqlite-bundled"]
 std = [
-    "burn-autodiff?/std",
     "bincode/std",
-    "burn-candle?/std",
     "burn-common/std",
-    "burn-ndarray?/std",
     "burn-tensor/std",
-    "burn-wgpu?/std",
-    "burn-router?/std",
-    "burn-cuda?/std",
-    "burn-hip?/std",
     "flate2",
     "half/std",
     "log",
@@ -82,45 +48,27 @@ std = [
 vision = ["burn-dataset?/vision", "burn-common/network"]
 audio = ["burn-dataset?/audio"]
 
-# Backend
-autodiff = ["burn-autodiff"]
-fusion = ["burn-wgpu?/fusion", "burn-cuda?/fusion"]
-
-## Backend features
-accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
-autotune = ["burn-wgpu?/autotune", "burn-cuda?/autotune", "burn-hip?/autotune"]
-blas-netlib = ["burn-ndarray?/blas-netlib"]
-metal = ["burn-candle?/metal"]
-openblas = ["burn-ndarray?/blas-openblas"]
-openblas-system = ["burn-ndarray?/blas-openblas-system"]
-remote = ["burn-remote/client"]
-router = ["burn-router"]
-server = ["burn-remote/server"]
-template = ["burn-wgpu?/template"]
-
-candle = ["burn-candle"]
-candle-cuda = ["candle", "burn-candle/cuda"]
-cuda = ["burn-cuda"]
-hip = ["burn-hip"]
-ndarray = ["burn-ndarray"]
-tch = ["burn-tch"]
-wgpu = ["burn-wgpu"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu"]
-
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror", "regex"]
 
 # Serialization formats
 experimental-named-tensor = ["burn-tensor/experimental-named-tensor"]
 
-test-cuda = ["cuda"] # To use cuda during testing, default uses ndarray.
-test-hip = ["hip"] # To use hip during testing, default uses ndarray.
-test-tch = ["tch"] # To use tch during testing, default uses ndarray.
-test-wgpu = ["wgpu"] # To use wgpu during testing, default uses ndarray.
+test-cuda = [
+    "burn-cuda/default",
+] # To use cuda during testing, default uses ndarray.
+test-hip = [
+    "burn-hip/default",
+] # To use hip during testing, default uses ndarray.
+test-tch = [
+    "burn-tch/default",
+] # To use tch during testing, default uses ndarray.
+test-wgpu = [
+    "burn-wgpu/default",
+] # To use wgpu during testing, default uses ndarray.
 test-wgpu-spirv = [
-    "test-wgpu",
-    "vulkan",
+    "burn-wgpu/default",
+    "burn-wgpu/vulkan",
 ] # To use wgpu-spirv during testing, default uses ndarray.
 
 [dependencies]
@@ -131,17 +79,6 @@ burn-common = { path = "../burn-common", version = "0.17.0", default-features = 
 burn-dataset = { path = "../burn-dataset", version = "0.17.0", optional = true, default-features = false }
 burn-derive = { path = "../burn-derive", version = "0.17.0" }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false }
-
-# Backends
-burn-autodiff = { path = "../burn-autodiff", version = "0.17.0", optional = true }
-burn-candle = { path = "../burn-candle", version = "0.17.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "0.17.0", optional = true, default-features = false }
-burn-hip = { path = "../burn-hip", version = "0.17.0", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "0.17.0", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "0.17.0", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", optional = true, default-features = false }
 
 data-encoding = { workspace = true }
 uuid = { workspace = true }
@@ -167,17 +104,24 @@ serde_json = { workspace = true, features = ["alloc"] } #Default enables std
 spin = { workspace = true }                             # Using in place of use std::sync::Mutex when std is disabled
 thiserror = { workspace = true, optional = true }
 
+# FOR TESTING
+burn-cuda = { path = "../burn-cuda", version = "0.17.0", optional = true, default-features = false }
+burn-hip = { path = "../burn-hip", version = "0.17.0", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "0.17.0", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "0.17.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "0.17.0", optional = true, default-features = false }
+
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "0.17.0" }
+burn-autodiff = { path = "../burn-autodiff", version = "0.17.0" }
 burn-dataset = { path = "../burn-dataset", version = "0.17.0", features = [
     "fake",
 ] }
 tempfile = { workspace = true }
-
-burn-autodiff = { path = "../burn-autodiff", version = "0.17.0" }
-burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]

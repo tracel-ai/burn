@@ -1,33 +1,28 @@
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
 use burn_tensor::DType;
-use cubecl::{client::ComputeClient, ir::Elem};
+use cubecl::{client::ComputeClient, ir::Elem, CubeElement, Runtime};
 
 use crate::{
-    fusion::{
-        on_write::ir::{Arg, ElemwiseOp, LayoutInfo},
-        strides_dyn_rank, CubeFusionHandle,
-    },
-    tensor::is_contiguous,
-    BoolElement, CubeRuntime,
+    elem_dtype, is_contiguous,
+    on_write::ir::{Arg, ElemwiseOp, LayoutInfo},
+    strides_dyn_rank, CubeFusionHandle,
 };
 
 use super::{
     super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors,
     TensorView,
 };
-use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
 ///
 /// It is also responsible to select the reference tensor.
-pub struct OutputPlanner<'a, R: CubeRuntime> {
+pub struct OutputPlanner<'a, R: Runtime> {
     inputs: &'a RegisteredTensors,
     views: &'a Vec<TensorView>,
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
-    mapper: OutputPositionMapper,
 }
 
 struct OutputSorted<'a> {
@@ -38,27 +33,25 @@ struct OutputSorted<'a> {
 
 enum OutputKind {
     Normal,
-    Inplace { input_pos: usize },
+    Inplace {
+        /// The position in the potential inplace vector
+        input_pos: usize,
+    },
     Transform(TensorView),
 }
 
-impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
+impl<'a, R: Runtime> OutputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         outputs: &'a RegisteredTensors,
         views: &'a Vec<TensorView>,
     ) -> Self {
-        let mut mapper = OutputPositionMapper::default();
         let mut outputs_sorted: Vec<_> = outputs
             .iter()
-            .enumerate()
-            .map(|(pos, (precision, tensor))| {
-                mapper.register(precision, pos);
-                OutputSorted {
-                    pos_original: pos,
-                    precision,
-                    tensor_relative: tensor,
-                }
+            .map(|(precision, (pos, tensor))| OutputSorted {
+                pos_original: *pos as usize,
+                precision,
+                tensor_relative: tensor,
             })
             .collect();
 
@@ -83,11 +76,10 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
             views,
             handles,
             globals,
-            mapper,
         }
     }
 
-    pub fn run<BT: BoolElement>(
+    pub fn run<BT: CubeElement>(
         mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -156,11 +148,11 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         Self::add_layout_info_inputs(plan);
     }
 
-    fn add_layout_info_inputs(analysis: &mut LaunchPlan<'_, R>) {
-        for hi in analysis.handle_inputs.iter() {
-            if let Some(reference) = analysis.reference.as_ref() {
+    fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {
+        for hi in plan.handle_inputs.iter() {
+            if let Some(reference) = plan.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
-                    if let Some(ops) = analysis.reads.get_mut(&hi.relative_id) {
+                    if let Some(ops) = plan.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
                             if let ElemwiseOp::Assign(op) = op {
                                 op.input.add_layout_info(LayoutInfo::SameAsRef);
@@ -194,8 +186,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && pi.strides == strides
             })
-            .map(|(pos, _)| pos)
-            .map(|input_pos| OutputKind::Inplace { input_pos })
+            .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal)
     }
 
@@ -217,7 +208,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
                 .unwrap();
 
             plan.reference = Some(Reference {
-                layout: Arg::Input(index_input as u32, output.precision, LayoutInfo::IsRef),
+                layout: Arg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             });
@@ -247,7 +238,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn normal_output<BT: BoolElement>(
+    fn normal_output<BT: CubeElement>(
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -258,11 +249,12 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
         strides: Vec<usize>,
     ) {
         if plan.reference.is_none() {
-            let position = self
-                .mapper
-                .resolve_index(&output.precision, output.pos_original);
             plan.reference = Some(Reference {
-                layout: Arg::Output(position, output.precision, LayoutInfo::IsRef),
+                layout: Arg::Output(
+                    output.pos_original as u32,
+                    output.precision,
+                    LayoutInfo::IsRef,
+                ),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             });
@@ -283,7 +275,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {
-            DType::Bool => BT::dtype(),
+            DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
         let size = tensor_global.shape.iter().product::<usize>() * Elem::from(dtype).size();
@@ -312,7 +304,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn reshaped_output<BT: BoolElement>(
+    fn reshaped_output<BT: CubeElement>(
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -332,7 +324,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {
-            DType::Bool => BT::dtype(),
+            DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
 
@@ -352,6 +344,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
             context
                 .handles
                 .register_handle(tensor_global.id, handle.clone());
+
             // IT will never be access, just a way to keep the original position working.
             self.handles[output.pos_original] = Some(HandleOutput::Alias {
                 input_pos: pos_input,
@@ -372,7 +365,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn swapped_dims_output<BT: BoolElement>(
+    fn swapped_dims_output<BT: CubeElement>(
         &mut self,
         client: &ComputeClient<R::Server, R::Channel>,
         device: &R::Device,
@@ -392,7 +385,7 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
 
         // We encode bool tensors as `B`.
         let dtype = match tensor_global.dtype {
-            DType::Bool => BT::dtype(),
+            DType::Bool => elem_dtype::<BT>(),
             _ => tensor_global.dtype,
         };
 
@@ -418,34 +411,5 @@ impl<'a, R: CubeRuntime> OutputPlanner<'a, R> {
             precision: output.precision,
         });
         self.globals[output.pos_original] = Some(tensor_global);
-    }
-}
-
-/// Group output position by [element precision](ElemwisePrecision).
-#[derive(Default, Debug)]
-pub struct OutputPositionMapper {
-    map: BTreeMap<ElemwisePrecision, Vec<usize>>,
-}
-
-impl OutputPositionMapper {
-    /// Register a new output with the given precision and position.
-    pub fn register(&mut self, precision: ElemwisePrecision, pos_handle: usize) {
-        if let Some(positions) = self.map.get_mut(&precision) {
-            positions.push(pos_handle);
-        } else {
-            self.map.insert(precision, vec![pos_handle]);
-        }
-    }
-
-    /// Returns the right position from the precision and the global position in all outputs.
-    pub fn resolve_index(&mut self, precision: &ElemwisePrecision, pos_handle: usize) -> u32 {
-        self.map
-            .get(precision)
-            .unwrap()
-            .iter()
-            .enumerate()
-            .find(|(_pos_elem, pos_all)| **pos_all == pos_handle)
-            .map(|(pos_elem, _pos_all)| pos_elem)
-            .unwrap() as u32
     }
 }

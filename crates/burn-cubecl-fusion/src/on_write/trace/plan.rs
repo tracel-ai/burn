@@ -1,18 +1,16 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    fusion::{
-        on_write::ir::{Arg, ElemwiseOp, ElemwisePrecision},
-        CubeFusionHandle,
-    },
-    CubeRuntime,
+    on_write::ir::{Arg, ElemwiseOp, ElemwisePrecision},
+    CubeFusionHandle,
 };
 use burn_ir::{TensorId, TensorIr};
+use cubecl::Runtime;
 
 /// The plan is responsible to keep runtime information related to the launch of a fused kernel
 /// at one place.
 #[derive(Debug)]
-pub(crate) struct LaunchPlan<'a, R: CubeRuntime> {
+pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
@@ -25,7 +23,7 @@ pub(crate) struct LaunchPlan<'a, R: CubeRuntime> {
     pub rank: usize,
 }
 
-impl<R: CubeRuntime> LaunchPlan<'_, R> {
+impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,
@@ -47,7 +45,7 @@ impl<R: CubeRuntime> LaunchPlan<'_, R> {
 }
 
 #[derive(Debug)]
-pub enum HandleOutput<R: CubeRuntime> {
+pub enum HandleOutput<R: Runtime> {
     Alias {
         input_pos: usize,
         precision: ElemwisePrecision,
@@ -62,7 +60,7 @@ pub enum HandleOutput<R: CubeRuntime> {
 }
 
 #[derive(Debug)]
-pub struct HandleInput<R: CubeRuntime> {
+pub struct HandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_id: TensorId,
     pub precision: ElemwisePrecision,

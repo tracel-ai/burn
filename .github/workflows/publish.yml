@@ -14,6 +14,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-candle
       - publish-burn-fusion
+      - publish-burn-cubecl-fusion
       - publish-burn-cubecl
       - publish-burn-ndarray
       - publish-burn-tch
@@ -113,12 +114,25 @@ jobs:
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
 
+  publish-burn-cubecl-fusion:
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
+    needs:
+      - publish-burn-ir
+      - publish-burn-common
+      - publish-burn-fusion
+      - publish-burn-tensor
+    with:
+      crate: burn-cubecl-fusion
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-cubecl:
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v1
     needs:
       - publish-burn-ir
       - publish-burn-common
       - publish-burn-fusion
+      - publish-burn-cubecl-fusion
       - publish-burn-tensor
       - publish-burn-ndarray
     with:

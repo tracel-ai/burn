@@ -1,0 +1,35 @@
+[package]
+authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+categories = ["science"]
+description = "Provide optimizations that can be used with cubecl based backends."
+documentation = "https://docs.rs/burn-cubecl-fusion"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "gpu"]
+license.workspace = true
+name = "burn-cubecl-fusion"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-cubecl-fusion"
+version.workspace = true
+
+[features]
+autotune = []
+default = ["autotune", "std", "cubecl/default"]
+doc = ["default"]
+std = ["cubecl/std", "burn-tensor/std"]
+
+[dependencies]
+burn-common = { path = "../burn-common", version = "0.17.0" }
+burn-fusion = { path = "../burn-fusion", version = "0.17.0" }
+burn-ir = { path = "../burn-ir", version = "0.17.0", default-features = false }
+burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
+    "cubecl",
+] }
+cubecl = { workspace = true, features = ["linalg"] }
+
+half = { workspace = true }
+serde = { workspace = true }
+derive-new = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

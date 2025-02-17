@@ -1,17 +1,15 @@
 use super::TensorView;
-use crate::{
-    fusion::{on_write::settings::FuseSettings, CubeFusionHandle},
-    CubeRuntime,
-};
+use crate::{on_write::settings::FuseSettings, CubeFusionHandle};
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorStatus};
+use cubecl::Runtime;
 use std::marker::PhantomData;
 
 use super::{HandleInput, LaunchPlan, PotentialInplace, RegisteredTensors};
 
 /// Fetch and register [input handles](HandleInput) and itendify potential inputs that
 /// can be used inplace.
-pub struct InputPlanner<'a, R: CubeRuntime> {
+pub struct InputPlanner<'a, R: Runtime> {
     inputs: &'a RegisteredTensors,
     inputs_unhandled: &'a Vec<TensorId>,
     views: &'a Vec<TensorView>,
@@ -20,7 +18,7 @@ pub struct InputPlanner<'a, R: CubeRuntime> {
     _r: PhantomData<R>,
 }
 
-impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
+impl<'a, R: Runtime> InputPlanner<'a, R> {
     pub fn new(
         inputs: &'a RegisteredTensors,
         inputs_unhandled: &'a Vec<TensorId>,
@@ -39,7 +37,15 @@ impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
     }
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
-        for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
+        let mut handles = Vec::with_capacity(self.inputs.len());
+        let mut globals = Vec::with_capacity(self.inputs.len());
+
+        for _ in 0..self.inputs.len() {
+            handles.push(None);
+            globals.push(None);
+        }
+
+        for (precision, (pos, tensor_relative)) in self.inputs.iter() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
             // the global graph, since the status of the global graph
@@ -62,7 +68,7 @@ impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: i,
+                    input_pos: *pos as usize,
                     tensor_relative,
                     strides: handle.strides.clone(),
                 });
@@ -76,7 +82,7 @@ impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
                 }
             }
 
-            plan.handle_inputs.push(HandleInput {
+            handles[*pos as usize] = Some(HandleInput {
                 precision,
                 handle,
                 relative_id: tensor_relative.id,
@@ -84,7 +90,12 @@ impl<'a, R: CubeRuntime> InputPlanner<'a, R> {
                 global_shape: tensor_global.shape.clone(),
                 vectorization: 1,
             });
-            plan.global_inputs.push(tensor_global);
+            globals[*pos as usize] = Some(tensor_global);
+        }
+
+        for (handle, global) in handles.into_iter().zip(globals.into_iter()) {
+            plan.handle_inputs.push(handle.unwrap());
+            plan.global_inputs.push(global.unwrap());
         }
     }
 }

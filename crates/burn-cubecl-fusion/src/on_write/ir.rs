@@ -4,6 +4,11 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
+use super::{
+    tensor::{GlobalScalar, GlobalTensor},
+    DYN_ELEM_ID,
+};
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
 pub enum Arg {
@@ -109,6 +114,37 @@ pub enum ElemwiseOp {
     },
 }
 
+impl ElemwiseOp {
+    /// Element type used for the computation.
+    pub(crate) fn cmp_elem(&self) -> Elem {
+        match self {
+            ElemwiseOp::Add(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Sub(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Mul(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Div(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Powf(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Abs(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Exp(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Log(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Log1p(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Cos(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Sin(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Tanh(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Erf(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Recip(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Assign(op) => op.out.precision().into_elem(),
+            ElemwiseOp::Equal(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Lower(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::Greater(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::LowerEqual(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::GreaterEqual(op) => op.lhs.precision().into_elem(),
+            ElemwiseOp::ConditionalAssign { out, .. } => out.precision().into_elem(),
+            ElemwiseOp::Gather { output, .. } => output.precision().into_elem(),
+            ElemwiseOp::Select { output, .. } => output.precision().into_elem(),
+        }
+    }
+}
+
 #[derive(CubeLaunch)]
 pub struct ReshapedTensor {
     #[cube(comptime)]
@@ -120,58 +156,21 @@ pub struct ReshapedTensor {
 #[derive(CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
-    pub t_f32: Sequence<Tensor<Line<f32>>>,
-    pub t_f16: Sequence<Tensor<Line<f16>>>,
-    pub t_bf16: Sequence<Tensor<Line<bf16>>>,
-    pub t_i64: Sequence<Tensor<Line<i64>>>,
-    pub t_i32: Sequence<Tensor<Line<i32>>>,
-    pub t_i16: Sequence<Tensor<Line<i16>>>,
-    pub t_i8: Sequence<Tensor<Line<i8>>>,
-    pub t_u64: Sequence<Tensor<Line<u64>>>,
-    pub t_u32: Sequence<Tensor<Line<u32>>>,
-    pub t_u16: Sequence<Tensor<Line<u16>>>,
-    pub t_u8: Sequence<Tensor<Line<u8>>>,
-    pub s_f32: Sequence<f32>,
-    pub s_f16: Sequence<f16>,
-    pub s_bf16: Sequence<bf16>,
-    pub s_i64: Sequence<i64>,
-    pub s_i32: Sequence<i32>,
-    pub s_i16: Sequence<i16>,
-    pub s_i8: Sequence<i8>,
-    pub s_u64: Sequence<u64>,
-    pub s_u32: Sequence<u32>,
-    pub s_u16: Sequence<u16>,
-    pub s_u8: Sequence<u8>,
+    pub tensors: Sequence<GlobalTensor>,
+    pub scalars: Sequence<GlobalScalar>,
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
     fn default() -> Self {
-        Self::new(
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            Default::default(),
-        )
+        Self {
+            tensors: Default::default(),
+            scalars: Default::default(),
+            _phantom_runtime: std::marker::PhantomData,
+            _phantom_a: std::marker::PhantomData,
+        }
     }
 }
+
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
     ///
@@ -219,34 +218,8 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument isn't a global input or output tensor.
     pub fn resolve_arg(&self, arg: &Arg) -> &TensorArg<'_, R> {
         match arg {
-            Arg::Input(pos, precision, _) => match precision {
-                ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
-                ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
-                ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
-                ElemwisePrecision::I64 => &self.t_i64.values[*pos as usize],
-                ElemwisePrecision::I32 => &self.t_i32.values[*pos as usize],
-                ElemwisePrecision::I16 => &self.t_i16.values[*pos as usize],
-                ElemwisePrecision::I8 => &self.t_i8.values[*pos as usize],
-                ElemwisePrecision::U64 => &self.t_u64.values[*pos as usize],
-                ElemwisePrecision::U32 => &self.t_u32.values[*pos as usize],
-                ElemwisePrecision::U16 => &self.t_u16.values[*pos as usize],
-                ElemwisePrecision::U8 => &self.t_u8.values[*pos as usize],
-                ElemwisePrecision::Bool => panic!("Unsupported yet"),
-            },
-            Arg::Output(pos, precision, _) => match precision {
-                ElemwisePrecision::F32 => &self.t_f32.values[*pos as usize],
-                ElemwisePrecision::F16 => &self.t_f16.values[*pos as usize],
-                ElemwisePrecision::BF16 => &self.t_bf16.values[*pos as usize],
-                ElemwisePrecision::I64 => &self.t_i64.values[*pos as usize],
-                ElemwisePrecision::I32 => &self.t_i32.values[*pos as usize],
-                ElemwisePrecision::I16 => &self.t_i16.values[*pos as usize],
-                ElemwisePrecision::I8 => &self.t_i8.values[*pos as usize],
-                ElemwisePrecision::U64 => &self.t_u64.values[*pos as usize],
-                ElemwisePrecision::U32 => &self.t_u32.values[*pos as usize],
-                ElemwisePrecision::U16 => &self.t_u16.values[*pos as usize],
-                ElemwisePrecision::U8 => &self.t_u8.values[*pos as usize],
-                ElemwisePrecision::Bool => panic!("Unsupported yet"),
-            },
+            Arg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            Arg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
             _ => panic!("Only input & output can have a shape"),
         }
     }
@@ -268,6 +241,33 @@ pub struct LocalArgs {
     pub l_u16: Registry<u32, Line<u16>>,
     pub l_u8: Registry<u32, Line<u8>>,
     pub l_bool: Registry<u32, Line<bool>>,
+}
+
+#[cube]
+impl LocalArgs {
+    pub fn new() -> LocalArgs {
+        LocalArgs {
+            l_f32: Registry::<u32, Line<f32>>::new(),
+            l_f16: Registry::<u32, Line<f16>>::new(),
+            l_bf16: Registry::<u32, Line<bf16>>::new(),
+            l_i64: Registry::<u32, Line<i64>>::new(),
+            l_i32: Registry::<u32, Line<i32>>::new(),
+            l_i16: Registry::<u32, Line<i16>>::new(),
+            l_i8: Registry::<u32, Line<i8>>::new(),
+            l_u64: Registry::<u32, Line<u64>>::new(),
+            l_u32: Registry::<u32, Line<u32>>::new(),
+            l_u16: Registry::<u32, Line<u16>>::new(),
+            l_u8: Registry::<u32, Line<u8>>::new(),
+            l_bool: Registry::<u32, Line<bool>>::new(),
+        }
+    }
+}
+
+#[derive(CubeType, Clone)]
+/// Keep track of all local variables that are used as argument in fused
+/// [element wise operations](ElemwiseOp).
+pub struct LocalArgs2 {
+    pub scalars: Registry<u32, Line<NumericExpand<DYN_ELEM_ID>>>,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -327,6 +327,24 @@ impl From<Elem> for ElemwisePrecision {
             },
             Elem::Bool => Self::Bool,
             _ => panic!("Unsupported precision for fusion: {value}"),
+        }
+    }
+}
+impl ElemwisePrecision {
+    pub fn into_elem(self) -> Elem {
+        match self {
+            ElemwisePrecision::F32 => Elem::Float(cubecl::ir::FloatKind::F32),
+            ElemwisePrecision::F16 => Elem::Float(cubecl::ir::FloatKind::F16),
+            ElemwisePrecision::BF16 => Elem::Float(cubecl::ir::FloatKind::BF16),
+            ElemwisePrecision::I64 => Elem::Int(cubecl::ir::IntKind::I64),
+            ElemwisePrecision::I32 => Elem::Int(cubecl::ir::IntKind::I32),
+            ElemwisePrecision::I16 => Elem::Int(cubecl::ir::IntKind::I16),
+            ElemwisePrecision::I8 => Elem::Int(cubecl::ir::IntKind::I8),
+            ElemwisePrecision::U64 => Elem::UInt(cubecl::ir::UIntKind::U64),
+            ElemwisePrecision::U32 => Elem::UInt(cubecl::ir::UIntKind::U32),
+            ElemwisePrecision::U16 => Elem::UInt(cubecl::ir::UIntKind::U16),
+            ElemwisePrecision::U8 => Elem::UInt(cubecl::ir::UIntKind::U8),
+            ElemwisePrecision::Bool => Elem::Bool,
         }
     }
 }

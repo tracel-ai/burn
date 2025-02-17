@@ -5,19 +5,17 @@ use std::{
 
 use burn_fusion::stream::Context;
 use burn_ir::TensorId;
+use cubecl::Runtime;
 
 use crate::{
-    fusion::{
-        on_write::{ir::ElemwiseOp, settings::FuseSettings},
-        CubeFusionHandle,
-    },
-    CubeRuntime,
+    on_write::{ir::ElemwiseOp, settings::FuseSettings},
+    CubeFusionHandle,
 };
 
 use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner};
 
 /// Select the best vectorization factor for each tensor handle.
-pub struct VectorizationPlanner<'a, R: CubeRuntime> {
+pub struct VectorizationPlanner<'a, R: Runtime> {
     settings: &'a FuseSettings,
     views: &'a Vec<TensorView>,
     reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,
@@ -25,7 +23,7 @@ pub struct VectorizationPlanner<'a, R: CubeRuntime> {
     _r: PhantomData<R>,
 }
 
-impl<'a, R: CubeRuntime> VectorizationPlanner<'a, R> {
+impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     pub fn new(
         views: &'a Vec<TensorView>,
         reads: &'a BTreeMap<TensorId, Vec<ElemwiseOp>>,

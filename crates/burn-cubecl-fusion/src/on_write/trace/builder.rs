@@ -14,7 +14,7 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     settings: FuseSettings,
     inputs: RegisteredTensors,
-    scalars: BTreeMap<ElemwisePrecision, u32>,
+    scalars: Vec<(ElemwisePrecision, u32)>,
     views: Vec<TensorView>,
     indexed: BTreeMap<TensorId, Arg>,
     ops: Vec<ElemwiseOp>,
@@ -31,7 +31,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             settings,
             inputs: RegisteredTensors::default(),
-            scalars: BTreeMap::default(),
+            scalars: Vec::default(),
             views: Vec::new(),
             indexed: BTreeMap::new(),
             ops: Vec::new(),
@@ -210,7 +210,7 @@ impl FuseOnWriteTraceBuilder {
                 match self.inputs.get_index(precision_input, tensor.id) {
                     Some(index) => {
                         self.inputs.update(precision_input, tensor);
-                        index as u32
+                        index
                     }
                     None => {
                         return None;
@@ -269,7 +269,7 @@ impl FuseOnWriteTraceBuilder {
                 match self.inputs.get_index(precision_input, tensor.id) {
                     Some(index) => {
                         self.inputs.update(precision_input, tensor);
-                        index as u32
+                        index
                     }
                     None => {
                         return None;
@@ -325,11 +325,9 @@ impl FuseOnWriteTraceBuilder {
             ElemwisePrecision::Bool => self.bool_precision,
             _ => precision,
         };
-        let new_index = self.scalars.get(&precision).copied().unwrap_or(0);
+        let new_index = self.scalars.len() as u32;
 
-        let num_scalars = new_index + 1;
-
-        self.scalars.insert(precision, num_scalars);
+        self.scalars.push((precision, new_index));
         Arg::Scalar(new_index, precision)
     }
 
@@ -343,7 +341,7 @@ impl FuseOnWriteTraceBuilder {
 
         let mut writes = BTreeMap::new();
 
-        for (precision, tensor) in outputs.iter() {
+        for (precision, (_, tensor)) in outputs.iter() {
             let local = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
@@ -351,7 +349,7 @@ impl FuseOnWriteTraceBuilder {
                 tensor.id,
                 ElemwiseOp::Assign(UnaryElemwiseArgs {
                     input: local,
-                    out: Arg::Output(out_index as u32, precision, LayoutInfo::Unknown),
+                    out: Arg::Output(out_index, precision, LayoutInfo::Unknown),
                 }),
             );
         }
@@ -574,14 +572,14 @@ impl FuseOnWriteTraceBuilder {
 
             if !is_read {
                 let (tensor_id, precision) = entry;
-                let tensor = self.outputs.get(precision, tensor_id).unwrap();
+                let (_, tensor) = self.outputs.get(precision, tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
             }
         }
 
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (precision, tensor) in self.outputs.iter() {
+        for (precision, (_, tensor)) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
                 result.insert(precision, tensor.clone());
             }

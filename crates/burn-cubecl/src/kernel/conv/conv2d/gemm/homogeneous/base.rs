@@ -12,7 +12,7 @@ use cubecl::{
                 stage::{
                     self,
                     multi_buffer::{LhsReader, LhsReaderFamily, RhsReader, RhsReaderFamily},
-                    StageMatmulFamily, TilingOrderConfig,
+                    StageMatmulFamily, TilingLayout,
                 },
                 Ident, InvalidConfigError, MatrixLayout, StageTiling,
             },
@@ -357,8 +357,8 @@ pub mod config {
             self.matmul.plane_dim()
         }
 
-        fn tiling_order(&self, ident: Ident) -> TilingOrderConfig {
-            self.matmul.tiling_order(ident)
+        fn tiling_layout(&self, ident: Ident) -> TilingLayout {
+            self.matmul.tiling_layout(ident)
         }
 
         fn check_row_bounds(&self, ident: Ident) -> bool {

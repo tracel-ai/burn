@@ -1,26 +1,32 @@
+use std::sync::Arc;
+
+use super::MatmulFallbackFn;
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{FloatOperationIr, OperationIr};
+use cubecl::Runtime;
 
 use crate::{
-    fusion::{
-        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
-        CubeOptimization,
-    },
-    CubeRuntime,
+    on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    CubeOptimization,
 };
 
 use super::optimization::{FusedMatmul, MatmulOptimization};
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct MatmulBuilder<R: CubeRuntime> {
+pub struct MatmulBuilder<R: Runtime> {
     builder: FuseOnWriteBuilder,
     builder_fallback: FuseOnWriteBuilder,
     device: R::Device,
     matmul: Option<FusedMatmul>,
+    fallback: Arc<dyn MatmulFallbackFn<R>>,
 }
 
-impl<R: CubeRuntime> MatmulBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
+impl<R: Runtime> MatmulBuilder<R> {
+    pub fn new(
+        device: R::Device,
+        bool_precision: ElemwisePrecision,
+        fallback: Arc<dyn MatmulFallbackFn<R>>,
+    ) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
@@ -36,11 +42,12 @@ impl<R: CubeRuntime> MatmulBuilder<R> {
             builder_fallback: FuseOnWriteBuilder::new(max_bindings, bool_precision, settings),
             device,
             matmul: None,
+            fallback,
         }
     }
 }
 
-impl<R: CubeRuntime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
+impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<R> {
     fn register(&mut self, operation: &OperationIr) {
         if let OptimizationStatus::Closed = self.builder.status() {
             return;
@@ -86,6 +93,7 @@ impl<R: CubeRuntime> OptimizationBuilder<CubeOptimization<R>> for MatmulBuilder<
             self.device.clone(),
             self.len(),
             self.matmul.as_ref().unwrap().clone(),
+            self.fallback.clone(),
         );
 
         CubeOptimization::Matmul(matmul)

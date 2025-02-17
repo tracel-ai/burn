@@ -1,22 +1,20 @@
 use burn_fusion::OptimizationBuilder;
+use cubecl::Runtime;
 
 use crate::{
-    fusion::{
-        on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
-        CubeOptimization,
-    },
-    CubeRuntime,
+    on_write::{builder::FuseOnWriteBuilder, ir::ElemwisePrecision, settings::FuseSettings},
+    CubeOptimization,
 };
 
 use super::optimization::ElemwiseOptimization;
 
 /// Fused element wise operations that are normally memory bound.
-pub(crate) struct ElementWiseBuilder<R: CubeRuntime> {
+pub struct ElementWiseBuilder<R: Runtime> {
     builder: FuseOnWriteBuilder,
     device: R::Device,
 }
 
-impl<R: CubeRuntime> ElementWiseBuilder<R> {
+impl<R: Runtime> ElementWiseBuilder<R> {
     pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
         let client = R::client(&device);
         let props = client.properties();
@@ -38,7 +36,7 @@ impl<R: CubeRuntime> ElementWiseBuilder<R> {
     }
 }
 
-impl<R: CubeRuntime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder<R> {
+impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ElementWiseBuilder<R> {
     fn register(&mut self, operation: &burn_ir::OperationIr) {
         self.builder.register(operation);
     }

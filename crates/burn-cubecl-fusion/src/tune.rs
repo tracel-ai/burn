@@ -1,13 +1,13 @@
 use super::CubeFusionHandle;
-use crate::CubeRuntime;
 use burn_fusion::stream::{Context, ContextOwned};
+use cubecl::Runtime;
 
 /// Fusion context used when tuning kernels.
 ///
 /// Either the original context is returned or a fork of the original.
 /// The fork is only given when performing autotuning, and not when actually performing the
 /// operation.
-pub enum TuneContext<'a, R: CubeRuntime> {
+pub enum TuneContext<'a, R: Runtime> {
     Original(&'a mut Context<'a, CubeFusionHandle<R>>),
     Fork(Box<ContextOwned<CubeFusionHandle<R>>>),
 }
@@ -18,7 +18,7 @@ pub enum TuneContext<'a, R: CubeRuntime> {
 ///
 /// This should only be used with the [tuner](cubecl::tune::LocalTuner), since safety assumptions
 /// are made based on its behavior.
-pub struct TuneInput<R: CubeRuntime, O> {
+pub struct TuneInput<R: Runtime, O> {
     context: UnsafeTuneContext<R>,
     optimization: *const O,
 }
@@ -33,15 +33,15 @@ pub struct TuneInput<R: CubeRuntime, O> {
 /// [cubecl::tune::LocalTuner::execute] function. This is the case, since autotune functions are
 /// tuned using a cloned version of the input; therefore, a fork of the context will be used to find
 /// the best kernel to use, which can be async.
-enum UnsafeTuneContext<R: CubeRuntime> {
+enum UnsafeTuneContext<R: Runtime> {
     Original(*mut Context<'static, CubeFusionHandle<R>>),
     Fork(Box<ContextOwned<CubeFusionHandle<R>>>),
 }
 
-unsafe impl<R: CubeRuntime> Send for UnsafeTuneContext<R> {}
-unsafe impl<R: CubeRuntime, O> Send for TuneInput<R, O> {}
+unsafe impl<R: Runtime> Send for UnsafeTuneContext<R> {}
+unsafe impl<R: Runtime, O> Send for TuneInput<R, O> {}
 
-impl<R: CubeRuntime, O> TuneInput<R, O> {
+impl<R: Runtime, O> TuneInput<R, O> {
     /// Create a new autotune input from the [context](Context) and an optimization.
     pub fn new(context: &mut Context<CubeFusionHandle<R>>, optimization: &O) -> Self {
         let context = UnsafeTuneContext::new(context);
@@ -65,7 +65,7 @@ impl<R: CubeRuntime, O> TuneInput<R, O> {
     }
 }
 
-impl<R: CubeRuntime> UnsafeTuneContext<R> {
+impl<R: Runtime> UnsafeTuneContext<R> {
     fn new(context: &mut Context<'_, CubeFusionHandle<R>>) -> Self {
         let ptr = core::ptr::from_mut(context);
 
@@ -84,7 +84,7 @@ impl<R: CubeRuntime> UnsafeTuneContext<R> {
     }
 }
 
-impl<R: CubeRuntime, O> Clone for TuneInput<R, O> {
+impl<R: Runtime, O> Clone for TuneInput<R, O> {
     fn clone(&self) -> Self {
         Self {
             context: self.context.clone(),
@@ -93,7 +93,7 @@ impl<R: CubeRuntime, O> Clone for TuneInput<R, O> {
     }
 }
 
-impl<R: CubeRuntime> Clone for UnsafeTuneContext<R> {
+impl<R: Runtime> Clone for UnsafeTuneContext<R> {
     fn clone(&self) -> Self {
         let context = match self {
             UnsafeTuneContext::Original(ptr) => {
