@@ -127,8 +127,8 @@ impl<E: Numeric> Im2colReader<E> {
         let x =
             (out_x * config.stride(1) + kernel_x * config.dilation(1)) as i32 - config.padding(1);
 
-        let m_in_bounds = comptime!(!config.check_m_bounds()) || view_m < self.shape_m;
-        let k_in_bounds = comptime!(!config.check_k_bounds()) || view_k < self.shape_k;
+        let m_in_bounds = comptime!(!config.check_row_bounds(Ident::Lhs)) || view_m < self.shape_m;
+        let k_in_bounds = comptime!(!config.check_col_bounds(Ident::Lhs)) || view_k < self.shape_k;
         let no_padding = comptime!(config.padding(0) == 0 && config.padding(1) == 0);
         let hw_in_bounds = no_padding
             || (y >= 0 && (y as u32) < self.shape_y && x >= 0 && (x as u32) < self.shape_x);
