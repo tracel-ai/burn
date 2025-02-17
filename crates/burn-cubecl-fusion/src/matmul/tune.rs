@@ -29,9 +29,9 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TunableSet::new(create_key::<R>, input_gen::<R>)
-        .with_tunable(tune_standard_fused::<R, BT>)
+        .with_tunable(tune_simple_fused::<R, BT>)
         .with_tunable(tune_specialized_fused::<R, BT>)
-        .with_tunable(tune_pipelined_fused::<R, BT>)
+        .with_tunable(tune_double_buffering_fused::<R, BT>)
         .with_tunable(tune_fallback::<R, BT>);
 
     TUNER.execute(
@@ -51,9 +51,9 @@ pub(crate) fn create_key<R: Runtime>(
         TuneContext::Fork(_) => panic!("Not supported when generating key"),
     };
 
-    let lhs = context.tensors.get(&opt.matmul_standard.op.lhs.id).unwrap();
-    let rhs = context.tensors.get(&opt.matmul_standard.op.rhs.id).unwrap();
-    let out = context.tensors.get(&opt.matmul_standard.op.out.id).unwrap();
+    let lhs = context.tensors.get(&opt.matmul_simple.op.lhs.id).unwrap();
+    let rhs = context.tensors.get(&opt.matmul_simple.op.rhs.id).unwrap();
+    let out = context.tensors.get(&opt.matmul_simple.op.out.id).unwrap();
 
     let key = MatmulAutotuneKey::from_shape(&lhs.shape, &rhs.shape, out.dtype.into());
     FusedMatmulAutotuneKey::new(key, opt.num_output_buffers(), opt.num_ops_fused())
@@ -66,16 +66,16 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
-fn tune_standard_fused<R: Runtime, BT: CubeElement>(
+fn tune_simple_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_standard_fused::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_simple_fused::<BT>(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_standard_fused::<BT>(&mut context_owned.as_context())
+            optimization.execute_simple_fused::<BT>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))
@@ -96,16 +96,18 @@ fn tune_specialized_fused<R: Runtime, BT: CubeElement>(
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_pipelined_fused<R: Runtime, BT: CubeElement>(
+fn tune_double_buffering_fused<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, MatmulOptimization<R>>,
 ) -> Result<(), String> {
     let optimization = input.optimization();
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => optimization.execute_pipelined_fused::<BT>(context),
+        TuneContext::Original(context) => {
+            optimization.execute_double_buffering_fused::<BT>(context)
+        }
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_pipelined_fused::<BT>(&mut context_owned.as_context())
+            optimization.execute_double_buffering_fused::<BT>(&mut context_owned.as_context())
         }
     }
     .map_err(|e| format!("{e:?}"))

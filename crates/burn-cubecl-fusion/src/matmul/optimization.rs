@@ -35,8 +35,8 @@ pub struct MatmulOptimization<R: Runtime> {
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
-    pub(crate) matmul_standard: FusedMatmul,
-    pub(crate) matmul_pipelined: FusedMatmul,
+    pub(crate) matmul_simple: FusedMatmul,
+    pub(crate) matmul_double_buffering: FusedMatmul,
     pub(crate) matmul_specialized: FusedMatmul,
     fallback: Arc<dyn MatmulFallbackFn<R>>,
 }
@@ -54,8 +54,8 @@ pub trait MatmulFallbackFn<R: Runtime>: Send + Sync {
 pub struct MatmulOptimizationState {
     trace: FuseOnWriteTrace,
     trace_fallback: FuseOnWriteTrace,
-    matmul_standard: FusedMatmul,
-    matmul_pipelined: FusedMatmul,
+    matmul_simple: FusedMatmul,
+    matmul_double_buffering: FusedMatmul,
     matmul_specialized: FusedMatmul,
     len: usize,
 }
@@ -70,13 +70,13 @@ impl<R: Runtime> MatmulOptimization<R> {
         matmul: FusedMatmul,
         fallback: Arc<dyn MatmulFallbackFn<R>>,
     ) -> Self {
-        let mut matmul_standard = matmul.clone();
+        let mut matmul_simple = matmul.clone();
         let mut matmul_specialized = matmul.clone();
-        let mut matmul_pipelined = matmul;
+        let mut matmul_double_buffering = matmul;
 
-        matmul_standard.selector = FusedMatmulSelector::Standard;
+        matmul_simple.selector = FusedMatmulSelector::Simple;
         matmul_specialized.selector = FusedMatmulSelector::Specialized;
-        matmul_pipelined.selector = FusedMatmulSelector::Pipelined;
+        matmul_double_buffering.selector = FusedMatmulSelector::DoubleBuffering;
 
         Self {
             trace,
@@ -84,8 +84,8 @@ impl<R: Runtime> MatmulOptimization<R> {
             client,
             device,
             len,
-            matmul_standard,
-            matmul_pipelined,
+            matmul_simple,
+            matmul_double_buffering,
             matmul_specialized,
             fallback,
         }
@@ -118,9 +118,9 @@ impl<R: Runtime> MatmulOptimization<R> {
             len: state.len,
             client: R::client(device),
             device: device.clone(),
-            matmul_standard: state.matmul_standard.clone(),
+            matmul_simple: state.matmul_simple.clone(),
             matmul_specialized: state.matmul_specialized.clone(),
-            matmul_pipelined: state.matmul_pipelined.clone(),
+            matmul_double_buffering: state.matmul_double_buffering.clone(),
             fallback,
         }
     }
@@ -130,9 +130,9 @@ impl<R: Runtime> MatmulOptimization<R> {
         MatmulOptimizationState {
             trace: self.trace.clone(),
             trace_fallback: self.trace_fallback.clone(),
-            matmul_standard: self.matmul_standard.clone(),
+            matmul_simple: self.matmul_simple.clone(),
             matmul_specialized: self.matmul_specialized.clone(),
-            matmul_pipelined: self.matmul_pipelined.clone(),
+            matmul_double_buffering: self.matmul_double_buffering.clone(),
             len: self.len,
         }
     }
@@ -142,7 +142,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         self.trace_fallback.outputs.len()
     }
 
-    pub fn execute_standard_fused<BT: CubeElement>(
+    pub fn execute_simple_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
@@ -150,7 +150,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.client,
             &self.device,
             context,
-            &self.matmul_standard,
+            &self.matmul_simple,
         )
     }
 
@@ -166,7 +166,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         )
     }
 
-    pub fn execute_pipelined_fused<BT: CubeElement>(
+    pub fn execute_double_buffering_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedMatmulError> {
@@ -174,7 +174,7 @@ impl<R: Runtime> MatmulOptimization<R> {
             &self.client,
             &self.device,
             context,
-            &self.matmul_pipelined,
+            &self.matmul_double_buffering,
         )
     }
 
@@ -185,17 +185,17 @@ impl<R: Runtime> MatmulOptimization<R> {
         let (out_tensor, out_desc) = {
             let lhs = context
                 .tensors
-                .get(&self.matmul_standard.op.lhs.id)
+                .get(&self.matmul_simple.op.lhs.id)
                 .unwrap()
                 .clone();
             let rhs = context
                 .tensors
-                .get(&self.matmul_standard.op.rhs.id)
+                .get(&self.matmul_simple.op.rhs.id)
                 .unwrap()
                 .clone();
             let out = context
                 .tensors
-                .get(&self.matmul_standard.op.out.id)
+                .get(&self.matmul_simple.op.out.id)
                 .unwrap()
                 .clone();
 
@@ -218,8 +218,8 @@ impl<R: Runtime> MatmulOptimization<R> {
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub enum FusedMatmulSelector {
     #[default]
-    Standard,
-    Pipelined,
+    Simple,
+    DoubleBuffering,
     Specialized,
 }
 
@@ -350,7 +350,7 @@ impl FusedMatmul {
         };
 
         match self.selector {
-            FusedMatmulSelector::Standard => {
+            FusedMatmulSelector::Simple => {
                 match matmul_launch_kernel::<R, EG, SimpleSelector<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
@@ -362,7 +362,7 @@ impl FusedMatmul {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
-            FusedMatmulSelector::Pipelined => {
+            FusedMatmulSelector::DoubleBuffering => {
                 match matmul_launch_kernel::<R, EG, DoubleBufferingSelector<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
