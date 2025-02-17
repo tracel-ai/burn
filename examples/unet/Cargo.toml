@@ -1,0 +1,12 @@
+[package]
+name = "unet"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+
+[dependencies]
+burn = { path = "../../crates/burn", features = ["train", "wgpu"] }
+image = { workspace = true }
+rand = { workspace = true }
