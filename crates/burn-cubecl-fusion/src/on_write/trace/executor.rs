@@ -54,6 +54,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
+        println!("Plan {plan:?}");
         let reference = match plan.reference {
             Some(reference) => reference,
             None => {
@@ -194,7 +195,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                     input_pos,
                     precision,
                 } => {
-                    println!("Pusing alias");
                     outputs.tensors.push(GlobalTensorArg::new(
                         TensorArg::alias(*input_pos),
                         precision.into_elem(),

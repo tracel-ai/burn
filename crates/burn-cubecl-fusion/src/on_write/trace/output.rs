@@ -13,7 +13,6 @@ use super::{
     super::ir::ElemwisePrecision, HandleOutput, LaunchPlan, Reference, RegisteredTensors,
     TensorView,
 };
-use std::collections::BTreeMap;
 
 /// Create or reuse handles for the outputs.
 ///
@@ -24,7 +23,6 @@ pub struct OutputPlanner<'a, R: Runtime> {
     outputs_sorted: Vec<OutputSorted<'a>>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
-    mapper: OutputPositionMapper,
 }
 
 struct OutputSorted<'a> {
@@ -48,16 +46,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         outputs: &'a RegisteredTensors,
         views: &'a Vec<TensorView>,
     ) -> Self {
-        let mut mapper = OutputPositionMapper::default();
         let mut outputs_sorted: Vec<_> = outputs
             .iter()
-            .map(|(precision, (pos, tensor))| {
-                mapper.register(precision, *pos as usize);
-                OutputSorted {
-                    pos_original: *pos as usize,
-                    precision,
-                    tensor_relative: tensor,
-                }
+            .map(|(precision, (pos, tensor))| OutputSorted {
+                pos_original: *pos as usize,
+                precision,
+                tensor_relative: tensor,
             })
             .collect();
 
@@ -82,7 +76,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             views,
             handles,
             globals,
-            mapper,
         }
     }
 
@@ -155,11 +148,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         Self::add_layout_info_inputs(plan);
     }
 
-    fn add_layout_info_inputs(analysis: &mut LaunchPlan<'_, R>) {
-        for hi in analysis.handle_inputs.iter() {
-            if let Some(reference) = analysis.reference.as_ref() {
+    fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {
+        for hi in plan.handle_inputs.iter() {
+            if let Some(reference) = plan.reference.as_ref() {
                 if reference.strides == hi.handle.strides && reference.shape == hi.global_shape {
-                    if let Some(ops) = analysis.reads.get_mut(&hi.relative_id) {
+                    if let Some(ops) = plan.reads.get_mut(&hi.relative_id) {
                         for op in ops.iter_mut() {
                             if let ElemwiseOp::Assign(op) = op {
                                 op.input.add_layout_info(LayoutInfo::SameAsRef);
@@ -256,11 +249,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         strides: Vec<usize>,
     ) {
         if plan.reference.is_none() {
-            let position = self
-                .mapper
-                .resolve_index(&output.precision, output.pos_original);
             plan.reference = Some(Reference {
-                layout: Arg::Output(position, output.precision, LayoutInfo::IsRef),
+                layout: Arg::Output(
+                    output.pos_original as u32,
+                    output.precision,
+                    LayoutInfo::IsRef,
+                ),
                 shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             });
@@ -350,6 +344,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             context
                 .handles
                 .register_handle(tensor_global.id, handle.clone());
+
             // IT will never be access, just a way to keep the original position working.
             self.handles[output.pos_original] = Some(HandleOutput::Alias {
                 input_pos: pos_input,
@@ -416,34 +411,5 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             precision: output.precision,
         });
         self.globals[output.pos_original] = Some(tensor_global);
-    }
-}
-
-/// Group output position by [element precision](ElemwisePrecision).
-#[derive(Default, Debug)]
-pub struct OutputPositionMapper {
-    map: BTreeMap<ElemwisePrecision, Vec<usize>>,
-}
-
-impl OutputPositionMapper {
-    /// Register a new output with the given precision and position.
-    pub fn register(&mut self, precision: ElemwisePrecision, pos_handle: usize) {
-        if let Some(positions) = self.map.get_mut(&precision) {
-            positions.push(pos_handle);
-        } else {
-            self.map.insert(precision, vec![pos_handle]);
-        }
-    }
-
-    /// Returns the right position from the precision and the global position in all outputs.
-    pub fn resolve_index(&mut self, precision: &ElemwisePrecision, pos_handle: usize) -> u32 {
-        self.map
-            .get(precision)
-            .unwrap()
-            .iter()
-            .enumerate()
-            .find(|(_pos_elem, pos_all)| **pos_all == pos_handle)
-            .map(|(pos_elem, _pos_all)| pos_elem)
-            .unwrap() as u32
     }
 }

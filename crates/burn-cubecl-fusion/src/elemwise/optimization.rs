@@ -81,15 +81,13 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
                     handle,
                     vectorization_factor,
                 } => (handle.shape, vectorization_factor),
-                _ => panic!("Can't be an alias"),
+                TensorArg::Alias { .. } => panic!("Can't be an alias, got {val:?}"),
             },
             None => panic!("Invalid argument"),
         };
         let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
-
-        println!("{:?}", outputs.tensors.values);
 
         unsafe {
             elemwise_fuse::launch_unchecked(

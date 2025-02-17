@@ -37,6 +37,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     }
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
+        let mut handles = Vec::with_capacity(self.inputs.len());
+        let mut globals = Vec::with_capacity(self.inputs.len());
+
+        for _ in 0..self.inputs.len() {
+            handles.push(None);
+            globals.push(None);
+        }
+
         for (precision, (pos, tensor_relative)) in self.inputs.iter() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
@@ -74,7 +82,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
             }
 
-            plan.handle_inputs.push(HandleInput {
+            handles[*pos as usize] = Some(HandleInput {
                 precision,
                 handle,
                 relative_id: tensor_relative.id,
@@ -82,7 +90,12 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 global_shape: tensor_global.shape.clone(),
                 vectorization: 1,
             });
-            plan.global_inputs.push(tensor_global);
+            globals[*pos as usize] = Some(tensor_global);
+        }
+
+        for (handle, global) in handles.into_iter().zip(globals.into_iter()) {
+            plan.handle_inputs.push(handle.unwrap());
+            plan.global_inputs.push(global.unwrap());
         }
     }
 }
