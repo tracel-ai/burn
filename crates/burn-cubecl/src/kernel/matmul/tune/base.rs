@@ -63,7 +63,7 @@ fn matmul_accelerated<R: CubeRuntime, E: FloatElement>(
     out: CubeTensor<R>,
 ) -> Result<(), String> {
     cubecl::linalg::matmul::launch_ref::<R, E>(
-        &Strategy::Standard,
+        &Strategy::Simple,
         &lhs.client,
         &lhs.as_handle_ref(),
         &rhs.as_handle_ref(),
