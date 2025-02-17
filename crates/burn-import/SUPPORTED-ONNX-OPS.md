@@ -179,7 +179,7 @@ represent the corresponding Burn Op.
 | [Softplus][170]                  | ❌             | ❌           |
 | [Softsign][171]                  | ❌             | ❌           |
 | [SpaceToDepth][172]              | ❌             | ❌           |
-| [Split][173]                     | ❌             | ❌           |
+| [Split][173]                     | ✅             | ✅           |
 | [SplitToSequence][174]           | ❌             | ❌           |
 | [Sqrt][175]                      | ✅             | ✅           |
 | [Squeeze][176]                   | ✅             | ✅           |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# used to generate models: squeeze_opset13.onnx, 
+# used to generate models: squeeze_opset13.onnx,
 # squeeze_opset16.onnx, and squeeze_multiple.onnx
 
 import torch
@@ -35,7 +35,7 @@ def main():
     torch.onnx.export(model, test_input, "squeeze_opset16.onnx", verbose=False, opset_version=16)
     torch.onnx.export(model, test_input, "squeeze_opset13.onnx", verbose=False, opset_version=13)
 
-    print(f"Finished exporting model to 16 and 13")
+    print("Finished exporting model to 16 and 13")
 
     # Output some test data for use in the test
     output = model(test_input)
@@ -56,7 +56,7 @@ def main():
     onnx.checker.check_model(m, full_check=True)
     onnx.save(m, "squeeze_multiple.onnx")
 
-    print(f"Finished exporting model with multiple squeeze axes specified to 13")
+    print("Finished exporting model with multiple squeeze axes specified to 13")
 
 if __name__ == "__main__":
     main()

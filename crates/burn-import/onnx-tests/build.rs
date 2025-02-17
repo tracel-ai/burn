@@ -119,6 +119,7 @@ fn main() {
         .input("tests/unsqueeze/unsqueeze.onnx")
         .input("tests/unsqueeze/unsqueeze_opset11.onnx")
         .input("tests/unsqueeze/unsqueeze_opset16.onnx")
+        .input("tests/split/split.onnx")
         .out_dir("model/")
         .run_from_script();
 

@@ -82,6 +82,7 @@ pub fn dim_inference(node: &mut Node) {
         NodeType::Sin => same_as_input(node),
         NodeType::Slice => same_as_input(node),
         NodeType::Softmax => same_as_input(node),
+        NodeType::Split => split_update_outputs(node),
         NodeType::Squeeze => squeeze_update_output(node),
         NodeType::Sqrt => same_as_input(node),
         NodeType::Sub => same_as_input_broadcast(node),
@@ -898,6 +899,89 @@ fn gather_update_outputs(node: &mut Node) {
             })
         }
         ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
+    }
+}
+
+fn split_update_outputs(node: &mut Node) {
+    let input_arg = &node.inputs[0];
+    let input_tensor = match &input_arg.ty {
+        ArgType::Tensor(tensor) => tensor.clone(),
+        _ => panic!("Split: Input must be a tensor"),
+    };
+
+    let input_dims = match &input_tensor.shape {
+        Some(shape) => shape.to_vec(),
+        None => panic!("Split: Input tensor shape is not defined"),
+    };
+
+    let axis = match node.attrs.get("axis") {
+        Some(value) => match &value {
+            AttributeValue::Int64(_) => value.clone().into_i64(),
+            _ => panic!("Only int allowed for axis attribute"),
+        },
+        None => 0,
+    };
+    let rank = input_dims.len() as i64;
+
+    let axis = if axis < 0 { axis + rank } else { axis };
+
+    if axis < 0 || axis >= rank {
+        panic!(
+            "Split: Axis {} is out of bounds for tensor of rank {}",
+            axis, rank
+        );
+    }
+
+    let axis = axis as usize;
+
+    let split_sizes = if let Some(split_arg) = node.inputs.get(2) {
+        // `split` input is provided
+        if let Some(Data::Int64s(sizes)) = &split_arg.value {
+            let sizes: Vec<usize> = sizes.iter().map(|&s| s as usize).collect();
+            let total_size: usize = sizes.iter().sum();
+            if total_size != input_dims[axis] {
+                // can't index into input_dims because it's &usize
+                panic!(
+                    "Split: Sum of split sizes ({}) does not match tensor size along axis {} ({})",
+                    total_size, axis, input_dims[axis]
+                );
+            }
+            sizes
+        } else {
+            panic!("Split: 'split' input must be a tensor of int64 values");
+        }
+    } else {
+        // `split` input is not provided; use `num_outputs` attribute instead
+        let tensor_size = input_dims[axis];
+        let num_outputs = node.outputs.len();
+
+        if num_outputs == 0 {
+            panic!("Split: Number of outputs must be greater than zero");
+        }
+
+        let split_size = tensor_size / num_outputs;
+        let remainder = tensor_size % num_outputs;
+
+        let mut sizes = vec![split_size; num_outputs];
+
+        // According to ONNX spec, the last chunk will be smaller if not evenly divisible
+        for size in sizes.iter_mut().take(remainder) {
+            *size += 1;
+        }
+
+        sizes
+    };
+
+    // Update dimensions for each output
+    for (i, output_arg) in node.outputs.iter_mut().enumerate() {
+        let mut output_dims = input_dims.clone();
+        output_dims[axis] = split_sizes[i];
+
+        output_arg.ty = ArgType::Tensor(TensorType {
+            elem_type: input_tensor.elem_type.clone(),
+            dim: output_dims.len(),
+            shape: None,
+        });
     }
 }
 
