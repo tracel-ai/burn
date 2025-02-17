@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, marker::PhantomData};
+use std::marker::PhantomData;
 
 use burn_fusion::stream::Context;
 use burn_tensor::DType;
@@ -20,7 +20,7 @@ use crate::{
 
 /// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
 pub struct LaunchPlanExecutor<'a, R: Runtime> {
-    scalars: &'a BTreeMap<ElemwisePrecision, u32>,
+    scalars: &'a Vec<(ElemwisePrecision, u32)>,
     views: &'a Vec<TensorView>,
     ops: &'a Vec<ElemwiseOp>,
     _r: PhantomData<R>,
@@ -35,7 +35,7 @@ pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
 
 impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     pub fn new(
-        scalars: &'a BTreeMap<ElemwisePrecision, u32>,
+        scalars: &'a Vec<(ElemwisePrecision, u32)>,
         views: &'a Vec<TensorView>,
         ops: &'a Vec<ElemwiseOp>,
     ) -> Self {
@@ -110,62 +110,87 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 .push(GlobalTensorArg::new(arg, hi.precision.into_elem()));
         }
 
-        for (precision, count) in self.scalars.iter() {
-            for i in 0..(*count as usize) {
-                match precision {
-                    ElemwisePrecision::F32 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::F32(context.scalar_f32[i]));
-                    }
-                    ElemwisePrecision::F16 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::F16(context.scalar_f16[i]));
-                    }
-                    ElemwisePrecision::BF16 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::BF16(context.scalar_bf16[i]));
-                    }
-                    ElemwisePrecision::I64 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::I64(context.scalar_i64[i]));
-                    }
-                    ElemwisePrecision::I32 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::I32(context.scalar_i32[i]));
-                    }
-                    ElemwisePrecision::I16 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::I16(context.scalar_i16[i]));
-                    }
-                    ElemwisePrecision::I8 => {
-                        inputs.scalars.push(GlobalScalar::I8(context.scalar_i8[i]));
-                    }
-                    ElemwisePrecision::U64 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::U64(context.scalar_u64[i]));
-                    }
-                    ElemwisePrecision::U32 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::U32(context.scalar_u32[i]));
-                    }
-                    ElemwisePrecision::U16 => {
-                        inputs
-                            .scalars
-                            .push(GlobalScalar::U16(context.scalar_u16[i]));
-                    }
-                    ElemwisePrecision::U8 => {
-                        inputs.scalars.push(GlobalScalar::U8(context.scalar_u8[i]));
-                    }
-                    ElemwisePrecision::Bool => todo!(),
+        let mut index_f32 = 0;
+        let mut index_f16 = 0;
+        let mut index_bf16 = 0;
+        let mut index_u64 = 0;
+        let mut index_u32 = 0;
+        let mut index_u16 = 0;
+        let mut index_u8 = 0;
+        let mut index_i64 = 0;
+        let mut index_i32 = 0;
+        let mut index_i16 = 0;
+        let mut index_i8 = 0;
+
+        for (precision, _pos) in self.scalars.iter() {
+            match precision {
+                ElemwisePrecision::F32 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
+                    index_f32 += 1;
                 }
+                ElemwisePrecision::F16 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
+                    index_f16 += 1;
+                }
+                ElemwisePrecision::BF16 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
+                    index_bf16 += 1;
+                }
+                ElemwisePrecision::I64 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
+                    index_i64 += 1;
+                }
+                ElemwisePrecision::I32 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
+                    index_i32 += 1;
+                }
+                ElemwisePrecision::I16 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
+                    index_i16 += 1;
+                }
+                ElemwisePrecision::I8 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
+                    index_i8 += 1;
+                }
+                ElemwisePrecision::U64 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
+                    index_u64 += 1;
+                }
+                ElemwisePrecision::U32 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
+                    index_u32 += 1;
+                }
+                ElemwisePrecision::U16 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
+                    index_u16 += 1;
+                }
+                ElemwisePrecision::U8 => {
+                    inputs
+                        .scalars
+                        .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
+                    index_u8 += 1;
+                }
+                ElemwisePrecision::Bool => todo!(),
             }
         }
 

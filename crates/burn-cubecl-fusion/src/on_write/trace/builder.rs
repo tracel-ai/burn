@@ -14,7 +14,7 @@ pub struct FuseOnWriteTraceBuilder {
     outputs: RegisteredTensors,
     settings: FuseSettings,
     inputs: RegisteredTensors,
-    scalars: BTreeMap<ElemwisePrecision, u32>,
+    scalars: Vec<(ElemwisePrecision, u32)>,
     views: Vec<TensorView>,
     indexed: BTreeMap<TensorId, Arg>,
     ops: Vec<ElemwiseOp>,
@@ -31,7 +31,7 @@ impl FuseOnWriteTraceBuilder {
             outputs: RegisteredTensors::default(),
             settings,
             inputs: RegisteredTensors::default(),
-            scalars: BTreeMap::default(),
+            scalars: Vec::default(),
             views: Vec::new(),
             indexed: BTreeMap::new(),
             ops: Vec::new(),
@@ -325,11 +325,9 @@ impl FuseOnWriteTraceBuilder {
             ElemwisePrecision::Bool => self.bool_precision,
             _ => precision,
         };
-        let new_index = self.scalars.get(&precision).copied().unwrap_or(0);
+        let new_index = self.scalars.len() as u32;
 
-        let num_scalars = new_index + 1;
-
-        self.scalars.insert(precision, num_scalars);
+        self.scalars.push((precision, new_index));
         Arg::Scalar(new_index, precision)
     }
 

@@ -23,7 +23,7 @@ pub struct FuseOnWriteTrace {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub settings: FuseSettings,
-    pub scalars: BTreeMap<ElemwisePrecision, u32>,
+    pub scalars: Vec<(ElemwisePrecision, u32)>,
     pub views: Vec<TensorView>,
     pub indexed: BTreeSet<TensorId>,
     pub shape_ref: Vec<usize>,

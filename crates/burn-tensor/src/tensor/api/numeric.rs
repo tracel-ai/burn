@@ -2118,7 +2118,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-                                                                              // Unsqueeze the indices tensor along the specified axis
+        // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value
