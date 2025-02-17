@@ -4,14 +4,17 @@ use burn_fusion::stream::Context;
 use burn_tensor::DType;
 use cubecl::{
     client::ComputeClient,
-    prelude::{ScalarArg, Sequence, TensorArg},
+    prelude::{Sequence, TensorArg},
     CubeElement, Runtime,
 };
 
 use super::{HandleInput, HandleOutput, LaunchPlan, TensorView, TraceRunner};
 use crate::{
     elem_dtype,
-    on_write::ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
+    on_write::{
+        ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
+        tensor::{GlobalScalar, GlobalTensorArg},
+    },
     CubeFusionHandle,
 };
 
@@ -101,54 +104,65 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         for hi in handle_inputs.iter() {
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
-            match hi.precision {
-                ElemwisePrecision::F32 => inputs.t_f32.push(arg),
-                ElemwisePrecision::F16 => inputs.t_f16.push(arg),
-                ElemwisePrecision::BF16 => inputs.t_bf16.push(arg),
-                ElemwisePrecision::I64 => inputs.t_i64.push(arg),
-                ElemwisePrecision::I32 => inputs.t_i32.push(arg),
-                ElemwisePrecision::I16 => inputs.t_i16.push(arg),
-                ElemwisePrecision::I8 => inputs.t_i8.push(arg),
-                ElemwisePrecision::U64 => inputs.t_u64.push(arg),
-                ElemwisePrecision::U32 => inputs.t_u32.push(arg),
-                ElemwisePrecision::U16 => inputs.t_u16.push(arg),
-                ElemwisePrecision::U8 => inputs.t_u8.push(arg),
-                _ => panic!("Unsupported input precision {:?}", hi.precision),
-            };
+            inputs
+                .tensors
+                .push(GlobalTensorArg::new(arg, hi.precision.into_elem()));
         }
 
         for (precision, count) in self.scalars.iter() {
             for i in 0..(*count as usize) {
                 match precision {
                     ElemwisePrecision::F32 => {
-                        inputs.s_f32.push(ScalarArg::new(context.scalar_f32[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::F32(context.scalar_f32[i]));
                     }
                     ElemwisePrecision::F16 => {
-                        inputs.s_f16.push(ScalarArg::new(context.scalar_f16[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::F16(context.scalar_f16[i]));
                     }
                     ElemwisePrecision::BF16 => {
-                        inputs.s_bf16.push(ScalarArg::new(context.scalar_bf16[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::BF16(context.scalar_bf16[i]));
                     }
                     ElemwisePrecision::I64 => {
-                        inputs.s_i64.push(ScalarArg::new(context.scalar_i64[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::I64(context.scalar_i64[i]));
                     }
                     ElemwisePrecision::I32 => {
-                        inputs.s_i32.push(ScalarArg::new(context.scalar_i32[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::I32(context.scalar_i32[i]));
                     }
                     ElemwisePrecision::I16 => {
-                        inputs.s_i16.push(ScalarArg::new(context.scalar_i16[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::I16(context.scalar_i16[i]));
                     }
-                    ElemwisePrecision::I8 => inputs.s_i8.push(ScalarArg::new(context.scalar_i8[i])),
+                    ElemwisePrecision::I8 => {
+                        inputs.scalars.push(GlobalScalar::I8(context.scalar_i8[i]));
+                    }
                     ElemwisePrecision::U64 => {
-                        inputs.s_u64.push(ScalarArg::new(context.scalar_u64[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::U64(context.scalar_u64[i]));
                     }
                     ElemwisePrecision::U32 => {
-                        inputs.s_u32.push(ScalarArg::new(context.scalar_u32[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::U32(context.scalar_u32[i]));
                     }
                     ElemwisePrecision::U16 => {
-                        inputs.s_u16.push(ScalarArg::new(context.scalar_u16[i]))
+                        inputs
+                            .scalars
+                            .push(GlobalScalar::U16(context.scalar_u16[i]));
                     }
-                    ElemwisePrecision::U8 => inputs.s_u8.push(ScalarArg::new(context.scalar_u8[i])),
+                    ElemwisePrecision::U8 => {
+                        inputs.scalars.push(GlobalScalar::U8(context.scalar_u8[i]));
+                    }
                     ElemwisePrecision::Bool => todo!(),
                 }
             }
@@ -160,7 +174,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 let global = context.tensors.get(reshaped).unwrap();
 
                 for shape in global.shape.iter().rev() {
-                    inputs.s_u32.push(ScalarArg::new(*shape as u32))
+                    inputs.scalars.push(GlobalScalar::U32(*shape as u32));
                 }
             }
         }
@@ -179,20 +193,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 HandleOutput::Alias {
                     input_pos,
                     precision,
-                } => match precision {
-                    ElemwisePrecision::F32 => outputs.t_f32.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::F16 => outputs.t_f16.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::BF16 => outputs.t_bf16.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::I64 => outputs.t_i64.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::I32 => outputs.t_i32.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::I16 => outputs.t_i16.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::I8 => outputs.t_i8.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::U64 => outputs.t_u64.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::U32 => outputs.t_u32.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::U16 => outputs.t_u16.push(TensorArg::alias(*input_pos)),
-                    ElemwisePrecision::U8 => outputs.t_u8.push(TensorArg::alias(*input_pos)),
-                    _ => todo!(),
-                },
+                } => {
+                    println!("Pusing alias");
+                    outputs.tensors.push(GlobalTensorArg::new(
+                        TensorArg::alias(*input_pos),
+                        precision.into_elem(),
+                    ));
+                }
                 HandleOutput::Owned {
                     precision,
                     handle,
@@ -202,24 +209,15 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 } => {
                     let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
-                    match precision {
-                        ElemwisePrecision::F32 => outputs.t_f32.push(arg),
-                        ElemwisePrecision::F16 => outputs.t_f16.push(arg),
-                        ElemwisePrecision::BF16 => outputs.t_bf16.push(arg),
-                        ElemwisePrecision::I64 => outputs.t_i64.push(arg),
-                        ElemwisePrecision::I32 => outputs.t_i32.push(arg),
-                        ElemwisePrecision::I16 => outputs.t_i16.push(arg),
-                        ElemwisePrecision::I8 => outputs.t_i8.push(arg),
-                        ElemwisePrecision::U64 => outputs.t_u64.push(arg),
-                        ElemwisePrecision::U32 => outputs.t_u32.push(arg),
-                        ElemwisePrecision::U16 => outputs.t_u16.push(arg),
-                        ElemwisePrecision::U8 => outputs.t_u8.push(arg),
+                    let elem = match precision {
                         ElemwisePrecision::Bool => match elem_dtype::<BT>() {
-                            DType::U32 => outputs.t_u32.push(arg),
-                            DType::U8 => outputs.t_u8.push(arg),
+                            DType::U32 => ElemwisePrecision::U32.into_elem(),
+                            DType::U8 => ElemwisePrecision::U8.into_elem(),
                             _ => todo!(),
                         },
+                        _ => precision.into_elem(),
                     };
+                    outputs.tensors.push(GlobalTensorArg::new(arg, elem));
                 }
             }
         }

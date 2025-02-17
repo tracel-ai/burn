@@ -107,11 +107,12 @@ impl FuseOnWriteTrace {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct RegisteredTensors {
-    tensors: BTreeMap<ElemwisePrecision, Vec<TensorIr>>,
+    tensors: BTreeMap<ElemwisePrecision, Vec<(u32, TensorIr)>>,
+    count: u32,
 }
 
 impl RegisteredTensors {
-    pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &TensorIr)> {
+    pub fn iter(&self) -> impl Iterator<Item = (ElemwisePrecision, &(u32, TensorIr))> {
         self.tensors.iter().flat_map(|(precision, descriptions)| {
             descriptions.iter().map(|desc| (*precision, desc))
         })
@@ -121,45 +122,50 @@ impl RegisteredTensors {
         self.tensors.values().map(|v| v.len()).sum()
     }
 
-    pub fn get_index(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<usize> {
+    pub fn get_index(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<u32> {
         self.tensors.get(&precision).and_then(|items| {
             items
                 .iter()
-                .enumerate()
-                .find(|(_pos, tensor)| tensor.id == tensor_id)
-                .map(|(pos, _)| pos)
+                .find(|(_id, tensor)| tensor.id == tensor_id)
+                .map(|(id, _)| *id)
         })
     }
 
-    pub fn get_all(&self, precision: ElemwisePrecision) -> &[TensorIr] {
+    pub fn get_all(&self, precision: ElemwisePrecision) -> &[(u32, TensorIr)] {
         self.tensors
             .get(&precision)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
 
-    pub fn get(&self, precision: ElemwisePrecision, tensor_id: TensorId) -> Option<&TensorIr> {
+    pub fn get(
+        &self,
+        precision: ElemwisePrecision,
+        tensor_id: TensorId,
+    ) -> Option<&(u32, TensorIr)> {
         self.get_all(precision)
             .iter()
-            .find(|desc| desc.id == tensor_id)
+            .find(|(_, desc)| desc.id == tensor_id)
     }
 
     pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
+        let pos = self.count;
+        self.count += 1;
+
         if let Some(tensors) = self.tensors.get_mut(&precision) {
-            let position = tensors.len() as u32;
-            tensors.push(tensor);
-            position
+            tensors.push((pos, tensor));
         } else {
-            self.tensors.insert(precision, vec![tensor]);
-            0
-        }
+            self.tensors.insert(precision, vec![(pos, tensor)]);
+        };
+
+        pos
     }
 
     pub fn update(&mut self, precision: ElemwisePrecision, tensor: &TensorIr) {
         if let Some(tensors) = self.tensors.get_mut(&precision) {
-            if let Some(tensor_old) = tensors
+            if let Some((_, tensor_old)) = tensors
                 .iter_mut()
-                .find(|tensor_old| tensor_old.id == tensor.id)
+                .find(|(_, tensor_old)| tensor_old.id == tensor.id)
             {
                 tensor_old.status = tensor.status.clone();
             }

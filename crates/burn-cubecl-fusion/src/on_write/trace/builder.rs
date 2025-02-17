@@ -343,7 +343,7 @@ impl FuseOnWriteTraceBuilder {
 
         let mut writes = BTreeMap::new();
 
-        for (precision, tensor) in outputs.iter() {
+        for (precision, (_, tensor)) in outputs.iter() {
             let local = self.locals.get_any_precision(tensor.id).unwrap();
             let out_index = outputs.get_index(precision, tensor.id).unwrap();
 
@@ -574,14 +574,14 @@ impl FuseOnWriteTraceBuilder {
 
             if !is_read {
                 let (tensor_id, precision) = entry;
-                let tensor = self.outputs.get(precision, tensor_id).unwrap();
+                let (_, tensor) = self.outputs.get(precision, tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
             }
         }
 
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (precision, tensor) in self.outputs.iter() {
+        for (precision, (_, tensor)) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
                 result.insert(precision, tensor.clone());
             }

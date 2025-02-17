@@ -1,11 +1,12 @@
-use crate::on_write::kernel::fuse_on_write;
+use crate::on_write::ir::GlobalArgs;
+use crate::on_write::{io::global_length, kernel::fuse_on_write};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
 use crate::on_write::{
-    ir::{Arg, ElemwiseConfig, ElemwisePrecision, GlobalArgs, GlobalArgsLaunch},
+    ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
     trace::{FuseOnWriteTrace, TraceRunner},
 };
 
@@ -70,38 +71,12 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error> {
         let arg = match config.ref_layout {
-            Arg::Input(index, precision, _) => match precision {
-                ElemwisePrecision::F32 => inputs.t_f32.values.get(index as usize),
-                ElemwisePrecision::F16 => inputs.t_f16.values.get(index as usize),
-                ElemwisePrecision::BF16 => inputs.t_bf16.values.get(index as usize),
-                ElemwisePrecision::U64 => inputs.t_u64.values.get(index as usize),
-                ElemwisePrecision::U32 => inputs.t_u32.values.get(index as usize),
-                ElemwisePrecision::U16 => inputs.t_u16.values.get(index as usize),
-                ElemwisePrecision::U8 => inputs.t_u8.values.get(index as usize),
-                ElemwisePrecision::I64 => inputs.t_i64.values.get(index as usize),
-                ElemwisePrecision::I32 => inputs.t_i32.values.get(index as usize),
-                ElemwisePrecision::I16 => inputs.t_i16.values.get(index as usize),
-                ElemwisePrecision::I8 => inputs.t_i8.values.get(index as usize),
-                _ => panic!("Invalid value"),
-            },
-            Arg::Output(index, precision, _) => match precision {
-                ElemwisePrecision::F32 => outputs.t_f32.values.get(index as usize),
-                ElemwisePrecision::F16 => outputs.t_f16.values.get(index as usize),
-                ElemwisePrecision::BF16 => outputs.t_bf16.values.get(index as usize),
-                ElemwisePrecision::U64 => outputs.t_u64.values.get(index as usize),
-                ElemwisePrecision::U32 => outputs.t_u32.values.get(index as usize),
-                ElemwisePrecision::U16 => outputs.t_u16.values.get(index as usize),
-                ElemwisePrecision::U8 => outputs.t_u8.values.get(index as usize),
-                ElemwisePrecision::I64 => outputs.t_i64.values.get(index as usize),
-                ElemwisePrecision::I32 => outputs.t_i32.values.get(index as usize),
-                ElemwisePrecision::I16 => outputs.t_i16.values.get(index as usize),
-                ElemwisePrecision::I8 => outputs.t_i8.values.get(index as usize),
-                _ => panic!("Invalid value"),
-            },
+            Arg::Input(index, _, _) => inputs.tensors.values.get(index as usize),
+            Arg::Output(index, _, _) => outputs.tensors.values.get(index as usize),
             _ => panic!("Invalid value"),
         };
         let (shape, vectorization) = match arg {
-            Some(val) => match val {
+            Some(val) => match &val.tensor {
                 TensorArg::Handle {
                     handle,
                     vectorization_factor,
@@ -113,6 +88,8 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+
+        println!("{:?}", outputs.tensors.values);
 
         unsafe {
             elemwise_fuse::launch_unchecked(
@@ -141,34 +118,8 @@ fn elemwise_fuse(
     let pos = ABSOLUTE_POS;
 
     let length = match comptime![config.ref_layout.clone()] {
-        Arg::Input(index, precision, _) => match comptime![precision] {
-            ElemwisePrecision::F32 => inputs.t_f32.index(index).len(),
-            ElemwisePrecision::F16 => inputs.t_f16.index(index).len(),
-            ElemwisePrecision::BF16 => inputs.t_bf16.index(index).len(),
-            ElemwisePrecision::U64 => inputs.t_u64.index(index).len(),
-            ElemwisePrecision::U32 => inputs.t_u32.index(index).len(),
-            ElemwisePrecision::U16 => inputs.t_u16.index(index).len(),
-            ElemwisePrecision::U8 => inputs.t_u8.index(index).len(),
-            ElemwisePrecision::I64 => inputs.t_i64.index(index).len(),
-            ElemwisePrecision::I32 => inputs.t_i32.index(index).len(),
-            ElemwisePrecision::I16 => inputs.t_i16.index(index).len(),
-            ElemwisePrecision::I8 => inputs.t_i8.index(index).len(),
-            _ => comptime![panic!("Unsupported precision {precision:?}")],
-        },
-        Arg::Output(index, precision, _) => match comptime![precision] {
-            ElemwisePrecision::F32 => outputs.t_f32.index(index).len(),
-            ElemwisePrecision::F16 => outputs.t_f16.index(index).len(),
-            ElemwisePrecision::BF16 => outputs.t_bf16.index(index).len(),
-            ElemwisePrecision::U64 => outputs.t_u64.index(index).len(),
-            ElemwisePrecision::U32 => outputs.t_u32.index(index).len(),
-            ElemwisePrecision::U16 => outputs.t_u16.index(index).len(),
-            ElemwisePrecision::U8 => outputs.t_u8.index(index).len(),
-            ElemwisePrecision::I64 => outputs.t_i64.index(index).len(),
-            ElemwisePrecision::I32 => outputs.t_i32.index(index).len(),
-            ElemwisePrecision::I16 => outputs.t_i16.index(index).len(),
-            ElemwisePrecision::I8 => outputs.t_i8.index(index).len(),
-            _ => comptime![panic!("Unsupported precision {precision:?}")],
-        },
+        Arg::Input(index, _, _) => global_length(inputs, index),
+        Arg::Output(index, _, _) => global_length(outputs, index),
         _ => comptime![panic!("Invalid ref layout.")],
     };
 

@@ -36,9 +36,9 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn read_lhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -49,16 +49,15 @@ impl MatmulArgs for FusedMatmulArgs {
             pos,
             coordinate,
             LayoutInfo::IsRef,
-            precision,
             &state.config,
             None,
         )
     }
 
     fn read_rhs<EG: Numeric>(state: &Self::State<EG>, coordinate: u32) -> Line<EG> {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Lhs isn't an input"),
             }
         };
@@ -69,7 +68,6 @@ impl MatmulArgs for FusedMatmulArgs {
             pos,
             coordinate,
             LayoutInfo::IsRef,
-            precision,
             &state.config,
             None,
         )
@@ -93,116 +91,116 @@ impl MatmulArgs for FusedMatmulArgs {
     }
 
     fn rank_lhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Lhs isn't an input"),
             }
         };
 
-        global_rank(unsafe { &(*state.inputs) }, pos, precision)
+        global_rank(unsafe { &(*state.inputs) }, pos)
     }
 
     fn rank_rhs<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Rhs isn't an input"),
             }
         };
 
-        global_rank(unsafe { &(*state.inputs) }, pos, precision)
+        global_rank(unsafe { &(*state.inputs) }, pos)
     }
 
     fn rank_out<EG: Numeric>(state: &Self::State<EG>) -> u32 {
-        let (pos, precision, is_input) = comptime! {
+        let (pos, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos, precision, true),
-                Arg::Output(pos, precision, _) => (pos, precision, false),
+                Arg::Input(pos, ..) => (pos, true),
+                Arg::Output(pos, ..) => (pos, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
 
         if is_input {
-            global_rank(unsafe { &(*state.inputs) }, pos, precision)
+            global_rank(unsafe { &(*state.inputs) }, pos)
         } else {
-            global_rank(unsafe { &(*state.outputs) }, pos, precision)
+            global_rank(unsafe { &(*state.outputs) }, pos)
         }
     }
 
     fn shape_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Lhs isn't an input"),
             }
         };
 
-        global_shape(unsafe { &(*state.inputs) }, dim, pos, precision)
+        global_shape(unsafe { &(*state.inputs) }, dim, pos)
     }
 
     fn shape_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Rhs isn't an input"),
             }
         };
 
-        global_shape(unsafe { &(*state.inputs) }, dim, pos, precision)
+        global_shape(unsafe { &(*state.inputs) }, dim, pos)
     }
 
     fn shape_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision, is_input) = comptime! {
+        let (pos, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos, precision, true),
-                Arg::Output(pos, precision, _) => (pos, precision, false),
+                Arg::Input(pos, ..) => (pos, true),
+                Arg::Output(pos, ..) => (pos, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
 
         if is_input {
-            global_shape(unsafe { &(*state.inputs) }, dim, pos, precision)
+            global_shape(unsafe { &(*state.inputs) }, dim, pos)
         } else {
-            global_shape(unsafe { &(*state.outputs) }, dim, pos, precision)
+            global_shape(unsafe { &(*state.outputs) }, dim, pos)
         }
     }
 
     fn stride_lhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.lhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Lhs isn't an input"),
             }
         };
 
-        global_stride(unsafe { &(*state.inputs) }, dim, pos, precision)
+        global_stride(unsafe { &(*state.inputs) }, dim, pos)
     }
 
     fn stride_rhs<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision) = comptime! {
+        let pos = comptime! {
             match state.rhs {
-                Arg::Input(pos, precision, _) => (pos, precision),
+                Arg::Input(pos, ..) => pos,
                 _ => panic!("Rhs isn't an input"),
             }
         };
 
-        global_stride(unsafe { &(*state.inputs) }, dim, pos, precision)
+        global_stride(unsafe { &(*state.inputs) }, dim, pos)
     }
 
     fn stride_out<EG: Numeric>(state: &Self::State<EG>, dim: u32) -> u32 {
-        let (pos, precision, is_input) = comptime! {
+        let (pos, is_input) = comptime! {
             match state.config.ref_layout {
-                Arg::Input(pos, precision, _) => (pos, precision, true),
-                Arg::Output(pos, precision, _) => (pos, precision, false),
+                Arg::Input(pos, ..) => (pos, true),
+                Arg::Output(pos, ..) => (pos, false),
                 _ => panic!("Out isn't an input or output"),
             }
         };
 
         if is_input {
-            global_stride(unsafe { &(*state.inputs) }, dim, pos, precision)
+            global_stride(unsafe { &(*state.inputs) }, dim, pos)
         } else {
-            global_stride(unsafe { &(*state.outputs) }, dim, pos, precision)
+            global_stride(unsafe { &(*state.outputs) }, dim, pos)
         }
     }
 }

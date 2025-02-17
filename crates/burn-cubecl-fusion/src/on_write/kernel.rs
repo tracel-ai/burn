@@ -1,9 +1,9 @@
+use crate::on_write::DYN_ELEM_ID;
+
 use super::io::*;
 use super::ir::*;
 use cubecl::prelude::*;
 use half::{bf16, f16};
-
-const DYN_ELEM_ID: u8 = u8::MAX;
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -365,18 +365,18 @@ fn gather<C: Numeric>(
     #[comptime] config: &ElemwiseConfig,
 ) {
     let mut index = read::<u32>(inputs, outputs, locals, write_pos, indices, config);
-    let (pos, precision) = comptime! {
+    let (pos, _precision) = comptime! {
         match input {
             Arg::Input(pos, precision, _) => (pos, precision),
             _ => panic!("Input tensor isn't an input"),
         }
     };
     let line_size = match config.ref_layout {
-        Arg::Input(pos, precision, _) => global_line_size(inputs, pos, precision),
-        Arg::Output(pos, precision, _) => global_line_size(outputs, pos, precision),
+        Arg::Input(pos, _precision, _) => global_line_size(inputs, pos),
+        Arg::Output(pos, _precision, _) => global_line_size(outputs, pos),
         _ => unreachable!(),
     };
-    let stride = global_stride(inputs, dim, pos, precision);
+    let stride = global_stride(inputs, dim, pos);
 
     index *= Line::new(stride);
 
@@ -410,16 +410,7 @@ fn gather<C: Numeric>(
     for i in 0..line_size {
         let index = index[i];
 
-        let input = read_input::<C>(
-            inputs,
-            outputs,
-            pos,
-            index,
-            LayoutInfo::IsRef,
-            precision,
-            config,
-            None,
-        );
+        let input = read_input::<C>(inputs, outputs, pos, index, LayoutInfo::IsRef, config, None);
         result[i] = input[0];
     }
 
@@ -439,31 +430,31 @@ fn select_indices<C: Numeric>(
     #[comptime] config: &ElemwiseConfig,
 ) {
     let (line_size_ref, stride_dim_ref, shape_dim_ref) = match config.ref_layout {
-        Arg::Input(pos, precision, _) => (
-            global_line_size(inputs, pos, precision),
-            global_stride(inputs, dim, pos, precision),
-            global_shape(inputs, dim, pos, precision),
+        Arg::Input(pos, _, _) => (
+            global_line_size(inputs, pos),
+            global_stride(inputs, dim, pos),
+            global_shape(inputs, dim, pos),
         ),
-        Arg::Output(pos, precision, _) => (
-            global_line_size(outputs, pos, precision),
-            global_stride(outputs, dim, pos, precision),
-            global_shape(outputs, dim, pos, precision),
+        Arg::Output(pos, _, _) => (
+            global_line_size(outputs, pos),
+            global_stride(outputs, dim, pos),
+            global_shape(outputs, dim, pos),
         ),
         _ => unreachable!(),
     };
 
-    let (pos_input, precision_input) = comptime! {
+    let pos_input = comptime! {
         match input {
-            Arg::Input(pos, precision, _) => (pos, precision),
+            Arg::Input(pos, ..) => pos,
             _ => panic!("Input tensor isn't an input"),
         }
     };
-    let (pos_indices, precision_indices) = match indices {
-        Arg::Input(pos, precision, ..) => (pos, precision),
+    let pos_indices = match indices {
+        Arg::Input(pos, ..) => pos,
         _ => panic!("Indices tensor isn't an input"),
     };
 
-    let stride_input_dim = global_stride(inputs, dim, pos_input, precision_input);
+    let stride_input_dim = global_stride(inputs, dim, pos_input);
 
     let mut index = 0u32;
     let mut result = Line::empty(line_size_ref);
@@ -474,12 +465,7 @@ fn select_indices<C: Numeric>(
         // Therefore the same indices are used to fetch multiple entries in the input tensor.
 
         let write_pos_input = write_pos * line_size_ref;
-        let stride_input_line = global_stride(
-            inputs,
-            comptime![config.rank - 1],
-            pos_input,
-            precision_input,
-        );
+        let stride_input_line = global_stride(inputs, comptime![config.rank - 1], pos_input);
 
         if comptime![dim > 0] {
             let index_before = global_offset(
@@ -512,7 +498,6 @@ fn select_indices<C: Numeric>(
             pos_indices,
             coordinate_dim,
             LayoutInfo::IsRef,
-            precision_indices,
             config,
             None,
         );
@@ -528,7 +513,6 @@ fn select_indices<C: Numeric>(
                 pos_input,
                 index + i * stride_input_line,
                 LayoutInfo::IsRef,
-                precision_input,
                 config,
                 None,
             );
@@ -575,7 +559,6 @@ fn select_indices<C: Numeric>(
                 pos_indices,
                 coordinate_dim,
                 LayoutInfo::IsRef,
-                precision_indices,
                 config,
                 None,
             );
@@ -586,7 +569,6 @@ fn select_indices<C: Numeric>(
                 pos_input,
                 index + (offset_dim[0] * stride_input_dim),
                 LayoutInfo::IsRef,
-                precision_input,
                 config,
                 None,
             );

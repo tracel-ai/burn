@@ -37,7 +37,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     }
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
-        for (i, (precision, tensor_relative)) in self.inputs.iter().enumerate() {
+        for (precision, (pos, tensor_relative)) in self.inputs.iter() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
             // the global graph, since the status of the global graph
@@ -60,7 +60,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: i,
+                    input_pos: *pos as usize,
                     tensor_relative,
                     strides: handle.strides.clone(),
                 });

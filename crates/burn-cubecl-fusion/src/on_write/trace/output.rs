@@ -35,7 +35,10 @@ struct OutputSorted<'a> {
 
 enum OutputKind {
     Normal,
-    Inplace { input_pos: usize },
+    Inplace {
+        /// The position in the potential inplace vector
+        input_pos: usize,
+    },
     Transform(TensorView),
 }
 
@@ -48,11 +51,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let mut mapper = OutputPositionMapper::default();
         let mut outputs_sorted: Vec<_> = outputs
             .iter()
-            .enumerate()
-            .map(|(pos, (precision, tensor))| {
-                mapper.register(precision, pos);
+            .map(|(precision, (pos, tensor))| {
+                mapper.register(precision, *pos as usize);
                 OutputSorted {
-                    pos_original: pos,
+                    pos_original: *pos as usize,
                     precision,
                     tensor_relative: tensor,
                 }
@@ -191,8 +193,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && pi.strides == strides
             })
-            .map(|(pos, _)| pos)
-            .map(|input_pos| OutputKind::Inplace { input_pos })
+            .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal)
     }
 
