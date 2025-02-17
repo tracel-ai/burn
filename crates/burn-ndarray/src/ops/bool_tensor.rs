@@ -27,9 +27,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     }
 
     async fn bool_into_data(tensor: NdArrayTensor<bool>) -> TensorData {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-        TensorData::new(values, shape)
+        NdArrayOps::into_data(tensor)
     }
 
     fn bool_to_device(tensor: NdArrayTensor<bool>, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
@@ -85,6 +83,22 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     fn bool_not(tensor: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let array = tensor.array.mapv(|a| !a).into_shared();
         NdArrayTensor { array }
+    }
+
+    fn bool_and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val && rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
+    fn bool_or(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val || rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
     }
 
     fn bool_into_float(tensor: NdArrayTensor<bool>) -> FloatTensor<Self> {

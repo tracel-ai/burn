@@ -38,9 +38,7 @@ where
     E: Copy + Debug + burn_tensor::Element,
 {
     pub fn into_data(tensor: NdArrayTensor<E>) -> TensorData {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-        TensorData::new(values, shape)
+        tensor.into_data()
     }
 
     pub fn slice(tensor: NdArrayTensor<E>, ranges: &[Range<usize>]) -> NdArrayTensor<E> {

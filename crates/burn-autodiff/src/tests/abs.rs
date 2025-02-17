@@ -1,7 +1,7 @@
 #[burn_tensor_testgen::testgen(ad_abs)]
 mod tests {
     use super::*;
-    use burn_tensor::TensorData;
+    use burn_tensor::{cast::ToElement, TensorData};
 
     #[test]
     fn should_diff_abs() {
@@ -48,6 +48,6 @@ mod tests {
         grad_2.to_data().assert_approx_eq(&expected, 5);
 
         let contains_nan = grad_2.contains_nan();
-        assert_eq!(contains_nan.into_scalar(), false);
+        assert_eq!(contains_nan.into_scalar().to_bool(), false);
     }
 }

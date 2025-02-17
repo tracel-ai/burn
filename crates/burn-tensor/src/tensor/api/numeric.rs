@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::alloc::borrow::ToOwned;
+use crate::{alloc::borrow::ToOwned, cast::ToElement};
 
 use crate::TensorPrimitive;
 use crate::{
@@ -1639,7 +1639,10 @@ where
     /// }
     /// ```
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
-        self.is_close(other, rtol, atol).all().into_scalar()
+        self.is_close(other, rtol, atol)
+            .all()
+            .into_scalar()
+            .to_bool()
     }
 
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
@@ -2118,7 +2121,7 @@ where
             .clone()
             .mask_fill(self.clone().lower_elem(0), num_classes as i64) // Handle negative indices
             .add(indices.clone().mask_fill(self.clone().greater_elem(0), 0)); // Handle positive indices
-        // Unsqueeze the indices tensor along the specified axis
+                                                                              // Unsqueeze the indices tensor along the specified axis
         let indices_unsqueezed: Tensor<B, D2, Int> = adjusted_indices.unsqueeze_dim(axis as usize);
 
         // Initialize the output tensor with the off_value

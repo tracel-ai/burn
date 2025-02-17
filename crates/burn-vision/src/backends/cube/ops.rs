@@ -44,9 +44,8 @@ where
 #[cfg(feature = "fusion")]
 impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
     fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
-        let batches = img.shape[0];
-        let height = img.shape[1];
-        let width = img.shape[2];
+        let height = img.shape[0];
+        let width = img.shape[1];
         let client = img.client.clone();
 
         #[derive(derive_new::new)]
@@ -70,7 +69,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         }
 
         let stream = img.stream;
-        let out = client.tensor_uninitialized(vec![batches, height, width], B::IntElem::dtype());
+        let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
 
         let desc = CustomOpIr::new("connected_components", &[img.into_ir()], &[out.to_ir_out()]);
         client.register(
@@ -87,9 +86,8 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         conn: Connectivity,
         opts: ConnectedStatsOptions,
     ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-        let batches = img.shape[0];
-        let height = img.shape[1];
-        let width = img.shape[2];
+        let height = img.shape[0];
+        let width = img.shape[1];
         let client = img.client.clone();
 
         #[derive(derive_new::new)]
@@ -122,14 +120,13 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
         }
 
         let stream = img.stream;
-        let out = client.tensor_uninitialized(vec![batches, height, width], B::IntElem::dtype());
-        let area = client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
-        let left = client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
-        let top = client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
-        let right = client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
-        let bottom =
-            client.tensor_uninitialized(vec![batches, height * width], B::IntElem::dtype());
-        let max_label = client.tensor_uninitialized(vec![batches], B::IntElem::dtype());
+        let out = client.tensor_uninitialized(vec![height, width], B::IntElem::dtype());
+        let area = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
+        let left = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
+        let top = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
+        let right = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
+        let bottom = client.tensor_uninitialized(vec![height * width], B::IntElem::dtype());
+        let max_label = client.tensor_uninitialized(vec![1], B::IntElem::dtype());
 
         let desc = CustomOpIr::new(
             "connected_components",

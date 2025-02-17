@@ -9,7 +9,8 @@ use burn::nn::{
 };
 
 use crate::burn::node::{
-    expand::ExpandShape, pad::PadConfig, tile::TileConfig, top_k::TopKConfig, trilu::TriluConfig,
+    expand::ExpandShape, pad::PadConfig, split::SplitConfig, tile::TileConfig, top_k::TopKConfig,
+    trilu::TriluConfig,
 };
 use onnx_ir::ir::{ArgType, AttributeValue, Data, ElementType, Node};
 
@@ -1863,6 +1864,82 @@ pub fn squeeze_config(curr: &Node) -> Vec<i64> {
     };
 
     axes
+}
+
+pub fn split_config(node: &Node) -> SplitConfig {
+    // Axis to split along (default is 0 per ONNX spec)
+    let mut axis: i64 = 0;
+    let mut split_size: Option<usize> = None;
+    let mut split_sizes: Option<Vec<usize>> = None;
+
+    let tensor = match node.inputs.first().unwrap().clone().ty {
+        ArgType::Tensor(tensor) => tensor,
+        _ => panic!("Only tensor input is valid"),
+    };
+
+    for (key, value) in node.attrs.iter() {
+        match key.as_str() {
+            "axis" => axis = value.clone().into_i64(),
+            "num_outputs" => {
+                let num_outputs = value.clone().into_i64() as usize;
+
+                if num_outputs == 0 {
+                    panic!("Split error: 'num_outputs' must be greater than zero.");
+                }
+
+                let dim_size = tensor.shape.clone().unwrap()[axis as usize];
+                let calculated_split_size =
+                    dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+                if calculated_split_size == 0 {
+                    panic!(
+                        "Split error: Computed split size is zero. Ensure 'num_outputs' is valid."
+                    );
+                }
+
+                split_size = Some(calculated_split_size);
+            }
+            _ => {}
+        }
+    }
+
+    if axis < 0 {
+        axis += tensor.dim as i64;
+    }
+
+    if node.inputs.len() > 1 {
+        let split_input_arg = &node.inputs[1];
+        if let Some(Data::Int64s(sizes)) = &split_input_arg.value {
+            let sizes: Vec<usize> = sizes.iter().map(|&x| x as usize).collect();
+            split_sizes = Some(sizes);
+        }
+    }
+
+    // Only one of 'split_sizes' or 'num_outputs' is provided
+    if split_sizes.is_some() && split_size.is_some() {
+        panic!("Split: Either 'split' input or 'num_outputs' attribute should be specified, but not both.");
+    }
+
+    // Infer split_size if neither split_sizes nor split_size is provided
+    if split_sizes.is_none() && split_size.is_none() {
+        let num_outputs = node.outputs.len();
+        let dim_size = tensor.shape.unwrap()[axis as usize];
+
+        let calculated_split_size =
+            dim_size / (num_outputs - (dim_size % num_outputs != 0) as usize);
+
+        if calculated_split_size == 0 {
+            panic!("Split error: Computed split size is zero. Ensure 'num_outputs' is valid.");
+        }
+
+        split_size = Some(calculated_split_size);
+    }
+
+    SplitConfig {
+        axis: axis as usize,
+        split_size,
+        split_sizes,
+    }
 }
 
 pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {

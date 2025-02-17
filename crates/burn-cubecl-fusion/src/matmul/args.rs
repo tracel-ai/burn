@@ -203,6 +203,32 @@ impl MatmulArgs for FusedMatmulArgs {
             global_stride(unsafe { &(*state.outputs) }, dim, pos)
         }
     }
+
+    #[allow(unreachable_code)]
+    fn read_window_lhs<EG: Numeric>(
+        _state: &Self::State<EG>,
+        _start: u32,
+        _end: u32,
+    ) -> Slice<Line<EG>> {
+        comptime!(todo!());
+        // TODO This is a dummy return value to satisfy the type checker
+        //      before working on an implementation.
+        //      Remove the allow annotation after implementing this function.
+        SharedMemory::new_lined(0, 0_u32).to_slice()
+    }
+
+    #[allow(unreachable_code)]
+    fn read_window_rhs<EG: Numeric>(
+        _state: &Self::State<EG>,
+        _start: u32,
+        _end: u32,
+    ) -> Slice<Line<EG>> {
+        comptime!(todo!());
+        // TODO This is a dummy return value to satisfy the type checker
+        //      before working on an implementation.
+        //      Remove the allow annotation after implementing this function.
+        SharedMemory::new_lined(0, 0_u32).to_slice()
+    }
 }
 
 pub struct FusedMatmulState {

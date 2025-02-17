@@ -84,7 +84,7 @@ mod tests {
             [[false, false], [false, false], [true, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]
@@ -104,6 +104,6 @@ mod tests {
             [[false, true], [false, true]],
         ]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 }

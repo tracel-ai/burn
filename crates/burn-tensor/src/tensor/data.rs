@@ -324,6 +324,7 @@ impl TensorData {
             self
         } else if dtype.size() == self.dtype.size()
             && !matches!(self.dtype, DType::Bool | DType::QFloat(_))
+            && !matches!(dtype, DType::Bool | DType::QFloat(_))
         {
             match self.dtype {
                 DType::F64 => self.convert_inplace_dtype::<f64>(dtype),

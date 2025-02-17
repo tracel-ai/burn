@@ -1,4 +1,4 @@
-use crate::{backend::Backend, BasicOps, Numeric, Shape, Tensor};
+use crate::{backend::Backend, cast::ToElement, BasicOps, Numeric, Shape, Tensor};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
@@ -457,6 +457,7 @@ impl TensorCheck {
             .greater_equal_elem(num_classes as i32)
             .any()
             .into_scalar()
+            .to_bool()
         {
             check = check.register(
                 "One Hot",

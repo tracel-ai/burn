@@ -18,6 +18,7 @@ pub trait Element:
     + ElementConversion
     + ElementPrecision
     + ElementComparison
+    + ElementLimits
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
     + core::fmt::Debug
@@ -70,6 +71,14 @@ pub trait ElementComparison {
     fn cmp(&self, other: &Self) -> Ordering;
 }
 
+/// Element ordering trait.
+pub trait ElementLimits {
+    /// The minimum representable value
+    const MIN: Self;
+    /// The maximum representable value
+    const MAX: Self;
+}
+
 /// Element precision trait for tensor.
 #[derive(Clone, PartialEq, Eq, Copy, Debug)]
 pub enum Precision {
@@ -101,7 +110,17 @@ macro_rules! make_element {
         random $random:expr,
         cmp $cmp:expr,
         dtype $dtype:expr
-
+    ) => {
+        make_element!(ty $type $precision, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+    };
+    (
+        ty $type:ident $precision:expr,
+        convert $convert:expr,
+        random $random:expr,
+        cmp $cmp:expr,
+        dtype $dtype:expr,
+        min $min:expr,
+        max $max:expr
     ) => {
         impl Element for $type {
             fn dtype() -> $crate::DType {
@@ -139,6 +158,11 @@ macro_rules! make_element {
                 #[allow(clippy::redundant_closure_call)]
                 $cmp(&a, &b)
             }
+        }
+
+        impl ElementLimits for $type {
+            const MIN: Self = $min;
+            const MAX: Self = $max;
         }
     };
 }
@@ -253,7 +277,9 @@ make_element!(
         flex32::from_elem(sample)
     },
     cmp |a: &flex32, b: &flex32| a.total_cmp(b),
-    dtype DType::F32
+    dtype DType::F32,
+    min flex32::from_f32(half::f16::MIN.to_f32_const()),
+    max flex32::from_f32(half::f16::MAX.to_f32_const())
 );
 
 make_element!(
@@ -264,7 +290,9 @@ make_element!(
         bool::from_elem(sample)
     },
     cmp |a: &bool, b: &bool| Ord::cmp(a, b),
-    dtype DType::Bool
+    dtype DType::Bool,
+    min false,
+    max true
 );
 
 #[allow(missing_docs)]

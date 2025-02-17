@@ -7,7 +7,6 @@ use alloc::string::String;
 use alloc::vec;
 
 use burn_common::stub::RwLock;
-use core::any::TypeId;
 use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
@@ -15,11 +14,11 @@ use serde::{Deserialize, Deserializer};
 
 use serde::{Serialize, Serializer};
 
-use crate::check::TensorCheck;
 use crate::tensor::api::narrow::narrow;
 use crate::{
     backend::Backend, check, ops::Device, Bool, Float, Int, Shape, TensorData, TensorKind,
 };
+use crate::{cast::ToElement, check::TensorCheck};
 use crate::{DType, Element, TensorPrimitive};
 
 use super::{TensorMetadata, Transaction};
@@ -1694,6 +1693,7 @@ where
                 let elem = data.iter::<<K as BasicOps<B>>::Elem>().next().unwrap();
                 match (precision, K::name()) {
                     (Some(p), "Float") => acc.push_str(&format!("{:.1$}", elem, p)),
+                    (_, "Bool") => acc.push_str(&format!("{}", elem.to_bool())),
                     _ => acc.push_str(&format!("{:?}", elem)),
                 }
             } else {
@@ -1898,12 +1898,7 @@ where
         writeln!(f, "  backend:  {:?},", B::name())?;
         writeln!(f, "  kind:  {:?},", K::name())?;
 
-        // Bool tensors might be encoded in a different type, which we abstract for the display
-        let dtype = if TypeId::of::<K::Elem>() == TypeId::of::<bool>() {
-            DType::Bool
-        } else {
-            self.primitive.dtype()
-        };
+        let dtype = self.primitive.dtype();
 
         writeln!(f, "  dtype:  {:?},", dtype.name())?;
         write!(f, "}}")
@@ -2783,7 +2778,7 @@ impl<B: Backend> BasicOps<B> for Int {
 }
 
 impl<B: Backend> BasicOps<B> for Bool {
-    type Elem = bool;
+    type Elem = B::BoolElem;
 
     fn empty(shape: Shape, device: &B::Device) -> Self::Primitive {
         B::bool_empty(shape, device)

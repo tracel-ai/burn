@@ -128,7 +128,7 @@ mod tests {
         let output = tensor.clone().reshape([1, 3]);
         let expected = TensorData::from([[false, true, false]]);
 
-        output.into_data().assert_eq(&expected, true);
+        output.into_data().assert_eq(&expected, false);
     }
 
     #[test]

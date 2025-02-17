@@ -39,6 +39,7 @@ pub(crate) mod range;
 pub(crate) mod reshape;
 pub(crate) mod resize;
 pub(crate) mod slice;
+pub(crate) mod split;
 pub(crate) mod squeeze;
 pub(crate) mod sum;
 pub(crate) mod tile;
