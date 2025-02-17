@@ -1,7 +1,7 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
 categories = ["science"]
-description = "TODO"
+description = "Provide optimizations that can be used with cubecl based backends."
 documentation = "https://docs.rs/burn-cubecl-fusion"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "gpu"]
