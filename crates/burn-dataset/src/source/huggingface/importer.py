@@ -12,6 +12,7 @@ def download_and_export(
     db_file: str,
     token: str,
     cache_dir: str,
+    data_dir: str | None,
     trust_remote_code: bool,
 ):
     """
@@ -37,6 +38,7 @@ def download_and_export(
         name,
         subset,
         cache_dir=cache_dir,
+        data_dir=data_dir,
         use_auth_token=token,
         trust_remote_code=trust_remote_code,
     )
@@ -174,6 +176,9 @@ def parse_args():
         "--cache_dir", type=str, help="Cache directory", required=False, default=None
     )
     parser.add_argument(
+            "--data_dir", type=str, help="Relative path to a specific subset of your dataset", required=False, default=None
+    )
+    parser.add_argument(
         "--trust_remote_code",
         type=bool,
         help="Trust remote code",
@@ -192,6 +197,7 @@ def run():
         args.subset,
         args.file,
         args.token,
+        args.data_dir,
         args.cache_dir,
         args.trust_remote_code,
     )
