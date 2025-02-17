@@ -3,10 +3,7 @@ use cubecl::{
     linalg::{
         matmul::components::{
             global::InputLoader,
-            stage::{
-                multi_buffer::LhsReader, ColMajorTiling, RowMajorTiling, Stage, TilingOrder as _,
-                TilingOrderConfig,
-            },
+            stage::{multi_buffer::LhsReader, Stage, TilingLayout},
             Ident,
         },
         tensor::VirtualTensor,
@@ -124,18 +121,12 @@ impl SimpleIm2col {
             let nth_tile = unit_position / tile_num_elements;
             let pos_within_tile = unit_position % tile_num_elements;
 
-            let (tile_x, tile_y) = match config.tiling_order(ident) {
-                TilingOrderConfig::RowMajor => RowMajorTiling::to_x_y(
-                    nth_tile,
-                    stage_tiling.tile_count_row(),
-                    stage_tiling.tile_count_col(),
-                ),
-                TilingOrderConfig::ColMajor => ColMajorTiling::to_x_y(
-                    nth_tile,
-                    stage_tiling.tile_count_row(),
-                    stage_tiling.tile_count_col(),
-                ),
-            };
+            let (tile_x, tile_y) = TilingLayout::to_x_y(
+                config.tiling_layout(ident),
+                nth_tile,
+                stage_tiling.tile_count_row(),
+                stage_tiling.tile_count_col(),
+            );
 
             let line_read =
                 read_view.load_simple::<G>(tile_x, tile_y, pos_within_tile, ident, config);
