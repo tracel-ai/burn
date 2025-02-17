@@ -80,7 +80,7 @@ mod tests {
         let tensor_ref = Tensor::<ReferenceBackend, 3>::from_data(tensor.to_data(), &device_ref);
         let value_ref = Tensor::<ReferenceBackend, 3>::from_data(value.to_data(), &device_ref);
         let mask_ref = Tensor::<ReferenceBackend, 3, Bool>::from_data(mask.to_data(), &device_ref);
-        assert_eq!(mask.to_data(), mask_ref.to_data());
+        mask.to_data().assert_eq(&mask_ref.to_data(), false);
 
         (tensor, value, mask, tensor_ref, value_ref, mask_ref)
     }

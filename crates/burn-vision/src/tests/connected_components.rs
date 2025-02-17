@@ -22,39 +22,39 @@ mod tests {
 
     #[test]
     fn should_support_8_connectivity() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
+        let tensor = TestTensorBool::<2>::from(space_invader());
 
         let output = tensor.connected_components(Connectivity::Eight);
         let expected = space_invader(); // All pixels are in the same group for 8-connected
-        let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
+        let expected = TestTensorInt::<2>::from(expected);
 
         normalize_labels(output.into_data()).assert_eq(&expected.into_data(), false);
     }
 
     #[test]
     fn should_support_8_connectivity_with_stats() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
+        let tensor = TestTensorBool::<2>::from(space_invader());
 
         let (output, stats) = tensor
             .connected_components_with_stats(Connectivity::Eight, ConnectedStatsOptions::all());
         let expected = space_invader(); // All pixels are in the same group for 8-connected
-        let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
+        let expected = TestTensorInt::<2>::from(expected);
 
         let (area, left, top, right, bottom) = (
-            stats.area.slice([0..1, 1..2]).into_data(),
-            stats.left.slice([0..1, 1..2]).into_data(),
-            stats.top.slice([0..1, 1..2]).into_data(),
-            stats.right.slice([0..1, 1..2]).into_data(),
-            stats.bottom.slice([0..1, 1..2]).into_data(),
+            stats.area.slice([1..2]).into_data(),
+            stats.left.slice([1..2]).into_data(),
+            stats.top.slice([1..2]).into_data(),
+            stats.right.slice([1..2]).into_data(),
+            stats.bottom.slice([1..2]).into_data(),
         );
 
         output.into_data().assert_eq(&expected.into_data(), false);
 
-        area.assert_eq(&TensorData::from([[58]]), false);
-        left.assert_eq(&TensorData::from([[0]]), false);
-        top.assert_eq(&TensorData::from([[0]]), false);
-        right.assert_eq(&TensorData::from([[13]]), false);
-        bottom.assert_eq(&TensorData::from([[8]]), false);
+        area.assert_eq(&TensorData::from([58]), false);
+        left.assert_eq(&TensorData::from([0]), false);
+        top.assert_eq(&TensorData::from([0]), false);
+        right.assert_eq(&TensorData::from([13]), false);
+        bottom.assert_eq(&TensorData::from([8]), false);
         stats
             .max_label
             .into_data()
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn should_support_4_connectivity() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
+        let tensor = TestTensorBool::<2>::from(space_invader());
 
         let output = tensor.connected_components(Connectivity::Four);
         let expected = as_type!(IntType: [
@@ -77,14 +77,14 @@ mod tests {
             [4, 4, 0, 3, 3, 3, 0, 0, 3, 3, 3, 0, 5, 5],
             [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
         ]);
-        let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
+        let expected = TestTensorInt::<2>::from(expected);
 
         normalize_labels(output.into_data()).assert_eq(&expected.into_data(), false);
     }
 
     #[test]
     fn should_support_4_connectivity_with_stats() {
-        let tensor = TestTensorBool::<2>::from(space_invader()).unsqueeze::<3>();
+        let tensor = TestTensorBool::<2>::from(space_invader());
 
         let (output, stats) = tensor
             .connected_components_with_stats(Connectivity::Four, ConnectedStatsOptions::all());
@@ -99,24 +99,24 @@ mod tests {
             [4, 4, 0, 3, 3, 3, 0, 0, 3, 3, 3, 0, 5, 5],
             [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0],
         ]);
-        let expected = TestTensorInt::<2>::from(expected).unsqueeze::<3>();
+        let expected = TestTensorInt::<2>::from(expected);
 
         // Slice off background and limit to compacted labels
         let (area, left, top, right, bottom) = (
-            stats.area.slice([0..1, 1..6]).into_data(),
-            stats.left.slice([0..1, 1..6]).into_data(),
-            stats.top.slice([0..1, 1..6]).into_data(),
-            stats.right.slice([0..1, 1..6]).into_data(),
-            stats.bottom.slice([0..1, 1..6]).into_data(),
+            stats.area.slice([1..6]).into_data(),
+            stats.left.slice([1..6]).into_data(),
+            stats.top.slice([1..6]).into_data(),
+            stats.right.slice([1..6]).into_data(),
+            stats.bottom.slice([1..6]).into_data(),
         );
 
         output.into_data().assert_eq(&expected.into_data(), false);
 
-        area.assert_eq(&TensorData::from([[1, 1, 46, 5, 5]]), false);
-        left.assert_eq(&TensorData::from([[3, 10, 1, 0, 12]]), false);
-        top.assert_eq(&TensorData::from([[0, 0, 1, 5, 5]]), false);
-        right.assert_eq(&TensorData::from([[3, 10, 12, 1, 13]]), false);
-        bottom.assert_eq(&TensorData::from([[0, 0, 8, 7, 7]]), false);
+        area.assert_eq(&TensorData::from([1, 1, 46, 5, 5]), false);
+        left.assert_eq(&TensorData::from([3, 10, 1, 0, 12]), false);
+        top.assert_eq(&TensorData::from([0, 0, 1, 5, 5]), false);
+        right.assert_eq(&TensorData::from([3, 10, 12, 1, 13]), false);
+        bottom.assert_eq(&TensorData::from([0, 0, 8, 7, 7]), false);
         stats
             .max_label
             .into_data()
@@ -139,47 +139,5 @@ mod tests {
             }
         }
         labels
-    }
-
-    fn normalize_stats(
-        area: TensorData,
-        left: TensorData,
-        top: TensorData,
-        right: TensorData,
-        bottom: TensorData,
-    ) -> (TensorData, TensorData, TensorData, TensorData, TensorData) {
-        let batches = area.shape[0];
-
-        let area = area.as_slice::<i32>().unwrap();
-        let left = left.as_slice::<i32>().unwrap();
-        let top = top.as_slice::<i32>().unwrap();
-        let right = right.as_slice::<i32>().unwrap();
-        let bottom = bottom.as_slice::<i32>().unwrap();
-
-        let mut area_new = vec![];
-        let mut left_new = vec![];
-        let mut top_new = vec![];
-        let mut right_new = vec![];
-        let mut bottom_new = vec![];
-
-        for (label, area) in area.iter().enumerate() {
-            if *area != 0 {
-                area_new.push(*area);
-                left_new.push(left[label]);
-                top_new.push(top[label]);
-                right_new.push(right[label]);
-                bottom_new.push(bottom[label]);
-            }
-        }
-
-        let shape = [batches, area_new.len() / batches];
-
-        (
-            TensorData::new(area_new, shape.clone()),
-            TensorData::new(left_new, shape.clone()),
-            TensorData::new(top_new, shape),
-            TensorData::new(right_new, shape.clone()),
-            TensorData::new(bottom_new, shape.clone()),
-        )
     }
 }

@@ -3,8 +3,8 @@ use crate::{
     kernel::{self, AndOp, OrOp},
     CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
-use burn_tensor::ops::{BoolTensor, Device, FloatTensor, IntTensor};
-use burn_tensor::{ops::BoolTensorOps, Shape, TensorData};
+use burn_tensor::ops::{BoolTensor, BoolTensorOps, Device, FloatTensor, IntTensor};
+use burn_tensor::{Shape, TensorData};
 use std::ops::Range;
 
 use super::{expand, permute};
@@ -21,7 +21,7 @@ where
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> TensorData {
-        super::bool_into_data::<R, BT>(tensor).await
+        super::into_data::<R, BT>(tensor).await
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {

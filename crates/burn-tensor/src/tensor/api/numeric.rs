@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::alloc::borrow::ToOwned;
+use crate::{alloc::borrow::ToOwned, cast::ToElement};
 
 use crate::TensorPrimitive;
 use crate::{
@@ -1639,7 +1639,10 @@ where
     /// }
     /// ```
     pub fn all_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> bool {
-        self.is_close(other, rtol, atol).all().into_scalar()
+        self.is_close(other, rtol, atol)
+            .all()
+            .into_scalar()
+            .to_bool()
     }
 
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.

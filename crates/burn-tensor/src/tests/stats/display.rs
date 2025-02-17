@@ -2,7 +2,7 @@
 mod tests {
     use super::*;
     use burn_tensor::backend::Backend;
-    use burn_tensor::{set_print_options, PrintOptions, Shape, Tensor, TensorData};
+    use burn_tensor::{set_print_options, Element, PrintOptions, Shape, Tensor, TensorData};
 
     type FloatElem = <TestBackend as Backend>::FloatElem;
     type IntElem = <TestBackend as Backend>::IntElem;
@@ -80,10 +80,11 @@ mod tests {
   device:  {:?},
   backend:  {:?},
   kind:  "Bool",
-  dtype:  "bool",
+  dtype:  {:?},
 }}"#,
             tensor_bool.device(),
             TestBackend::name(),
+            <TestBackend as Backend>::BoolElem::dtype().name(),
         );
         assert_eq!(output, expected);
     }

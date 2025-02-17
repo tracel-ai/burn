@@ -103,9 +103,8 @@ mod tests {
 
         let mask = generate_autoregressive_mask::<TestBackend>(2, 3, &device);
 
-        assert_eq!(
-            mask.into_data(),
-            TensorData::from([
+        mask.into_data().assert_eq(
+            &TensorData::from([
                 [
                     [false, true, true],
                     [false, false, true],
@@ -115,8 +114,9 @@ mod tests {
                     [false, true, true],
                     [false, false, true],
                     [false, false, false],
-                ]
-            ])
+                ],
+            ]),
+            false,
         );
     }
 
@@ -132,14 +132,14 @@ mod tests {
 
         let mask = generate_padding_mask::<TestBackend>(0, tokens, None, &device);
 
-        assert_eq!(
-            mask.mask.into_data(),
-            TensorData::from([
+        mask.mask.into_data().assert_eq(
+            &TensorData::from([
                 [false, false, false, true, true, true],
                 [false, false, false, true, true, true],
                 [false, false, false, false, true, true],
                 [false, false, false, false, false, false],
-            ])
+            ]),
+            false,
         );
     }
 }

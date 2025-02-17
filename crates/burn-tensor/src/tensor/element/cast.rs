@@ -105,6 +105,18 @@ pub trait ToElement {
     fn to_f64(&self) -> f64 {
         ToElement::to_f64(&self.to_u64())
     }
+
+    /// Converts the value of `self` to a bool.
+    /// Rust only considers 0 and 1 to be valid booleans, but for compatibility, C semantics are
+    /// adopted (anything that's not 0 is true).
+    ///
+    /// The default implementation tries to convert through `to_i64()`, and
+    /// failing that through `to_u64()`. Types implementing this trait should
+    /// override this method if they can represent a greater range.
+    #[inline]
+    fn to_bool(&self) -> bool {
+        ToElement::to_bool(&self.to_u64())
+    }
 }
 
 macro_rules! impl_to_element_int_to_int {
@@ -166,6 +178,10 @@ macro_rules! impl_to_element_int {
             #[inline]
             fn to_f64(&self) -> f64 {
                 *self as f64
+            }
+            #[inline]
+            fn to_bool(&self) -> bool {
+                *self != 0
             }
         }
     };
@@ -236,6 +252,10 @@ macro_rules! impl_to_element_uint {
             #[inline]
             fn to_f64(&self) -> f64 {
                 *self as f64
+            }
+            #[inline]
+            fn to_bool(&self) -> bool {
+                *self != 0
             }
         }
     };
@@ -349,6 +369,11 @@ macro_rules! impl_to_element_float {
                 fn to_f32 -> f32;
                 fn to_f64 -> f64;
             }
+
+            #[inline]
+            fn to_bool(&self) -> bool {
+                *self != 0.0
+            }
         }
     };
 }
@@ -397,6 +422,10 @@ impl ToElement for f16 {
     fn to_f64(&self) -> f64 {
         Self::to_f64(*self)
     }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self != f16::from_f32_const(0.0)
+    }
 }
 
 impl ToElement for bf16 {
@@ -439,6 +468,10 @@ impl ToElement for bf16 {
     #[inline]
     fn to_f64(&self) -> f64 {
         Self::to_f64(*self)
+    }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self != bf16::from_f32_const(0.0)
     }
 }
 
@@ -484,6 +517,10 @@ impl ToElement for cubecl::flex32 {
     fn to_f64(&self) -> f64 {
         Self::to_f64(*self)
     }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self != cubecl::flex32::from_f32(0.0)
+    }
 }
 
 impl ToElement for bool {
@@ -526,6 +563,10 @@ impl ToElement for bool {
     #[inline]
     fn to_f64(&self) -> f64 {
         self.to_u8() as f64
+    }
+    #[inline]
+    fn to_bool(&self) -> bool {
+        *self
     }
 }
 

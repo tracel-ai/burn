@@ -140,8 +140,8 @@ mod tests {
         let data_actual_inplace = tensor_1.equal(tensor_2);
 
         let data_expected = TensorData::from([[false, true, false], [true, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     #[test]
@@ -156,8 +156,8 @@ mod tests {
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
 
         let data_expected = TensorData::from([[true, false, true], [true, true, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn equal<K, E>()
@@ -175,8 +175,8 @@ mod tests {
         let data_actual_inplace = tensor_1.equal(tensor_2);
 
         let data_expected = TensorData::from([[false, true, false], [false, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn not_equal<K, E>()
@@ -194,8 +194,8 @@ mod tests {
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
 
         let data_expected = TensorData::from([[true, false, true], [true, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn equal_elem<K, E>()
@@ -210,8 +210,8 @@ mod tests {
         let data_actual_inplace = tensor_1.equal_elem(2);
 
         let data_expected = TensorData::from([[false, false, true], [false, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn not_equal_elem<K, E>()
@@ -226,8 +226,8 @@ mod tests {
         let data_actual_inplace = tensor_1.not_equal_elem(2);
 
         let data_expected = TensorData::from([[true, true, false], [true, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn greater_elem<K, E>()
@@ -242,8 +242,8 @@ mod tests {
         let data_actual_inplace = tensor_1.greater_elem(4);
 
         let data_expected = TensorData::from([[false, false, false], [false, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn greater_equal_elem<K, E>()
@@ -258,8 +258,8 @@ mod tests {
         let data_actual_inplace = tensor_1.greater_equal_elem(4.0);
 
         let data_expected = TensorData::from([[false, false, false], [false, true, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn greater<K, E>()
@@ -277,8 +277,8 @@ mod tests {
         let data_actual_inplace = tensor_1.greater(tensor_2);
 
         let data_expected = TensorData::from([[false, false, true], [false, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn greater_equal<K, E>()
@@ -296,8 +296,8 @@ mod tests {
         let data_actual_inplace = tensor_1.greater_equal(tensor_2);
 
         let data_expected = TensorData::from([[false, true, true], [false, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn lower_elem<K, E>()
@@ -312,8 +312,8 @@ mod tests {
         let data_actual_inplace = tensor_1.lower_elem(4.0);
 
         let data_expected = TensorData::from([[true, true, true], [true, false, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn lower_equal_elem<K, E>()
@@ -328,8 +328,8 @@ mod tests {
         let data_actual_inplace = tensor_1.lower_equal_elem(4.0);
 
         let data_expected = TensorData::from([[true, true, true], [true, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn lower<K, E>()
@@ -347,8 +347,8 @@ mod tests {
         let data_actual_inplace = tensor_1.lower(tensor_2);
 
         let data_expected = TensorData::from([[true, false, false], [true, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     fn lower_equal<K, E>()
@@ -366,8 +366,8 @@ mod tests {
         let data_actual_inplace = tensor_1.lower_equal(tensor_2);
 
         let data_expected = TensorData::from([[true, true, false], [true, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     #[test]
@@ -382,8 +382,8 @@ mod tests {
         let data_actual_inplace = tensor_1.equal(tensor_2);
 
         let data_expected = TensorData::from([[true, false, true], [false, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     #[test]
@@ -398,8 +398,8 @@ mod tests {
         let data_actual_inplace = tensor_1.not_equal(tensor_2);
 
         let data_expected = TensorData::from([[false, true, false], [true, true, false]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 
     #[test]
@@ -411,7 +411,7 @@ mod tests {
         let data_actual_inplace = tensor_1.bool_not();
 
         let data_expected = TensorData::from([[true, false, false], [false, false, true]]);
-        assert_eq!(data_expected, data_actual_cloned.into_data());
-        assert_eq!(data_expected, data_actual_inplace.into_data());
+        data_expected.assert_eq(&data_actual_cloned.into_data(), false);
+        data_expected.assert_eq(&data_actual_inplace.into_data(), false);
     }
 }

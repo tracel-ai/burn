@@ -27,9 +27,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     }
 
     async fn bool_into_data(tensor: NdArrayTensor<bool>) -> TensorData {
-        let shape = tensor.shape();
-        let values = tensor.array.into_iter().collect();
-        TensorData::new(values, shape)
+        NdArrayOps::into_data(tensor)
     }
 
     fn bool_to_device(tensor: NdArrayTensor<bool>, _device: &NdArrayDevice) -> NdArrayTensor<bool> {
