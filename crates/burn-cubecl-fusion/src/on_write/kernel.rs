@@ -3,7 +3,6 @@ use crate::on_write::DYN_ELEM_ID;
 use super::io::*;
 use super::ir::*;
 use cubecl::prelude::*;
-use half::{bf16, f16};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -17,20 +16,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] write_args: Sequence<Arg>,
     #[comptime] config: &ElemwiseConfig,
 ) {
-    let mut locals = LocalArgs {
-        l_f32: Registry::<u32, Line<f32>>::new(),
-        l_f16: Registry::<u32, Line<f16>>::new(),
-        l_bf16: Registry::<u32, Line<bf16>>::new(),
-        l_i64: Registry::<u32, Line<i64>>::new(),
-        l_i32: Registry::<u32, Line<i32>>::new(),
-        l_i16: Registry::<u32, Line<i16>>::new(),
-        l_i8: Registry::<u32, Line<i8>>::new(),
-        l_u64: Registry::<u32, Line<u64>>::new(),
-        l_u32: Registry::<u32, Line<u32>>::new(),
-        l_u16: Registry::<u32, Line<u16>>::new(),
-        l_u8: Registry::<u32, Line<u8>>::new(),
-        l_bool: Registry::<u32, Line<bool>>::new(),
-    };
+    let mut locals = LocalArgs::new();
 
     // Write the values given as arguments.
     #[unroll]

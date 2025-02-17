@@ -153,33 +153,6 @@ pub struct ReshapedTensor {
     shape: Sequence<Arg>,
 }
 
-// #[derive(CubeLaunch, Default)]
-// /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
-// pub struct GlobalArgs {
-//     pub t_f32: Sequence<Tensor<Line<f32>>>,
-//     pub t_f16: Sequence<Tensor<Line<f16>>>,
-//     pub t_bf16: Sequence<Tensor<Line<bf16>>>,
-//     pub t_i64: Sequence<Tensor<Line<i64>>>,
-//     pub t_i32: Sequence<Tensor<Line<i32>>>,
-//     pub t_i16: Sequence<Tensor<Line<i16>>>,
-//     pub t_i8: Sequence<Tensor<Line<i8>>>,
-//     pub t_u64: Sequence<Tensor<Line<u64>>>,
-//     pub t_u32: Sequence<Tensor<Line<u32>>>,
-//     pub t_u16: Sequence<Tensor<Line<u16>>>,
-//     pub t_u8: Sequence<Tensor<Line<u8>>>,
-//     pub s_f32: Sequence<f32>,
-//     pub s_f16: Sequence<f16>,
-//     pub s_bf16: Sequence<bf16>,
-//     pub s_i64: Sequence<i64>,
-//     pub s_i32: Sequence<i32>,
-//     pub s_i16: Sequence<i16>,
-//     pub s_i8: Sequence<i8>,
-//     pub s_u64: Sequence<u64>,
-//     pub s_u32: Sequence<u32>,
-//     pub s_u16: Sequence<u16>,
-//     pub s_u8: Sequence<u8>,
-// }
-
 #[derive(CubeLaunch, Default)]
 /// Global arguments that are used for fusing [element wise operations](ElemwiseOp).
 pub struct GlobalArgs {
@@ -197,35 +170,6 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
         }
     }
 }
-
-// impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
-//     fn default() -> Self {
-//         Self::new(
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//             Default::default(),
-//         )
-//     }
-// }
 
 impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// Get the shape of the given [argument](Arg).
@@ -297,6 +241,26 @@ pub struct LocalArgs {
     pub l_u16: Registry<u32, Line<u16>>,
     pub l_u8: Registry<u32, Line<u8>>,
     pub l_bool: Registry<u32, Line<bool>>,
+}
+
+#[cube]
+impl LocalArgs {
+    pub fn new() -> LocalArgs {
+        LocalArgs {
+            l_f32: Registry::<u32, Line<f32>>::new(),
+            l_f16: Registry::<u32, Line<f16>>::new(),
+            l_bf16: Registry::<u32, Line<bf16>>::new(),
+            l_i64: Registry::<u32, Line<i64>>::new(),
+            l_i32: Registry::<u32, Line<i32>>::new(),
+            l_i16: Registry::<u32, Line<i16>>::new(),
+            l_i8: Registry::<u32, Line<i8>>::new(),
+            l_u64: Registry::<u32, Line<u64>>::new(),
+            l_u32: Registry::<u32, Line<u32>>::new(),
+            l_u16: Registry::<u32, Line<u16>>::new(),
+            l_u8: Registry::<u32, Line<u8>>::new(),
+            l_bool: Registry::<u32, Line<bool>>::new(),
+        }
+    }
 }
 
 #[derive(CubeType, Clone)]
