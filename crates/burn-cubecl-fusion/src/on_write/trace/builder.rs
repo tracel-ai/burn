@@ -108,10 +108,10 @@ impl FuseOnWriteTraceBuilder {
 
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
-                self.inputs.update(precision_input, tensor);
+                self.inputs.update(tensor);
                 // An input can be an output of a previously fused operation.
                 // We need to flag the new status for the tensor.
-                self.outputs.update(precision_input, tensor);
+                self.outputs.update(tensor);
 
                 local
             }
@@ -173,9 +173,7 @@ impl FuseOnWriteTraceBuilder {
             return Some(val.clone());
         };
 
-        let precision = tensor.dtype.into();
-
-        if self.inputs.get(precision, tensor.id).is_some() {
+        if self.inputs.get(tensor.id).is_some() {
             return None;
         }
 
@@ -203,13 +201,13 @@ impl FuseOnWriteTraceBuilder {
         let input_index = match self.locals.get(precision, tensor.id) {
             Some(_) => {
                 // Can't fused an already fused input.
-                if self.outputs.get(precision_input, tensor.id).is_some() {
+                if self.outputs.get(tensor.id).is_some() {
                     return None;
                 }
 
-                match self.inputs.get_index(precision_input, tensor.id) {
+                match self.inputs.get_index(tensor.id) {
                     Some(index) => {
-                        self.inputs.update(precision_input, tensor);
+                        self.inputs.update(tensor);
                         index
                     }
                     None => {
@@ -262,13 +260,13 @@ impl FuseOnWriteTraceBuilder {
         let input_index = match self.locals.get(precision, tensor.id) {
             Some(_) => {
                 // Can't fused an already fused input.
-                if self.outputs.get(precision_input, tensor.id).is_some() {
+                if self.outputs.get(tensor.id).is_some() {
                     return None;
                 }
 
-                match self.inputs.get_index(precision_input, tensor.id) {
+                match self.inputs.get_index(tensor.id) {
                     Some(index) => {
-                        self.inputs.update(precision_input, tensor);
+                        self.inputs.update(tensor);
                         index
                     }
                     None => {
@@ -341,15 +339,15 @@ impl FuseOnWriteTraceBuilder {
 
         let mut writes = BTreeMap::new();
 
-        for (precision, (_, tensor)) in outputs.iter() {
+        for (tensor, precision) in outputs.iter() {
             let local = self.locals.get_any_precision(tensor.id).unwrap();
-            let out_index = outputs.get_index(precision, tensor.id).unwrap();
+            let out_index = outputs.get_index(tensor.id).unwrap();
 
             writes.insert(
                 tensor.id,
                 ElemwiseOp::Assign(UnaryElemwiseArgs {
                     input: local,
-                    out: Arg::Output(out_index, precision, LayoutInfo::Unknown),
+                    out: Arg::Output(out_index, *precision, LayoutInfo::Unknown),
                 }),
             );
         }
@@ -572,16 +570,16 @@ impl FuseOnWriteTraceBuilder {
 
             if !is_read {
                 let (tensor_id, precision) = entry;
-                let (_, tensor) = self.outputs.get(precision, tensor_id).unwrap();
+                let (tensor, _) = self.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
             }
         }
 
         // All tensors where their latest representation is read only should be written to since they
         // are going to be used after the fused kernel by other operations.
-        for (precision, (_, tensor)) in self.outputs.iter() {
+        for (tensor, precision) in self.outputs.iter() {
             if let TensorStatus::ReadOnly = tensor.status {
-                result.insert(precision, tensor.clone());
+                result.insert(*precision, tensor.clone());
             }
         }
 
