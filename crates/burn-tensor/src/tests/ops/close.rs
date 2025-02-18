@@ -17,7 +17,7 @@ mod tests {
 
         // Using the defaults.
         let data_actual = tensor1
-            .is_close(tensor2, Some(DEFAULT_ATOL), Some(DEFAULT_RTOL))
+            .is_close(tensor2, Some(DEFAULT_RTOL), Some(DEFAULT_ATOL))
             .into_data();
         defaults_expected.assert_eq(&data_actual, false);
     }
