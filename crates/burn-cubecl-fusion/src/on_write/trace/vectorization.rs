@@ -71,7 +71,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .map(|item| !self.indexed.contains(&item.relative_id))
             .collect::<Vec<_>>();
 
-        Runner::vectorization(
+        plan.width = Runner::vectorization(
             &mut plan.vectorization,
             plan.handle_inputs
                 .iter()
@@ -95,22 +95,24 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         // If mix vectorization is disable, we set the vectorization factor of each tensor to the
         // minimum value found.
         if !self.settings.mix_vectorization {
-            let factor = plan.vectorization.values().min().cloned();
-            if let Some(factor) = factor {
-                plan.vectorization
-                    .iter_mut()
-                    .for_each(|(_, vf)| *vf = factor);
-            }
+            todo!();
+            // let factor = plan.vectorization.values().min().cloned();
+            // if let Some(factor) = factor {
+            //     plan.vectorization
+            //         .iter_mut()
+            //         .for_each(|(_, vf)| *vf = factor);
+            // }
         }
 
         for tensor in self.indexed {
             let global = context.tensors.get(tensor).unwrap();
-            plan.vectorization.insert(global.id, 1);
+            plan.vectorization
+                .insert(global.id, super::Vect::Aligned(1));
         }
 
         for handle in plan.handle_inputs.iter_mut() {
             handle.vectorization = match plan.vectorization.get(&handle.global_id) {
-                Some(v) => *v,
+                Some(v) => v.line_size(),
                 None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
         }
@@ -121,7 +123,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 ..
             } = handle
             {
-                *vectorization = *plan.vectorization.get(global_id).unwrap()
+                *vectorization = plan.vectorization.get(global_id).unwrap().line_size()
             }
         }
     }

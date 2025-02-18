@@ -375,6 +375,7 @@ pub struct ElemwiseConfig {
     pub rank: u32,
     pub ref_layout: Arg,
     pub ops: Sequence<ElemwiseOp>,
+    pub width: u8,
 }
 
 impl Arg {

@@ -75,17 +75,14 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
             Arg::Output(index, _, _) => outputs.tensors.values.get(index as usize),
             _ => panic!("Invalid value"),
         };
-        let (shape, vectorization) = match arg {
+        let shape = match arg {
             Some(val) => match &val.tensor {
-                TensorArg::Handle {
-                    handle,
-                    vectorization_factor,
-                } => (handle.shape, vectorization_factor),
+                TensorArg::Handle { handle, .. } => handle.shape,
                 TensorArg::Alias { .. } => panic!("Can't be an alias, got {val:?}"),
             },
             None => panic!("Invalid argument"),
         };
-        let total_elem = shape.iter().product::<usize>() / *vectorization as usize;
+        let total_elem = shape.iter().product::<usize>() / config.width as usize;
         let cube_dim = CubeDim::default();
         let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
 

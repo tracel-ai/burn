@@ -54,6 +54,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
+        println!("{plan:?}");
+
         let reference = match plan.reference {
             Some(reference) => reference,
             None => {
@@ -89,6 +91,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             rank: plan.rank as u32,
             ref_layout: reference.layout,
             ops,
+            width: plan.width,
         };
 
         Runner::run(runner, client, inputs, outputs, &config)
@@ -106,7 +109,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
             inputs
                 .tensors
-                .push(GlobalTensorArg::new(arg, hi.precision.into_elem()));
+                .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
         }
 
         let mut index_f32 = 0;
@@ -222,6 +225,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                     outputs.tensors.push(GlobalTensorArg::new(
                         TensorArg::alias(*input_pos),
                         precision.into_elem(),
+                        false,
                     ));
                 }
                 HandleOutput::Owned {
@@ -241,7 +245,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                         },
                         _ => precision.into_elem(),
                     };
-                    outputs.tensors.push(GlobalTensorArg::new(arg, elem));
+                    outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
                 }
             }
         }
