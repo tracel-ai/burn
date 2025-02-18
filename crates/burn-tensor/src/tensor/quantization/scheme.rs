@@ -171,8 +171,13 @@ impl QuantizationScheme {
         &self,
         range: CalibrationRange<B>,
     ) -> QuantizationParameters<B> {
+        // Quantization parameters are computed element-wise based on the calibration range,
+        // so it's the same operations for per-tensor and per-block (just that the latter has
+        // more parameters)
         match self {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8)
+            | QuantizationScheme::PerBlock(QuantizationMode::Affine, QuantizationType::QInt8, ..) =>
+            {
                 // Quantized range `[a, b]`
                 let a = i8::MIN as i32;
                 let b = i8::MAX as i32;
@@ -192,7 +197,12 @@ impl QuantizationScheme {
                 let offset = Some(-(min.div(scale.clone()).sub_scalar(a)).int());
                 QuantizationParameters { scale, offset }
             }
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8)
+            | QuantizationScheme::PerBlock(
+                QuantizationMode::Symmetric,
+                QuantizationType::QInt8,
+                ..,
+            ) => {
                 // Quantized range `[a, b]`
                 let b = i8::MAX as i32;
                 let a = -b;
@@ -205,7 +215,6 @@ impl QuantizationScheme {
                     offset: None,
                 }
             }
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
         }
     }
 
