@@ -86,7 +86,7 @@ impl FuseOnWriteTraceBuilder {
             _ => precision,
         };
         let new_input = self.inputs.insert(precision_input, tensor.clone());
-        let arg = Arg::Input(new_input as u32, precision_input, LayoutInfo::Unknown);
+        let arg = Arg::Input(new_input, precision_input, LayoutInfo::Unknown);
 
         self.inputs_unhandled.push(tensor.id);
         arg
