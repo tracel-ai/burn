@@ -39,6 +39,7 @@ impl Vect {
     }
 
     pub fn is_broadcast(&self) -> bool {
+        matches!(self, Vect::Broadcated)
     }
 }
 
@@ -87,6 +88,7 @@ pub struct HandleInput<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
+    pub broadcated: bool,
 }
 
 #[derive(Debug)]

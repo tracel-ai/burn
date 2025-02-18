@@ -111,6 +111,9 @@ mod tests {
         TestBackend::sync(&device);
         let tensor3 = tensor3.swap_dims(0, 2);
         TestBackend::sync(&device);
+        // println!("tensor1 {tensor1}");
+        // println!("tensor2 {tensor2}");
+        // println!("tensor3 {tensor3}");
 
         let out = tensor1 + tensor2 + tensor3;
 
@@ -128,7 +131,7 @@ mod tests {
                 [41, 45, 49, 53],
             ],
         ]);
+        println!("{out}");
         out.to_data().assert_eq(&expected, false);
-        panic!("{out}");
     }
 }

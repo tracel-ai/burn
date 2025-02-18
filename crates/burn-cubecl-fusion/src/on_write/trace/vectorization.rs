@@ -111,10 +111,12 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         }
 
         for handle in plan.handle_inputs.iter_mut() {
-            handle.vectorization = match plan.vectorization.get(&handle.global_id) {
-                Some(v) => v.line_size(),
+            let (vect, br) = match plan.vectorization.get(&handle.global_id) {
+                Some(v) => (v.line_size(), v.is_broadcast()),
                 None => panic!("No vectorization factor found for {:?}", handle.global_id),
             };
+            handle.vectorization = vect;
+            handle.broadcated = br;
         }
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {

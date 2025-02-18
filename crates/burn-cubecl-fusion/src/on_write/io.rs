@@ -24,7 +24,14 @@ pub fn read<C: CubePrimitive>(
 ) -> Line<C> {
     match arg {
         Arg::Input(pos, _precision, layout) => {
-            read_input(inputs, outputs, pos, ref_pos, layout, config, None)
+            let global = inputs.tensors.index(pos);
+            let line_size = global.tensor.line_size();
+
+            if comptime![!global.broadcasted && line_size != config.width as u32] {
+                read_input_aligned(inputs, outputs, pos, ref_pos, layout, config, None)
+            } else {
+                read_input(inputs, outputs, pos, ref_pos, layout, config, None)
+            }
         }
         Arg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, pos, ref_pos, layout, config)
@@ -124,6 +131,43 @@ pub fn read_input<C: CubePrimitive>(
         }
     };
     Line::cast_from(tensor.tensor[offset])
+}
+
+#[cube]
+pub fn read_input_aligned<C: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    #[comptime] pos: u32,
+    ref_pos: u32,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] config: &ElemwiseConfig,
+    #[comptime] transform: Option<Transform>,
+) -> Line<C> {
+    let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
+
+    let tensor = inputs.tensors.index(pos);
+    let offset = match layout {
+        LayoutInfo::SameAsRef => ref_pos,
+        LayoutInfo::IsRef => ref_pos,
+        LayoutInfo::Unknown => get_offset(
+            inputs,
+            outputs,
+            tensor,
+            ref_pos,
+            None,
+            config,
+            comptime!(transform.clone()),
+        ),
+    };
+    let stride = tensor.tensor.stride(comptime![config.rank - 1]);
+
+    #[unroll]
+    for i in 0u32..comptime!(config.width as u32) {
+        let index = offset + i * stride;
+        result[i] = C::cast_from(tensor.tensor[index][0])
+    }
+
+    result
 }
 
 #[cube]
@@ -355,8 +399,6 @@ fn reshaped_index(
     #[comptime] rank: u32,
     #[comptime] shape: Sequence<Arg>,
 ) -> u32 {
-    let index = index * layout.line_size();
-
     let mut offset = 0u32;
     let mut stride_curr = 1u32;
 
