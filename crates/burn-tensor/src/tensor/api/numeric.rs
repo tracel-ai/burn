@@ -18,16 +18,6 @@ pub const DEFAULT_RTOL: f64 = 1e-5;
 /// Default ATOL value for `is_close` and `all_close`.
 pub const DEFAULT_ATOL: f64 = 1e-8;
 
-/// Unwrap or substitute in the default rtol.
-pub fn rtol_unwrap_or_default(rtol: Option<f64>) -> f64 {
-    rtol.unwrap_or(DEFAULT_RTOL)
-}
-
-/// Unwrap or substitute in the default atol.
-pub fn atol_unwrap_or_default(atol: Option<f64>) -> f64 {
-    atol.unwrap_or(DEFAULT_ATOL)
-}
-
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -1605,8 +1595,8 @@ where
     /// }
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
-        let rtol = rtol_unwrap_or_default(rtol);
-        let atol = atol_unwrap_or_default(atol);
+        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
+        let atol = atol.unwrap_or(DEFAULT_ATOL);
 
         Tensor::new(K::lower_equal(
             K::abs(K::sub(self.primitive, other.primitive.clone())),
