@@ -316,6 +316,9 @@ where
     /// # Returns
     ///
     /// The quantized tensor.
+    ///
+    /// # Notes
+    /// This uses [min-max calibration](crate::quantization::Calibration::MinMax).
     pub fn quantize_dynamic(self, scheme: &QuantizationScheme) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::QFloat(B::quantize_dynamic(
             self.primitive.tensor(),

@@ -10,28 +10,7 @@ pub struct CalibrationRange<B: Backend> {
 }
 
 /// Calibration method used to compute the quantization range mapping.
-pub trait Calibration {
-    /// Compute the input tensor range.
-    fn compute_range<B: Backend, const D: usize>(
-        &self,
-        tensor: &Tensor<B, D>,
-    ) -> CalibrationRange<B>;
-}
-
-/// Computes the per-tensor quantization range mapping based on the min and max values.
-pub struct MinMaxCalibration {
-    // /// Quantization granularity.
-    // pub granularity:
-}
-
-impl Calibration for MinMaxCalibration {
-    fn compute_range<B: Backend, const D: usize>(
-        &self,
-        tensor: &Tensor<B, D>,
-    ) -> CalibrationRange<B> {
-        let min = tensor.clone().min();
-        let max = tensor.clone().max();
-
-        CalibrationRange { min, max }
-    }
+pub enum Calibration {
+    /// Computes quantization range mapping based on the min and max values.
+    MinMax,
 }

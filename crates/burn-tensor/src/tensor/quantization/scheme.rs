@@ -2,9 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{backend::Backend, Tensor, TensorPrimitive};
+use crate::{backend::Backend, Shape, Tensor, TensorMetadata, TensorPrimitive};
 
-use super::{CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive};
+use super::{
+    Calibration, CalibrationRange, QuantizationParameters, QuantizationParametersPrimitive,
+};
 
 #[cfg(feature = "cubecl")]
 use cubecl::prelude::*;
@@ -63,6 +65,107 @@ impl cubecl::frontend::Init for QuantizationScheme {
 }
 
 impl QuantizationScheme {
+    /// Compute the quantization range mapping.
+    pub fn compute_range<B: Backend, const D: usize>(
+        &self,
+        tensor: &Tensor<B, D>,
+        calibration: &Calibration,
+    ) -> CalibrationRange<B> {
+        let (min, max) = match &tensor.primitive {
+            TensorPrimitive::Float(tensor) => {
+                self.compute_range_primitive::<B>(tensor.clone(), calibration)
+            }
+            TensorPrimitive::QFloat(_) => unreachable!(),
+        };
+
+        CalibrationRange {
+            min: Tensor::from_primitive(TensorPrimitive::Float(min)),
+            max: Tensor::from_primitive(TensorPrimitive::Float(max)),
+        }
+    }
+
+    pub(crate) fn compute_range_primitive<B: Backend>(
+        &self,
+        tensor: B::FloatTensorPrimitive,
+        calibration: &Calibration,
+    ) -> (B::FloatTensorPrimitive, B::FloatTensorPrimitive) {
+        match calibration {
+            Calibration::MinMax => match self {
+                QuantizationScheme::PerTensor(_, _) => {
+                    (B::float_min(tensor.clone()), B::float_max(tensor))
+                }
+                QuantizationScheme::PerBlock(.., layout) => match layout {
+                    // For per-block quantization, we can compute the (min, max) range with pooling
+                    BlockLayout::Flat(block_size) => {
+                        let block_size = *block_size as usize;
+                        // Tensor shape must be divisible by block size
+                        let shape = tensor.shape();
+                        let numel = shape.num_elements();
+                        assert_eq!(
+                            numel % block_size, 0,
+                            "Cannot compute per-block quantization range with block size {block_size} and tensor of shape {shape:?}"
+                        );
+                        let num_blocks = numel / block_size;
+
+                        let tensor = B::float_reshape(tensor, Shape::new([num_blocks, block_size]));
+                        let min = B::float_reshape(
+                            B::float_min_dim(tensor.clone(), 1),
+                            Shape::new([num_blocks]),
+                        );
+                        let max =
+                            B::float_reshape(B::float_max_dim(tensor, 1), Shape::new([num_blocks]));
+                        // Tensors with shape [b * num_blocks]
+                        (min, max)
+                    }
+                    BlockLayout::Grid(m, n) => {
+                        let (m, n) = (*m as usize, *n as usize);
+                        let shape = tensor.shape();
+                        let (b, h, w) = match shape.num_dims() {
+                            2 => {
+                                let [h, w] = shape.dims();
+                                (1, h, w)
+                            }
+                            3 => {
+                                let [b, h, w] = shape.dims(); // leading batch dim
+                                (b, h, w)
+                            }
+                            _ => unimplemented!(
+                                "Per-block grid quantization is only supported for 2D or 3D tensors"
+                            ),
+                        };
+                        // For optimized dynamic quantization, we probably want a custom kernel that computes the
+                        // (min, max) range to quantize each block on-the-fly.
+                        // For static quantization, it doesn't really matter.
+                        assert!(
+                            h % m == 0 && w % n == 0,
+                            "Cannot compute per-block quantization range with block grid [{m}, {n}] and tensor of shape {shape:?}"
+                        );
+                        let num_blocks_h = h / m;
+                        let num_blocks_w = w / n;
+
+                        // Max and min pooling
+                        let reshaped = B::float_reshape(tensor, Shape::new([b, 1, h, w]));
+                        let max = B::max_pool2d(reshaped.clone(), [m, n], [m, n], [0, 0], [1, 1]);
+                        let min = B::float_neg(B::max_pool2d(
+                            B::float_neg(reshaped),
+                            [m, n],
+                            [m, n],
+                            [0, 0],
+                            [0, 0],
+                        ));
+
+                        // Tensors with shape [b * num_blocks_h * num_blocks_w]
+                        let out_shape = Shape::new([b * num_blocks_h * num_blocks_w]);
+                        (
+                            B::float_reshape(min, out_shape.clone()),
+                            B::float_reshape(max, out_shape),
+                        )
+                    }
+                },
+            },
+        }
+    }
+
     /// Compute the quantization parameters.
     pub fn compute_q_params<B: Backend>(
         &self,

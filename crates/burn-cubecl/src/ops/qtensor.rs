@@ -54,6 +54,8 @@ where
         }
     }
 
+    // TODO: quantize_dynamic (we can compute min-max on the fly and scale, especially when not per-tensor)
+
     fn quantize(
         tensor: FloatTensor<Self>,
         scheme: &QuantizationScheme,
