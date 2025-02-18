@@ -12,6 +12,12 @@ use crate::{
     TensorKind,
 };
 
+/// Default RTOL value for `is_close` and `all_close`.
+pub const DEFAULT_RTOL: f64 = 1e-5;
+
+/// Default ATOL value for `is_close` and `all_close`.
+pub const DEFAULT_ATOL: f64 = 1e-8;
+
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -1566,8 +1572,8 @@ where
     /// # Arguments
     ///
     /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
     ///
     /// # Returns
     ///
@@ -1589,8 +1595,8 @@ where
     /// }
     /// ```
     pub fn is_close(self, other: Self, rtol: Option<f64>, atol: Option<f64>) -> Tensor<B, D, Bool> {
-        let rtol = rtol.unwrap_or(1e-5);
-        let atol = atol.unwrap_or(1e-8);
+        let rtol = rtol.unwrap_or(DEFAULT_RTOL);
+        let atol = atol.unwrap_or(DEFAULT_ATOL);
 
         Tensor::new(K::lower_equal(
             K::abs(K::sub(self.primitive, other.primitive.clone())),
@@ -1614,8 +1620,8 @@ where
     /// # Arguments
     ///
     /// * `other` - The tensor to compare with.
-    /// * `rtol` - Optional relative tolerance. Default is 1e-5.
-    /// * `atol` - Optional absolute tolerance. Default is 1e-8.
+    /// * `rtol` - Optional relative tolerance. Default is 1e-5; see `DEFAULT_RTOL`.
+    /// * `atol` - Optional absolute tolerance. Default is 1e-8; see `DEFAULT_ATOL`.
     ///
     /// # Returns
     ///
