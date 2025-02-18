@@ -48,9 +48,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     ) -> Self {
         let mut outputs_sorted: Vec<_> = outputs
             .iter()
-            .map(|(precision, (pos, tensor))| OutputSorted {
-                pos_original: *pos as usize,
-                precision,
+            .enumerate()
+            .map(|(pos, (tensor, precision))| OutputSorted {
+                pos_original: pos,
+                precision: *precision,
                 tensor_relative: tensor,
             })
             .collect();
@@ -204,7 +205,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         if plan.reference.is_none() {
             let index_input = self
                 .inputs
-                .get_index(output.precision, potential_inplace.tensor_relative.id)
+                .get_index(potential_inplace.tensor_relative.id)
                 .unwrap();
 
             plan.reference = Some(Reference {

@@ -37,15 +37,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     }
 
     pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
-        let mut handles = Vec::with_capacity(self.inputs.len());
-        let mut globals = Vec::with_capacity(self.inputs.len());
-
-        for _ in 0..self.inputs.len() {
-            handles.push(None);
-            globals.push(None);
-        }
-
-        for (precision, (pos, tensor_relative)) in self.inputs.iter() {
+        for (pos, (tensor_relative, precision)) in self.inputs.iter().enumerate() {
             let mut tensor_global = context.tensors.get(&tensor_relative.id).unwrap().clone();
             // Important to take the status of the relative graph and not
             // the global graph, since the status of the global graph
@@ -68,7 +60,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 && self.shape_ref == &tensor_relative.shape
             {
                 plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: *pos as usize,
+                    input_pos: pos,
                     tensor_relative,
                     strides: handle.strides.clone(),
                 });
@@ -82,20 +74,15 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
             }
 
-            handles[*pos as usize] = Some(HandleInput {
-                precision,
+            plan.handle_inputs.push(HandleInput {
+                precision: *precision,
                 handle,
                 relative_id: tensor_relative.id,
                 global_id: tensor_global.id,
                 global_shape: tensor_global.shape.clone(),
                 vectorization: 1,
             });
-            globals[*pos as usize] = Some(tensor_global);
-        }
-
-        for (handle, global) in handles.into_iter().zip(globals.into_iter()) {
-            plan.handle_inputs.push(handle.unwrap());
-            plan.global_inputs.push(global.unwrap());
+            plan.global_inputs.push(tensor_global);
         }
     }
 }
