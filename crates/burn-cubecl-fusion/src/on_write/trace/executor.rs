@@ -54,8 +54,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
-        println!("{plan:?}");
-
         let reference = match plan.reference {
             Some(reference) => reference,
             None => {
@@ -107,9 +105,11 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         for hi in handle_inputs.iter() {
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
-            inputs
-                .tensors
-                .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
+            inputs.tensors.push(GlobalTensorArg::new(
+                arg,
+                hi.precision.into_elem(),
+                hi.broadcated,
+            ));
         }
 
         let mut index_f32 = 0;

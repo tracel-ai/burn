@@ -399,6 +399,7 @@ fn reshaped_index(
     #[comptime] rank: u32,
     #[comptime] shape: Sequence<Arg>,
 ) -> u32 {
+    let index = index * layout.line_size();
     let mut offset = 0u32;
     let mut stride_curr = 1u32;
 

@@ -71,7 +71,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             .map(|item| !self.indexed.contains(&item.relative_id))
             .collect::<Vec<_>>();
 
-        plan.width = Runner::vectorization(
+        Runner::vectorization(
             &mut plan.vectorization,
             plan.handle_inputs
                 .iter()
@@ -91,6 +91,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
         );
+        println!("{:?}", plan.vectorization);
 
         // If mix vectorization is disable, we set the vectorization factor of each tensor to the
         // minimum value found.
@@ -104,11 +105,19 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // }
         }
 
+        println!("Indexed {:?}", self.indexed);
         for tensor in self.indexed {
             let global = context.tensors.get(tensor).unwrap();
             plan.vectorization
                 .insert(global.id, super::Vect::Aligned(1));
         }
+
+        plan.width = plan
+            .vectorization
+            .values()
+            .map(|a| a.line_size())
+            .max()
+            .unwrap();
 
         for handle in plan.handle_inputs.iter_mut() {
             let (vect, br) = match plan.vectorization.get(&handle.global_id) {

@@ -31,7 +31,7 @@ pub trait TraceRunner<R: Runtime> {
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-    ) -> u8 {
+    ) {
         vectorization_default(
             vectorizations,
             handles_inputs,
@@ -50,7 +50,7 @@ fn vectorization_default<'a, R: Runtime>(
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-) -> u8 {
+) {
     let swapped: Vec<_> = swapped.collect();
 
     // The default version uses the last dimension as vectorization axis and assumes a
@@ -165,45 +165,26 @@ fn vectorization_default<'a, R: Runtime>(
         Vect::Aligned(1)
     };
 
-    let mut width = 0;
-
     for (handle, tensor) in handles_inputs.zip(inputs) {
         if let Some((s, o, mr, dims)) = swapped.iter().find(|(_s, o, _mr, _dims)| o.id == tensor.id)
         {
             let val = vectorization_swapped(handle, s, o, *mr, dims);
             vectorizations.insert(o.id, val);
             vectorizations.insert(s.id, val);
-
-            if let Vect::Aligned(val) = val {
-                width = Ord::max(val, width);
-            }
         } else {
             let val = vectorization_input(handle, tensor);
             vectorizations.insert(tensor.id, val);
-            if let Vect::Aligned(val) = val {
-                width = Ord::max(val, width);
-            }
         }
     }
 
     for tensor in outputs {
         let val = vectorization_output(tensor);
         vectorizations.insert(tensor.id, val);
-
-        if let Vect::Aligned(val) = val {
-            width = Ord::max(val, width);
-        }
     }
 
     for (reshaped, original, multi_reads) in reshaped {
         let val = vectorization_reshape(reshaped, original, multi_reads);
         vectorizations.insert(original.id, val);
         vectorizations.insert(reshaped.id, val);
-
-        if let Vect::Aligned(val) = val {
-            width = Ord::max(val, width);
-        }
     }
-
-    width
 }
