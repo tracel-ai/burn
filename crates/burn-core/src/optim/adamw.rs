@@ -8,6 +8,9 @@ use crate::{
 };
 use burn_tensor::{backend::Backend, ops::Device};
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 /// AdamW configuration.
 #[derive(Config)]
 pub struct AdamWConfig {

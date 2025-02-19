@@ -19,7 +19,6 @@ pub mod config;
 pub mod data;
 
 /// Optimizer module.
-#[cfg(feature = "std")]
 pub mod optim;
 
 /// Learning rate scheduler module.
