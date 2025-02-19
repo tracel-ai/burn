@@ -200,7 +200,6 @@ impl FuseOnWriteBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationIr::SwapDims(desc) => {
-                return false;
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }

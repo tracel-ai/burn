@@ -28,7 +28,7 @@ impl<R: Runtime> ElementWiseBuilder<R> {
                     broadcast: true,
                     output_shape_updates: true,
                     mix_vectorization: true,
-                    inplace: true,
+                    inplace: false,
                 },
             ),
             device,

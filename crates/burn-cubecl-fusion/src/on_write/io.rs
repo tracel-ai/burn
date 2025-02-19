@@ -74,15 +74,32 @@ pub fn read<C: CubePrimitive>(
             _ => comptime![panic!("Only input can be reshaped")],
         },
         Arg::InputSwapDims { original, dims, .. } => match comptime![original.as_ref().clone()] {
-            Arg::Input(pos, _precision, layout) => read_input(
-                inputs,
-                outputs,
-                pos,
-                ref_pos,
-                layout,
-                config,
-                comptime![Some(Transform::SwapDim(dims.0, dims.1))],
-            ),
+            Arg::Input(pos, _precision, layout) => {
+                let global = inputs.tensors.index(pos);
+                let line_size = global.tensor.line_size();
+
+                if comptime![!global.broadcasted && line_size != config.width as u32] {
+                    read_input_aligned(
+                        inputs,
+                        outputs,
+                        pos,
+                        ref_pos,
+                        layout,
+                        config,
+                        comptime![Some(Transform::SwapDim(dims.0, dims.1))],
+                    )
+                } else {
+                    read_input(
+                        inputs,
+                        outputs,
+                        pos,
+                        ref_pos,
+                        layout,
+                        config,
+                        comptime![Some(Transform::SwapDim(dims.0, dims.1))],
+                    )
+                }
+            }
             _ => comptime![panic!("Only input can be reshaped")],
         },
     }
@@ -159,12 +176,27 @@ pub fn read_input_aligned<C: CubePrimitive>(
             comptime!(transform.clone()),
         ),
     };
-    let stride = tensor.tensor.stride(comptime![config.rank - 1]);
 
-    #[unroll]
-    for i in 0u32..comptime!(config.width as u32) {
-        let index = offset + i * stride;
-        result[i] = C::cast_from(tensor.tensor[index][0])
+    match comptime![transform.clone()] {
+        Some(Transform::Reshape(shape)) => {}
+        Some(Transform::SwapDim(dim1, dim2)) => {
+            let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
+            let stride = tensor.tensor.stride(comptime![i]);
+
+            #[unroll]
+            for i in 0u32..comptime!(config.width as u32) {
+                let index = offset + i * stride;
+                result[i] = C::cast_from(tensor.tensor[index][0])
+            }
+        }
+        None => {
+            let stride = tensor.tensor.stride(comptime![config.rank - 1]);
+            #[unroll]
+            for i in 0u32..comptime!(config.width as u32) {
+                let index = offset + i * stride;
+                result[i] = C::cast_from(tensor.tensor[index][0])
+            }
+        }
     }
 
     result
