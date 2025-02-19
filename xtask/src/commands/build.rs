@@ -31,7 +31,17 @@ pub(crate) fn handle_command(
                 if *build_target != "Default" {
                     build_args.extend(vec!["--target", *build_target]);
                 }
+
+                let mut crates = NO_STD_CRATES.to_vec();
+
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
+                    // Temperory remove `burn-autodiff` from building with the
+                    // target `thumbv6m-none-eabi` as it requires enabling the
+                    // `arbitrary_self_types` feature for the
+                    // `clone_if_require_grad` method of
+                    // `burn-autodiff::graph::Node`
+                    crates.retain(|&v| v != "burn-autodiff");
+
                     env_vars.insert(
                         "RUSTFLAGS",
                         "--cfg portable_atomic_unsafe_assume_single_core",
@@ -43,7 +53,7 @@ pub(crate) fn handle_command(
                     env_vars.insert("RUSTFLAGS", "--cfg getrandom_backend=\"wasm_js\"");
                 }
                 helpers::custom_crates_build(
-                    NO_STD_CRATES.to_vec(),
+                    crates,
                     build_args,
                     Some(env_vars),
                     None,

@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
@@ -34,3 +35,12 @@ pub use backend::*;
 
 #[cfg(feature = "export_tests")]
 mod tests;
+
+/// A facade around for HashMap and HashSet.
+/// This avoids elaborate import wrangling having to happen in every module.
+mod collections {
+    #[cfg(not(feature = "std"))]
+    pub use hashbrown::{HashMap, HashSet};
+    #[cfg(feature = "std")]
+    pub use std::collections::{HashMap, HashSet};
+}

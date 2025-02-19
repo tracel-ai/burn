@@ -1,9 +1,10 @@
-use crate::{tensor::NodeRefCount, NodeID};
-use std::{
+use crate::{
     collections::{HashMap, HashSet},
-    mem,
-    sync::Arc,
+    tensor::NodeRefCount,
+    NodeID,
 };
+use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
+use core::mem;
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
@@ -82,7 +83,10 @@ impl GraphMemoryManagement {
 
     fn clear_unused_roots(&mut self, to_delete: &mut Vec<NodeID>) {
         for (id, parents) in self.nodes.iter() {
-            let is_useful = matches!(self.statuses.get(id), Some(NodeMemoryStatus::Useful));
+            let is_useful = matches!(
+                self.statuses.get(id.as_ref()),
+                Some(NodeMemoryStatus::Useful)
+            );
 
             // Check if parents are either empty or absent from self.nodes
             let parents_absent = parents.iter().all(|p| !self.nodes.contains_key(p));

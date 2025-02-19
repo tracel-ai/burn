@@ -14,13 +14,13 @@ use burn_tensor::backend::Backend;
 /// Concrete types implementing this trait should not have any state.
 /// If a state is necessary during the backward pass,
 /// they should be declared with the associated type 'State'.
-pub trait Backward<B, const N: usize>: Send + std::fmt::Debug
+pub trait Backward<B, const N: usize>: Send + core::fmt::Debug
 where
     Self: Sized + 'static,
     B: Backend,
 {
     /// Associated type to compute the backward pass.
-    type State: Clone + Send + std::fmt::Debug + 'static;
+    type State: Clone + Send + core::fmt::Debug + 'static;
 
     /// The backward pass.
     fn backward(
