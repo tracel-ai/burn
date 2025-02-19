@@ -28,7 +28,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
     ) -> proc_macro2::TokenStream {
         let dim = self.dim.to_tokens();
         let input_rank = match &self.input {
-            Type::Tensor(in_tensor) => in_tensor.dim,
+            Type::Tensor(in_tensor) => in_tensor.rank,
             Type::Shape(_) => 1,
             _ => panic!("Gather needs Tensor or Shape input, got {:?}!", self.input),
         };
@@ -45,7 +45,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             Type::Scalar(idx_scalar) => {
                 // To do a scalar select (select just a single index in one dim),
                 // convert the 0-D index to a 1-D Tensor with len 1 to use burn's select,
-                // then squeeze the dimension to reduce the rank
+                // then squeeze the dimensions to reduce the rank
                 let index = &idx_scalar.name;
                 let output_rank = input_rank - 1;
                 quote! {
@@ -56,7 +56,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
             }
             Type::Tensor(idx_tensor) => {
                 let index = scope.tensor_use_owned(idx_tensor, node_position);
-                let index_rank = idx_tensor.dim;
+                let index_rank = idx_tensor.rank;
                 let output_rank = index_rank + input_rank - 1;
                 match index_rank {
                     1 => quote! {
