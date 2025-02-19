@@ -121,6 +121,11 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
+macerator = { path = "../macerator" }
+pulp = { path = "../pulp/pulp", default-features = false, features = [
+    "x86-v3",
+    "macro",
+] } # Enable std if sqrt is ever needed
 
 blas-src = { version = "0.10.0", default-features = false }
 half = { version = "2.4.1", features = [

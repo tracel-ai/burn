@@ -1,5 +1,5 @@
 use crate::{
-    backends::cpu, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, VisionOps,
+    backends::cpu, BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
 };
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 #[cfg(feature = "fusion")]
@@ -13,7 +13,7 @@ use burn_tensor::{
 
 use super::connected_components::hardware_accelerated;
 
-impl<R, F, I, BT> VisionOps<Self> for CubeBackend<R, F, I, BT>
+impl<R, F, I, BT> BoolVisionOps for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
     F: FloatElement,
@@ -42,7 +42,7 @@ where
 }
 
 #[cfg(feature = "fusion")]
-impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
+impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
     fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
         let height = img.shape[0];
         let width = img.shape[1];
@@ -55,7 +55,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
             _b: core::marker::PhantomData<B>,
         }
 
-        impl<B1: FusionBackend + VisionOps<B1>> Operation<B1::FusionRuntime> for ConnComp<B1> {
+        impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnComp<B1> {
             fn execute(
                 self: Box<Self>,
                 handles: &mut HandleContainer<<B1::FusionRuntime as FusionRuntime>::FusionHandle>,
@@ -98,7 +98,7 @@ impl<B: FusionBackend + VisionOps<B>> VisionOps<Self> for Fusion<B> {
             _b: core::marker::PhantomData<B>,
         }
 
-        impl<B1: FusionBackend + VisionOps<B1>> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
+        impl<B1: FusionBackend + BoolVisionOps> Operation<B1::FusionRuntime> for ConnCompStats<B1> {
             fn execute(
                 self: Box<Self>,
                 handles: &mut HandleContainer<<B1::FusionRuntime as FusionRuntime>::FusionHandle>,

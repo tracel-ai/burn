@@ -18,10 +18,11 @@ version.workspace = true
 [features]
 candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray", "cubecl-backend", "fusion"]
+default = ["ndarray", "cubecl-backend", "fusion", "std"]
 export-tests = ["burn-tensor-testgen"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
+std = ["pulp/std"]
 tch = ["burn-tch"]
 
 # Test features
@@ -39,9 +40,15 @@ burn-ndarray = { path = "../burn-ndarray", version = "0.17.0", optional = true }
 burn-tch = { path = "../burn-tch", version = "0.17.0", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "0.17.0" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.17.0", optional = true }
+bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
+half = { workspace = true }
+macerator = { workspace = true }
 ndarray = { workspace = true }
+num-traits = { workspace = true }
+paste = { workspace = true }
+pulp = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]

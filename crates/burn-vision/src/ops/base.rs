@@ -1,8 +1,8 @@
-use crate::backends::cpu;
+use crate::backends::cpu::{self, morph, MorphOp};
 use burn_tensor::{
     backend::Backend,
-    ops::{BoolTensor, IntTensor},
-    Int, Tensor,
+    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    Bool, Int, Tensor, TensorPrimitive,
 };
 
 /// Connected components connectivity
@@ -116,14 +116,20 @@ impl ConnectedStatsOptions {
     }
 }
 
-/// Vision operations, implemented by each backend
-pub trait VisionOps<B: Backend> {
+/// Vision capable backend, implemented by each backend
+pub trait VisionBackend:
+    BoolVisionOps + IntVisionOps + FloatVisionOps + QVisionOps + Backend
+{
+}
+
+/// Vision ops on bool tensors
+pub trait BoolVisionOps: Backend {
     /// Computes the connected components labeled image of boolean image with 4 or 8 way
     /// connectivity - returns a tensor of the component label of each pixel.
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
-    fn connected_components(img: BoolTensor<B>, connectivity: Connectivity) -> IntTensor<B> {
-        cpu::connected_components::<B>(img, connectivity)
+    fn connected_components(img: BoolTensor<Self>, connectivity: Connectivity) -> IntTensor<Self> {
+        cpu::connected_components::<Self>(img, connectivity)
     }
 
     /// Computes the connected components labeled image of boolean image with 4 or 8 way
@@ -132,10 +138,77 @@ pub trait VisionOps<B: Backend> {
     ///
     /// `img`- The boolean image tensor in the format [batches, height, width]
     fn connected_components_with_stats(
-        img: BoolTensor<B>,
+        img: BoolTensor<Self>,
         connectivity: Connectivity,
         opts: ConnectedStatsOptions,
-    ) -> (IntTensor<B>, ConnectedStatsPrimitive<B>) {
+    ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
         cpu::connected_components_with_stats(img, connectivity, opts)
+    }
+
+    /// Erodes an input tensor with the specified kernel.
+    fn bool_erode(input: BoolTensor<Self>, kernel: BoolTensor<Self>) -> BoolTensor<Self> {
+        let input = Tensor::<Self, 4, Bool>::from_primitive(input);
+        morph(input, kernel, MorphOp::Erode).into_primitive()
+    }
+
+    /// Dilates an input tensor with the specified kernel.
+    fn bool_dilate(input: BoolTensor<Self>, kernel: BoolTensor<Self>) -> BoolTensor<Self> {
+        let input = Tensor::<Self, 4, Bool>::from_primitive(input);
+        morph(input, kernel, MorphOp::Dilate).into_primitive()
+    }
+}
+
+/// Vision ops on int tensors
+pub trait IntVisionOps: Backend {
+    /// Erodes an input tensor with the specified kernel.
+    fn int_erode(input: IntTensor<Self>, kernel: BoolTensor<Self>) -> IntTensor<Self> {
+        let input = Tensor::<Self, 4, Int>::from_primitive(input);
+        morph(input, kernel, MorphOp::Erode).into_primitive()
+    }
+
+    /// Dilates an input tensor with the specified kernel.
+    fn int_dilate(input: IntTensor<Self>, kernel: BoolTensor<Self>) -> IntTensor<Self> {
+        let input = Tensor::<Self, 4, Int>::from_primitive(input);
+        morph(input, kernel, MorphOp::Dilate).into_primitive()
+    }
+}
+
+/// Vision ops on float tensors
+pub trait FloatVisionOps: Backend {
+    /// Erodes an input tensor with the specified kernel.
+    fn float_erode(input: FloatTensor<Self>, kernel: BoolTensor<Self>) -> FloatTensor<Self> {
+        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::Float(input));
+        morph(input, kernel, MorphOp::Erode)
+            .into_primitive()
+            .tensor()
+    }
+
+    /// Dilates an input tensor with the specified kernel.
+    fn float_dilate(input: FloatTensor<Self>, kernel: BoolTensor<Self>) -> FloatTensor<Self> {
+        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::Float(input));
+        morph(input, kernel, MorphOp::Dilate)
+            .into_primitive()
+            .tensor()
+    }
+}
+
+/// Vision ops on quantized float tensors
+pub trait QVisionOps: Backend {
+    /// Erodes an input tensor with the specified kernel.
+    fn q_erode(input: QuantizedTensor<Self>, kernel: BoolTensor<Self>) -> QuantizedTensor<Self> {
+        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::QFloat(input));
+        match morph(input, kernel, MorphOp::Erode).into_primitive() {
+            TensorPrimitive::QFloat(tensor) => tensor,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Dilates an input tensor with the specified kernel.
+    fn q_dilate(input: QuantizedTensor<Self>, kernel: BoolTensor<Self>) -> QuantizedTensor<Self> {
+        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::QFloat(input));
+        match morph(input, kernel, MorphOp::Dilate).into_primitive() {
+            TensorPrimitive::QFloat(tensor) => tensor,
+            _ => unreachable!(),
+        }
     }
 }
