@@ -432,3 +432,128 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
         x
     }
 }
+
+struct MorphColumnFilter<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecColumn<T>> {
+    k_size: usize,
+    anchor: usize,
+    vec: VecOp,
+    _t: PhantomData<T>,
+    _op: PhantomData<Op>,
+}
+
+impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecColumn<T>> MorphColumnFilter<T, Op, VecOp> {
+    fn new(k_size: usize, anchor: usize) -> Self {
+        let vec = VecOp::new(k_size, anchor);
+        Self {
+            k_size,
+            anchor,
+            vec,
+            _t: PhantomData,
+            _op: PhantomData,
+        }
+    }
+
+    fn apply<S: Simd>(
+        &self,
+        simd: S,
+        src: &[&[T]],
+        dst: &mut [T],
+        dst_step: usize,
+        mut count: usize,
+        width: usize,
+    ) {
+        let ksize = self.k_size;
+        let x0 = self.vec.apply(simd, src, dst, dst_step, count, width);
+
+        let mut d = 0;
+        let mut x = x0;
+        let mut y = 0;
+
+        while ksize > 1 && count > 1 {
+            while x <= width - 4 {
+                let row = src[y + 1];
+                let mut s0 = row[x];
+                let mut s1 = row[x + 1];
+                let mut s2 = row[x + 2];
+                let mut s3 = row[x + 3];
+
+                for k in 2..ksize {
+                    let row = src[y + k];
+                    s0 = Op::apply(s0, row[x]);
+                    s1 = Op::apply(s1, row[x + 1]);
+                    s2 = Op::apply(s2, row[x + 2]);
+                    s3 = Op::apply(s3, row[x + 3]);
+                }
+
+                let row = src[y];
+                dst[d + x] = Op::apply(s0, row[x]);
+                dst[d + x + 1] = Op::apply(s1, row[x + 1]);
+                dst[d + x + 2] = Op::apply(s2, row[x + 2]);
+                dst[d + x + 3] = Op::apply(s3, row[x + 3]);
+
+                let row = src[y + ksize];
+                dst[d + dst_step + x] = Op::apply(s0, row[x]);
+                dst[d + dst_step + x + 1] = Op::apply(s1, row[x + 1]);
+                dst[d + dst_step + x + 2] = Op::apply(s2, row[x + 2]);
+                dst[d + dst_step + x + 3] = Op::apply(s3, row[x + 3]);
+
+                x += 4;
+            }
+            while x < width {
+                let mut s0 = src[y + 1][x];
+                for k in 2..ksize {
+                    s0 = Op::apply(s0, src[y + k][x]);
+                }
+                dst[d + x] = Op::apply(s0, src[y][x]);
+                dst[d + dst_step + x] = Op::apply(s0, src[y + ksize][x]);
+
+                x += 1;
+            }
+
+            count -= 2;
+            d += 2 * dst_step;
+            y += 2;
+        }
+
+        while count > 0 {
+            x = x0;
+
+            while x <= width - 4 {
+                let row = src[y];
+                let mut s0 = row[x];
+                let mut s1 = row[x + 1];
+                let mut s2 = row[x + 2];
+                let mut s3 = row[x + 3];
+
+                for k in 1..ksize {
+                    let row = src[y + k];
+                    s0 = Op::apply(s0, row[x]);
+                    s1 = Op::apply(s1, row[x + 1]);
+                    s2 = Op::apply(s2, row[x + 2]);
+                    s3 = Op::apply(s3, row[x + 3]);
+                }
+
+                dst[d + x] = s0;
+                dst[d + x + 1] = s1;
+                dst[d + x + 2] = s2;
+                dst[d + x + 3] = s3;
+
+                x += 4;
+            }
+            while x < width {
+                let mut s0 = src[y][x];
+                for k in 1..ksize {
+                    s0 = Op::apply(s0, src[y + k][x]);
+                }
+
+                dst[d + x] = s0;
+
+                x += 1;
+            }
+
+            count -= 1;
+            d += dst_step;
+            y += 1;
+        }
+    }
+}
