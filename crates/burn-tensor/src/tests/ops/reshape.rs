@@ -110,6 +110,20 @@ mod tests {
     }
 
     #[test]
+    fn should_support_reshape_maybe_fused_5() {
+        let tensor = TestTensorInt::<3>::from_data([[[0], [1], [2], [3]]], &Default::default());
+        let tensor1 = tensor.clone().reshape([2, 1, 2]);
+        let tensor2 = TestTensorInt::<3>::full([2, 4, 2], 0, &Default::default());
+        let output = tensor2.clone() + tensor1 + tensor.clone();
+
+        let expected_tensor1 = TensorData::from([
+            [[0, 1], [1, 2], [2, 3], [3, 4]],
+            [[2, 3], [3, 4], [4, 5], [5, 6]],
+        ]);
+        output.into_data().assert_eq(&expected_tensor1, false);
+    }
+
+    #[test]
     fn should_support_reshape_int() {
         let data = TensorData::from([0, 1, 2]);
         let tensor = TestTensorInt::<1>::from_data(data, &Default::default());

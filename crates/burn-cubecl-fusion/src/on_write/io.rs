@@ -60,13 +60,15 @@ pub fn read<C: CubePrimitive>(
         }
         Arg::Literal(val, _precision) => Line::new(from_const_int::<C>(val)),
         Arg::InputReshaped {
-            original, shape, ..
+            original,
+            shape,
+            broadcasted,
         } => match comptime![original.as_ref().clone()] {
             Arg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!global.broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
                         outputs,
@@ -90,12 +92,16 @@ pub fn read<C: CubePrimitive>(
             }
             _ => comptime![panic!("Only input can be reshaped")],
         },
-        Arg::InputSwapDims { original, dims, .. } => match comptime![original.as_ref().clone()] {
+        Arg::InputSwapDims {
+            original,
+            dims,
+            broadcasted,
+        } => match comptime![original.as_ref().clone()] {
             Arg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!global.broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != config.width as u32] {
                     read_input_aligned(
                         inputs,
                         outputs,
@@ -180,7 +186,75 @@ pub fn read_input_aligned<C: CubePrimitive>(
     let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
     let tensor = inputs.tensors.index(pos);
 
-    let offset = match layout {
+    match comptime![transform.clone()] {
+        Some(Transform::Reshape(shape)) => {
+            let tensor_layout = match comptime![config.ref_layout.clone()] {
+                Arg::Input(index, ..) => {
+                    let layout = inputs.tensors.index(index);
+                    &layout.tensor
+                }
+                Arg::Output(index, ..) => {
+                    let layout = outputs.tensors.index(index);
+                    &layout.tensor
+                }
+                _ => comptime![panic!("Invalid ref layout.")],
+            };
+
+            let pos_ref_aa = ref_pos * comptime![config.width as u32];
+
+            // Very brut force, not really efficient, but not easy to optimize and not a very
+            // frequent workflow.
+            #[unroll]
+            for i in 0u32..comptime!(config.width as u32) {
+                let index = reshaped_index(
+                    inputs,
+                    &tensor_layout,
+                    pos_ref_aa + i,
+                    config.rank,
+                    comptime![shape.clone()],
+                );
+                let index = reshaped_index_to_original_index(&tensor.tensor, index, config.rank);
+                result[i] = C::cast_from(tensor.tensor[index][0])
+            }
+        }
+        Some(Transform::SwapDim(dim1, dim2)) => {
+            let offset =
+                get_offset_aligned(inputs, outputs, tensor, ref_pos, layout, config, transform);
+            let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
+            let stride = tensor.tensor.stride(comptime![i]);
+
+            #[unroll]
+            for i in 0u32..comptime!(config.width as u32) {
+                let index = offset + i * stride;
+                result[i] = C::cast_from(tensor.tensor[index][0])
+            }
+        }
+        None => {
+            let offset =
+                get_offset_aligned(inputs, outputs, tensor, ref_pos, layout, config, transform);
+            let stride = tensor.tensor.stride(comptime![config.rank - 1]);
+            #[unroll]
+            for i in 0u32..comptime!(config.width as u32) {
+                let index = offset + i * stride;
+                result[i] = C::cast_from(tensor.tensor[index][0])
+            }
+        }
+    }
+
+    result
+}
+
+#[cube]
+pub fn get_offset_aligned(
+    inputs: &GlobalArgs,
+    outputs: &GlobalArgs,
+    tensor: &GlobalTensor,
+    ref_pos: u32,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] config: &ElemwiseConfig,
+    #[comptime] transform: Option<Transform>,
+) -> u32 {
+    match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
             let line_size = match comptime![config.ref_layout.clone()] {
                 Arg::Input(index, _precision, _) => {
@@ -204,43 +278,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
             config,
             comptime!(transform.clone()),
         ),
-    };
-
-    match comptime![transform.clone()] {
-        Some(Transform::Reshape(shape)) => {
-            let pos = comptime![config.rank - 1];
-            let stride = tensor.tensor.stride(pos);
-            let arg = comptime![shape.index(comptime![reverse_index(config.rank, pos)])];
-            let shape_pos = read_scalar_shape(inputs, comptime![arg.clone()]);
-            let shape_tensor = tensor.tensor.shape(pos);
-
-            #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
-                let index = offset + ((shape_pos + i) % shape_tensor) * stride;
-                result[i] = C::cast_from(tensor.tensor[index][0])
-            }
-        }
-        Some(Transform::SwapDim(dim1, dim2)) => {
-            let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
-            let stride = tensor.tensor.stride(comptime![i]);
-
-            #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
-                let index = offset + i * stride;
-                result[i] = C::cast_from(tensor.tensor[index][0])
-            }
-        }
-        None => {
-            let stride = tensor.tensor.stride(comptime![config.rank - 1]);
-            #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
-                let index = offset + i * stride;
-                result[i] = C::cast_from(tensor.tensor[index][0])
-            }
-        }
     }
-
-    result
 }
 
 #[cube]
@@ -411,6 +449,8 @@ fn index_offset_with_layout(
                 range.is_none(),
                 "Can't get a range on a reshaped tensor."
             )];
+
+            let index = index * layout.tensor.line_size();
             let index = reshaped_index(inputs, &layout.tensor, index, rank, shape);
             reshaped_index_to_original_index(&tensor.tensor, index, rank)
         }
@@ -473,7 +513,6 @@ fn reshaped_index(
     #[comptime] rank: u32,
     #[comptime] shape: Sequence<Arg>,
 ) -> u32 {
-    let index = index * layout.line_size();
     let mut offset = 0u32;
     let mut stride_curr = 1u32;
 

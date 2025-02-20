@@ -230,6 +230,7 @@ impl FuseOnWriteTraceBuilder {
         let input = Arg::InputSwapDims {
             original: Box::new(original),
             dims,
+            broadcasted: output.shape[output.shape.len() - 1] == 0,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
@@ -297,6 +298,7 @@ impl FuseOnWriteTraceBuilder {
         let input = Arg::InputReshaped {
             original: Box::new(original),
             shape,
+            broadcasted: output.shape[rank - 1] == 0,
         };
 
         let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
@@ -331,7 +333,6 @@ impl FuseOnWriteTraceBuilder {
 
     /// Build into a trace.
     pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
-        println!("Build with {:?}", self.ops);
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();

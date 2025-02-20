@@ -22,10 +22,12 @@ pub enum Arg {
     InputReshaped {
         original: Box<Arg>,
         shape: Sequence<Arg>,
+        broadcasted: bool,
     },
     InputSwapDims {
         original: Box<Arg>,
         dims: (u32, u32),
+        broadcasted: bool,
     },
 }
 

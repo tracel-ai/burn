@@ -41,6 +41,13 @@ impl Vect {
     pub fn is_broadcast(&self) -> bool {
         matches!(self, Vect::Broadcated)
     }
+
+    pub fn limit_to_one(&self) -> Self {
+        match self {
+            Vect::Broadcated => Vect::Broadcated,
+            Vect::Aligned(_) => Vect::Aligned(1),
+        }
+    }
 }
 
 impl<R: Runtime> LaunchPlan<'_, R> {
@@ -49,7 +56,6 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         writes: &BTreeMap<TensorId, ElemwiseOp>,
         rank: usize,
     ) -> Self {
-        println!("Writes {writes:?}");
         LaunchPlan {
             potential_inplaces: Vec::new(),
             global_inputs: Vec::new(),

@@ -134,8 +134,18 @@ impl RegisteredTensors {
     }
 
     pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
+        let value = (tensor, precision);
+        if let Some(old) = self
+            .tensors
+            .iter()
+            .enumerate()
+            .find(|(_, val)| *val == &value)
+        {
+            return old.0 as u32;
+        }
+
         let pos = self.len();
-        self.tensors.push((tensor, precision));
+        self.tensors.push(value);
         pos as u32
     }
 

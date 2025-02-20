@@ -220,7 +220,6 @@ impl FuseOnWriteBuilder {
                 }
             }
             BaseOperationIr::Reshape(desc) => {
-                return false;
                 if desc.input.shape == desc.out.shape {
                     return self.register_unary_ops(desc, |input, out| {
                         ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
