@@ -54,6 +54,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
+        println!("EXECUTE");
         let reference = match plan.reference {
             Some(reference) => reference,
             None => {

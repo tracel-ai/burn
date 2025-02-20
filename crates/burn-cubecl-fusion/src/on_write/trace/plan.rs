@@ -49,6 +49,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
         writes: &BTreeMap<TensorId, ElemwiseOp>,
         rank: usize,
     ) -> Self {
+        println!("Writes {writes:?}");
         LaunchPlan {
             potential_inplaces: Vec::new(),
             global_inputs: Vec::new(),

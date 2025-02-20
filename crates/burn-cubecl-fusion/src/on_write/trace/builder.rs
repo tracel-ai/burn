@@ -331,6 +331,7 @@ impl FuseOnWriteTraceBuilder {
 
     /// Build into a trace.
     pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
+        println!("Build with {:?}", self.ops);
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();

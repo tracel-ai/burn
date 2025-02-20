@@ -112,12 +112,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 .insert(global.id, super::Vect::Aligned(1));
         }
 
-        plan.width = plan
-            .vectorization
-            .values()
-            .map(|a| a.line_size())
-            .max()
-            .unwrap();
+        plan.width = 0;
 
         for handle in plan.handle_inputs.iter_mut() {
             let (vect, br) = match plan.vectorization.get(&handle.global_id) {
@@ -126,6 +121,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             };
             handle.vectorization = vect;
             handle.broadcated = br;
+            if plan.width < handle.vectorization {
+                plan.width = handle.vectorization;
+            }
         }
         for handle in plan.handle_outputs.iter_mut() {
             if let HandleOutput::Owned {
@@ -134,7 +132,10 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                 ..
             } = handle
             {
-                *vectorization = plan.vectorization.get(global_id).unwrap().line_size()
+                *vectorization = plan.vectorization.get(global_id).unwrap().line_size();
+                if plan.width < *vectorization {
+                    plan.width = *vectorization;
+                }
             }
         }
     }
