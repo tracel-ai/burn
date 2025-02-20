@@ -200,16 +200,15 @@ pub fn read_input_aligned<C: CubePrimitive>(
                 _ => comptime![panic!("Invalid ref layout.")],
             };
 
-            let pos_ref_aa = ref_pos * comptime![config.width as u32];
-
             // Very brut force, not really efficient, but not easy to optimize and not a very
             // frequent workflow.
+            let ref_pos = ref_pos * comptime![config.width as u32];
             #[unroll]
             for i in 0u32..comptime!(config.width as u32) {
                 let index = reshaped_index(
                     inputs,
                     &tensor_layout,
-                    pos_ref_aa + i,
+                    ref_pos + i,
                     config.rank,
                     comptime![shape.clone()],
                 );

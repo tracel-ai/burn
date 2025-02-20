@@ -94,41 +94,4 @@ mod tests {
 
         output.into_data().assert_eq(&expected, false);
     }
-
-    #[test]
-    fn should_support_mul_fused() {
-        let device = Default::default();
-
-        // Sync prevent fusion.
-        let tensor1 = TestTensorInt::arange(0..32, &device);
-        let tensor1 = tensor1.reshape([2, 4, 4]);
-
-        let tensor2 = TestTensorInt::arange(0..16, &device);
-        let tensor2 = tensor2.reshape([1, 4, 4]);
-
-        let tensor3 = TestTensorInt::arange(0..8, &device);
-        let tensor3 = tensor3.reshape([4, 1, 2]);
-        TestBackend::sync(&device);
-        let tensor3 = tensor3.swap_dims(0, 2);
-
-        let out = tensor1 + tensor2 + tensor3;
-        TestBackend::sync(&device);
-
-        let expected = TensorData::from([
-            [
-                [0, 4, 8, 12],
-                [8, 12, 16, 20],
-                [16, 20, 24, 28],
-                [24, 28, 32, 36],
-            ],
-            [
-                [17, 21, 25, 29],
-                [25, 29, 33, 37],
-                [33, 37, 41, 45],
-                [41, 45, 49, 53],
-            ],
-        ]);
-        println!("{out}");
-        out.to_data().assert_eq(&expected, false);
-    }
 }

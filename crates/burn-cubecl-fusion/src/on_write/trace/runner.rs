@@ -4,7 +4,7 @@ use super::{
 };
 use crate::CubeFusionHandle;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::prelude::*;
+use cubecl::{ir::Elem, prelude::*};
 use std::collections::BTreeMap;
 
 /// A trace runner is responsible for determining the vectorization factor as well as launching
@@ -31,6 +31,7 @@ pub trait TraceRunner<R: Runtime> {
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
+        ref_elem: &Elem,
     ) {
         vectorization_default(
             vectorizations,
@@ -39,6 +40,7 @@ pub trait TraceRunner<R: Runtime> {
             outputs,
             reshaped,
             swapped,
+            ref_elem,
         )
     }
 }
@@ -50,6 +52,8 @@ fn vectorization_default<'a, R: Runtime>(
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
+    // Smallest element type that can be vectorized.
+    ref_elem: &Elem,
 ) {
     let swapped: Vec<_> = swapped.collect();
 
@@ -68,7 +72,7 @@ fn vectorization_default<'a, R: Runtime>(
             return Vect::Aligned(1);
         }
 
-        for s in R::line_size_elem(&desc.dtype.into()) {
+        for s in R::line_size_elem(ref_elem) {
             // The last dimension should be a multiple of the vector size or broadcated.
             if shape_axis % s as usize == 0 {
                 return Vect::Aligned(s);
@@ -81,7 +85,7 @@ fn vectorization_default<'a, R: Runtime>(
     let vectorization_output = |desc: &TensorIr| {
         let rank = desc.shape.len();
 
-        for s in R::line_size_elem(&desc.dtype.into()) {
+        for s in R::line_size_elem(ref_elem) {
             // The last dimension should be a multiple of the vector size.
             if desc.shape[rank - 1] % s as usize == 0 {
                 return Vect::Aligned(s);
@@ -99,7 +103,7 @@ fn vectorization_default<'a, R: Runtime>(
             return Vect::Broadcated;
         }
 
-        for s in R::line_size_elem(&reshaped.dtype.into()) {
+        for s in R::line_size_elem(ref_elem) {
             if !multi_reads {
                 // The last dimension should be a multiple of the vector size or broadcated.
                 if reshape_axis % s as usize == 0 {
@@ -151,7 +155,7 @@ fn vectorization_default<'a, R: Runtime>(
             return Vect::Broadcated;
         }
 
-        for s in R::line_size_elem(&swapped.dtype.into()) {
+        for s in R::line_size_elem(ref_elem) {
             // The last dimension should be a multiple of the vector size or broadcated.
             if multi_reads {
                 if swapped_axis % s as usize == 0 {
@@ -202,7 +206,7 @@ fn multi_reads_vectorization_update(
             Vect::Aligned(ori) => match vect {
                 Vect::Broadcated => {
                     vectorizations.insert(original, Vect::Aligned(1));
-                    vectorizations.insert(view, vect);
+                    vectorizations.insert(view, vect.limit_to_one());
                 }
                 Vect::Aligned(new) => {
                     let val = if new != ori { 1 } else { new };

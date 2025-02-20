@@ -34,20 +34,6 @@ pub fn matmul<R: CubeRuntime, E: FloatElement>(
     out: Option<CubeTensor<R>>,
     strategy: MatmulStrategy,
 ) -> Result<CubeTensor<R>, MatmulLaunchError> {
-    println!("== MATMUL ==");
-    println!(
-        "lhs {}",
-        Tensor::<CubeBackend<R, E, i32, u32>, 2>::from_primitive(TensorPrimitive::Float(
-            lhs.clone()
-        ))
-    );
-    println!(
-        "rhs {}",
-        Tensor::<CubeBackend<R, E, i32, u32>, 2>::from_primitive(TensorPrimitive::Float(
-            rhs.clone()
-        ))
-    );
-    println!("============");
     match strategy {
         MatmulStrategy::Cube => {
             let out = out.unwrap_or_else(|| init_matmul_output::<R, E>(&lhs, &rhs));

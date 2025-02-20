@@ -92,7 +92,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         core::mem::swap(&mut outputs, &mut self.outputs_sorted);
 
         for output in outputs.into_iter() {
-            println!("OUPTUTPUTPUT {:?}", output.tensor_relative);
             let tensor_global = context
                 .tensors
                 .get(&output.tensor_relative.id)
