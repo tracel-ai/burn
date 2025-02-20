@@ -163,11 +163,11 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
             )),
-            // Box::new(MatmulBuilder::<R>::new(
-            //     device.clone(),
-            //     BT::as_elem_native_unchecked().into(),
-            //     Arc::new(FallbackMatmul),
-            // )),
+            Box::new(MatmulBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
+                Arc::new(FallbackMatmul),
+            )),
         ]
     }
 }

@@ -1,8 +1,6 @@
-use burn_tensor::{Tensor, TensorPrimitive};
-use cubecl::linalg::matmul::kernels::MatmulLaunchError;
-
 use super::init_matmul_output;
-use crate::{tensor::CubeTensor, CubeBackend, CubeRuntime, FloatElement};
+use crate::{tensor::CubeTensor, CubeRuntime, FloatElement};
+use cubecl::linalg::matmul::kernels::MatmulLaunchError;
 
 #[cfg(feature = "autotune")]
 use super::matmul_autotune;
