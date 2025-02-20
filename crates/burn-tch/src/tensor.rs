@@ -458,7 +458,7 @@ mod tests {
     }
 }
 
-extern "C" {
+unsafe extern "C" {
     /// Dummy function to get CUDA to link properly
     pub fn dummy_cuda_dependency();
 }
