@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarKind, TensorType, ToTokens, Type};
+use crate::burn::{ScalarKind, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use quote::quote;
