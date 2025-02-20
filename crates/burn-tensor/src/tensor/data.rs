@@ -8,9 +8,7 @@ use bytemuck::{checked::CheckedCastError, AnyBitPattern};
 use half::{bf16, f16};
 
 use crate::{
-    quantization::{
-        Quantization, QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
-    },
+    quantization::{QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes},
     tensor::bytes::Bytes,
     DType, Distribution, Element, ElementConversion,
 };
@@ -228,7 +226,8 @@ impl TensorData {
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
                 DType::QFloat(scheme) => match scheme {
-                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                    QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
+                    | QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, ..) => {
                         // Quantized int8 values
                         let q_bytes = QuantizedBytes {
                             bytes: self.bytes.clone(),
@@ -245,7 +244,6 @@ impl TensorData {
                                 .into_iter(),
                         )
                     }
-                    QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
                 },
             }
         }
@@ -421,18 +419,8 @@ impl TensorData {
             DType::F32,
             "Only f32 data type can be quantized"
         );
-        match &quantization {
-            QuantizationStrategy::PerTensorAffineInt8(strategy) => TensorData::quantized(
-                strategy.quantize(self.as_slice().unwrap()),
-                self.shape,
-                quantization,
-            ),
-            QuantizationStrategy::PerTensorSymmetricInt8(strategy) => TensorData::quantized(
-                strategy.quantize(self.as_slice().unwrap()),
-                self.shape,
-                quantization,
-            ),
-        }
+        let values = quantization.quantize(self.as_slice().unwrap(), self.shape.clone());
+        TensorData::quantized(values, self.shape, quantization)
     }
 
     /// Dequantizes the data according to its quantization scheme.
@@ -817,17 +805,10 @@ impl core::fmt::Display for TensorData {
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(
-                    QuantizationMode::Affine,
-                    QuantizationType::QInt8,
-                )
-                | QuantizationScheme::PerTensor(
-                    QuantizationMode::Symmetric,
-                    QuantizationType::QInt8,
-                ) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
+                | QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, ..) => {
                     format!("{:?} {scheme:?}", self.try_as_slice::<i8>().unwrap())
                 }
-                QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
             },
         };
         f.write_str(fmt.as_str())
