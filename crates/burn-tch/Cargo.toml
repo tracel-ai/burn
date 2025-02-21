@@ -22,6 +22,7 @@ half = { workspace = true, features = ["std"] }
 libc = { workspace = true }
 log = { workspace = true }
 tch = { workspace = true, features = ["download-libtorch"] }
+torch-sys = { workspace = true } # for build script lib dir detection
 
 
 [dev-dependencies]

@@ -100,7 +100,12 @@ impl SystemInfo {
                 .unwrap_or_else(|_| libtorch.clone());
             libtorch_include_dirs.push(includes.join("include"));
             libtorch_include_dirs.push(includes.join("include/torch/csrc/api/include"));
-            libtorch_lib_dir = Some(lib.join("lib"));
+            if lib.ends_with("lib") {
+                // DEP_TCH_LIBTORCH_LIB might already point to /lib
+                libtorch_lib_dir = Some(lib);
+            } else {
+                libtorch_lib_dir = Some(lib.join("lib"));
+            }
             env_var_rerun("LIBTORCH_CXX11_ABI").unwrap_or_else(|_| "1".to_owned())
         };
         let libtorch_lib_dir = libtorch_lib_dir.expect("no libtorch lib dir found");
@@ -122,17 +127,23 @@ impl SystemInfo {
     }
 
     fn prepare_libtorch_dir(os: Os) -> PathBuf {
-        if let Ok(libtorch) = env_var_rerun("DEP_TORCH_SYS_LIBTORCH_LIB") {
+        if let Ok(libtorch) = env_var_rerun("DEP_TCH_LIBTORCH_LIB") {
             PathBuf::from(libtorch)
         } else if let Ok(libtorch) = env_var_rerun("LIBTORCH") {
             PathBuf::from(libtorch)
         } else if let Some(pathbuf) = Self::check_system_location(os) {
             pathbuf
+        } else if os == Os::Windows {
+            // DEP_TCH_LIBTORCH_LIB not available
+            panic!(
+                r#"Could not find libtorch dir.
+
+        If you are trying to use the automatically downloaded version, the path is not directly available on Windows. Instead, try setting the `LIBTORCH` environment variable for the manual download instructions.
+
+        If the library has already been downloaded in the torch-sys OUT_DIR, you can point the variable to this path (or move the downloaded lib and point to it)."#
+            );
         } else {
-            let libtorch_dir =
-                PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR variable not set"))
-                    .join("libtorch");
-            libtorch_dir.join("libtorch")
+            panic!("Could not find libtorch dir.");
         }
     }
 
