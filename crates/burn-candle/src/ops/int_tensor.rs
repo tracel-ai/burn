@@ -359,6 +359,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
                 candle_core::Tensor::randn(mean.elem::<F>(), std.elem::<F>(), shape, device)
                     .unwrap(),
             ),
+            Distribution::Multinomial(probs) => {
+                let dist = rand::dist::weighted::WeightedIndex::new(probs);
+                let prob_sum = probs.iter().reduce(|acc, e| &(acc + e)).unwrap_or(&1.0);
+                let probs = probs.into_iter().map(|p| p / prob_sum).collect::<Vec<_>>();
+                CandleTensor::new(
+                candle_core::Tensor::from_iter(probs.into_iter().map(|prob| {
+                    todo!()
+                }), device).unwrap(),
+            )},
         }
     }
 

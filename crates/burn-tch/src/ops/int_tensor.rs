@@ -382,6 +382,12 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
                 let mut tensor = TchTensor::empty::<i64>(shape, *device);
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
+            Distribution::Multinomial(probs) => {
+                let num_samples = probs.len() as i64;
+                let tensor_data = TensorData::new(probs, shape);
+                let mut tensor = TchTensor::from_data::<E>(tensor_data, (*device).into());
+                tensor.mut_ops(|tensor| tensor.f_multinomial(num_samples, false).unwrap()).unwrap()
+            }
         }
     }
 
