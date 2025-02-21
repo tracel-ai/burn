@@ -38,6 +38,7 @@ pub enum LibTorchDevice {
 }
 
 impl From<LibTorchDevice> for tch::Device {
+    #[allow(unreachable_code)]
     fn from(device: LibTorchDevice) -> Self {
         match device {
             LibTorchDevice::Cpu => tch::Device::Cpu,
