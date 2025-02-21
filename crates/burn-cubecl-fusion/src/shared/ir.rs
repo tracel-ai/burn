@@ -4,10 +4,7 @@ use cubecl::prelude::*;
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    tensor::{GlobalScalar, GlobalTensor},
-    DYN_ELEM_ID,
-};
+use super::tensor::{GlobalScalar, GlobalTensor};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to an [elemwise operation](ElemwiseOp).
@@ -265,13 +262,6 @@ impl LocalArgs {
             l_bool: Registry::<u32, Line<bool>>::new(),
         }
     }
-}
-
-#[derive(CubeType, Clone)]
-/// Keep track of all local variables that are used as argument in fused
-/// [element wise operations](ElemwiseOp).
-pub struct LocalArgs2 {
-    pub scalars: Registry<u32, Line<NumericExpand<DYN_ELEM_ID>>>,
 }
 
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

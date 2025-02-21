@@ -5,7 +5,7 @@ use cubecl::{client::ComputeClient, ir::Elem, CubeElement, Runtime};
 
 use crate::{
     elem_dtype, is_contiguous,
-    on_write::ir::{Arg, ElemwiseOp, LayoutInfo},
+    shared::ir::{Arg, ElemwiseOp, LayoutInfo},
     strides_dyn_rank, CubeFusionHandle,
 };
 

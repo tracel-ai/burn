@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// Trace containing all element wise operations as well as reads and writes.
-pub struct FuseOnWriteTrace {
+pub struct FuseTrace {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub settings: FuseSettings,
@@ -46,7 +46,7 @@ pub enum TensorView {
     },
 }
 
-impl FuseOnWriteTrace {
+impl FuseTrace {
     /// Run a trace with the given [runner](TraceRunner).
     pub fn run<R: Runtime, BT: CubeElement, Runner: TraceRunner<R>>(
         &self,

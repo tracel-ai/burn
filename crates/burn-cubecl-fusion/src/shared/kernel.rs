@@ -1,4 +1,4 @@
-use crate::on_write::DYN_ELEM_ID;
+use crate::shared::DYN_ELEM_ID;
 
 use super::io::*;
 use super::ir::*;
@@ -27,187 +27,116 @@ pub fn fuse_on_write<E: CubePrimitive>(
         write::<E>(inputs, outputs, &mut locals, write_pos, val, arg, config);
     }
 
+    fuse(inputs, outputs, &mut locals, write_pos, config);
+}
+
+#[cube]
+/// Fuse element-wise operations at the given read position.
+pub fn fuse_on_read<E: CubePrimitive>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    read_pos: u32,
+    #[comptime] read_args: Sequence<Arg>,
+    #[comptime] config: &ElemwiseConfig,
+) -> Sequence<Line<E>> {
+    let mut locals = LocalArgs::new();
+
+    fuse(inputs, outputs, &mut locals, read_pos, config);
+
+    let mut output = Sequence::new();
+
+    #[unroll]
+    for i in 0..read_args.len() {
+        let arg = comptime![read_args.index(i).clone()];
+        let value = read::<E>(inputs, outputs, &mut locals, read_pos, arg, config);
+
+        output.push(value);
+    }
+
+    output
+}
+
+#[cube]
+fn fuse(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    pos: u32,
+    #[comptime] config: &ElemwiseConfig,
+) {
     #[unroll]
     for index in 0..config.ops.len() {
         let op = comptime! { config.ops.index(index).clone() };
         set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_elem()]);
 
         match op {
-            ElemwiseOp::Add(op) => add::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Div(op) => div::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Sub(op) => sub::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Mul(op) => mul::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Powf(op) => powf::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Erf(op) => erf::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Abs(op) => abs::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Log(op) => log::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Log1p(op) => log1p::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Recip(op) => recip::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Assign(op) => assign::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Exp(op) => exp::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Cos(op) => cos::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Sin(op) => sin::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Tanh(op) => tanh::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Equal(op) => equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::Greater(op) => greater::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
+            ElemwiseOp::Add(op) => {
+                add::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Div(op) => {
+                div::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Sub(op) => {
+                sub::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Mul(op) => {
+                mul::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Powf(op) => {
+                powf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Erf(op) => {
+                erf::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Abs(op) => {
+                abs::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Log(op) => {
+                log::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Log1p(op) => {
+                log1p::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Recip(op) => {
+                recip::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Assign(op) => {
+                assign::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Exp(op) => {
+                exp::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Cos(op) => {
+                cos::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Sin(op) => {
+                sin::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Tanh(op) => {
+                tanh::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Equal(op) => {
+                equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::Greater(op) => {
+                greater::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
             ElemwiseOp::GreaterEqual(op) => greater_equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
+                inputs, outputs, locals, pos, op, config,
             ),
-            ElemwiseOp::Lower(op) => lower::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
-            ElemwiseOp::LowerEqual(op) => lower_equal::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                op,
-                config,
-            ),
+            ElemwiseOp::Lower(op) => {
+                lower::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
+            ElemwiseOp::LowerEqual(op) => {
+                lower_equal::<NumericExpand<DYN_ELEM_ID>>(inputs, outputs, locals, pos, op, config)
+            }
             ElemwiseOp::ConditionalAssign {
                 cond,
                 lhs,
                 rhs,
                 out,
             } => conditional_assign::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                cond,
-                lhs,
-                rhs,
-                out,
-                config,
+                inputs, outputs, locals, pos, cond, lhs, rhs, out, config,
             ),
             ElemwiseOp::Gather {
                 input,
@@ -215,15 +144,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 output,
                 dim,
             } => gather::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                dim,
-                input,
-                indices,
-                output,
-                config,
+                inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
             ElemwiseOp::Select {
                 input,
@@ -231,15 +152,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
                 output,
                 dim,
             } => select_indices::<NumericExpand<DYN_ELEM_ID>>(
-                inputs,
-                outputs,
-                &mut locals,
-                write_pos,
-                dim,
-                input,
-                indices,
-                output,
-                config,
+                inputs, outputs, locals, pos, dim, input, indices, output, config,
             ),
         }
     }

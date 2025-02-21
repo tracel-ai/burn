@@ -1,19 +1,19 @@
-use crate::on_write::ir::GlobalArgs;
-use crate::on_write::{io::global_length, kernel::fuse_on_write};
+use crate::shared::ir::GlobalArgs;
+use crate::shared::{io::global_length, kernel::fuse_on_write};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
 use cubecl::{calculate_cube_count_elemwise, client::ComputeClient, prelude::*, CubeDim};
 use serde::{Deserialize, Serialize};
 
-use crate::on_write::{
+use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
-    trace::{FuseOnWriteTrace, TraceRunner},
+    trace::{FuseTrace, TraceRunner},
 };
 
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
-    trace: FuseOnWriteTrace,
+    trace: FuseTrace,
     client: ComputeClient<R::Server, R::Channel>,
     device: R::Device,
     len: usize,
@@ -22,7 +22,7 @@ pub struct ElemwiseOptimization<R: Runtime> {
 #[derive(Serialize, Deserialize)]
 /// State for the [elemwise optimization](ElemwiseOptimization).
 pub struct ElemwiseOptimizationState {
-    trace: FuseOnWriteTrace,
+    trace: FuseTrace,
     len: usize,
 }
 

@@ -2,7 +2,7 @@ use std::any::TypeId;
 use std::sync::Arc;
 
 use crate::elemwise::optimization::ElemwiseRunner;
-use crate::on_write::ir::ElemwisePrecision;
+use crate::shared::ir::ElemwisePrecision;
 use crate::CubeFusionHandle;
 
 use burn_fusion::stream::Context;
@@ -21,9 +21,9 @@ use cubecl::{client::ComputeClient, prelude::*};
 use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
-use crate::on_write::{
+use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
-    trace::{FuseOnWriteTrace, TraceRunner},
+    trace::{FuseTrace, TraceRunner},
 };
 
 use super::args::FusedMatmulInputLaunch;
@@ -32,8 +32,8 @@ use super::tune::fused_matmul_autotune;
 
 /// Fuse matmul operation followed by elemwise operations into a single kernel.
 pub struct MatmulOptimization<R: Runtime> {
-    trace: FuseOnWriteTrace,
-    trace_fallback: FuseOnWriteTrace,
+    trace: FuseTrace,
+    trace_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
@@ -54,8 +54,8 @@ pub trait MatmulFallbackFn<R: Runtime>: Send + Sync {
 #[derive(Serialize, Deserialize, Debug)]
 /// State for the [matrix optimization](MatmulOptimizationState).
 pub struct MatmulOptimizationState {
-    trace: FuseOnWriteTrace,
-    trace_fallback: FuseOnWriteTrace,
+    trace: FuseTrace,
+    trace_fallback: FuseTrace,
     matmul_simple: FusedMatmul,
     matmul_double_buffering: FusedMatmul,
     matmul_specialized: FusedMatmul,
@@ -64,8 +64,8 @@ pub struct MatmulOptimizationState {
 
 impl<R: Runtime> MatmulOptimization<R> {
     pub fn new(
-        trace: FuseOnWriteTrace,
-        trace_fallback: FuseOnWriteTrace,
+        trace: FuseTrace,
+        trace_fallback: FuseTrace,
         client: ComputeClient<R::Server, R::Channel>,
         device: R::Device,
         len: usize,

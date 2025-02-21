@@ -1,6 +1,6 @@
 use cubecl::{linalg::matmul::components::global::args::MatmulArgs, prelude::*};
 
-use crate::on_write::{
+use crate::shared::{
     io::{global_rank, global_shape, global_stride, read_input},
     ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LayoutInfo},
     kernel::fuse_on_write,

@@ -11,7 +11,7 @@ use cubecl::{
 };
 
 use crate::{
-    on_write::{ir::ElemwiseOp, trace::Vect},
+    shared::{ir::ElemwiseOp, trace::Vect},
     CubeFusionHandle,
 };
 

@@ -2,14 +2,14 @@ use super::super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, LayoutInfo, UnaryElemwiseArgs},
     settings::FuseSettings,
 };
-use super::{FuseOnWriteTrace, RegisteredTensors, TensorView};
+use super::{FuseTrace, RegisteredTensors, TensorView};
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 #[derive(Clone)]
-pub struct FuseOnWriteTraceBuilder {
+pub struct FuseTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
     settings: FuseSettings,
@@ -24,7 +24,7 @@ pub struct FuseOnWriteTraceBuilder {
     inputs_unhandled: Vec<TensorId>,
 }
 
-impl FuseOnWriteTraceBuilder {
+impl FuseTraceBuilder {
     pub fn new(bool_precision: ElemwisePrecision, settings: FuseSettings) -> Self {
         Self {
             locals: Locals::default(),
@@ -332,7 +332,7 @@ impl FuseOnWriteTraceBuilder {
     }
 
     /// Build into a trace.
-    pub fn build(&self, shape_ref: Vec<usize>) -> FuseOnWriteTrace {
+    pub fn build(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let inputs = self.inputs.clone();
         let outputs = self.output_tensors();
         let ops = self.ops.clone();
@@ -359,7 +359,7 @@ impl FuseOnWriteTraceBuilder {
         let inputs_unhandled = self.inputs_unhandled.clone();
         let indexed = self.indexed.keys().cloned().collect::<BTreeSet<_>>();
 
-        FuseOnWriteTrace {
+        FuseTrace {
             outputs,
             inputs,
             settings,

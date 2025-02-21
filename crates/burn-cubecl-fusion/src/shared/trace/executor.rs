@@ -11,7 +11,7 @@ use cubecl::{
 use super::{HandleInput, HandleOutput, LaunchPlan, TensorView, TraceRunner};
 use crate::{
     elem_dtype,
-    on_write::{
+    shared::{
         ir::{ElemwiseConfig, ElemwiseOp, ElemwisePrecision, GlobalArgsLaunch},
         tensor::{GlobalScalar, GlobalTensorArg},
     },

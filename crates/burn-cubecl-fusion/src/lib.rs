@@ -6,7 +6,7 @@ pub mod matmul;
 
 mod base;
 
-pub(crate) mod on_write;
+pub(crate) mod shared;
 pub(crate) mod tune;
 
 pub use base::*;

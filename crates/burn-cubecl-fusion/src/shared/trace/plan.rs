@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    on_write::ir::{Arg, ElemwiseOp, ElemwisePrecision},
+    shared::ir::{Arg, ElemwiseOp, ElemwisePrecision},
     CubeFusionHandle,
 };
 use burn_ir::{TensorId, TensorIr};
