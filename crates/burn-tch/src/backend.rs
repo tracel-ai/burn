@@ -41,7 +41,10 @@ impl From<LibTorchDevice> for tch::Device {
     fn from(device: LibTorchDevice) -> Self {
         match device {
             LibTorchDevice::Cpu => tch::Device::Cpu,
-            LibTorchDevice::Cuda(num) => tch::Device::Cuda(num),
+            LibTorchDevice::Cuda(num) => {
+                include!(concat!(env!("OUT_DIR"), "/tch_gpu_check.rs"));
+                tch::Device::Cuda(num)
+            }
             LibTorchDevice::Mps => tch::Device::Mps,
             LibTorchDevice::Vulkan => tch::Device::Vulkan,
         }

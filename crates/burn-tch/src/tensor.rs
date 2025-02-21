@@ -1,4 +1,4 @@
-use crate::{ops::check_device, LibTorchDevice, TchElement};
+use crate::{LibTorchDevice, TchElement};
 use burn_tensor::{
     quantization::{
         AffineQuantization, QTensorPrimitive, QuantizationScheme, QuantizationStrategy,
@@ -291,7 +291,6 @@ impl TchTensor {
     ///
     /// A new tensor.
     pub fn from_data<E: TchElement>(data: TensorData, device: tch::Device) -> Self {
-        check_device(&device.into());
         let shape_tch = TchShape::from(data.shape.as_slice());
         let tensor = tch::Tensor::from_slice(data.as_slice::<E>().unwrap()).to(device);
         let tensor = tensor.reshape(shape_tch.dims).to_kind(E::KIND);

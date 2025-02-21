@@ -1,4 +1,4 @@
-use super::{check_device, TchOps};
+use super::TchOps;
 use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 use burn_tensor::{backend::Backend, ops::BoolTensorOps, Shape, TensorData, TensorMetadata};
 use std::ops::Range;
@@ -35,7 +35,6 @@ impl<E: TchElement, Q: QuantElement> BoolTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn bool_empty(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
-        check_device(device);
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
