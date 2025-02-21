@@ -73,6 +73,8 @@ impl IntoRuntime for Arg {
     }
 }
 
+impl CubeDebug for Arg {}
+
 #[derive(CubeType, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Operations that can be executed and fused.
 pub enum ElemwiseOp {
