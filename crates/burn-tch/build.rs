@@ -133,6 +133,8 @@ impl SystemInfo {
             PathBuf::from(libtorch)
         } else if let Some(pathbuf) = Self::check_system_location(os) {
             pathbuf
+        } else if let Some(path) = check_out_dir() {
+            path
         } else if os == Os::Windows {
             // DEP_TCH_LIBTORCH_LIB not available
             panic!(
@@ -180,6 +182,12 @@ impl SystemInfo {
             }
         };
     }
+}
+
+fn check_out_dir() -> Option<PathBuf> {
+    let out_dir = env_var_rerun("OUT_DIR").ok()?;
+    let libtorch_dir = PathBuf::from(out_dir).join("libtorch");
+    libtorch_dir.exists().then_some(libtorch_dir)
 }
 
 fn main() {
