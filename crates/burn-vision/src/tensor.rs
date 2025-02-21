@@ -26,10 +26,12 @@ pub trait ConnectedComponents<B: Backend> {
 
 /// Morphology tensor operations
 pub trait Morphology<B: Backend> {
-    /// Erodes this tensor using the specified kernel
-    fn erode(self, kernel: Tensor<B, 4, Bool>) -> Self;
-    /// Dilates this tensor using the specified kernel
-    fn dilate(self, kernel: Tensor<B, 4, Bool>) -> Self;
+    /// Erodes this tensor using the specified kernel.
+    /// Assumes NHWC layout.
+    fn erode(self, kernel: Tensor<B, 2, Bool>) -> Self;
+    /// Dilates this tensor using the specified kernel.
+    /// Assumes NHWC layout.
+    fn dilate(self, kernel: Tensor<B, 2, Bool>) -> Self;
 }
 
 /// Morphology tensor operations
@@ -56,12 +58,12 @@ impl<B: BoolVisionOps> ConnectedComponents<B> for Tensor<B, 2, Bool> {
     }
 }
 
-impl<B: VisionBackend, K: MorphologyKind<B>> Morphology<B> for Tensor<B, 4, K> {
-    fn erode(self, kernel: Tensor<B, 4, Bool>) -> Self {
+impl<B: VisionBackend, K: MorphologyKind<B>> Morphology<B> for Tensor<B, 3, K> {
+    fn erode(self, kernel: Tensor<B, 2, Bool>) -> Self {
         Tensor::new(K::erode(self.into_primitive(), kernel.into_primitive()))
     }
 
-    fn dilate(self, kernel: Tensor<B, 4, Bool>) -> Self {
+    fn dilate(self, kernel: Tensor<B, 2, Bool>) -> Self {
         Tensor::new(K::dilate(self.into_primitive(), kernel.into_primitive()))
     }
 }

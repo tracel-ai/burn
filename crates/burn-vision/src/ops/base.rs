@@ -147,13 +147,13 @@ pub trait BoolVisionOps: Backend {
 
     /// Erodes an input tensor with the specified kernel.
     fn bool_erode(input: BoolTensor<Self>, kernel: BoolTensor<Self>) -> BoolTensor<Self> {
-        let input = Tensor::<Self, 4, Bool>::from_primitive(input);
+        let input = Tensor::<Self, 3, Bool>::from_primitive(input);
         morph(input, kernel, MorphOp::Erode).into_primitive()
     }
 
     /// Dilates an input tensor with the specified kernel.
     fn bool_dilate(input: BoolTensor<Self>, kernel: BoolTensor<Self>) -> BoolTensor<Self> {
-        let input = Tensor::<Self, 4, Bool>::from_primitive(input);
+        let input = Tensor::<Self, 3, Bool>::from_primitive(input);
         morph(input, kernel, MorphOp::Dilate).into_primitive()
     }
 }
@@ -162,13 +162,13 @@ pub trait BoolVisionOps: Backend {
 pub trait IntVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
     fn int_erode(input: IntTensor<Self>, kernel: BoolTensor<Self>) -> IntTensor<Self> {
-        let input = Tensor::<Self, 4, Int>::from_primitive(input);
+        let input = Tensor::<Self, 3, Int>::from_primitive(input);
         morph(input, kernel, MorphOp::Erode).into_primitive()
     }
 
     /// Dilates an input tensor with the specified kernel.
     fn int_dilate(input: IntTensor<Self>, kernel: BoolTensor<Self>) -> IntTensor<Self> {
-        let input = Tensor::<Self, 4, Int>::from_primitive(input);
+        let input = Tensor::<Self, 3, Int>::from_primitive(input);
         morph(input, kernel, MorphOp::Dilate).into_primitive()
     }
 }
@@ -177,7 +177,7 @@ pub trait IntVisionOps: Backend {
 pub trait FloatVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
     fn float_erode(input: FloatTensor<Self>, kernel: BoolTensor<Self>) -> FloatTensor<Self> {
-        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::Float(input));
+        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
         morph(input, kernel, MorphOp::Erode)
             .into_primitive()
             .tensor()
@@ -185,7 +185,7 @@ pub trait FloatVisionOps: Backend {
 
     /// Dilates an input tensor with the specified kernel.
     fn float_dilate(input: FloatTensor<Self>, kernel: BoolTensor<Self>) -> FloatTensor<Self> {
-        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::Float(input));
+        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
         morph(input, kernel, MorphOp::Dilate)
             .into_primitive()
             .tensor()
@@ -196,7 +196,7 @@ pub trait FloatVisionOps: Backend {
 pub trait QVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
     fn q_erode(input: QuantizedTensor<Self>, kernel: BoolTensor<Self>) -> QuantizedTensor<Self> {
-        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::QFloat(input));
+        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::QFloat(input));
         match morph(input, kernel, MorphOp::Erode).into_primitive() {
             TensorPrimitive::QFloat(tensor) => tensor,
             _ => unreachable!(),
@@ -205,7 +205,7 @@ pub trait QVisionOps: Backend {
 
     /// Dilates an input tensor with the specified kernel.
     fn q_dilate(input: QuantizedTensor<Self>, kernel: BoolTensor<Self>) -> QuantizedTensor<Self> {
-        let input = Tensor::<Self, 4>::from_primitive(TensorPrimitive::QFloat(input));
+        let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::QFloat(input));
         match morph(input, kernel, MorphOp::Dilate).into_primitive() {
             TensorPrimitive::QFloat(tensor) => tensor,
             _ => unreachable!(),
