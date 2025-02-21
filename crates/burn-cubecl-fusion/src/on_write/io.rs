@@ -207,7 +207,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
             for i in 0u32..comptime!(config.width as u32) {
                 let index = reshaped_index(
                     inputs,
-                    &tensor_layout,
+                    tensor_layout,
                     ref_pos + i,
                     config.rank,
                     comptime![shape.clone()],
