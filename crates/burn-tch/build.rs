@@ -157,7 +157,7 @@ impl SystemInfo {
                     .flag("-std=c++17")
                     .flag(format!("-D_GLIBCXX_USE_CXX11_ABI={}", self.cxx11_abi))
                     .files(&[cuda_dependency])
-                    .compile("tch");
+                    .compile("burn-tch");
             }
             Os::Windows => {
                 cc::Build::new()
@@ -166,6 +166,34 @@ impl SystemInfo {
                     .warnings(false)
                     .includes(&self.libtorch_include_dirs)
                     .flag("/std:c++17")
+                    .files(&[cuda_dependency])
+                    .compile("burn-tch");
+            }
+        };
+    }
+
+    fn make_cpu() {
+        let cuda_dependency = "src/cuda_hack/fake_cuda_dependency.cpp";
+        println!("cargo:rerun-if-changed={}", cuda_dependency);
+
+        let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
+
+        match os.as_str() {
+            "windows" => {
+                cc::Build::new()
+                    .cpp(true)
+                    .pic(true)
+                    .warnings(false)
+                    .flag("/std:c++17")
+                    .files(&[cuda_dependency])
+                    .compile("burn-tch");
+            }
+            _ => {
+                cc::Build::new()
+                    .cpp(true)
+                    .pic(true)
+                    .warnings(false)
+                    .flag("-std=c++17")
                     .files(&[cuda_dependency])
                     .compile("tch");
             }
@@ -181,6 +209,7 @@ fn check_out_dir() -> Option<PathBuf> {
 
 fn main() {
     let system_info = SystemInfo::new();
+    let out_dir = env_var_rerun("OUT_DIR").expect("Failed to get out dir");
 
     let mut gpu_found = false;
     let found_dir = system_info.is_some();
@@ -193,8 +222,9 @@ fn main() {
 
         system_info.make(use_cuda, use_hip);
         gpu_found = use_cuda || use_hip;
+    } else {
+        SystemInfo::make_cpu();
     }
-    let out_dir = env_var_rerun("OUT_DIR").expect("Failed to get out dir");
     let check_file = PathBuf::from(out_dir).join("tch_gpu_check.rs");
     if gpu_found {
         fs::write(check_file, "()").unwrap();
