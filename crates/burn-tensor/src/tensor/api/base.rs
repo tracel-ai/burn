@@ -554,6 +554,10 @@ where
         let current_dims = self.shape().dims;
         let mut new_dims: [usize; D2] = [0; D2];
 
+        assert!(dim < current_dims.len(), "Dimension index out of bounds");
+        assert_eq!(D2, current_dims.len() - 1, "Invalid output dimension count");
+        assert_eq!(current_dims[dim], 1, "Can only squeeze dimensions of size 1");
+
         new_dims[..dim].copy_from_slice(&current_dims[..dim]);
         new_dims[dim..].copy_from_slice(&current_dims[dim + 1..]);
 

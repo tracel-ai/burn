@@ -1,5 +1,5 @@
 use super::{Node, NodeCodegen};
-use crate::burn::{ScalarKind, ToTokens, Type};
+use crate::burn::{BurnImports, ScalarKind, ToTokens, Type};
 
 use burn::record::PrecisionSettings;
 use quote::quote;
@@ -43,7 +43,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
         match &self.output {
             Type::Scalar(sc) => {
-                let output_rank = 0;
+                assert_eq!(input_rank, 1);
                 let index = match &self.index {
                     Type::Scalar(idx) => idx.name.clone(),
                     _ => panic!("Gather needs Scalar index, got {:?}!", self.index),
@@ -52,29 +52,29 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
                 match scalar_kind {
                     ScalarKind::Int32 => quote! {
                         let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let gathered = Tensor::select(#input, #dim, indices).squeeze::<#output_rank>(#dim);
-                        let #output = gathered.to_scalar().to_i32();
+                        let gathered = Tensor::select(#input, #dim, indices);
+                        let #output = gathered.into_scalar().to_i32();
                         #output
                     },
                     ScalarKind::Int64 => quote! {
                         let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let gathered = Tensor::select(#input, #dim, indices).squeeze::<#output_rank>(#dim);
-                        let #output = gathered.to_scalar().to_i64();
+                        let gathered = Tensor::select(#input, #dim, indices);
+                        let #output = gathered.into_scalar().to_i64();
                     },
                     ScalarKind::Float32 => quote! {
                         let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let gathered = Tensor::select(#input, #dim, indices).squeeze::<#output_rank>(#dim);
-                        let #output = gathered.to_scalar().to_f32();
+                        let gathered = Tensor::select(#input, #dim, indices);
+                        let #output = gathered.into_scalar().to_f32();
                     },
                     ScalarKind::Float64 => quote! {
                         let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let gathered = Tensor::select(#input, #dim, indices).squeeze::<#output_rank>(#dim);
-                        let #output = gathered.to_scalar().to_f64();
+                        let gathered = Tensor::select(#input, #dim, indices);
+                        let #output = gathered.into_scalar().to_f64();
                     },
                     ScalarKind::Bool => quote! {
                         let indices = Tensor::<B, 1, _>::from_data([#index], &*self.device);
-                        let gathered = Tensor::select(#input, #dim, indices).squeeze::<#output_rank>(#dim);
-                        let #output = gathered.to_scalar().to_bool();
+                        let gathered = Tensor::select(#input, #dim, indices);
+                        let #output = gathered.into_scalar().to_bool();
                     },
                 }
             }
@@ -134,6 +134,15 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for GatherNode {
 
     fn into_node(self) -> super::Node<PS> {
         Node::Gather(self)
+    }
+
+    fn register_imports(&self, imports: &mut BurnImports) {
+        match &self.output {
+            Type::Scalar(_) => {
+                imports.register("burn::tensor::cast::ToElement");
+            }
+            _ => {}
+        }
     }
 }
 
@@ -392,7 +401,7 @@ mod tests {
         let mut graph = BurnGraph::<FullPrecisionSettings>::default();
 
         graph.register(GatherNode::new(
-            Type::Tensor(TensorType::new_float("tensor1", 2)),
+            Type::Tensor(TensorType::new_float("tensor1", 1)),
             Type::Scalar(ScalarType::new("scalar1", ScalarKind::Int64)),
             Type::Scalar(ScalarType::new("scalar2", ScalarKind::Int64)),
             0,
@@ -404,6 +413,7 @@ mod tests {
         );
 
         let expected = quote! {
+            use burn::tensor::cast::ToElement;
             use burn::{
                 module::Module,
                 tensor::{backend::Backend, Tensor},
@@ -427,12 +437,12 @@ mod tests {
                 #[allow(clippy::let_and_return, clippy::approx_constant)]
                 pub fn forward(
                     &self,
-                    tensor1: Tensor<B, 2>,
+                    tensor1: Tensor<B, 1>,
                     scalar1: i64
                 ) -> i64 {
                     let indices = Tensor::<B, 1, _>::from_data([scalar1], &*self.device);
-                    let gathered = Tensor::select(tensor1, 0, indices).squeeze::<0i32>(0);
-                    let scalar2 = gathered.to_scalar().to_i64();
+                    let gathered = Tensor::select(tensor1, 0, indices);
+                    let scalar2 = gathered.into_scalar().to_i64();
                     scalar2
                 }
             }
