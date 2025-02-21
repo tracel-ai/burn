@@ -15,9 +15,6 @@ use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAl
 use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::specialized::SpecializedAlgorithm;
 use cubecl::linalg::matmul::kernels::matmul::{select_kernel, Algorithm};
-// use cubecl::linalg::matmul::kernels::matmul::{
-//     DoubleBufferingSelector, MatmulSelector, SimpleSelector, SpecializedSelector,
-// };
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};

@@ -200,7 +200,7 @@ pub fn read_input_aligned<C: CubePrimitive>(
                 _ => comptime![panic!("Invalid ref layout.")],
             };
 
-            // Very brut force, not really efficient, but not easy to optimize and not a very
+            // Very brute force, not really efficient, but not easy to optimize and not a very
             // frequent workflow.
             let ref_pos = ref_pos * comptime![config.width as u32];
             #[unroll]
