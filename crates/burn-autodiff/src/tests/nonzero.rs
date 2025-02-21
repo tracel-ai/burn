@@ -29,6 +29,7 @@ mod tests {
             .clone()
             .unsqueeze_dim::<2>(0)
             .matmul(tensor_3.unsqueeze_dim(1));
+
         let grads = tensor_4.backward();
 
         let grad_1 = tensor_1.grad(&grads).unwrap();

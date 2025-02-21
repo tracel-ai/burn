@@ -35,6 +35,10 @@ pub enum QuantizationScheme {
 impl CubeType for QuantizationScheme {
     type ExpandType = Self;
 }
+
+#[cfg(feature = "cubecl")]
+impl CubeDebug for QuantizationScheme {}
+
 #[cfg(feature = "cubecl")]
 impl cubecl::frontend::Init for QuantizationScheme {
     fn init(self, _scope: &mut cubecl::ir::Scope) -> Self {

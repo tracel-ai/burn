@@ -390,6 +390,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             _ => tensor_global.dtype,
         };
 
+        // TODO: Check if we can also remove the read, if we have a dead partial graph.
         plan.writes.remove(&output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
