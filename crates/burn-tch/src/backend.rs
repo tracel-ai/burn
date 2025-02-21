@@ -38,13 +38,16 @@ pub enum LibTorchDevice {
 }
 
 impl From<LibTorchDevice> for tch::Device {
-    #[allow(unreachable_code)]
+    #[allow(
+        unreachable_code,
+        reason = "CUDA branch always panics if the library is missing"
+    )]
     fn from(device: LibTorchDevice) -> Self {
         match device {
             LibTorchDevice::Cpu => tch::Device::Cpu,
-            LibTorchDevice::Cuda(num) => {
+            LibTorchDevice::Cuda(_num) => {
                 include!(concat!(env!("OUT_DIR"), "/tch_gpu_check.rs"));
-                tch::Device::Cuda(num)
+                tch::Device::Cuda(_num)
             }
             LibTorchDevice::Mps => tch::Device::Mps,
             LibTorchDevice::Vulkan => tch::Device::Vulkan,
