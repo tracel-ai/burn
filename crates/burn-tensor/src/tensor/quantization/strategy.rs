@@ -24,7 +24,7 @@ pub enum QuantizationStrategy {
 
 impl QuantizationStrategy {
     /// Quantize the values to a lower precision data type.
-    pub fn quantize(&self, values: &[f32], shape: Vec<usize>) -> Vec<i8> {
+    pub fn quantize(&self, values: &[f32], shape: &[usize]) -> Vec<i8> {
         match self {
             QuantizationStrategy::PerTensorAffineInt8(strategy) => strategy.quantize(values),
             QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.quantize(values),
@@ -56,7 +56,7 @@ impl QuantizationStrategy {
     }
 
     /// Dequantize the values to a higher precision data type.
-    pub fn dequantize(&self, values: &[i8], shape: Vec<usize>) -> Vec<f32> {
+    pub fn dequantize(&self, values: &[i8], shape: &[usize]) -> Vec<f32> {
         match self {
             QuantizationStrategy::PerTensorAffineInt8(strategy) => strategy.dequantize(values),
             QuantizationStrategy::PerTensorSymmetricInt8(strategy) => strategy.dequantize(values),
@@ -90,7 +90,7 @@ impl QuantizationStrategy {
 
 fn apply_per_block_grid<I: Element, O: Element, F: Fn(usize, I) -> O>(
     values: &[I],
-    shape: Vec<usize>,
+    shape: &[usize],
     m: usize,
     n: usize,
     transform: F,
@@ -431,7 +431,7 @@ mod tests {
     #[test]
     fn test_int8_symmetric_quantization_per_block_flat() {
         let x: [f32; 8] = [-1.8, -1.0, 0.0, 0.5, -1.8, -1.0, 0.0, 0.5];
-        let shape = vec![2, 4];
+        let shape = &[2, 4];
         let expected_q = vec![-127, -71, 0, 35, -127, -71, 0, 35];
         let expected_d = vec![
             -1.8, -1.0062993, 0.0, 0.496063, -1.8, -1.0062993, 0.0, 0.496063,
@@ -454,7 +454,7 @@ mod tests {
     #[test]
     fn test_int8_symmetric_quantization_per_block_grid() {
         let x: [f32; 8] = [-1.8, -1.0, 0.0, 0.5, 0.5, 0.0, -1.0, -1.8];
-        let shape = vec![2, 4];
+        let shape = &[2, 4];
         let expected_q = vec![-127, -71, 0, 35, 35, 0, -71, -127];
         let expected_d = vec![
             -1.8, -1.0062993, 0.0, 0.496063, 0.496063, 0.0, -1.0062993, -1.8,
@@ -466,7 +466,7 @@ mod tests {
             BlockLayout::Grid(2, 2),
         );
 
-        let q: Vec<i8> = strategy.quantize(&x, shape.clone());
+        let q: Vec<i8> = strategy.quantize(&x, shape);
         assert_eq!(q, expected_q);
 
         let d = strategy.dequantize(&expected_q, shape);
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_int8_symmetric_quantization_per_block_grid_3d() {
-        let shape = vec![2, 4, 4];
+        let shape = &[2, 4, 4];
         let x = vec![
             // 2x2 blocks: [[-1.8, -1.0, 0.0, 0.5], [-0.8, 1.2, 0.25, 0.5]]
             [-1.8, -1.0, -0.8, 1.2],
@@ -529,7 +529,7 @@ mod tests {
         let strategy =
             QuantizationStrategy::PerBlockSymmetricInt8(per_block_strat, BlockLayout::Grid(2, 2));
 
-        let q: Vec<i8> = strategy.quantize(&x, shape.clone());
+        let q: Vec<i8> = strategy.quantize(&x, shape);
         assert_eq!(q, expected_q);
 
         let d = strategy.dequantize(&expected_q, shape);

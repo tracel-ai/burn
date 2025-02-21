@@ -48,23 +48,33 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         // So for now we have to load the dequantized values to quantize them back since the dequantization
         // methods take the values provided when quantizing.
         match data.dtype {
-            DType::QFloat(scheme) => {
-                let num_elements = data.num_elements();
-                let q_bytes = QuantizedBytes {
-                    bytes: data.into_bytes(),
-                    scheme,
-                    num_elements,
-                };
+            DType::QFloat(scheme) => match scheme {
+                QuantizationScheme::PerTensor(_, _) => {
+                    let shape = data.shape.clone();
+                    let num_elements = data.num_elements();
+                    let q_bytes = QuantizedBytes {
+                        bytes: data.into_bytes(),
+                        scheme,
+                        num_elements,
+                    };
 
-                let (values, qparams) = q_bytes.dequantize();
-                let tensor = tch::Tensor::from_slice(&values).to(device);
-                let tensor = quantize(tensor.reshape(shape_tch.dims), &scheme, &qparams);
+                    let (values, qparams) = q_bytes.dequantize(&shape);
+                    let qparams = QParams {
+                        scale: qparams.scale[0],
+                        offset: qparams.offset.map(|x| x[0]),
+                    };
+                    let tensor = tch::Tensor::from_slice(&values).to(device);
+                    let tensor = quantize(tensor.reshape(shape_tch.dims), &scheme, &qparams);
 
-                TchQTensor {
-                    qtensor: TchTensor::new(tensor),
-                    scheme,
+                    TchQTensor {
+                        qtensor: TchTensor::new(tensor),
+                        scheme,
+                    }
                 }
-            }
+                QuantizationScheme::PerBlock(..) => {
+                    panic!("Tch does not support per-block quantization")
+                }
+            },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",
                 data.dtype
@@ -84,21 +94,23 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         }
 
         let qtensor = match scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, dtype) => match dtype {
-                QuantizationType::QInt8 => tensor.tensor.quantize_per_tensor_tensor_qparams(
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
+                tensor.tensor.quantize_per_tensor_tensor_qparams(
                     &qparams.scale.tensor,
                     &qparams.offset.unwrap().tensor,
                     tch::Kind::QInt8,
-                ),
-            },
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, _) => {
+                )
+            }
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 tensor.tensor.quantize_per_tensor_tensor_qparams(
                     &qparams.scale.tensor,
                     &tch::Tensor::zeros_like(&qparams.scale.tensor),
                     tch::Kind::QInt8,
                 )
             }
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
+            QuantizationScheme::PerBlock(..) => {
+                panic!("Tch does not support per-block quantization")
+            }
         };
 
         TchQTensor {
@@ -112,23 +124,23 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
         scheme: &QuantizationScheme,
     ) -> QuantizedTensor<Self> {
         let qtensor = match &scheme {
-            QuantizationScheme::PerTensor(QuantizationMode::Affine, dtype) => match dtype {
+            QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
                 // Notes on `reduce_range`:
                 // https://github.com/pytorch/pytorch/issues/93140
                 // https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
-                QuantizationType::QInt8 => tensor
+                tensor
                     .tensor
-                    .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
-            },
-            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, dtype) => {
-                log::warn!("LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization");
-                match dtype {
-                    QuantizationType::QInt8 => tensor
-                        .tensor
-                        .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false),
-                }
+                    .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)
             }
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
+            QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
+                log::warn!("LibTorch backend does not support symmetric per-tensor scheme for dynamic quantization, reverting to the default per-tensor affine quantization");
+                tensor
+                    .tensor
+                    .quantize_per_tensor_dynamic(tch::Kind::QInt8, /*reduce_range*/ false)
+            }
+            QuantizationScheme::PerBlock(..) => {
+                panic!("Tch does not support per-block quantization")
+            }
         };
 
         TchQTensor {

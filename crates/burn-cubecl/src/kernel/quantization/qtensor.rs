@@ -21,6 +21,7 @@ impl QParams {
     }
 
     /// Get the quantization parameters values.
+    // TODO: this needs to take the position of the value we want to dequantize so we can access the associated parameters
     pub fn values(&self, tensor: &QTensor) -> (f32, i32) {
         let len = tensor.len();
         match comptime!(self.scheme) {
@@ -46,7 +47,15 @@ impl QParams {
                 f32::bitcast_from(tensor[len - 1][tensor.line_size() - 1]),
                 0,
             ),
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
+            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => {
+                // TODO
+                // For affine quantization, there are 2 parameters per block
+                // let values = tensor[len - 2 * num_blocks / tensor.line_size()];
+                // The (scale, offset) parameters are stored contiguously by parameter type
+                // [scale, scale, scale, ..., offset, offset, offset, ...]
+                // (but we might want to store them with each block in the future?)
+                (0f32, 0)
+            }
         }
     }
 }

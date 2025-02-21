@@ -3,12 +3,13 @@ mod tests {
     use super::*;
     use burn_tensor::ops::QTensorOps;
     use burn_tensor::quantization::{
-        AffineQuantization, QParams, QuantizationMode, QuantizationParameters, QuantizationScheme,
-        QuantizationStrategy, QuantizationType, QuantizedBytes, SymmetricQuantization,
+        AffineQuantization, BlockLayout, QParams, QuantizationMode, QuantizationParameters,
+        QuantizationScheme, QuantizationStrategy, QuantizationType, QuantizedBytes,
+        SymmetricQuantization,
     };
     use burn_tensor::{DType, Tensor, TensorData};
 
-    fn get_q_params(data: TensorData) -> QParams<f32, i8> {
+    fn get_q_params(data: TensorData) -> QParams<Vec<f32>, Vec<i8>> {
         let num_elements = data.num_elements();
         let scheme = if let DType::QFloat(scheme) = data.dtype {
             scheme
@@ -48,7 +49,9 @@ mod tests {
         // Quantization parameters check
         let qparams = get_q_params(x_q);
         let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 1);
         assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset.as_ref().map(|x| x.len()), Some(1));
         assert_eq!(qparams.offset, expected.offset);
     }
 
@@ -79,7 +82,9 @@ mod tests {
         // Quantization parameters check
         let qparams = get_q_params(x_q);
         let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 1);
         assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, None);
         assert_eq!(qparams.offset, expected.offset);
     }
 
@@ -121,5 +126,83 @@ mod tests {
         );
 
         x_q.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn should_support_quantize_per_block_symmetric_int8() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_floats(
+            [
+                // 2x2 blocks: [[-1.8, -1.0, 0.0, 0.5], [-0.8, 1.2, 0.25, 0.5]]
+                [-1.8, -1.0, -0.8, 1.2],
+                [0.0, 0.5, 0.25, 0.5],
+                // 2x2 blocks: [[-0.08, 0.12, 0.025, 0.05], [0.2, 0.3, 0.4, 0.5]]
+                [-0.08, 0.12, 0.2, 0.3],
+                [0.025, 0.05, 0.4, 0.5],
+                // 2x2 blocks: [[0.01, 0.03, 0.02, 0.06], [4.0, 3.0, 2.0, 1.0]]
+                [0.01, 0.03, 4.0, 3.0],
+                [0.02, 0.06, 2.0, 1.0],
+                // 2x2 blocks: [[0.4, 0.3, 0.2, 0.1], [0.5, 0.0, -1.0, -1.8]]
+                [0.4, 0.3, 0.5, 0.0],
+                [0.2, 0.1, -1.0, -1.8],
+            ],
+            &device,
+        );
+        let scheme = QuantizationScheme::PerBlock(
+            QuantizationMode::Symmetric,
+            QuantizationType::QInt8,
+            BlockLayout::Grid(2, 2),
+        );
+
+        // Per-block qparams
+        let scales: [f32; 8] = [
+            0.014173228,
+            0.009448819,
+            0.0009448819,
+            0.003937008,
+            0.00047244094,
+            0.031496063,
+            0.0031496063,
+            0.014173228,
+        ];
+        let qparams = QuantizationParameters {
+            scale: Tensor::from_floats(scales, &device),
+            offset: None,
+        };
+
+        let x_q = tensor.quantize(&scheme, qparams).into_data();
+
+        let expected = TensorData::quantized(
+            vec![
+                [-127i8, -71, -85, 127],
+                [0, 35, 26, 53],
+                [-85, 127, 51, 76],
+                [26, 53, 102, 127],
+                [21, 64, 127, 95],
+                [42, 127, 64, 32],
+                [127, 95, 35, 0],
+                [64, 32, -71, -127],
+            ]
+            .concat(),
+            [8, 4],
+            QuantizationStrategy::PerBlockSymmetricInt8(
+                scales
+                    .iter()
+                    .map(|&s| SymmetricQuantization::init(s))
+                    .collect(),
+                BlockLayout::Grid(2, 2),
+            ),
+        );
+
+        // Values equality
+        x_q.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 8);
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, None);
+        assert_eq!(qparams.offset, expected.offset);
     }
 }

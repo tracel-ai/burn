@@ -84,6 +84,7 @@ where
         let tensor = kernel::into_contiguous(tensor);
         let bytes = tensor.client.read_one_async(tensor.handle.binding()).await;
 
+        // We use the same internal representation
         TensorData::from_bytes(bytes, tensor.shape, tensor.dtype)
     }
 

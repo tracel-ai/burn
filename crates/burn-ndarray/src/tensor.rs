@@ -6,6 +6,7 @@ use burn_tensor::{
     DType, Element, Shape, TensorData, TensorMetadata,
 };
 
+use alloc::vec::Vec;
 use ndarray::{ArcArray, Array, Dim, IxDyn};
 
 use crate::element::QuantElement;
@@ -341,7 +342,7 @@ pub struct NdArrayQTensor<Q: QuantElement> {
     /// The quantization scheme.
     pub scheme: QuantizationScheme,
     /// The quantization parameters.
-    pub qparams: QParams<f32, Q>,
+    pub qparams: Vec<QParams<f32, Q>>,
 }
 
 impl<Q: QuantElement> NdArrayQTensor<Q> {
@@ -350,16 +351,39 @@ impl<Q: QuantElement> NdArrayQTensor<Q> {
         match self.scheme {
             QuantizationScheme::PerTensor(QuantizationMode::Affine, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorAffineInt8(AffineQuantization::init(
-                    self.qparams.scale,
-                    self.qparams.offset.unwrap().elem(),
+                    self.qparams[0].scale,
+                    self.qparams[0].offset.unwrap().elem(),
                 ))
             }
             QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8) => {
                 QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                    self.qparams.scale,
+                    self.qparams[0].scale,
                 ))
             }
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
+            QuantizationScheme::PerBlock(
+                QuantizationMode::Affine,
+                QuantizationType::QInt8,
+                layout,
+            ) => QuantizationStrategy::PerBlockAffineInt8(
+                self.qparams
+                    .iter()
+                    .map(|qparams| {
+                        AffineQuantization::init(qparams.scale, qparams.offset.unwrap().elem())
+                    })
+                    .collect(),
+                layout,
+            ),
+            QuantizationScheme::PerBlock(
+                QuantizationMode::Symmetric,
+                QuantizationType::QInt8,
+                layout,
+            ) => QuantizationStrategy::PerBlockSymmetricInt8(
+                self.qparams
+                    .iter()
+                    .map(|qparams| SymmetricQuantization::init(qparams.scale))
+                    .collect(),
+                layout,
+            ),
         }
     }
 }

@@ -65,6 +65,15 @@ impl cubecl::frontend::Init for QuantizationScheme {
 }
 
 impl QuantizationScheme {
+    /// Get the [quantization mode](QuantizationMode)
+    pub fn mode(&self) -> QuantizationMode {
+        match self {
+            QuantizationScheme::PerTensor(mode, ..) | QuantizationScheme::PerBlock(mode, ..) => {
+                *mode
+            }
+        }
+    }
+
     /// Compute the quantization range mapping.
     pub fn compute_range<B: Backend, const D: usize>(
         &self,

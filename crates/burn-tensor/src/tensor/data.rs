@@ -21,8 +21,6 @@ use num_traits::Float;
 
 use rand::RngCore;
 
-use super::quantization::QuantizationMode;
-
 /// The things that can go wrong when manipulating tensor data.
 #[derive(Debug)]
 pub enum DataError {
@@ -419,7 +417,7 @@ impl TensorData {
             DType::F32,
             "Only f32 data type can be quantized"
         );
-        let values = quantization.quantize(self.as_slice().unwrap(), self.shape.clone());
+        let values = quantization.quantize(self.as_slice().unwrap(), &self.shape);
         TensorData::quantized(values, self.shape, quantization)
     }
 
@@ -433,7 +431,7 @@ impl TensorData {
                 num_elements,
             };
 
-            let values = q_bytes.dequantize().0;
+            let values = q_bytes.dequantize(&self.shape).0;
             Ok(Self::new(values, self.shape))
         } else {
             Err(DataError::TypeMismatch(format!(
@@ -504,25 +502,19 @@ impl TensorData {
                 };
                 match (q, q_other) {
                     (
-                        QuantizationScheme::PerTensor(
-                            QuantizationMode::Affine,
+                        QuantizationScheme::PerTensor(mode, QuantizationType::QInt8),
+                        QuantizationScheme::PerTensor(mode_other, QuantizationType::QInt8),
+                    ) if mode == mode_other => self.assert_eq_elem::<i8>(other),
+                    (
+                        QuantizationScheme::PerBlock(mode, QuantizationType::QInt8, layout),
+                        QuantizationScheme::PerBlock(
+                            mode_other,
                             QuantizationType::QInt8,
+                            layout_other,
                         ),
-                        QuantizationScheme::PerTensor(
-                            QuantizationMode::Affine,
-                            QuantizationType::QInt8,
-                        ),
-                    )
-                    | (
-                        QuantizationScheme::PerTensor(
-                            QuantizationMode::Symmetric,
-                            QuantizationType::QInt8,
-                        ),
-                        QuantizationScheme::PerTensor(
-                            QuantizationMode::Symmetric,
-                            QuantizationType::QInt8,
-                        ),
-                    ) => self.assert_eq_elem::<i8>(other),
+                    ) if mode == mode_other && layout == layout_other => {
+                        self.assert_eq_elem::<i8>(other)
+                    }
                     _ => panic!("Quantization schemes differ ({:?} != {:?})", q, q_other),
                 }
             }

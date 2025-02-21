@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_tensor::{
     backend::{Backend, DeviceId, DeviceOps},
-    quantization::{QTensorPrimitive, QuantizationStrategy},
+    quantization::QTensorPrimitive,
     Device,
 };
 use candle_core::{backend::BackendDevice, DeviceLocation};

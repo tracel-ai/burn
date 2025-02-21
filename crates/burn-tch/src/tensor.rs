@@ -345,7 +345,8 @@ impl TchQTensor {
                     scale as f32,
                 ))
             }
-            QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => unimplemented!(),
+            // Only per-tensor and per-channel are supported
+            QuantizationScheme::PerBlock(..) => unreachable!(),
         }
     }
 }
