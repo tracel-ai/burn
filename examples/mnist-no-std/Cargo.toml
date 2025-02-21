@@ -1,0 +1,18 @@
+[package]
+name = "mnist-no-std"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+burn = { path = "../../crates/burn", default-features = false, features = ["ndarray", "autodiff"] }
+spin = { workspace = true }
+bytemuck = { workspace = true, features = ["min_const_generics"] }
+
+[dev-dependencies]
+mnist = { version = "0.6.0", features = ["download"] }
+clap.workspace = true
+rand = { workspace = true, default-features = true }
+bytemuck = { workspace = true, features = ["min_const_generics"] }
+image = { workspace = true }
