@@ -421,6 +421,18 @@ pub fn global_rank(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
 }
 
 #[cube]
+pub fn global_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+    let tensor = global.tensors.index(pos);
+    tensor.tensor.len()
+}
+
+#[cube]
+pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+    let tensor = global.tensors.index(pos);
+    tensor.tensor.buffer_len()
+}
+
+#[cube]
 pub fn global_shape(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32 {
     let tensor = global.tensors.index(pos);
     tensor.tensor.shape(dim)

@@ -1,7 +1,7 @@
 use super::{
     ir::{Arg, BinaryElemwiseArgs, ElemwiseOp, ElemwisePrecision, UnaryElemwiseArgs},
     settings::FuseSettings,
-    trace::{FuseTraceBuilder, FuseTrace},
+    trace::{FuseTrace, FuseTraceBuilder},
 };
 use burn_fusion::{OptimizationBuilder, OptimizationProperties, OptimizationStatus};
 use burn_ir::{
@@ -37,10 +37,7 @@ impl TryFuseBuilder {
         }
     }
 
-    fn register(
-        &mut self,
-        add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>,
-    ) -> bool {
+    fn register(&mut self, add_ops: impl FnOnce(&mut FuseTraceBuilder) -> Option<()>) -> bool {
         // Always allow the first operation to be added.
         if !self.added_ops {
             self.added_ops = true;
