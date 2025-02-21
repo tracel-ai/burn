@@ -6,8 +6,8 @@
 // On Linux, the TORCH_CUDA_VERSION environment variable can be used,
 // like 9.0, 90, or cu90 to specify the version of CUDA to use for libtorch.
 
-use std::env;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 const PYTHON_PRINT_PYTORCH_DETAILS: &str = r"
 import torch
@@ -42,7 +42,7 @@ fn env_var_rerun(name: &str) -> Result<String, env::VarError> {
 }
 
 impl SystemInfo {
-    fn new() -> Self {
+    fn new() -> Option<Self> {
         let os = match env::var("CARGO_CFG_TARGET_OS")
             .expect("Unable to get TARGET_OS")
             .as_str()
@@ -91,7 +91,7 @@ impl SystemInfo {
                 None => panic!("no cxx11 abi returned by python {output:?}"),
             }
         } else {
-            let libtorch = Self::prepare_libtorch_dir(os);
+            let libtorch = Self::prepare_libtorch_dir(os)?;
             let includes = env_var_rerun("LIBTORCH_INCLUDE")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| libtorch.clone());
@@ -108,13 +108,13 @@ impl SystemInfo {
             }
             env_var_rerun("LIBTORCH_CXX11_ABI").unwrap_or_else(|_| "1".to_owned())
         };
-        let libtorch_lib_dir = libtorch_lib_dir.expect("no libtorch lib dir found");
-        Self {
+        let libtorch_lib_dir = libtorch_lib_dir?;
+        Some(Self {
             os,
             cxx11_abi,
             libtorch_include_dirs,
             libtorch_lib_dir,
-        }
+        })
     }
 
     fn check_system_location(os: Os) -> Option<PathBuf> {
@@ -126,26 +126,15 @@ impl SystemInfo {
         }
     }
 
-    fn prepare_libtorch_dir(os: Os) -> PathBuf {
+    fn prepare_libtorch_dir(os: Os) -> Option<PathBuf> {
         if let Ok(libtorch) = env_var_rerun("DEP_TCH_LIBTORCH_LIB") {
-            PathBuf::from(libtorch)
+            Some(PathBuf::from(libtorch))
         } else if let Ok(libtorch) = env_var_rerun("LIBTORCH") {
-            PathBuf::from(libtorch)
+            Some(PathBuf::from(libtorch))
         } else if let Some(pathbuf) = Self::check_system_location(os) {
-            pathbuf
-        } else if let Some(path) = check_out_dir() {
-            path
-        } else if os == Os::Windows {
-            // DEP_TCH_LIBTORCH_LIB not available
-            panic!(
-                r#"Could not find libtorch dir.
-
-        If you are trying to use the automatically downloaded version, the path is not directly available on Windows. Instead, try setting the `LIBTORCH` environment variable for the manual download instructions.
-
-        If the library has already been downloaded in the torch-sys OUT_DIR, you can point the variable to this path (or move the downloaded lib and point to it)."#
-            );
+            Some(pathbuf)
         } else {
-            panic!("Could not find libtorch dir.");
+            check_out_dir()
         }
     }
 
@@ -193,10 +182,32 @@ fn check_out_dir() -> Option<PathBuf> {
 fn main() {
     let system_info = SystemInfo::new();
 
-    let si_lib = &system_info.libtorch_lib_dir;
-    let use_cuda =
-        si_lib.join("libtorch_cuda.so").exists() || si_lib.join("torch_cuda.dll").exists();
-    let use_hip = si_lib.join("libtorch_hip.so").exists() || si_lib.join("torch_hip.dll").exists();
+    let mut gpu_found = false;
+    let found_dir = system_info.is_some();
+    if let Some(system_info) = &system_info {
+        let si_lib = &system_info.libtorch_lib_dir;
+        let use_cuda =
+            si_lib.join("libtorch_cuda.so").exists() || si_lib.join("torch_cuda.dll").exists();
+        let use_hip =
+            si_lib.join("libtorch_hip.so").exists() || si_lib.join("torch_hip.dll").exists();
 
-    system_info.make(use_cuda, use_hip);
+        system_info.make(use_cuda, use_hip);
+        gpu_found = use_cuda || use_hip;
+    }
+    let out_dir = env_var_rerun("OUT_DIR").expect("Failed to get out dir");
+    let check_file = PathBuf::from(out_dir).join("tch_gpu_check.rs");
+    if gpu_found {
+        fs::write(check_file, "()").unwrap();
+    } else {
+        let message = if !found_dir {
+            r#"Could not find libtorch dir.
+
+        If you are trying to use the automatically downloaded version, the path is not directly available on Windows. Instead, try setting the `LIBTORCH` environment variable for the manual download instructions.
+
+        If the library has already been downloaded in the torch-sys OUT_DIR, you can point the variable to this path (or move the downloaded lib and point to it)."#
+        } else {
+            "No libtorch_cuda or libtorch_hip found. Download the GPU version of libtorch to use a GPU device"
+        };
+        fs::write(check_file, format!("panic!(\"{message}\")")).unwrap();
+    }
 }

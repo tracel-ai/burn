@@ -1,4 +1,4 @@
-use super::TchOps;
+use super::{check_device, TchOps};
 use crate::{element::TchElement, LibTorch, LibTorchDevice, QuantElement, TchShape, TchTensor};
 use burn_tensor::{
     backend::Backend,
@@ -53,6 +53,7 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn float_zeros(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+        check_device(device);
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
@@ -60,6 +61,7 @@ impl<E: TchElement, Q: QuantElement> FloatTensorOps<Self> for LibTorch<E, Q> {
     }
 
     fn float_ones(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+        check_device(device);
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 

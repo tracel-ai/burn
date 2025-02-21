@@ -10,6 +10,7 @@ pub struct TchOps {
 
 impl TchOps {
     pub fn to_device(tensor: TchTensor, device: &LibTorchDevice) -> TchTensor {
+        check_device(device);
         let device = (*device).into();
 
         // We have to manually check if the device is the same, since when it's the case, we need to keep
@@ -590,5 +591,11 @@ impl TchOps {
                     .unwrap()
             },
         )
+    }
+}
+
+pub(crate) fn check_device(device: &LibTorchDevice) {
+    if matches!(device, LibTorchDevice::Cuda(_)) {
+        include!(concat!(env!("OUT_DIR"), "/tch_gpu_check.rs"));
     }
 }
