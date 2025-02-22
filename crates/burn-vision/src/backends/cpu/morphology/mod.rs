@@ -242,3 +242,66 @@ fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecM
         engine.apply(simd, buffer, buffer_shape.clone());
     }
 }
+
+/// Shape of the structuring element
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum KernelShape {
+    /// Rectangular kernel
+    Rect,
+    /// Cross shaped kernel
+    Cross,
+    /// Ellipse shaped kernel
+    Ellipse,
+}
+
+/// Create a structuring element tensor for use with morphology ops
+pub fn create_structuring_element<B: Backend>(
+    mut shape: KernelShape,
+    kh: usize,
+    kw: usize,
+    anchor: Option<(usize, usize)>,
+    device: &B::Device,
+) -> Tensor<B, 2, Bool> {
+    let anchor = anchor.unwrap_or((kh / 2, kw / 2));
+    let mut r = 0;
+    let mut c = 0;
+    let mut inv_r2 = 0.0;
+
+    if kh == 1 && kw == 1 {
+        shape = KernelShape::Rect;
+    }
+
+    if shape == KernelShape::Ellipse {
+        r = kh / 2;
+        c = kw / 2;
+        inv_r2 = if r > 0 { 1.0 / (r * r) as f64 } else { 0.0 }
+    }
+
+    let mut elem = vec![false; kh * kw];
+
+    for i in 0..kh {
+        let mut j1 = 0;
+        let mut j2 = 0;
+        if shape == KernelShape::Rect || (shape == KernelShape::Cross && i == anchor.0) {
+            j2 = kw;
+        } else if shape == KernelShape::Cross {
+            j1 = anchor.1;
+            j2 = j1 + 1;
+        } else {
+            let dy = i as isize - r as isize;
+            if dy.abs() <= r as isize {
+                let dx =
+                    (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt()) as isize;
+                j1 = (c as isize - dx).max(0) as usize;
+                j2 = (c + dx as usize + 1).min(kw);
+            }
+        }
+
+        for j in j1..j2 {
+            elem[i * kw + j] = true;
+        }
+    }
+
+    let data = TensorData::new(elem, Shape::new([kh, kw]));
+    Tensor::from_data(data, device)
+}

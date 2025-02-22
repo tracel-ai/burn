@@ -5,21 +5,21 @@ mod tests {
     use super::*;
     use burn_tensor::TensorData;
     use burn_vision::{
-        as_type,
+        as_type, create_structuring_element,
         tests::{save_test_image, test_image},
-        MorphOptions, Morphology,
+        KernelShape, MorphOptions, Morphology,
     };
 
     #[test]
     fn should_support_dilate_luma() {
         let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
-        let kernel = TestTensorBool::<2>::from([
-            [true, true, true, true, true],
-            [true, true, true, true, true],
-            [true, true, true, true, true],
-            [true, true, true, true, true],
-            [true, true, true, true, true],
-        ]);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Rect,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
 
         let output = tensor.dilate(kernel, MorphOptions::default());
         let expected = test_image("Morphology_1_Dilation.png", &Default::default(), true);
@@ -80,5 +80,82 @@ mod tests {
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
+    fn create_structuring_element_should_match_manual_rect() {
+        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Rect,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+        let kernel_manual = TestTensorBool::<2>::from([
+            [true, true, true, true, true],
+            [true, true, true, true, true],
+            [true, true, true, true, true],
+            [true, true, true, true, true],
+            [true, true, true, true, true],
+        ]);
+
+        let output = tensor.clone().dilate(kernel, MorphOptions::default());
+        let output_manual = tensor.dilate(kernel_manual, MorphOptions::default());
+
+        output
+            .into_data()
+            .assert_eq(&output_manual.into_data(), false);
+    }
+
+    #[test]
+    fn create_structuring_element_should_match_manual_cross() {
+        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Cross,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+        let kernel_manual = TestTensorBool::<2>::from([
+            [false, false, true, false, false],
+            [false, false, true, false, false],
+            [true, true, true, true, true],
+            [false, false, true, false, false],
+            [false, false, true, false, false],
+        ]);
+
+        let output = tensor.clone().dilate(kernel, MorphOptions::default());
+        let output_manual = tensor.dilate(kernel_manual, MorphOptions::default());
+
+        output
+            .into_data()
+            .assert_eq(&output_manual.into_data(), false);
+    }
+    #[test]
+    fn create_structuring_element_should_match_manual_ellipse() {
+        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Ellipse,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+        let kernel_manual = TestTensorBool::<2>::from([
+            [false, false, true, false, false],
+            [false, true, true, true, false],
+            [true, true, true, true, true],
+            [false, true, true, true, false],
+            [false, false, true, false, false],
+        ]);
+
+        let output = tensor.clone().dilate(kernel, MorphOptions::default());
+        let output_manual = tensor.dilate(kernel_manual, MorphOptions::default());
+
+        output
+            .into_data()
+            .assert_eq(&output_manual.into_data(), false);
     }
 }

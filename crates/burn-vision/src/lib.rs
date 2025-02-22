@@ -23,3 +23,5 @@ pub mod tests;
 
 pub use ops::*;
 pub use tensor::*;
+
+pub use backends::{create_structuring_element, KernelShape};

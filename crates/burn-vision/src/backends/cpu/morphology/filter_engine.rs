@@ -198,7 +198,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                     let dst = if self.is_separable() {
                         cast_slice_mut::<_, T>(&mut self.src_row)
                     } else {
-                        cast_slice_mut::<_, T>(&mut self.ring_buf[self.buf_step * i..])
+                        &mut cast_slice_mut::<_, T>(&mut self.ring_buf)[self.buf_step * i..]
                     };
                     memcpy(dst, const_val, self.dx1 * ch);
                     let right = (width + self.ksize.1 - 1 - self.dx2) * ch;
@@ -370,6 +370,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
     }
 }
 
+#[track_caller]
 fn memcpy<T: Copy>(to: &mut [T], from: &[T], len: usize) {
     to[..len].copy_from_slice(&from[..len]);
 }
