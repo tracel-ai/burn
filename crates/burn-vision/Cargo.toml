@@ -52,7 +52,7 @@ num-traits = { workspace = true }
 paste = { workspace = true }
 pulp = { workspace = true }
 serde = { workspace = true }
-
+tracing = { workspace = true }
 
 [dev-dependencies]
 burn-cuda = { path = "../burn-cuda", version = "0.17.0", default-features = false }

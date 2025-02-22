@@ -1,6 +1,7 @@
 use core::slice;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ptr::null};
 
+use burn_tensor::Element;
 use macerator::{VOrd, Vectorizable};
 use pulp::Simd;
 
@@ -566,4 +567,177 @@ impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecColumn<T>> MorphColumnFilt
             y += 1;
         }
     }
+}
+
+pub trait VecFilter<T: Vectorizable> {
+    fn apply<S: Simd>(simd: S, src: &[*const T], nz: usize, dst: &mut [T], width: usize) -> usize;
+}
+
+pub struct MorphVec<T: Vectorizable, Op: VecMorphOperator<T>>(PhantomData<(T, Op)>);
+
+impl<T: Vectorizable, Op: VecMorphOperator<T>> VecFilter<T> for MorphVec<T, Op> {
+    fn apply<S: Simd>(simd: S, src: &[*const T], nz: usize, dst: &mut [T], width: usize) -> usize {
+        let dst = dst.as_mut_ptr();
+        let mut i = 0;
+        let lanes = T::lanes::<S>();
+
+        // Safety: everything here is unsafe. Test thoroughly.
+        unsafe {
+            while i <= width - 4 * lanes {
+                let sptr = src[0].add(i);
+                let mut s0 = vxload(simd, sptr);
+                let mut s1 = vxload(simd, sptr.add(lanes));
+                let mut s2 = vxload(simd, sptr.add(2 * lanes));
+                let mut s3 = vxload(simd, sptr.add(3 * lanes));
+                for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
+                    s0 = Op::apply(simd, s0, vxload(simd, sptr));
+                    s1 = Op::apply(simd, s1, vxload(simd, sptr.add(lanes)));
+                    s2 = Op::apply(simd, s2, vxload(simd, sptr.add(2 * lanes)));
+                    s3 = Op::apply(simd, s3, vxload(simd, sptr.add(3 * lanes)));
+                }
+                vstore(simd, dst.add(i), s0);
+                vstore(simd, dst.add(i + lanes), s1);
+                vstore(simd, dst.add(i + 2 * lanes), s2);
+                vstore(simd, dst.add(i + 3 * lanes), s3);
+                i += 4 * lanes;
+            }
+            if i <= width - 2 * lanes {
+                let sptr = src[0].add(i);
+                let mut s0 = vxload(simd, sptr);
+                let mut s1 = vxload(simd, sptr.add(lanes));
+                for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
+                    s0 = Op::apply(simd, s0, vxload(simd, sptr));
+                    s1 = Op::apply(simd, s1, vxload(simd, sptr.add(lanes)));
+                }
+                vstore(simd, dst.add(i), s0);
+                vstore(simd, dst.add(i + lanes), s1);
+                i += 2 * lanes;
+            }
+            if i <= width - lanes {
+                let mut s0 = vxload(simd, src[0].add(i));
+                for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
+                    s0 = Op::apply(simd, s0, vxload(simd, sptr));
+                }
+                vstore(simd, dst.add(i), s0);
+                i += lanes;
+            }
+            if i <= width - lanes / 2 {
+                let mut s = T::vload_low(simd, src[0].add(i));
+                for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
+                    s = Op::apply(simd, s, T::vload_low(simd, sptr));
+                }
+                T::vstore_low(simd, dst.add(i), s);
+                i += lanes / 2;
+            }
+        }
+        i
+    }
+}
+
+pub struct MorphFilter<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> {
+    pub ksize: [usize; 2],
+    pub anchor: (usize, usize),
+    coords: Vec<(usize, usize)>,
+    ptrs: Vec<*const T>,
+    _op: PhantomData<(Op, VecOp)>,
+}
+
+impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> MorphFilter<T, Op, VecOp> {
+    pub fn new<B: Element>(kernel: &[B], ksize: [usize; 2], anchor: (usize, usize)) -> Self {
+        let coords = process_2d_kernel(kernel, ksize);
+        let ptrs = vec![null(); coords.len()];
+
+        Self {
+            ksize,
+            anchor,
+            coords,
+            ptrs,
+            _op: PhantomData,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply<S: Simd>(
+        &mut self,
+        simd: S,
+        src: &[*const T],
+        dst: &mut [T],
+        dst_step: usize,
+        mut count: usize,
+        width: usize,
+        ch: usize,
+    ) {
+        let nz = self.coords.len();
+        let width = width * ch;
+        let pt = &self.coords;
+        let kp = &mut self.ptrs;
+
+        let mut dst_off = 0;
+        let mut src_off = 0;
+
+        let slice = |ptr: *const T| unsafe { slice::from_raw_parts(ptr, width) };
+
+        unsafe {
+            while count > 0 {
+                for k in 0..nz {
+                    kp[k] = src[src_off + pt[k].0].add(pt[k].0 * ch);
+                }
+
+                let mut i = VecOp::apply(simd, kp, nz, &mut dst[dst_off..], width);
+                while i <= width - 4 {
+                    let sptr = slice(kp[0].add(i));
+                    let mut s0 = sptr[0];
+                    let mut s1 = sptr[1];
+                    let mut s2 = sptr[2];
+                    let mut s3 = sptr[3];
+
+                    for sptr in kp[1..nz].iter().map(|sptr| slice(sptr.add(i))) {
+                        s0 = Op::apply(s0, sptr[0]);
+                        s1 = Op::apply(s1, sptr[1]);
+                        s2 = Op::apply(s2, sptr[2]);
+                        s3 = Op::apply(s3, sptr[3]);
+                    }
+
+                    dst[dst_off + i] = s0;
+                    dst[dst_off + i + 1] = s1;
+                    dst[dst_off + i + 2] = s2;
+                    dst[dst_off + i + 3] = s3;
+                    i += 4;
+                }
+                for i in i..width {
+                    let mut s0 = *kp[0].add(i);
+                    for v in kp[1..nz].iter().map(|sptr| *sptr.add(i)) {
+                        s0 = Op::apply(s0, v);
+                    }
+                    dst[dst_off + i] = s0;
+                }
+
+                count -= 1;
+                dst_off += dst_step;
+                src_off += 1;
+            }
+        }
+    }
+}
+
+fn process_2d_kernel<B: Element>(kernel: &[B], ksize: [usize; 2]) -> Vec<(usize, usize)> {
+    let [rows, cols] = ksize;
+
+    let mut nz = kernel.iter().filter(|it| it.to_bool()).count();
+    if nz == 0 {
+        nz = 1;
+    }
+
+    let mut coords = vec![(0, 0); nz];
+    let mut k = 0;
+
+    for i in 0..rows {
+        let krow = &kernel[i * cols..];
+        for (j, _) in krow[..cols].iter().enumerate().filter(|it| it.1.to_bool()) {
+            coords[k] = (i, j);
+            k += 1;
+        }
+    }
+
+    coords
 }

@@ -7,10 +7,9 @@ use burn_tensor::{
     quantization::{QuantizationScheme, QuantizationType},
     BasicOps, Bool, DType, Element, Shape, Tensor, TensorData,
 };
-use filter::{MorphOperator, VecMorphOperator};
-use filter_engine::{DilateCol, DilateRow, ErodeCol, ErodeRow, FilterEngine};
+use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
+use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
 use macerator::VOrd;
-use ndarray::Array2;
 use pulp::Simd;
 
 use crate::{BorderType, MorphOptions};
@@ -34,25 +33,10 @@ pub enum MorphKernel<B: Element> {
         anchor: (usize, usize),
     },
     Other {
-        kernel: Array2<B>,
+        kernel: Vec<B>,
+        shape: [usize; 2],
         anchor: (usize, usize),
     },
-}
-
-impl<B: Element> MorphKernel<B> {
-    pub fn ksize(&self) -> (usize, usize) {
-        match self {
-            MorphKernel::Rect { shape, .. } => (shape[0], shape[1]),
-            MorphKernel::Other { kernel, .. } => kernel.dim(),
-        }
-    }
-
-    pub fn anchor(&self) -> (usize, usize) {
-        match self {
-            MorphKernel::Rect { anchor, .. } => *anchor,
-            MorphKernel::Other { anchor, .. } => *anchor,
-        }
-    }
 }
 
 pub fn morph<B: Backend, K: BasicOps<B>>(
@@ -64,11 +48,10 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
     let device = input.device();
 
     let kernel = Tensor::<B, 2, Bool>::new(kernel);
-    let k_shape = kernel.shape().dims();
-    let [kh, kw] = k_shape;
+    let kshape = kernel.shape().dims();
+    let [kh, kw] = kshape;
 
-    let data = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
-    let kernel = unsafe { Array2::from_shape_vec_unchecked(k_shape, data) };
+    let kernel = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or((kh / 2, kw / 2));
     let iter = opts.iterations;
@@ -77,11 +60,15 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
 
     let kernel = if is_rect {
         MorphKernel::Rect {
-            shape: k_shape,
+            shape: kshape,
             anchor,
         }
     } else {
-        MorphKernel::Other { kernel, anchor }
+        MorphKernel::Other {
+            kernel,
+            shape: kshape,
+            anchor,
+        }
     };
 
     let shape = input.shape();
@@ -202,20 +189,39 @@ fn run_morph<T: VOrd + MinMax + Element, B: Element>(
     btype: BorderType,
     bvalue: &[T],
 ) {
-    let ksize = kernel.ksize();
-    let anchor = kernel.anchor();
     match op {
         MorphOp::Erode => {
-            let row_filter = ErodeRow::<T>::new(ksize.1, anchor.1);
-            let col_filter = ErodeCol::<T>::new(ksize.0, anchor.0);
-            dispatch_morph(input, shape, row_filter, col_filter, btype, bvalue, iter);
+            let filter = filter::<T, MinOp, B>(kernel);
+            dispatch_morph(input, shape, filter, btype, bvalue, iter);
         }
         MorphOp::Dilate => {
-            let row_filter = DilateRow::<T>::new(ksize.1, anchor.1);
-            let col_filter = DilateCol::<T>::new(ksize.0, anchor.0);
-            dispatch_morph(input, shape, row_filter, col_filter, btype, bvalue, iter);
+            let filter = filter::<T, MaxOp, B>(kernel);
+            dispatch_morph(input, shape, filter, btype, bvalue, iter);
         }
     };
+}
+
+fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Element>(
+    kernel: MorphKernel<B>,
+) -> Filter<T, Op> {
+    match kernel {
+        MorphKernel::Rect { shape, anchor } => {
+            let row_filter = RowFilter::new(shape[1], anchor.1);
+            let col_filter = ColFilter::new(shape[0], anchor.0);
+            Filter::Separable {
+                row_filter,
+                col_filter,
+            }
+        }
+        MorphKernel::Other {
+            kernel,
+            shape,
+            anchor,
+        } => {
+            let filter = Filter2D::new(&kernel, shape, anchor);
+            Filter::Fallback(filter)
+        }
+    }
 }
 
 #[inline(always)]
@@ -225,13 +231,12 @@ fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecM
     simd: S,
     buffer: &mut [T],
     buffer_shape: Shape,
-    row_filter: filter_engine::RowFilter<T, Op>,
-    col_filter: filter_engine::ColFilter<T, Op>,
+    filter: filter_engine::Filter<T, Op>,
     border_type: BorderType,
     border_value: &[T],
     iterations: usize,
 ) {
-    let mut engine = FilterEngine::new(row_filter, col_filter, border_type, border_value);
+    let mut engine = FilterEngine::new(filter, border_type, border_value);
     engine.apply(simd, buffer, buffer_shape.clone());
     for _ in 1..iterations {
         engine.apply(simd, buffer, buffer_shape.clone());

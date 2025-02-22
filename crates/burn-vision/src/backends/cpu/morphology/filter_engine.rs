@@ -8,16 +8,21 @@ use pulp::Simd;
 use crate::BorderType;
 
 use super::filter::{
-    MaxOp, MinOp, MorphColumnFilter, MorphColumnVec, MorphOperator, MorphRowFilter, MorphRowVec,
-    VecMorphOperator,
+    MorphColumnFilter, MorphColumnVec, MorphFilter, MorphOperator, MorphRowFilter, MorphRowVec,
+    MorphVec, VecMorphOperator,
 };
 
 pub type RowFilter<T, Op> = MorphRowFilter<T, Op, MorphRowVec<T, Op>>;
-pub type ErodeRow<T> = RowFilter<T, MinOp>;
-pub type DilateRow<T> = RowFilter<T, MaxOp>;
 pub type ColFilter<T, Op> = MorphColumnFilter<T, Op, MorphColumnVec<T, Op>>;
-pub type ErodeCol<T> = ColFilter<T, MinOp>;
-pub type DilateCol<T> = ColFilter<T, MaxOp>;
+pub type Filter2D<T, Op> = MorphFilter<T, Op, MorphVec<T, Op>>;
+
+pub enum Filter<T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> {
+    Separable {
+        row_filter: RowFilter<T, Op>,
+        col_filter: ColFilter<T, Op>,
+    },
+    Fallback(Filter2D<T, Op>),
+}
 
 pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> {
     /// Vector aligned ring buffer to serve as intermediate, since image isn't always aligned
@@ -30,8 +35,7 @@ pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperato
     /// Pointers to each row offset in the ring buffer
     rows: Vec<*const T>,
 
-    row_filter: RowFilter<T, Op>,
-    col_filter: ColFilter<T, Op>,
+    filter: Filter<T, Op>,
 
     ksize: (usize, usize),
     anchor: (usize, usize),
@@ -59,18 +63,26 @@ impl<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> FilterEngine<
         let actual = size.div_ceil(T::lanes::<S>());
         self.src_row.resize(actual, Zeroable::zeroed());
     }
+    fn is_separable(&self) -> bool {
+        matches!(self.filter, Filter::Separable { .. })
+    }
 }
 
 impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> FilterEngine<S, T, Op> {
-    pub fn new(
-        row_filter: RowFilter<T, Op>,
-        col_filter: ColFilter<T, Op>,
-        border_type: BorderType,
-        border_value: &[T],
-    ) -> Self {
+    pub fn new(filter: Filter<T, Op>, border_type: BorderType, border_value: &[T]) -> Self {
         let ch = border_value.len();
-        let ksize = (col_filter.ksize, row_filter.ksize);
-        let anchor = (col_filter.anchor, row_filter.anchor);
+        let (ksize, anchor) = match &filter {
+            Filter::Separable {
+                row_filter,
+                col_filter: col,
+            } => {
+                let ksize = (col.ksize, row_filter.ksize);
+                let anchor = (col.anchor, row_filter.anchor);
+                (ksize, anchor)
+            }
+            Filter::Fallback(f) => ((f.ksize[0], f.ksize[1]), f.anchor),
+        };
+
         let border_length = (ksize.1 - 1).max(1);
         let mut const_border_value = vec![];
         if matches!(border_type, BorderType::Constant) {
@@ -90,8 +102,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             border_table: Default::default(),
             ksize,
             anchor,
-            row_filter,
-            col_filter,
+            filter,
             max_width: 0,
             buf_step: 0,
             dx1: 0,
@@ -126,6 +137,12 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let max_buf_rows = (self.ksize.0 + 3)
             .max(self.anchor.0)
             .max((self.ksize.0 - self.anchor.0 - 1) * 2 + 1);
+        let k_offs = if self.is_separable() {
+            self.ksize.1 - 1
+        } else {
+            0
+        };
+        let is_sep = self.is_separable();
 
         if self.max_width < width || max_buf_rows != self.rows.len() {
             self.rows.resize(max_buf_rows, null_mut());
@@ -141,34 +158,48 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 let n1 = (self.max_width + self.ksize.1 - 1) * ch;
                 let const_val = &self.const_border_value;
                 let dst = cast_slice_mut(&mut self.const_border_row);
-                let t_dst = cast_slice_mut::<_, T>(&mut self.src_row);
+                let t_dst = if is_sep {
+                    cast_slice_mut::<_, T>(&mut self.src_row)
+                } else {
+                    alias_slice_mut(dst)
+                };
 
                 for i in (0..n1).step_by(n) {
                     n = n.min(n1 - i);
                     t_dst[i..i + n].copy_from_slice(&const_val[..n]);
                 }
 
-                self.row_filter
-                    .apply(simd, cast_slice(&self.src_row), dst, self.max_width, ch);
+                if let Filter::Separable { row_filter, .. } = &self.filter {
+                    row_filter.apply(simd, cast_slice(&self.src_row), dst, self.max_width, ch);
+                }
             }
 
-            let max_buf_step = self.max_width.next_multiple_of(align_of::<T::Vector<S>>()) * ch;
+            let max_buf_step =
+                (self.max_width + k_offs).next_multiple_of(align_of::<T::Vector<S>>()) * ch;
 
             self.resize_ring_buf(max_buf_step * self.rows.len());
         }
 
         let const_val = &self.const_border_value;
 
-        self.buf_step = width.next_multiple_of(align_of::<T::Vector<S>>()) * ch;
+        self.buf_step = (width + k_offs).next_multiple_of(align_of::<T::Vector<S>>()) * ch;
 
         self.dx1 = self.anchor.1;
         self.dx2 = self.ksize.1 - self.anchor.1 - 1;
 
         if self.dx1 > 0 || self.dx2 > 0 {
             if matches!(self.border_type, BorderType::Constant) {
-                let nr = 1;
-                for _ in 0..nr {
-                    let dst = cast_slice_mut::<_, T>(&mut self.src_row);
+                let nr = if self.is_separable() {
+                    1
+                } else {
+                    self.rows.len()
+                };
+                for i in 0..nr {
+                    let dst = if self.is_separable() {
+                        cast_slice_mut::<_, T>(&mut self.src_row)
+                    } else {
+                        cast_slice_mut::<_, T>(&mut self.ring_buf[self.buf_step * i..])
+                    };
                     memcpy(dst, const_val, self.dx1 * ch);
                     let right = (width + self.ksize.1 - 1 - self.dx2) * ch;
                     memcpy(&mut dst[right..], const_val, self.dx2 * ch);
@@ -222,6 +253,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let width1 = self.width + kwidth - 1;
         let btab = &self.border_table;
         let make_border = (dx1 > 0 || dx2 > 0) && !matches!(self.border_type, BorderType::Constant);
+        let is_sep = self.is_separable();
 
         count = count.min(self.remaining_input_rows());
         let mut dst_off = 0;
@@ -246,7 +278,11 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             while dcount > 0 {
                 let bi = (self.start_y - self.start_y_0 + self.row_count) % buf_rows;
                 let brow = &mut ring_buf[bi * self.buf_step..];
-                let row = &mut src_row[..];
+                let row = if is_sep {
+                    &mut src_row[..]
+                } else {
+                    alias_slice_mut(brow)
+                };
 
                 if self.row_count + 1 > buf_rows {
                     self.row_count -= 1;
@@ -269,7 +305,9 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                     }
                 }
 
-                self.row_filter.apply(simd, row, brow, self.width, ch);
+                if let Filter::Separable { row_filter, .. } = &self.filter {
+                    row_filter.apply(simd, row, brow, self.width, ch);
+                }
 
                 dcount -= 1;
                 src_off += src_step;
@@ -299,14 +337,25 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 break;
             }
             i -= kheight - 1;
-            self.col_filter.apply(
-                simd,
-                brows,
-                &mut src[dst_off..],
-                src_step,
-                i,
-                self.width * ch,
-            );
+            match &mut self.filter {
+                Filter::Separable { col_filter, .. } => col_filter.apply(
+                    simd,
+                    brows,
+                    &mut src[dst_off..],
+                    src_step,
+                    i,
+                    self.width * ch,
+                ),
+                Filter::Fallback(filter) => filter.apply(
+                    simd,
+                    brows,
+                    &mut src[dst_off..],
+                    src_step,
+                    i,
+                    self.width,
+                    ch,
+                ),
+            }
 
             dst_off += src_step * i;
             dy += i;
@@ -323,6 +372,14 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
 
 fn memcpy<T: Copy>(to: &mut [T], from: &[T], len: usize) {
     to[..len].copy_from_slice(&from[..len]);
+}
+
+/// Unsafely alias slice. Needed for the conditional slice targets that depend on the filter. The
+/// same slice shouldn't be used multiple times at once
+fn alias_slice_mut<'b, T>(slice: &mut [T]) -> &'b mut [T] {
+    let ptr = slice.as_mut_ptr();
+    let len = slice.len();
+    unsafe { core::slice::from_raw_parts_mut(ptr, len) }
 }
 
 fn border_interpolate(mut p: isize, len: usize, btype: BorderType) -> isize {
