@@ -178,6 +178,7 @@ pub trait FloatVisionOps: Backend {
     /// Erodes an input tensor with the specified kernel.
     fn float_erode(input: FloatTensor<Self>, kernel: BoolTensor<Self>) -> FloatTensor<Self> {
         let input = Tensor::<Self, 3>::from_primitive(TensorPrimitive::Float(input));
+
         morph(input, kernel, MorphOp::Erode)
             .into_primitive()
             .tensor()

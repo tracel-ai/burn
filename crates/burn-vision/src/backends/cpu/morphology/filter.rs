@@ -100,7 +100,6 @@ impl<T: Vectorizable, Scalar: MorphOperator<T>, Vec: VecRow<T>> MorphRowFilter<T
 
 pub struct MorphRowVec<T: Vectorizable, Op: VecMorphOperator<T>> {
     k_size: usize,
-    anchor: usize,
     _t: PhantomData<T>,
     _op: PhantomData<Op>,
 }
@@ -200,10 +199,9 @@ impl<T: Vectorizable, Op: VecMorphOperator<T>> VecRow<T> for MorphRowVec<T, Op> 
         }
     }
 
-    fn new(k_size: usize, anchor: usize) -> Self {
+    fn new(k_size: usize, _anchor: usize) -> Self {
         Self {
             k_size,
-            anchor,
             _t: PhantomData,
             _op: PhantomData,
         }
@@ -225,16 +223,14 @@ pub trait VecColumn<T: Vectorizable> {
 
 pub struct MorphColumnVec<T: Vectorizable, Op: VecMorphOperator<T>> {
     k_size: usize,
-    anchor: usize,
     _t: PhantomData<T>,
     _op: PhantomData<Op>,
 }
 
 impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
-    fn new(k_size: usize, anchor: usize) -> Self {
+    fn new(k_size: usize, _anchor: usize) -> Self {
         Self {
             k_size,
-            anchor,
             _t: PhantomData,
             _op: PhantomData,
         }

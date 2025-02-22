@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use burn_tensor::{
     backend::Backend,
     cast::ToElement,
@@ -54,7 +56,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
     input: Tensor<B, 3, K>,
     kernel: BoolTensor<B>,
     op: MorphOp,
-) -> Tensor<B, 4, K> {
+) -> Tensor<B, 3, K> {
     let device = input.device();
 
     let kernel = Tensor::<B, 2, Bool>::new(kernel);
@@ -113,7 +115,7 @@ fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
     device: &B::Device,
-) -> Tensor<B, 4, K> {
+) -> Tensor<B, 3, K> {
     let [h, w, ch] = shape.dims();
     let input = input.into_vec::<T>().unwrap();
     let data = run_morph(&input, shape, kernel, op);
@@ -127,7 +129,7 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
     device: &B::Device,
-) -> Tensor<B, 4, K> {
+) -> Tensor<B, 3, K> {
     let input = input.into_vec::<bool>().unwrap();
     let input = bytemuck::cast_vec::<_, u8>(input);
     let data = run_morph(&input, shape.clone(), kernel, op);
@@ -146,8 +148,8 @@ fn run_morph<T: VOrd + MinMax + Element, B: Element>(
 ) -> Vec<T> {
     let [_, _, ch] = input_shape.dims();
     let border_value = match op {
-        MorphOp::Erode => vec![T::MIN; ch],
-        MorphOp::Dilate => vec![T::MAX; ch],
+        MorphOp::Erode => vec![T::MAX; ch],
+        MorphOp::Dilate => vec![T::MIN; ch],
     };
     let mut out = vec![T::default(); input.len()];
     let ksize = kernel.ksize();
@@ -186,7 +188,12 @@ fn run_morph<T: VOrd + MinMax + Element, B: Element>(
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 #[pulp::with_simd(dispatch_morph = pulp::Arch::new())]
-fn run_morph_simd<'a, S: Simd, T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>>(
+fn run_morph_simd<
+    'a,
+    S: Simd,
+    T: VOrd + MinMax + Debug,
+    Op: MorphOperator<T> + VecMorphOperator<T>,
+>(
     simd: S,
     input: &'a [T],
     input_shape: Shape,

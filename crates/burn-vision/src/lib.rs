@@ -19,7 +19,7 @@ mod tensor;
 
 #[cfg(feature = "export-tests")]
 #[allow(missing_docs)]
-mod tests;
+pub mod tests;
 
 pub use ops::*;
 pub use tensor::*;

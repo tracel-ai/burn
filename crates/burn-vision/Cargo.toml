@@ -18,8 +18,8 @@ version.workspace = true
 [features]
 candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
-default = ["ndarray", "cubecl-backend", "fusion", "std"]
-export-tests = ["burn-tensor-testgen"]
+default = ["ndarray", "cubecl-backend", "fusion", "std", "export-tests"]
+export-tests = ["burn-tensor-testgen", "image"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
 std = ["pulp/std"]
@@ -44,12 +44,14 @@ bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
+image = { version = "0.25", optional = true }
 macerator = { workspace = true }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 paste = { workspace = true }
 pulp = { workspace = true }
 serde = { workspace = true }
+
 
 [dev-dependencies]
 burn-cuda = { path = "../burn-cuda", version = "0.17.0", default-features = false }
