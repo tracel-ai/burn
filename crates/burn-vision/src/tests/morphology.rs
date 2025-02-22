@@ -12,7 +12,7 @@ mod tests {
 
     #[test]
     fn should_support_dilate_luma() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = create_structuring_element::<TestBackend>(
             KernelShape::Rect,
             5,
@@ -22,7 +22,11 @@ mod tests {
         );
 
         let output = tensor.dilate(kernel, MorphOptions::default());
-        let expected = test_image("Morphology_1_Dilation.png", &Default::default(), true);
+        let expected = test_image(
+            "morphology/Dilate_1_5x5_Rect.png",
+            &Default::default(),
+            true,
+        );
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);
@@ -30,7 +34,7 @@ mod tests {
 
     #[test]
     fn should_support_dilate_rgb() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), false);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), false);
         let kernel = TestTensorBool::<2>::from([
             [true, true, true, true, true],
             [true, true, true, true, true],
@@ -40,7 +44,11 @@ mod tests {
         ]);
 
         let output = tensor.dilate(kernel, MorphOptions::default());
-        let expected = test_image("Morphology_1_Dilation.png", &Default::default(), false);
+        let expected = test_image(
+            "morphology/Dilate_1_5x5_Rect.png",
+            &Default::default(),
+            false,
+        );
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);
@@ -48,7 +56,7 @@ mod tests {
 
     #[test]
     fn should_support_erode_luma() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = TestTensorBool::<2>::from([
             [true, true, true, true, true],
             [true, true, true, true, true],
@@ -58,7 +66,7 @@ mod tests {
         ]);
 
         let output = tensor.erode(kernel, MorphOptions::default());
-        let expected = test_image("Morphology_1_Erosion.png", &Default::default(), true);
+        let expected = test_image("morphology/Erode_1_5x5_Rect.png", &Default::default(), true);
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);
@@ -66,7 +74,7 @@ mod tests {
 
     #[test]
     fn should_support_erode_rgb() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), false);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), false);
         let kernel = TestTensorBool::<2>::from([
             [true, true, true, true, true],
             [true, true, true, true, true],
@@ -76,7 +84,11 @@ mod tests {
         ]);
 
         let output = tensor.erode(kernel, MorphOptions::default());
-        let expected = test_image("Morphology_1_Erosion.png", &Default::default(), false);
+        let expected = test_image(
+            "morphology/Erode_1_5x5_Rect.png",
+            &Default::default(),
+            false,
+        );
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);
@@ -84,7 +96,7 @@ mod tests {
 
     #[test]
     fn create_structuring_element_should_match_manual_rect() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = create_structuring_element::<TestBackend>(
             KernelShape::Rect,
             5,
@@ -110,7 +122,7 @@ mod tests {
 
     #[test]
     fn create_structuring_element_should_match_manual_cross() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = create_structuring_element::<TestBackend>(
             KernelShape::Cross,
             5,
@@ -135,7 +147,7 @@ mod tests {
     }
     #[test]
     fn create_structuring_element_should_match_manual_ellipse() {
-        let tensor = test_image("Morphology_1_Base.png", &Default::default(), true);
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = create_structuring_element::<TestBackend>(
             KernelShape::Ellipse,
             5,
