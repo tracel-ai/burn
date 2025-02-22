@@ -96,20 +96,16 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         }
     }
 
-    pub fn apply(&mut self, simd: S, src: &[T], src_shape: Shape, dst: &mut [T], dst_shape: Shape) {
+    pub fn apply(&mut self, simd: S, tensor: &mut [T], src_shape: Shape) {
         let [_, w, ch] = src_shape.dims();
         let src_step = w * ch;
-        let [_, w, ch] = dst_shape.dims();
-        let dst_step = w * ch;
         self.start(simd, src_shape);
         let y = self.start_y;
         self.proceed(
             simd,
-            &src[y * src_step..],
+            &mut tensor[y * src_step..],
             src_step,
             self.end_y - self.start_y,
-            dst,
-            dst_step,
             ch,
         );
     }
@@ -177,11 +173,9 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
     pub fn proceed(
         &mut self,
         simd: S,
-        src: &[T],
+        src: &mut [T],
         src_step: usize,
         mut count: usize,
-        dst: &mut [T],
-        dst_step: usize,
         ch: usize,
     ) -> usize {
         let buf_rows = self.rows.len();
@@ -256,13 +250,13 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             self.col_filter.apply(
                 simd,
                 brows,
-                &mut dst[dst_off..],
-                dst_step,
+                &mut src[dst_off..],
+                src_step,
                 i,
                 self.width * ch,
             );
 
-            dst_off += dst_step * i;
+            dst_off += src_step * i;
             dy += i;
         }
 

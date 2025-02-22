@@ -117,8 +117,8 @@ fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
     device: &B::Device,
 ) -> Tensor<B, 3, K> {
     let [h, w, ch] = shape.dims();
-    let input = input.into_vec::<T>().unwrap();
-    let data = run_morph(&input, shape, kernel, op);
+    let mut data = input.into_vec::<T>().unwrap();
+    run_morph(&mut data, shape, kernel, op);
     let data = TensorData::new(data, Shape::new([h, w, ch]));
     Tensor::from_data(data, device)
 }
@@ -131,8 +131,8 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
     device: &B::Device,
 ) -> Tensor<B, 3, K> {
     let input = input.into_vec::<bool>().unwrap();
-    let input = bytemuck::cast_vec::<_, u8>(input);
-    let data = run_morph(&input, shape.clone(), kernel, op);
+    let mut data = bytemuck::cast_vec::<_, u8>(input);
+    run_morph(&mut data, shape.clone(), kernel, op);
     let [h, w, ch] = shape.dims();
     // SAFETY: Morph can't produce invalid boolean values
     let data = unsafe { core::mem::transmute::<Vec<u8>, Vec<bool>>(data) };
@@ -141,68 +141,43 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
 }
 
 fn run_morph<T: VOrd + MinMax + Element, B: Element>(
-    input: &[T],
+    input: &mut [T],
     input_shape: Shape,
     kernel: MorphKernel<B>,
     op: MorphOp,
-) -> Vec<T> {
+) {
     let [_, _, ch] = input_shape.dims();
     let border_value = match op {
         MorphOp::Erode => vec![T::MAX; ch],
         MorphOp::Dilate => vec![T::MIN; ch],
     };
-    let mut out = vec![T::default(); input.len()];
     let ksize = kernel.ksize();
     let anchor = kernel.anchor();
     match op {
         MorphOp::Erode => {
             let row_filter = ErodeRow::<T>::new(ksize.1, anchor.1);
             let col_filter = ErodeCol::<T>::new(ksize.0, anchor.0);
-            dispatch_morph(
-                input,
-                input_shape.clone(),
-                &mut out,
-                input_shape,
-                row_filter,
-                col_filter,
-                &border_value,
-            );
+            dispatch_morph(input, input_shape, row_filter, col_filter, &border_value);
         }
         MorphOp::Dilate => {
             let row_filter = DilateRow::<T>::new(ksize.1, anchor.1);
             let col_filter = DilateCol::<T>::new(ksize.0, anchor.0);
-            dispatch_morph(
-                input,
-                input_shape.clone(),
-                &mut out,
-                input_shape,
-                row_filter,
-                col_filter,
-                &border_value,
-            );
+            dispatch_morph(input, input_shape, row_filter, col_filter, &border_value);
         }
     };
-    out
 }
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
 #[pulp::with_simd(dispatch_morph = pulp::Arch::new())]
-fn run_morph_simd<
-    'a,
-    S: Simd,
-    T: VOrd + MinMax + Debug,
-    Op: MorphOperator<T> + VecMorphOperator<T>,
->(
+fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecMorphOperator<T>>(
     simd: S,
-    input: &'a [T],
-    input_shape: Shape,
-    out: &'a mut [T],
-    out_shape: Shape,
+    buffer: &mut [T],
+    buffer_shape: Shape,
     row_filter: filter_engine::RowFilter<T, Op>,
     col_filter: filter_engine::ColFilter<T, Op>,
     border_value: &[T],
 ) {
     let mut engine = FilterEngine::new(row_filter, col_filter, border_value);
-    engine.apply(simd, input, input_shape, out, out_shape);
+    engine.apply(simd, buffer, buffer_shape);
 }

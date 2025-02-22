@@ -43,9 +43,6 @@ mod tests {
         let expected = test_image("Morphology_1_Dilation.png", &Default::default(), false);
         let expected = TestTensor::<3>::from(expected);
 
-        let data = output.to_data();
-        save_test_image("morph_test.png", output.clone(), false);
-
         output.into_data().assert_eq(&expected.into_data(), false);
     }
 
@@ -81,9 +78,6 @@ mod tests {
         let output = tensor.erode(kernel);
         let expected = test_image("Morphology_1_Erosion.png", &Default::default(), false);
         let expected = TestTensor::<3>::from(expected);
-
-        let data = output.to_data();
-        save_test_image("morph_test.png", output.clone(), false);
 
         output.into_data().assert_eq(&expected.into_data(), false);
     }
