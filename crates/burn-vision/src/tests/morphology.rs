@@ -7,7 +7,7 @@ mod tests {
     use burn_vision::{
         as_type,
         tests::{save_test_image, test_image},
-        Morphology,
+        MorphOptions, Morphology,
     };
 
     #[test]
@@ -21,7 +21,7 @@ mod tests {
             [true, true, true, true, true],
         ]);
 
-        let output = tensor.dilate(kernel);
+        let output = tensor.dilate(kernel, MorphOptions::default());
         let expected = test_image("Morphology_1_Dilation.png", &Default::default(), true);
         let expected = TestTensor::<3>::from(expected);
 
@@ -39,7 +39,7 @@ mod tests {
             [true, true, true, true, true],
         ]);
 
-        let output = tensor.dilate(kernel);
+        let output = tensor.dilate(kernel, MorphOptions::default());
         let expected = test_image("Morphology_1_Dilation.png", &Default::default(), false);
         let expected = TestTensor::<3>::from(expected);
 
@@ -57,7 +57,7 @@ mod tests {
             [true, true, true, true, true],
         ]);
 
-        let output = tensor.erode(kernel);
+        let output = tensor.erode(kernel, MorphOptions::default());
         let expected = test_image("Morphology_1_Erosion.png", &Default::default(), true);
         let expected = TestTensor::<3>::from(expected);
 
@@ -75,7 +75,7 @@ mod tests {
             [true, true, true, true, true],
         ]);
 
-        let output = tensor.erode(kernel);
+        let output = tensor.erode(kernel, MorphOptions::default());
         let expected = test_image("Morphology_1_Erosion.png", &Default::default(), false);
         let expected = TestTensor::<3>::from(expected);
 

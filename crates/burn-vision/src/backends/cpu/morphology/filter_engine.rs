@@ -5,6 +5,8 @@ use bytemuck::{cast_slice, cast_slice_mut, Zeroable};
 use macerator::VOrd;
 use pulp::Simd;
 
+use crate::BorderType;
+
 use super::filter::{
     MaxOp, MinOp, MorphColumnFilter, MorphColumnVec, MorphOperator, MorphRowFilter, MorphRowVec,
     VecMorphOperator,
@@ -24,6 +26,7 @@ pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperato
     src_row: Vec<T::Vector<S>>,
     const_border_value: Vec<T>,
     const_border_row: Vec<T::Vector<S>>,
+    border_table: Vec<usize>,
     /// Pointers to each row offset in the ring buffer
     rows: Vec<*const T>,
 
@@ -44,6 +47,7 @@ pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperato
     buf_step: usize,
     width: usize,
     height: usize,
+    border_type: BorderType,
 }
 
 impl<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> FilterEngine<S, T, Op> {
@@ -61,23 +65,29 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
     pub fn new(
         row_filter: RowFilter<T, Op>,
         col_filter: ColFilter<T, Op>,
+        border_type: BorderType,
         border_value: &[T],
     ) -> Self {
         let ch = border_value.len();
         let ksize = (col_filter.ksize, row_filter.ksize);
         let anchor = (col_filter.anchor, row_filter.anchor);
         let border_length = (ksize.1 - 1).max(1);
-        let mut const_border_value: Vec<T> = vec![Zeroable::zeroed(); border_length * ch];
-        for elem in cast_slice_mut::<_, T>(&mut const_border_value).chunks_exact_mut(ch) {
-            elem.copy_from_slice(border_value);
+        let mut const_border_value = vec![];
+        if matches!(border_type, BorderType::Constant) {
+            const_border_value.resize(border_length * ch, Zeroable::zeroed());
+            for elem in cast_slice_mut::<_, T>(&mut const_border_value).chunks_exact_mut(ch) {
+                elem.copy_from_slice(border_value);
+            }
         }
 
         Self {
             ring_buf: Default::default(),
             src_row: Default::default(),
             rows: Default::default(),
+            border_type,
             const_border_row: Default::default(),
             const_border_value,
+            border_table: Default::default(),
             ksize,
             anchor,
             row_filter,
@@ -122,23 +132,25 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             self.max_width = self.max_width.max(width);
             self.resize_src_row((self.max_width + self.ksize.1 - 1) * ch);
 
-            self.const_border_row.resize(
-                ((self.max_width + self.ksize.1 - 1) * ch).div_ceil(T::lanes::<S>()),
-                Zeroable::zeroed(),
-            );
-            let mut n = self.const_border_value.len();
-            let n1 = (self.max_width + self.ksize.1 - 1) * ch;
-            let const_val = &self.const_border_value;
-            let dst = cast_slice_mut(&mut self.const_border_row);
-            let t_dst = cast_slice_mut::<_, T>(&mut self.src_row);
+            if matches!(self.border_type, BorderType::Constant) {
+                self.const_border_row.resize(
+                    ((self.max_width + self.ksize.1 - 1) * ch).div_ceil(T::lanes::<S>()),
+                    Zeroable::zeroed(),
+                );
+                let mut n = self.const_border_value.len();
+                let n1 = (self.max_width + self.ksize.1 - 1) * ch;
+                let const_val = &self.const_border_value;
+                let dst = cast_slice_mut(&mut self.const_border_row);
+                let t_dst = cast_slice_mut::<_, T>(&mut self.src_row);
 
-            for i in (0..n1).step_by(n) {
-                n = n.min(n1 - i);
-                t_dst[i..i + n].copy_from_slice(&const_val[..n]);
+                for i in (0..n1).step_by(n) {
+                    n = n.min(n1 - i);
+                    t_dst[i..i + n].copy_from_slice(&const_val[..n]);
+                }
+
+                self.row_filter
+                    .apply(simd, cast_slice(&self.src_row), dst, self.max_width, ch);
             }
-
-            self.row_filter
-                .apply(simd, cast_slice(&self.src_row), dst, self.max_width, ch);
 
             let max_buf_step = self.max_width.next_multiple_of(align_of::<T::Vector<S>>()) * ch;
 
@@ -153,15 +165,38 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         self.dx2 = self.ksize.1 - self.anchor.1 - 1;
 
         if self.dx1 > 0 || self.dx2 > 0 {
-            let nr = 1;
-            for _ in 0..nr {
-                let dst = cast_slice_mut::<_, T>(&mut self.src_row);
-                memcpy(dst, const_val, self.dx1 * ch);
-                let right = (width + self.ksize.1 - 1 - self.dx2) * ch;
-                memcpy(&mut dst[right..], const_val, self.dx2 * ch);
+            if matches!(self.border_type, BorderType::Constant) {
+                let nr = 1;
+                for _ in 0..nr {
+                    let dst = cast_slice_mut::<_, T>(&mut self.src_row);
+                    memcpy(dst, const_val, self.dx1 * ch);
+                    let right = (width + self.ksize.1 - 1 - self.dx2) * ch;
+                    memcpy(&mut dst[right..], const_val, self.dx2 * ch);
+                }
+            } else {
+                for i in 0..self.dx1 as isize {
+                    let p0 = border_interpolate(i - self.dx1 as isize, width, self.border_type)
+                        as usize
+                        * ch;
+                    for j in 0..ch {
+                        self.border_table[i as usize * ch + j] = p0 + j;
+                    }
+                }
+                for i in 0..self.dx2 {
+                    let p0 = border_interpolate((width + i) as isize, width, self.border_type)
+                        as usize
+                        * ch;
+                    for j in 0..ch {
+                        self.border_table[(i + self.dx1) * ch + j] = p0 + j;
+                    }
+                }
             }
         }
 
+        self.row_count = 0;
+        self.dst_y = 0;
+        self.start_y = 0;
+        self.start_y_0 = 0;
         self.end_y = height;
         self.width = width;
         self.height = height;
@@ -185,6 +220,9 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let dx1 = self.dx1;
         let dx2 = self.dx2;
         let width1 = self.width + kwidth - 1;
+        let btab = &self.border_table;
+        let make_border = (dx1 > 0 || dx2 > 0) && !matches!(self.border_type, BorderType::Constant);
+
         count = count.min(self.remaining_input_rows());
         let mut dst_off = 0;
         let mut src_off = 0;
@@ -208,6 +246,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             while dcount > 0 {
                 let bi = (self.start_y - self.start_y_0 + self.row_count) % buf_rows;
                 let brow = &mut ring_buf[bi * self.buf_step..];
+                let row = &mut src_row[..];
 
                 if self.row_count + 1 > buf_rows {
                     self.row_count -= 1;
@@ -216,12 +255,21 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 self.row_count += 1;
 
                 memcpy(
-                    &mut src_row[dx1 * ch..],
+                    &mut row[dx1 * ch..],
                     &src[src_off..],
                     (width1 - dx2 - dx1) * ch,
                 );
 
-                self.row_filter.apply(simd, src_row, brow, self.width, ch);
+                if make_border {
+                    for i in 0..dx1 * ch {
+                        row[i] = src[btab[i]];
+                    }
+                    for i in 0..dx2 * ch {
+                        row[i + (width1 - dx2) * ch] = src[btab[i + dx1 * ch]];
+                    }
+                }
+
+                self.row_filter.apply(simd, row, brow, self.width, ch);
 
                 dcount -= 1;
                 src_off += src_step;
@@ -230,7 +278,11 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             let max_i = buf_rows.min(self.height - (self.dst_y + dy) + (kheight - 1));
             i = 0;
             while i < max_i {
-                let src_y = border_interpolate((self.dst_y + dy + i) as isize - ay, self.height);
+                let src_y = border_interpolate(
+                    (self.dst_y + dy + i) as isize - ay,
+                    self.height,
+                    self.border_type,
+                );
                 if src_y < 0 {
                     brows[i] = self.const_border_row.as_ptr() as _;
                 } else {
@@ -273,9 +325,40 @@ fn memcpy<T: Copy>(to: &mut [T], from: &[T], len: usize) {
     to[..len].copy_from_slice(&from[..len]);
 }
 
-fn border_interpolate(mut p: isize, len: usize) -> isize {
-    if p >= len as isize {
-        p = -1;
+fn border_interpolate(mut p: isize, len: usize, btype: BorderType) -> isize {
+    let len = len as isize;
+    if p < len {
+        return p;
     }
-    p
+    match btype {
+        BorderType::Constant => -1,
+        BorderType::Replicate if p < 0 => 0,
+        BorderType::Replicate => len - 1,
+        BorderType::Reflect | BorderType::Reflect101 => {
+            let delta = matches!(btype, BorderType::Reflect101) as isize;
+            if len == 1 {
+                return 0;
+            }
+            loop {
+                if p < 0 {
+                    p = -p - 1 + delta;
+                } else {
+                    p = len - 1 - (p - len) - delta;
+                }
+                if p < len {
+                    break;
+                }
+            }
+            p
+        }
+        BorderType::Wrap => {
+            if p < 0 {
+                p -= ((p - len + 1) / len) * len;
+            }
+            if p >= len {
+                p %= len;
+            }
+            p
+        }
+    }
 }
