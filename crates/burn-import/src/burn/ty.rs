@@ -198,11 +198,6 @@ impl TensorType {
             );
         }
         let formatted_name = Type::format_name(name.as_ref());
-        log::debug!(
-            "Creating TensorType {:?} with name {}",
-            kind,
-            formatted_name
-        );
 
         assert_ne!(
             dim, 0,
