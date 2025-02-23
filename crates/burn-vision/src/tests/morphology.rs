@@ -33,6 +33,50 @@ mod tests {
     }
 
     #[test]
+    fn should_support_dilate_luma_cross() {
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Cross,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+
+        let output = tensor.dilate(kernel, MorphOptions::default());
+        let expected = test_image(
+            "morphology/Dilate_1_5x5_Cross.png",
+            &Default::default(),
+            true,
+        );
+        let expected = TestTensor::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
+    fn should_support_dilate_luma_ellipse() {
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Ellipse,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+
+        let output = tensor.dilate(kernel, MorphOptions::default());
+        let expected = test_image(
+            "morphology/Dilate_1_5x5_Ellipse.png",
+            &Default::default(),
+            true,
+        );
+        let expected = TestTensor::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
     fn should_support_dilate_rgb() {
         let tensor = test_image("morphology/Base_1.png", &Default::default(), false);
         let kernel = TestTensorBool::<2>::from([
@@ -67,6 +111,50 @@ mod tests {
 
         let output = tensor.erode(kernel, MorphOptions::default());
         let expected = test_image("morphology/Erode_1_5x5_Rect.png", &Default::default(), true);
+        let expected = TestTensor::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
+    fn should_support_erode_luma_cross() {
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Cross,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+
+        let output = tensor.erode(kernel, MorphOptions::default());
+        let expected = test_image(
+            "morphology/Erode_1_5x5_Cross.png",
+            &Default::default(),
+            true,
+        );
+        let expected = TestTensor::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
+    fn should_support_erode_luma_ellipse() {
+        let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Ellipse,
+            5,
+            5,
+            None,
+            &Default::default(),
+        );
+
+        let output = tensor.erode(kernel, MorphOptions::default());
+        let expected = test_image(
+            "morphology/Erode_1_5x5_Ellipse.png",
+            &Default::default(),
+            true,
+        );
         let expected = TestTensor::<3>::from(expected);
 
         output.into_data().assert_eq(&expected.into_data(), false);

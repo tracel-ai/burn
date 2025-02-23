@@ -2,7 +2,7 @@ use core::slice;
 use std::{marker::PhantomData, ptr::null};
 
 use burn_tensor::Element;
-use macerator::{VOrd, Vectorizable};
+use macerator::{SimdExt, VOrd, Vectorizable};
 use pulp::Simd;
 
 use crate::backends::cpu::MinMax;
@@ -152,10 +152,10 @@ impl<T: Vectorizable, Op: VecMorphOperator<T>> VecRow<T> for MorphRowVec<T, Op> 
         unsafe {
             let mut x = 0;
             for i in (0..=width - 4 * lanes).step_by(4 * lanes) {
-                let mut s0 = T::vload(simd, src.add(i));
-                let mut s1 = T::vload(simd, src.add(i + lanes));
-                let mut s2 = T::vload(simd, src.add(i + 2 * lanes));
-                let mut s3 = T::vload(simd, src.add(i + 3 * lanes));
+                let mut s0 = simd.vload(src.add(i));
+                let mut s1 = simd.vload(src.add(i + lanes));
+                let mut s2 = simd.vload(src.add(i + 2 * lanes));
+                let mut s3 = simd.vload(src.add(i + 3 * lanes));
                 for k in (ch..k_size).step_by(ch) {
                     let i = i + k;
                     s0 = Op::apply(simd, s0, vxload(simd, src.add(i)));
@@ -163,37 +163,37 @@ impl<T: Vectorizable, Op: VecMorphOperator<T>> VecRow<T> for MorphRowVec<T, Op> 
                     s2 = Op::apply(simd, s2, vxload(simd, src.add(i + 2 * lanes)));
                     s3 = Op::apply(simd, s3, vxload(simd, src.add(i + 3 * lanes)));
                 }
-                T::vstore(simd, dst.add(i), s0);
-                T::vstore(simd, dst.add(i + lanes), s1);
-                T::vstore(simd, dst.add(i + 2 * lanes), s2);
-                T::vstore(simd, dst.add(i + 3 * lanes), s3);
+                simd.vstore(dst.add(i), s0);
+                simd.vstore(dst.add(i + lanes), s1);
+                simd.vstore(dst.add(i + 2 * lanes), s2);
+                simd.vstore(dst.add(i + 3 * lanes), s3);
                 x = i;
             }
             if x <= width - 2 * lanes {
-                let mut s0 = T::vload(simd, src.add(x));
-                let mut s1 = T::vload(simd, src.add(x + lanes));
+                let mut s0 = simd.vload(src.add(x));
+                let mut s1 = simd.vload(src.add(x + lanes));
                 for k in (ch..k_size).step_by(ch) {
                     s0 = Op::apply(simd, s0, vxload(simd, src.add(x + k)));
                     s1 = Op::apply(simd, s1, vxload(simd, src.add(x + k + lanes)));
                 }
-                T::vstore(simd, dst.add(x), s0);
-                T::vstore(simd, dst.add(x + lanes), s1);
+                simd.vstore(dst.add(x), s0);
+                simd.vstore(dst.add(x + lanes), s1);
                 x += 2 * lanes;
             }
             if x <= width - lanes {
-                let mut s = T::vload(simd, src.add(x));
+                let mut s = simd.vload(src.add(x));
                 for k in (ch..k_size).step_by(ch) {
                     s = Op::apply(simd, s, vxload(simd, src.add(x + k)));
                 }
-                T::vstore(simd, dst.add(x), s);
+                simd.vstore(dst.add(x), s);
                 x += lanes;
             }
             if x <= width - lanes / 2 {
-                let mut s = T::vload_low(simd, src.add(x));
+                let mut s = simd.vload_low(src.add(x));
                 for k in (ch..k_size).step_by(ch) {
-                    s = Op::apply(simd, s, T::vload_low(simd, src.add(x + k)));
+                    s = Op::apply(simd, s, simd.vload_low(src.add(x + k)));
                 }
-                T::vstore_low(simd, dst.add(x), s);
+                simd.vstore_low(dst.add(x), s);
                 x += lanes / 2;
             }
             x - x % ch
@@ -258,26 +258,26 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                 x = 0;
                 while x <= width - 4 * lanes {
                     let sptr = src[y + 1].add(x);
-                    let mut s0 = T::vload(simd, sptr);
-                    let mut s1 = T::vload(simd, sptr.add(lanes));
-                    let mut s2 = T::vload(simd, sptr.add(2 * lanes));
-                    let mut s3 = T::vload(simd, sptr.add(3 * lanes));
+                    let mut s0 = simd.vload(sptr);
+                    let mut s1 = simd.vload(sptr.add(lanes));
+                    let mut s2 = simd.vload(sptr.add(2 * lanes));
+                    let mut s3 = simd.vload(sptr.add(3 * lanes));
 
                     for k in 2..ksize {
                         let sptr = src[y + k].add(x);
-                        s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
-                        s2 = Op::apply(simd, s2, T::vload(simd, sptr.add(2 * lanes)));
-                        s3 = Op::apply(simd, s3, T::vload(simd, sptr.add(3 * lanes)));
+                        s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
+                        s2 = Op::apply(simd, s2, simd.vload(sptr.add(2 * lanes)));
+                        s3 = Op::apply(simd, s3, simd.vload(sptr.add(3 * lanes)));
                     }
 
                     // Row 1
                     {
                         let sptr = src[y].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        let s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
-                        let s2 = Op::apply(simd, s2, T::vload(simd, sptr.add(2 * lanes)));
-                        let s3 = Op::apply(simd, s3, T::vload(simd, sptr.add(3 * lanes)));
+                        let s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        let s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
+                        let s2 = Op::apply(simd, s2, simd.vload(sptr.add(2 * lanes)));
+                        let s3 = Op::apply(simd, s3, simd.vload(sptr.add(3 * lanes)));
                         vstore(simd, dst.add(x), s0);
                         vstore(simd, dst.add(x + lanes), s1);
                         vstore(simd, dst.add(x + 2 * lanes), s2);
@@ -287,10 +287,10 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                     // Row 2
                     {
                         let sptr = src[y + ksize].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        let s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
-                        let s2 = Op::apply(simd, s2, T::vload(simd, sptr.add(2 * lanes)));
-                        let s3 = Op::apply(simd, s3, T::vload(simd, sptr.add(3 * lanes)));
+                        let s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        let s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
+                        let s2 = Op::apply(simd, s2, simd.vload(sptr.add(2 * lanes)));
+                        let s3 = Op::apply(simd, s3, simd.vload(sptr.add(3 * lanes)));
                         vstore(simd, dst.add(dst_step + x), s0);
                         vstore(simd, dst.add(dst_step + x + lanes), s1);
                         vstore(simd, dst.add(dst_step + x + 2 * lanes), s2);
@@ -300,20 +300,20 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                 }
                 if x <= width - 2 * lanes {
                     let sptr = src[y + 1].add(x);
-                    let mut s0 = T::vload(simd, sptr);
-                    let mut s1 = T::vload(simd, sptr.add(lanes));
+                    let mut s0 = simd.vload(sptr);
+                    let mut s1 = simd.vload(sptr.add(lanes));
 
                     for k in 2..ksize {
                         let sptr = src[y + k].add(x);
-                        s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
+                        s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
                     }
 
                     // Row 1
                     {
                         let sptr = src[y].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        let s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
+                        let s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        let s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
                         vstore(simd, dst.add(x), s0);
                         vstore(simd, dst.add(x + lanes), s1);
                     }
@@ -321,49 +321,49 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                     // Row 2
                     {
                         let sptr = src[y + ksize].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        let s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
+                        let s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        let s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
                         vstore(simd, dst.add(dst_step + x), s0);
                         vstore(simd, dst.add(dst_step + x + lanes), s1);
                     }
                     x += 2 * lanes;
                 }
                 if x <= width - lanes {
-                    let mut s0 = T::vload(simd, src[y + 1].add(x));
+                    let mut s0 = simd.vload(src[y + 1].add(x));
                     for k in 2..ksize {
-                        s0 = Op::apply(simd, s0, T::vload(simd, src[y + k].add(x)));
+                        s0 = Op::apply(simd, s0, simd.vload(src[y + k].add(x)));
                     }
                     // Row 1
                     {
                         let sptr = src[y].add(x);
-                        vstore(simd, dst.add(x), Op::apply(simd, s0, T::vload(simd, sptr)));
+                        vstore(simd, dst.add(x), Op::apply(simd, s0, simd.vload(sptr)));
                     }
 
                     // Row 2
                     {
                         let sptr = src[y + ksize].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload(simd, sptr));
+                        let s0 = Op::apply(simd, s0, simd.vload(sptr));
                         vstore(simd, dst.add(dst_step + x), s0);
                     }
                     x += lanes;
                 }
                 if x <= width - lanes / 2 {
-                    let mut s0 = T::vload_low(simd, src[y + 1].add(x));
+                    let mut s0 = simd.vload_low(src[y + 1].add(x));
                     for k in 2..ksize {
-                        s0 = Op::apply(simd, s0, T::vload_low(simd, src[y + k].add(x)));
+                        s0 = Op::apply(simd, s0, simd.vload_low(src[y + k].add(x)));
                     }
                     // Row 1
                     {
                         let sptr = src[y].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload_low(simd, sptr));
-                        T::vstore_low(simd, dst.add(x), s0);
+                        let s0 = Op::apply(simd, s0, simd.vload_low(sptr));
+                        simd.vstore_low(dst.add(x), s0);
                     }
 
                     // Row 2
                     {
                         let sptr = src[y + ksize].add(x);
-                        let s0 = Op::apply(simd, s0, T::vload_low(simd, sptr));
-                        T::vstore_low(simd, dst.add(dst_step + x), s0);
+                        let s0 = Op::apply(simd, s0, simd.vload_low(sptr));
+                        simd.vstore_low(dst.add(dst_step + x), s0);
                     }
                     x += lanes / 2;
                 }
@@ -377,17 +377,17 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                 x = 0;
                 while x <= width - 4 * lanes {
                     let sptr = src[y].add(x);
-                    let mut s0 = T::vload(simd, sptr);
-                    let mut s1 = T::vload(simd, sptr.add(lanes));
-                    let mut s2 = T::vload(simd, sptr.add(2 * lanes));
-                    let mut s3 = T::vload(simd, sptr.add(3 * lanes));
+                    let mut s0 = simd.vload(sptr);
+                    let mut s1 = simd.vload(sptr.add(lanes));
+                    let mut s2 = simd.vload(sptr.add(2 * lanes));
+                    let mut s3 = simd.vload(sptr.add(3 * lanes));
 
                     for k in 1..ksize {
                         let sptr = src[y + k].add(x);
-                        s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
-                        s2 = Op::apply(simd, s2, T::vload(simd, sptr.add(2 * lanes)));
-                        s3 = Op::apply(simd, s3, T::vload(simd, sptr.add(3 * lanes)));
+                        s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
+                        s2 = Op::apply(simd, s2, simd.vload(sptr.add(2 * lanes)));
+                        s3 = Op::apply(simd, s3, simd.vload(sptr.add(3 * lanes)));
                     }
 
                     vstore(simd, dst.add(x), s0);
@@ -399,13 +399,13 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                 }
                 if x <= width - 2 * lanes {
                     let sptr = src[y].add(x);
-                    let mut s0 = T::vload(simd, sptr);
-                    let mut s1 = T::vload(simd, sptr.add(lanes));
+                    let mut s0 = simd.vload(sptr);
+                    let mut s1 = simd.vload(sptr.add(lanes));
 
                     for k in 1..ksize {
                         let sptr = src[y + k].add(x);
-                        s0 = Op::apply(simd, s0, T::vload(simd, sptr));
-                        s1 = Op::apply(simd, s1, T::vload(simd, sptr.add(lanes)));
+                        s0 = Op::apply(simd, s0, simd.vload(sptr));
+                        s1 = Op::apply(simd, s1, simd.vload(sptr.add(lanes)));
                     }
 
                     vstore(simd, dst.add(x), s0);
@@ -413,23 +413,23 @@ impl<T: VOrd, Op: VecMorphOperator<T>> VecColumn<T> for MorphColumnVec<T, Op> {
                     x += 2 * lanes;
                 }
                 if x <= width - lanes {
-                    let mut s0 = T::vload(simd, src[y].add(x));
+                    let mut s0 = simd.vload(src[y].add(x));
 
                     for k in 1..ksize {
-                        s0 = Op::apply(simd, s0, T::vload(simd, src[y + k].add(x)));
+                        s0 = Op::apply(simd, s0, simd.vload(src[y + k].add(x)));
                     }
 
                     vstore(simd, dst.add(x), s0);
                     x += lanes;
                 }
                 if x <= width - lanes / 2 {
-                    let mut s0 = T::vload_low(simd, src[y].add(x));
+                    let mut s0 = simd.vload_low(src[y].add(x));
 
                     for k in 1..ksize {
-                        s0 = Op::apply(simd, s0, T::vload_low(simd, src[y + k].add(x)));
+                        s0 = Op::apply(simd, s0, simd.vload_low(src[y + k].add(x)));
                     }
 
-                    T::vstore_low(simd, dst.add(x), s0);
+                    simd.vstore_low(dst.add(x), s0);
                     x += lanes / 2;
                 }
 
@@ -622,11 +622,11 @@ impl<T: Vectorizable, Op: VecMorphOperator<T>> VecFilter<T> for MorphVec<T, Op> 
                 i += lanes;
             }
             if i <= width - lanes / 2 {
-                let mut s = T::vload_low(simd, src[0].add(i));
+                let mut s = simd.vload_low(src[0].add(i));
                 for sptr in src[1..nz].iter().map(|sptr| sptr.add(i)) {
-                    s = Op::apply(simd, s, T::vload_low(simd, sptr));
+                    s = Op::apply(simd, s, simd.vload_low(sptr));
                 }
-                T::vstore_low(simd, dst.add(i), s);
+                simd.vstore_low(dst.add(i), s);
                 i += lanes / 2;
             }
         }
@@ -680,7 +680,7 @@ impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> MorphFilter<T, 
         unsafe {
             while count > 0 {
                 for k in 0..nz {
-                    kp[k] = src[src_off + pt[k].0].add(pt[k].0 * ch);
+                    kp[k] = src[src_off + pt[k].0].add(pt[k].1 * ch);
                 }
 
                 let mut i = VecOp::apply(simd, kp, nz, &mut dst[dst_off..], width);
