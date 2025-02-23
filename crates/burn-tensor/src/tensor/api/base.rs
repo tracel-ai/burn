@@ -11,6 +11,7 @@ use core::future::Future;
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
+use tracing::instrument;
 
 use serde::{Serialize, Serializer};
 
@@ -917,6 +918,7 @@ where
     /// For better performance, prefer using a [Transaction](Transaction) when reading multiple
     /// tensors at once. This may improve laziness, especially if executed on a different
     /// thread in native environments.
+    #[instrument(skip_all)]
     pub fn into_data(self) -> TensorData {
         crate::try_read_sync(self.into_data_async()).expect(
             "Failed to read tensor data synchronously.
@@ -947,6 +949,7 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
+    #[instrument(skip_all, level = "trace")]
     pub fn from_data<T>(data: T, device: &B::Device) -> Self
     where
         T: Into<TensorData>,

@@ -934,6 +934,7 @@ dependencies = [
  "rand_distr 0.5.1",
  "serde",
  "serde_bytes",
+ "tracing",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
 use macerator::VOrd;
 use pulp::Simd;
+use tracing::{info_span, instrument};
 
 use crate::{BorderType, MorphOptions, Point, Size};
 
@@ -39,6 +40,7 @@ pub enum MorphKernel<B: Element> {
     },
 }
 
+#[instrument(skip_all)]
 pub fn morph<B: Backend, K: BasicOps<B>>(
     input: Tensor<B, 3, K>,
     kernel: BoolTensor<B>,
@@ -51,12 +53,15 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
     let kshape = kernel.shape().dims();
     let [kh, kw] = kshape;
 
+    let span = info_span!("analyze_kernel");
+    let _s = span.enter();
     let kernel = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
     let btype = opts.border_type;
     let bvalue = opts.border_value.map(|it| it.into_data());
+    drop(_s);
 
     let size = Size::new(kw, kh);
     let kernel = if is_rect {
@@ -121,6 +126,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[instrument(skip_all)]
 fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
     input: TensorData,
     shape: Shape,
@@ -140,6 +146,7 @@ fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[instrument(skip_all)]
 fn morph_bool<B: Backend, K: BasicOps<B>>(
     input: TensorData,
     shape: Shape,
@@ -150,17 +157,18 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
     bvalue: Option<TensorData>,
     device: &B::Device,
 ) -> Tensor<B, 3, K> {
-    let input = input.into_vec::<bool>().unwrap();
-    let mut data = bytemuck::cast_vec::<_, u8>(input);
+    // We don't actually care about the validity of bitpatterns since we treat it as u8 anyways.
+    // So we skip the type check and go directly to u8. This saves about 10% execution time per operation.
+    let mut data = input.into_bytes().try_into_vec::<u8>().unwrap();
     let bvalue = border_value(btype, bvalue, op, &shape);
     run_morph(&mut data, shape.clone(), kernel, op, iter, btype, &bvalue);
-    let [h, w, ch] = shape.dims();
     // SAFETY: Morph can't produce invalid boolean values
     let data = unsafe { core::mem::transmute::<Vec<u8>, Vec<bool>>(data) };
-    let data = TensorData::new(data, Shape::new([h, w, ch]));
+    let data = TensorData::new(data, shape);
     Tensor::from_data(data, device)
 }
 
+#[instrument(skip_all)]
 fn border_value<T: Element>(
     btype: BorderType,
     bvalue: Option<TensorData>,
@@ -178,6 +186,7 @@ fn border_value<T: Element>(
     }
 }
 
+#[instrument(skip_all)]
 fn run_morph<T: VOrd + MinMax + Element, B: Element>(
     input: &mut [T],
     shape: Shape,
@@ -224,6 +233,7 @@ fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Eleme
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
+#[instrument(skip_all)]
 #[pulp::with_simd(dispatch_morph = pulp::Arch::new())]
 fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecMorphOperator<T>>(
     simd: S,
@@ -254,6 +264,7 @@ pub enum KernelShape {
 }
 
 /// Create a structuring element tensor for use with morphology ops
+#[instrument(skip(device))]
 pub fn create_structuring_element<B: Backend>(
     mut shape: KernelShape,
     ksize: Size,
