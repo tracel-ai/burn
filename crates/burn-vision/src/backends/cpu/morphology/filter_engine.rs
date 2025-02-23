@@ -5,7 +5,7 @@ use bytemuck::{cast_slice, cast_slice_mut, Zeroable};
 use macerator::VOrd;
 use pulp::Simd;
 
-use crate::BorderType;
+use crate::{BorderType, Point, Size};
 
 use super::filter::{
     MorphColumnFilter, MorphColumnVec, MorphFilter, MorphOperator, MorphRowFilter, MorphRowVec,
@@ -37,8 +37,8 @@ pub struct FilterEngine<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperato
 
     filter: Filter<T, Op>,
 
-    ksize: (usize, usize),
-    anchor: (usize, usize),
+    ksize: Size,
+    anchor: Point,
     dx1: usize,
     dx2: usize,
     row_count: usize,
@@ -74,16 +74,16 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let (ksize, anchor) = match &filter {
             Filter::Separable {
                 row_filter,
-                col_filter: col,
+                col_filter,
             } => {
-                let ksize = (col.ksize, row_filter.ksize);
-                let anchor = (col.anchor, row_filter.anchor);
+                let ksize = Size::new(row_filter.ksize, col_filter.ksize);
+                let anchor = Point::new(row_filter.anchor, col_filter.anchor);
                 (ksize, anchor)
             }
-            Filter::Fallback(f) => ((f.ksize[0], f.ksize[1]), f.anchor),
+            Filter::Fallback(f) => (f.ksize, f.anchor),
         };
 
-        let border_length = (ksize.1 - 1).max(1);
+        let border_length = (ksize.width - 1).max(1);
         let mut const_border_value = vec![];
         if matches!(border_type, BorderType::Constant) {
             const_border_value.resize(border_length * ch, Zeroable::zeroed());
@@ -134,11 +134,11 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
     pub fn start(&mut self, simd: S, shape: Shape) -> usize {
         let [height, width, ch] = shape.dims();
 
-        let max_buf_rows = (self.ksize.0 + 3)
-            .max(self.anchor.0)
-            .max((self.ksize.0 - self.anchor.0 - 1) * 2 + 1);
+        let max_buf_rows = (self.ksize.height + 3)
+            .max(self.anchor.y)
+            .max((self.ksize.height - self.anchor.y - 1) * 2 + 1);
         let k_offs = if self.is_separable() {
-            self.ksize.1 - 1
+            self.ksize.width - 1
         } else {
             0
         };
@@ -147,15 +147,15 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         if self.max_width < width || max_buf_rows != self.rows.len() {
             self.rows.resize(max_buf_rows, null_mut());
             self.max_width = self.max_width.max(width);
-            self.resize_src_row((self.max_width + self.ksize.1 - 1) * ch);
+            self.resize_src_row((self.max_width + self.ksize.width - 1) * ch);
 
             if matches!(self.border_type, BorderType::Constant) {
                 self.const_border_row.resize(
-                    ((self.max_width + self.ksize.1 - 1) * ch).div_ceil(T::lanes::<S>()),
+                    ((self.max_width + self.ksize.width - 1) * ch).div_ceil(T::lanes::<S>()),
                     Zeroable::zeroed(),
                 );
                 let mut n = self.const_border_value.len();
-                let n1 = (self.max_width + self.ksize.1 - 1) * ch;
+                let n1 = (self.max_width + self.ksize.width - 1) * ch;
                 let const_val = &self.const_border_value;
                 let dst = cast_slice_mut(&mut self.const_border_row);
                 let t_dst = if is_sep {
@@ -184,8 +184,8 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
 
         self.buf_step = (width + k_offs).next_multiple_of(align_of::<T::Vector<S>>()) * ch;
 
-        self.dx1 = self.anchor.1;
-        self.dx2 = self.ksize.1 - self.anchor.1 - 1;
+        self.dx1 = self.anchor.x;
+        self.dx2 = self.ksize.width - self.anchor.x - 1;
 
         if self.dx1 > 0 || self.dx2 > 0 {
             if matches!(self.border_type, BorderType::Constant) {
@@ -201,7 +201,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                         &mut cast_slice_mut::<_, T>(&mut self.ring_buf)[self.buf_step * i..]
                     };
                     memcpy(dst, const_val, self.dx1 * ch);
-                    let right = (width + self.ksize.1 - 1 - self.dx2) * ch;
+                    let right = (width + self.ksize.width - 1 - self.dx2) * ch;
                     memcpy(&mut dst[right..], const_val, self.dx2 * ch);
                 }
             } else {
@@ -245,9 +245,9 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         ch: usize,
     ) -> usize {
         let buf_rows = self.rows.len();
-        let kheight = self.ksize.0;
-        let kwidth = self.ksize.1;
-        let ay = self.anchor.0 as isize;
+        let kheight = self.ksize.height;
+        let kwidth = self.ksize.width;
+        let ay = self.anchor.y as isize;
         let dx1 = self.dx1;
         let dx2 = self.dx2;
         let width1 = self.width + kwidth - 1;

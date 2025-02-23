@@ -1,4 +1,7 @@
-use crate::backends::cpu::{self, morph, MorphOp};
+use crate::{
+    backends::cpu::{self, morph, MorphOp},
+    Point,
+};
 use bon::Builder;
 use burn_tensor::{
     backend::Backend,
@@ -33,7 +36,7 @@ pub struct ConnectedStatsOptions {
 #[derive(Clone, Debug, Builder)]
 pub struct MorphOptions<B: Backend, K: TensorKind<B>> {
     /// Anchor position within the kernel. Defaults to the center.
-    pub anchor: Option<(usize, usize)>,
+    pub anchor: Option<Point>,
     /// Number of iterations to apply
     #[builder(default = 1)]
     pub iterations: usize,

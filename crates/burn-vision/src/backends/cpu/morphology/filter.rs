@@ -5,7 +5,7 @@ use burn_tensor::Element;
 use macerator::{SimdExt, VOrd, Vectorizable};
 use pulp::Simd;
 
-use crate::backends::cpu::MinMax;
+use crate::{backends::cpu::MinMax, Point, Size};
 
 pub trait MorphOperator<T> {
     fn apply(a: T, b: T) -> T;
@@ -635,15 +635,15 @@ impl<T: Vectorizable, Op: VecMorphOperator<T>> VecFilter<T> for MorphVec<T, Op> 
 }
 
 pub struct MorphFilter<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> {
-    pub ksize: [usize; 2],
-    pub anchor: (usize, usize),
-    coords: Vec<(usize, usize)>,
+    pub ksize: Size,
+    pub anchor: Point,
+    coords: Vec<Point>,
     ptrs: Vec<*const T>,
     _op: PhantomData<(Op, VecOp)>,
 }
 
 impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> MorphFilter<T, Op, VecOp> {
-    pub fn new<B: Element>(kernel: &[B], ksize: [usize; 2], anchor: (usize, usize)) -> Self {
+    pub fn new<B: Element>(kernel: &[B], ksize: Size, anchor: Point) -> Self {
         let coords = process_2d_kernel(kernel, ksize);
         let ptrs = vec![null(); coords.len()];
 
@@ -680,7 +680,7 @@ impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> MorphFilter<T, 
         unsafe {
             while count > 0 {
                 for k in 0..nz {
-                    kp[k] = src[src_off + pt[k].0].add(pt[k].1 * ch);
+                    kp[k] = src[src_off + pt[k].y].add(pt[k].x * ch);
                 }
 
                 let mut i = VecOp::apply(simd, kp, nz, &mut dst[dst_off..], width);
@@ -720,21 +720,21 @@ impl<T: Vectorizable, Op: MorphOperator<T>, VecOp: VecFilter<T>> MorphFilter<T, 
     }
 }
 
-fn process_2d_kernel<B: Element>(kernel: &[B], ksize: [usize; 2]) -> Vec<(usize, usize)> {
-    let [rows, cols] = ksize;
+fn process_2d_kernel<B: Element>(kernel: &[B], ksize: Size) -> Vec<Point> {
+    let Size { width, height } = ksize;
 
     let mut nz = kernel.iter().filter(|it| it.to_bool()).count();
     if nz == 0 {
         nz = 1;
     }
 
-    let mut coords = vec![(0, 0); nz];
+    let mut coords = vec![Point::new(0, 0); nz];
     let mut k = 0;
 
-    for i in 0..rows {
-        let krow = &kernel[i * cols..];
-        for (j, _) in krow[..cols].iter().enumerate().filter(|it| it.1.to_bool()) {
-            coords[k] = (i, j);
+    for y in 0..height {
+        let krow = &kernel[y * width..];
+        for (x, _) in krow[..width].iter().enumerate().filter(|it| it.1.to_bool()) {
+            coords[k] = Point::new(x, y);
             k += 1;
         }
     }

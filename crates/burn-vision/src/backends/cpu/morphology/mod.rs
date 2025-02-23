@@ -12,7 +12,7 @@ use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
 use macerator::VOrd;
 use pulp::Simd;
 
-use crate::{BorderType, MorphOptions};
+use crate::{BorderType, MorphOptions, Point, Size};
 
 use super::MinMax;
 
@@ -29,13 +29,13 @@ pub enum MorphOp {
 
 pub enum MorphKernel<B: Element> {
     Rect {
-        shape: [usize; 2],
-        anchor: (usize, usize),
+        size: Size,
+        anchor: Point,
     },
     Other {
         kernel: Vec<B>,
-        shape: [usize; 2],
-        anchor: (usize, usize),
+        size: Size,
+        anchor: Point,
     },
 }
 
@@ -53,20 +53,18 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
 
     let kernel = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
-    let anchor = opts.anchor.unwrap_or((kh / 2, kw / 2));
+    let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
     let btype = opts.border_type;
     let bvalue = opts.border_value.map(|it| it.into_data());
 
+    let size = Size::new(kw, kh);
     let kernel = if is_rect {
-        MorphKernel::Rect {
-            shape: kshape,
-            anchor,
-        }
+        MorphKernel::Rect { size, anchor }
     } else {
         MorphKernel::Other {
             kernel,
-            shape: kshape,
+            size,
             anchor,
         }
     };
@@ -205,9 +203,9 @@ fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Eleme
     kernel: MorphKernel<B>,
 ) -> Filter<T, Op> {
     match kernel {
-        MorphKernel::Rect { shape, anchor } => {
-            let row_filter = RowFilter::new(shape[1], anchor.1);
-            let col_filter = ColFilter::new(shape[0], anchor.0);
+        MorphKernel::Rect { size, anchor } => {
+            let row_filter = RowFilter::new(size.width, anchor.x);
+            let col_filter = ColFilter::new(size.height, anchor.y);
             Filter::Separable {
                 row_filter,
                 col_filter,
@@ -215,10 +213,10 @@ fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Eleme
         }
         MorphKernel::Other {
             kernel,
-            shape,
+            size,
             anchor,
         } => {
-            let filter = Filter2D::new(&kernel, shape, anchor);
+            let filter = Filter2D::new(&kernel, size, anchor);
             Filter::Fallback(filter)
         }
     }
@@ -257,35 +255,34 @@ pub enum KernelShape {
 /// Create a structuring element tensor for use with morphology ops
 pub fn create_structuring_element<B: Backend>(
     mut shape: KernelShape,
-    kh: usize,
-    kw: usize,
-    anchor: Option<(usize, usize)>,
+    ksize: Size,
+    anchor: Option<Point>,
     device: &B::Device,
 ) -> Tensor<B, 2, Bool> {
-    let anchor = anchor.unwrap_or((kh / 2, kw / 2));
+    let anchor = anchor.unwrap_or(Point::new(ksize.width / 2, ksize.height / 2));
     let mut r = 0;
     let mut c = 0;
     let mut inv_r2 = 0.0;
 
-    if kh == 1 && kw == 1 {
+    if ksize.width == 1 && ksize.height == 1 {
         shape = KernelShape::Rect;
     }
 
     if shape == KernelShape::Ellipse {
-        r = kh / 2;
-        c = kw / 2;
+        r = ksize.height / 2;
+        c = ksize.width / 2;
         inv_r2 = if r > 0 { 1.0 / (r * r) as f64 } else { 0.0 }
     }
 
-    let mut elem = vec![false; kh * kw];
+    let mut elem = vec![false; ksize.height * ksize.width];
 
-    for i in 0..kh {
+    for i in 0..ksize.height {
         let mut j1 = 0;
         let mut j2 = 0;
-        if shape == KernelShape::Rect || (shape == KernelShape::Cross && i == anchor.0) {
-            j2 = kw;
+        if shape == KernelShape::Rect || (shape == KernelShape::Cross && i == anchor.y) {
+            j2 = ksize.width;
         } else if shape == KernelShape::Cross {
-            j1 = anchor.1;
+            j1 = anchor.x;
             j2 = j1 + 1;
         } else {
             let dy = i as isize - r as isize;
@@ -293,15 +290,15 @@ pub fn create_structuring_element<B: Backend>(
                 let dx = (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt()).round()
                     as isize;
                 j1 = (c as isize - dx).max(0) as usize;
-                j2 = (c + dx as usize + 1).min(kw);
+                j2 = (c + dx as usize + 1).min(ksize.width);
             }
         }
 
         for j in j1..j2 {
-            elem[i * kw + j] = true;
+            elem[i * ksize.width + j] = true;
         }
     }
 
-    let data = TensorData::new(elem, Shape::new([kh, kw]));
+    let data = TensorData::new(elem, Shape::new([ksize.height, ksize.width]));
     Tensor::from_data(data, device)
 }
