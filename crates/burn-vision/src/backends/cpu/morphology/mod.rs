@@ -11,7 +11,6 @@ use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
 use macerator::VOrd;
 use pulp::Simd;
-use tracing::{info_span, instrument};
 
 use crate::{BorderType, MorphOptions, Point, Size};
 
@@ -40,7 +39,6 @@ pub enum MorphKernel<B: Element> {
     },
 }
 
-#[instrument(skip_all)]
 pub fn morph<B: Backend, K: BasicOps<B>>(
     input: Tensor<B, 3, K>,
     kernel: BoolTensor<B>,
@@ -53,15 +51,12 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
     let kshape = kernel.shape().dims();
     let [kh, kw] = kshape;
 
-    let span = info_span!("analyze_kernel");
-    let _s = span.enter();
     let kernel = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
     let btype = opts.border_type;
     let bvalue = opts.border_value.map(|it| it.into_data());
-    drop(_s);
 
     let size = Size::new(kw, kh);
     let kernel = if is_rect {
@@ -126,7 +121,6 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[instrument(skip_all)]
 fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
     input: TensorData,
     shape: Shape,
@@ -146,7 +140,6 @@ fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[instrument(skip_all)]
 fn morph_bool<B: Backend, K: BasicOps<B>>(
     input: TensorData,
     shape: Shape,
@@ -168,7 +161,6 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
     Tensor::from_data(data, device)
 }
 
-#[instrument(skip_all)]
 fn border_value<T: Element>(
     btype: BorderType,
     bvalue: Option<TensorData>,
@@ -186,7 +178,6 @@ fn border_value<T: Element>(
     }
 }
 
-#[instrument(skip_all)]
 fn run_morph<T: VOrd + MinMax + Element, B: Element>(
     input: &mut [T],
     shape: Shape,
@@ -233,7 +224,6 @@ fn filter<T: VOrd + MinMax, Op: MorphOperator<T> + VecMorphOperator<T>, B: Eleme
 
 #[inline(always)]
 #[allow(clippy::too_many_arguments)]
-#[instrument(skip_all)]
 #[pulp::with_simd(dispatch_morph = pulp::Arch::new())]
 fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecMorphOperator<T>>(
     simd: S,
@@ -264,53 +254,57 @@ pub enum KernelShape {
 }
 
 /// Create a structuring element tensor for use with morphology ops
-#[instrument(skip(device))]
 pub fn create_structuring_element<B: Backend>(
-    mut shape: KernelShape,
+    shape: KernelShape,
     ksize: Size,
     anchor: Option<Point>,
     device: &B::Device,
 ) -> Tensor<B, 2, Bool> {
-    let anchor = anchor.unwrap_or(Point::new(ksize.width / 2, ksize.height / 2));
-    let mut r = 0;
-    let mut c = 0;
-    let mut inv_r2 = 0.0;
+    fn create_kernel(shape: KernelShape, ksize: Size, anchor: Option<Point>) -> Vec<bool> {
+        let anchor = anchor.unwrap_or(Point::new(ksize.width / 2, ksize.height / 2));
+        let mut r = 0;
+        let mut c = 0;
+        let mut inv_r2 = 0.0;
 
-    if ksize.width == 1 && ksize.height == 1 {
-        shape = KernelShape::Rect;
-    }
+        if (ksize.width == 1 && ksize.height == 1) || shape == KernelShape::Rect {
+            return vec![true; ksize.height * ksize.width];
+        }
 
-    if shape == KernelShape::Ellipse {
-        r = ksize.height / 2;
-        c = ksize.width / 2;
-        inv_r2 = if r > 0 { 1.0 / (r * r) as f64 } else { 0.0 }
-    }
+        if shape == KernelShape::Ellipse {
+            r = ksize.height / 2;
+            c = ksize.width / 2;
+            inv_r2 = if r > 0 { 1.0 / (r * r) as f64 } else { 0.0 }
+        }
 
-    let mut elem = vec![false; ksize.height * ksize.width];
+        let mut elem = vec![false; ksize.height * ksize.width];
 
-    for i in 0..ksize.height {
-        let mut j1 = 0;
-        let mut j2 = 0;
-        if shape == KernelShape::Rect || (shape == KernelShape::Cross && i == anchor.y) {
-            j2 = ksize.width;
-        } else if shape == KernelShape::Cross {
-            j1 = anchor.x;
-            j2 = j1 + 1;
-        } else {
-            let dy = i as isize - r as isize;
-            if dy.abs() <= r as isize {
-                let dx = (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt()).round()
-                    as isize;
-                j1 = (c as isize - dx).max(0) as usize;
-                j2 = (c + dx as usize + 1).min(ksize.width);
+        for i in 0..ksize.height {
+            let mut j1 = 0;
+            let mut j2 = 0;
+            if shape == KernelShape::Cross && i == anchor.y {
+                j2 = ksize.width;
+            } else if shape == KernelShape::Cross {
+                j1 = anchor.x;
+                j2 = j1 + 1;
+            } else {
+                let dy = i as isize - r as isize;
+                if dy.abs() <= r as isize {
+                    let dx = (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt())
+                        .round() as isize;
+                    j1 = (c as isize - dx).max(0) as usize;
+                    j2 = (c + dx as usize + 1).min(ksize.width);
+                }
+            }
+
+            for j in j1..j2 {
+                elem[i * ksize.width + j] = true;
             }
         }
-
-        for j in j1..j2 {
-            elem[i * ksize.width + j] = true;
-        }
+        elem
     }
 
-    let data = TensorData::new(elem, Shape::new([ksize.height, ksize.width]));
+    let elem = create_kernel(shape, ksize, anchor);
+
+    let data = TensorData::new(elem, [ksize.height, ksize.width]);
     Tensor::from_data(data, device)
 }

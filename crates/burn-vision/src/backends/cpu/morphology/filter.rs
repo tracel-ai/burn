@@ -4,7 +4,6 @@ use std::{marker::PhantomData, ptr::null};
 use burn_tensor::Element;
 use macerator::{SimdExt, VOrd, Vectorizable};
 use pulp::Simd;
-use tracing::instrument;
 
 use crate::{backends::cpu::MinMax, Point, Size};
 
@@ -142,7 +141,6 @@ fn vstore<S: Simd, T: Vectorizable>(simd: S, ptr: *mut T, value: T::Vector<S>) {
 }
 
 impl<T: Vectorizable, Op: VecMorphOperator<T>> VecRow<T> for MorphRowVec<T, Op> {
-    #[instrument(skip_all, level = "trace")]
     fn apply<S: Simd>(&self, simd: S, src: &[T], dst: &mut [T], width: usize, ch: usize) -> usize {
         let src = src.as_ptr();
         let dst = dst.as_mut_ptr();
