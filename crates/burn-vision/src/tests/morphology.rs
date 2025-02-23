@@ -415,6 +415,54 @@ mod tests {
     }
 
     #[test]
+    fn should_support_dilate_int_rect() {
+        let tensor = (test_image("morphology/Base_1.png", &Default::default(), true) * 255.0).int();
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Rect,
+            Size::new(5, 5),
+            None,
+            &Default::default(),
+        );
+
+        // With default border, bottom left pixel is undefined with this particular kernel and anchor
+        // Use replicate instead for comparability
+        let output = tensor.dilate(kernel, MorphOptions::default());
+        let expected = (test_image(
+            "morphology/Dilate_1_5x5_Rect.png",
+            &Default::default(),
+            true,
+        ) * 255.0)
+            .int();
+        let expected = TestTensorInt::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
+    fn should_support_dilate_int_cross() {
+        let tensor = (test_image("morphology/Base_1.png", &Default::default(), true) * 255.0).int();
+        let kernel = create_structuring_element::<TestBackend>(
+            KernelShape::Cross,
+            Size::new(5, 5),
+            None,
+            &Default::default(),
+        );
+
+        // With default border, bottom left pixel is undefined with this particular kernel and anchor
+        // Use replicate instead for comparability
+        let output = tensor.dilate(kernel, MorphOptions::default());
+        let expected = (test_image(
+            "morphology/Dilate_1_5x5_Cross.png",
+            &Default::default(),
+            true,
+        ) * 255.0)
+            .int();
+        let expected = TestTensorInt::<3>::from(expected);
+
+        output.into_data().assert_eq(&expected.into_data(), false);
+    }
+
+    #[test]
     fn should_support_erode_luma() {
         let tensor = test_image("morphology/Base_1.png", &Default::default(), true);
         let kernel = TestTensorBool::<2>::from([
