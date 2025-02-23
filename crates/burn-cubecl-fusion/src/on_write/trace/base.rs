@@ -69,7 +69,7 @@ impl FuseOnWriteTrace {
         OutputPlanner::<R>::new(&self.inputs, &self.outputs, &self.views)
             .run::<BT>(client, device, context, &mut plan);
 
-        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.settings, &self.indexed)
+        VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
             .run::<Runner>(context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
@@ -134,8 +134,18 @@ impl RegisteredTensors {
     }
 
     pub fn insert(&mut self, precision: ElemwisePrecision, tensor: TensorIr) -> u32 {
+        let value = (tensor, precision);
+        if let Some(old) = self
+            .tensors
+            .iter()
+            .enumerate()
+            .find(|(_, val)| *val == &value)
+        {
+            return old.0 as u32;
+        }
+
         let pos = self.len();
-        self.tensors.push((tensor, precision));
+        self.tensors.push(value);
         pos as u32
     }
 

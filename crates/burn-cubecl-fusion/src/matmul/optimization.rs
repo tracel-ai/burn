@@ -9,10 +9,12 @@ use burn_fusion::stream::Context;
 use burn_ir::{BinaryOpIr, TensorStatus};
 use cubecl::linalg::matmul::components;
 use cubecl::linalg::matmul::components::tile::accelerated::Accelerated;
+use cubecl::linalg::matmul::components::tile::TileMatmulFamily;
 use cubecl::linalg::matmul::components::MatmulProblem;
-use cubecl::linalg::matmul::kernels::matmul::{
-    DoubleBufferingSelector, MatmulSelector, SimpleSelector, SpecializedSelector,
-};
+use cubecl::linalg::matmul::kernels::matmul::double_buffering::DoubleBufferingAlgorithm;
+use cubecl::linalg::matmul::kernels::matmul::simple::SimpleAlgorithm;
+use cubecl::linalg::matmul::kernels::matmul::specialized::SpecializedAlgorithm;
+use cubecl::linalg::matmul::kernels::matmul::{select_kernel, Algorithm};
 use cubecl::linalg::matmul::kernels::{MatmulAvailabilityError, MatmulLaunchError};
 use cubecl::linalg::tensor::{matrix_layout, MatrixLayout};
 use cubecl::{client::ComputeClient, prelude::*};
@@ -351,7 +353,7 @@ impl FusedMatmul {
 
         match self.selector {
             FusedMatmulSelector::Simple => {
-                match matmul_launch_kernel::<R, EG, SimpleSelector<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, SimpleAlgorithm<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -363,7 +365,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::DoubleBuffering => {
-                match matmul_launch_kernel::<R, EG, DoubleBufferingSelector<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, DoubleBufferingAlgorithm<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -375,7 +377,7 @@ impl FusedMatmul {
                 }
             }
             FusedMatmulSelector::Specialized => {
-                match matmul_launch_kernel::<R, EG, SpecializedSelector<Accelerated>>(
+                match matmul_launch_kernel::<R, EG, SpecializedAlgorithm<Accelerated>>(
                     client,
                     FusedMatmulInputLaunch::new(inputs, config, &self.lhs, &self.rhs, &self.out),
                     outputs,
@@ -390,7 +392,7 @@ impl FusedMatmul {
     }
 }
 
-fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, S: MatmulSelector>(
+fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, A: Algorithm>(
     client: &ComputeClient<R::Server, R::Channel>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
@@ -400,19 +402,19 @@ fn matmul_launch_kernel<'a, R: Runtime, EG: Numeric, S: MatmulSelector>(
     if TypeId::of::<EG>() == TypeId::of::<half::f16>()
         || TypeId::of::<EG>() == TypeId::of::<flex32>()
     {
-        S::select_kernel::<FusedMatmulSpec<EG, half::f16, f32>, R>(
+        select_kernel::<FusedMatmulSpec<EG, half::f16, f32>, R, A>(
             client, input, output, problem, plane_size, false,
         )
     } else if TypeId::of::<EG>() == TypeId::of::<half::bf16>() {
-        S::select_kernel::<FusedMatmulSpec<EG, half::bf16, f32>, R>(
+        select_kernel::<FusedMatmulSpec<EG, half::bf16, f32>, R, A>(
             client, input, output, problem, plane_size, false,
         )
-    } else if S::stage_tf32_supported() {
-        S::select_kernel::<FusedMatmulSpec<EG, tf32, f32>, R>(
+    } else if <A::TileMatmul as TileMatmulFamily>::requires_tensor_cores() {
+        select_kernel::<FusedMatmulSpec<EG, tf32, f32>, R, A>(
             client, input, output, problem, plane_size, false,
         )
     } else {
-        S::select_kernel::<FusedMatmulSpec<EG, EG, f32>, R>(
+        select_kernel::<FusedMatmulSpec<EG, EG, f32>, R, A>(
             client, input, output, problem, plane_size, false,
         )
     }

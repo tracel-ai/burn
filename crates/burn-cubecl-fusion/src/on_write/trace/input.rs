@@ -81,6 +81,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 global_id: tensor_global.id,
                 global_shape: tensor_global.shape.clone(),
                 vectorization: 1,
+                broadcated: false,
             });
             plan.global_inputs.push(tensor_global);
         }
