@@ -69,8 +69,12 @@ impl<S: Simd, T: VOrd, Op: MorphOperator<T> + VecMorphOperator<T>> FilterEngine<
 }
 
 impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> FilterEngine<S, T, Op> {
-    pub fn new(filter: Filter<T, Op>, border_type: BorderType, border_value: &[T]) -> Self {
-        let ch = border_value.len();
+    pub fn new(
+        filter: Filter<T, Op>,
+        border_type: BorderType,
+        border_value: &[T],
+        ch: usize,
+    ) -> Self {
         let (ksize, anchor) = match &filter {
             Filter::Separable {
                 row_filter,
@@ -83,13 +87,16 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             Filter::Fallback(f) => (f.ksize, f.anchor),
         };
 
+        let mut border_table = Vec::new();
         let border_length = (ksize.width - 1).max(1);
-        let mut const_border_value = vec![];
+        let mut const_border_value = Vec::new();
         if matches!(border_type, BorderType::Constant) {
-            const_border_value.resize(border_length * ch, Zeroable::zeroed());
+            const_border_value = vec![Zeroable::zeroed(); border_length * ch];
             for elem in cast_slice_mut::<_, T>(&mut const_border_value).chunks_exact_mut(ch) {
                 elem.copy_from_slice(border_value);
             }
+        } else {
+            border_table = vec![0; border_length * ch];
         }
 
         Self {
@@ -99,7 +106,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
             border_type,
             const_border_row: Default::default(),
             const_border_value,
-            border_table: Default::default(),
+            border_table,
             ksize,
             anchor,
             filter,
@@ -137,7 +144,7 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
         let max_buf_rows = (self.ksize.height + 3)
             .max(self.anchor.y)
             .max((self.ksize.height - self.anchor.y - 1) * 2 + 1);
-        let k_offs = if self.is_separable() {
+        let k_offs = if !self.is_separable() {
             self.ksize.width - 1
         } else {
             0
@@ -206,9 +213,8 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
                 }
             } else {
                 for i in 0..self.dx1 as isize {
-                    let p0 = border_interpolate(i - self.dx1 as isize, width, self.border_type)
-                        as usize
-                        * ch;
+                    let p0 = border_interpolate(i - self.dx1 as isize, width, self.border_type);
+                    let p0 = p0 as usize * ch;
                     for j in 0..ch {
                         self.border_table[i as usize * ch + j] = p0 + j;
                     }
@@ -298,10 +304,10 @@ impl<S: Simd, T: VOrd + Debug, Op: MorphOperator<T> + VecMorphOperator<T>> Filte
 
                 if make_border {
                     for i in 0..dx1 * ch {
-                        row[i] = src[btab[i]];
+                        row[i] = src[src_off + btab[i]];
                     }
                     for i in 0..dx2 * ch {
-                        row[i + (width1 - dx2) * ch] = src[btab[i + dx1 * ch]];
+                        row[i + (width1 - dx2) * ch] = src[src_off + btab[i + dx1 * ch]];
                     }
                 }
 
@@ -385,7 +391,7 @@ fn alias_slice_mut<'b, T>(slice: &mut [T]) -> &'b mut [T] {
 
 fn border_interpolate(mut p: isize, len: usize, btype: BorderType) -> isize {
     let len = len as isize;
-    if p < len {
+    if p < len && p >= 0 {
         return p;
     }
     match btype {
@@ -403,7 +409,7 @@ fn border_interpolate(mut p: isize, len: usize, btype: BorderType) -> isize {
                 } else {
                     p = len - 1 - (p - len) - delta;
                 }
-                if p < len {
+                if p < len && p >= 0 {
                     break;
                 }
             }

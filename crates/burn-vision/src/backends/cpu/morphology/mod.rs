@@ -234,7 +234,8 @@ fn run_morph_simd<S: Simd, T: VOrd + MinMax + Debug, Op: MorphOperator<T> + VecM
     border_value: &[T],
     iterations: usize,
 ) {
-    let mut engine = FilterEngine::new(filter, border_type, border_value);
+    let [_, _, ch] = buffer_shape.dims();
+    let mut engine = FilterEngine::new(filter, border_type, border_value, ch);
     engine.apply(simd, buffer, buffer_shape.clone());
     for _ in 1..iterations {
         engine.apply(simd, buffer, buffer_shape.clone());
