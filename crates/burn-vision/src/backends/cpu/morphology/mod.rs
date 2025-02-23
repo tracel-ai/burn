@@ -290,8 +290,8 @@ pub fn create_structuring_element<B: Backend>(
         } else {
             let dy = i as isize - r as isize;
             if dy.abs() <= r as isize {
-                let dx =
-                    (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt()) as isize;
+                let dx = (c as f64 * ((r * r - (dy * dy) as usize) as f64 * inv_r2).sqrt()).round()
+                    as isize;
                 j1 = (c as isize - dx).max(0) as usize;
                 j2 = (c + dx as usize + 1).min(kw);
             }

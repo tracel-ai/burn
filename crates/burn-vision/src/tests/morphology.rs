@@ -245,9 +245,9 @@ mod tests {
         );
         let kernel_manual = TestTensorBool::<2>::from([
             [false, false, true, false, false],
-            [false, true, true, true, false],
             [true, true, true, true, true],
-            [false, true, true, true, false],
+            [true, true, true, true, true],
+            [true, true, true, true, true],
             [false, false, true, false, false],
         ]);
 
