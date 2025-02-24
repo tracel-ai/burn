@@ -99,7 +99,7 @@ pub fn rank_inference(node: &mut Node) {
 }
 
 fn constant_update_outputs(node: &mut Node) {
-    // Fix the tensor dimension of the output when the value is tensor
+    // Fix the tensor rank of the output when the value is tensor
 
     let keys = [
         "value",
