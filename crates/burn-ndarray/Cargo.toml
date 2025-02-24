@@ -61,6 +61,7 @@ matrixmultiply = { workspace = true, default-features = false }
 ndarray = { workspace = true }
 num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
+paste = { workspace = true }
 pulp = { workspace = true, features = ["macro", "x86-v3"] }
 rand = { workspace = true }
 spin = { workspace = true }                                                # using in place of use std::sync::Mutex;

@@ -1,5 +1,6 @@
 use core::{cmp::Ordering, marker::PhantomData, slice};
 
+use burn_tensor::Element;
 use macerator::{SimdExt, Vectorizable};
 use ndarray::ArrayD;
 use pulp::{Arch, Simd};
@@ -10,8 +11,8 @@ use super::{binary_elemwise::SimdBinop, should_use_simd};
 
 #[allow(clippy::result_large_err)]
 pub fn try_binary_simd<
-    E: NdArrayElement,
-    EOut: NdArrayElement,
+    E: Element,
+    EOut: Element,
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
     Op: SimdBinop<T, Out>,
@@ -41,7 +42,7 @@ pub fn try_binary_simd<
     Ok(out)
 }
 
-fn can_broadcast<T: NdArrayElement>(lhs: &NdArrayTensor<T>, rhs: &NdArrayTensor<T>) -> bool {
+fn can_broadcast<T: Element>(lhs: &NdArrayTensor<T>, rhs: &NdArrayTensor<T>) -> bool {
     if lhs.array.ndim() != rhs.array.ndim() {
         return false;
     }

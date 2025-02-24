@@ -1,28 +1,62 @@
 use core::{marker::PhantomData, mem::MaybeUninit, slice};
 
-use macerator::{SimdExt, VAdd, VDiv, VMul, VSub, Vectorizable};
+use macerator::{SimdExt, VAdd, VBitAnd, VBitOr, VDiv, VMul, VOrd, VSub, Vectorizable};
 use ndarray::ArrayD;
 use pulp::{Arch, Simd};
 
 use crate::{NdArrayElement, NdArrayTensor};
 
-use super::should_use_simd;
+use super::{should_use_simd, MinMax};
 
 pub trait SimdBinop<T: Vectorizable, Out: Vectorizable> {
     fn apply_vec<S: Simd>(simd: S, lhs: T::Vector<S>, rhs: T::Vector<S>) -> Out::Vector<S>;
     fn apply(lhs: T, rhs: T) -> Out;
 }
 
+pub trait ScalarSimdBinop<T: Vectorizable, Out: Vectorizable> {
+    type Rhs: Copy;
+    type RhsVec<S: Simd>: Copy;
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S>;
+    fn apply_vec<S: Simd>(simd: S, lhs: T::Vector<S>, rhs: Self::RhsVec<S>) -> Out::Vector<S>;
+    fn apply(lhs: T, rhs: Self::Rhs) -> Out;
+}
+
 pub struct VecAdd;
 pub struct VecDiv;
 pub struct VecMul;
 pub struct VecSub;
+pub struct VecMin;
+pub struct VecMax;
+pub struct VecClamp;
+pub struct VecBitAnd;
+pub struct VecBitOr;
 
 impl<T: VAdd> SimdBinop<T, T> for VecAdd {
     fn apply_vec<S: Simd>(
         simd: S,
         lhs: <T as Vectorizable>::Vector<S>,
         rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vadd(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.add(rhs)
+    }
+}
+
+impl<T: VAdd> ScalarSimdBinop<T, T> for VecAdd {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
     ) -> <T as Vectorizable>::Vector<S> {
         T::vadd(simd, lhs, rhs)
     }
@@ -46,11 +80,53 @@ impl<T: VDiv> SimdBinop<T, T> for VecDiv {
     }
 }
 
+impl<T: VDiv> ScalarSimdBinop<T, T> for VecDiv {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vdiv(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.div(rhs)
+    }
+}
+
 impl<T: VMul> SimdBinop<T, T> for VecMul {
     fn apply_vec<S: Simd>(
         simd: S,
         lhs: <T as Vectorizable>::Vector<S>,
         rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vmul(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.mul(rhs)
+    }
+}
+
+impl<T: VMul> ScalarSimdBinop<T, T> for VecMul {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
     ) -> <T as Vectorizable>::Vector<S> {
         T::vmul(simd, lhs, rhs)
     }
@@ -74,15 +150,156 @@ impl<T: VSub> SimdBinop<T, T> for VecSub {
     }
 }
 
+impl<T: VSub> ScalarSimdBinop<T, T> for VecSub {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vsub(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.sub(rhs)
+    }
+}
+
+impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMin {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vmin(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        MinMax::min(lhs, rhs)
+    }
+}
+
+impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecMin {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vmin(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.min(rhs)
+    }
+}
+
+impl<T: VOrd + MinMax> SimdBinop<T, T> for VecMax {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vmax(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        MinMax::max(lhs, rhs)
+    }
+}
+
+impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecMax {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vmax(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.max(rhs)
+    }
+}
+
+impl<T: VOrd + MinMax> ScalarSimdBinop<T, T> for VecClamp {
+    type Rhs = (T, T);
+    type RhsVec<S: Simd> = (T::Vector<S>, T::Vector<S>);
+
+    fn splat<S: Simd>(simd: S, (min, max): Self::Rhs) -> Self::RhsVec<S> {
+        (simd.splat(min), simd.splat(max))
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        (min, max): Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        let s0 = T::vmin(simd, lhs, max);
+        T::vmax(simd, s0, min)
+    }
+
+    fn apply(lhs: T, (min, max): Self::Rhs) -> T {
+        lhs.min(max).max(min)
+    }
+}
+
+impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitand(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.bitand(rhs)
+    }
+}
+
+impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitor(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.bitor(rhs)
+    }
+}
+
 pub fn try_binary_scalar_simd<
     E: NdArrayElement,
     EOut: NdArrayElement,
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
+    Op: ScalarSimdBinop<T, Out>,
 >(
     input: NdArrayTensor<E>,
-    elem: E,
+    elem: Op::Rhs,
 ) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
     if !should_use_simd(input.array.len()) || !input.is_contiguous() {
         return Err(input);
@@ -90,9 +307,9 @@ pub fn try_binary_scalar_simd<
     // Used to assert traits based on the dynamic `DType`.
     let input = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(input) };
     let out = if size_of::<T>() == size_of::<Out>() && input.array.is_unique() {
-        binary_scalar_simd_inplace::<T, Out, Op>(input, elem.elem())
+        binary_scalar_simd_inplace::<T, Out, Op>(input, elem)
     } else {
-        binary_scalar_simd_owned::<T, Out, Op>(input, elem.elem())
+        binary_scalar_simd_owned::<T, Out, Op>(input, elem)
     };
     // Used to assert traits based on the dynamic `DType`.
     let out = unsafe { core::mem::transmute::<NdArrayTensor<Out>, NdArrayTensor<EOut>>(out) };
@@ -102,10 +319,10 @@ pub fn try_binary_scalar_simd<
 fn binary_scalar_simd_inplace<
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
+    Op: ScalarSimdBinop<T, Out>,
 >(
     input: NdArrayTensor<T>,
-    elem: T,
+    elem: Op::Rhs,
 ) -> NdArrayTensor<Out> {
     let mut buffer = input.array.into_owned();
     let slice = buffer.as_slice_mut().unwrap();
@@ -121,10 +338,10 @@ fn binary_scalar_simd_inplace<
 fn binary_scalar_simd_owned<
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
+    Op: ScalarSimdBinop<T, Out>,
 >(
     input: NdArrayTensor<T>,
-    elem: T,
+    elem: Op::Rhs,
 ) -> NdArrayTensor<Out> {
     let mut out = ArrayD::uninit(input.array.shape());
     let input = input.array.as_slice().unwrap();
@@ -140,12 +357,12 @@ fn binary_scalar_simd_slice<
     S: Simd,
     T: NdArrayElement + Vectorizable,
     Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
+    Op: ScalarSimdBinop<T, Out>,
 >(
     simd: S,
     input: &[T],
     out: &mut [Out],
-    elem: T,
+    elem: Op::Rhs,
     _op: PhantomData<Op>,
 ) {
     let (head, main, tail) = unsafe { input.align_to::<T::Vector<S>>() };
@@ -156,7 +373,7 @@ fn binary_scalar_simd_slice<
     for (a, b) in tail.iter().zip(out_tail.iter_mut()) {
         *b = Op::apply(*a, elem);
     }
-    let elem_vec = simd.splat(elem);
+    let elem_vec = Op::splat(simd, elem);
     let mut chunks = main.chunks_exact(4);
     let mut chunks_out = out_main.chunks_exact_mut(4);
     while let Some((a, b)) = chunks.next().zip(chunks_out.next()) {
