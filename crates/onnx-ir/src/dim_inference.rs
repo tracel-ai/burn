@@ -880,23 +880,29 @@ fn gather_update_outputs(node: &mut Node) {
         ArgType::Tensor(input_tensor) => {
             // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
             let output_rank = indices_dim + input_tensor.dim - 1;
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: input_tensor.elem_type.clone(),
-                dim: output_rank,
-                shape: None,
-            });
+            if output_rank == 0 {
+                node.outputs[0].ty = ArgType::Scalar(input_tensor.elem_type.clone());
+            } else {
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: input_tensor.elem_type.clone(),
+                    dim: output_rank,
+                    shape: None,
+                });
+            }
         }
         ArgType::Shape(_dim) => {
             let shape_dim = 1;
             // Output of rank q+(r-1), where q is rank of indices tensor and r is rank of input
             let output_rank = indices_dim + shape_dim - 1;
-
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                elem_type: ElementType::Int64,
-                dim: output_rank,
-                shape: None,
-            })
+            if output_rank == 0 {
+                node.outputs[0].ty = ArgType::Scalar(ElementType::Int64);
+            } else {
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    elem_type: ElementType::Int64,
+                    dim: output_rank,
+                    shape: None,
+                });
+            }
         }
         ty => panic!("Only tensor/shape input is valid but received: {:?}", ty),
     }

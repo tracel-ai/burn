@@ -359,6 +359,16 @@ impl TensorCheck {
             );
         }
 
+        if dim >= tensor_dims.len() {
+            check = check.register(
+                "Squeeze",
+                TensorError::new(format!(
+                    "Dimension index {} is out of bounds for tensor dimensions {:?}.",
+                    dim, tensor_dims
+                )),
+            );
+        }
+
         check
     }
 
