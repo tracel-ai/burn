@@ -1,7 +1,7 @@
 use alloc::{vec, vec::Vec};
-use burn_tensor::ElementConversion;
-use burn_tensor::TensorData;
 use burn_tensor::TensorMetadata;
+use burn_tensor::{quantization::QuantizationType, TensorData};
+use burn_tensor::{DType, ElementConversion};
 use core::fmt::Debug;
 use core::{marker::PhantomData, ops::Range};
 use ndarray::s;
@@ -24,6 +24,11 @@ use ndarray::SliceInfoElem;
 use crate::element::NdArrayElement;
 use crate::ops::macros::{keepdim, mean_dim, prod_dim, sum_dim};
 use crate::{reshape, tensor::NdArrayTensor};
+
+use super::simd::{
+    binary::try_binary_simd,
+    binary_elemwise::{try_binary_scalar_simd, VecAdd},
+};
 
 pub struct NdArrayOps<E> {
     e: PhantomData<E>,
@@ -165,6 +170,27 @@ where
     E: Copy + NdArrayElement,
 {
     pub fn add(lhs: NdArrayTensor<E>, rhs: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        /*         let simd = match E::dtype() {
+                   DType::F64 => try_binary_simd::<E, E, f64, f64, VecAdd>(lhs, rhs),
+                   DType::F32 => try_binary_simd::<E, E, f32, f32, VecAdd>(lhs, rhs),
+                   DType::I64 => try_binary_simd::<E, E, i64, i64, VecAdd>(lhs, rhs),
+                   DType::I32 => try_binary_simd::<E, E, i32, i32, VecAdd>(lhs, rhs),
+                   DType::I16 => try_binary_simd::<E, E, i16, i16, VecAdd>(lhs, rhs),
+                   DType::I8 => try_binary_simd::<E, E, i8, i8, VecAdd>(lhs, rhs),
+                   DType::U64 => try_binary_simd::<E, E, u64, u64, VecAdd>(lhs, rhs),
+                   DType::U32 => try_binary_simd::<E, E, u32, u32, VecAdd>(lhs, rhs),
+                   DType::U16 => try_binary_simd::<E, E, u16, u16, VecAdd>(lhs, rhs),
+                   DType::U8 => try_binary_simd::<E, E, u8, u8, VecAdd>(lhs, rhs),
+                   DType::QFloat(strategy) => match strategy.q_type() {
+                       QuantizationType::QInt8 => try_binary_simd::<E, E, i8, i8, VecAdd>(lhs, rhs),
+                   },
+                   DType::F16 | DType::BF16 | DType::Bool => Err((lhs, rhs)),
+               };
+               let (lhs, rhs) = match simd {
+                   Ok(out) => return out,
+                   Err(args) => args,
+               };
+        */
         let array = &lhs.array + &rhs.array;
         let array = array.into_shared();
 
@@ -172,6 +198,27 @@ where
     }
 
     pub fn add_scalar(lhs: NdArrayTensor<E>, rhs: E) -> NdArrayTensor<E> {
+        let simd = match E::dtype() {
+            DType::F64 => try_binary_scalar_simd::<E, E, f64, f64, VecAdd>(lhs, rhs),
+            DType::F32 => try_binary_scalar_simd::<E, E, f32, f32, VecAdd>(lhs, rhs),
+            DType::I64 => try_binary_scalar_simd::<E, E, i64, i64, VecAdd>(lhs, rhs),
+            DType::I32 => try_binary_scalar_simd::<E, E, i32, i32, VecAdd>(lhs, rhs),
+            DType::I16 => try_binary_scalar_simd::<E, E, i16, i16, VecAdd>(lhs, rhs),
+            DType::I8 => try_binary_scalar_simd::<E, E, i8, i8, VecAdd>(lhs, rhs),
+            DType::U64 => try_binary_scalar_simd::<E, E, u64, u64, VecAdd>(lhs, rhs),
+            DType::U32 => try_binary_scalar_simd::<E, E, u32, u32, VecAdd>(lhs, rhs),
+            DType::U16 => try_binary_scalar_simd::<E, E, u16, u16, VecAdd>(lhs, rhs),
+            DType::U8 => try_binary_scalar_simd::<E, E, u8, u8, VecAdd>(lhs, rhs),
+            DType::QFloat(strategy) => match strategy.q_type() {
+                QuantizationType::QInt8 => try_binary_scalar_simd::<E, E, i8, i8, VecAdd>(lhs, rhs),
+            },
+            DType::F16 | DType::BF16 | DType::Bool => Err(lhs),
+        };
+        let lhs = match simd {
+            Ok(out) => return out,
+            Err(lhs) => lhs,
+        };
+
         let array = lhs.array + rhs;
         let array = array.into_shared();
 

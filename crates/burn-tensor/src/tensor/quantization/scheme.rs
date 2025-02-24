@@ -105,4 +105,11 @@ impl QuantizationScheme {
         };
         self.compute_q_params(range).into()
     }
+
+    pub fn q_type(&self) -> QuantizationType {
+        match self {
+            QuantizationScheme::PerTensorAffine(quantization_type) => *quantization_type,
+            QuantizationScheme::PerTensorSymmetric(quantization_type) => *quantization_type,
+        }
+    }
 }

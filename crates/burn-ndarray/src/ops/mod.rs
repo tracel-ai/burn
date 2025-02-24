@@ -4,8 +4,11 @@ mod bool_tensor;
 mod int_tensor;
 mod module;
 mod qtensor;
+mod simd;
 mod tensor;
 mod transaction;
+
+pub(crate) mod binary;
 
 pub(crate) mod adaptive_avgpool;
 pub(crate) mod avgpool;

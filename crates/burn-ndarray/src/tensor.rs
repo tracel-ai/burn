@@ -240,7 +240,7 @@ mod utils {
                         return false;
                     }
 
-                    if prev_stride >= stride {
+                    if prev_stride > stride {
                         return false;
                     }
                 }
