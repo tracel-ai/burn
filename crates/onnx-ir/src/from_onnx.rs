@@ -13,8 +13,8 @@ use super::{
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
-use super::dim_inference::rank_inference;
 use super::ir::{ArgType, Argument, Node, NodeType};
+use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
