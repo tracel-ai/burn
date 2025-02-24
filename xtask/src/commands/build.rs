@@ -35,7 +35,7 @@ pub(crate) fn handle_command(
                 let mut crates = NO_STD_CRATES.to_vec();
 
                 if *build_target == ARM_NO_ATOMIC_PTR_TARGET {
-                    // Temperory remove `burn-autodiff` from building with the
+                    // Temporarily remove `burn-autodiff` from building with the
                     // target `thumbv6m-none-eabi` as it requires enabling the
                     // `arbitrary_self_types` feature for the
                     // `clone_if_require_grad` method of
