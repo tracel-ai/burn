@@ -15,7 +15,7 @@ pub fn coalesce(
     graph_data: &GraphData,
 ) {
     match node.node_type {
-        NodeType::Gemm => convert_gemm_to_linear(node),
+        //NodeType::Gemm => convert_gemm_to_linear(node),
         NodeType::MatMul => {
             convert_matmul_to_linear(node, nodes_iter, graph_data);
         }

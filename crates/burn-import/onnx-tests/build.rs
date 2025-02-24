@@ -42,6 +42,7 @@ fn main() {
         .input("tests/gather/gather_shape.onnx")
         .input("tests/gather_elements/gather_elements.onnx")
         .input("tests/gelu/gelu.onnx")
+        .input("tests/gemm/gemm.onnx")
         .input("tests/global_avr_pool/global_avr_pool.onnx")
         .input("tests/greater/greater.onnx")
         .input("tests/greater/greater_scalar.onnx")
