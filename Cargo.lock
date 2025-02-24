@@ -601,7 +601,10 @@ dependencies = [
  "burn-tensor",
  "burn-tensor-testgen",
  "derive-new 0.7.0",
+ "hashbrown 0.15.2",
  "log",
+ "num-traits",
+ "portable-atomic",
  "spin",
 ]
 
@@ -664,7 +667,6 @@ dependencies = [
  "serde",
  "serde_json",
  "spin",
- "tempfile",
  "thiserror 2.0.11",
  "uuid",
 ]
@@ -1149,9 +1151,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.15"
+version = "1.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c736e259eea577f443d5c86c304f9f4ae0295c43f3ba05c21f1d66b5f06001af"
+checksum = "0c3d1b2e905a3a7b00a6141adb0e4c0bb941d11caf55349d863942a1cc44e3c9"
 dependencies = [
  "jobserver",
  "libc",
@@ -3721,9 +3723,9 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
 name = "libc"
-version = "0.2.169"
+version = "0.2.170"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
+checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -3863,6 +3865,7 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
+source = "git+https://github.com/wingertge/macerator.git?rev=25b7a80fddcb82fc6dc0a579c2dea338b470401d#25b7a80fddcb82fc6dc0a579c2dea338b470401d"
 dependencies = [
  "paste",
  "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61)",
@@ -6083,9 +6086,9 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.17.10"
+version = "0.17.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d34b5020fcdea098ef7d95e9f89ec15952123a4a039badd09fabebe9e963e839"
+checksum = "e75ec5e92c4d8aede845126adc388046234541629e76029599ed35a003c7ed24"
 dependencies = [
  "cc",
  "cfg-if",

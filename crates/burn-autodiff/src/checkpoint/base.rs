@@ -2,8 +2,10 @@ use super::{
     retro_forward::RetroForwards,
     state::{BackwardStates, State},
 };
+use crate::collections::HashMap;
 use crate::graph::NodeID;
-use std::collections::HashMap;
+
+use alloc::{vec, vec::Vec};
 
 #[derive(new, Debug)]
 /// Links a [NodeID] to its autodiff graph [NodeRef]

@@ -48,6 +48,7 @@ include_models!(
     gather_1d_idx,
     gather_2d_idx,
     gather_scalar,
+    gather_scalar_out,
     gather_shape,
     gather_elements,
     gelu,
@@ -521,6 +522,19 @@ mod tests {
         let expected = TensorData::from([1f32, 2., 3.]);
 
         assert_eq!(output.to_data(), expected);
+    }
+
+    #[test]
+    fn gather_scalar_out() {
+        let model: gather_scalar_out::Model<Backend> = gather_scalar_out::Model::default();
+
+        let device = Default::default();
+
+        let input = Tensor::<Backend, 1>::from_floats([1., 2., 3.], &device);
+        let index = 1;
+        let output = model.forward(input, index);
+
+        assert_eq!(output, 2f32);
     }
 
     #[test]

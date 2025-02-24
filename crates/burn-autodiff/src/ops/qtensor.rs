@@ -1,4 +1,4 @@
-use std::ops::Range;
+use core::ops::Range;
 
 use burn_tensor::{
     backend::Backend,

@@ -1,4 +1,5 @@
 use crate::{checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor, Autodiff};
+use alloc::vec::Vec;
 
 use burn_tensor::{
     backend::Backend,
@@ -27,7 +28,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<B>, ranges: &[std::ops::Range<usize>]) -> IntTensor<B> {
+    fn int_slice(tensor: IntTensor<B>, ranges: &[core::ops::Range<usize>]) -> IntTensor<B> {
         B::int_slice(tensor, ranges)
     }
 
@@ -37,7 +38,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_slice_assign(
         tensor: IntTensor<B>,
-        ranges: &[std::ops::Range<usize>],
+        ranges: &[core::ops::Range<usize>],
         value: IntTensor<B>,
     ) -> IntTensor<B> {
         B::int_slice_assign(tensor, ranges, value)
@@ -305,7 +306,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_random(shape, distribution, device)
     }
 
-    fn int_arange(range: std::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self> {
+    fn int_arange(range: core::ops::Range<i64>, device: &Device<Self>) -> IntTensor<Self> {
         B::int_arange(range, device)
     }
 
