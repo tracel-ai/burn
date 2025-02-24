@@ -1,9 +1,11 @@
 use cubecl::reduce::args::ReduceArgs;
 use cubecl::{prelude::*, reduce::args::ReducePrecision};
 
-use crate::shared::io::{global_buffer_len, global_len, global_rank, global_shape, global_stride};
-use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand};
-use crate::shared::kernel::{fuse_on_read, fuse_on_write};
+use crate::shared::io::{
+    global_buffer_len, global_len, global_rank, global_shape, global_stride, write,
+};
+use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs};
+use crate::shared::kernel::fuse_on_read;
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;
@@ -82,19 +84,17 @@ impl ReduceArgs for FusedReduceArgs {
         index: u32,
         value: Line<P::Out>,
     ) {
-        let mut values = Registry::<Arg, Line<P::Out>>::new();
-        let mut args = comptime![Sequence::<Arg>::new()];
+        let out = comptime![state.out.clone()];
+        let mut local = LocalArgs::new();
 
-        values.insert(comptime![state.out.clone()], value);
-        comptime![args.push(state.out.clone())];
-
-        fuse_on_write(
+        write::<P::Out>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
+            &mut local,
             index,
-            values,
-            args,
-            &state.config_on_write,
+            value,
+            out,
+            &state.config_on_read,
         );
     }
 
