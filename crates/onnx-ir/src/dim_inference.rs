@@ -150,8 +150,8 @@ fn constant_of_shape_update_output(node: &mut Node) {
         .map(|v| v.clone().into_tensor().elem_type)
         .unwrap_or(ElementType::Float32); // If not given, defaults to 0 as float32
 
-    let dim = match &node.inputs[0].ty {
-        ArgType::Shape(dim) => *dim,
+    let rank = match &node.inputs[0].ty {
+        ArgType::Shape(rank) => *rank,
         ArgType::Tensor(tensor_type) => tensor_type
             .shape
             .as_ref()
@@ -162,11 +162,11 @@ fn constant_of_shape_update_output(node: &mut Node) {
     };
 
     // Fix the input type to be a shape
-    node.inputs[0].ty = ArgType::Shape(dim);
+    node.inputs[0].ty = ArgType::Shape(rank);
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
         elem_type: value_type,
-        rank: dim,
+        rank,
         shape: None,
     });
 }
@@ -510,7 +510,7 @@ fn same_as_input(node: &mut Node) {
 }
 
 fn top_k_update_output(node: &mut Node) {
-    let dim = match &node.inputs[0].ty {
+    let rank = match &node.inputs[0].ty {
         ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("TopK: invalid input type"),
     };
@@ -526,13 +526,13 @@ fn top_k_update_output(node: &mut Node) {
     };
 
     node.outputs[0].ty = ArgType::Tensor(TensorType {
-        rank: dim,
+        rank,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_values_elem,
     });
 
     node.outputs[1].ty = ArgType::Tensor(TensorType {
-        rank: dim,
+        rank,
         shape: None, // shape is tracked and calculated at runtime
         elem_type: output_indices_elem,
     });
