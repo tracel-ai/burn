@@ -149,7 +149,8 @@ libc = "0.2.169"
 nvml-wrapper = "0.10.0"
 sysinfo = "0.33.1"
 systemstat = "0.2.3"
-tch = "0.15.0"
+tch = "0.19.0"
+torch-sys = "0.19.0"  # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.11", default-features = false }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
