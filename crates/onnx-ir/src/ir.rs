@@ -5,9 +5,8 @@ use strum_macros::{Display, EnumString};
 
 use crate::protos::TensorProto;
 
-// TODO: Rename Dim to Rank
 pub type Rank = usize;
-pub type Shape = Vec<Rank>;
+pub type Shape = Vec<usize>;
 
 /// A node input or output.
 #[derive(Debug, Clone)]
