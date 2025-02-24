@@ -121,11 +121,8 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
-macerator = { path = "../macerator" }
-pulp = { path = "../pulp/pulp", default-features = false, features = [
-    "x86-v3",
-    "macro",
-] } # Enable std if sqrt is ever needed
+macerator = { git = "https://github.com/wingertge/macerator.git", rev = "25b7a80fddcb82fc6dc0a579c2dea338b470401d" }
+pulp = { git = "https://github.com/wingertge/pulp.git", rev = "d8ad45976c0c130ea92a790c852d430566efbf61", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
 bon = "3.3.0"

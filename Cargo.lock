@@ -988,7 +988,7 @@ dependencies = [
  "ndarray",
  "num-traits",
  "paste",
- "pulp 0.21.4",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61)",
  "serde",
 ]
 
@@ -3865,7 +3865,7 @@ name = "macerator"
 version = "0.1.0"
 dependencies = [
  "paste",
- "pulp 0.21.4",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61)",
 ]
 
 [[package]]
@@ -5542,20 +5542,6 @@ dependencies = [
 [[package]]
 name = "pulp"
 version = "0.21.4"
-dependencies = [
- "bytemuck",
- "cfg-if",
- "libm",
- "num-complex",
- "paste",
- "pulp-macro",
- "reborrow",
- "version_check",
-]
-
-[[package]]
-name = "pulp"
-version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95fb7a99b37aaef4c7dd2fd15a819eb8010bfc7a2c2155230d51f497316cad6d"
 dependencies = [
@@ -5568,8 +5554,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulp"
+version = "0.21.4"
+source = "git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61#d8ad45976c0c130ea92a790c852d430566efbf61"
+dependencies = [
+ "bytemuck",
+ "cfg-if",
+ "libm",
+ "num-complex",
+ "paste",
+ "pulp-macro",
+ "reborrow",
+ "version_check",
+]
+
+[[package]]
 name = "pulp-macro"
 version = "0.1.1"
+source = "git+https://github.com/wingertge/pulp.git?rev=d8ad45976c0c130ea92a790c852d430566efbf61#d8ad45976c0c130ea92a790c852d430566efbf61"
 dependencies = [
  "proc-macro2",
  "quote",
