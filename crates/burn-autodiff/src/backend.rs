@@ -4,6 +4,7 @@ use crate::{
     runtime::AutodiffClient,
     tensor::AutodiffTensor,
 };
+use alloc::{format, string::String};
 use burn_tensor::{
     backend::{AutodiffBackend, Backend},
     ops::{BoolTensor, IntTensor, QuantizedTensor},

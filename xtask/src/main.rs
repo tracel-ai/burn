@@ -12,6 +12,7 @@ const ARM_TARGET: &str = "thumbv7m-none-eabi";
 const ARM_NO_ATOMIC_PTR_TARGET: &str = "thumbv6m-none-eabi";
 const NO_STD_CRATES: &[&str] = &[
     "burn",
+    "burn-autodiff",
     "burn-core",
     "burn-common",
     "burn-tensor",

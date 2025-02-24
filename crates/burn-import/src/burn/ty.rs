@@ -1,9 +1,8 @@
+use crate::burn::ToTokens;
 use proc_macro2::Ident;
 use proc_macro2::Span;
 use proc_macro2::TokenStream;
 use quote::quote;
-
-use crate::burn::ToTokens;
 
 #[derive(Debug, Clone)]
 pub struct TensorType {
@@ -199,6 +198,7 @@ impl TensorType {
             );
         }
         let formatted_name = Type::format_name(name.as_ref());
+
         assert_ne!(
             dim, 0,
             "Trying to create TensorType with dim = 0 - should be a Scalar instead!"

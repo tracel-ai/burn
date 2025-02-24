@@ -121,7 +121,6 @@ burn-autodiff = { path = "../burn-autodiff", version = "0.17.0" }
 burn-dataset = { path = "../burn-dataset", version = "0.17.0", features = [
     "fake",
 ] }
-tempfile = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
