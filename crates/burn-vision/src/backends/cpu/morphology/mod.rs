@@ -122,7 +122,7 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
 
 #[allow(clippy::too_many_arguments)]
 fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
-    input: TensorData,
+    mut input: TensorData,
     shape: Shape,
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
@@ -131,17 +131,15 @@ fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
     bvalue: Option<TensorData>,
     device: &B::Device,
 ) -> Tensor<B, 3, K> {
-    let [h, w, ch] = shape.dims();
-    let mut data = input.into_vec::<T>().unwrap();
+    let data = input.as_mut_slice::<T>().unwrap();
     let bvalue = border_value(btype, bvalue, op, &shape);
-    run_morph(&mut data, shape, kernel, op, iter, btype, &bvalue);
-    let data = TensorData::new(data, Shape::new([h, w, ch]));
-    Tensor::from_data(data, device)
+    run_morph(data, shape, kernel, op, iter, btype, &bvalue);
+    Tensor::from_data(input, device)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn morph_bool<B: Backend, K: BasicOps<B>>(
-    input: TensorData,
+    mut input: TensorData,
     shape: Shape,
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
@@ -150,15 +148,12 @@ fn morph_bool<B: Backend, K: BasicOps<B>>(
     bvalue: Option<TensorData>,
     device: &B::Device,
 ) -> Tensor<B, 3, K> {
-    // We don't actually care about the validity of bitpatterns since we treat it as u8 anyways.
-    // So we skip the type check and go directly to u8. This saves about 10% execution time per operation.
-    let mut data = input.into_bytes().try_into_vec::<u8>().unwrap();
-    let bvalue = border_value(btype, bvalue, op, &shape);
-    run_morph(&mut data, shape.clone(), kernel, op, iter, btype, &bvalue);
+    let data = input.as_mut_slice::<bool>().unwrap();
     // SAFETY: Morph can't produce invalid boolean values
-    let data = unsafe { core::mem::transmute::<Vec<u8>, Vec<bool>>(data) };
-    let data = TensorData::new(data, shape);
-    Tensor::from_data(data, device)
+    let data = unsafe { core::mem::transmute::<&mut [bool], &mut [u8]>(data) };
+    let bvalue = border_value(btype, bvalue, op, &shape);
+    run_morph(data, shape.clone(), kernel, op, iter, btype, &bvalue);
+    Tensor::from_data(input, device)
 }
 
 fn border_value<T: Element>(
