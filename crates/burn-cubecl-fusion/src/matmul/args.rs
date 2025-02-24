@@ -278,3 +278,5 @@ impl Init for FusedMatmulStateExpand {
         self
     }
 }
+
+impl CubeDebug for FusedMatmulStateExpand {}

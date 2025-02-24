@@ -19,8 +19,35 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub reference: Option<Reference>,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub writes: BTreeMap<TensorId, ElemwiseOp>,
-    pub vectorization: BTreeMap<TensorId, u8>,
+    pub vectorization: BTreeMap<TensorId, Vect>,
+    pub width: u8,
     pub rank: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Vect {
+    Broadcated,
+    Aligned(u8),
+}
+
+impl Vect {
+    pub fn line_size(&self) -> u8 {
+        match self {
+            Vect::Broadcated => 1,
+            Vect::Aligned(val) => *val,
+        }
+    }
+
+    pub fn is_broadcast(&self) -> bool {
+        matches!(self, Vect::Broadcated)
+    }
+
+    pub fn limit_to_one(&self) -> Self {
+        match self {
+            Vect::Broadcated => Vect::Broadcated,
+            Vect::Aligned(_) => Vect::Aligned(1),
+        }
+    }
 }
 
 impl<R: Runtime> LaunchPlan<'_, R> {
@@ -39,6 +66,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             vectorization: BTreeMap::default(),
             reads: reads.clone(),
             writes: writes.clone(),
+            width: 1,
             rank,
         }
     }
@@ -67,6 +95,7 @@ pub struct HandleInput<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
     pub global_shape: Vec<usize>,
     pub vectorization: u8,
+    pub broadcated: bool,
 }
 
 #[derive(Debug)]

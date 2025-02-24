@@ -25,6 +25,9 @@ burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.17.0", opt
 derive-new = { workspace = true }
 spin = { workspace = true }
 log = { workspace = true }
+hashbrown = { workspace = true }
+num-traits = { workspace = true }
+portable-atomic = { workspace = true }
 
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "0.17.0", default-features = false, features = [
