@@ -38,7 +38,7 @@ impl Argument {
             .unwrap_or_else(|_| panic!("invalid tensor {}", &initializer.name));
 
         if tensor.rank == 0 {
-            // Convert zero dim tensor to scalar
+            // Convert zero rank tensor to scalar
             let value = if tensor.data.is_some() {
                 Some(tensor.data.clone().unwrap().into_scalar())
             } else {
@@ -814,7 +814,7 @@ impl From<AttributeValue> for Argument {
             },
             AttributeValue::Tensor(tensor) => {
                 if tensor.rank == 0 {
-                    // Convert zero dim tensor to scalar
+                    // Convert zero rank tensor to scalar
                     if let Some(data) = tensor.data {
                         Argument {
                             ty: ArgType::Scalar(tensor.elem_type),
