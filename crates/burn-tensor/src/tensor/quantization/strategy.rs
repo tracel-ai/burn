@@ -116,7 +116,6 @@ fn apply_per_block_grid<I: Element, O: Element, F: Fn(usize, I) -> O>(
                 // block width
                 for bw in 0..n {
                     let elem_idx = start_idx + bw;
-                    // let x_q = strategy[block_id].quantize_one(values[elem_idx]);
                     let x_q = transform(block_id, values[elem_idx]);
                     output[elem_idx] = x_q;
                 }
