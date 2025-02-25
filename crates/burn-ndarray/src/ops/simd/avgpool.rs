@@ -9,6 +9,8 @@ use macerator::{SimdExt, VAdd, VDiv};
 use ndarray::{s, Array4, ArrayView2, ArrayViewMut2};
 use pulp::{Arch, Simd};
 
+use super::{load2, load4, store2, store2_unaligned, store4, store4_unaligned};
+
 pub(crate) fn try_avg_pool2d_simd<E: Element>(
     x: NdArrayTensor<E>,
     ksize: [usize; 2],
@@ -79,7 +81,7 @@ pub(crate) fn avg_pool2d_simd<S: Simd, E: Element + VAdd + VDiv + AddAssign>(
         src_row[right..right + pad_w].fill(pad_value);
     }
 
-    let ay = k_height as isize / 2;
+    let ay = pad_h as isize;
 
     // We write to every spot
     let mut output =
@@ -105,8 +107,8 @@ pub(crate) fn avg_pool2d_simd<S: Simd, E: Element + VAdd + VDiv + AddAssign>(
             let b = k / channels;
             let c = k % channels;
 
-            let mut row_count = out_height;
-            let mut count = out_height;
+            let mut row_count = 0;
+            let mut count = x_height;
             let mut start_y = 0;
             let mut src_y = 0;
             let mut dy = 0;
@@ -157,21 +159,22 @@ pub(crate) fn avg_pool2d_simd<S: Simd, E: Element + VAdd + VDiv + AddAssign>(
                     src_y += 1;
                 }
 
-                let max_i = buf_rows.min(out_height + dy + k_height - 1);
+                let max_i = buf_rows.min(out_height - dy + k_height - 1);
                 i = 0;
 
                 while i < max_i {
                     let src_y = (dy + i) as isize - ay;
-                    if src_y < 0 {
+                    if src_y < 0 || src_y as usize >= start_y + row_count {
                         rows[i] = const_border_row.as_ptr();
-                        cnt_rows[i] = const_border_row.as_ptr();
-                    } else {
-                        if src_y as usize >= start_y + row_count {
-                            break;
+                        if !with_pad {
+                            cnt_rows[i] = const_border_row.as_ptr();
                         }
+                    } else {
                         let buf_y = src_y as usize % buf_rows;
                         rows[i] = ring_buf.as_ptr().add(buf_y * buf_step);
-                        cnt_rows[i] = cnt_buf.as_ptr().add(buf_y * buf_step);
+                        if !with_pad {
+                            cnt_rows[i] = cnt_buf.as_ptr().add(buf_y * buf_step);
+                        }
                     }
 
                     i += 1;
@@ -226,16 +229,11 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
         let dst_cnt = dst_cnt.as_mut_ptr();
 
         while ow as isize <= width - 4 * lanes as isize {
-            let iw = ow + ksize;
-
-            let sptr = row.add(iw);
-            let mut s0 = simd.vload(row);
-            let mut s1 = simd.vload(row.add(lanes));
-            let mut s2 = simd.vload(row.add(2 * lanes));
-            let mut s3 = simd.vload(row.add(3 * lanes));
+            let sptr = row.add(ow);
+            let (mut s0, mut s1, mut s2, mut s3) = load4(simd, row);
 
             if !with_pad {
-                let cptr = cnt.add(iw);
+                let cptr = cnt.add(ow);
                 count0 = simd.vload(cptr);
                 count1 = simd.vload(cptr.add(lanes));
                 count2 = simd.vload(cptr.add(2 * lanes));
@@ -250,7 +248,7 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
                 s3 = T::vadd(simd, s3, simd.vload_unaligned(sptr.add(3 * lanes)));
 
                 if !with_pad {
-                    let sptr = cnt.add(iw + kw);
+                    let sptr = cnt.add(ow + kw);
                     count0 = T::vadd(simd, count0, simd.vload_unaligned(sptr));
                     count1 = T::vadd(simd, count1, simd.vload_unaligned(sptr.add(lanes)));
                     count2 = T::vadd(simd, count2, simd.vload_unaligned(sptr.add(2 * lanes)));
@@ -258,31 +256,20 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
                 }
             }
 
-            let dptr = dst.add(ow);
-            simd.vstore(dptr, s0);
-            simd.vstore(dptr.add(lanes), s1);
-            simd.vstore(dptr.add(2 * lanes), s2);
-            simd.vstore(dptr.add(3 * lanes), s3);
+            store4(simd, dst.add(ow), s0, s1, s2, s3);
 
             if !with_pad {
-                let dptr = dst_cnt.add(ow);
-                simd.vstore(dptr, count0);
-                simd.vstore(dptr.add(lanes), count1);
-                simd.vstore(dptr.add(2 * lanes), count2);
-                simd.vstore(dptr.add(3 * lanes), count3);
+                store4(simd, dst_cnt.add(ow), count0, count1, count2, count3);
             }
 
             ow += 4 * lanes;
         }
         if ow as isize <= width - 2 * lanes as isize {
-            let iw = ow + ksize;
-
-            let sptr = row.add(iw);
-            let mut s0 = simd.vload(row);
-            let mut s1 = simd.vload(row.add(lanes));
+            let sptr = row.add(ow);
+            let (mut s0, mut s1) = load2(simd, sptr);
 
             if !with_pad {
-                let cptr = cnt.add(iw);
+                let cptr = cnt.add(ow);
                 count0 = simd.vload(cptr);
                 count1 = simd.vload(cptr.add(lanes));
             }
@@ -293,36 +280,30 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
                 s1 = T::vadd(simd, s1, simd.vload_unaligned(sptr.add(lanes)));
 
                 if !with_pad {
-                    let sptr = cnt.add(iw + kw);
+                    let sptr = cnt.add(ow + kw);
                     count0 = T::vadd(simd, count0, simd.vload_unaligned(sptr));
                     count1 = T::vadd(simd, count1, simd.vload_unaligned(sptr.add(lanes)));
                 }
             }
 
-            let dptr = dst.add(ow);
-            simd.vstore(dptr, s0);
-            simd.vstore(dptr.add(lanes), s1);
-
+            store2(simd, dst.add(ow), s0, s1);
             if !with_pad {
-                let dptr = dst_cnt.add(ow);
-                simd.vstore(dptr, count0);
-                simd.vstore(dptr.add(lanes), count1);
+                store2(simd, dst_cnt.add(ow), count0, count1);
             }
 
             ow += 2 * lanes;
         }
         if ow as isize <= width - lanes as isize {
-            let iw = ow + ksize;
-            let mut s0 = simd.vload(row.add(iw));
+            let mut s0 = simd.vload(row.add(ow));
             if !with_pad {
-                count0 = simd.vload(cnt.add(iw));
+                count0 = simd.vload(cnt.add(ow));
             }
 
             for kw in 1..ksize {
-                s0 = T::vadd(simd, s0, simd.vload_unaligned(row.add(iw + kw)));
+                s0 = T::vadd(simd, s0, simd.vload_unaligned(row.add(ow + kw)));
 
                 if !with_pad {
-                    count0 = T::vadd(simd, count0, simd.vload_unaligned(cnt.add(iw + kw)));
+                    count0 = T::vadd(simd, count0, simd.vload_unaligned(cnt.add(ow + kw)));
                 }
             }
 
@@ -334,16 +315,15 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
             ow += lanes;
         }
         if ow as isize <= width - lanes as isize / 2 {
-            let iw = ow + ksize;
-            let mut s0 = simd.vload_low(row.add(iw));
+            let mut s0 = simd.vload_low(row.add(ow));
             if !with_pad {
-                count0 = simd.vload_low(cnt.add(iw));
+                count0 = simd.vload_low(cnt.add(ow));
             }
 
             for kw in 1..ksize {
-                s0 = T::vadd(simd, s0, simd.vload_low(row.add(iw + kw)));
+                s0 = T::vadd(simd, s0, simd.vload_low(row.add(ow + kw)));
                 if !with_pad {
-                    count0 = T::vadd(simd, count0, simd.vload_low(cnt.add(iw + kw)));
+                    count0 = T::vadd(simd, count0, simd.vload_low(cnt.add(ow + kw)));
                 }
             }
 
@@ -358,13 +338,12 @@ fn avg_pool_row<S: Simd, T: VAdd + Element>(
 
     #[allow(clippy::needless_range_loop)]
     for ow in ow..width as usize {
-        let iw = ow + ksize;
-        let mut s0 = row[iw];
-        let mut count0 = if !with_pad { row_cnt[iw] } else { 1.elem() };
+        let mut s0 = row[ow];
+        let mut count0 = if !with_pad { row_cnt[ow] } else { 1.elem() };
         for k in 1..ksize {
-            s0 = s0.add(row[iw + k]);
+            s0 = s0.add(row[ow + k]);
             if !with_pad {
-                count0 = count0.add(row_cnt[iw + k]);
+                count0 = count0.add(row_cnt[ow + k]);
             }
         }
         dst[ow] = s0;
@@ -402,11 +381,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
             let dst1 = dst.row_mut(y + 1).as_mut_ptr();
             x = 0;
             while x as isize <= width - 4 * lanes as isize {
-                let sptr = src[y + 1].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
-                let mut s2 = simd.vload(sptr.add(2 * lanes));
-                let mut s3 = simd.vload(sptr.add(3 * lanes));
+                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y + 1].add(x));
 
                 if !with_pad {
                     let sptr = src_cnt[y + 1].add(x);
@@ -454,10 +429,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
                         s2 = T::vdiv(simd, s2, count2);
                         s3 = T::vdiv(simd, s3, count3);
                     }
-                    simd.vstore_unaligned(dst0.add(x), s0);
-                    simd.vstore_unaligned(dst0.add(x + lanes), s1);
-                    simd.vstore_unaligned(dst0.add(x + 2 * lanes), s2);
-                    simd.vstore_unaligned(dst0.add(x + 3 * lanes), s3);
+                    store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
                 }
 
                 // Row 2
@@ -478,18 +450,13 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
                     s1 = T::vdiv(simd, s1, count1);
                     s2 = T::vdiv(simd, s2, count2);
                     s3 = T::vdiv(simd, s3, count3);
-                    simd.vstore_unaligned(dst1.add(x), s0);
-                    simd.vstore_unaligned(dst1.add(x + lanes), s1);
-                    simd.vstore_unaligned(dst1.add(x + 2 * lanes), s2);
-                    simd.vstore_unaligned(dst1.add(x + 3 * lanes), s3);
+                    store4_unaligned(simd, dst1.add(x), s0, s1, s2, s3);
                 }
 
                 x += 4 * lanes;
             }
             if x as isize <= width - 2 * lanes as isize {
-                let sptr = src[y + 1].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
+                let (mut s0, mut s1) = load2(simd, src[y + 1].add(x));
 
                 if !with_pad {
                     let sptr = src_cnt[y + 1].add(x);
@@ -523,8 +490,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
                         s0 = T::vdiv(simd, s0, count0);
                         s1 = T::vdiv(simd, s1, count1);
                     }
-                    simd.vstore_unaligned(dst0.add(x), s0);
-                    simd.vstore_unaligned(dst0.add(x + lanes), s1);
+                    store2_unaligned(simd, dst0.add(x), s0, s1);
                 }
 
                 // Row 2
@@ -539,8 +505,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
                     }
                     s0 = T::vdiv(simd, s0, count0);
                     s1 = T::vdiv(simd, s1, count1);
-                    simd.vstore_unaligned(dst1.add(x), s0);
-                    simd.vstore_unaligned(dst1.add(x + lanes), s1);
+                    store2_unaligned(simd, dst1.add(x), s0, s1);
                 }
 
                 x += 2 * lanes;
@@ -609,10 +574,11 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
 
                 // Row 2
                 {
-                    let s0 = T::vadd(simd, s0, simd.vload_low(src[y + ksize].add(x)));
+                    let mut s0 = T::vadd(simd, s0, simd.vload_low(src[y + ksize].add(x)));
                     if !with_pad {
                         count0 = T::vadd(simd, count0, simd.vload_low(src_cnt[y + ksize].add(x)));
                     }
+                    s0 = T::vdiv(simd, s0, count0);
                     simd.vstore_low(dst1.add(x), s0);
                 }
 
@@ -652,11 +618,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
 
             x = 0;
             while x as isize <= width - 4 * lanes as isize {
-                let sptr = src[y].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
-                let mut s2 = simd.vload(sptr.add(2 * lanes));
-                let mut s3 = simd.vload(sptr.add(3 * lanes));
+                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y].add(x));
                 if !with_pad {
                     let sptr = src_cnt[y].add(x);
                     count0 = simd.vload(sptr);
@@ -684,17 +646,12 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
                 s1 = T::vdiv(simd, s1, count1);
                 s2 = T::vdiv(simd, s2, count2);
                 s3 = T::vdiv(simd, s3, count3);
-                simd.vstore_unaligned(dst0.add(x), s0);
-                simd.vstore_unaligned(dst0.add(x + lanes), s1);
-                simd.vstore_unaligned(dst0.add(x + 2 * lanes), s2);
-                simd.vstore_unaligned(dst0.add(x + 3 * lanes), s3);
+                store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
 
                 x += 4 * lanes;
             }
             if x as isize <= width - 2 * lanes as isize {
-                let sptr = src[y].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
+                let (mut s0, mut s1) = load2(simd, src[y].add(x));
                 if !with_pad {
                     let sptr = src_cnt[y].add(x);
                     count0 = simd.vload(sptr);
@@ -714,8 +671,7 @@ fn avg_pool_col<S: Simd, T: VAdd + VDiv + Element>(
 
                 s0 = T::vdiv(simd, s0, count0);
                 s1 = T::vdiv(simd, s1, count1);
-                simd.vstore_unaligned(dst0.add(x), s0);
-                simd.vstore_unaligned(dst0.add(x + lanes), s1);
+                store2_unaligned(simd, dst0.add(x), s0, s1);
 
                 x += 2 * lanes;
             }

@@ -1,4 +1,4 @@
-use core::{mem::transmute, ptr::null};
+use core::{fmt::Display, mem::transmute, ptr::null};
 
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
@@ -9,7 +9,9 @@ use macerator::{SimdExt, VOrd};
 use ndarray::{s, Array4, ArrayView2, ArrayViewMut2};
 use pulp::{Arch, Simd};
 
-use super::MinMax;
+use super::{
+    load2, load4, should_use_simd, store2, store2_unaligned, store4, store4_unaligned, MinMax,
+};
 
 pub(crate) fn try_max_pool2d_simd<E: Element>(
     x: NdArrayTensor<E>,
@@ -19,7 +21,11 @@ pub(crate) fn try_max_pool2d_simd<E: Element>(
     dilation: [usize; 2],
 ) -> Result<NdArrayTensor<E>, NdArrayTensor<E>> {
     // Strides must be unit, dilation isn't supported, rows must be contiguous
-    if stride != [1, 1] || dilation != [1, 1] || x.array.strides()[3] != 1 {
+    if stride != [1, 1]
+        || dilation != [1, 1]
+        || x.array.strides()[3] != 1
+        || !should_use_simd(x.array.shape()[3])
+    {
         return Err(x);
     }
 
@@ -62,7 +68,9 @@ pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
     let x = x.array;
     let pad_value = E::MIN;
 
-    let buf_rows = (k_height + 3).max((k_height.div_ceil(2) - 1) * 2 + 1);
+    let buf_rows = (k_height + 3)
+        .max(pad_h)
+        .max((k_height - pad_h - 1) * 2 + 1);
     let width1 = x_width + k_width - 1;
 
     let out_height = x_height + 2 * pad_h - (k_height - 1) - 1 + 1;
@@ -84,8 +92,6 @@ pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
         src_row[right..right + pad_w].fill(pad_value);
     }
 
-    let ay = k_height as isize / 2;
-
     // We write to every spot
     let mut output =
         unsafe { Array4::uninit((batch_size, channels, out_height, out_width)).assume_init() };
@@ -102,8 +108,8 @@ pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
             let b = k / channels;
             let c = k % channels;
 
-            let mut row_count = out_height;
-            let mut count = out_height;
+            let mut row_count = 0;
+            let mut count = x_height;
             let mut start_y = 0;
             let mut src_y = 0;
             let mut dy = 0;
@@ -114,7 +120,8 @@ pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
             let mut dst: ArrayViewMut2<E> = output.slice_mut(s![b, c, .., ..]);
 
             loop {
-                let dcount = buf_rows as isize - ay - start_y as isize - row_count as isize;
+                let dcount =
+                    buf_rows as isize - pad_h as isize - start_y as isize - row_count as isize;
                 let mut dcount = if dcount > 0 {
                     dcount as usize
                 } else {
@@ -144,17 +151,14 @@ pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
                     src_y += 1;
                 }
 
-                let max_i = buf_rows.min(out_height + dy + k_height - 1);
+                let max_i = buf_rows.min(out_height - dy + k_height - 1);
                 i = 0;
 
                 while i < max_i {
-                    let src_y = (dy + i) as isize - ay;
-                    if src_y < 0 {
+                    let src_y = (dy + i) as isize - pad_h as isize;
+                    if src_y < 0 || src_y as usize >= start_y + row_count {
                         rows[i] = const_border_row.as_ptr();
                     } else {
-                        if src_y as usize >= start_y + row_count {
-                            break;
-                        }
                         let buf_y = src_y as usize % buf_rows;
                         rows[i] = ring_buf.as_ptr().add(buf_y * buf_step);
                     }
@@ -187,13 +191,8 @@ fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ks
         let dst = dst.as_mut_ptr();
 
         while ow as isize <= width - 4 * lanes as isize {
-            let iw = ow + ksize;
-
-            let sptr = row.add(iw);
-            let mut s0 = simd.vload(row);
-            let mut s1 = simd.vload(row.add(lanes));
-            let mut s2 = simd.vload(row.add(2 * lanes));
-            let mut s3 = simd.vload(row.add(3 * lanes));
+            let sptr = row.add(ow);
+            let (mut s0, mut s1, mut s2, mut s3) = load4(simd, sptr);
 
             for kw in 1..ksize {
                 let sptr = sptr.add(kw);
@@ -203,20 +202,12 @@ fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ks
                 s3 = T::vmax(simd, s3, simd.vload_unaligned(sptr.add(3 * lanes)));
             }
 
-            let dptr = dst.add(ow);
-            simd.vstore(dptr, s0);
-            simd.vstore(dptr.add(lanes), s1);
-            simd.vstore(dptr.add(2 * lanes), s2);
-            simd.vstore(dptr.add(3 * lanes), s3);
-
+            store4(simd, dst.add(ow), s0, s1, s2, s3);
             ow += 4 * lanes;
         }
         if ow as isize <= width - 2 * lanes as isize {
-            let iw = ow + ksize;
-
-            let sptr = row.add(iw);
-            let mut s0 = simd.vload(row);
-            let mut s1 = simd.vload(row.add(lanes));
+            let sptr = row.add(ow);
+            let (mut s0, mut s1) = load2(simd, sptr);
 
             for kw in 1..ksize {
                 let sptr = sptr.add(kw);
@@ -224,18 +215,14 @@ fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ks
                 s1 = T::vmax(simd, s1, simd.vload_unaligned(sptr.add(lanes)));
             }
 
-            let dptr = dst.add(ow);
-            simd.vstore(dptr, s0);
-            simd.vstore(dptr.add(lanes), s1);
-
+            store2(simd, dst.add(ow), s0, s1);
             ow += 2 * lanes;
         }
         if ow as isize <= width - lanes as isize {
-            let iw = ow + ksize;
-            let mut s0 = simd.vload(row.add(iw));
+            let mut s0 = simd.vload(row.add(ow));
 
             for kw in 1..ksize {
-                s0 = T::vmax(simd, s0, simd.vload_unaligned(row.add(iw + kw)));
+                s0 = T::vmax(simd, s0, simd.vload_unaligned(row.add(ow + kw)));
             }
 
             simd.vstore(dst.add(ow), s0);
@@ -243,11 +230,10 @@ fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ks
             ow += lanes;
         }
         if ow as isize <= width - lanes as isize / 2 {
-            let iw = ow + ksize;
-            let mut s0 = simd.vload_low(row.add(iw));
+            let mut s0 = simd.vload_low(row.add(ow));
 
             for kw in 1..ksize {
-                s0 = T::vmax(simd, s0, simd.vload_low(row.add(iw + kw)));
+                s0 = T::vmax(simd, s0, simd.vload_low(row.add(ow + kw)));
             }
 
             simd.vstore_low(dst.add(ow), s0);
@@ -258,16 +244,15 @@ fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ks
 
     #[allow(clippy::needless_range_loop)]
     for ow in ow..width as usize {
-        let iw = ow + ksize;
-        let mut s0 = row[iw];
+        let mut s0 = row[ow];
         for k in 1..ksize {
-            s0 = s0.max(row[iw + k]);
+            s0 = s0.max(row[ow + k]);
         }
         dst[ow] = s0;
     }
 }
 
-fn max_pool_col<S: Simd, T: VOrd + MinMax>(
+fn max_pool_col<S: Simd, T: VOrd + MinMax + Display>(
     simd: S,
     src: &[*const T],
     mut dst: ArrayViewMut2<T>,
@@ -286,11 +271,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
             let dst1 = dst.row_mut(y + 1).as_mut_ptr();
             x = 0;
             while x as isize <= width - 4 * lanes as isize {
-                let sptr = src[y + 1].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
-                let mut s2 = simd.vload(sptr.add(2 * lanes));
-                let mut s3 = simd.vload(sptr.add(3 * lanes));
+                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y + 1].add(x));
 
                 for k in 2..ksize {
                     let sptr = src[y + k].add(x);
@@ -307,10 +288,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
                     let s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
                     let s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                    simd.vstore_unaligned(dst0.add(x), s0);
-                    simd.vstore_unaligned(dst0.add(x + lanes), s1);
-                    simd.vstore_unaligned(dst0.add(x + 2 * lanes), s2);
-                    simd.vstore_unaligned(dst0.add(x + 3 * lanes), s3);
+                    store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
                 }
 
                 // Row 2
@@ -320,18 +298,13 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
                     let s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
                     let s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                    simd.vstore_unaligned(dst1.add(x), s0);
-                    simd.vstore_unaligned(dst1.add(x + lanes), s1);
-                    simd.vstore_unaligned(dst1.add(x + 2 * lanes), s2);
-                    simd.vstore_unaligned(dst1.add(x + 3 * lanes), s3);
+                    store4_unaligned(simd, dst1.add(x), s0, s1, s2, s3);
                 }
 
                 x += 4 * lanes;
             }
             if x as isize <= width - 2 * lanes as isize {
-                let sptr = src[y + 1].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
+                let (mut s0, mut s1) = load2(simd, src[y + 1].add(x));
 
                 for k in 2..ksize {
                     let sptr = src[y + k].add(x);
@@ -344,8 +317,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     let sptr = src[y].add(x);
                     let s0 = T::vmax(simd, s0, simd.vload(sptr));
                     let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    simd.vstore_unaligned(dst0.add(x), s0);
-                    simd.vstore_unaligned(dst0.add(x + lanes), s1);
+                    store2_unaligned(simd, dst0.add(x), s0, s1);
                 }
 
                 // Row 2
@@ -353,8 +325,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     let sptr = src[y + ksize].add(x);
                     let s0 = T::vmax(simd, s0, simd.vload(sptr));
                     let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    simd.vstore_unaligned(dst1.add(x), s0);
-                    simd.vstore_unaligned(dst1.add(x + lanes), s1);
+                    store2_unaligned(simd, dst1.add(x), s0, s1);
                 }
 
                 x += 2 * lanes;
@@ -419,11 +390,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
 
             x = 0;
             while x as isize <= width - 4 * lanes as isize {
-                let sptr = src[y].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
-                let mut s2 = simd.vload(sptr.add(2 * lanes));
-                let mut s3 = simd.vload(sptr.add(3 * lanes));
+                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y].add(x));
 
                 for k in 1..ksize {
                     let sptr = src[y + k].add(x);
@@ -433,17 +400,11 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
                 }
 
-                simd.vstore_unaligned(dst0.add(x), s0);
-                simd.vstore_unaligned(dst0.add(x + lanes), s1);
-                simd.vstore_unaligned(dst0.add(x + 2 * lanes), s2);
-                simd.vstore_unaligned(dst0.add(x + 3 * lanes), s3);
-
+                store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
                 x += 4 * lanes;
             }
             if x as isize <= width - 2 * lanes as isize {
-                let sptr = src[y].add(x);
-                let mut s0 = simd.vload(sptr);
-                let mut s1 = simd.vload(sptr.add(lanes));
+                let (mut s0, mut s1) = load2(simd, src[y].add(x));
 
                 for k in 1..ksize {
                     let sptr = src[y + k].add(x);
@@ -451,9 +412,7 @@ fn max_pool_col<S: Simd, T: VOrd + MinMax>(
                     s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
                 }
 
-                simd.vstore_unaligned(dst0.add(x), s0);
-                simd.vstore_unaligned(dst0.add(x + lanes), s1);
-
+                store2_unaligned(simd, dst0.add(x), s0, s1);
                 x += 2 * lanes;
             }
             if x as isize <= width - lanes as isize {
