@@ -865,10 +865,10 @@ impl<E: Element> RelativeOpsScalar<E> for NumericOperationIr<E> {
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::SumDim(desc) => {
-                NumericOperationIr::SumDim(ScalarOpIr {
-                    lhs: desc.lhs.to_relative(converter),
-                    rhs: desc.rhs, // Dim should stay the same.
+                NumericOperationIr::SumDim(ReduceDimOpIr {
+                    input: desc.input.to_relative(converter),
                     out: desc.out.to_relative(converter),
+                    axis: desc.axis, // Axis should stay the same.
                 })
             }
             NumericOperationIr::Prod(desc) => NumericOperationIr::Prod(UnaryOpIr {

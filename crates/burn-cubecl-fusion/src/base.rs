@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use crate::reduce::optimization::{ReduceOptimization, ReduceOptimizationState};
+
 use super::elemwise::optimization::{ElemwiseOptimization, ElemwiseOptimizationState};
 use super::matmul::optimization::{MatmulOptimization, MatmulOptimizationState};
 
@@ -18,6 +20,7 @@ pub enum CubeOptimization<R: Runtime> {
     ElementWise(ElemwiseOptimization<R>),
     /// Matrix multiplication optimization.
     Matmul(MatmulOptimization<R>),
+    Reduce(ReduceOptimization<R>),
 }
 
 /// Fusion optimization state type for cubecl.
@@ -29,6 +32,7 @@ pub enum CubeOptimizationState {
     ElementWise(ElemwiseOptimizationState),
     /// Matrix multiplication optimization state.
     Matmul(MatmulOptimizationState),
+    Reduce(ReduceOptimizationState),
 }
 
 pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {

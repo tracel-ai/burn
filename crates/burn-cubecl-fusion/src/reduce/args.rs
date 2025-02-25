@@ -75,7 +75,7 @@ impl ReduceArgs for FusedReduceArgs {
         .index(0)
     }
 
-    fn read_output<P: ReducePrecision>(state: &Self::State<P>, index: u32) -> Line<P::Out> {
+    fn read_output<P: ReducePrecision>(_state: &Self::State<P>, _index: u32) -> Line<P::Out> {
         Line::empty(1)
     }
 

@@ -26,25 +26,25 @@ pub(crate) struct LaunchPlan<'a, R: Runtime> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {
-    Broadcated,
+    Broadcasted,
     Aligned(u8),
 }
 
 impl Vect {
     pub fn line_size(&self) -> u8 {
         match self {
-            Vect::Broadcated => 1,
+            Vect::Broadcasted => 1,
             Vect::Aligned(val) => *val,
         }
     }
 
     pub fn is_broadcast(&self) -> bool {
-        matches!(self, Vect::Broadcated)
+        matches!(self, Vect::Broadcasted)
     }
 
     pub fn limit_to_one(&self) -> Self {
         match self {
-            Vect::Broadcated => Vect::Broadcated,
+            Vect::Broadcasted => Vect::Broadcasted,
             Vect::Aligned(_) => Vect::Aligned(1),
         }
     }

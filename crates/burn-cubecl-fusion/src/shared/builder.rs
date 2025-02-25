@@ -176,6 +176,14 @@ impl FuseBuilder {
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input_unhandled(tensor)
     }
+    pub fn input(&mut self, tensor: &TensorIr) -> Arg {
+        println!("Input input_unhandled {tensor:?}");
+        self.builder.builder.input(tensor).unwrap()
+    }
+
+    pub fn output_manual(&mut self, tensor: &TensorIr) -> Arg {
+        self.builder.builder.output_manual(tensor).unwrap()
+    }
 
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         if self.current_output_shape.is_empty() {

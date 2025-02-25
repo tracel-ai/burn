@@ -64,7 +64,7 @@ fn vectorization_default<'a, R: Runtime>(
         let shape_axis = desc.shape[rank - 1];
 
         if shape_axis == 1 {
-            return Vect::Broadcated;
+            return Vect::Broadcasted;
         }
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
@@ -100,7 +100,7 @@ fn vectorization_default<'a, R: Runtime>(
         let shape_axis = original.shape[original.shape.len() - 1];
 
         if !multi_reads && reshape_axis == 1 {
-            return Vect::Broadcated;
+            return Vect::Broadcasted;
         }
 
         for s in R::line_size_elem(ref_elem) {
@@ -152,7 +152,7 @@ fn vectorization_default<'a, R: Runtime>(
         }
 
         if !multi_reads && swapped_axis == 1 {
-            return Vect::Broadcated;
+            return Vect::Broadcasted;
         }
 
         for s in R::line_size_elem(ref_elem) {
@@ -199,12 +199,12 @@ fn multi_reads_vectorization_update(
 ) {
     if let Some(ori_vect) = vectorizations.get(&original).cloned() {
         match ori_vect {
-            Vect::Broadcated => {
+            Vect::Broadcasted => {
                 // keep the original as is.
                 vectorizations.insert(view, vect.limit_to_one());
             }
             Vect::Aligned(ori) => match vect {
-                Vect::Broadcated => {
+                Vect::Broadcasted => {
                     vectorizations.insert(original, Vect::Aligned(1));
                     vectorizations.insert(view, vect.limit_to_one());
                 }

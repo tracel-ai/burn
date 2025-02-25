@@ -5,6 +5,7 @@ use burn_cubecl_fusion::elemwise::optimization::ElemwiseOptimization;
 use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
 use burn_cubecl_fusion::matmul::MatmulFallbackFn;
+use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
 use burn_cubecl_fusion::CubeFusionHandle;
 use burn_cubecl_fusion::{
     elemwise::builder::ElementWiseBuilder, CubeOptimization, CubeOptimizationState,
@@ -25,6 +26,7 @@ where
         match self {
             Self::ElementWise(op) => op.execute::<BT>(context),
             Self::Matmul(op) => op.execute::<BT>(context),
+            Self::Reduce(op) => op.execute::<BT>(context),
         }
     }
 
@@ -32,6 +34,7 @@ where
         match self {
             Self::ElementWise(op) => op.num_ops_fused(),
             Self::Matmul(op) => op.num_ops_fused(),
+            Self::Reduce(op) => op.num_ops_fused(),
         }
     }
 
@@ -39,6 +42,7 @@ where
         match self {
             Self::ElementWise(value) => CubeOptimizationState::ElementWise(value.to_state()),
             Self::Matmul(value) => CubeOptimizationState::Matmul(value.to_state()),
+            Self::Reduce(value) => CubeOptimizationState::Reduce(todo!()),
         }
     }
 
@@ -52,6 +56,7 @@ where
                 state,
                 Arc::new(FallbackMatmul),
             )),
+            CubeOptimizationState::Reduce(reduce_optimization_state) => todo!(),
         }
     }
 }
@@ -167,6 +172,10 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
                 Arc::new(FallbackMatmul),
+            )),
+            Box::new(ReduceBuilder::<R>::new(
+                device.clone(),
+                BT::as_elem_native_unchecked().into(),
             )),
         ]
     }

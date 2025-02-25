@@ -399,7 +399,7 @@ pub enum NumericOperationIr<E> {
     ///
     /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
     /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
-    SumDim(ScalarOpIr<usize>),
+    SumDim(ReduceDimOpIr),
 
     /// Operation corresponding to:
     ///
@@ -663,6 +663,14 @@ pub struct ScalarOpIr<E> {
     pub lhs: TensorIr,
     pub rhs: E,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Hash)]
+#[allow(missing_docs)]
+pub struct ReduceDimOpIr {
+    pub input: TensorIr,
+    pub out: TensorIr,
+    pub axis: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1514,7 +1522,7 @@ impl<E: Element> NumericOperationIr<E> {
                 vec![&repr.input, &repr.out]
             }
             NumericOperationIr::SumDim(repr) => {
-                vec![&repr.lhs, &repr.out]
+                vec![&repr.input, &repr.out]
             }
             NumericOperationIr::Prod(repr) => {
                 vec![&repr.input, &repr.out]

@@ -3,7 +3,7 @@ use crate::{
     client::FusionClient,
     get_client,
     ops::binary::check_binary_op_types,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    reduce_float_ops, scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{execution::Operation, StreamId},
     unary_float_ops, Fusion, FusionBackend,
 };
@@ -1251,19 +1251,19 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         out
     }
 
-    fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        scalar_float_ops!(SumDimOps, B::float_sum_dim, usize, noconvert);
+    fn float_sum_dim(tensor: FloatTensor<Self>, axis: usize) -> FloatTensor<Self> {
+        reduce_float_ops!(SumDimOps, B::float_sum_dim);
 
         let stream = tensor.stream;
         let dtype = tensor.dtype;
         let mut shape = tensor.shape.clone();
-        shape[dim] = 1;
+        shape[axis] = 1;
         let out = tensor.client.tensor_uninitialized(shape, dtype);
 
-        let desc = ScalarOpIr {
-            lhs: tensor.into_ir(),
-            rhs: dim,
+        let desc = ReduceDimOpIr {
+            input: tensor.into_ir(),
             out: out.to_ir_out(),
+            axis,
         };
         out.client.register(
             vec![stream],

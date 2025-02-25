@@ -10,8 +10,9 @@ use core::future::Future;
 use super::{RouterTensor, RunnerClient};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
-    scalar_float2int_ops, scalar_float_cmp_ops, scalar_float_dim_ops, scalar_float_ops,
-    scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
+    reduce_float_dim_ops, reduce_int_dim_ops, scalar_float2int_ops, scalar_float_cmp_ops,
+    scalar_float_dim_ops, scalar_float_ops, scalar_int_cmp_ops, scalar_int_dim_ops, scalar_int_ops,
+    unary_float_ops, unary_int_ops,
 };
 
 /// A runner's context contains a [handle container](HandleContainer) to manage
@@ -491,7 +492,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_sum)
                 }
                 NumericOperationIr::SumDim(desc) => {
-                    scalar_float_dim_ops!(handles, desc, B::float_sum_dim)
+                    reduce_float_dim_ops!(handles, desc, B::float_sum_dim)
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
@@ -673,7 +674,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_int_ops!(handles, desc, B::int_sum)
                 }
                 NumericOperationIr::SumDim(desc) => {
-                    scalar_int_dim_ops!(handles, desc, B::int_sum_dim)
+                    reduce_int_dim_ops!(handles, desc, B::int_sum_dim)
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_int_ops!(handles, desc, B::int_prod)

@@ -39,7 +39,11 @@ impl<B: Backend> Benchmark for ReduceBenchmark<B> {
                 self.tensor.clone().argmin(axis);
             }
             Instruction::SumDim(axis) => {
-                self.tensor.clone().sum_dim(axis);
+                let tensor = self.tensor.clone() + 5;
+                let tensor = tensor.log();
+                let tensor = tensor.tanh();
+                let tensor = tensor * 3;
+                tensor.sum_dim(axis);
             }
             Instruction::Sum => {
                 self.tensor.clone().sum();
@@ -74,10 +78,10 @@ fn bench<B: Backend>(
     let mut benchmarks = Vec::new();
 
     for axis in 0..3 {
-        benchmarks.push(ReduceBenchmark::<B>::new(
-            Instruction::ArgMin(axis),
-            device.clone(),
-        ));
+        // benchmarks.push(ReduceBenchmark::<B>::new(
+        //     Instruction::ArgMin(axis),
+        //     device.clone(),
+        // ));
 
         benchmarks.push(ReduceBenchmark::<B>::new(
             Instruction::SumDim(axis),
@@ -85,7 +89,7 @@ fn bench<B: Backend>(
         ));
     }
 
-    benchmarks.push(ReduceBenchmark::<B>::new(Instruction::Sum, device.clone()));
+    // benchmarks.push(ReduceBenchmark::<B>::new(Instruction::Sum, device.clone()));
 
     save::<B>(
         benchmarks.into_iter().map(run_benchmark).collect(),

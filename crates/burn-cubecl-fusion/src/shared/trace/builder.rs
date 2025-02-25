@@ -167,6 +167,29 @@ impl FuseTraceBuilder {
         Some(out)
     }
 
+    /// Register an output tensor.
+    pub fn output_manual(&mut self, tensor: &TensorIr) -> Option<Arg> {
+        if self.indexed.contains_key(&tensor.id) {
+            return None;
+        }
+
+        let precision = tensor.dtype.into();
+
+        // Bool tensors are encoded as bool_precision.
+        let precision_output = match precision {
+            ElemwisePrecision::Bool => self.bool_precision,
+            _ => precision,
+        };
+
+        match self.locals.get(precision, tensor.id) {
+            Some(_) => None,
+            None => {
+                let pos = self.outputs.insert(precision_output, tensor.clone());
+                Some(Arg::Output(0, precision_output, LayoutInfo::SameAsRef))
+            }
+        }
+    }
+
     /// Register an input that will be accessed using custom indexing with no vectorization.
     pub fn input_indexed(&mut self, tensor: &TensorIr) -> Option<Arg> {
         if let Some(val) = self.indexed.get(&tensor.id) {
