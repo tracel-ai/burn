@@ -5,7 +5,7 @@ use super::{
         ir::{ElemwiseOp, ElemwisePrecision},
         settings::FuseSettings,
     },
-    executor::LaunchPlanExecutor,
+    executor::{LaunchMultiPlanExecutor, LaunchPlanExecutor},
     input::InputPlanner,
     output::OutputPlanner,
     vectorization::VectorizationPlanner,
@@ -114,7 +114,7 @@ impl FuseTrace {
     ) -> Result<(), Runner::Error> {
         let (read, write) = this;
         let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
-        let mut plan_write = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
+        let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
 
         InputPlanner::<R>::new(
             &read.inputs,
@@ -154,8 +154,12 @@ impl FuseTrace {
         VectorizationPlanner::<R>::new(&write.views, &write.reads, &write.indexed)
             .run::<Runner>(context, &mut plan_write);
 
-        match LaunchPlanExecutor::<R>::new(&read.scalars, &read.views, &read.ops)
-            .execute_multi::<_, BT>(client, runner, context, (plan_read, plan_write))
+        match LaunchMultiPlanExecutor::<R>::new(
+            (&read.scalars, &write.scalars),
+            (&read.views, &write.views),
+            (&read.ops, &write.ops),
+        )
+        .execute::<_, BT>(client, runner, context, (plan_read, plan_write))
         {
             Err(err) => {
                 read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);

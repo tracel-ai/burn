@@ -8,7 +8,7 @@ use burn_tensor::{DType, Element};
 use cubecl::prelude::Sequence;
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FuseTraceBuilder {
     locals: Locals,
     outputs: RegisteredTensors,
@@ -22,6 +22,7 @@ pub struct FuseTraceBuilder {
     pub bool_precision: ElemwisePrecision,
     outputs_unhandled: Vec<Arg>,
     inputs_unhandled: Vec<TensorId>,
+    not_outputs: Vec<TensorId>,
 }
 
 impl FuseTraceBuilder {
@@ -39,6 +40,7 @@ impl FuseTraceBuilder {
             bool_precision,
             outputs_unhandled: Vec::new(),
             inputs_unhandled: Vec::new(),
+            not_outputs: Vec::new(),
         }
     }
 
@@ -57,6 +59,10 @@ impl FuseTraceBuilder {
         // one slot per scalar.
         let scalar = self.scalars.len() as u32;
         meta + inputs + outputs + scalar
+    }
+
+    pub fn not_output(&mut self, tensor: &TensorIr) {
+        self.not_outputs.push(tensor.id);
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.
@@ -165,29 +171,6 @@ impl FuseTraceBuilder {
         };
 
         Some(out)
-    }
-
-    /// Register an output tensor.
-    pub fn output_manual(&mut self, tensor: &TensorIr) -> Option<Arg> {
-        if self.indexed.contains_key(&tensor.id) {
-            return None;
-        }
-
-        let precision = tensor.dtype.into();
-
-        // Bool tensors are encoded as bool_precision.
-        let precision_output = match precision {
-            ElemwisePrecision::Bool => self.bool_precision,
-            _ => precision,
-        };
-
-        match self.locals.get(precision, tensor.id) {
-            Some(_) => None,
-            None => {
-                let pos = self.outputs.insert(precision_output, tensor.clone());
-                Some(Arg::Output(0, precision_output, LayoutInfo::SameAsRef))
-            }
-        }
     }
 
     /// Register an input that will be accessed using custom indexing with no vectorization.
@@ -593,7 +576,7 @@ impl FuseTraceBuilder {
         for entry in local_tensor_ids_output {
             let is_read = local_tensor_ids_input.contains(&entry);
 
-            if !is_read {
+            if !is_read && !self.not_outputs.contains(&entry.0) {
                 let (tensor_id, precision) = entry;
                 let (tensor, _) = self.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());

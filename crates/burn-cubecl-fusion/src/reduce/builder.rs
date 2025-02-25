@@ -52,6 +52,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         if self.reduce.is_none() {
             if let OperationIr::NumericFloat(_, NumericOperationIr::SumDim(op)) = operation {
                 let input = self.builder_read.input(&op.input);
+                self.builder_read.not_output(&op.input);
+
                 let output = self.builder_write.output_unhandled(&op.out);
                 let axis = op.axis;
 

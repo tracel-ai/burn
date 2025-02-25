@@ -58,7 +58,7 @@ macro_rules! bench_on_backend {
     };
     ($fn_name:ident) => {
         use std::env;
-        backend_comparison::init_log().unwrap();
+        // backend_comparison::init_log().unwrap();
 
         let args: Vec<String> = env::args().collect();
         let url = backend_comparison::get_sharing_url(&args);

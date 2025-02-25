@@ -90,7 +90,7 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_read: &'a ElemwiseConfig,
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
-        let strategy = ReduceStrategy::new::<R>(client, true);
+        let strategy = ReduceStrategy::new::<R>(client, false);
         let reduce_count: u32 = inputs
             .shape(&config_read.ref_layout)
             .iter()
@@ -160,7 +160,7 @@ fn launch_reduce<'a, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
     };
 
     unsafe {
-        reduce_kernel::launch_unchecked::<In, Out, Rd, FusedReduceArgs, Run>(
+        reduce_kernel::launch::<In, Out, Rd, FusedReduceArgs, Run>(
             client,
             config_reduce.cube_count,
             config_reduce.cube_dim,

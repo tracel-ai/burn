@@ -15,7 +15,7 @@ use crate::{
     CubeFusionHandle,
 };
 
-use super::{HandleOutput, LaunchPlan, TensorView, TraceRunner, Vectorization};
+use super::{HandleOutput, LaunchPlan, TensorView, Vectorization};
 
 /// Select the best vectorization factor for each tensor handle.
 pub struct VectorizationPlanner<'a, R: Runtime> {

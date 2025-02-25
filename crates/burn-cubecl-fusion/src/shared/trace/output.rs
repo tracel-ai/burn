@@ -25,6 +25,7 @@ pub struct OutputPlanner<'a, R: Runtime> {
     globals: Vec<Option<TensorIr>>,
 }
 
+#[derive(Debug)]
 struct OutputSorted<'a> {
     pos_original: usize,
     precision: ElemwisePrecision,
@@ -146,9 +147,30 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             plan.global_outputs.push(global.unwrap());
         }
 
+        if plan.reference.is_none() {
+            Self::select_reference_from_inputs(plan);
+        }
+
         Self::add_layout_info_inputs(plan);
     }
 
+    fn select_reference_from_inputs(plan: &mut LaunchPlan<'_, R>) {
+        let mut sorted: Vec<_> = plan.handle_inputs.iter().enumerate().collect();
+        sorted.sort_by(|a, b| {
+            let a_val: usize = a.1.global_shape.iter().product::<usize>();
+            let b_val: usize = b.1.global_shape.iter().product::<usize>();
+
+            b_val.cmp(&a_val)
+        });
+
+        if let Some((index, reference)) = sorted.get(0) {
+            plan.reference = Some(Reference {
+                layout: Arg::Input(*index as u32, reference.precision, LayoutInfo::IsRef),
+                shape: reference.global_shape.clone(),
+                strides: reference.handle.strides.clone(),
+            });
+        }
+    }
     fn add_layout_info_inputs(plan: &mut LaunchPlan<'_, R>) {
         for hi in plan.handle_inputs.iter() {
             if let Some(reference) = plan.reference.as_ref() {

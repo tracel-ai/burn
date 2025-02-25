@@ -1,10 +1,8 @@
 use cubecl::reduce::args::ReduceArgs;
 use cubecl::{prelude::*, reduce::args::ReducePrecision};
 
-use crate::shared::io::{
-    global_buffer_len, global_len, global_rank, global_shape, global_stride, write,
-};
-use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs};
+use crate::shared::io::{global_buffer_len, global_len, global_rank, global_shape, global_stride};
+use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand};
 use crate::shared::kernel::{fuse_on_read, fuse_on_write};
 
 #[derive(Clone)]

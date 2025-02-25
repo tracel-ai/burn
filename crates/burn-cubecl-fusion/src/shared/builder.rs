@@ -12,6 +12,7 @@ use burn_tensor::Element;
 use cubecl::ir::Elem;
 
 /// Fused element wise operations that are normally memory bound.
+#[derive(Debug)]
 pub(crate) struct FuseBuilder {
     builder: TryFuseBuilder,
     settings: FuseSettings,
@@ -22,6 +23,7 @@ pub(crate) struct FuseBuilder {
     max_bindings: u32,
 }
 
+#[derive(Debug)]
 struct TryFuseBuilder {
     builder: FuseTraceBuilder,
     max_bindings: u32,
@@ -176,13 +178,12 @@ impl FuseBuilder {
     pub fn input_unhandled(&mut self, tensor: &TensorIr) -> Arg {
         self.builder.builder.input_unhandled(tensor)
     }
+
     pub fn input(&mut self, tensor: &TensorIr) -> Arg {
-        println!("Input input_unhandled {tensor:?}");
         self.builder.builder.input(tensor).unwrap()
     }
-
-    pub fn output_manual(&mut self, tensor: &TensorIr) -> Arg {
-        self.builder.builder.output_manual(tensor).unwrap()
+    pub fn not_output(&mut self, tensor: &TensorIr) {
+        self.builder.builder.not_output(tensor)
     }
 
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> Arg {

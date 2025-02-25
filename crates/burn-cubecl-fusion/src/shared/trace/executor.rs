@@ -26,6 +26,17 @@ pub struct LaunchPlanExecutor<'a, R: Runtime> {
     _r: PhantomData<R>,
 }
 
+/// Execute a [plan](LaunchPlan) using a [runner](TraceRunner) modifying the [context](Context).
+pub struct LaunchMultiPlanExecutor<'a, R: Runtime> {
+    scalars: (
+        &'a Vec<(ElemwisePrecision, u32)>,
+        &'a Vec<(ElemwisePrecision, u32)>,
+    ),
+    views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
+    ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
+    _r: PhantomData<R>,
+}
+
 #[derive(new)]
 pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
     pub runner_error: Runner::Error,
@@ -42,17 +53,14 @@ pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
     pub plan_1_handles_output: Vec<HandleOutput<R>>,
 }
 
-pub struct Executor<'a, R: Runtime> {
-    inputs: GlobalArgsLaunch<'a, R>,
-    outputs: GlobalArgsLaunch<'a, R>,
-    config: ElemwiseConfig,
-}
-
-impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
+impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
     pub fn new(
-        scalars: &'a Vec<(ElemwisePrecision, u32)>,
-        views: &'a Vec<TensorView>,
-        ops: &'a Vec<ElemwiseOp>,
+        scalars: (
+            &'a Vec<(ElemwisePrecision, u32)>,
+            &'a Vec<(ElemwisePrecision, u32)>,
+        ),
+        views: (&'a Vec<TensorView>, &'a Vec<TensorView>),
+        ops: (&'a Vec<ElemwiseOp>, &'a Vec<ElemwiseOp>),
     ) -> Self {
         Self {
             scalars,
@@ -62,7 +70,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         }
     }
 
-    pub fn execute_multi<Runner: MultiTraceRunner<R>, BT: CubeElement>(
+    pub fn execute<Runner: MultiTraceRunner<R>, BT: CubeElement>(
         self,
         client: &ComputeClient<R::Server, R::Channel>,
         runner: &Runner,
@@ -79,8 +87,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
-        self.register_inputs(&plans.0.handle_inputs, &mut inputs);
-        self.register_outputs::<BT>(&plans.0.handle_outputs, &mut outputs);
+        register_inputs(&plans.0.handle_inputs, &mut inputs);
+        register_outputs::<BT, R>(&plans.0.handle_outputs, &mut outputs);
 
         let mut ops = Sequence::<ElemwiseOp>::new();
 
@@ -90,7 +98,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             }
         }
 
-        for op in self.ops.iter() {
+        for op in self.ops.0.iter() {
             ops.push(op.clone());
         }
 
@@ -112,9 +120,14 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             }
         };
 
-        self.register_inputs(&plans.1.handle_inputs, &mut inputs);
-        self.register_outputs::<BT>(&plans.1.handle_outputs, &mut outputs);
-        self.register_scalars(context, &mut inputs);
+        register_inputs(&plans.1.handle_inputs, &mut inputs);
+        register_outputs::<BT, R>(&plans.1.handle_outputs, &mut outputs);
+        register_scalars::<R>(
+            self.scalars.0.iter().chain(self.scalars.1.iter()),
+            self.views.0.iter().chain(self.views.1.iter()),
+            context,
+            &mut inputs,
+        );
 
         let mut ops = Sequence::<ElemwiseOp>::new();
 
@@ -124,14 +137,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             }
         }
 
-        for op in self.ops.iter() {
+        for op in self.ops.1.iter() {
             ops.push(op.clone());
         }
 
         for op in plans.1.writes.into_values() {
             ops.push(op);
         }
-
         let config_1 = ElemwiseConfig {
             rank: plans.1.rank as u32,
             ref_layout: reference.layout,
@@ -148,6 +160,20 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 plans.1.handle_outputs,
             )
         })
+    }
+}
+impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
+    pub fn new(
+        scalars: &'a Vec<(ElemwisePrecision, u32)>,
+        views: &'a Vec<TensorView>,
+        ops: &'a Vec<ElemwiseOp>,
+    ) -> Self {
+        Self {
+            scalars,
+            views,
+            ops,
+            _r: PhantomData,
+        }
     }
 
     pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
@@ -172,9 +198,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
-        self.register_inputs(&plan.handle_inputs, &mut inputs);
-        self.register_scalars(context, &mut inputs);
-        self.register_outputs::<BT>(&plan.handle_outputs, &mut outputs);
+        register_inputs(&plan.handle_inputs, &mut inputs);
+        register_scalars(self.scalars.iter(), self.views.iter(), context, &mut inputs);
+        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs);
 
         let mut ops = Sequence::<ElemwiseOp>::new();
 
@@ -202,159 +228,158 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         Runner::run(runner, client, inputs, outputs, &config)
             .map_err(|err| ExecutionError::new(err, plan.handle_inputs, plan.handle_outputs))
     }
+}
 
-    fn register_inputs<'h>(
-        &self,
-        handle_inputs: &'h [HandleInput<R>],
-        inputs: &mut GlobalArgsLaunch<'h, R>,
-    ) {
-        for hi in handle_inputs.iter() {
-            let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
-            inputs.tensors.push(GlobalTensorArg::new(
-                arg,
-                hi.precision.into_elem(),
-                hi.broadcated,
-            ));
-        }
+fn register_inputs<'h, R: Runtime>(
+    handle_inputs: &'h [HandleInput<R>],
+    inputs: &mut GlobalArgsLaunch<'h, R>,
+) {
+    for hi in handle_inputs.iter() {
+        let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
+        inputs.tensors.push(GlobalTensorArg::new(
+            arg,
+            hi.precision.into_elem(),
+            hi.broadcated,
+        ));
     }
+}
 
-    fn register_scalars<'h>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        inputs: &mut GlobalArgsLaunch<'h, R>,
-    ) {
-        let mut index_f32 = 0;
-        let mut index_f16 = 0;
-        let mut index_bf16 = 0;
-        let mut index_u64 = 0;
-        let mut index_u32 = 0;
-        let mut index_u16 = 0;
-        let mut index_u8 = 0;
-        let mut index_i64 = 0;
-        let mut index_i32 = 0;
-        let mut index_i16 = 0;
-        let mut index_i8 = 0;
-
-        for (precision, _pos) in self.scalars.iter() {
-            match precision {
-                ElemwisePrecision::F32 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
-                    index_f32 += 1;
-                }
-                ElemwisePrecision::F16 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
-                    index_f16 += 1;
-                }
-                ElemwisePrecision::BF16 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
-                    index_bf16 += 1;
-                }
-                ElemwisePrecision::I64 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
-                    index_i64 += 1;
-                }
-                ElemwisePrecision::I32 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
-                    index_i32 += 1;
-                }
-                ElemwisePrecision::I16 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
-                    index_i16 += 1;
-                }
-                ElemwisePrecision::I8 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
-                    index_i8 += 1;
-                }
-                ElemwisePrecision::U64 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
-                    index_u64 += 1;
-                }
-                ElemwisePrecision::U32 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
-                    index_u32 += 1;
-                }
-                ElemwisePrecision::U16 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
-                    index_u16 += 1;
-                }
-                ElemwisePrecision::U8 => {
-                    inputs
-                        .scalars
-                        .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
-                    index_u8 += 1;
-                }
-                ElemwisePrecision::Bool => todo!(),
+fn register_outputs<'s, BT: CubeElement, R: Runtime>(
+    handle_outputs: &'s [HandleOutput<R>],
+    outputs: &mut GlobalArgsLaunch<'s, R>,
+) {
+    for item in handle_outputs.iter() {
+        match item {
+            HandleOutput::Alias {
+                input_pos,
+                precision,
+            } => {
+                outputs.tensors.push(GlobalTensorArg::new(
+                    TensorArg::alias(*input_pos),
+                    precision.into_elem(),
+                    false,
+                ));
             }
-        }
+            HandleOutput::Owned {
+                precision,
+                handle,
+                global_shape,
+                vectorization,
+                ..
+            } => {
+                let arg = handle.as_tensor_arg(global_shape, *vectorization);
 
-        // Reshape values are pushed in reverse in the same scalar buffer for all `u32`
-        for relative in self.views.iter().rev() {
-            if let TensorView::Reshape { reshaped, .. } = relative {
-                let global = context.tensors.get(reshaped).unwrap();
-
-                for shape in global.shape.iter().rev() {
-                    inputs.scalars.push(GlobalScalar::U32(*shape as u32));
-                }
+                let elem = match precision {
+                    ElemwisePrecision::Bool => match elem_dtype::<BT>() {
+                        DType::U32 => ElemwisePrecision::U32.into_elem(),
+                        DType::U8 => ElemwisePrecision::U8.into_elem(),
+                        _ => todo!(),
+                    },
+                    _ => precision.into_elem(),
+                };
+                outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
             }
         }
     }
+}
 
-    fn register_outputs<'s, BT: CubeElement>(
-        &self,
-        handle_outputs: &'s [HandleOutput<R>],
-        outputs: &mut GlobalArgsLaunch<'s, R>,
-    ) {
-        for item in handle_outputs.iter() {
-            match item {
-                HandleOutput::Alias {
-                    input_pos,
-                    precision,
-                } => {
-                    outputs.tensors.push(GlobalTensorArg::new(
-                        TensorArg::alias(*input_pos),
-                        precision.into_elem(),
-                        false,
-                    ));
-                }
-                HandleOutput::Owned {
-                    precision,
-                    handle,
-                    global_shape,
-                    vectorization,
-                    ..
-                } => {
-                    let arg = handle.as_tensor_arg(global_shape, *vectorization);
+fn register_scalars<'h, R: Runtime>(
+    scalars: impl Iterator<Item = &'h (ElemwisePrecision, u32)>,
+    views: impl DoubleEndedIterator<Item = &'h TensorView>,
+    context: &mut Context<'_, CubeFusionHandle<R>>,
+    inputs: &mut GlobalArgsLaunch<'h, R>,
+) {
+    let mut index_f32 = 0;
+    let mut index_f16 = 0;
+    let mut index_bf16 = 0;
+    let mut index_u64 = 0;
+    let mut index_u32 = 0;
+    let mut index_u16 = 0;
+    let mut index_u8 = 0;
+    let mut index_i64 = 0;
+    let mut index_i32 = 0;
+    let mut index_i16 = 0;
+    let mut index_i8 = 0;
 
-                    let elem = match precision {
-                        ElemwisePrecision::Bool => match elem_dtype::<BT>() {
-                            DType::U32 => ElemwisePrecision::U32.into_elem(),
-                            DType::U8 => ElemwisePrecision::U8.into_elem(),
-                            _ => todo!(),
-                        },
-                        _ => precision.into_elem(),
-                    };
-                    outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
-                }
+    for (precision, _pos) in scalars {
+        match precision {
+            ElemwisePrecision::F32 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::F32(context.scalar_f32[index_f32]));
+                index_f32 += 1;
+            }
+            ElemwisePrecision::F16 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::F16(context.scalar_f16[index_f16]));
+                index_f16 += 1;
+            }
+            ElemwisePrecision::BF16 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::BF16(context.scalar_bf16[index_bf16]));
+                index_bf16 += 1;
+            }
+            ElemwisePrecision::I64 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::I64(context.scalar_i64[index_i64]));
+                index_i64 += 1;
+            }
+            ElemwisePrecision::I32 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::I32(context.scalar_i32[index_i32]));
+                index_i32 += 1;
+            }
+            ElemwisePrecision::I16 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::I16(context.scalar_i16[index_i16]));
+                index_i16 += 1;
+            }
+            ElemwisePrecision::I8 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::I8(context.scalar_i8[index_i8]));
+                index_i8 += 1;
+            }
+            ElemwisePrecision::U64 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::U64(context.scalar_u64[index_u64]));
+                index_u64 += 1;
+            }
+            ElemwisePrecision::U32 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::U32(context.scalar_u32[index_u32]));
+                index_u32 += 1;
+            }
+            ElemwisePrecision::U16 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::U16(context.scalar_u16[index_u16]));
+                index_u16 += 1;
+            }
+            ElemwisePrecision::U8 => {
+                inputs
+                    .scalars
+                    .push(GlobalScalar::U8(context.scalar_u8[index_u8]));
+                index_u8 += 1;
+            }
+            ElemwisePrecision::Bool => todo!(),
+        }
+    }
+
+    // Reshape values are pushed in reverse in the same scalar buffer for all `u32`
+    for relative in views.rev() {
+        if let TensorView::Reshape { reshaped, .. } = relative {
+            let global = context.tensors.get(reshaped).unwrap();
+
+            for shape in global.shape.iter().rev() {
+                inputs.scalars.push(GlobalScalar::U32(*shape as u32));
             }
         }
     }
