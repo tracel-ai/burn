@@ -35,6 +35,11 @@ On Windows:
 $Env:TORCH_CUDA_VERSION = "cu124"
 ```
 
+> Note: `tch` doesn't expose the downloaded libtorch directory on Windows when using the automatic
+> download feature, so the `torch_cuda.dll` cannot be detected properly during build. In this case,
+> you can set the `LIBTORCH` environment variable to point to the `libtorch/` folder in `torch-sys`
+> `OUT_DIR` (or move the downloaded lib to a different folder and point to it).
+
 For example, running the validation sample for the first time could be done with the following
 commands:
 
