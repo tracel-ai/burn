@@ -133,6 +133,137 @@ mod tests {
         let device = Default::default();
         let tensor = TestTensor::<2>::from_floats(
             [
+                [-1.8, -1.0, 0.0, 0.5],
+                [-0.8, 1.2, 0.25, 0.5],
+                [-0.08, 0.12, 0.025, 0.05],
+                [0.2, 0.3, 0.4, 0.5],
+                [0.01, 0.03, 0.02, 0.06],
+                [4.0, 3.0, 2.0, 1.0],
+                [0.4, 0.3, 0.2, 0.1],
+                [0.5, 0.0, -1.0, -1.8],
+            ],
+            &device,
+        );
+        let scheme = QuantizationScheme::PerBlock(
+            QuantizationMode::Symmetric,
+            QuantizationType::QInt8,
+            BlockLayout::Flat(4),
+        );
+
+        // Per-block qparams
+        let scales: [f32; 8] = [
+            0.014173228,
+            0.009448819,
+            0.0009448819,
+            0.003937008,
+            0.00047244094,
+            0.031496063,
+            0.0031496063,
+            0.014173228,
+        ];
+        let qparams = QuantizationParameters {
+            scale: Tensor::from_floats(scales, &device),
+            offset: None,
+        };
+
+        let x_q = tensor.quantize(&scheme, qparams).into_data();
+
+        let expected = TensorData::quantized(
+            vec![
+                [-127i8, -71, 0, 35],
+                [-85, 127, 26, 53],
+                [-85, 127, 26, 53],
+                [51, 76, 102, 127],
+                [21, 64, 42, 127],
+                [127, 95, 64, 32],
+                [127, 95, 64, 32],
+                [35, 0, -71, -127],
+            ]
+            .concat(),
+            [8, 4],
+            QuantizationStrategy::PerBlockSymmetricInt8(
+                scales
+                    .iter()
+                    .map(|&s| SymmetricQuantization::init(s))
+                    .collect(),
+                BlockLayout::Flat(4),
+            ),
+        );
+
+        // Values equality
+        x_q.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 8);
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, None);
+        assert_eq!(qparams.offset, expected.offset);
+    }
+
+    #[test]
+    fn should_support_quantize_per_block_affine_int8() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_floats(
+            [
+                [-1.8, -1.0, 0.0, 0.5, -0.8, 1.2, 0.25, 0.5],
+                [-0.08, 0.12, 0.025, 0.05, 0.2, 0.3, 0.4, 0.5],
+            ],
+            &device,
+        );
+        let scheme = QuantizationScheme::PerBlock(
+            QuantizationMode::Affine,
+            QuantizationType::QInt8,
+            BlockLayout::Flat(4),
+        );
+
+        // Per-block qparams
+        let scales: [f32; 4] = [0.009019608, 0.007843138, 0.00078431366, 0.0019607844];
+        let offsets: [i8; 4] = [71, -26, -25, -128];
+        let qparams = QuantizationParameters {
+            scale: Tensor::from_floats(scales, &device),
+            offset: Some(Tensor::from_ints(offsets, &device)),
+        };
+
+        let x_q = tensor.quantize(&scheme, qparams).into_data();
+
+        let expected = TensorData::quantized(
+            vec![
+                [-128i8, -40, 71, 126],
+                [-128, 127, 6, 38],
+                [-127, 127, 7, 39],
+                [-26, 25, 76, 127],
+            ]
+            .concat(),
+            [2, 8],
+            QuantizationStrategy::PerBlockAffineInt8(
+                scales
+                    .iter()
+                    .zip(offsets.iter())
+                    .map(|(&s, &o)| AffineQuantization::init(s, o))
+                    .collect(),
+                BlockLayout::Flat(4),
+            ),
+        );
+
+        // Values equality
+        x_q.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = get_q_params(x_q);
+        let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 4);
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset.as_ref().unwrap().len(), 4);
+        assert_eq!(qparams.offset, expected.offset);
+    }
+
+    #[test]
+    fn should_support_quantize_per_block_grid_symmetric_int8() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_floats(
+            [
                 // 2x2 blocks: [[-1.8, -1.0, 0.0, 0.5], [-0.8, 1.2, 0.25, 0.5]]
                 [-1.8, -1.0, -0.8, 1.2],
                 [0.0, 0.5, 0.25, 0.5],

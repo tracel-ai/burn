@@ -155,10 +155,13 @@ impl QuantizationStrategy {
             QuantizationStrategy::PerTensorSymmetricInt8(_) => {
                 QuantizationScheme::PerTensor(QuantizationMode::Symmetric, QuantizationType::QInt8)
             }
-            // QuantizationStrategy::PerBlockAffineInt8(_, layout) => todo!(),
-            QuantizationStrategy::PerBlockSymmetricInt8(_, layout)
-            | QuantizationStrategy::PerBlockAffineInt8(_, layout) => QuantizationScheme::PerBlock(
+            QuantizationStrategy::PerBlockSymmetricInt8(_, layout) => QuantizationScheme::PerBlock(
                 QuantizationMode::Symmetric,
+                QuantizationType::QInt8,
+                *layout,
+            ),
+            QuantizationStrategy::PerBlockAffineInt8(_, layout) => QuantizationScheme::PerBlock(
+                QuantizationMode::Affine,
                 QuantizationType::QInt8,
                 *layout,
             ),
@@ -419,7 +422,6 @@ mod tests {
         let symmetric = SymmetricQuantization::<f32, i8>::new(-1.8, 0.5);
 
         let q: Vec<i8> = symmetric.quantize(&x);
-        // println!("Expected q: {q:?}");
         assert_eq!(q, expected_q);
 
         let d = symmetric.dequantize(&expected_q);
@@ -446,6 +448,49 @@ mod tests {
         assert_eq!(q, expected_q);
 
         let d = symmetric.dequantize(&expected_q);
+
+        assert_eq!(d, expected_d);
+    }
+
+    #[test]
+    fn test_int8_affine_quantization_per_block_flat() {
+        let x = vec![
+            [-1.8, -1.0, 0.0, 0.5],
+            [-0.8, 1.2, 0.25, 0.5],
+            [-0.08, 0.12, 0.025, 0.05],
+            [0.2, 0.3, 0.4, 0.5],
+        ]
+        .concat();
+        let shape = &[2, 8];
+        let expected_q = vec![
+            [-128i8, -40, 71, 126],
+            [-128, 127, 6, 38],
+            [-127, 127, 7, 39],
+            [-26, 25, 76, 127],
+        ]
+        .concat();
+        let expected_d = vec![
+            [-1.794902, -1.0011765, 0.0, 0.49607843],
+            [-0.8000001, 1.2, 0.2509804, 0.5019608],
+            [-0.07999999, 0.119215675, 0.025098037, 0.050196074],
+            [0.20000002, 0.3, 0.40000004, 0.5],
+        ]
+        .concat();
+
+        // Affine quantization for each block with range min/max
+        let per_block_strat = vec![
+            AffineQuantization::<f32, i8, i32>::new(-1.8, 0.5),
+            AffineQuantization::<f32, i8, i32>::new(-0.8, 1.2),
+            AffineQuantization::<f32, i8, i32>::new(-0.08, 0.12),
+            AffineQuantization::<f32, i8, i32>::new(0.2, 0.5),
+        ];
+        let strategy =
+            QuantizationStrategy::PerBlockAffineInt8(per_block_strat, BlockLayout::Flat(4));
+
+        let q: Vec<i8> = strategy.quantize(&x, shape);
+        assert_eq!(q, expected_q);
+
+        let d = strategy.dequantize(&expected_q, shape);
 
         assert_eq!(d, expected_d);
     }
