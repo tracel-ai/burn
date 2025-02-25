@@ -189,6 +189,7 @@ pub(crate) fn quantize_per_block_flat_symmetric_int8_kernel(
     }
 }
 
+// TODO: refactor affin/symmetric kernels. The applied function is the same, only the qparams used change.
 #[cube(launch_unchecked)]
 pub(crate) fn quantize_per_block_flat_affine_int8_kernel(
     input: &Tensor<Line<f32>>,

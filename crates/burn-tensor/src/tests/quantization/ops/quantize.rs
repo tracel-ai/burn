@@ -203,6 +203,7 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
+    // TODO: block_size 8 (block_size > line_size)
     #[test]
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
