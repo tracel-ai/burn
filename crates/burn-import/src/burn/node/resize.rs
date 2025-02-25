@@ -23,16 +23,16 @@ impl ResizeNode {
         scales: Vec<f32>,
         sizes: Vec<usize>,
     ) -> Self {
-        let ty = if input.dim == 3 {
+        let ty = if input.rank == 3 {
             quote! {
                 Interpolate1d
             }
-        } else if input.dim == 4 {
+        } else if input.rank == 4 {
             quote! {
                 Interpolate2d
             }
         } else {
-            panic!("Unsupported input dimension for resize node");
+            panic!("Unsupported input rank for resize node");
         };
 
         Self {
@@ -69,7 +69,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
             _ => panic!("Unsupported mode for resize node"),
         };
 
-        let tokens = if self.input.dim == 3 {
+        let tokens = if self.input.rank == 3 {
             let size = if let Some(size) = self.sizes.first() {
                 let size = size.to_tokens();
                 quote! { Some(#size) }
@@ -91,7 +91,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                     .with_mode(#mode)
                     .init();
             }
-        } else if self.input.dim == 4 {
+        } else if self.input.rank == 4 {
             let size = if self.sizes.len() == 2 {
                 let h = self.sizes[0].to_tokens();
                 let w = self.sizes[1].to_tokens();
@@ -116,7 +116,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
                     .init();
             }
         } else {
-            panic!("Unsupported input dimension for resize node");
+            panic!("Unsupported input rank for resize node");
         };
 
         Some(tokens)
@@ -124,14 +124,14 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ResizeNode {
 
     fn register_imports(&self, imports: &mut crate::burn::BurnImports) {
         imports.register("burn::nn::interpolate::InterpolateMode");
-        if self.input.dim == 3 {
+        if self.input.rank == 3 {
             imports.register("burn::nn::interpolate::Interpolate1dConfig");
             imports.register("burn::nn::interpolate::Interpolate1d");
-        } else if self.input.dim == 4 {
+        } else if self.input.rank == 4 {
             imports.register("burn::nn::interpolate::Interpolate2dConfig");
             imports.register("burn::nn::interpolate::Interpolate2d");
         } else {
-            panic!("Unsupported input dimension for resize node");
+            panic!("Unsupported input rank for resize node");
         }
     }
 

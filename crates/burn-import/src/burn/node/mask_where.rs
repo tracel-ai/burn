@@ -28,8 +28,8 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
     fn forward(&self, scope: &mut crate::burn::Scope, node_position: usize) -> TokenStream {
         match &self.output {
             Type::Tensor(out) => {
-                let cond = Self::input_as_tensor(&self.condition, out.dim, scope, node_position);
-                let y = Self::input_as_tensor(&self.y, out.dim, scope, node_position);
+                let cond = Self::input_as_tensor(&self.condition, out.rank, scope, node_position);
+                let y = Self::input_as_tensor(&self.y, out.rank, scope, node_position);
                 let out_id = &out.name;
 
                 if let Type::Scalar(x) = &self.x {
@@ -38,7 +38,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for WhereNode {
                         let #out_id = #y.mask_fill(#cond, #x);
                     }
                 } else {
-                    let x = Self::input_as_tensor(&self.x, out.dim, scope, node_position);
+                    let x = Self::input_as_tensor(&self.x, out.rank, scope, node_position);
                     quote! {
                         let #out_id = #y.mask_where(#cond, #x);
                     }
@@ -96,7 +96,7 @@ impl WhereNode {
         node_position: usize,
     ) -> TokenStream {
         let (tensor, rank) = match input {
-            Type::Tensor(t) => (scope.tensor_use_owned(t, node_position), t.dim),
+            Type::Tensor(t) => (scope.tensor_use_owned(t, node_position), t.rank),
             Type::Scalar(s) => (s.to_full_tensor(&vec![1; broadcast_rank]), broadcast_rank),
             Type::Shape(s) => (s.to_tensor(), 1),
             _ => panic!("Where op: {input:?} input not implemented"),

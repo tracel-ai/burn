@@ -105,7 +105,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantOfShapeNode {
         let input = self.input.name();
 
         let output_rank = match &self.output {
-            Type::Tensor(tensor) => tensor.dim.to_tokens(),
+            Type::Tensor(tensor) => tensor.rank.to_tokens(),
             _ => unreachable!(),
         };
 

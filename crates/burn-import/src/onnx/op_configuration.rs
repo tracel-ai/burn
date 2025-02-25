@@ -506,7 +506,7 @@ pub fn expand_config(node: &Node) -> ExpandShape {
     let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Expand: shape tensor must be 1D");
+            assert_eq!(tensor.rank, 1, "Expand: shape tensor must be 1D");
             assert!(
                 tensor.shape.is_some(),
                 "Expand: shape tensor shape must be known!"
@@ -552,15 +552,15 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
     };
 
     // check if the input tensor has at least 2 dimensions
-    if tensor.dim < 2 {
+    if tensor.rank < 2 {
         panic!(
             "Flatten: input tensor must have at least 2 dimensions (got {:?})",
-            tensor.dim
+            tensor.rank
         );
     }
 
     // the end dimension is the last dimension
-    let end_dim = tensor.dim - 1;
+    let end_dim = tensor.rank - 1;
 
     // extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -572,7 +572,7 @@ pub fn flatten_config(curr: &Node) -> (usize, usize) {
 
     // if beg_dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.dim as i64;
+        start_dim += tensor.rank as i64;
     }
 
     (start_dim as usize, end_dim)
@@ -590,7 +590,7 @@ pub fn gather_config(curr: &Node) -> usize {
 
     // extract the shape of the input tensor
     let input_dim = match curr.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim as i64,
+        ArgType::Tensor(tensor) => tensor.rank as i64,
         ArgType::Shape(_shape) => 1, //Shape is always 1-D
         other => panic!("Only tensor or shape input is valid, got {:?}", other),
     };
@@ -625,10 +625,10 @@ pub fn linear_config(node: &Node) -> LinearConfig {
     };
 
     // check if the weight tensor has at least 2 dimensions
-    if weight.dim < 2 {
+    if weight.rank < 2 {
         panic!(
             "Linear: weight tensor must have at least 2 dimensions (got {:?})",
-            weight.dim
+            weight.rank
         );
     }
 
@@ -698,7 +698,7 @@ pub fn log_softmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -733,7 +733,7 @@ pub fn softmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -785,7 +785,7 @@ pub fn argmax_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -812,7 +812,7 @@ pub fn concat_config(node: &Node) -> usize {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     axis as usize
@@ -871,7 +871,7 @@ pub fn layer_norm_config(node: &Node) -> (LayerNormConfig, bool) {
         }
     }
 
-    if axis != -1 && axis != tensor_type.dim as i64 - 1 {
+    if axis != -1 && axis != tensor_type.rank as i64 - 1 {
         panic!("LayerNorm: normalization is only supported on the last axis right now")
     }
 
@@ -930,7 +930,7 @@ pub fn top_k_config(node: &Node) -> TopKConfig {
 
     // if axis is negative, it is counted from the end
     if axis < 0 {
-        axis += data_tensor.dim as i64;
+        axis += data_tensor.rank as i64;
     }
 
     if let Some(largest) = node.attrs.get("largest") {
@@ -989,7 +989,7 @@ pub fn pad_config(node: &Node) -> PadConfig {
         }
 
         let input_dim = match &node.inputs.first().unwrap().ty {
-            ArgType::Tensor(tensor) => tensor.dim,
+            ArgType::Tensor(tensor) => tensor.rank,
             _ => panic!("Pad: Only tensor input is valid"),
         };
 
@@ -1260,7 +1260,7 @@ pub fn reshape_config(node: &Node) -> Vec<i64> {
     let input_value = &node.inputs[1].value;
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Reshape: shape tensor must be 1D");
+            assert_eq!(tensor.rank, 1, "Reshape: shape tensor must be 1D");
 
             if let Some(Data::Int64s(shape)) = input_value.as_ref() {
                 shape.clone()
@@ -1384,14 +1384,14 @@ pub fn resize_config(node: &Node) -> (String, Vec<f32>, Vec<usize>) {
     }
 
     if !scales.is_empty() {
-        assert!(scales.len() == input.dim);
+        assert!(scales.len() == input.rank);
         // ignore the fist two items from scales
         // because they are the batch and channel dimensions
         scales = scales.iter().skip(2).cloned().collect();
     }
 
     if !sizes.is_empty() {
-        assert!(sizes.len() == input.dim);
+        assert!(sizes.len() == input.rank);
         // ignore the fist two items from sizes
         // because they are the batch and channel dimensions
         sizes = sizes.iter().skip(2).cloned().collect();
@@ -1420,7 +1420,7 @@ pub fn unsqueeze_config(node: &Node) -> Vec<i64> {
 
     match &node.inputs[1].ty {
         ArgType::Tensor(tensor) => {
-            assert_eq!(tensor.dim, 1, "Unsqueeze: axes tensor must be 1D");
+            assert_eq!(tensor.rank, 1, "Unsqueeze: axes tensor must be 1D");
             if let Some(Data::Int64s(shape)) = input_value.value.as_ref() {
                 shape.clone()
             } else {
@@ -1522,7 +1522,7 @@ pub fn reduce_max_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1564,7 +1564,7 @@ pub fn reduce_min_config(node: &Node) -> Option<usize> {
         let mut dim = axes[0];
 
         if dim < 0 {
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1608,7 +1608,7 @@ pub fn reduce_mean_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1653,7 +1653,7 @@ pub fn reduce_prod_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1707,7 +1707,7 @@ pub fn reduce_sum_config(node: &Node) -> Option<usize> {
 
         if dim < 0 {
             // Accepted range is [-r, r-1] where r = rank(data) but Burn only supports positive dim
-            dim += tensor.dim as i64;
+            dim += tensor.rank as i64;
         }
         Some(dim as usize)
     }
@@ -1729,7 +1729,7 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // Default: all axes up to the last one (included)
     let mut start_dim: i64 = 0;
-    let mut end_dim: i64 = tensor.dim as i64;
+    let mut end_dim: i64 = tensor.rank as i64;
 
     // Extract the attributes
     for (key, value) in curr.attrs.iter() {
@@ -1742,10 +1742,10 @@ pub fn shape_config(curr: &Node) -> (usize, usize) {
 
     // If dim is negative, it is counted from the end
     if start_dim < 0 {
-        start_dim += tensor.dim as i64;
+        start_dim += tensor.rank as i64;
     }
     if end_dim < 0 {
-        end_dim += tensor.dim as i64;
+        end_dim += tensor.rank as i64;
     }
 
     (start_dim as usize, end_dim as usize)
@@ -1788,7 +1788,7 @@ pub fn slice_config(node: &Node) -> Vec<Option<(i64, i64)>> {
 
     // Extract the shape of the input tensor
     let input_dim = match node.inputs.first().unwrap().clone().ty {
-        ArgType::Tensor(tensor) => tensor.dim,
+        ArgType::Tensor(tensor) => tensor.rank,
         _ => panic!("Only tensor input is valid"),
     };
 
@@ -1835,7 +1835,7 @@ pub fn transpose_config(curr: &Node) -> Vec<i64> {
     };
 
     // Default: reverse the dimensions
-    let mut perm = (0..tensor.dim as i64).rev().collect::<Vec<i64>>();
+    let mut perm = (0..tensor.rank as i64).rev().collect::<Vec<i64>>();
 
     if let Some(axes) = curr.attrs.get("perm") {
         perm = axes.clone().into_i64s();
@@ -1904,7 +1904,7 @@ pub fn split_config(node: &Node) -> SplitConfig {
     }
 
     if axis < 0 {
-        axis += tensor.dim as i64;
+        axis += tensor.rank as i64;
     }
 
     if node.inputs.len() > 1 {

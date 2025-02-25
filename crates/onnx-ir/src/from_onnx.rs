@@ -13,8 +13,8 @@ use super::{
     protos::{ModelProto, NodeProto, TensorProto, ValueInfoProto},
 };
 
-use super::dim_inference::dim_inference;
 use super::ir::{ArgType, Argument, Node, NodeType};
+use super::rank_inference::rank_inference;
 
 use protobuf::Message;
 
@@ -224,7 +224,7 @@ impl OnnxGraphBuilder {
             // args : node, peek_iter, graph_data
             self.handle_unsqueeze(&mut node, &graph_data);
 
-            dim_inference(&mut node);
+            rank_inference(&mut node);
             graph_data.add_node(node);
         }
 
@@ -395,7 +395,7 @@ pub(crate) fn remap_unsqueeze_to_reshape(node: &mut Node, out_arg: &Argument) {
             name: format!("{}_generated_const", &node.name),
             ty: ArgType::Tensor(TensorType {
                 elem_type: super::ir::ElementType::Int64,
-                dim: 1,
+                rank: 1,
                 shape: Some(vec![shape_len]),
             }),
             value: new_rhs_value,
