@@ -1,7 +1,9 @@
 use crate::tensor::CubeTensor;
 use crate::FloatElement;
 use crate::{CubeElement, CubeRuntime};
-use burn_tensor::quantization::{QuantizationMode, QuantizationScheme, QuantizationType};
+use burn_tensor::quantization::{
+    BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType,
+};
 use burn_tensor::DType;
 use cubecl::calculate_cube_count_elemwise;
 use cubecl::prelude::*;
@@ -16,6 +18,12 @@ pub(crate) fn dequantize_affine_int8<F: Float>(
 ) -> Line<F> {
     // x = scale * (x_q - offset)
     Line::cast_from(scale) * Line::cast_from(value - Line::cast_from(offset))
+}
+
+#[cube]
+pub(crate) fn dequantize_symmetric_int8<F: Float>(value: Line<i32>, scale: f32) -> Line<F> {
+    // x = scale * x_q
+    Line::cast_from(scale) * Line::cast_from(value)
 }
 
 #[cube]
@@ -51,8 +59,8 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
         terminate!();
     }
 
-    let qparams = QParams::new(scheme);
-    let (scale, offset) = qparams.values(input);
+    let qparams = QParams::new(scheme, 0u32);
+    let (scale, offset) = qparams.values(input, ABSOLUTE_POS);
 
     let value = input[ABSOLUTE_POS];
 
@@ -70,12 +78,6 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
     }
 }
 
-#[cube]
-pub(crate) fn dequantize_symmetric_int8<F: Float>(value: Line<i32>, scale: f32) -> Line<F> {
-    // x = scale * x_q
-    Line::cast_from(scale) * Line::cast_from(value)
-}
-
 // Would have wrapped symmetric with the same affine kernel but cube doesn't support Option<Tensor> for offset.
 #[cube(launch_unchecked)]
 pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
@@ -88,8 +90,8 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
         terminate!();
     }
 
-    let qparams = QParams::new(scheme);
-    let (scale, _) = qparams.values(input);
+    let qparams = QParams::new(scheme, 0u32);
+    let (scale, _) = qparams.values(input, ABSOLUTE_POS);
 
     let value = input[ABSOLUTE_POS];
 
@@ -107,7 +109,69 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
     }
 }
 
-pub(crate) fn dequantize_per_tensor<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
+#[cube(launch_unchecked)]
+pub(crate) fn dequantize_per_block_symmetric_int8_kernel(
+    input: &QTensor,
+    output: &mut Tensor<Line<f32>>,
+    #[comptime] scheme: QuantizationScheme,
+    #[comptime] num_blocks: u32,
+) {
+    // Last num_blocks positions contains the qparams
+    if ABSOLUTE_POS >= input.len() - num_blocks {
+        terminate!();
+    }
+
+    let qparams = QParams::new(scheme, num_blocks);
+    let (scale, _) = qparams.values(input, ABSOLUTE_POS);
+
+    let value = input[ABSOLUTE_POS];
+
+    // Input line size is fixed to 1
+    if comptime!(output.line_size() == 4) {
+        output[ABSOLUTE_POS] = dequantize_symmetric_int8(extract_i8s(value[0]), scale);
+    } else {
+        // For very small inputs where number of elements < 4, the output line size is 1
+        let out = dequantize_symmetric_int8::<f32>(extract_i8s(value[0]), scale);
+
+        #[unroll]
+        for j in 0..out.size() {
+            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+        }
+    }
+}
+
+#[cube(launch_unchecked)]
+pub(crate) fn dequantize_per_block_affine_int8_kernel(
+    input: &QTensor,
+    output: &mut Tensor<Line<f32>>,
+    #[comptime] scheme: QuantizationScheme,
+    #[comptime] num_blocks: u32,
+) {
+    // Last 2 * num_blocks positions contain the qparams
+    if ABSOLUTE_POS >= input.len() - 2 * num_blocks {
+        terminate!();
+    }
+
+    let qparams = QParams::new(scheme, num_blocks);
+    let (scale, offset) = qparams.values(input, ABSOLUTE_POS);
+
+    let value = input[ABSOLUTE_POS];
+
+    // Input line size is fixed to 1
+    if comptime!(output.line_size() == 4) {
+        output[ABSOLUTE_POS] = dequantize_affine_int8(extract_i8s(value[0]), scale, offset);
+    } else {
+        // For very small inputs where number of elements < 4, the output line size is 1
+        let out = dequantize_affine_int8::<f32>(extract_i8s(value[0]), scale, offset);
+
+        #[unroll]
+        for j in 0..out.size() {
+            output[ABSOLUTE_POS + j] = Line::cast_from(out[j]);
+        }
+    }
+}
+
+pub(crate) fn dequantize_per_scheme<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
     R: CubeRuntime,
     F: CubeElement,
@@ -158,7 +222,43 @@ where
                     )
                 };
             }
-            QuantizationScheme::PerBlock(_mode, QuantizationType::QInt8, _block_layout) => todo!(),
+            QuantizationScheme::PerBlock(
+                QuantizationMode::Affine,
+                QuantizationType::QInt8,
+                BlockLayout::Flat(block_size),
+            ) => {
+                let num_blocks = num_out_elems as u32 / block_size;
+                unsafe {
+                    dequantize_per_block_affine_int8_kernel::launch_unchecked::<R>(
+                        &client,
+                        cube_count,
+                        cube_dim,
+                        tensor.as_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg::<F>(line_size_out),
+                        scheme,
+                        num_blocks,
+                    )
+                };
+            }
+            QuantizationScheme::PerBlock(
+                QuantizationMode::Symmetric,
+                QuantizationType::QInt8,
+                BlockLayout::Flat(block_size),
+            ) => {
+                let num_blocks = num_out_elems as u32 / block_size;
+                unsafe {
+                    dequantize_per_block_symmetric_int8_kernel::launch_unchecked::<R>(
+                        &client,
+                        cube_count,
+                        cube_dim,
+                        tensor.as_array_arg::<u32>(line_size_in),
+                        output.as_tensor_arg::<F>(line_size_out),
+                        scheme,
+                        num_blocks,
+                    )
+                };
+            }
+            _ => panic!("Unsupported scheme for dequantize {scheme:?}"),
         }
     }
 
@@ -171,5 +271,5 @@ where
     R: CubeRuntime,
     F: FloatElement,
 {
-    dequantize_per_tensor::<R, F>(tensor)
+    dequantize_per_scheme::<R, F>(tensor)
 }

@@ -35,8 +35,9 @@ mod tests {
             offset: Some(Tensor::from_ints([72], &device)),
         };
 
-        let x_q = tensor.quantize(&scheme, qparams).into_data();
+        let x_q = tensor.clone().quantize(&scheme, qparams);
 
+        let x_q_data = x_q.to_data();
         let expected = TensorData::quantized(
             vec![-128i8, -39, 72, 127],
             [4],
@@ -44,15 +45,21 @@ mod tests {
         );
 
         // Values equality
-        x_q.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = get_q_params(x_q);
+        let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
         assert_eq!(qparams.scale.len(), 1);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset.as_ref().map(|x| x.len()), Some(1));
         assert_eq!(qparams.offset, expected.offset);
+
+        // Dequantize
+        let x = x_q.dequantize();
+
+        // Precision 2 for dequantization errors
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
     #[test]
@@ -66,8 +73,9 @@ mod tests {
             offset: None,
         };
 
-        let x_q = tensor.quantize(&scheme, qparams).into_data();
+        let x_q = tensor.clone().quantize(&scheme, qparams);
 
+        let x_q_data = x_q.to_data();
         let expected = TensorData::quantized(
             vec![-127i8, -71, 0, 35],
             [4],
@@ -77,35 +85,21 @@ mod tests {
         );
 
         // Values equality
-        x_q.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = get_q_params(x_q);
+        let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
         assert_eq!(qparams.scale.len(), 1);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset, None);
         assert_eq!(qparams.offset, expected.offset);
-    }
 
-    #[test]
-    fn should_support_dequantize() {
-        let device = Default::default();
-        // Quantized [-1.8, -1.0, 0.0, 0.5]
-        let data = TensorData::quantized(
-            vec![-127i8, -71, 0, 35],
-            [4],
-            QuantizationStrategy::PerTensorSymmetricInt8(SymmetricQuantization::init(
-                0.014_173_228,
-            )),
-        );
-        let x_q = TestTensor::<1>::from_data(data, &device);
-
+        // Dequantize
         let x = x_q.dequantize();
 
         // Precision 2 for dequantization errors
-        x.into_data()
-            .assert_approx_eq(&TensorData::from([-1.8, -1.0, 0.0, 0.5]), 2);
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
     #[test]
@@ -166,8 +160,9 @@ mod tests {
             offset: None,
         };
 
-        let x_q = tensor.quantize(&scheme, qparams).into_data();
+        let x_q = tensor.clone().quantize(&scheme, qparams);
 
+        let x_q_data = x_q.to_data();
         let expected = TensorData::quantized(
             vec![
                 [-127i8, -71, 0, 35],
@@ -191,15 +186,21 @@ mod tests {
         );
 
         // Values equality
-        x_q.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = get_q_params(x_q);
+        let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
         assert_eq!(qparams.scale.len(), 8);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset, None);
         assert_eq!(qparams.offset, expected.offset);
+
+        // Dequantize
+        let x = x_q.dequantize();
+
+        // Precision 2 for dequantization errors
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
     #[test]
@@ -226,8 +227,9 @@ mod tests {
             offset: Some(Tensor::from_ints(offsets, &device)),
         };
 
-        let x_q = tensor.quantize(&scheme, qparams).into_data();
+        let x_q = tensor.clone().quantize(&scheme, qparams);
 
+        let x_q_data = x_q.to_data();
         let expected = TensorData::quantized(
             vec![
                 [-128i8, -40, 71, 126],
@@ -248,15 +250,21 @@ mod tests {
         );
 
         // Values equality
-        x_q.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = get_q_params(x_q);
+        let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
         assert_eq!(qparams.scale.len(), 4);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset.as_ref().unwrap().len(), 4);
         assert_eq!(qparams.offset, expected.offset);
+
+        // Dequantize
+        let x = x_q.dequantize();
+
+        // Precision 2 for dequantization errors
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
     #[test]
@@ -301,8 +309,9 @@ mod tests {
             offset: None,
         };
 
-        let x_q = tensor.quantize(&scheme, qparams).into_data();
+        let x_q = tensor.clone().quantize(&scheme, qparams);
 
+        let x_q_data = x_q.to_data();
         let expected = TensorData::quantized(
             vec![
                 [-127i8, -71, -85, 127],
@@ -326,14 +335,20 @@ mod tests {
         );
 
         // Values equality
-        x_q.assert_eq(&expected, true);
+        x_q_data.assert_eq(&expected, true);
 
         // Quantization parameters check
-        let qparams = get_q_params(x_q);
+        let qparams = get_q_params(x_q_data);
         let expected = get_q_params(expected);
         assert_eq!(qparams.scale.len(), 8);
         assert_eq!(qparams.scale, expected.scale);
         assert_eq!(qparams.offset, None);
         assert_eq!(qparams.offset, expected.offset);
+
+        // Dequantize
+        let x = x_q.dequantize();
+
+        // Precision 2 for dequantization errors
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 }
