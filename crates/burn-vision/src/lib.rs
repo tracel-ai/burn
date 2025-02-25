@@ -14,12 +14,16 @@ extern crate alloc;
 
 /// Backend implementations for JIT and CPU
 pub mod backends;
+mod base;
 mod ops;
 mod tensor;
 
 #[cfg(feature = "export-tests")]
 #[allow(missing_docs)]
-mod tests;
+pub mod tests;
 
+pub use base::*;
 pub use ops::*;
 pub use tensor::*;
+
+pub use backends::{create_structuring_element, KernelShape};
