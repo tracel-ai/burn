@@ -6,7 +6,10 @@ use super::{
     interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
-use crate::{element::FloatNdArrayElement, tensor::NdArrayTensor, NdArray, NdArrayTensorFloat};
+use crate::{
+    element::FloatNdArrayElement, ops::simd::maxpool::try_max_pool2d_simd, tensor::NdArrayTensor,
+    NdArray, NdArrayTensorFloat,
+};
 use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
@@ -159,14 +162,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         dilation: [usize; 2],
     ) -> FloatTensor<Self> {
-        module_op!(inp(x), opt(), E, |x| max_pool2d::<E>(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            dilation
-        )
-        .into())
+        module_op!(inp(x), opt(), E, |x| {
+            let x = match try_max_pool2d_simd(x, kernel_size, stride, padding, dilation) {
+                Ok(out) => return out.into(),
+                Err(x) => x,
+            };
+            max_pool2d::<E>(x, kernel_size, stride, padding, dilation).into()
+        })
     }
 
     fn max_pool2d_with_indices(
