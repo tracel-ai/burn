@@ -1,42 +1,67 @@
 #!/usr/bin/env python3
-import torch
-import torch.nn as nn
-import torch.onnx
+import numpy as np
+import onnx
+from onnx import helper, TensorProto, numpy_helper
 
-class GemmModel(nn.Module):
-    def __init__(self, alpha=1.0, beta=1.0, transA=0, transB=0):
-        super().__init__()
-        self.alpha = alpha
-        self.beta = beta
-        self.transA = transA
-        self.transB = transB
+def create_gemm_model(output_path="gemm.onnx"):
+    """
+    Create an ONNX model with a Gemm node that performs:
+    Y = alpha * (A @ B) + beta * C
 
-    def forward(self, A, B, C=None):
-        if self.transA:
-            A = A.t()
-        if self.transB:
-            B = B.t()
-        product = self.alpha * torch.matmul(A, B)
-        if C is not None:
-            product = product + self.beta * C
-        return product
+    Args:
+        output_path (str): Path to save the ONNX model
+    """
+    # Define input and output shapes
+    batch_size = 2
+    m, k, n = 2, 3, 4  # A: (m, k), B: (k, n), C: (m, n)
 
-# Example inputs:
-A = torch.randn(2, 3)
-B = torch.randn(3, 4)
-C = torch.randn(2, 4)
+    # Define the graph inputs and outputs
+    A = helper.make_tensor_value_info('A', TensorProto.FLOAT, [batch_size, m, k])
+    B = helper.make_tensor_value_info('B', TensorProto.FLOAT, [batch_size, k, n])
+    C = helper.make_tensor_value_info('C', TensorProto.FLOAT, [batch_size, m, n])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [batch_size, m, n])
 
-model = GemmModel(alpha=1.0, beta=1.0, transA=0, transB=0)
-model.eval()
+    # Define Gemm node attributes
+    alpha = 1.0
+    beta = 1.0
+    transA = 0  # 0 means no transpose
+    transB = 0  # 0 means no transpose
 
-torch.onnx.export(
-    model,
-    (A, B, C),
-    "gemm.onnx",
-    opset_version=16,
-    input_names=["A", "B", "C"],
-    output_names=["Y"],
-    dynamic_axes={"A": {0: "batch_size"}, "Y": {0: "batch_size"}}
-)
+    # Create the Gemm node
+    gemm_node = helper.make_node(
+        'Gemm',                # op_type
+        ['A', 'B', 'C'],       # inputs
+        ['Y'],                 # outputs
+        name='GemmNode',       # name
+        alpha=alpha,           # attributes
+        beta=beta,
+        transA=transA,
+        transB=transB
+    )
 
-print("Exported Gemm model to gemm.onnx")
+    # Create the graph
+    graph = helper.make_graph(
+        [gemm_node],           # nodes
+        'GemmModel',           # name
+        [A, B, C],             # inputs
+        [Y],                   # outputs
+    )
+
+    # Create the model
+    model = helper.make_model(
+        graph,
+        producer_name='ONNX_Generator',
+        opset_imports=[helper.make_opsetid("", 16)]  # Using opset 16
+    )
+
+    # Verify the model
+    onnx.checker.check_model(model)
+
+    # Save the model
+    onnx.save(model, output_path)
+    print(f"Successfully created ONNX model with Gemm node at: {output_path}")
+
+    return model
+
+if __name__ == '__main__':
+    create_gemm_model()
