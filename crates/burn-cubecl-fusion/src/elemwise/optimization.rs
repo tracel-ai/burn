@@ -1,4 +1,5 @@
 use crate::shared::ir::GlobalArgs;
+use crate::shared::trace::Vectorization;
 use crate::shared::{io::global_length, kernel::fuse_on_write};
 use crate::CubeFusionHandle;
 use burn_fusion::stream::Context;
@@ -60,6 +61,7 @@ impl<R: Runtime> ElemwiseOptimization<R> {
 
 pub struct ElemwiseRunner;
 
+impl<R: Runtime> Vectorization<R> for ElemwiseRunner {}
 impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     type Error = (); // No error possible
 

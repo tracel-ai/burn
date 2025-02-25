@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::ElemwisePrecision;
+use crate::shared::trace::Vectorization;
 use crate::CubeFusionHandle;
 
 use burn_fusion::stream::Context;
@@ -245,6 +246,8 @@ impl From<MatmulLaunchError> for FusedMatmulError {
         Self::LaunchError(value)
     }
 }
+
+impl<R: Runtime> Vectorization<R> for FusedMatmul {}
 
 impl<R: Runtime> TraceRunner<R> for FusedMatmul {
     type Error = FusedMatmulError;

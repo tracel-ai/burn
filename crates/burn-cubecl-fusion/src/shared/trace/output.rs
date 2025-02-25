@@ -260,8 +260,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 strides: strides.clone(),
             });
 
-            if let ElemwiseOp::Assign(op) = plan.writes.get_mut(&output.tensor_relative.id).unwrap()
-            {
+            // Sometimes outputs that are manually handled don't have any write registered.
+            if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
             };
         } else if let Some(reference) = plan.reference.as_ref() {

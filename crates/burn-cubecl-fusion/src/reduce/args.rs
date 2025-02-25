@@ -5,7 +5,7 @@ use crate::shared::io::{
     global_buffer_len, global_len, global_rank, global_shape, global_stride, write,
 };
 use crate::shared::ir::{Arg, ElemwiseConfig, GlobalArgs, GlobalArgsExpand, LocalArgs};
-use crate::shared::kernel::fuse_on_read;
+use crate::shared::kernel::{fuse_on_read, fuse_on_write};
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;
@@ -84,17 +84,19 @@ impl ReduceArgs for FusedReduceArgs {
         index: u32,
         value: Line<P::Out>,
     ) {
-        let out = comptime![state.out.clone()];
-        let mut local = LocalArgs::new();
+        let mut values = Registry::<Arg, Line<P::Out>>::new();
+        let mut args = comptime![Sequence::<Arg>::new()];
 
-        write::<P::Out>(
+        values.insert(comptime![state.out.clone()], value);
+        comptime![args.push(state.out.clone())];
+
+        fuse_on_write(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
-            &mut local,
             index,
-            value,
-            out,
-            &state.config_on_read,
+            values,
+            args,
+            &state.config_on_write,
         );
     }
 

@@ -9,9 +9,10 @@ use cubecl::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::shared::trace::{MultiTraceRunner, Vectorization};
 use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
-    trace::{FuseTrace, TraceRunner},
+    trace::FuseTrace,
 };
 use crate::CubeFusionHandle;
 
@@ -19,8 +20,10 @@ use super::args::{FusedReduceArgs, FusedReduceInputLaunch, FusedReduceOutputLaun
 
 #[derive(new)]
 pub struct ReduceOptimization<R: Runtime> {
-    trace: FuseTrace,
-    trace_fallback: FuseTrace,
+    trace_read: FuseTrace,
+    trace_write: FuseTrace,
+    trace_read_fallback: FuseTrace,
+    trace_write_fallback: FuseTrace,
     pub(crate) client: ComputeClient<R::Server, R::Channel>,
     pub(crate) device: R::Device,
     pub(crate) len: usize,
@@ -29,8 +32,10 @@ pub struct ReduceOptimization<R: Runtime> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceOptimizationState {
-    trace: FuseTrace,
-    trace_fallback: FuseTrace,
+    trace_read: FuseTrace,
+    trace_write: FuseTrace,
+    trace_read_fallback: FuseTrace,
+    trace_write_fallback: FuseTrace,
     pub(crate) fuse: FusedReduce,
     len: usize,
 }
@@ -52,6 +57,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         if self.execute_fused::<BT>(context).is_err() {
             // self.execute_fallback::<BT>(context);
+            panic!("NOOOOOOOOOOOOOo");
         }
     }
 
@@ -59,16 +65,21 @@ impl<R: Runtime> ReduceOptimization<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<(), FusedReduceError> {
-        println!("Execute fuse");
-        self.trace
-            .run::<R, BT, FusedReduce>(&self.client, &self.device, context, &self.fuse)
+        FuseTrace::run_multi::<R, BT, FusedReduce>(
+            (&self.trace_read, &self.trace_write),
+            &self.client,
+            &self.device,
+            context,
+            &self.fuse,
+        )
     }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
         self.len
     }
 }
-impl<R: Runtime> TraceRunner<R> for FusedReduce {
+impl<R: Runtime> Vectorization<R> for FusedReduce {}
+impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
     type Error = FusedReduceError;
 
     fn run<'a>(
@@ -76,20 +87,21 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
         client: &'a ComputeClient<R::Server, R::Channel>,
         inputs: GlobalArgsLaunch<'a, R>,
         outputs: GlobalArgsLaunch<'a, R>,
-        config: &'a ElemwiseConfig,
+        config_read: &'a ElemwiseConfig,
+        config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
         let strategy = ReduceStrategy::new::<R>(client, true);
-        let reduce_count: usize = outputs
-            .shape(&self.output)
+        let reduce_count: u32 = inputs
+            .shape(&config_read.ref_layout)
             .iter()
             .enumerate()
-            .map(|(i, s)| if i == self.axis { 1 } else { *s })
+            .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
         let config_reduce = ReduceConfig {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
             line_mode: LineMode::Parallel,
-            line_size: inputs.line_size(&config.ref_layout) as u32,
+            line_size: inputs.line_size(&config_read.ref_layout) as u32,
             bound_checks: false,
         }
         .generate_cube_dim(client, strategy.use_planes)
@@ -111,7 +123,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduce {
             self.axis as u32,
             &ReduceStrategy::new::<R>(client, true),
             config_reduce,
-            config,
+            config_read,
+            config_write,
             &self.input,
             &self.output,
         );
@@ -127,7 +140,8 @@ fn launch_reduce<'a, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
     axis: u32,
     strategy: &ReduceStrategy,
     config_reduce: ReduceConfig,
-    config_fuse: &'a ElemwiseConfig,
+    config_fuse_read: &'a ElemwiseConfig,
+    config_fuse_write: &'a ElemwiseConfig,
     input: &'a Arg,
     output: &'a Arg,
 ) {
@@ -150,8 +164,8 @@ fn launch_reduce<'a, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
             client,
             config_reduce.cube_count,
             config_reduce.cube_dim,
-            FusedReduceInputLaunch::new(inputs, &config_fuse, input),
-            FusedReduceOutputLaunch::new(outputs, &config_fuse, output),
+            FusedReduceInputLaunch::new(inputs, &config_fuse_read, input),
+            FusedReduceOutputLaunch::new(outputs, &config_fuse_write, output),
             ScalarArg::new(axis),
             settings,
         );

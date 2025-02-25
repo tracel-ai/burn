@@ -8,7 +8,7 @@ use cubecl::{
     CubeElement, Runtime,
 };
 
-use super::{HandleInput, HandleOutput, LaunchPlan, TensorView, TraceRunner};
+use super::{HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TensorView, TraceRunner};
 use crate::{
     elem_dtype,
     shared::{
@@ -33,6 +33,21 @@ pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
     pub handles_output: Vec<HandleOutput<R>>,
 }
 
+#[derive(new)]
+pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
+    pub runner_error: Runner::Error,
+    pub plan_0_handles_input: Vec<HandleInput<R>>,
+    pub plan_0_handles_output: Vec<HandleOutput<R>>,
+    pub plan_1_handles_input: Vec<HandleInput<R>>,
+    pub plan_1_handles_output: Vec<HandleOutput<R>>,
+}
+
+pub struct Executor<'a, R: Runtime> {
+    inputs: GlobalArgsLaunch<'a, R>,
+    outputs: GlobalArgsLaunch<'a, R>,
+    config: ElemwiseConfig,
+}
+
 impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     pub fn new(
         scalars: &'a Vec<(ElemwisePrecision, u32)>,
@@ -45,6 +60,94 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             ops,
             _r: PhantomData,
         }
+    }
+
+    pub fn execute_multi<Runner: MultiTraceRunner<R>, BT: CubeElement>(
+        self,
+        client: &ComputeClient<R::Server, R::Channel>,
+        runner: &Runner,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
+    ) -> Result<(), MultiExecutionError<R, Runner>> {
+        let reference = match plans.0.reference {
+            Some(reference) => reference,
+            None => {
+                panic!("Can't have the first plan not have a reference")
+            }
+        };
+
+        let mut inputs = GlobalArgsLaunch::default();
+        let mut outputs = GlobalArgsLaunch::default();
+
+        self.register_inputs(&plans.0.handle_inputs, &mut inputs);
+        self.register_outputs::<BT>(&plans.0.handle_outputs, &mut outputs);
+
+        let mut ops = Sequence::<ElemwiseOp>::new();
+
+        for read_ops in plans.0.reads.into_values() {
+            for op in read_ops {
+                ops.push(op);
+            }
+        }
+
+        for op in self.ops.iter() {
+            ops.push(op.clone());
+        }
+
+        for op in plans.0.writes.into_values() {
+            ops.push(op);
+        }
+
+        let config_0 = ElemwiseConfig {
+            rank: plans.0.rank as u32,
+            ref_layout: reference.layout,
+            ops,
+            width: plans.0.width,
+        };
+
+        let reference = match plans.1.reference {
+            Some(reference) => reference,
+            None => {
+                panic!("Can't have the first plan not have a reference")
+            }
+        };
+
+        self.register_inputs(&plans.1.handle_inputs, &mut inputs);
+        self.register_outputs::<BT>(&plans.1.handle_outputs, &mut outputs);
+        self.register_scalars(context, &mut inputs);
+
+        let mut ops = Sequence::<ElemwiseOp>::new();
+
+        for read_ops in plans.1.reads.into_values() {
+            for op in read_ops {
+                ops.push(op);
+            }
+        }
+
+        for op in self.ops.iter() {
+            ops.push(op.clone());
+        }
+
+        for op in plans.1.writes.into_values() {
+            ops.push(op);
+        }
+
+        let config_1 = ElemwiseConfig {
+            rank: plans.1.rank as u32,
+            ref_layout: reference.layout,
+            ops,
+            width: plans.1.width,
+        };
+
+        Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
+            MultiExecutionError::new(
+                err,
+                plans.0.handle_inputs,
+                plans.0.handle_outputs,
+                plans.1.handle_inputs,
+                plans.1.handle_outputs,
+            )
+        })
     }
 
     pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
@@ -66,8 +169,12 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             }
         };
 
-        let inputs = self.register_inputs(context, &plan.handle_inputs);
-        let outputs = self.register_outputs::<BT>(&plan.handle_outputs);
+        let mut inputs = GlobalArgsLaunch::default();
+        let mut outputs = GlobalArgsLaunch::default();
+
+        self.register_inputs(&plan.handle_inputs, &mut inputs);
+        self.register_scalars(context, &mut inputs);
+        self.register_outputs::<BT>(&plan.handle_outputs, &mut outputs);
 
         let mut ops = Sequence::<ElemwiseOp>::new();
 
@@ -98,11 +205,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
     fn register_inputs<'h>(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
         handle_inputs: &'h [HandleInput<R>],
-    ) -> GlobalArgsLaunch<'h, R> {
-        let mut inputs = GlobalArgsLaunch::default();
-
+        inputs: &mut GlobalArgsLaunch<'h, R>,
+    ) {
         for hi in handle_inputs.iter() {
             let arg = hi.handle.as_tensor_arg(&hi.global_shape, hi.vectorization);
             inputs.tensors.push(GlobalTensorArg::new(
@@ -111,7 +216,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 hi.broadcated,
             ));
         }
+    }
 
+    fn register_scalars<'h>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        inputs: &mut GlobalArgsLaunch<'h, R>,
+    ) {
         let mut index_f32 = 0;
         let mut index_f16 = 0;
         let mut index_bf16 = 0;
@@ -206,16 +317,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             }
         }
-
-        inputs
     }
 
     fn register_outputs<'s, BT: CubeElement>(
         &self,
         handle_outputs: &'s [HandleOutput<R>],
-    ) -> GlobalArgsLaunch<'s, R> {
-        let mut outputs = GlobalArgsLaunch::default();
-
+        outputs: &mut GlobalArgsLaunch<'s, R>,
+    ) {
         for item in handle_outputs.iter() {
             match item {
                 HandleOutput::Alias {
@@ -249,7 +357,5 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             }
         }
-
-        outputs
     }
 }

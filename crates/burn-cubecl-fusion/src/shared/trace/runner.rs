@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 /// A trace runner is responsible for determining the vectorization factor as well as launching
 /// a kernel based on global [inputs](GlobalArgsLaunch) and [outputs](GlobalArgsLaunch)
 /// with a provided [element wise config](ElemwiseConfig).
-pub trait TraceRunner<R: Runtime> {
+pub trait TraceRunner<R: Runtime>: Vectorization<R> {
     /// The error that might happen while running the trace.
     type Error;
 
@@ -22,7 +22,9 @@ pub trait TraceRunner<R: Runtime> {
         outputs: GlobalArgsLaunch<'a, R>,
         config: &'a ElemwiseConfig,
     ) -> Result<(), Self::Error>;
+}
 
+pub trait Vectorization<R: Runtime> {
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, Vect>,
@@ -43,6 +45,21 @@ pub trait TraceRunner<R: Runtime> {
             ref_elem,
         )
     }
+}
+
+pub trait MultiTraceRunner<R: Runtime>: Vectorization<R> {
+    /// The error that might happen while running the trace.
+    type Error;
+
+    /// Run the trace.
+    fn run<'a>(
+        &'a self,
+        client: &'a ComputeClient<R::Server, R::Channel>,
+        inputs: GlobalArgsLaunch<'a, R>,
+        outputs: GlobalArgsLaunch<'a, R>,
+        config_read: &'a ElemwiseConfig,
+        config_write: &'a ElemwiseConfig,
+    ) -> Result<(), Self::Error>;
 }
 
 fn vectorization_default<'a, R: Runtime>(
