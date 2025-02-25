@@ -7,7 +7,9 @@ use super::{
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
 use crate::{
-    element::FloatNdArrayElement, ops::simd::maxpool::try_max_pool2d_simd, tensor::NdArrayTensor,
+    element::FloatNdArrayElement,
+    ops::simd::{avgpool::try_avg_pool2d_simd, maxpool::try_max_pool2d_simd},
+    tensor::NdArrayTensor,
     NdArray, NdArrayTensorFloat,
 };
 use crate::{
@@ -126,14 +128,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         padding: [usize; 2],
         count_include_pad: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inp(x), opt(), E, |x| avg_pool2d::<E>(
-            x,
-            kernel_size,
-            stride,
-            padding,
-            count_include_pad
-        )
-        .into())
+        module_op!(inp(x), opt(), E, |x| {
+            let x = match try_avg_pool2d_simd(x, kernel_size, stride, padding, count_include_pad) {
+                Ok(out) => return out.into(),
+                Err(x) => x,
+            };
+            avg_pool2d::<E>(x, kernel_size, stride, padding, count_include_pad).into()
+        })
     }
 
     fn avg_pool2d_backward(
