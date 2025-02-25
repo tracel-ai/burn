@@ -1961,3 +1961,28 @@ pub fn one_hot_config(curr: &Node) -> (usize, [f32; 2], i64) {
         .unwrap_or(-1);
     (depth as usize, values.try_into().unwrap(), axis)
 }
+
+pub fn gemm_config(curr: &Node) -> (f32, f32, i64, i64) {
+    let alpha = curr
+        .attrs
+        .get("alpha")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let beta = curr
+        .attrs
+        .get("beta")
+        .map(|val| val.clone().into_f32())
+        .unwrap_or(1.0);
+    let trans_a = curr
+        .attrs
+        .get("transA")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+    let trans_b = curr
+        .attrs
+        .get("transB")
+        .map(|val| val.clone().into_i64())
+        .unwrap_or(0);
+
+    (alpha, beta, trans_a, trans_b)
+}
