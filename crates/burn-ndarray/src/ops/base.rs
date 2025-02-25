@@ -22,20 +22,28 @@ use ndarray::Dim;
 use ndarray::IxDyn;
 use ndarray::SliceInfoElem;
 
-use crate::ops::{
-    macros::{keepdim, mean_dim, prod_dim, sum_dim},
-    simd::{
-        binary_elemwise::{VecClamp, VecDiv, VecMin},
-        unary::RecipVec,
-    },
+use crate::{
+    element::NdArrayElement,
+    ops::simd::{binary_elemwise::VecMul, unary::VecBitNot},
 };
-use crate::{element::NdArrayElement, ops::simd::binary_elemwise::VecMul};
+use crate::{
+    ops::{
+        macros::{keepdim, mean_dim, prod_dim, sum_dim},
+        simd::{
+            binary_elemwise::{VecClamp, VecDiv, VecMin},
+            unary::RecipVec,
+        },
+    },
+    IntNdArrayElement,
+};
 use crate::{reshape, tensor::NdArrayTensor};
 
 use super::simd::{
     binary::try_binary_simd,
-    binary_elemwise::{try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecMax, VecSub},
-    unary::try_unary_simd,
+    binary_elemwise::{
+        try_binary_scalar_simd, VecAdd, VecBitAnd, VecBitOr, VecBitXor, VecEq, VecMax, VecSub,
+    },
+    unary::{try_unary_simd, VecAbs},
 };
 
 pub struct NdArrayOps<E> {
@@ -744,6 +752,115 @@ where
                 .into_shared(),
         )
     }
+
+    pub(crate) fn abs(tensor: NdArrayTensor<E>) -> NdArrayTensor<E> {
+        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
+
+        let array = tensor.array.mapv_into(|a| a.abs_elem()).into_shared();
+
+        NdArrayTensor::new(array)
+    }
+}
+
+pub struct NdArrayBitOps<I: IntNdArrayElement>(PhantomData<I>);
+
+impl<I: IntNdArrayElement> NdArrayBitOps<I> {
+    pub(crate) fn bitand(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitAnd, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() & (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitand_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitAnd,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() & rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitOr, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() | (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitOr,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() | rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitxor(lhs: NdArrayTensor<I>, rhs: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let (lhs, rhs) =
+            dispatch_binary_simd!(I, VecBitXor, lhs, rhs, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op(lhs, rhs, |a: &I, b: &I| {
+            (a.elem::<i64>() ^ (b.elem::<i64>())).elem()
+        })
+    }
+
+    pub(crate) fn bitxor_scalar(lhs: NdArrayTensor<I>, rhs: I) -> NdArrayTensor<I> {
+        let lhs = dispatch_binary_scalar_simd!(
+            I,
+            VecBitXor,
+            lhs,
+            rhs.elem(),
+            i8,
+            u8,
+            i16,
+            u16,
+            i32,
+            u32,
+            i64,
+            u64
+        );
+
+        NdArrayMathOps::elementwise_op_scalar(lhs, |a: I| {
+            (a.elem::<i64>() ^ rhs.elem::<i64>()).elem()
+        })
+    }
+
+    pub(crate) fn bitnot(tensor: NdArrayTensor<I>) -> NdArrayTensor<I> {
+        let tensor =
+            dispatch_unary_simd!(I, VecBitNot, tensor, i8, u8, i16, u16, i32, u32, i64, u64);
+
+        NdArrayMathOps::elementwise_op_scalar(tensor, |a: I| (!a.elem::<i64>()).elem())
+    }
 }
 
 pub struct NdArrayBoolOps;
@@ -751,6 +868,19 @@ pub struct NdArrayBoolOps;
 // Rust booleans are either `00000000` or `00000001`, so bitwise and/or is fine, but bitwise not would
 // produce invalid values.
 impl NdArrayBoolOps {
+    pub(crate) fn equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
+        let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecEq>(lhs, rhs) {
+            Ok(out) => return out,
+            Err(args) => args,
+        };
+
+        let output = Zip::from(&lhs.array)
+            .and(&rhs.array)
+            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
+            .into_shared();
+        NdArrayTensor::new(output)
+    }
+
     pub(crate) fn and(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
         let (lhs, rhs) = match try_binary_simd::<bool, bool, u8, u8, VecBitAnd>(lhs, rhs) {
             Ok(out) => return out,

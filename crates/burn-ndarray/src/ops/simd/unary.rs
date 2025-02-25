@@ -1,7 +1,8 @@
-use core::{marker::PhantomData, mem::MaybeUninit, slice};
+use core::{marker::PhantomData, slice};
 
-use macerator::{SimdExt, VRecip, VSqrt, Vectorizable};
+use macerator::{SimdExt, VAbs, VBitNot, VRecip, VSqrt, Vectorizable};
 use ndarray::ArrayD;
+use num_traits::Signed;
 use pulp::{Arch, Simd};
 
 use crate::{NdArrayElement, NdArrayTensor};
@@ -56,6 +57,36 @@ impl SimdUnop<f64, f64> for SqrtVec {
     }
 }
 
+pub struct VecAbs;
+
+impl<T: VAbs + Signed> SimdUnop<T, T> for VecAbs {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        input: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vabs(simd, input)
+    }
+
+    fn apply(input: T) -> T {
+        input.abs()
+    }
+}
+
+pub struct VecBitNot;
+
+impl<T: VBitNot> SimdUnop<T, T> for VecBitNot {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        input: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitnot(simd, input)
+    }
+
+    fn apply(input: T) -> T {
+        input.not()
+    }
+}
+
 pub fn try_unary_simd<
     E: NdArrayElement,
     EOut: NdArrayElement,
@@ -65,7 +96,7 @@ pub fn try_unary_simd<
 >(
     input: NdArrayTensor<E>,
 ) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
-    if !should_use_simd(input.array.len()) || !input.is_contiguous() {
+    if !should_use_simd(input.array.len()) || input.array.as_slice_memory_order().is_none() {
         return Err(input);
     }
     // Used to assert traits based on the dynamic `DType`.
@@ -88,7 +119,7 @@ fn unary_scalar_simd_inplace<
     input: NdArrayTensor<T>,
 ) -> NdArrayTensor<Out> {
     let mut buffer = input.array.into_owned();
-    let slice = buffer.as_slice_mut().unwrap();
+    let slice = buffer.as_slice_memory_order_mut().unwrap();
     let input = unsafe_alias_slice_mut(slice);
     // This is only called when in and out have the same size, so it's safe
     let out = unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(slice) };
@@ -105,13 +136,11 @@ fn unary_scalar_simd_owned<
 >(
     input: NdArrayTensor<T>,
 ) -> NdArrayTensor<Out> {
-    let mut out = ArrayD::uninit(input.array.shape());
-    let input = input.array.as_slice().unwrap();
-    let out_slice = unsafe {
-        core::mem::transmute::<&mut [MaybeUninit<Out>], &mut [Out]>(out.as_slice_mut().unwrap())
-    };
+    let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
+    let input = input.array.as_slice_memory_order().unwrap();
+    let out_slice = out.as_slice_memory_order_mut().unwrap();
     unary_slice::<T, Out, Op>(input, out_slice, PhantomData);
-    NdArrayTensor::new(unsafe { out.assume_init().into_shared() })
+    NdArrayTensor::new(out.into_shared())
 }
 
 #[pulp::with_simd(unary_slice = Arch::new())]

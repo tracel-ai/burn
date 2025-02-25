@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_tensor::ops::{BoolTensorOps, FloatTensor, IntTensorOps};
 use burn_tensor::{ElementConversion, TensorMetadata};
 use core::ops::Range;
-use ndarray::{IntoDimension, Zip};
+use ndarray::IntoDimension;
 
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
@@ -73,11 +73,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BoolTensorOp
     }
 
     fn bool_equal(lhs: NdArrayTensor<bool>, rhs: NdArrayTensor<bool>) -> NdArrayTensor<bool> {
-        let output = Zip::from(&lhs.array)
-            .and(&rhs.array)
-            .map_collect(|&lhs_val, &rhs_val| (lhs_val == rhs_val))
-            .into_shared();
-        NdArrayTensor::new(output)
+        NdArrayBoolOps::equal(lhs, rhs)
     }
 
     fn bool_not(tensor: NdArrayTensor<bool>) -> NdArrayTensor<bool> {

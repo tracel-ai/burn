@@ -1,8 +1,10 @@
-use core::{marker::PhantomData, mem::MaybeUninit, slice};
+use core::{marker::PhantomData, slice};
 
-use macerator::{SimdExt, VAdd, VBitAnd, VBitOr, VDiv, VMul, VOrd, VSub, Vectorizable};
+use macerator::{
+    SimdExt, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VEq, VMul, VOrd, VSub, Vectorizable,
+};
 use ndarray::ArrayD;
-use pulp::{Arch, Simd};
+use pulp::{cast, Arch, Simd};
 
 use crate::{NdArrayElement, NdArrayTensor};
 
@@ -30,6 +32,8 @@ pub struct VecMax;
 pub struct VecClamp;
 pub struct VecBitAnd;
 pub struct VecBitOr;
+pub struct VecBitXor;
+pub struct VecEq;
 
 impl<T: VAdd> SimdBinop<T, T> for VecAdd {
     fn apply_vec<S: Simd>(
@@ -277,6 +281,27 @@ impl<T: VBitAnd> SimdBinop<T, T> for VecBitAnd {
     }
 }
 
+impl<T: VBitAnd> ScalarSimdBinop<T, T> for VecBitAnd {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitand(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: Self::Rhs) -> T {
+        lhs.bitand(rhs)
+    }
+}
+
 impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
     fn apply_vec<S: Simd>(
         simd: S,
@@ -291,6 +316,79 @@ impl<T: VBitOr> SimdBinop<T, T> for VecBitOr {
     }
 }
 
+impl<T: VBitOr> ScalarSimdBinop<T, T> for VecBitOr {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitor(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: Self::Rhs) -> T {
+        lhs.bitor(rhs)
+    }
+}
+
+impl<T: VBitXor> SimdBinop<T, T> for VecBitXor {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: <T as Vectorizable>::Vector<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitxor(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: T) -> T {
+        lhs.bitxor(rhs)
+    }
+}
+
+impl<T: VBitXor> ScalarSimdBinop<T, T> for VecBitXor {
+    type Rhs = T;
+    type RhsVec<S: Simd> = T::Vector<S>;
+
+    fn splat<S: Simd>(simd: S, rhs: Self::Rhs) -> Self::RhsVec<S> {
+        simd.splat(rhs)
+    }
+
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <T as Vectorizable>::Vector<S>,
+        rhs: Self::RhsVec<S>,
+    ) -> <T as Vectorizable>::Vector<S> {
+        T::vbitxor(simd, lhs, rhs)
+    }
+
+    fn apply(lhs: T, rhs: Self::Rhs) -> T {
+        lhs.bitxor(rhs)
+    }
+}
+
+impl SimdBinop<u8, u8> for VecEq {
+    fn apply_vec<S: Simd>(
+        simd: S,
+        lhs: <u8 as Vectorizable>::Vector<S>,
+        rhs: <u8 as Vectorizable>::Vector<S>,
+    ) -> <u8 as Vectorizable>::Vector<S> {
+        // Need to bitand the mask with `0b1`, since Rust uses `0` and `1` for bool but mask is `0` or `-1`
+        let mask = u8::veq(simd, lhs, rhs);
+        let true_ = simd.splat(1u8);
+        u8::vbitand(simd, cast(mask), true_)
+    }
+
+    fn apply(lhs: u8, rhs: u8) -> u8 {
+        (lhs == rhs) as u8
+    }
+}
+
 pub fn try_binary_scalar_simd<
     E: NdArrayElement,
     EOut: NdArrayElement,
@@ -301,7 +399,7 @@ pub fn try_binary_scalar_simd<
     input: NdArrayTensor<E>,
     elem: Op::Rhs,
 ) -> Result<NdArrayTensor<EOut>, NdArrayTensor<E>> {
-    if !should_use_simd(input.array.len()) || !input.is_contiguous() {
+    if !should_use_simd(input.array.len()) || input.array.as_slice_memory_order().is_none() {
         return Err(input);
     }
     // Used to assert traits based on the dynamic `DType`.
@@ -325,7 +423,7 @@ fn binary_scalar_simd_inplace<
     elem: Op::Rhs,
 ) -> NdArrayTensor<Out> {
     let mut buffer = input.array.into_owned();
-    let slice = buffer.as_slice_mut().unwrap();
+    let slice = buffer.as_slice_memory_order_mut().unwrap();
     let input = unsafe_alias_slice_mut(slice);
     // This is only called when in and out have the same size, so it's safe
     let out = unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(slice) };
@@ -343,13 +441,11 @@ fn binary_scalar_simd_owned<
     input: NdArrayTensor<T>,
     elem: Op::Rhs,
 ) -> NdArrayTensor<Out> {
-    let mut out = ArrayD::uninit(input.array.shape());
-    let input = input.array.as_slice().unwrap();
-    let out_slice = unsafe {
-        core::mem::transmute::<&mut [MaybeUninit<Out>], &mut [Out]>(out.as_slice_mut().unwrap())
-    };
+    let mut out = unsafe { ArrayD::uninit(input.array.shape()).assume_init() };
+    let input = input.array.as_slice_memory_order().unwrap();
+    let out_slice = out.as_slice_memory_order_mut().unwrap();
     binary_scalar::<T, Out, Op>(input, out_slice, elem, PhantomData);
-    NdArrayTensor::new(unsafe { out.assume_init().into_shared() })
+    NdArrayTensor::new(out.into_shared())
 }
 
 #[pulp::with_simd(binary_scalar = Arch::new())]

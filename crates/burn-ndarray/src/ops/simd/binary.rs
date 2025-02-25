@@ -23,8 +23,8 @@ pub fn try_binary_simd<
     let lhs_len = lhs.array.len();
     let rhs_len = rhs.array.len();
     if !should_use_simd(lhs_len.max(rhs_len))
-        || !lhs.is_contiguous()
-        || !rhs.is_contiguous()
+        || !lhs.array.is_standard_layout()
+        || !rhs.array.is_standard_layout()
         || !can_broadcast(&lhs, &rhs)
     {
         return Err((lhs, rhs));
