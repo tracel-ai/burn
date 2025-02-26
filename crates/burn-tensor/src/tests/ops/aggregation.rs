@@ -32,6 +32,20 @@ mod tests {
             .into_data()
             .assert_eq(&TensorData::from([15.0]), false);
     }
+    #[test]
+    fn test_should_sum_dim_maybe_fused() {
+        let tensor = TestTensor::<2>::from([[5.0], [-12.0]]);
+        let tensor1 = TestTensor::<2>::from([[2.0, 3.0], [-1.0, -5.0]]);
+        let ones = TestTensor::<2>::ones([2, 2], &Default::default());
+        let x = ones.clone() * tensor;
+        let y = ones * tensor1;
+
+        let output = y.sum_dim(1);
+
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[5.0], [-6.0]]), false);
+    }
 
     #[test]
     fn test_should_sum_int() {

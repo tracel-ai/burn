@@ -75,7 +75,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         client: &ComputeClient<R::Server, R::Channel>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
+        mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
         println!("Execute plans");
         let reference = match plans.0.reference {
@@ -116,6 +116,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             width: plans.0.width,
         };
 
+        plans.1.output_offset(output_offset);
         let reference = match plans.1.reference {
             Some(reference) => reference,
             None => {
@@ -145,7 +146,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         }
 
         for op in plans.1.writes.into_values() {
-            ops.push(op.output_offset(output_offset));
+            ops.push(op);
         }
         let config_1 = ElemwiseConfig {
             rank: plans.1.rank as u32,
@@ -154,7 +155,6 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             width: plans.1.width,
         };
 
-        println!("Executed");
         Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
             MultiExecutionError::new(
                 err,

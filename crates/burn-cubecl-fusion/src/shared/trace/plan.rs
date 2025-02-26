@@ -51,6 +51,19 @@ impl Vect {
 }
 
 impl<R: Runtime> LaunchPlan<'_, R> {
+    pub fn output_offset(&mut self, output_offset: u32) {
+        match &mut self.reference {
+            Some(re) => match &mut re.layout {
+                Arg::Output(pos, ..) => *pos += output_offset,
+                _ => {}
+            },
+            None => {}
+        }
+
+        for op in self.writes.iter_mut() {
+            op.1.output_offset(output_offset);
+        }
+    }
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,

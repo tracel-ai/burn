@@ -63,9 +63,17 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
         if let OptimizationStatus::Closed = self.status {
             return;
         }
+        println!("{} => {operation:?}", self.len());
 
         if self.reduce.is_none() {
             if let OperationIr::NumericFloat(_, NumericOperationIr::SumDim(op)) = operation {
+                if self.builder_read.current_output_shape != op.input.shape {
+                    self.builder_read.close();
+                    self.builder_read_fallback.close();
+                    self.status = OptimizationStatus::Closed;
+                    return;
+                }
+
                 let input = self.builder_read.input(&op.input);
                 self.builder_read.not_output(&op.input);
 

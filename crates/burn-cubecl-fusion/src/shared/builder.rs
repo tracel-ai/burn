@@ -16,7 +16,7 @@ use cubecl::ir::Elem;
 pub(crate) struct FuseBuilder {
     builder: TryFuseBuilder,
     settings: FuseSettings,
-    current_output_shape: Vec<usize>,
+    pub(crate) current_output_shape: Vec<usize>,
     status: OptimizationStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,

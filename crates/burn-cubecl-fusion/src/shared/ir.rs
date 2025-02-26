@@ -116,18 +116,15 @@ pub enum ElemwiseOp {
 }
 
 impl ElemwiseOp {
-    pub(crate) fn output_offset(&self, offset: u32) -> Self {
+    pub(crate) fn output_offset(&mut self, offset: u32) {
         match self {
-            ElemwiseOp::Assign(op) => Self::Assign(UnaryElemwiseArgs {
-                input: op.input.clone(),
-                out: match &op.out {
-                    Arg::Output(pos, elem, layout) => {
-                        Arg::Output(pos + offset, *elem, layout.clone())
-                    }
-                    _ => op.out.clone(),
-                },
-            }),
-            _ => self.clone(),
+            ElemwiseOp::Assign(op) => match &mut op.out {
+                Arg::Output(pos, ..) => {
+                    *pos += offset;
+                }
+                _ => {}
+            },
+            _ => {}
         }
     }
 
