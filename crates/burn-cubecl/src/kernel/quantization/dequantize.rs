@@ -1,5 +1,4 @@
 use crate::tensor::CubeTensor;
-use crate::FloatElement;
 use crate::{CubeElement, CubeRuntime};
 use burn_tensor::quantization::{
     BlockLayout, QuantizationMode, QuantizationScheme, QuantizationType,
@@ -11,23 +10,19 @@ use cubecl::prelude::*;
 use super::{QParams, QTensor};
 
 #[cube]
-pub(crate) fn dequantize_affine_int8<F: Float>(
-    value: Line<i32>,
-    scale: f32,
-    offset: i32,
-) -> Line<F> {
+fn dequantize_affine_int8<F: Float>(value: Line<i32>, scale: f32, offset: i32) -> Line<F> {
     // x = scale * (x_q - offset)
     Line::cast_from(scale) * Line::cast_from(value - Line::cast_from(offset))
 }
 
 #[cube]
-pub(crate) fn dequantize_symmetric_int8<F: Float>(value: Line<i32>, scale: f32) -> Line<F> {
+fn dequantize_symmetric_int8<F: Float>(value: Line<i32>, scale: f32) -> Line<F> {
     // x = scale * x_q
     Line::cast_from(scale) * Line::cast_from(value)
 }
 
 #[cube]
-pub(crate) fn extract_i8(value: u32, offset: u32) -> i32 {
+fn extract_i8(value: u32, offset: u32) -> i32 {
     // Extract 8-bit segment
     let value = (value >> offset) & 0xFF;
     // Check if the value is negative by inspecting the MSB and subtract 256 if it is
@@ -37,7 +32,7 @@ pub(crate) fn extract_i8(value: u32, offset: u32) -> i32 {
 }
 
 #[cube]
-pub(crate) fn extract_i8s(value: u32) -> Line<i32> {
+fn unpack_i8s(value: u32) -> Line<i32> {
     let mut line = Line::empty(4);
     // Extract each 8-bit segment
     line[0] = extract_i8(value, 0);
@@ -49,7 +44,7 @@ pub(crate) fn extract_i8s(value: u32) -> Line<i32> {
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
+fn dequantize_per_tensor_affine_int8_kernel(
     input: &QTensor,
     output: &mut Tensor<Line<f32>>,
     #[comptime] scheme: QuantizationScheme,
@@ -66,10 +61,10 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_affine_int8(extract_i8s(value[0]), scale, offset);
+        output[ABSOLUTE_POS] = dequantize_affine_int8(unpack_i8s(value[0]), scale, offset);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_affine_int8::<f32>(extract_i8s(value[0]), scale, offset);
+        let out = dequantize_affine_int8::<f32>(unpack_i8s(value[0]), scale, offset);
 
         #[unroll]
         for j in 0..out.size() {
@@ -80,7 +75,7 @@ pub(crate) fn dequantize_per_tensor_affine_int8_kernel(
 
 // Would have wrapped symmetric with the same affine kernel but cube doesn't support Option<Tensor> for offset.
 #[cube(launch_unchecked)]
-pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
+fn dequantize_per_tensor_symmetric_int8_kernel(
     input: &QTensor,
     output: &mut Tensor<Line<f32>>,
     #[comptime] scheme: QuantizationScheme,
@@ -97,10 +92,10 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_symmetric_int8(extract_i8s(value[0]), scale);
+        output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_symmetric_int8::<f32>(extract_i8s(value[0]), scale);
+        let out = dequantize_symmetric_int8::<f32>(unpack_i8s(value[0]), scale);
 
         #[unroll]
         for j in 0..out.size() {
@@ -110,7 +105,7 @@ pub(crate) fn dequantize_per_tensor_symmetric_int8_kernel(
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn dequantize_per_block_symmetric_int8_kernel(
+fn dequantize_per_block_symmetric_int8_kernel(
     input: &QTensor,
     output: &mut Tensor<Line<f32>>,
     #[comptime] scheme: QuantizationScheme,
@@ -128,10 +123,10 @@ pub(crate) fn dequantize_per_block_symmetric_int8_kernel(
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_symmetric_int8(extract_i8s(value[0]), scale);
+        output[ABSOLUTE_POS] = dequantize_symmetric_int8(unpack_i8s(value[0]), scale);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_symmetric_int8::<f32>(extract_i8s(value[0]), scale);
+        let out = dequantize_symmetric_int8::<f32>(unpack_i8s(value[0]), scale);
 
         #[unroll]
         for j in 0..out.size() {
@@ -141,7 +136,7 @@ pub(crate) fn dequantize_per_block_symmetric_int8_kernel(
 }
 
 #[cube(launch_unchecked)]
-pub(crate) fn dequantize_per_block_affine_int8_kernel(
+fn dequantize_per_block_affine_int8_kernel(
     input: &QTensor,
     output: &mut Tensor<Line<f32>>,
     #[comptime] scheme: QuantizationScheme,
@@ -159,10 +154,10 @@ pub(crate) fn dequantize_per_block_affine_int8_kernel(
 
     // Input line size is fixed to 1
     if comptime!(output.line_size() == 4) {
-        output[ABSOLUTE_POS] = dequantize_affine_int8(extract_i8s(value[0]), scale, offset);
+        output[ABSOLUTE_POS] = dequantize_affine_int8(unpack_i8s(value[0]), scale, offset);
     } else {
         // For very small inputs where number of elements < 4, the output line size is 1
-        let out = dequantize_affine_int8::<f32>(extract_i8s(value[0]), scale, offset);
+        let out = dequantize_affine_int8::<f32>(unpack_i8s(value[0]), scale, offset);
 
         #[unroll]
         for j in 0..out.size() {
@@ -171,7 +166,8 @@ pub(crate) fn dequantize_per_block_affine_int8_kernel(
     }
 }
 
-pub(crate) fn dequantize_per_scheme<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
+/// Convert the tensor back to a higher precision data type.
+pub fn dequantize<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
 where
     R: CubeRuntime,
     F: CubeElement,
@@ -263,13 +259,4 @@ where
     }
 
     output
-}
-
-/// Convert the tensor back to a higher precision data type.
-pub fn dequantize<R, F>(tensor: CubeTensor<R>) -> CubeTensor<R>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-{
-    dequantize_per_scheme::<R, F>(tensor)
 }
