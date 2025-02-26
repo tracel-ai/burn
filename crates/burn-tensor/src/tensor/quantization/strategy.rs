@@ -478,14 +478,14 @@ mod tests {
         .concat();
 
         // Affine quantization for each block with range min/max
-        let per_block_strat = vec![
+        let per_block_strategy = vec![
             AffineQuantization::<f32, i8, i32>::new(-1.8, 0.5),
             AffineQuantization::<f32, i8, i32>::new(-0.8, 1.2),
             AffineQuantization::<f32, i8, i32>::new(-0.08, 0.12),
             AffineQuantization::<f32, i8, i32>::new(0.2, 0.5),
         ];
         let strategy =
-            QuantizationStrategy::PerBlockAffineInt8(per_block_strat, BlockLayout::Flat(4));
+            QuantizationStrategy::PerBlockAffineInt8(per_block_strategy, BlockLayout::Flat(4));
 
         let q: Vec<i8> = strategy.quantize(&x, shape);
         assert_eq!(q, expected_q);
@@ -560,7 +560,7 @@ mod tests {
         .concat();
 
         // Symmetric quantization for each block with range min/max
-        let per_block_strat = vec![
+        let per_block_strategy = vec![
             SymmetricQuantization::<f32, i8>::new(-1.8, 0.5),
             SymmetricQuantization::<f32, i8>::new(-0.8, 1.2),
             SymmetricQuantization::<f32, i8>::new(-0.08, 0.12),
@@ -570,8 +570,10 @@ mod tests {
             SymmetricQuantization::<f32, i8>::new(0.1, 0.4),
             SymmetricQuantization::<f32, i8>::new(-1.8, 0.5),
         ];
-        let strategy =
-            QuantizationStrategy::PerBlockSymmetricInt8(per_block_strat, BlockLayout::Grid(2, 2));
+        let strategy = QuantizationStrategy::PerBlockSymmetricInt8(
+            per_block_strategy,
+            BlockLayout::Grid(2, 2),
+        );
 
         let q: Vec<i8> = strategy.quantize(&x, shape);
         assert_eq!(q, expected_q);

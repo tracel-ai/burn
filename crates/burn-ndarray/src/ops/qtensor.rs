@@ -110,7 +110,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         offset.elem(),
                     )),
                     vec![QParams {
-                        scale: scale,
+                        scale,
                         offset: Some(offset),
                     }],
                 )
@@ -122,7 +122,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                         scale,
                     )),
                     vec![QParams {
-                        scale: scale,
+                        scale,
                         offset: None,
                     }],
                 )
