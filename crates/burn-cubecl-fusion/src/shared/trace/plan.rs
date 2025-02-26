@@ -64,6 +64,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             op.1.output_offset(output_offset);
         }
     }
+
     pub fn new(
         reads: &BTreeMap<TensorId, Vec<ElemwiseOp>>,
         writes: &BTreeMap<TensorId, ElemwiseOp>,

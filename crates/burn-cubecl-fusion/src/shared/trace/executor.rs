@@ -77,7 +77,6 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
-        println!("Execute plans");
         let reference = match plans.0.reference {
             Some(reference) => reference,
             None => {

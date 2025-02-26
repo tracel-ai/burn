@@ -136,7 +136,6 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
-        println!("Shape {shape:?} - {} - {}", self.axis, reduce_count);
 
         let line_mode = match strides[self.axis] == 1 {
             true => LineMode::Parallel,
@@ -242,7 +241,6 @@ fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
 fn launch_reduce<'a, 'b, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
     kwargs: ReduceKwArgs<'a, 'b, Run>,
 ) {
-    println!("{:?}", kwargs.config_reduce);
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
             if kwargs.strategy.use_planes {

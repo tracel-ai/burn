@@ -119,7 +119,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             plan.vectorization.insert(global.id, Vect::Aligned(1));
         }
 
-        plan.width = 0;
+        plan.width = 1;
 
         for handle in plan.handle_inputs.iter_mut() {
             let (vect, br) = match plan.vectorization.get(&handle.global_id) {
