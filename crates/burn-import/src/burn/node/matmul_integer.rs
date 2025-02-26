@@ -16,7 +16,13 @@ pub struct MatMulIntegerNode {
 }
 
 impl MatMulIntegerNode {
-    pub fn new(lhs: TensorType, rhs: TensorType, output: TensorType, a_zero_point: Option<TensorType>, b_zero_point: Option<TensorType>) -> Self {
+    pub fn new(
+        lhs: TensorType,
+        rhs: TensorType,
+        output: TensorType,
+        a_zero_point: Option<TensorType>,
+        b_zero_point: Option<TensorType>,
+    ) -> Self {
         // Validate tensor types - using Int for quantized tensors
         if lhs.kind != TensorKind::Int || rhs.kind != TensorKind::Int {
             panic!("MatMulInteger is only implemented for integer tensors");
@@ -40,7 +46,13 @@ impl MatMulIntegerNode {
             }
         }
 
-        Self { lhs, rhs, output, a_zero_point, b_zero_point }
+        Self {
+            lhs,
+            rhs,
+            output,
+            a_zero_point,
+            b_zero_point,
+        }
     }
 }
 
@@ -151,7 +163,12 @@ mod tests {
         ));
 
         graph.register_input_output(
-            vec!["tensor1".to_string(), "tensor2".to_string(), "a_zero_point".to_string(), "b_zero_point".to_string()],
+            vec![
+                "tensor1".to_string(),
+                "tensor2".to_string(),
+                "a_zero_point".to_string(),
+                "b_zero_point".to_string(),
+            ],
             vec!["tensor3".to_string()],
         );
 
