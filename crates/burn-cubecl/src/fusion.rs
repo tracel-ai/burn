@@ -6,6 +6,7 @@ use burn_cubecl_fusion::matmul::builder::MatmulBuilder;
 use burn_cubecl_fusion::matmul::optimization::MatmulOptimization;
 use burn_cubecl_fusion::matmul::MatmulFallbackFn;
 use burn_cubecl_fusion::reduce::builder::ReduceBuilder;
+use burn_cubecl_fusion::reduce::optimization::ReduceFallbackFn;
 use burn_cubecl_fusion::CubeFusionHandle;
 use burn_cubecl_fusion::{
     elemwise::builder::ElementWiseBuilder, CubeOptimization, CubeOptimizationState,
@@ -62,6 +63,7 @@ where
 }
 
 struct FallbackMatmul;
+struct FallbackReduce;
 
 impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
     fn run(
@@ -74,6 +76,18 @@ impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
             burn_tensor::DType::F32 => run_fallback_matmul::<R, f32>(lhs, rhs),
             burn_tensor::DType::F16 => run_fallback_matmul::<R, f16>(lhs, rhs),
             burn_tensor::DType::BF16 => run_fallback_matmul::<R, bf16>(lhs, rhs),
+            _ => todo!("Not yet supported"),
+        }
+    }
+}
+
+impl<R: CubeRuntime> ReduceFallbackFn<R> for FallbackReduce {
+    fn run(&self, input: (CubeFusionHandle<R>, &[usize])) -> CubeFusionHandle<R> {
+        match input.0.dtype {
+            burn_tensor::DType::F64 => run_fallback_reduce::<R, f64>(input),
+            burn_tensor::DType::F32 => run_fallback_reduce::<R, f32>(input),
+            burn_tensor::DType::F16 => run_fallback_reduce::<R, f16>(input),
+            burn_tensor::DType::BF16 => run_fallback_reduce::<R, bf16>(input),
             _ => todo!("Not yet supported"),
         }
     }
@@ -100,6 +114,30 @@ fn run_fallback_matmul<R: CubeRuntime, EG: FloatElement>(
         rhs_tensor,
         None,
         crate::kernel::matmul::MatmulStrategy::default(),
+    )
+    .unwrap();
+
+    CubeFusionHandle {
+        client: out_tensor.client,
+        handle: out_tensor.handle,
+        device: out_tensor.device,
+        dtype: out_tensor.dtype,
+        strides: out_tensor.strides,
+    }
+}
+
+fn run_fallback_reduce<R: CubeRuntime, EG: FloatElement>(
+    input: (CubeFusionHandle<R>, &[usize]),
+) -> CubeFusionHandle<R> {
+    let input_tensor = into_tensor(
+        input.0,
+        Shape {
+            dims: input.1.to_vec(),
+        },
+    );
+    let out_tensor = crate::kernel::reduce::reduce::<R, EG, EG, cubecl::reduce::instructions::Sum>(
+        input_tensor,
+        crate::kernel::reduce::ReduceStrategy::default(),
     )
     .unwrap();
 
@@ -176,6 +214,7 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
             Box::new(ReduceBuilder::<R>::new(
                 device.clone(),
                 BT::as_elem_native_unchecked().into(),
+                Arc::new(FallbackReduce),
             )),
         ]
     }

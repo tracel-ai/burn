@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use burn_fusion::stream::Context;
-use burn_ir::ReduceDimOpIr;
+use burn_ir::{ReduceDimOpIr, TensorStatus};
 use burn_tensor::DType;
 use cubecl::prelude::*;
 use cubecl::reduce::{reduce_kernel, Reduce, ReduceParams, ReduceStrategy};
@@ -10,6 +12,7 @@ use cubecl::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::trace::{MultiTraceRunner, Vectorization};
 use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
@@ -29,6 +32,11 @@ pub struct ReduceOptimization<R: Runtime> {
     pub(crate) device: R::Device,
     pub(crate) len: usize,
     pub(crate) fuse: FusedReduce,
+    fallback: Arc<dyn ReduceFallbackFn<R>>,
+}
+
+pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
+    fn run(&self, input: (CubeFusionHandle<R>, &[usize])) -> CubeFusionHandle<R>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -57,8 +65,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         if self.execute_fused::<BT>(context).is_err() {
-            // self.execute_fallback::<BT>(context);
-            panic!("NOOOOOOOOOOOOOo");
+            self.execute_fallback::<BT>(context);
         }
     }
 
@@ -74,12 +81,41 @@ impl<R: Runtime> ReduceOptimization<R> {
             &self.fuse,
         )
     }
+
+    pub fn execute_fallback<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) {
+        self.trace_read_fallback
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .unwrap();
+        let (out_tensor, out_desc) = {
+            let input = context.tensors.get(&self.fuse.op.input.id).unwrap().clone();
+            let out = context.tensors.get(&self.fuse.op.out.id).unwrap().clone();
+
+            let input_handle = context
+                .handles
+                .get_handle(&input.id, &TensorStatus::ReadOnly);
+            let out_handle = self.fallback.run((input_handle, &input.shape));
+
+            (out_handle, out)
+        };
+        context.handles.register_handle(out_desc.id, out_tensor);
+        self.trace_write_fallback
+            .run::<R, BT, ElemwiseRunner>(&self.client, &self.device, context, &ElemwiseRunner)
+            .unwrap();
+    }
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
         self.len
     }
 }
-impl<R: Runtime> Vectorization<R> for FusedReduce {}
+impl<R: Runtime> Vectorization<R> for FusedReduce {
+    fn axis(&self) -> Option<usize> {
+        Some(self.axis)
+    }
+}
+
 impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
     type Error = FusedReduceError;
 
@@ -92,18 +128,26 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
         let strategy = ReduceStrategy::new::<R>(client, true);
-        let reduce_count: u32 = inputs
-            .shape(&config_read.ref_layout)
+        let shape = inputs.shape(&config_read.ref_layout);
+        let strides = inputs.strides(&config_read.ref_layout);
+        let reduce_count: u32 = shape
             .iter()
             .enumerate()
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
 
+        println!("Shape {shape:?} - {} - {}", self.axis, reduce_count);
+
+        let line_mode = match strides[self.axis] == 1 {
+            true => LineMode::Parallel,
+            false => LineMode::Perpendicular,
+        };
+
         let config_reduce = ReduceConfig {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
-            line_mode: LineMode::Parallel,
-            line_size: inputs.line_size(&config_read.ref_layout) as u32,
+            line_mode,
+            line_size: config_read.width as u32,
             bound_checks: true,
         }
         .generate_cube_dim(client, strategy.use_planes)
@@ -198,6 +242,7 @@ fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
 fn launch_reduce<'a, 'b, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
     kwargs: ReduceKwArgs<'a, 'b, Run>,
 ) {
+    println!("{:?}", kwargs.config_reduce);
     let settings = ReduceParams {
         shared: kwargs.strategy.shared.then(|| {
             if kwargs.strategy.use_planes {

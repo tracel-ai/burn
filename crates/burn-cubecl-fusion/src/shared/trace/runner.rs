@@ -25,6 +25,9 @@ pub trait TraceRunner<R: Runtime>: Vectorization<R> {
 }
 
 pub trait Vectorization<R: Runtime> {
+    fn axis(&self) -> Option<usize> {
+        None
+    }
     /// The vectorization factor for all inputs and outputs.
     fn vectorization<'a>(
         vectorizations: &mut BTreeMap<TensorId, Vect>,
@@ -34,6 +37,7 @@ pub trait Vectorization<R: Runtime> {
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
         ref_elem: &Elem,
+        axis: Option<usize>,
     ) {
         vectorization_default(
             vectorizations,
@@ -43,6 +47,7 @@ pub trait Vectorization<R: Runtime> {
             reshaped,
             swapped,
             ref_elem,
+            axis,
         )
     }
 }
@@ -71,21 +76,22 @@ fn vectorization_default<'a, R: Runtime>(
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
     // Smallest element type that can be vectorized.
     ref_elem: &Elem,
+    axis: Option<usize>,
 ) {
     let swapped: Vec<_> = swapped.collect();
 
     // The default version uses the last dimension as vectorization axis and assumes a
     // perpendicular contiguous line.
     let vectorization_input = |handle: &CubeFusionHandle<R>, desc: &TensorIr| {
-        let rank = handle.strides.len();
-        let shape_axis = desc.shape[rank - 1];
+        let axis = axis.unwrap_or_else(|| handle.strides.len() - 1);
+        let shape_axis = desc.shape[axis];
 
         if shape_axis == 1 {
             return Vect::Broadcasted;
         }
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
-        if handle.strides[rank - 1] != 1 {
+        if handle.strides[axis] != 1 {
             return Vect::Aligned(1);
         }
 
@@ -100,11 +106,11 @@ fn vectorization_default<'a, R: Runtime>(
     };
 
     let vectorization_output = |desc: &TensorIr| {
-        let rank = desc.shape.len();
+        let axis = axis.unwrap_or_else(|| desc.shape.len() - 1);
 
         for s in R::line_size_elem(ref_elem) {
-            // The last dimension should be a multiple of the vector size.
-            if desc.shape[rank - 1] % s as usize == 0 {
+            // The dimension should be a multiple of the vector size.
+            if desc.shape[axis] % s as usize == 0 {
                 return Vect::Aligned(s);
             }
         }
@@ -113,12 +119,18 @@ fn vectorization_default<'a, R: Runtime>(
     };
 
     let vectorization_reshape = |reshaped: &TensorIr, original: &TensorIr, multi_reads: bool| {
-        let reshape_axis = reshaped.shape[reshaped.shape.len() - 1];
-        let shape_axis = original.shape[original.shape.len() - 1];
+        let axis = axis.unwrap_or_else(|| reshaped.shape.len() - 1);
+        let reshape_axis = reshaped.shape[axis];
 
         if !multi_reads && reshape_axis == 1 {
             return Vect::Broadcasted;
         }
+
+        if axis != reshaped.shape.len() - 1 {
+            return Vect::Aligned(1);
+        }
+
+        let shape_axis = original.shape[original.shape.len() - 1];
 
         for s in R::line_size_elem(ref_elem) {
             if !multi_reads {
@@ -144,21 +156,23 @@ fn vectorization_default<'a, R: Runtime>(
                                  original: &TensorIr,
                                  multi_reads: bool,
                                  dims: &(u32, u32)| {
-        let swapped_axis = swapped.shape[swapped.shape.len() - 1];
-        let shape_axis = original.shape[original.shape.len() - 1];
+        let axis = axis.unwrap_or_else(|| swapped.shape.len() - 1);
 
-        let last_dim_index = handle.strides.len() - 1;
-        let dim_index = if dims.0 as usize == last_dim_index {
+        let swapped_axis = swapped.shape[axis];
+        let shape_axis = original.shape[axis];
+
+        let axis_index = axis;
+        let dim_index = if dims.0 as usize == axis_index {
             dims.1 as usize
-        } else if dims.1 as usize == last_dim_index {
+        } else if dims.1 as usize == axis_index {
             dims.0 as usize
         } else {
-            last_dim_index
+            axis_index
         };
 
         // Last dimension strides should be 1, otherwise vecX won't be contiguous.
         if multi_reads {
-            if handle.strides[last_dim_index] != 1 {
+            if handle.strides[axis_index] != 1 {
                 return Vect::Aligned(1);
             }
             if handle.strides[dim_index] != 1 {

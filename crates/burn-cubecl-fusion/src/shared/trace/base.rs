@@ -70,7 +70,7 @@ impl FuseTrace {
             .run::<BT>(client, device, context, &mut plan);
 
         VectorizationPlanner::<R>::new(&self.views, &self.reads, &self.indexed)
-            .run::<Runner>(context, &mut plan);
+            .run(runner, context, &mut plan);
 
         match LaunchPlanExecutor::<R>::new(&self.scalars, &self.views, &self.ops)
             .execute::<_, BT>(client, runner, context, plan)
@@ -112,7 +112,6 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), Runner::Error> {
-        println!("Run multi");
         let (read, write) = this;
         let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
         let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
@@ -133,8 +132,13 @@ impl FuseTrace {
             &mut plan_read,
         );
 
-        VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed)
-            .run::<Runner>(context, &mut plan_read);
+        if read.settings.vectorization {
+            VectorizationPlanner::<R>::new(&read.views, &read.reads, &read.indexed).run(
+                runner,
+                context,
+                &mut plan_read,
+            );
+        }
 
         InputPlanner::<R>::new(
             &write.inputs,
@@ -152,8 +156,13 @@ impl FuseTrace {
             &mut plan_write,
         );
 
-        VectorizationPlanner::<R>::new(&write.views, &write.reads, &write.indexed)
-            .run::<Runner>(context, &mut plan_write);
+        if write.settings.vectorization {
+            VectorizationPlanner::<R>::new(&write.views, &write.reads, &write.indexed).run(
+                runner,
+                context,
+                &mut plan_write,
+            );
+        }
 
         match LaunchMultiPlanExecutor::<R>::new(
             (&read.scalars, &write.scalars),
@@ -163,7 +172,6 @@ impl FuseTrace {
         .execute::<_, BT>(client, runner, context, (plan_read, plan_write))
         {
             Err(err) => {
-                println!("Erraor");
                 read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
                 write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
                 Err(err.runner_error)

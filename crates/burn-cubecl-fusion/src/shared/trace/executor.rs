@@ -91,6 +91,8 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         register_inputs(&plans.0.handle_inputs, &mut inputs);
         register_outputs::<BT, R>(&plans.0.handle_outputs, &mut outputs);
 
+        let output_offset = outputs.tensors.values.len() as u32;
+
         let mut ops = Sequence::<ElemwiseOp>::new();
 
         for read_ops in plans.0.reads.into_values() {
@@ -143,7 +145,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         }
 
         for op in plans.1.writes.into_values() {
-            ops.push(op);
+            ops.push(op.output_offset(output_offset));
         }
         let config_1 = ElemwiseConfig {
             rank: plans.1.rank as u32,

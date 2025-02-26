@@ -34,6 +34,7 @@ impl<R: Runtime> MatmulBuilder<R> {
             broadcast: true,
             output_shape_updates: false,
             inplace: true,
+            vectorization: true,
         };
 
         Self {

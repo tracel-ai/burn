@@ -40,6 +40,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
     }
     pub fn run<Runner: Vectorization<R>>(
         self,
+        runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
@@ -110,6 +111,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
             &ref_elem.0,
+            runner.axis(),
         );
 
         for tensor in self.indexed {

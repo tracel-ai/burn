@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use burn_fusion::{OptimizationBuilder, OptimizationStatus};
 use burn_ir::{NumericOperationIr, OperationIr};
 use cubecl::Runtime;
@@ -7,7 +9,7 @@ use crate::{
     CubeOptimization,
 };
 
-use super::optimization::{FusedReduce, ReduceOptimization};
+use super::optimization::{FusedReduce, ReduceFallbackFn, ReduceOptimization};
 
 /// Fused element wise operations that are normally memory bound.
 pub struct ReduceBuilder<R: Runtime> {
@@ -18,27 +20,40 @@ pub struct ReduceBuilder<R: Runtime> {
     device: R::Device,
     reduce: Option<FusedReduce>,
     status: OptimizationStatus,
+    fallback: Arc<dyn ReduceFallbackFn<R>>,
 }
 
 impl<R: Runtime> ReduceBuilder<R> {
-    pub fn new(device: R::Device, bool_precision: ElemwisePrecision) -> Self {
+    pub fn new(
+        device: R::Device,
+        bool_precision: ElemwisePrecision,
+        fallback: Arc<dyn ReduceFallbackFn<R>>,
+    ) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware_properties().max_bindings;
-        let settings = FuseSettings {
-            broadcast: true,
+        let settings_read = FuseSettings {
+            broadcast: false,
             output_shape_updates: false,
-            inplace: true,
+            inplace: false,
+            vectorization: false,
+        };
+        let settings_write = FuseSettings {
+            broadcast: false,
+            output_shape_updates: false,
+            inplace: false,
+            vectorization: false,
         };
 
         Self {
-            builder_read: FuseBuilder::new(max_bindings, bool_precision, settings),
-            builder_write: FuseBuilder::new(max_bindings, bool_precision, settings),
-            builder_read_fallback: FuseBuilder::new(max_bindings, bool_precision, settings),
-            builder_write_fallback: FuseBuilder::new(max_bindings, bool_precision, settings),
+            builder_read: FuseBuilder::new(max_bindings, bool_precision, settings_read),
+            builder_write: FuseBuilder::new(max_bindings, bool_precision, settings_write),
+            builder_read_fallback: FuseBuilder::new(max_bindings, bool_precision, settings_read),
+            builder_write_fallback: FuseBuilder::new(max_bindings, bool_precision, settings_write),
             device,
             reduce: None,
             status: OptimizationStatus::Open,
+            fallback,
         }
     }
 }
@@ -91,6 +106,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
             self.device.clone(),
             self.len(),
             self.reduce.as_ref().unwrap().clone(),
+            self.fallback.clone(),
         );
 
         CubeOptimization::Reduce(reduce)
@@ -115,7 +131,7 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
 
         if self.reduce.is_some() {
             let properties_write = self.builder_write.properties();
-            properties.score += properties_write.score + 10;
+            properties.score += properties_write.score + 1;
             properties.ready = true;
             properties
         } else {

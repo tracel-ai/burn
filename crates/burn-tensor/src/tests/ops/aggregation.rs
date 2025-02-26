@@ -74,16 +74,16 @@ mod tests {
             .assert_eq(&TensorData::from([[1], [4]]), false);
     }
 
-    // #[test]
-    // fn test_should_sum_last_dim_int() {
-    //     let tensor = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
+    #[test]
+    fn test_should_sum_last_dim_int() {
+        let tensor = TestTensorInt::<2>::from([[0, 1, 2], [3, 4, 5]]);
 
-    //     let output = tensor.sum_dim(1);
+        let output = tensor.sum_dim(1);
 
-    //     output
-    //         .into_data()
-    //         .assert_eq(&TensorData::from([[3], [12]]), false);
-    // }
+        output
+            .into_data()
+            .assert_eq(&TensorData::from([[3], [12]]), false);
+    }
 
     #[test]
     fn test_should_sum_first_dim() {
