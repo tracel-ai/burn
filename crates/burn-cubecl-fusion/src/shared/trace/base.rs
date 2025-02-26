@@ -112,6 +112,7 @@ impl FuseTrace {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
     ) -> Result<(), Runner::Error> {
+        println!("Run multi");
         let (read, write) = this;
         let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
         let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
@@ -162,6 +163,7 @@ impl FuseTrace {
         .execute::<_, BT>(client, runner, context, (plan_read, plan_write))
         {
             Err(err) => {
+                println!("Erraor");
                 read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
                 write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
                 Err(err.runner_error)

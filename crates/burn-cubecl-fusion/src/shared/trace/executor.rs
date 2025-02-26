@@ -77,6 +77,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
+        println!("Execute plans");
         let reference = match plans.0.reference {
             Some(reference) => reference,
             None => {
@@ -151,6 +152,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
             width: plans.1.width,
         };
 
+        println!("Executed");
         Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
             MultiExecutionError::new(
                 err,

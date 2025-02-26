@@ -67,6 +67,8 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
                 if self.builder_read_fallback.len() < self.builder_read.len() {
                     self.builder_read_fallback.register(operation);
                 }
+
+                self.status = self.builder_read.status();
             }
         } else {
             panic!("Should not happen");
@@ -109,9 +111,12 @@ impl<R: Runtime> OptimizationBuilder<CubeOptimization<R>> for ReduceBuilder<R> {
 
     fn properties(&self) -> burn_fusion::OptimizationProperties {
         let mut properties = self.builder_read.properties();
+        properties.ready = false;
+
         if self.reduce.is_some() {
             let properties_write = self.builder_write.properties();
-            properties.score += properties_write.score;
+            properties.score += properties_write.score + 10;
+            properties.ready = true;
             properties
         } else {
             properties.ready = false;

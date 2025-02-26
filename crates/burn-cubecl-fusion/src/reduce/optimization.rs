@@ -1,5 +1,6 @@
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
+use burn_tensor::DType;
 use cubecl::prelude::*;
 use cubecl::reduce::{reduce_kernel, Reduce, ReduceParams, ReduceStrategy};
 use cubecl::{
@@ -90,19 +91,20 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_read: &'a ElemwiseConfig,
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
-        let strategy = ReduceStrategy::new::<R>(client, false);
+        let strategy = ReduceStrategy::new::<R>(client, true);
         let reduce_count: u32 = inputs
             .shape(&config_read.ref_layout)
             .iter()
             .enumerate()
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
+
         let config_reduce = ReduceConfig {
             cube_count: CubeCount::new_single(),
             cube_dim: CubeDim::new_single(),
             line_mode: LineMode::Parallel,
             line_size: inputs.line_size(&config_read.ref_layout) as u32,
-            bound_checks: false,
+            bound_checks: true,
         }
         .generate_cube_dim(client, strategy.use_planes)
         .generate_cube_count::<R>(reduce_count as u32, &strategy);
@@ -116,57 +118,108 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             }
         }
 
-        launch_reduce::<R, f32, f32, cubecl::reduce::instructions::Sum>(
+        let kwargs = ReduceKwArgs {
             client,
             inputs,
             outputs,
-            self.axis as u32,
-            &ReduceStrategy::new::<R>(client, true),
+            axis: self.axis as u32,
+            strategy: &ReduceStrategy::new::<R>(client, true),
             config_reduce,
-            config_read,
-            config_write,
-            &self.input,
-            &self.output,
+            config_fuse_read: &config_read,
+            config_fuse_write: &config_write,
+            input: &self.input,
+            output: &self.output,
+        };
+        launch_reduce_input_output::<R, cubecl::reduce::instructions::Sum>(
+            kwargs,
+            self.op.input.dtype,
+            self.op.out.dtype,
         );
 
         Ok(())
     }
 }
 
-fn launch_reduce<'a, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
-    client: &ComputeClient<Run::Server, Run::Channel>,
+struct ReduceKwArgs<'a, 'b, Run: Runtime> {
+    client: &'b ComputeClient<Run::Server, Run::Channel>,
     inputs: GlobalArgsLaunch<'a, Run>,
     outputs: GlobalArgsLaunch<'a, Run>,
     axis: u32,
-    strategy: &ReduceStrategy,
+    strategy: &'b ReduceStrategy,
     config_reduce: ReduceConfig,
     config_fuse_read: &'a ElemwiseConfig,
     config_fuse_write: &'a ElemwiseConfig,
     input: &'a Arg,
     output: &'a Arg,
+}
+
+fn launch_reduce_input_output<'a, 'b, Run: Runtime, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'a, 'b, Run>,
+    dtype_input: DType,
+    dtype_output: DType,
+) {
+    match dtype_input {
+        DType::F64 => launch_reduce_output::<Run, f64, Rd>(kwargs, dtype_output),
+        DType::F32 => launch_reduce_output::<Run, f32, Rd>(kwargs, dtype_output),
+        DType::F16 => launch_reduce_output::<Run, half::f16, Rd>(kwargs, dtype_output),
+        DType::BF16 => launch_reduce_output::<Run, half::bf16, Rd>(kwargs, dtype_output),
+        DType::I64 => launch_reduce_output::<Run, i64, Rd>(kwargs, dtype_output),
+        DType::I32 => launch_reduce_output::<Run, i32, Rd>(kwargs, dtype_output),
+        DType::I16 => launch_reduce_output::<Run, i16, Rd>(kwargs, dtype_output),
+        DType::I8 => launch_reduce_output::<Run, i8, Rd>(kwargs, dtype_output),
+        DType::U64 => launch_reduce_output::<Run, u64, Rd>(kwargs, dtype_output),
+        DType::U32 => launch_reduce_output::<Run, u32, Rd>(kwargs, dtype_output),
+        DType::U16 => launch_reduce_output::<Run, u16, Rd>(kwargs, dtype_output),
+        DType::U8 => launch_reduce_output::<Run, u8, Rd>(kwargs, dtype_output),
+        _ => panic!("Unsupported"),
+    }
+}
+fn launch_reduce_output<'a, 'b, Run: Runtime, In: Numeric, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'a, 'b, Run>,
+    dtype: DType,
+) {
+    match dtype {
+        DType::F64 => launch_reduce::<Run, In, f64, Rd>(kwargs),
+        DType::F32 => launch_reduce::<Run, In, f32, Rd>(kwargs),
+        DType::F16 => launch_reduce::<Run, In, half::f16, Rd>(kwargs),
+        DType::BF16 => launch_reduce::<Run, In, half::bf16, Rd>(kwargs),
+        DType::I64 => launch_reduce::<Run, In, i64, Rd>(kwargs),
+        DType::I32 => launch_reduce::<Run, In, i32, Rd>(kwargs),
+        DType::I16 => launch_reduce::<Run, In, i16, Rd>(kwargs),
+        DType::I8 => launch_reduce::<Run, In, i8, Rd>(kwargs),
+        DType::U64 => launch_reduce::<Run, In, u64, Rd>(kwargs),
+        DType::U32 => launch_reduce::<Run, In, u32, Rd>(kwargs),
+        DType::U16 => launch_reduce::<Run, In, u16, Rd>(kwargs),
+        DType::U8 => launch_reduce::<Run, In, u8, Rd>(kwargs),
+        _ => panic!("Unsupported"),
+    }
+}
+
+fn launch_reduce<'a, 'b, Run: Runtime, In: Numeric, Out: Numeric, Rd: Reduce>(
+    kwargs: ReduceKwArgs<'a, 'b, Run>,
 ) {
     let settings = ReduceParams {
-        shared: strategy.shared.then(|| {
-            if strategy.use_planes {
-                config_reduce.cube_dim.y
+        shared: kwargs.strategy.shared.then(|| {
+            if kwargs.strategy.use_planes {
+                kwargs.config_reduce.cube_dim.y
             } else {
-                config_reduce.cube_dim.num_elems()
+                kwargs.config_reduce.cube_dim.num_elems()
             }
         }),
-        use_planes: strategy.use_planes,
-        line_size: config_reduce.line_size,
-        line_mode: config_reduce.line_mode,
-        bound_checks: config_reduce.bound_checks,
+        use_planes: kwargs.strategy.use_planes,
+        line_size: kwargs.config_reduce.line_size,
+        line_mode: kwargs.config_reduce.line_mode,
+        bound_checks: kwargs.config_reduce.bound_checks,
     };
 
     unsafe {
-        reduce_kernel::launch::<In, Out, Rd, FusedReduceArgs, Run>(
-            client,
-            config_reduce.cube_count,
-            config_reduce.cube_dim,
-            FusedReduceInputLaunch::new(inputs, &config_fuse_read, input),
-            FusedReduceOutputLaunch::new(outputs, &config_fuse_write, output),
-            ScalarArg::new(axis),
+        reduce_kernel::launch_unchecked::<In, Out, Rd, FusedReduceArgs, Run>(
+            kwargs.client,
+            kwargs.config_reduce.cube_count,
+            kwargs.config_reduce.cube_dim,
+            FusedReduceInputLaunch::new(kwargs.inputs, &kwargs.config_fuse_read, kwargs.input),
+            FusedReduceOutputLaunch::new(kwargs.outputs, &kwargs.config_fuse_write, kwargs.output),
+            ScalarArg::new(kwargs.axis),
             settings,
         );
     }
