@@ -203,7 +203,67 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
-    // TODO: block_size 8 (block_size > line_size)
+    #[test]
+    fn should_support_quantize_per_block_flat() {
+        let device = Default::default();
+        let tensor = TestTensor::<2>::from_floats(
+            [
+                [-1.8, -1.0, 0.0, 0.5, -0.8, 1.2, 0.25, 0.5],
+                [-0.08, 0.12, 0.025, 0.05, 0.2, 0.3, 0.4, 0.5],
+            ],
+            &device,
+        );
+        // block_size > line_size
+        let scheme = QuantizationScheme::PerBlock(
+            QuantizationMode::Symmetric,
+            QuantizationType::QInt8,
+            BlockLayout::Flat(8),
+        );
+
+        // Per-block qparams
+        let scales: [f32; 2] = [0.014173228, 0.003937008];
+        let qparams = QuantizationParameters {
+            scale: Tensor::from_floats(scales, &device),
+            offset: None,
+        };
+
+        let x_q = tensor.clone().quantize(&scheme, qparams);
+
+        let x_q_data = x_q.to_data();
+        let expected = TensorData::quantized(
+            vec![
+                [-127i8, -71, 0, 35, -56, 85, 18, 35],
+                [-20, 30, 6, 13, 51, 76, 102, 127],
+            ]
+            .concat(),
+            [2, 8],
+            QuantizationStrategy::PerBlockSymmetricInt8(
+                scales
+                    .iter()
+                    .map(|&s| SymmetricQuantization::init(s))
+                    .collect(),
+                BlockLayout::Flat(8),
+            ),
+        );
+
+        // Values equality
+        x_q_data.assert_eq(&expected, true);
+
+        // Quantization parameters check
+        let qparams = get_q_params(x_q_data);
+        let expected = get_q_params(expected);
+        assert_eq!(qparams.scale.len(), 2);
+        assert_eq!(qparams.scale, expected.scale);
+        assert_eq!(qparams.offset, None);
+        assert_eq!(qparams.offset, expected.offset);
+
+        // Dequantize
+        let x = x_q.dequantize();
+
+        // Precision 2 for dequantization errors
+        x.into_data().assert_approx_eq(&tensor.into_data(), 2);
+    }
+
     #[test]
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
