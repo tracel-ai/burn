@@ -23,7 +23,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for UnsqueezeNode {
     fn forward(&self, scope: &mut Scope, node_position: usize) -> TokenStream {
         let output = &self.output.name;
         let shape_values = &self.axes.to_tokens();
-        let new_dims = self.output.dim.to_tokens();
+        let new_dims = self.output.rank.to_tokens();
 
         match &self.input {
             Type::Tensor(tensor) => {

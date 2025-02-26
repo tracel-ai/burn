@@ -120,7 +120,7 @@ impl<PS: PrecisionSettings> NodeCodegen<PS> for ConstantNode {
                 let ty = tensor_type.ty();
                 let name = Ident::new(self.name.as_ref(), Span::call_site());
                 let shape = tensor_type.clone().shape.unwrap().to_tokens();
-                let dim = tensor_type.dim.to_tokens();
+                let dim = tensor_type.rank.to_tokens();
 
                 match tensor_type.kind {
                     crate::burn::TensorKind::Int => Some(quote! {
