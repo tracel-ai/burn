@@ -206,7 +206,6 @@ impl FuseBuilder {
                 ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })
             }),
             BaseOperationIr::SwapDims(desc) => {
-                return false;
                 if !self.output_is_compatible(&desc.out) {
                     return false;
                 }
@@ -227,7 +226,6 @@ impl FuseBuilder {
                 }
             }
             BaseOperationIr::Reshape(desc) => {
-                return false;
                 if desc.input.shape == desc.out.shape {
                     return self.register_unary_ops(desc, |input, out| {
                         ElemwiseOp::Assign(UnaryElemwiseArgs { input, out })

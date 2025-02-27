@@ -8,7 +8,10 @@ use cubecl::{
     CubeElement, Runtime,
 };
 
-use super::{HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, TensorView, TraceRunner};
+use super::{
+    HandleInput, HandleOutput, LaunchPlan, MultiTraceRunner, ReferenceSelection, TensorView,
+    TraceError, TraceRunner,
+};
 use crate::{
     elem_dtype,
     shared::{
@@ -37,16 +40,16 @@ pub struct LaunchMultiPlanExecutor<'a, R: Runtime> {
     _r: PhantomData<R>,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct ExecutionError<R: Runtime, Runner: TraceRunner<R>> {
-    pub runner_error: Runner::Error,
+    pub error: TraceError<Runner::Error>,
     pub handles_input: Vec<HandleInput<R>>,
     pub handles_output: Vec<HandleOutput<R>>,
 }
 
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct MultiExecutionError<R: Runtime, Runner: MultiTraceRunner<R>> {
-    pub runner_error: Runner::Error,
+    pub error: TraceError<Runner::Error>,
     pub plan_0_handles_input: Vec<HandleInput<R>>,
     pub plan_0_handles_output: Vec<HandleOutput<R>>,
     pub plan_1_handles_input: Vec<HandleInput<R>>,
@@ -78,9 +81,18 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         mut plans: (LaunchPlan<'a, R>, LaunchPlan<'a, R>),
     ) -> Result<(), MultiExecutionError<R, Runner>> {
         let reference = match plans.0.reference {
-            Some(reference) => reference,
-            None => {
-                panic!("Can't have the first plan not have a reference")
+            ReferenceSelection::Found(reference) => reference,
+            ReferenceSelection::Searching => {
+                unreachable!()
+            }
+            ReferenceSelection::NotFound => {
+                return Err(MultiExecutionError::new(
+                    TraceError::ReferenceNotFound,
+                    plans.0.handle_inputs,
+                    plans.0.handle_outputs,
+                    plans.1.handle_inputs,
+                    plans.1.handle_outputs,
+                ))
             }
         };
 
@@ -116,10 +128,20 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
         };
 
         plans.1.output_offset(output_offset);
+
         let reference = match plans.1.reference {
-            Some(reference) => reference,
-            None => {
-                panic!("Can't have the first plan not have a reference")
+            ReferenceSelection::Found(reference) => reference,
+            ReferenceSelection::Searching => {
+                unreachable!()
+            }
+            ReferenceSelection::NotFound => {
+                return Err(MultiExecutionError::new(
+                    TraceError::ReferenceNotFound,
+                    plans.0.handle_inputs,
+                    plans.0.handle_outputs,
+                    plans.1.handle_inputs,
+                    plans.1.handle_outputs,
+                ))
             }
         };
 
@@ -156,7 +178,7 @@ impl<'a, R: Runtime> LaunchMultiPlanExecutor<'a, R> {
 
         Runner::run(runner, client, inputs, outputs, &config_0, &config_1).map_err(|err| {
             MultiExecutionError::new(
-                err,
+                TraceError::RunnerError(err),
                 plans.0.handle_inputs,
                 plans.0.handle_outputs,
                 plans.1.handle_inputs,
@@ -187,14 +209,24 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         plan: LaunchPlan<'a, R>,
     ) -> Result<(), ExecutionError<R, Runner>> {
         let reference = match plan.reference {
-            Some(reference) => reference,
-            None => {
+            ReferenceSelection::Found(reference) => reference,
+            ReferenceSelection::Searching => {
                 if plan.writes.is_empty() {
                     // Nothing to write, can skip execution.
                     return Ok(());
                 } else {
-                    panic!("An output should exist for the fused kernel")
+                    unreachable!()
                 }
+            }
+            ReferenceSelection::NotFound => {
+                if plan.writes.is_empty() {
+                    return Ok(());
+                }
+                return Err(ExecutionError::new(
+                    TraceError::ReferenceNotFound,
+                    plan.handle_inputs,
+                    plan.handle_outputs,
+                ));
             }
         };
 
@@ -228,8 +260,13 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             width: plan.width,
         };
 
-        Runner::run(runner, client, inputs, outputs, &config)
-            .map_err(|err| ExecutionError::new(err, plan.handle_inputs, plan.handle_outputs))
+        Runner::run(runner, client, inputs, outputs, &config).map_err(|err| {
+            ExecutionError::new(
+                TraceError::RunnerError(err),
+                plan.handle_inputs,
+                plan.handle_outputs,
+            )
+        })
     }
 }
 

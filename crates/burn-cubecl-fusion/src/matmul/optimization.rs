@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::elemwise::optimization::ElemwiseRunner;
 use crate::shared::ir::ElemwisePrecision;
+use crate::shared::trace::TraceError;
 use crate::shared::trace::Vectorization;
 use crate::CubeFusionHandle;
 
@@ -148,7 +149,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_simple_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -160,7 +161,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_specialized_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,
@@ -172,7 +173,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     pub fn execute_double_buffering_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedMatmulError> {
+    ) -> Result<(), TraceError<FusedMatmulError>> {
         self.trace.run::<R, BT, FusedMatmul>(
             &self.client,
             &self.device,

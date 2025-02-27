@@ -13,6 +13,7 @@ use cubecl::{
 use serde::{Deserialize, Serialize};
 
 use crate::elemwise::optimization::ElemwiseRunner;
+use crate::shared::trace::TraceError;
 use crate::shared::trace::{MultiTraceRunner, Vectorization};
 use crate::shared::{
     ir::{Arg, ElemwiseConfig, GlobalArgsLaunch},
@@ -36,7 +37,12 @@ pub struct ReduceOptimization<R: Runtime> {
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
-    fn run(&self, input: (CubeFusionHandle<R>, &[usize])) -> CubeFusionHandle<R>;
+    fn run(
+        &self,
+        input_handle: CubeFusionHandle<R>,
+        shape: &[usize],
+        axis: usize,
+    ) -> CubeFusionHandle<R>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,7 +78,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     pub fn execute_fused<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> Result<(), FusedReduceError> {
+    ) -> Result<(), TraceError<FusedReduceError>> {
         FuseTrace::run_multi::<R, BT, FusedReduce>(
             (&self.trace_read, &self.trace_write),
             &self.client,
@@ -96,7 +102,9 @@ impl<R: Runtime> ReduceOptimization<R> {
             let input_handle = context
                 .handles
                 .get_handle(&input.id, &TensorStatus::ReadOnly);
-            let out_handle = self.fallback.run((input_handle, &input.shape));
+            let out_handle = self
+                .fallback
+                .run(input_handle, &input.shape, self.fuse.op.axis);
 
             (out_handle, out)
         };
@@ -128,6 +136,10 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
         config_write: &'a ElemwiseConfig,
     ) -> Result<(), FusedReduceError> {
         let strategy = ReduceStrategy::new::<R>(client, true);
+        // let strategy = ReduceStrategy {
+        //     shared: false,
+        //     use_planes: false,
+        // };
         let shape = inputs.shape(&config_read.ref_layout);
         let strides = inputs.strides(&config_read.ref_layout);
         let reduce_count: u32 = shape
@@ -135,7 +147,6 @@ impl<R: Runtime> MultiTraceRunner<R> for FusedReduce {
             .enumerate()
             .map(|(i, s)| if i == self.axis { 1 } else { *s as u32 })
             .product();
-
 
         let line_mode = match strides[self.axis] == 1 {
             true => LineMode::Parallel,

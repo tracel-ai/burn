@@ -12,16 +12,30 @@ use cubecl::Runtime;
 #[derive(Debug)]
 pub(crate) struct LaunchPlan<'a, R: Runtime> {
     pub potential_inplaces: Vec<PotentialInplace<'a>>,
+    pub potential_reference: Vec<usize>,
     pub global_inputs: Vec<TensorIr>,
     pub global_outputs: Vec<TensorIr>,
     pub handle_inputs: Vec<HandleInput<R>>,
     pub handle_outputs: Vec<HandleOutput<R>>,
-    pub reference: Option<Reference>,
+    pub reference: ReferenceSelection,
     pub reads: BTreeMap<TensorId, Vec<ElemwiseOp>>,
     pub writes: BTreeMap<TensorId, ElemwiseOp>,
     pub vectorization: BTreeMap<TensorId, Vect>,
     pub width: u8,
     pub rank: usize,
+}
+
+#[derive(Debug)]
+pub enum ReferenceSelection {
+    Searching,
+    NotFound,
+    Found(Reference),
+}
+
+impl ReferenceSelection {
+    pub fn is_found(&self) -> bool {
+        matches!(self, Self::Found(..))
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -53,11 +67,11 @@ impl Vect {
 impl<R: Runtime> LaunchPlan<'_, R> {
     pub fn output_offset(&mut self, output_offset: u32) {
         match &mut self.reference {
-            Some(re) => match &mut re.layout {
+            ReferenceSelection::Found(re) => match &mut re.layout {
                 Arg::Output(pos, ..) => *pos += output_offset,
                 _ => {}
             },
-            None => {}
+            _ => {}
         }
 
         for op in self.writes.iter_mut() {
@@ -72,11 +86,12 @@ impl<R: Runtime> LaunchPlan<'_, R> {
     ) -> Self {
         LaunchPlan {
             potential_inplaces: Vec::new(),
+            potential_reference: Vec::new(),
             global_inputs: Vec::new(),
             global_outputs: Vec::new(),
             handle_inputs: Vec::new(),
             handle_outputs: Vec::new(),
-            reference: None,
+            reference: ReferenceSelection::Searching,
             vectorization: BTreeMap::default(),
             reads: reads.clone(),
             writes: writes.clone(),

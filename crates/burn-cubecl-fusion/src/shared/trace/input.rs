@@ -45,10 +45,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
             let status = &tensor_relative.status;
             let mut handle = context.handles.get_handle(&tensor_global.id, status);
 
-            if self.settings.inplace
-                && status == &TensorStatus::ReadWrite
-                && handle.handle.can_mut()
-                && !self.inputs_unhandled.contains(&tensor_relative.id)
+            if !self.inputs_unhandled.contains(&tensor_relative.id)
                 && !self.views.iter().any(|v| match v {
                     TensorView::Reshape { reshaped, original } => {
                         reshaped == &tensor_relative.id || original == &tensor_relative.id
@@ -59,11 +56,19 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 })
                 && self.shape_ref == &tensor_relative.shape
             {
-                plan.potential_inplaces.push(PotentialInplace {
-                    input_pos: pos,
-                    tensor_relative,
-                    strides: handle.strides.clone(),
-                });
+                if status == &TensorStatus::ReadWrite
+                    && handle.handle.can_mut()
+                    && self.settings.inplace
+                {
+                    plan.potential_inplaces.push(PotentialInplace {
+                        input_pos: pos,
+                        tensor_relative,
+                        strides: handle.strides.clone(),
+                    });
+                    plan.potential_reference.push(pos);
+                } else {
+                    plan.potential_reference.push(pos);
+                }
             }
 
             if tensor_global.shape.len() < plan.rank {

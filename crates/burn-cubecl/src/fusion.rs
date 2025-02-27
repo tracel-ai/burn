@@ -82,12 +82,17 @@ impl<R: CubeRuntime> MatmulFallbackFn<R> for FallbackMatmul {
 }
 
 impl<R: CubeRuntime> ReduceFallbackFn<R> for FallbackReduce {
-    fn run(&self, input: (CubeFusionHandle<R>, &[usize])) -> CubeFusionHandle<R> {
-        match input.0.dtype {
-            burn_tensor::DType::F64 => run_fallback_reduce::<R, f64>(input),
-            burn_tensor::DType::F32 => run_fallback_reduce::<R, f32>(input),
-            burn_tensor::DType::F16 => run_fallback_reduce::<R, f16>(input),
-            burn_tensor::DType::BF16 => run_fallback_reduce::<R, bf16>(input),
+    fn run(
+        &self,
+        input_handle: CubeFusionHandle<R>,
+        shape: &[usize],
+        axis: usize,
+    ) -> CubeFusionHandle<R> {
+        match input_handle.dtype {
+            burn_tensor::DType::F64 => run_fallback_reduce::<R, f64>(input_handle, shape, axis),
+            burn_tensor::DType::F32 => run_fallback_reduce::<R, f32>(input_handle, shape, axis),
+            burn_tensor::DType::F16 => run_fallback_reduce::<R, f16>(input_handle, shape, axis),
+            burn_tensor::DType::BF16 => run_fallback_reduce::<R, bf16>(input_handle, shape, axis),
             _ => todo!("Not yet supported"),
         }
     }
@@ -127,19 +132,23 @@ fn run_fallback_matmul<R: CubeRuntime, EG: FloatElement>(
 }
 
 fn run_fallback_reduce<R: CubeRuntime, EG: FloatElement>(
-    input: (CubeFusionHandle<R>, &[usize]),
+    input_handle: CubeFusionHandle<R>,
+    shape: &[usize],
+    axis: usize,
 ) -> CubeFusionHandle<R> {
     let input_tensor = into_tensor(
-        input.0,
+        input_handle,
         Shape {
-            dims: input.1.to_vec(),
+            dims: shape.to_vec(),
         },
     );
-    let out_tensor = crate::kernel::reduce::reduce::<R, EG, EG, cubecl::reduce::instructions::Sum>(
-        input_tensor,
-        crate::kernel::reduce::ReduceStrategy::default(),
-    )
-    .unwrap();
+    let out_tensor =
+        crate::kernel::reduce::reduce_dim::<R, EG, EG, cubecl::reduce::instructions::Sum>(
+            input_tensor,
+            axis,
+            crate::kernel::reduce::ReduceStrategy::default(),
+        )
+        .unwrap();
 
     CubeFusionHandle {
         client: out_tensor.client,

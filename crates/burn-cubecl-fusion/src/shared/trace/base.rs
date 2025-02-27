@@ -33,6 +33,12 @@ pub struct FuseTrace {
     pub inputs_unhandled: Vec<TensorId>,
 }
 
+#[derive(Debug)]
+pub enum TraceError<Err> {
+    ReferenceNotFound,
+    RunnerError(Err),
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum TensorView {
     Reshape {
@@ -54,7 +60,7 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
-    ) -> Result<(), Runner::Error> {
+    ) -> Result<(), TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::new(&self.reads, &self.writes, self.shape_ref.len());
 
         InputPlanner::<R>::new(
@@ -77,7 +83,7 @@ impl FuseTrace {
         {
             Err(err) => {
                 self.rollback(context, err.handles_input, err.handles_output);
-                Err(err.runner_error)
+                Err(err.error)
             }
             Ok(val) => Ok(val),
         }
@@ -111,7 +117,7 @@ impl FuseTrace {
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         runner: &Runner,
-    ) -> Result<(), Runner::Error> {
+    ) -> Result<(), TraceError<Runner::Error>> {
         let (read, write) = this;
         let mut plan_read = LaunchPlan::new(&read.reads, &read.writes, read.shape_ref.len());
         let mut plan_write = LaunchPlan::new(&write.reads, &write.writes, write.shape_ref.len());
@@ -174,7 +180,7 @@ impl FuseTrace {
             Err(err) => {
                 read.rollback(context, err.plan_0_handles_input, err.plan_0_handles_output);
                 write.rollback(context, err.plan_1_handles_input, err.plan_1_handles_output);
-                Err(err.runner_error)
+                Err(err.error)
             }
             Ok(val) => Ok(val),
         }
