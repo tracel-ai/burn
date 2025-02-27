@@ -1,452 +1,184 @@
-use core::{fmt::Display, mem::transmute, ptr::null};
+use core::mem::transmute;
 
 use crate::{sharing::UnsafeSharedRef, tensor::NdArrayTensor};
 
 use burn_common::{iter_range_par, run_par};
 use burn_tensor::{quantization::QuantizationType, DType, Element, TensorMetadata};
-use bytemuck::{cast_slice_mut, Zeroable};
+use bytemuck::cast_slice_mut;
 use macerator::{SimdExt, VOrd};
-use ndarray::{s, Array4, ArrayView2, ArrayViewMut2};
+use ndarray::{s, Array4};
+use nhwc::max_pool2d_nhwc;
 use pulp::{Arch, Simd};
 
-use super::{
-    load2, load4, should_use_simd, store2, store2_unaligned, store4, store4_unaligned, MinMax,
-};
+use super::{should_use_simd, store4_unaligned, MinMax};
+
+macro_rules! launch_kernel {
+    ($ty: ty, $func: ident, $x: expr, $($arg: expr),*) => {
+        match <$ty as Element>::dtype() {
+            DType::F64 => Ok(cast($func::<f64>(cast($x), $($arg),*))),
+            DType::F32 => Ok(cast($func::<f32>(cast($x), $($arg),*))),
+            DType::F16 | DType::BF16 => Err($x), // Once AVX-512 stabilizes we can use f16
+            DType::I64 => Ok(cast($func::<i64>(cast($x), $($arg),*))),
+            DType::I32 => Ok(cast($func::<i32>(cast($x), $($arg),*))),
+            DType::I16 => Ok(cast($func::<i16>(cast($x), $($arg),*))),
+            DType::I8 => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+            DType::U64 => Ok(cast($func::<u64>(cast($x), $($arg),*))),
+            DType::U32 => Ok(cast($func::<u32>(cast($x), $($arg),*))),
+            DType::U16 => Ok(cast($func::<u16>(cast($x), $($arg),*))),
+            DType::U8 => Ok(cast($func::<u8>(cast($x), $($arg),*))),
+            DType::Bool => Ok(cast($func::<u8>(cast($x), $($arg),*))),
+            DType::QFloat(scheme) => match scheme.q_type() {
+                QuantizationType::QInt8 => Ok(cast($func::<i8>(cast($x), $($arg),*))),
+            },
+        }
+    };
+}
 
 pub(crate) fn try_max_pool2d_simd<E: Element>(
     x: NdArrayTensor<E>,
-    kernel_size: [usize; 2],
+    ksize: [usize; 2],
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
 ) -> Result<NdArrayTensor<E>, NdArrayTensor<E>> {
-    // Strides must be unit, dilation isn't supported, rows must be contiguous
-    if stride != [1, 1]
-        || dilation != [1, 1]
-        || x.array.strides()[3] != 1
-        || !should_use_simd(x.array.shape()[3])
-    {
+    let [_, c, _, _] = x.shape().dims();
+    if !should_use_simd(c) || x.array.strides()[1] != 1 {
         return Err(x);
     }
 
-    match E::dtype() {
-        DType::F64 => Ok(cast(max_pool2d::<f64>(cast(x), kernel_size, padding))),
-        DType::F32 => Ok(cast(max_pool2d::<f32>(cast(x), kernel_size, padding))),
-        DType::F16 | DType::BF16 => Err(x), // Once AVX-512 stabilizes we can use f16
-        DType::I64 => Ok(cast(max_pool2d::<i64>(cast(x), kernel_size, padding))),
-        DType::I32 => Ok(cast(max_pool2d::<i32>(cast(x), kernel_size, padding))),
-        DType::I16 => Ok(cast(max_pool2d::<i16>(cast(x), kernel_size, padding))),
-        DType::I8 => Ok(cast(max_pool2d::<i8>(cast(x), kernel_size, padding))),
-        DType::U64 => Ok(cast(max_pool2d::<u64>(cast(x), kernel_size, padding))),
-        DType::U32 => Ok(cast(max_pool2d::<u32>(cast(x), kernel_size, padding))),
-        DType::U16 => Ok(cast(max_pool2d::<u16>(cast(x), kernel_size, padding))),
-        DType::U8 => Ok(cast(max_pool2d::<u8>(cast(x), kernel_size, padding))),
-        DType::Bool => Ok(cast(max_pool2d::<u8>(cast(x), kernel_size, padding))),
-        DType::QFloat(scheme) => match scheme.q_type() {
-            QuantizationType::QInt8 => Ok(cast(max_pool2d::<i8>(cast(x), kernel_size, padding))),
-        },
-    }
+    launch_kernel!(E, max_pool2d_nhwc, x, ksize, stride, padding, dilation)
 }
 
 fn cast<T, E>(tensor: NdArrayTensor<T>) -> NdArrayTensor<E> {
     unsafe { transmute::<NdArrayTensor<T>, NdArrayTensor<E>>(tensor) }
 }
 
-/// SIMD version of maxpool - requires unit stride and no dilation. Fall back to non-SIMD if that
-/// requirement isn't met.
-#[pulp::with_simd(max_pool2d = Arch::new())]
-pub(crate) fn max_pool2d_simd<S: Simd, E: Element + VOrd + MinMax>(
-    simd: S,
-    x: NdArrayTensor<E>,
-    kernel_size: [usize; 2],
-    padding: [usize; 2],
-) -> NdArrayTensor<E> {
-    let [k_height, k_width] = kernel_size;
-    let [pad_h, pad_w] = padding;
-    let [batch_size, channels, x_height, x_width] = x.shape().dims();
-    let lanes = E::lanes::<S>();
-    let x = x.array;
-    let pad_value = E::MIN;
+mod nhwc {
+    use ndarray::Ix4;
 
-    let buf_rows = (k_height + 3)
-        .max(pad_h)
-        .max((k_height - pad_h - 1) * 2 + 1);
-    let width1 = x_width + k_width - 1;
+    use crate::ops::simd::load4_unaligned;
 
-    let out_height = x_height + 2 * pad_h - (k_height - 1) - 1 + 1;
-    let out_width = x_width + 2 * pad_w - (k_width - 1) - 1 + 1;
+    use super::*;
 
-    let mut const_border_row: Vec<E::Vector<S>> = vec![Zeroable::zeroed(); width1.div_ceil(lanes)];
-    let const_border_row = cast_slice_mut::<_, E>(&mut const_border_row);
-    const_border_row.fill(pad_value);
+    #[pulp::with_simd(max_pool2d_nhwc = Arch::new())]
+    pub(crate) fn max_pool2d_nhwc_simd<S: Simd, E: Element + VOrd + MinMax>(
+        simd: S,
+        x: NdArrayTensor<E>,
+        kernel_size: [usize; 2],
+        stride: [usize; 2],
+        padding: [usize; 2],
+        dilation: [usize; 2],
+    ) -> NdArrayTensor<E> {
+        let [kernel_height, kernel_width] = kernel_size;
+        let [pad_h, pad_w] = padding;
+        let [stride_height, stride_width] = stride;
+        let [dilation_height, dilation_width] = dilation;
+        let [batch_size, channels, x_height, x_width] = x.shape().dims();
+        let min = E::MIN;
+        let lanes = E::lanes::<S>();
+        // Until you can use associated constants as array size, we need to hardcode this.
+        // The most common config (x86-v3) has 16 registers, so use half of them for accumulators.
+        const BLOCK_REGISTERS: usize = 8;
+        let ch_block = lanes * BLOCK_REGISTERS;
 
-    let mut src_row: Vec<E::Vector<S>> = vec![Zeroable::zeroed(); width1.div_ceil(lanes)];
+        let out_height = ((x_height + 2 * pad_h - dilation_height * (kernel_height - 1) - 1)
+            / stride_height)
+            + 1;
+        let out_width =
+            ((x_width + 2 * pad_w - dilation_width * (kernel_width - 1) - 1) / stride_width) + 1;
 
-    // Keep buffer in step with alignment so we can always have aligned loads/stores
-    let buf_step = out_width.next_multiple_of(align_of::<E::Vector<S>>());
+        let mut output = unsafe {
+            Array4::<E>::uninit((batch_size, out_height, out_width, channels)).assume_init()
+        };
+        let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
 
-    if padding != [0, 0] {
-        let src_row = cast_slice_mut(&mut src_row);
-        src_row[..pad_w].fill(pad_value);
-        let right = x_width + pad_w;
-        src_row[right..right + pad_w].fill(pad_value);
-    }
+        let x = x.array.into_dimensionality::<Ix4>().unwrap();
+        let x = x.view();
+        let x = x.permuted_axes([0, 2, 3, 1]);
 
-    // We write to every spot
-    let mut output =
-        unsafe { Array4::uninit((batch_size, channels, out_height, out_width)).assume_init() };
-    let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
+        let blocks = channels.div_ceil(ch_block);
 
-    run_par!(|| {
-        iter_range_par!(0, batch_size * channels).for_each(|k| unsafe {
-            let mut rows = vec![null(); buf_rows];
-            let mut src_row = src_row.clone();
-            let src_row = cast_slice_mut(&mut src_row);
-            let mut ring_buf: Vec<E::Vector<S>> = vec![Zeroable::zeroed(); buf_step * buf_rows];
-            let ring_buf = cast_slice_mut::<_, E>(&mut ring_buf);
+        run_par!(|| {
+            iter_range_par!(0, batch_size * blocks).for_each(|k| unsafe {
+                let block = k % blocks;
+                let b = k / blocks;
 
-            let b = k / channels;
-            let c = k % channels;
+                let output = unsafe_shared_out.get();
 
-            let mut row_count = 0;
-            let mut count = x_height;
-            let mut start_y = 0;
-            let mut src_y = 0;
-            let mut dy = 0;
-            let mut i;
+                for oh in 0..out_height {
+                    for ow in 0..out_width {
+                        let mut max_val = [simd.splat(min); BLOCK_REGISTERS];
+                        let ch = block * ch_block;
+                        let ch_end = (ch + ch_block).min(channels);
+                        let mut out = output.slice_mut(s![b, oh, ow, ch..ch_end]);
 
-            let src: ArrayView2<E> = x.slice(s![b, c, .., ..]);
-            let output = unsafe_shared_out.get();
-            let mut dst: ArrayViewMut2<E> = output.slice_mut(s![b, c, .., ..]);
+                        for kh in 0..kernel_height {
+                            let ih = oh * stride_height + kh * dilation_height;
+                            if ih < pad_h || ih >= x_height + pad_h {
+                                continue;
+                            }
+                            let ih = ih - pad_h;
 
-            loop {
-                let dcount =
-                    buf_rows as isize - pad_h as isize - start_y as isize - row_count as isize;
-                let mut dcount = if dcount > 0 {
-                    dcount as usize
-                } else {
-                    buf_rows + 1 - k_height
-                };
-                dcount = dcount.min(count);
-                count -= dcount;
+                            for kw in 0..kernel_width {
+                                let iw = ow * stride_width + kw * dilation_width;
+                                if iw < pad_w || iw >= x_width + pad_w {
+                                    continue;
+                                }
+                                let iw = iw - pad_w;
 
-                while dcount > 0 {
-                    let buf_y = (start_y + row_count) % buf_rows;
-                    let buf_off = buf_y * buf_step;
-                    let buf_row = &mut ring_buf[buf_off..buf_off + out_width];
+                                let x = x.slice(s![b, ih, iw, ch..ch_end]);
 
-                    row_count += 1;
-                    if row_count > buf_rows {
-                        row_count -= 1;
-                        start_y += 1;
+                                let mut c = 0;
+                                while c as isize <= x.len() as isize - 4 * lanes as isize {
+                                    let (s0, s1, s2, s3) = load4_unaligned(simd, x.as_ptr().add(c));
+                                    let c_vec = c / lanes;
+                                    max_val[c_vec] = E::vmax(simd, max_val[c_vec], s0);
+                                    max_val[c_vec + 1] = E::vmax(simd, max_val[c_vec + 1], s1);
+                                    max_val[c_vec + 2] = E::vmax(simd, max_val[c_vec + 2], s2);
+                                    max_val[c_vec + 3] = E::vmax(simd, max_val[c_vec + 3], s3);
+
+                                    c += 4 * lanes;
+                                }
+                                while c as isize <= x.len() as isize - lanes as isize {
+                                    let s0 = simd.vload_unaligned(x.as_ptr().add(c));
+
+                                    let c_vec = c / lanes;
+                                    max_val[c_vec] = E::vmax(simd, max_val[c_vec], s0);
+
+                                    c += lanes;
+                                }
+                                for c in c..x.len() {
+                                    let max_val = cast_slice_mut(&mut max_val);
+                                    max_val[c] = MinMax::max(max_val[c], x[c]);
+                                }
+                            }
+                        }
+
+                        let mut c = 0;
+                        while c as isize <= out.len() as isize - 4 * lanes as isize {
+                            let c_vec = c / lanes;
+                            let s0 = max_val[c_vec];
+                            let s1 = max_val[c_vec + 1];
+                            let s2 = max_val[c_vec + 2];
+                            let s3 = max_val[c_vec + 3];
+                            store4_unaligned(simd, out.as_mut_ptr().add(c), s0, s1, s2, s3);
+                            c += 4 * lanes;
+                        }
+                        while c as isize <= out.len() as isize - lanes as isize {
+                            simd.vstore_unaligned(out.as_mut_ptr().add(c), max_val[c / lanes]);
+                            c += lanes;
+                        }
+                        for c in c..out.len() {
+                            let max_val = cast_slice_mut(&mut max_val);
+                            out[c] = max_val[c];
+                        }
                     }
-
-                    // Load row
-                    src_row[pad_w..pad_w + x_width]
-                        .copy_from_slice(src.row(src_y).as_slice().unwrap());
-
-                    max_pool_row(simd, src_row, buf_row, k_width);
-
-                    dcount -= 1;
-                    src_y += 1;
                 }
+            })
+        });
 
-                let max_i = buf_rows.min(out_height - dy + k_height - 1);
-                i = 0;
+        output = output.permuted_axes([0, 3, 1, 2]);
 
-                while i < max_i {
-                    let src_y = (dy + i) as isize - pad_h as isize;
-                    if src_y < 0 || src_y as usize >= start_y + row_count {
-                        rows[i] = const_border_row.as_ptr();
-                    } else {
-                        let buf_y = src_y as usize % buf_rows;
-                        rows[i] = ring_buf.as_ptr().add(buf_y * buf_step);
-                    }
-
-                    i += 1;
-                }
-
-                if i < k_height {
-                    break;
-                }
-                i -= k_height - 1;
-
-                max_pool_col(simd, &rows, dst.slice_mut(s![dy.., ..]), k_height, i);
-
-                dy += i;
-            }
-        })
-    });
-
-    NdArrayTensor::new(output.into_dyn().into_shared())
-}
-
-fn max_pool_row<S: Simd, T: VOrd + MinMax>(simd: S, row: &[T], dst: &mut [T], ksize: usize) {
-    let width = dst.len() as isize;
-    let lanes = T::lanes::<S>();
-    let mut ow = 0;
-
-    unsafe {
-        let row = row.as_ptr();
-        let dst = dst.as_mut_ptr();
-
-        while ow as isize <= width - 4 * lanes as isize {
-            let sptr = row.add(ow);
-            let (mut s0, mut s1, mut s2, mut s3) = load4(simd, sptr);
-
-            for kw in 1..ksize {
-                let sptr = sptr.add(kw);
-                s0 = T::vmax(simd, s0, simd.vload_unaligned(sptr));
-                s1 = T::vmax(simd, s1, simd.vload_unaligned(sptr.add(lanes)));
-                s2 = T::vmax(simd, s2, simd.vload_unaligned(sptr.add(2 * lanes)));
-                s3 = T::vmax(simd, s3, simd.vload_unaligned(sptr.add(3 * lanes)));
-            }
-
-            store4(simd, dst.add(ow), s0, s1, s2, s3);
-            ow += 4 * lanes;
-        }
-        if ow as isize <= width - 2 * lanes as isize {
-            let sptr = row.add(ow);
-            let (mut s0, mut s1) = load2(simd, sptr);
-
-            for kw in 1..ksize {
-                let sptr = sptr.add(kw);
-                s0 = T::vmax(simd, s0, simd.vload_unaligned(sptr));
-                s1 = T::vmax(simd, s1, simd.vload_unaligned(sptr.add(lanes)));
-            }
-
-            store2(simd, dst.add(ow), s0, s1);
-            ow += 2 * lanes;
-        }
-        if ow as isize <= width - lanes as isize {
-            let mut s0 = simd.vload(row.add(ow));
-
-            for kw in 1..ksize {
-                s0 = T::vmax(simd, s0, simd.vload_unaligned(row.add(ow + kw)));
-            }
-
-            simd.vstore(dst.add(ow), s0);
-
-            ow += lanes;
-        }
-        if ow as isize <= width - lanes as isize / 2 {
-            let mut s0 = simd.vload_low(row.add(ow));
-
-            for kw in 1..ksize {
-                s0 = T::vmax(simd, s0, simd.vload_low(row.add(ow + kw)));
-            }
-
-            simd.vstore_low(dst.add(ow), s0);
-
-            ow += lanes / 2;
-        }
-    }
-
-    #[allow(clippy::needless_range_loop)]
-    for ow in ow..width as usize {
-        let mut s0 = row[ow];
-        for k in 1..ksize {
-            s0 = s0.max(row[ow + k]);
-        }
-        dst[ow] = s0;
-    }
-}
-
-fn max_pool_col<S: Simd, T: VOrd + MinMax + Display>(
-    simd: S,
-    src: &[*const T],
-    mut dst: ArrayViewMut2<T>,
-    ksize: usize,
-    mut count: usize,
-) {
-    let width = dst.shape()[1] as isize;
-    let lanes = T::lanes::<S>();
-
-    let mut x;
-    let mut y = 0;
-
-    unsafe {
-        while count > 1 && ksize > 1 {
-            let dst0 = dst.row_mut(y).as_mut_ptr();
-            let dst1 = dst.row_mut(y + 1).as_mut_ptr();
-            x = 0;
-            while x as isize <= width - 4 * lanes as isize {
-                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y + 1].add(x));
-
-                for k in 2..ksize {
-                    let sptr = src[y + k].add(x);
-                    s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
-                    s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                }
-
-                // Row 1
-                {
-                    let sptr = src[y].add(x);
-                    let s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    let s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
-                    let s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                    store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
-                }
-
-                // Row 2
-                {
-                    let sptr = src[y + ksize].add(x);
-                    let s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    let s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
-                    let s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                    store4_unaligned(simd, dst1.add(x), s0, s1, s2, s3);
-                }
-
-                x += 4 * lanes;
-            }
-            if x as isize <= width - 2 * lanes as isize {
-                let (mut s0, mut s1) = load2(simd, src[y + 1].add(x));
-
-                for k in 2..ksize {
-                    let sptr = src[y + k].add(x);
-                    s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                }
-
-                // Row 1
-                {
-                    let sptr = src[y].add(x);
-                    let s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    store2_unaligned(simd, dst0.add(x), s0, s1);
-                }
-
-                // Row 2
-                {
-                    let sptr = src[y + ksize].add(x);
-                    let s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    let s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    store2_unaligned(simd, dst1.add(x), s0, s1);
-                }
-
-                x += 2 * lanes;
-            }
-            if x as isize <= width - lanes as isize {
-                let mut s0 = simd.vload(src[y + 1].add(x));
-
-                for k in 2..ksize {
-                    s0 = T::vmax(simd, s0, simd.vload(src[y + k].add(x)));
-                }
-
-                // Row 1
-                {
-                    let s0 = T::vmax(simd, s0, simd.vload(src[y].add(x)));
-                    simd.vstore_unaligned(dst0.add(x), s0);
-                }
-
-                // Row 2
-                {
-                    let s0 = T::vmax(simd, s0, simd.vload(src[y + ksize].add(x)));
-                    simd.vstore_unaligned(dst1.add(x), s0);
-                }
-
-                x += lanes;
-            }
-            if x as isize <= width - lanes as isize / 2 {
-                let mut s0 = simd.vload_low(src[y + 1].add(x));
-
-                for k in 2..ksize {
-                    s0 = T::vmax(simd, s0, simd.vload_low(src[y + k].add(x)));
-                }
-
-                // Row 1
-                {
-                    let s0 = T::vmax(simd, s0, simd.vload_low(src[y].add(x)));
-                    simd.vstore_low(dst0.add(x), s0);
-                }
-
-                // Row 2
-                {
-                    let s0 = T::vmax(simd, s0, simd.vload(src[y + ksize].add(x)));
-                    simd.vstore_low(dst1.add(x), s0);
-                }
-
-                x += lanes / 2;
-            }
-            for x in x..width as usize {
-                let mut s0 = *src[y + 1].add(x);
-
-                for k in 2..ksize {
-                    s0 = s0.max(*src[y + k].add(x));
-                }
-
-                dst[[y, x]] = s0.max(*src[y].add(x));
-                dst[[y + 1, x]] = s0.max(*src[y + ksize].add(x));
-            }
-            count -= 2;
-            y += 2;
-        }
-        while count > 0 {
-            let dst0 = dst.row_mut(y).as_mut_ptr();
-
-            x = 0;
-            while x as isize <= width - 4 * lanes as isize {
-                let (mut s0, mut s1, mut s2, mut s3) = load4(simd, src[y].add(x));
-
-                for k in 1..ksize {
-                    let sptr = src[y + k].add(x);
-                    s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                    s2 = T::vmax(simd, s2, simd.vload(sptr.add(2 * lanes)));
-                    s3 = T::vmax(simd, s3, simd.vload(sptr.add(3 * lanes)));
-                }
-
-                store4_unaligned(simd, dst0.add(x), s0, s1, s2, s3);
-                x += 4 * lanes;
-            }
-            if x as isize <= width - 2 * lanes as isize {
-                let (mut s0, mut s1) = load2(simd, src[y].add(x));
-
-                for k in 1..ksize {
-                    let sptr = src[y + k].add(x);
-                    s0 = T::vmax(simd, s0, simd.vload(sptr));
-                    s1 = T::vmax(simd, s1, simd.vload(sptr.add(lanes)));
-                }
-
-                store2_unaligned(simd, dst0.add(x), s0, s1);
-                x += 2 * lanes;
-            }
-            if x as isize <= width - lanes as isize {
-                let mut s0 = simd.vload(src[y].add(x));
-
-                for k in 1..ksize {
-                    s0 = T::vmax(simd, s0, simd.vload(src[y + k].add(x)));
-                }
-
-                simd.vstore_unaligned(dst0.add(x), s0);
-                x += lanes;
-            }
-            if x as isize <= width - lanes as isize / 2 {
-                let mut s0 = simd.vload_low(src[y].add(x));
-
-                for k in 1..ksize {
-                    s0 = T::vmax(simd, s0, simd.vload_low(src[y + k].add(x)));
-                }
-
-                simd.vstore_low(dst0.add(x), s0);
-                x += lanes / 2;
-            }
-            for x in x..width as usize {
-                let mut s0 = *src[y].add(x);
-
-                for k in 1..ksize {
-                    s0 = s0.max(*src[y + k].add(x));
-                }
-
-                dst[[y, x]] = s0;
-            }
-
-            count -= 1;
-            y += 1;
-        }
+        NdArrayTensor::new(output.into_dyn().into_shared())
     }
 }

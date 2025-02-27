@@ -831,8 +831,9 @@ dependencies = [
  "openblas-src",
  "paste",
  "portable-atomic-util",
- "pulp 0.21.4",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b)",
  "rand 0.9.0",
+ "seq-macro",
  "spin",
  "tracing",
 ]
@@ -3837,9 +3838,10 @@ dependencies = [
 [[package]]
 name = "macerator"
 version = "0.1.0"
+source = "git+https://github.com/wingertge/macerator.git?rev=d98ee30e9882d7c5f05b8ae77c4f85286669c1bf#d98ee30e9882d7c5f05b8ae77c4f85286669c1bf"
 dependencies = [
  "paste",
- "pulp 0.21.4",
+ "pulp 0.21.4 (git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b)",
 ]
 
 [[package]]
@@ -5516,20 +5518,6 @@ dependencies = [
 [[package]]
 name = "pulp"
 version = "0.21.4"
-dependencies = [
- "bytemuck",
- "cfg-if",
- "libm",
- "num-complex",
- "paste",
- "pulp-macro",
- "reborrow",
- "version_check",
-]
-
-[[package]]
-name = "pulp"
-version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95fb7a99b37aaef4c7dd2fd15a819eb8010bfc7a2c2155230d51f497316cad6d"
 dependencies = [
@@ -5542,8 +5530,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulp"
+version = "0.21.4"
+source = "git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b#63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b"
+dependencies = [
+ "bytemuck",
+ "cfg-if",
+ "libm",
+ "num-complex",
+ "paste",
+ "pulp-macro",
+ "reborrow",
+ "version_check",
+]
+
+[[package]]
 name = "pulp-macro"
 version = "0.1.1"
+source = "git+https://github.com/wingertge/pulp.git?rev=63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b#63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b"
 dependencies = [
  "proc-macro2",
  "quote",

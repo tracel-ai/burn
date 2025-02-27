@@ -34,7 +34,9 @@ impl<B: Backend> Benchmark for MaxPool2dBenchmark<B> {
     }
 
     fn prepare(&self) -> Self::Args {
-        Tensor::random(self.shape.clone(), Distribution::Default, &self.device)
+        let [batches, ch, h, w] = self.shape.dims();
+        Tensor::random([batches, h, w, ch], Distribution::Default, &self.device)
+            .permute([0, 3, 1, 2])
     }
 
     fn sync(&self) {
@@ -51,7 +53,7 @@ fn bench<B: Backend>(
 ) {
     let benchmark = MaxPool2dBenchmark::<B> {
         name: "default",
-        shape: [32, 32, 512, 512].into(),
+        shape: [32, 128, 512, 512].into(),
         kernel_size: [5, 5],
         stride: [2, 2],
         padding: [2, 2],

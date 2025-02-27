@@ -8,7 +8,9 @@ use super::{
 };
 use crate::{
     element::FloatNdArrayElement,
-    ops::simd::{avgpool::try_avg_pool2d_simd, maxpool::try_max_pool2d_simd},
+    ops::simd::{
+        avgpool::try_avg_pool2d_simd, conv::try_conv2d_simd, maxpool::try_max_pool2d_simd,
+    },
     tensor::NdArrayTensor,
     NdArray, NdArrayTensorFloat,
 };
@@ -51,10 +53,13 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ModuleOps<Se
         bias: Option<NdArrayTensorFloat>,
         options: ConvOptions<2>,
     ) -> NdArrayTensorFloat {
-        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| conv2d::<E>(
-            x, weight, bias, options
-        )
-        .into())
+        module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
+            let (x, weight, bias) = match try_conv2d_simd(x, weight, bias, options.clone()) {
+                Ok(out) => return out.into(),
+                Err(args) => args,
+            };
+            conv2d::<E>(x, weight, bias, options).into()
+        })
     }
 
     fn deform_conv2d(

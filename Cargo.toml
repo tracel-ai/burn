@@ -128,16 +128,16 @@ half = { version = "2.4.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-#macerator = { git = "https://github.com/wingertge/macerator.git", rev = "25b7a80fddcb82fc6dc0a579c2dea338b470401d" }
-macerator = { path = "../macerator" }
+macerator = { git = "https://github.com/wingertge/macerator.git", rev = "d98ee30e9882d7c5f05b8ae77c4f85286669c1bf" }
+# macerator = { path = "../macerator" }
 matrixmultiply = { version = "0.3.9", default-features = false }
 ndarray = { version = "0.16.1", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.11"
-pulp = { path = "../pulp/pulp" }
-# pulp = { git = "https://github.com/wingertge/pulp.git", rev = "d8ad45976c0c130ea92a790c852d430566efbf61", default-features = false }
+# pulp = { path = "../pulp/pulp" }
+pulp = { git = "https://github.com/wingertge/pulp.git", rev = "63ba3c45b4c860d0ea2dc61c0bcde49fcf20a98b", default-features = false }
 rand = { version = "0.9.0", default-features = false, features = [
     "std_rng",
 ] } # std_rng is for no_std
@@ -177,4 +177,4 @@ tracel-xtask = { version = "=1.1.8" }
 debug = 0 # Speed up compilation time and not necessary.
 
 [profile.bench]
-debug = 0
+debug = 1
