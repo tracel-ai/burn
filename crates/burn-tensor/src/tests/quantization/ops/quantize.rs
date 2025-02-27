@@ -1,6 +1,8 @@
 #[burn_tensor_testgen::testgen(quantize)]
+
 mod tests {
     use super::*;
+    use alloc::{vec, vec::Vec};
     use burn_tensor::ops::QTensorOps;
     use burn_tensor::quantization::{
         AffineQuantization, BlockLayout, QParams, QuantizationMode, QuantizationParameters,

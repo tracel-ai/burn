@@ -8,7 +8,6 @@ mod stats;
 
 pub use cubecl::prelude::{Float, Int, Numeric};
 
-// TODO: testgen with markers for expected failures (i.e., known ops that are unsupported)?
 #[allow(missing_docs)]
 #[macro_export]
 macro_rules! testgen_all {

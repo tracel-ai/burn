@@ -134,7 +134,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
             ) => {
                 let scale = into_data_f(qparams.scale);
                 let offset = into_data(qparams.offset.unwrap());
-                let (strategy, qparams): (Vec<_>, Vec<_>) = scale
+                let (strategy, qparams) = scale
                     .iter()
                     .zip(offset.iter::<Q>())
                     .map(|(s, o)| {
@@ -159,7 +159,7 @@ impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> QTensorOps<S
                 layout,
             ) => {
                 let scale = into_data_f(qparams.scale);
-                let (strategy, qparams): (Vec<_>, Vec<_>) = scale
+                let (strategy, qparams) = scale
                     .iter()
                     .map(|s| {
                         (

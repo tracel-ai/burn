@@ -1,7 +1,6 @@
-use core::marker::PhantomData;
-
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use burn_common::{iter_slice_par, run_par};
+use core::marker::PhantomData;
 use num_traits::{Float, PrimInt, Signed};
 use serde::{Deserialize, Serialize};
 
@@ -376,7 +375,6 @@ impl<E: Float + Send + Sync, Q: PrimInt + Signed + Send + Sync> Eq for Symmetric
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
 
     #[test]
     fn test_int8_affine_quantization() {
