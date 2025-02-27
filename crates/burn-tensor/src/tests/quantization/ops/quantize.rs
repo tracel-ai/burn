@@ -13,8 +13,6 @@ mod tests {
     // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
     // required to support this quantization scheme.
     // Also std feature gated (until `catch_unwind` is stable in core).
-    // TODO: the feature gate actually hides the test during `testgen_jit!` macro expansion, but
-    // this is fine for now since the kernel is tested against the reference backend
     #[cfg(feature = "std")]
     use burn_tensor::might_panic;
 
