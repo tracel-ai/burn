@@ -121,8 +121,11 @@ bincode = { version = "2.0.0-rc.3", features = [
 #
 cfg-if = "1.0.0"
 derive-new = { version = "0.7.0", default-features = false }
+macerator = { git = "https://github.com/wingertge/macerator.git", rev = "25b7a80fddcb82fc6dc0a579c2dea338b470401d" }
+pulp = { git = "https://github.com/wingertge/pulp.git", rev = "d8ad45976c0c130ea92a790c852d430566efbf61", default-features = false }
 
 blas-src = { version = "0.10.0", default-features = false }
+bon = "3.3.0"
 half = { version = "2.4.1", features = [
     "alloc",
     "num-traits",
@@ -150,11 +153,11 @@ nvml-wrapper = "0.10.0"
 sysinfo = "0.33.1"
 systemstat = "0.2.3"
 tch = "0.19.0"
-torch-sys = "0.19.0"  # matches what tch is using, required for lib detection
+torch-sys = "0.19.0"    # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.11", default-features = false }
-portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 portable-atomic = { version = "1.10.0" }
+portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b41cbd82d53f091e76f56cad58c277fe2481c48e" }
