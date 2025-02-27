@@ -11,6 +11,11 @@ mod tests {
     };
     use burn_tensor::{DType, Tensor, TensorData};
 
+    // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
+    // required to support this quantization scheme
+    use alloc::string::String; // might_panic message
+    use burn_tensor::might_panic;
+
     fn get_q_params(data: TensorData) -> QParams<Vec<f32>, Vec<i8>> {
         let num_elements = data.num_elements();
         let scheme = if let DType::QFloat(scheme) = data.dtype {
@@ -124,6 +129,7 @@ mod tests {
         x_q.into_data().assert_eq(&expected, false);
     }
 
+    #[might_panic(reason = "not implemented")]
     #[test]
     fn should_support_quantize_per_block_symmetric_int8() {
         let device = Default::default();
@@ -205,6 +211,7 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
+    #[might_panic(reason = "not implemented")]
     #[test]
     fn should_support_quantize_per_block_flat() {
         let device = Default::default();
@@ -266,6 +273,7 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
+    #[might_panic(reason = "not implemented")]
     #[test]
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
@@ -330,6 +338,7 @@ mod tests {
         x.into_data().assert_approx_eq(&tensor.into_data(), 2);
     }
 
+    #[might_panic(reason = "not implemented")]
     #[test]
     fn should_support_quantize_per_block_grid_symmetric_int8() {
         let device = Default::default();
