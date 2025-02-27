@@ -383,10 +383,22 @@ impl<E: TchElement, Q: QuantElement> IntTensorOps<Self> for LibTorch<E, Q> {
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
             Distribution::Multinomial(probs) => {
-                let num_samples = probs.len() as i64;
-                let tensor_data = TensorData::new(probs, shape);
-                let mut tensor = TchTensor::from_data::<E>(tensor_data, (*device).into());
-                tensor.mut_ops(|tensor| tensor.f_multinomial(num_samples, false).unwrap()).unwrap()
+                let num_samples = shape.num_elements() as i64;
+                let num_probs = probs.len();
+                let prob_data = TensorData::new(probs, vec![num_probs]);
+                let mut tensor = TchTensor::from_data::<E>(prob_data, (*device).into());
+                tensor
+                    .mut_ops(|tensor| {
+                        tensor.f_multinomial(num_samples, false).unwrap().reshape(
+                            shape
+                                .dims
+                                .clone()
+                                .into_iter()
+                                .map(|dim| dim as i64)
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .unwrap()
             }
         }
     }
