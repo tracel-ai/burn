@@ -207,6 +207,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
                     && pi.strides == strides
+                    && plan.reference.compatible_strides_for_inplace(strides)
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
             .unwrap_or(OutputKind::Normal)
@@ -245,6 +246,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
                 op.out.add_layout_info(LayoutInfo::IsRef);
+            };
+        } else {
+            // Already validated, necessary for correctness.
+            if let Some(ElemwiseOp::Assign(op)) = plan.writes.get_mut(&output.tensor_relative.id) {
+                op.out.add_layout_info(LayoutInfo::SameAsRef);
             };
         }
 

@@ -36,6 +36,13 @@ impl ReferenceSelection {
     pub fn is_found(&self) -> bool {
         matches!(self, Self::Found(..))
     }
+
+    pub fn compatible_strides_for_inplace(&self, strides: &[usize]) -> bool {
+        match self {
+            ReferenceSelection::Found(reference) => reference.strides == strides,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -70,6 +70,7 @@ pub enum FusedReduceError {
 impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+        println!("Execute fuse reduce {:?}", self.trace_read);
         if self.execute_fused::<BT>(context).is_err() {
             self.execute_fallback::<BT>(context);
         }
