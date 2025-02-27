@@ -35,6 +35,10 @@ impl Parse for AttributeArgs {
 /// - If the test does not panic, it passes.
 /// - If the test panics with a message starting with the expected prefix, the failure is ignored.
 /// - If the test panics with a different message, the test fails.
+///
+/// # Note
+/// This proc macro uses [`std::panic::catch_unwind`]. As such, it does not work in a no-std environment.
+/// Make sure it is feature gated when an `"std"` feature is available.
 #[proc_macro_attribute]
 pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the attribute arguments
