@@ -72,7 +72,7 @@ impl<E: TchElement, Q: QuantElement> QTensorOps<Self> for LibTorch<E, Q> {
                     }
                 }
                 QuantizationScheme::PerBlock(..) => {
-                    panic!("Tch does not support per-block quantization")
+                    panic!("Per-block quantization is not supported by tch")
                 }
             },
             _ => panic!(

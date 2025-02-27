@@ -11,7 +11,10 @@ mod tests {
     use burn_tensor::{DType, Tensor, TensorData};
 
     // NOTE: we mark the per-block tests as `might_panic` since backends are not strictly
-    // required to support this quantization scheme. Also std feature gated.
+    // required to support this quantization scheme.
+    // Also std feature gated (until `catch_unwind` is stable in core).
+    // TODO: the feature gate actually hides the test during `testgen_jit!` macro expansion, but
+    // this is fine for now since the kernel is tested against the reference backend
     #[cfg(feature = "std")]
     use burn_tensor::might_panic;
 
@@ -129,7 +132,7 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "not implemented")]
+    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
     fn should_support_quantize_per_block_symmetric_int8() {
         let device = Default::default();
@@ -212,7 +215,7 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "not implemented")]
+    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
     fn should_support_quantize_per_block_flat() {
         let device = Default::default();
@@ -275,7 +278,7 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "not implemented")]
+    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
     fn should_support_quantize_per_block_affine_int8() {
         let device = Default::default();
@@ -341,7 +344,7 @@ mod tests {
     }
 
     #[cfg(feature = "std")]
-    #[might_panic(reason = "not implemented")]
+    #[might_panic(reason = "Per-block quantization is not supported")]
     #[test]
     fn should_support_quantize_per_block_grid_symmetric_int8() {
         let device = Default::default();

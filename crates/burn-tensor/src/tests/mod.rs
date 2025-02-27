@@ -124,6 +124,7 @@ macro_rules! testgen_quantization {
         burn_tensor::testgen_calibration!();
         burn_tensor::testgen_scheme!();
         burn_tensor::testgen_quantize!();
+        burn_tensor::testgen_q_data!();
 
         // test ops
         burn_tensor::testgen_q_abs!();

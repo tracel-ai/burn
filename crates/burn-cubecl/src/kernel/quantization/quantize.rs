@@ -409,7 +409,9 @@ where
                 }
             }
         }
-        _ => unimplemented!("Unsupported quantization scheme {scheme:?}"),
+        QuantizationScheme::PerBlock(.., BlockLayout::Grid(..)) => {
+            panic!("Per-block quantization is not supported for grid layout")
+        }
     }
 
     output

@@ -2,7 +2,9 @@ use std::ops::Range;
 
 use burn_tensor::{
     ops::{FloatTensor, IntTensor, QTensorOps, QuantizedTensor},
-    quantization::{QuantizationParametersPrimitive, QuantizationScheme, QuantizationType},
+    quantization::{
+        BlockLayout, QuantizationParametersPrimitive, QuantizationScheme, QuantizationType,
+    },
     DType, Device, Shape, TensorData,
 };
 
@@ -40,12 +42,21 @@ where
     fn q_from_data(data: TensorData, device: &Device<Self>) -> QuantizedTensor<Self> {
         match data.dtype {
             DType::QFloat(scheme) => match scheme {
-                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8) => {
+                QuantizationScheme::PerTensor(_mode, QuantizationType::QInt8)
+                | QuantizationScheme::PerBlock(
+                    _mode,
+                    QuantizationType::QInt8,
+                    BlockLayout::Flat(..),
+                ) => {
                     // TensorData quantized representation is the same, with multiple quantized values
                     // packed into u32 and quantization parameters appended to the bytes
                     new_qtensor(data.as_bytes(), data.shape.clone(), scheme, device)
                 }
-                QuantizationScheme::PerBlock(_mode, _dtype, _block_layout) => todo!(),
+                QuantizationScheme::PerBlock(
+                    _mode,
+                    QuantizationType::QInt8,
+                    BlockLayout::Grid(..),
+                ) => panic!("Per-block quantization is not supported for grid layout"),
             },
             _ => panic!(
                 "Invalid dtype (expected DType::QFloat, got {:?})",

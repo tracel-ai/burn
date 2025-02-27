@@ -20,6 +20,8 @@ impl Parse for AttributeArgs {
 }
 
 #[allow(clippy::test_attr_in_doctest)]
+/// **This is only meaningful when the `reason` is specific and clear.**
+///
 /// A proc macro attribute that adds panic handling to test functions.
 ///
 /// # Usage
