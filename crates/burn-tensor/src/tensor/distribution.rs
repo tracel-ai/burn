@@ -17,7 +17,7 @@ pub enum Distribution {
     /// Normal distribution with the given mean and standard deviation.
     Normal(f64, f64),
 
-    /// Normal distribution with the given mean and standard deviation.
+    /// Multinomial distribution with the given probabilities.
     Multinomial(Vec<f64>),
 }
 

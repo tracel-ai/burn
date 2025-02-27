@@ -49,6 +49,9 @@ where
             Distribution::Normal(mean, std) => {
                 random_normal(shape, device, mean.elem::<F>(), std.elem())
             }
+            Distribution::Multinomial(probs) => {
+                random_multinomial(shape, device, probs)
+            }
         }
     }
 
