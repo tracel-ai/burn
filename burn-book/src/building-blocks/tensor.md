@@ -319,10 +319,12 @@ Those operations are only available for `Bool` tensors.
 | `Tensor::tril_mask(shape, diagonal)` | N/A                             |
 | `Tensor::triu_mask(shape, diagonal)` | N/A                             |
 | `tensor.argwhere()`                  | `tensor.argwhere()`             |
+| `tensor.bool_and()`                  | `tensor.logical_and()`          |
+| `tensor.bool_not()`                  | `tensor.logical_not()`          |
+| `tensor.bool_or()`                   | `tensor.logical_or()`           |
 | `tensor.float()`                     | `tensor.to(torch.float)`        |
 | `tensor.int()`                       | `tensor.to(torch.long)`         |
 | `tensor.nonzero()`                   | `tensor.nonzero(as_tuple=True)` |
-| `tensor.not()`                       | `tensor.logical_not()`          |
 
 ### Quantization Operations
 
