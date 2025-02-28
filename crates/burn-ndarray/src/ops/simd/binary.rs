@@ -1,6 +1,6 @@
-use core::{cmp::Ordering, marker::PhantomData, slice};
+use core::{marker::PhantomData, slice};
 
-use burn_tensor::Element;
+use burn_tensor::{Element, TensorMetadata};
 use macerator::{
     SimdExt, VAdd, VBitAnd, VBitOr, VBitXor, VDiv, VEq, VMul, VOrd, VSub, Vectorizable,
 };
@@ -180,33 +180,18 @@ pub fn try_binary_simd<
     if !should_use_simd(lhs_len.max(rhs_len))
         || !lhs.array.is_standard_layout()
         || !rhs.array.is_standard_layout()
-        || !can_broadcast(&lhs, &rhs)
+        || lhs.shape() != rhs.shape()
     {
         return Err((lhs, rhs));
     }
     // Used to assert traits based on the dynamic `DType`.
     let lhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(lhs) };
     let rhs = unsafe { core::mem::transmute::<NdArrayTensor<E>, NdArrayTensor<T>>(rhs) };
-    let out = match lhs_len.cmp(&rhs_len) {
-        Ordering::Less => binary_simd_broadcast_lhs::<T, Out, Op>(lhs, rhs),
-        Ordering::Equal => binary_simd_same::<T, Out, Op>(lhs, rhs),
-        Ordering::Greater => binary_simd_broadcast_rhs::<T, Out, Op>(lhs, rhs),
-    };
+    let out = binary_simd_same::<T, Out, Op>(lhs, rhs);
+
     // Used to assert traits based on the dynamic `DType`.
     let out = unsafe { core::mem::transmute::<NdArrayTensor<Out>, NdArrayTensor<EOut>>(out) };
     Ok(out)
-}
-
-fn can_broadcast<T: Element>(lhs: &NdArrayTensor<T>, rhs: &NdArrayTensor<T>) -> bool {
-    if lhs.array.ndim() != rhs.array.ndim() {
-        return false;
-    }
-    for dim in 0..lhs.array.ndim() - 1 {
-        if lhs.array.dim()[dim] != rhs.array.dim()[dim] {
-            return false;
-        }
-    }
-    true
 }
 
 fn binary_simd_same<
@@ -239,72 +224,6 @@ fn binary_simd_same<
         let rhs = rhs.array.as_slice().unwrap();
         let out_slice = out.as_slice_mut().unwrap();
         binary(lhs, rhs, out_slice, PhantomData::<Op>);
-        out
-    };
-    NdArrayTensor::new(out.into_shared())
-}
-
-fn binary_simd_broadcast_lhs<
-    T: NdArrayElement + Vectorizable,
-    Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
->(
-    lhs: NdArrayTensor<T>,
-    rhs: NdArrayTensor<T>,
-) -> NdArrayTensor<Out> {
-    let out = if rhs.array.is_unique() {
-        let mut buf = rhs.array.into_owned();
-        let lhs = lhs.array.as_slice().unwrap();
-        let rhs = buf.as_slice_mut().unwrap();
-        let out =
-            unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(unsafe_alias_slice_mut(rhs)) };
-        for offs in (0..rhs.len()).step_by(lhs.len()) {
-            let end = offs + lhs.len();
-            binary(lhs, &rhs[offs..end], &mut out[offs..end], PhantomData::<Op>);
-        }
-        unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buf) }
-    } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
-        let lhs = lhs.array.as_slice().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
-        let dst = out.as_slice_mut().unwrap();
-        for offs in (0..rhs.len()).step_by(lhs.len()) {
-            let end = offs + lhs.len();
-            binary(lhs, &rhs[offs..end], &mut dst[offs..end], PhantomData::<Op>);
-        }
-        out
-    };
-    NdArrayTensor::new(out.into_shared())
-}
-
-fn binary_simd_broadcast_rhs<
-    T: NdArrayElement + Vectorizable,
-    Out: NdArrayElement + Vectorizable,
-    Op: SimdBinop<T, Out>,
->(
-    lhs: NdArrayTensor<T>,
-    rhs: NdArrayTensor<T>,
-) -> NdArrayTensor<Out> {
-    let out = if lhs.array.is_unique() {
-        let mut buf = lhs.array.into_owned();
-        let lhs = buf.as_slice_mut().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
-        let out =
-            unsafe { core::mem::transmute::<&mut [T], &mut [Out]>(unsafe_alias_slice_mut(lhs)) };
-        for offs in (0..rhs.len()).step_by(lhs.len()) {
-            let end = offs + lhs.len();
-            binary(&lhs[offs..end], rhs, &mut out[offs..end], PhantomData::<Op>);
-        }
-        unsafe { core::mem::transmute::<ArrayD<T>, ArrayD<Out>>(buf) }
-    } else {
-        let mut out = unsafe { ArrayD::uninit(lhs.array.shape()).assume_init() };
-        let lhs = lhs.array.as_slice().unwrap();
-        let rhs = rhs.array.as_slice().unwrap();
-        let dst = out.as_slice_mut().unwrap();
-        for offs in (0..rhs.len()).step_by(lhs.len()) {
-            let end = offs + lhs.len();
-            binary(&lhs[offs..end], rhs, &mut dst[offs..end], PhantomData::<Op>);
-        }
         out
     };
     NdArrayTensor::new(out.into_shared())
